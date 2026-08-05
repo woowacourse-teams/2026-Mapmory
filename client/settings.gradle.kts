@@ -16,7 +16,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Mapmory"
+rootProject.name = "MapmoryClient"
 
-include(":client:shared")
-include(":client:androidApp")
+include(":shared")
+include(":androidApp")

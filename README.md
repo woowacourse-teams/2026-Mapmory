@@ -14,8 +14,7 @@
 │   └── shared/         # Compose Multiplatform 공통 UI·상태·도메인 코드
 │
 ├── backend/            # API 서버·인증·DB·파일 저장소 연동
-├── docs/               # 환경 설정·API 명세·출시 문서
-├── gradle/             # 클라이언트 Gradle 버전 카탈로그
+├── docs/               # 프로젝트 공통 문서와 API 명세
 └── .github/            # 영역별 CI/CD
 ```
 
@@ -27,8 +26,8 @@
 client/*  ── HTTP/JSON API ──>  backend/*
 ```
 
-- 루트 Gradle 프로젝트에는 `client/shared`와 `client/androidApp`만 포함합니다.
-- `backend`는 별도의 빌드 프로젝트와 의존성 파일을 가집니다.
+- 저장소 루트에는 공통 Gradle 설정을 두지 않습니다.
+- `client`와 `backend`가 각각 자체 `settings.gradle.kts`, Gradle Wrapper와 의존성 버전을 관리합니다.
 - Android/iOS 코드가 Backend 소스 파일을 직접 import하지 않습니다.
 - Backend는 API 계약을 통해서만 클라이언트와 통신합니다.
 - API 요청·응답 모델은 우선 각 영역에서 별도로 관리하고, 필요할 때 OpenAPI 또는 명세 문서로 동기화합니다.
@@ -40,7 +39,8 @@ client/*  ── HTTP/JSON API ──>  backend/*
 
 ```bash
 # Android / 공통 클라이언트
-./gradlew :client:androidApp:assembleDebug
+cd client
+./gradlew :androidApp:assembleDebug
 
 # Backend
 cd backend
@@ -51,9 +51,10 @@ iOS는 `client/iosApp`을 Xcode에서 열어 실행합니다.
 
 ## 문서
 
-- [클라이언트 환경](docs/client-environment.md)
-- [Android 빌드·릴리스 기준](client/androidApp/README.md)
-- [iOS 빌드·릴리스 기준](client/iosApp/README.md)
+- [클라이언트 안내](client/README.md)
+- [클라이언트 환경](client/docs/environment.md)
+- [iOS 환경](client/iosApp/README.md)
+- [Backend 안내](backend/README.md)
 
 ## 팀 운영 원칙
 

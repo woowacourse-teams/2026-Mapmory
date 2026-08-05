@@ -23,6 +23,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":client:shared"))
+    implementation(project(":shared"))
     implementation("androidx.activity:activity-compose:1.11.0")
 }
