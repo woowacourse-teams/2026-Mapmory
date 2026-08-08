@@ -49,9 +49,20 @@ fun TripRecordEditorScreen(
     onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val provinces = locations.filter { it.type == LocationType.PROVINCE }
-    var selectedProvinceId by remember(uiState.selectedLocation?.parentId) {
-        mutableStateOf(uiState.selectedLocation?.parentId ?: provinces.firstOrNull()?.id)
+    val provinces = locations.filter {
+        it.type == LocationType.PROVINCE && it.countryId == KoreaCountryId
+    }
+    val selectedMapCountry = uiState.selectedLocation?.takeIf {
+        it.type == LocationType.PROVINCE && it.countryId != KoreaCountryId
+    }
+    var selectedProvinceId by remember(uiState.selectedLocation?.id, uiState.selectedLocation?.parentId) {
+        mutableStateOf(
+            when (uiState.selectedLocation?.type) {
+                LocationType.PROVINCE -> uiState.selectedLocation.id
+                LocationType.DISTRICT -> uiState.selectedLocation.parentId
+                null -> provinces.firstOrNull()?.id
+            },
+        )
     }
 
     TripRecordBackground(modifier = modifier) {
@@ -127,6 +138,13 @@ fun TripRecordEditorScreen(
                             .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        selectedMapCountry?.let { country ->
+                            EditorChoiceChip(
+                                text = country.name,
+                                selected = true,
+                                onClick = {},
+                            )
+                        }
                         provinces.forEach { province ->
                             EditorChoiceChip(
                                 text = province.name,
@@ -243,3 +261,6 @@ private fun EditorChoiceChip(
             .padding(horizontal = 13.dp, vertical = 9.dp),
     )
 }
+
+
+private const val KoreaCountryId = 1L

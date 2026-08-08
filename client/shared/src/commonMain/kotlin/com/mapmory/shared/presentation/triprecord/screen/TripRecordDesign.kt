@@ -28,11 +28,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 
 internal object TripRecordPalette {
     val background = Color(0xFF07171B)
@@ -292,107 +291,5 @@ internal fun TripPhotoPlaceholder(
 fun TripMapArtwork(
     modifier: Modifier = Modifier,
 ) {
-    Canvas(
-        modifier = modifier
-            .fillMaxSize()
-            .background(TripRecordPalette.background),
-    ) {
-        val scaleX = size.width / 320f
-        val scaleY = size.height / 500f
-        fun point(x: Float, y: Float) = Offset(x * scaleX, y * scaleY)
-
-        val peninsula = Path().apply {
-            moveTo(point(188f, 42f))
-            lineTo(point(218f, 58f))
-            lineTo(point(224f, 91f))
-            lineTo(point(246f, 119f))
-            lineTo(point(235f, 147f))
-            lineTo(point(252f, 179f))
-            lineTo(point(237f, 213f))
-            lineTo(point(221f, 236f))
-            lineTo(point(226f, 274f))
-            lineTo(point(205f, 296f))
-            lineTo(point(190f, 329f))
-            lineTo(point(164f, 338f))
-            lineTo(point(143f, 319f))
-            lineTo(point(119f, 325f))
-            lineTo(point(105f, 300f))
-            lineTo(point(82f, 288f))
-            lineTo(point(66f, 259f))
-            lineTo(point(73f, 225f))
-            lineTo(point(89f, 201f))
-            lineTo(point(95f, 164f))
-            lineTo(point(119f, 145f))
-            lineTo(point(135f, 113f))
-            lineTo(point(161f, 96f))
-            lineTo(point(164f, 64f))
-            close()
-        }
-        drawPath(peninsula, color = Color(0xFF112B32), style = Fill)
-        drawPath(
-            peninsula,
-            color = Color(0xFF254049),
-            style = Stroke(width = size.minDimension * 0.008f),
-        )
-
-        val highlightedSouth = Path().apply {
-            moveTo(point(75f, 228f))
-            lineTo(point(91f, 208f))
-            lineTo(point(110f, 217f))
-            lineTo(point(126f, 203f))
-            lineTo(point(145f, 220f))
-            lineTo(point(161f, 246f))
-            lineTo(point(153f, 274f))
-            lineTo(point(133f, 285f))
-            lineTo(point(112f, 274f))
-            lineTo(point(93f, 282f))
-            lineTo(point(79f, 263f))
-            close()
-        }
-        drawPath(highlightedSouth, color = Color(0xFFB8F2D1), style = Fill)
-        drawPath(
-            highlightedSouth,
-            color = Color(0xFF9FE8BF),
-            style = Stroke(width = size.minDimension * 0.006f),
-        )
-
-        val provinceLines = listOf(
-            listOf(164f to 64f, 170f to 116f, 154f to 160f, 145f to 220f),
-            listOf(119f to 145f, 153f to 160f, 191f to 151f, 235f to 147f),
-            listOf(89f to 201f, 126f to 203f, 161f to 193f, 221f to 182f),
-            listOf(66f to 259f, 112f to 274f, 153f to 274f, 190f to 246f),
-            listOf(135f to 113f, 145f to 160f, 126f to 203f, 133f to 285f),
-        )
-        provinceLines.forEach { line ->
-            val path = Path().apply {
-                line.forEachIndexed { index, (x, y) ->
-                    if (index == 0) moveTo(point(x, y)) else lineTo(point(x, y))
-                }
-            }
-            drawPath(
-                path,
-                color = Color(0xFF1C353D),
-                style = Stroke(width = size.minDimension * 0.004f),
-            )
-        }
-
-        drawOval(
-            color = Color(0xFF74E7B2),
-            topLeft = point(109f, 360f),
-            size = androidx.compose.ui.geometry.Size(38f * scaleX, 15f * scaleY),
-        )
-        drawOval(
-            color = Color(0xFF1C353D),
-            topLeft = point(80f, 184f),
-            size = androidx.compose.ui.geometry.Size(7f * scaleX, 4f * scaleY),
-        )
-    }
-}
-
-private fun Path.moveTo(point: Offset) {
-    moveTo(point.x, point.y)
-}
-
-private fun Path.lineTo(point: Offset) {
-    lineTo(point.x, point.y)
+    KoreaMapArtwork(modifier = modifier)
 }
