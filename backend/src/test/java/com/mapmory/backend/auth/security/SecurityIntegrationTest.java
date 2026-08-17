@@ -53,7 +53,7 @@ class SecurityIntegrationTest extends IntegrationTest {
 
     @Test
     void 만료된_토큰이면_401과_EXPIRED_ACCESS_TOKEN을_응답한다() throws Exception {
-        String expiredToken = new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1)))
+        String expiredToken = new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14)))
                 .issueAccessToken(7L);
 
         mockMvc.perform(get("/test/secured").header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredToken))

@@ -12,7 +12,7 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0006](0006-use-problem-details-for-api-errors.md) | API 오류 응답에 Problem Details 사용 | 채택 |
 | [0007](0007-travel-record-country-and-location.md) | 여행 기록의 국가와 세부 지역 저장 방식 | 대체됨 (ADR 0008) |
 | [0008](0008-unify-country-and-location-as-region.md) | 국가와 행정구역을 Region 계층으로 통합 | 채택 |
-| [0009](0009-authentication-with-spring-security-and-jwt.md) | 인증·인가에 Spring Security와 자체 JWT 사용 | 채택 |
-
-- 10번 고민
 | [0009](0009-region-map-summary-api.md) | Region 지도 요약 API와 테스트 범위 | 채택 | 
+| [0010](0009-authentication-with-spring-security-and-jwt.md) | 인증·인가에 Spring Security와 자체 JWT 사용 | 채택 |
+| [0011](0010-social-login-and-member-identifier.md) | 소셜 로그인(카카오 토큰 검증)과 회원 식별자 분리 | 채택 |
+| [0012](0011-refresh-token-rotation.md) | refresh 토큰 해시 저장·회전·폐기와 재사용 감지 | 채택 |
