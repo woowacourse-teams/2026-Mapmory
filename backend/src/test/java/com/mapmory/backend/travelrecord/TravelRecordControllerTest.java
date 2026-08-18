@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.common.ProblemDetailFactory;
-import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
@@ -18,13 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class TravelRecordControllerTest {
@@ -67,17 +59,5 @@ class TravelRecordControllerTest {
                 TravelRecordResponse.of(new CreateTravelRecordResponse(1L))
         );
         verify(travelRecordService).create(10L, request);
-    }
-
-    @Test
-    void rejectsRequestWithoutMemberIdHeader() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(travelRecordController)
-                .setControllerAdvice(new ValidationExceptionHandler(new ProblemDetailFactory()))
-                .build();
-
-        mockMvc.perform(get("/api/v1/travel-records"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.errors[0].field").value("X-Member-Id"));
     }
 }

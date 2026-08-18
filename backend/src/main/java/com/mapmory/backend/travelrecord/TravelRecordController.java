@@ -5,7 +5,6 @@ import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -16,10 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.validation.annotation.Validated;
 
 @RestController
-@Validated
 @RequestMapping("/api/v1")
 public class TravelRecordController {
 
@@ -31,7 +28,7 @@ public class TravelRecordController {
 
     @PostMapping("/travel-records")
     public ResponseEntity<TravelRecordResponse<CreateTravelRecordResponse>> create(
-            @RequestHeader("X-Member-Id") @Positive Long memberId,
+            @LoginMemberId Long memberId,
             @Valid @RequestBody TravelRecordRequest travelRecordRequest
     ) {
         TravelRecord travelRecord = travelRecordService.create(memberId, travelRecordRequest);
@@ -43,7 +40,7 @@ public class TravelRecordController {
 
     @GetMapping("/travel-records")
     public ResponseEntity<TravelRecordResponse<TravelRecordListResponse>> findAll(
-            @RequestHeader("X-Member-Id") @Positive Long memberId,
+            @LoginMemberId Long memberId,
             @RequestParam(required = false) String countryCode,
             @RequestParam(required = false) String provinceCode,
             @RequestParam(required = false) String districtCode,
