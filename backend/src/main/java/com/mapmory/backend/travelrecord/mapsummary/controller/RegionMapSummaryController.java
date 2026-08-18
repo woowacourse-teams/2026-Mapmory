@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.mapsummary.controller;
 
+import com.mapmory.backend.auth.security.LoginMemberId;
 import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.travelrecord.mapsummary.dto.RegionMapSummaryResponse;
 import com.mapmory.backend.travelrecord.mapsummary.service.RegionMapSummaryService;
@@ -8,7 +9,6 @@ import java.util.List;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,19 +24,13 @@ public class RegionMapSummaryController {
     }
 
     @GetMapping("/roots")
-    public ApiResponse<List<RegionMapSummaryResponse>> getRootSummaries(
-            @RequestHeader("X-Member-Id")
-            @Positive(message = "회원 ID는 양수여야 합니다.")
-            Long memberId
-    ) {
+    public ApiResponse<List<RegionMapSummaryResponse>> getRootSummaries(@LoginMemberId Long memberId) {
         return ApiResponse.from(regionMapSummaryService.getSummaries(memberId, null));
     }
 
     @GetMapping("/{regionId}/children")
     public ApiResponse<List<RegionMapSummaryResponse>> getChildSummaries(
-            @RequestHeader("X-Member-Id")
-            @Positive(message = "회원 ID는 양수여야 합니다.")
-            Long memberId,
+            @LoginMemberId Long memberId,
             @PathVariable
             @Positive(message = "지역 ID는 양수여야 합니다.")
             Long regionId
