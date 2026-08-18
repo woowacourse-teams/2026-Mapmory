@@ -43,8 +43,10 @@
 ## Information architecture
 
 - Primary navigation: 하단 탭 `지도 · 기록 · 작성 · 내 정보`
+- Prototype navigation: 시연용 웹 프로토타입은 하단 탭 `지도 · 일지 · 통계`를 사용한다.
 - Core routes/screens:
   - 온보딩 3종: 지도 가치 소개 → 지역과 기록 → 사진은 선택
+  - 지도 최초 진입 코치 마크: 필터 → 방문 지역 → 기록 작성 → 하단 메뉴
   - 기록 목록
   - 기록 상세
   - 기록 작성·수정
@@ -75,13 +77,13 @@
 - Spacing/layout rhythm: `4 / 8 / 12 / 16 / 20 / 24 / 32 px`
 - Shape/radius/elevation: 카드 20 px 이하, 입력·버튼 14 px, 칩·필 9999 px. 화면 캔버스 외곽은 각진 형태. 그림자는 최소화한다.
 - Motion: 현재 정적 시안만 정의한다. 실제 구현 시에는 전환과 선택 상태에 짧고 절제된 모션만 사용한다.
-- Imagery/iconography: 사진은 기록의 맥락을 보강할 때만 사용한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
+- Imagery/iconography: 온보딩은 실제 앱 화면 캡처를 우선 사용해 사용자가 도착할 화면을 이해하게 한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
 
 ## Components
 
 - Existing components to reuse:
   - 앱의 `TripRecordPalette`, `TripRecordTopBar`, `TripBottomBar`
-  - 온보딩의 Skip link, Indicator, Primary button
+  - 온보딩의 Skip link, Indicator, Primary button, 실제 앱 화면 미리보기
 - New/changed components:
   - 여행 기록 카드
   - 위치·날짜 칩
@@ -114,6 +116,7 @@
 - Empty: 사진 없이 기록을 만들 수 있고, 기록·방문 지역이 없을 때 다음 행동을 안내한다.
 - Error: 네트워크·저장 실패는 원인과 재시도 행동을 짧게 안내한다.
 - Success: 기록 저장 뒤 목록 또는 상세 화면에서 결과를 확인할 수 있어야 한다.
+- First entry: 지도 코치 마크는 최초 진입 시 한 번만 표시하고 닫기 행동을 제공한다.
 - Disabled: 유효하지 않은 입력에서는 저장 행동을 비활성화하고 이유를 알린다.
 - Offline/slow network: 네트워크 의존 화면은 연결 상태와 재시도 경로를 제공한다.
 
@@ -138,4 +141,5 @@
 - [ ] 지도에서 방문·선택·미방문 지역을 어떻게 구분할지와 접근성 라벨 결정
 - [ ] 지도 확대/축소, 지구본 전환, 필터의 실제 동작과 API 계약 결정
 - [ ] 최종 폰트 파일 및 CMP 적용 방식 결정
-- [ ] 온보딩 완료 여부 저장 위치와 재노출 정책 결정
+- [ ] 소개형 온보딩과 지도 코치 마크의 완료 여부 저장 위치 및 다시 보기 제공 여부 결정
+- [ ] 앱의 4개 탭과 웹 프로토타입의 3개 탭 중 최종 정보 구조 확정

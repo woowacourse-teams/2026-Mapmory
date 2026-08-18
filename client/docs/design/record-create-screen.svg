@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Mapmory 기록 작성 화면</title>
+  <desc id="desc">여행 제목, 사진, 장소, 날짜, 태그와 기록을 입력하는 다크 모드 화면</desc>
+  <defs>
+    <linearGradient id="photo-sunset" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4e6d82"/>
+      <stop offset="0.55" stop-color="#f2a76e"/>
+      <stop offset="1" stop-color="#26343e"/>
+    </linearGradient>
+    <linearGradient id="photo-mountain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d5b77a"/>
+      <stop offset="0.48" stop-color="#4c5f6b"/>
+      <stop offset="1" stop-color="#162934"/>
+    </linearGradient>
+    <linearGradient id="photo-lake" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#b4746e"/>
+      <stop offset="0.42" stop-color="#435b71"/>
+      <stop offset="1" stop-color="#101f2b"/>
+    </linearGradient>
+    <clipPath id="photo-clip-1"><rect x="20" y="196" width="104" height="76" rx="10"/></clipPath>
+    <clipPath id="photo-clip-2"><rect x="132" y="196" width="104" height="76" rx="10"/></clipPath>
+    <clipPath id="photo-clip-3"><rect x="244" y="196" width="104" height="76" rx="10"/></clipPath>
+  </defs>
+
+  <g id="record-create-screen" data-component="screen">
+    <rect id="screen-background" data-component="background" width="390" height="844" fill="#07171B"/>
+
+    <g id="top-app-bar" data-component="top-app-bar">
+      <line id="top-app-bar-divider" x1="0" y1="63.5" x2="390" y2="63.5" stroke="#1B363E" stroke-opacity="0.75"/>
+      <g id="back-button" data-component="icon-button" aria-label="뒤로 가기">
+        <circle cx="40" cy="32" r="22" fill="#0C2026" stroke="#1B363E"/>
+        <path d="M47 32H33M33 32L39 26M33 32L39 38" fill="none" stroke="#E9F4F2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <text id="screen-title" x="195" y="38" fill="#E9F4F2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="16" font-weight="700" text-anchor="middle">새 기록 작성</text>
+      <text id="complete-action" data-component="text-button" x="370" y="37" fill="#19E5A2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="700" text-anchor="end">완료</text>
+    </g>
+
+    <g id="record-form" data-component="form">
+      <g id="title-field" data-component="form-field" data-type="text">
+        <text x="20" y="95" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">제목</text>
+        <rect x="20" y="105" width="350" height="56" rx="14" fill="#0C2026" stroke="#1B363E"/>
+        <text x="34" y="139" fill="#E9F4F2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="12">여수 맛집 여행</text>
+      </g>
+
+      <g id="photo-field" data-component="photo-field">
+        <text x="20" y="185" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">여행 사진</text>
+        <g id="photo-row" data-component="photo-row">
+          <g id="photo-1" data-component="photo-thumb" clip-path="url(#photo-clip-1)">
+            <rect x="20" y="196" width="104" height="76" fill="url(#photo-sunset)"/>
+            <circle cx="79" cy="222" r="12" fill="#FFD18C" fill-opacity="0.8"/>
+            <path d="M20 260L51 239L67 250L91 227L124 258V272H20Z" fill="#1B3039" fill-opacity="0.9"/>
+            <path d="M20 264L56 248L81 259L104 242L124 260V272H20Z" fill="#0D2029" fill-opacity="0.9"/>
+          </g>
+          <g id="photo-2" data-component="photo-thumb" clip-path="url(#photo-clip-2)">
+            <rect x="132" y="196" width="104" height="76" fill="url(#photo-mountain)"/>
+            <path d="M132 258L160 228L178 243L198 211L236 258V272H132Z" fill="#263E4A"/>
+            <path d="M132 264L168 246L189 253L211 231L236 258V272H132Z" fill="#10252F"/>
+            <path d="M198 211L207 224L213 220L218 227L224 223L236 239V196H132V209Z" fill="#E7C98B" fill-opacity="0.35"/>
+          </g>
+          <g id="photo-3" data-component="photo-thumb" clip-path="url(#photo-clip-3)">
+            <rect x="244" y="196" width="104" height="76" fill="url(#photo-lake)"/>
+            <path d="M244 239L264 219L277 229L298 205L348 246V272H244Z" fill="#1C3441"/>
+            <path d="M244 251L278 237L301 247L321 234L348 252V272H244Z" fill="#0C222C"/>
+            <path d="M244 258H348V272H244Z" fill="#3A7C82" fill-opacity="0.75"/>
+          </g>
+        </g>
+      </g>
+
+      <g id="location-field" data-component="form-field" data-type="select">
+        <text x="20" y="305" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">장소</text>
+        <rect x="20" y="315" width="350" height="48" rx="14" fill="#0C2026" stroke="#1B363E"/>
+        <text x="34" y="345" fill="#E9F4F2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="12">대한민국 · 여수</text>
+        <path d="M352 336L356 340L360 336" fill="none" stroke="#81999E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+
+      <g id="date-field" data-component="form-field" data-type="date">
+        <text x="20" y="391" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">여행 날짜</text>
+        <rect x="20" y="401" width="350" height="48" rx="14" fill="#0C2026" stroke="#1B363E"/>
+        <text x="34" y="431" fill="#E9F4F2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="12">2026.08.05</text>
+        <g id="calendar-icon" data-component="icon">
+          <rect x="350" y="416" width="12" height="11" rx="1" fill="none" stroke="#81999E" stroke-width="1.4"/>
+          <line x1="350" y1="419" x2="362" y2="419" stroke="#81999E" stroke-width="1.4"/>
+          <line x1="353" y1="414" x2="353" y2="418" stroke="#81999E" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="359" y1="414" x2="359" y2="418" stroke="#81999E" stroke-width="1.4" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <g id="tag-field" data-component="tag-field">
+        <text x="20" y="477" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">태그</text>
+        <g id="tag-chip-food" data-component="chip">
+          <rect x="20" y="487" width="52" height="24" rx="999" fill="#0C2026" stroke="#1B363E"/>
+          <circle cx="28" cy="499" r="2.5" fill="#19E5A2"/>
+          <text x="37" y="503" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="10">#맛집</text>
+        </g>
+        <g id="tag-chip-yeosu" data-component="chip">
+          <rect x="80" y="487" width="52" height="24" rx="999" fill="#0C2026" stroke="#1B363E"/>
+          <circle cx="88" cy="499" r="2.5" fill="#19E5A2"/>
+          <text x="97" y="503" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="10">#여수</text>
+        </g>
+      </g>
+
+      <g id="content-field" data-component="form-field" data-type="textarea">
+        <text x="20" y="539" fill="#81999E" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="600">기록</text>
+        <rect x="20" y="549" width="350" height="102" rx="14" fill="#0C2026" stroke="#1B363E"/>
+        <text x="34" y="579" fill="#E9F4F2" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="12">가서 먹기만 했다..!</text>
+      </g>
+
+      <g id="save-button" data-component="primary-button">
+        <rect x="20" y="679" width="350" height="54" rx="14" fill="#19E5A2"/>
+        <text x="195" y="712" fill="#07171B" font-family="Be Vietnam Pro, Pretendard, Apple SD Gothic Neo, sans-serif" font-size="15" font-weight="800" text-anchor="middle">기록 저장</text>
+      </g>
+    </g>
+  </g>
+</svg>
