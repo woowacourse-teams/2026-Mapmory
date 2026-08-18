@@ -47,8 +47,8 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REQUEST_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.isNewMember").value(true));
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.isNewMember").value(true));
 
         assertThat(memberRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "100001"))
                 .isPresent();
@@ -63,13 +63,13 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REQUEST_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isNewMember").value(true));
+                .andExpect(jsonPath("$.data.isNewMember").value(true));
 
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REQUEST_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isNewMember").value(false));
+                .andExpect(jsonPath("$.data.isNewMember").value(false));
     }
 
     @Test

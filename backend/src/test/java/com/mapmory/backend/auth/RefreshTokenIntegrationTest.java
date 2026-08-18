@@ -49,8 +49,8 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
 
         mockMvc.perform(refreshRequest(refreshToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty());
 
         // 회전된(폐기된) 이전 refresh 재사용 → 401
         mockMvc.perform(refreshRequest(refreshToken))
@@ -91,7 +91,7 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        return JsonPath.read(responseBody, "$.refreshToken");
+        return JsonPath.read(responseBody, "$.data.refreshToken");
     }
 
     private MockHttpServletRequestBuilder refreshRequest(String refreshToken) {
