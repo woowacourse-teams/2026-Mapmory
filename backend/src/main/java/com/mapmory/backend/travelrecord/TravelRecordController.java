@@ -9,7 +9,6 @@ import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -52,18 +51,19 @@ public class TravelRecordController {
             @RequestParam(required = false) String countryCode,
             @RequestParam(required = false) String provinceCode,
             @RequestParam(required = false) String districtCode,
+            @RequestParam(required = false) @Positive Long tagId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        Page<TravelRecord> travelRecords = travelRecordService.findAll(
+        TravelRecordListResponse response = travelRecordService.findAll(
                 member,
                 countryCode,
                 provinceCode,
                 districtCode,
+                tagId,
                 page,
                 size
         );
-        TravelRecordListResponse response = TravelRecordListResponse.from(travelRecords);
 
         return ResponseEntity.ok(TravelRecordResponse.of(response));
     }

@@ -1,13 +1,17 @@
 package com.mapmory.backend.travelrecord;
 
-import com.mapmory.backend.member.Member;
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.member.Member;
 import com.mapmory.backend.recordmedia.RecordMedia;
 import com.mapmory.backend.recordmedia.RecordMediaRepository;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
+import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.tag.dto.TagSummaryResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
+import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
+import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
+import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,15 +34,21 @@ public class TravelRecordService {
     private final TravelRecordRepository travelRecordRepository;
     private final RegionResolver regionResolver;
     private final RecordMediaRepository recordMediaRepository;
+    private final TravelRecordTagService travelRecordTagService;
+    private final TagService tagService;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
             RegionResolver regionResolver,
-            RecordMediaRepository recordMediaRepository
+            RecordMediaRepository recordMediaRepository,
+            TravelRecordTagService travelRecordTagService,
+            TagService tagService
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
         this.recordMediaRepository = recordMediaRepository;
+        this.travelRecordTagService = travelRecordTagService;
+        this.tagService = tagService;
     }
 
     @Transactional
@@ -59,6 +69,7 @@ public class TravelRecordService {
         );
 
         TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
+        travelRecordTagService.replace(member, savedTravelRecord, request.tagIds());
 
         List<String> objectKeys = request.objectKeys() == null ? List.of() : request.objectKeys();
 
@@ -84,7 +95,11 @@ public class TravelRecordService {
         List<RecordMedia> recordMedia = recordMediaRepository
                 .findByTravelRecordIdOrderBySortOrderAsc(travelRecordId);
 
-        return TravelRecordDetailResponse.from(travelRecord, recordMedia);
+        return TravelRecordDetailResponse.from(
+                travelRecord,
+                recordMedia,
+                travelRecordTagService.findByTravelRecordId(travelRecordId)
+        );
     }
 
     @Transactional
@@ -111,10 +126,11 @@ public class TravelRecordService {
                 request.endDate()
         );
         List<RecordMedia> updatedMedia = synchronizeMedia(travelRecord, existingMedia, objectKeys);
+        List<TagSummaryResponse> tags = travelRecordTagService.replace(member, travelRecord, request.tagIds());
 
         travelRecordRepository.flush();
 
-        return TravelRecordDetailResponse.from(travelRecord, updatedMedia);
+        return TravelRecordDetailResponse.from(travelRecord, updatedMedia, tags);
     }
 
     @Transactional
@@ -126,39 +142,61 @@ public class TravelRecordService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TravelRecord> findAll(Member member, String countryCode, String provinceCode, String districtCode, int page, int size) {
+    public TravelRecordListResponse findAll(
+            Member member,
+            String countryCode,
+            String provinceCode,
+            String districtCode,
+            Long tagId,
+            int page,
+            int size
+    ) {
         validateRegionCodeFormat(countryCode, provinceCode, districtCode);
         validateRegionFilterHierarchy(countryCode, provinceCode, districtCode);
         validatePagination(page, size);
         Long memberId = member.getId();
         Pageable pageable = createPageable(page, size);
+        if (tagId != null) {
+            tagService.getOwnedTag(member, tagId);
+        }
+
+        Page<TravelRecord> travelRecords;
 
         if (countryCode == null) {
-            return travelRecordRepository.findByMemberId(memberId, pageable);
+            travelRecords = travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable);
+        } else {
+            Region region = regionResolver.resolve(countryCode, provinceCode, districtCode);
+            if (provinceCode == null) {
+                travelRecords = travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
+                        memberId,
+                        region.getId(),
+                        tagId,
+                        pageable
+                );
+            } else if (districtCode == null) {
+                travelRecords = travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
+                        memberId,
+                        region.getId(),
+                        tagId,
+                        pageable
+                );
+            } else {
+                travelRecords = travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
+                        memberId,
+                        region.getId(),
+                        tagId,
+                        pageable
+                );
+            }
         }
 
-        Region region = regionResolver.resolve(countryCode, provinceCode, districtCode);
-
-        if (provinceCode == null) {
-            return travelRecordRepository.findByMemberIdAndCountryId(
-                    memberId,
-                    region.getId(),
-                    pageable
-            );
-        }
-
-        if (districtCode == null) {
-            return travelRecordRepository.findByMemberIdAndProvinceId(
-                    memberId,
-                    region.getId(),
-                    pageable
-            );
-        }
-
-        return travelRecordRepository.findByMemberIdAndRegionId(
-                memberId,
-                region.getId(),
-                pageable
+        Map<Long, List<TagSummaryResponse>> tagsByTravelRecordId =
+                travelRecordTagService.findByTravelRecordIds(
+                        travelRecords.getContent().stream().map(TravelRecord::getId).toList()
+                );
+        return TravelRecordListResponse.from(
+                travelRecords,
+                tagsByTravelRecordId
         );
     }
 

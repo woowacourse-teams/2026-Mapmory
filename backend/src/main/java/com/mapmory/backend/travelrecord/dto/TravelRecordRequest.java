@@ -15,6 +15,19 @@ public record TravelRecordRequest(
         @NotNull
         LocalDate startDate,
         LocalDate endDate,
-        List<String> objectKeys
+        List<String> objectKeys,
+        List<Long> tagIds
 ) {
+    public TravelRecordRequest(
+            String countryCode,
+            String provinceCode,
+            String districtCode,
+            String title,
+            String content,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<String> objectKeys
+    ) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate, objectKeys, List.of());
+    }
 }
