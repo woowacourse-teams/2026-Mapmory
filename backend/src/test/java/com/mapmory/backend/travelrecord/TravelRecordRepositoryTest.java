@@ -10,6 +10,8 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
+import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.travelrecordtag.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -97,6 +99,35 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    void 선택한_태그가_연결된_여행_일지만_조회한다() {
+        Member member = memberRepository.save(Member.of("태그 조회 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(
+                Region.of(null, null, "XT", "태그 조회 국가", RegionType.COUNTRY)
+        );
+        Tag tag = Tag.of(member, "연인");
+        entityManager.persist(tag);
+        TravelRecord taggedRecord = travelRecordRepository.save(TravelRecord.of(
+                member, country, "태그 기록", "", LocalDate.of(2026, 8, 10), null
+        ));
+        travelRecordRepository.save(TravelRecord.of(
+                member, country, "태그 없는 기록", "", LocalDate.of(2026, 8, 11), null
+        ));
+        entityManager.persist(TravelRecordTag.of(taggedRecord, tag));
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<TravelRecord> result = travelRecordRepository.findByMemberIdAndOptionalTagId(
+                member.getId(),
+                tag.getId(),
+                PageRequest.of(0, 20)
+        );
+
+        assertThat(result.getContent())
+                .extracting(TravelRecord::getTitle)
+                .containsExactly("태그 기록");
     }
 
     @Test
