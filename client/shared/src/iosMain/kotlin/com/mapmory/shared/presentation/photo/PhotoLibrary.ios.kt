@@ -4,6 +4,7 @@ package com.mapmory.shared.presentation.photo
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import com.mapmory.shared.domain.model.Location
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.reinterpret
@@ -11,9 +12,7 @@ import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGImageRelease
-import platform.CoreLocation.CLGeocoder
-import platform.CoreLocation.CLPlacemark
-import platform.CoreLocation.CLLocation
+import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
@@ -29,12 +28,17 @@ import platform.Photos.PHAccessLevelReadWrite
 import platform.Photos.PHAsset
 import platform.Photos.PHAssetMediaTypeImage
 import platform.Photos.PHAssetResource
+import platform.Photos.PHAssetResourceManager
+import platform.Photos.PHAssetResourceRequestOptions
+import platform.Photos.PHAssetResourceTypePhoto
 import platform.Photos.PHAuthorizationStatusAuthorized
 import platform.Photos.PHAuthorizationStatusLimited
 import platform.Photos.PHAuthorizationStatusNotDetermined
 import platform.Photos.PHFetchOptions
 import platform.Photos.PHImageManager
+import platform.Photos.PHImageContentModeAspectFit
 import platform.Photos.PHImageRequestOptions
+import platform.Photos.PHImageRequestOptionsDeliveryModeHighQualityFormat
 import platform.Photos.PHImageRequestOptionsVersionCurrent
 import platform.Photos.PHPhotoLibrary
 import platform.PhotosUI.PHPickerConfiguration
@@ -50,6 +54,11 @@ import platform.UIKit.UIWindow
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 actual fun rememberPhotoLibraryActions(
@@ -57,7 +66,8 @@ actual fun rememberPhotoLibraryActions(
     onPhotosRecommended: (List<SelectedPhoto>) -> Unit,
     onMessage: (String) -> Unit,
 ): PhotoLibraryActions {
-    val controller = remember { IosPhotoLibraryController() }
+    val scope = rememberCoroutineScope()
+    val controller = remember(scope) { IosPhotoLibraryController(scope) }
     controller.onPhotosPicked = onPhotosPicked
     controller.onPhotosRecommended = onPhotosRecommended
     controller.onMessage = onMessage
@@ -66,15 +76,19 @@ actual fun rememberPhotoLibraryActions(
         PhotoLibraryActions(
             pickFromGallery = controller::presentPicker,
             recommendForLocation = controller::recommend,
+            prepareForAdding = controller::prepareForAdding,
         )
     }
 }
 
-private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDelegateProtocol {
+private class IosPhotoLibraryController(
+    private val scope: CoroutineScope,
+) : NSObject(), PHPickerViewControllerDelegateProtocol {
     var onPhotosPicked: (List<SelectedPhoto>) -> Unit = {}
     var onPhotosRecommended: (List<SelectedPhoto>) -> Unit = {}
     var onMessage: (String) -> Unit = {}
-    private var geocoder: CLGeocoder? = null
+    private var recommendationJob: Job? = null
+    private var recommendationGeneration = 0
 
     fun presentPicker() {
         val presenter = topViewController() ?: run {
@@ -83,7 +97,7 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
         }
         val configuration = PHPickerConfiguration(PHPhotoLibrary.sharedPhotoLibrary()).apply {
             filter = PHPickerFilter.imagesFilter
-            selectionLimit = MaxPhotosPerRecord.toLong()
+            selectionLimit = 0
         }
         val picker = PHPickerViewController(configuration)
         picker.delegate = this
@@ -113,19 +127,21 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun recommend(location: Location, parentName: String?) {
         val status = PHPhotoLibrary.authorizationStatusForAccessLevel(PHAccessLevelReadWrite)
         when (status) {
-            PHAuthorizationStatusAuthorized, PHAuthorizationStatusLimited -> {
-                findRecommendations(location, parentName)
+            PHAuthorizationStatusAuthorized -> {
+                findRecommendations(location)
             }
+            PHAuthorizationStatusLimited -> onMessage(FullGalleryAccessMessage)
             PHAuthorizationStatusNotDetermined -> {
                 PHPhotoLibrary.requestAuthorizationForAccessLevel(PHAccessLevelReadWrite) { newStatus ->
                     onMain {
-                        if (newStatus == PHAuthorizationStatusAuthorized || newStatus == PHAuthorizationStatusLimited) {
-                            findRecommendations(location, parentName)
-                        } else {
-                            onMessage("장소 기반 추천을 사용하려면 사진 접근을 허용해 주세요.")
+                        when (newStatus) {
+                            PHAuthorizationStatusAuthorized -> findRecommendations(location)
+                            PHAuthorizationStatusLimited -> onMessage(FullGalleryAccessMessage)
+                            else -> onMessage("장소 기반 추천을 사용하려면 사진 접근을 허용해 주세요.")
                         }
                     }
                 }
@@ -134,108 +150,63 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
         }
     }
 
-    private fun findRecommendations(location: Location, parentName: String?) {
-        geocoder?.cancelGeocode()
-        geocoder = CLGeocoder().also { activeGeocoder ->
-            activeGeocoder.geocodeAddressString(
-                location.recommendationSearchText(parentName),
-            ) { placemarks, _ ->
-                val targetLocation = (placemarks?.firstOrNull() as? CLPlacemark)?.location
-                if (targetLocation == null) {
-                    onMessage("선택한 장소의 위치를 확인하지 못했어요.")
-                    return@geocodeAddressString
+    private fun findRecommendations(location: Location) {
+        recommendationJob?.cancel()
+        val generation = ++recommendationGeneration
+        recommendationJob = scope.launch {
+            val region = withContext(Dispatchers.Default) {
+                runCatching { location.photoRecommendationRegion() }.getOrNull()
+            }
+            if (region == null) {
+                onMessage("선택한 장소의 경계를 확인하지 못했어요.")
+                return@launch
+            }
+            val matchingAssets = withContext(Dispatchers.Default) {
+                findAssetsInRegion(region)
+            }
+            if (generation != recommendationGeneration) return@launch
+            if (matchingAssets.isEmpty()) {
+                onPhotosRecommended(emptyList())
+            } else {
+                loadAssetPreviews(matchingAssets) { photos ->
+                    if (generation == recommendationGeneration) {
+                        onPhotosRecommended(photos)
+                    }
                 }
-                findNearbyAssets(
-                    targetLocation = targetLocation,
-                    radiusMeters = location.recommendationRadiusMeters(),
-                    target = location,
-                    parentName = parentName,
-                )
             }
         }
     }
 
-    private fun findNearbyAssets(
-        targetLocation: CLLocation,
-        radiusMeters: Double,
-        target: Location,
-        parentName: String?,
-    ) {
+    private fun findAssetsInRegion(region: PhotoRecommendationRegion): List<PHAsset> {
         val options = PHFetchOptions().apply {
             sortDescriptors = listOf(NSSortDescriptor("creationDate", ascending = false))
         }
         val result = PHAsset.fetchAssetsWithMediaType(PHAssetMediaTypeImage, options)
-        val candidates = buildList {
+        return buildList {
             for (index in 0 until result.count.toInt()) {
                 val asset = result.objectAtIndex(index.toULong()) as? PHAsset ?: continue
-                val assetLocation = asset.location ?: continue
-                val distance = assetLocation.distanceFromLocation(targetLocation)
-                if (distance <= radiusMeters) add(asset to distance)
+                val coordinate = asset.location?.coordinate ?: continue
+                val matches = coordinate.useContents {
+                    region.contains(latitude = latitude, longitude = longitude)
+                }
+                if (matches) add(asset)
+                if (size >= MaxRecommendedPhotos) break
             }
-        }
-            .sortedBy { it.second }
-            .take(MaxReverseGeocodeCandidates)
-            .map { it.first }
-
-        if (candidates.isEmpty()) {
-            onPhotosRecommended(emptyList())
-            return
-        }
-        filterAssetsBySelectedRegion(
-            assets = candidates,
-            target = target,
-            parentName = parentName,
-        ) { matchingAssets ->
-            if (matchingAssets.isEmpty()) {
-                onPhotosRecommended(emptyList())
-            } else {
-                loadAssets(matchingAssets, onPhotosRecommended)
-            }
-        }
-    }
-
-    private fun filterAssetsBySelectedRegion(
-        assets: List<PHAsset>,
-        target: Location,
-        parentName: String?,
-        index: Int = 0,
-        matches: List<PHAsset> = emptyList(),
-        completion: (List<PHAsset>) -> Unit,
-    ) {
-        if (index >= assets.size || matches.size >= MaxRecommendedPhotos) {
-            completion(matches.take(MaxRecommendedPhotos))
-            return
-        }
-        val asset = assets[index]
-        val assetLocation = asset.location
-        if (assetLocation == null) {
-            filterAssetsBySelectedRegion(assets, target, parentName, index + 1, matches, completion)
-            return
-        }
-        val activeGeocoder = geocoder ?: CLGeocoder().also { geocoder = it }
-        activeGeocoder.reverseGeocodeLocation(assetLocation) { placemarks, _ ->
-            val administrativeArea = (placemarks?.firstOrNull() as? CLPlacemark)
-                ?.toAdministrativeArea()
-            val nextMatches = if (administrativeArea?.matches(target, parentName) == true) {
-                matches + asset
-            } else {
-                matches
-            }
-            filterAssetsBySelectedRegion(
-                assets = assets,
-                target = target,
-                parentName = parentName,
-                index = index + 1,
-                matches = nextMatches,
-                completion = completion,
-            )
         }
     }
 
     private fun loadPickerResult(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
         val asset = result.assetIdentifier?.let(::assetForIdentifier)
         if (asset != null) {
-            loadAsset(asset, completion)
+            loadAssetPreview(asset) { preview ->
+                if (preview == null) {
+                    completion(null)
+                } else {
+                    prepareForAdding(listOf(preview)) { prepared ->
+                        completion(prepared.firstOrNull())
+                    }
+                }
+            }
             return
         }
         result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, _ ->
@@ -243,13 +214,14 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
                 onMain { completion(null) }
                 return@loadDataRepresentationForTypeIdentifier
             }
+            val originalBytes = data.toByteArray()
+            val previewBytes = data.toPreviewByteArray() ?: originalBytes
             onMain {
-                val originalBytes = data.toByteArray()
                 completion(
                     SelectedPhoto(
                         id = result.assetIdentifier ?: "ios-${data.hash}",
                         displayName = result.itemProvider.suggestedName ?: "여행 사진",
-                        previewBytes = data.toPreviewByteArray() ?: originalBytes,
+                        previewBytes = previewBytes,
                         originalBytes = originalBytes,
                     ),
                 )
@@ -257,44 +229,48 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
         }
     }
 
-    private fun loadAssets(assets: List<PHAsset>, completion: (List<SelectedPhoto>) -> Unit) {
+    private fun loadAssetPreviews(
+        assets: List<PHAsset>,
+        completion: (List<SelectedPhoto>) -> Unit,
+    ) {
         val loaded = MutableList<SelectedPhoto?>(assets.size) { null }
         var remaining = assets.size
         assets.forEachIndexed { index, asset ->
-            loadAsset(asset) { photo ->
+            loadAssetPreview(asset) { photo ->
                 loaded[index] = photo
                 remaining -= 1
-                if (remaining == 0) completion(loaded.filterNotNull())
+                val available = loaded.filterNotNull()
+                if (available.isNotEmpty() || remaining == 0) {
+                    completion(available)
+                }
             }
         }
     }
 
-    private fun loadAsset(asset: PHAsset, completion: (SelectedPhoto?) -> Unit) {
+    private fun loadAssetPreview(asset: PHAsset, completion: (SelectedPhoto?) -> Unit) {
         val options = PHImageRequestOptions().apply {
             version = PHImageRequestOptionsVersionCurrent
+            deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
             networkAccessAllowed = true
         }
         var didComplete = false
-        PHImageManager.defaultManager().requestImageDataAndOrientationForAsset(
+        PHImageManager.defaultManager().requestImageForAsset(
             asset = asset,
+            targetSize = CGSizeMake(PreviewSizePx.toDouble(), PreviewSizePx.toDouble()),
+            contentMode = PHImageContentModeAspectFit,
             options = options,
-        ) { data, _, _, _ ->
+        ) { image, _ ->
             val coordinate = asset.location?.coordinate
             val latitude = coordinate?.useContents { latitude }
             val longitude = coordinate?.useContents { longitude }
-            val previewBytes = data
-                ?.takeIf { it.length > 0UL }
-                ?.toPreviewByteArray()
-            val originalBytes = data
-                ?.takeIf { it.length > 0UL }
+            val previewBytes = image
+                ?.let { UIImageJPEGRepresentation(it, PreviewJpegQuality) }
                 ?.toByteArray()
             onMain {
-                // requestImageDataAndOrientationForAsset invokes its result handler once.
-                // Keep completion serialized on the main queue with the other photo paths.
                 if (didComplete) return@onMain
                 didComplete = true
                 completion(
-                    data?.takeIf { it.length > 0UL }?.let {
+                    previewBytes?.let {
                         SelectedPhoto(
                             id = asset.localIdentifier,
                             displayName = asset.displayName(),
@@ -302,12 +278,75 @@ private class IosPhotoLibraryController : NSObject(), PHPickerViewControllerDele
                             latitude = latitude,
                             longitude = longitude,
                             capturedAt = asset.creationDate?.formattedPhotoDate(),
-                            originalBytes = originalBytes,
                         )
                     },
                 )
             }
         }
+    }
+
+    fun prepareForAdding(
+        photos: List<SelectedPhoto>,
+        completion: (List<SelectedPhoto>) -> Unit,
+    ) {
+        if (photos.isEmpty()) {
+            completion(emptyList())
+            return
+        }
+
+        val prepared = MutableList<SelectedPhoto?>(photos.size) { null }
+        var remaining = photos.size
+        fun completeOne(index: Int, photo: SelectedPhoto?) {
+            prepared[index] = photo
+            remaining -= 1
+            if (remaining == 0) {
+                val result = prepared.filterNotNull()
+                completion(result)
+                if (result.size != photos.size) {
+                    onMessage("일부 사진의 원본을 읽지 못했어요.")
+                }
+            }
+        }
+
+        photos.forEachIndexed { index, photo ->
+            if (photo.originalBytes != null) {
+                completeOne(index, photo)
+                return@forEachIndexed
+            }
+            val asset = assetForIdentifier(photo.id)
+            if (asset == null) {
+                completeOne(index, null)
+                return@forEachIndexed
+            }
+            loadOriginalBytes(asset) { bytes ->
+                completeOne(index, bytes?.let { photo.copy(originalBytes = it) })
+            }
+        }
+    }
+
+    private fun loadOriginalBytes(asset: PHAsset, completion: (ByteArray?) -> Unit) {
+        val resources = PHAssetResource.assetResourcesForAsset(asset)
+            .filterIsInstance<PHAssetResource>()
+        val resource = resources.firstOrNull { it.type == PHAssetResourceTypePhoto }
+            ?: resources.firstOrNull()
+        if (resource == null) {
+            completion(null)
+            return
+        }
+
+        val chunks = mutableListOf<ByteArray>()
+        val options = PHAssetResourceRequestOptions().apply {
+            networkAccessAllowed = true
+        }
+        PHAssetResourceManager.defaultManager().requestDataForAssetResource(
+            resource,
+            options,
+            dataReceivedHandler = { data -> data?.let { chunks += it.toByteArray() } },
+            completionHandler = { error ->
+                val bytes = if (error == null) chunks.joinToByteArray() else null
+                onMain { completion(bytes) }
+            },
+        )
     }
 
     private fun assetForIdentifier(identifier: String): PHAsset? =
@@ -319,14 +358,6 @@ private fun PHAsset.displayName(): String =
         ?.originalFilename
         ?: "여행 사진"
 
-private fun CLPlacemark.toAdministrativeArea(): PhotoAdministrativeArea = PhotoAdministrativeArea(
-    countryCode = ISOcountryCode,
-    administrativeArea = administrativeArea,
-    subAdministrativeArea = subAdministrativeArea,
-    locality = locality,
-    subLocality = subLocality,
-)
-
 private fun NSDate.formattedPhotoDate(): String = NSDateFormatter().run {
     dateFormat = "yyyy.MM.dd"
     stringFromDate(this@formattedPhotoDate)
@@ -337,6 +368,16 @@ private fun NSData.toByteArray(): ByteArray {
     return ByteArray(length.toInt()).also { bytes ->
         bytes.usePinned { pinned -> getBytes(pinned.addressOf(0), length) }
     }
+}
+
+private fun List<ByteArray>.joinToByteArray(): ByteArray {
+    val result = ByteArray(sumOf(ByteArray::size))
+    var offset = 0
+    forEach { chunk ->
+        chunk.copyInto(result, destinationOffset = offset)
+        offset += chunk.size
+    }
+    return result
 }
 
 private fun NSData.toPreviewByteArray(): ByteArray? {
@@ -387,7 +428,7 @@ private fun onMain(block: () -> Unit) {
     dispatch_async(dispatch_get_main_queue(), block)
 }
 
-private const val MaxReverseGeocodeCandidates = 60
-private const val MaxRecommendedPhotos = 12
-private const val PreviewSizePx = 960
-private const val PreviewJpegQuality = 0.84
+private const val PreviewSizePx = 2048
+private const val PreviewJpegQuality = 0.96
+private const val FullGalleryAccessMessage =
+    "위치 기반 사진 추천을 사용하려면 전체 갤러리 접근 권한을 허용해 주세요."

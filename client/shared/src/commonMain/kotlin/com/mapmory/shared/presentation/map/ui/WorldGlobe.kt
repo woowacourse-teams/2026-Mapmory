@@ -112,15 +112,32 @@ internal fun WorldGlobe(
             val globeRadius = min(size.width, size.height) * 0.42f * zoom
             val center = Offset(size.width / 2f, size.height / 2f)
 
+            drawRect(color = Color(0xFF121518))
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.82f to Color.Transparent,
+                        0.91f to Color(0xFF7F9ABA).copy(alpha = 0.055f),
+                        1f to Color.Transparent,
+                    ),
+                    center = center,
+                    radius = globeRadius * 1.12f,
+                ),
+                radius = globeRadius * 1.12f,
+                center = center,
+            )
+
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF1B293A),
-                        Color(0xFF111C2A),
-                        Color(0xFF0B111C),
+                        Color(0xFF2A3747),
+                        Color(0xFF1B2533),
+                        Color(0xFF111923),
                     ),
-                    center = center - Offset(globeRadius * 0.22f, globeRadius * 0.22f),
-                    radius = globeRadius * 1.15f,
+                    center = center - Offset(globeRadius * 0.28f, globeRadius * 0.28f),
+                    radius = globeRadius * 1.2f,
                 ),
                 radius = globeRadius,
                 center = center,
@@ -141,30 +158,42 @@ internal fun WorldGlobe(
                 val isVisited = country.code in visitedCountryCodes
                 drawPath(
                     path = path,
-                    color = if (isVisited) Color(0xFF3FD09A) else Color(0xFF303B4D),
+                    color = if (isVisited) Color(0xFF35C987) else Color(0xFF2B3546),
                 )
                 drawPath(
                     path = path,
-                    color = if (isVisited) Color(0xFF8AEBC1) else Color(0xFF68758A),
-                    style = Stroke(width = 1.1.dp.toPx()),
+                    color = if (isVisited) {
+                        Color(0xFF8AEBC1).copy(alpha = 0.82f)
+                    } else {
+                        Color(0xFF7C8FAA).copy(alpha = 0.54f)
+                    },
+                    style = Stroke(width = if (isVisited) 1.25.dp.toPx() else 0.85.dp.toPx()),
                 )
             }
 
             drawCircle(
-                color = Color(0xFF738199).copy(alpha = 0.58f),
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.White.copy(alpha = 0.09f),
+                        0.42f to Color.White.copy(alpha = 0.025f),
+                        1f to Color.Transparent,
+                    ),
+                    center = center - Offset(globeRadius * 0.42f, globeRadius * 0.42f),
+                    radius = globeRadius * 1.15f,
+                ),
                 radius = globeRadius,
                 center = center,
-                style = Stroke(width = 1.5.dp.toPx()),
             )
+
         }
     }
 }
 
 private val InitialLongitude = -127f * PI.toFloat() / 180f
 private const val RotationSensitivity = 1.35f
-private const val MaxTilt = 1.15f
+private const val MaxTilt = 1.3f
 private const val MinZoom = 0.75f
-private const val MaxZoom = 4f
+private const val MaxZoom = 8f
 
 
 private fun countryAtScreenPoint(

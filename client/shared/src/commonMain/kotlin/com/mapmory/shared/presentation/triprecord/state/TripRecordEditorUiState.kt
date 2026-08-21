@@ -28,7 +28,7 @@ data class TripRecordEditorUiState(
         }
 
     val isSaveEnabled: Boolean
-        get() = isDirty && title.isNotBlank() && selectedLocation != null && !isSaving
+        get() = !isSaving
 
     fun isFieldDirty(target: TripRecordEditorErrorTarget): Boolean = target in dirtyFields
 }

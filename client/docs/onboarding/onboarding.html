@@ -157,6 +157,9 @@
     .screen-2 .screen-content { padding-top: 86px; }
 
     .memory-photo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       position: relative;
       height: 300px;
       margin: 28px 0 26px;
@@ -166,20 +169,13 @@
       background: var(--surface-raised);
     }
 
-    .memory-photo::after {
-      position: absolute;
-      right: 18px;
-      bottom: 16px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(7, 16, 21, 0.76);
-      color: var(--text);
-      content: "여행 기록 미리보기";
-      font-size: 10px;
-      font-weight: 600;
+    .app-screen-shot {
+      display: block;
+      height: 100%;
+      width: auto;
+      border-radius: 18px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, .28);
     }
-
-    .memory-photo svg { display: block; width: 100%; height: 100%; }
 
     .screen-2 .screen-title { font-size: 27px; }
 
@@ -210,14 +206,20 @@
     .memory-illustration {
       display: grid;
       place-items: center;
-      height: 300px;
-      margin: 56px 0 34px;
+      flex: 0 0 280px;
+      height: 280px;
+      margin: 32px 0 24px;
+      overflow: hidden;
       border: 1px solid var(--line);
       border-radius: var(--radius-card);
       background: var(--surface-raised);
     }
 
-    .memory-illustration svg { width: 216px; height: 216px; }
+    .memory-illustration .app-screen-shot {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
 
     .screen-3 .screen-title { font-size: 27px; }
 
@@ -275,25 +277,8 @@
     <section class="screen screen-2" aria-label="온보딩 2번 화면">
       <a class="skip" href="#start">건너뛰기</a>
       <div class="screen-content">
-        <div class="memory-photo" aria-label="여행 사진과 기록 미리보기">
-          <svg viewBox="0 0 342 300" role="img" aria-hidden="true">
-            <rect width="342" height="300" fill="#172f35"/>
-            <circle cx="263" cy="80" r="42" fill="#e9b46a"/>
-            <path d="M0 203 71 133 121 184 168 131 245 206 290 166 342 215V300H0Z" fill="#205c58"/>
-            <path d="M0 231 62 184 104 215 157 173 228 235 276 198 342 241V300H0Z" fill="#153b42"/>
-            <path d="M0 258 74 226 132 251 189 217 259 264 309 236 342 254V300H0Z" fill="#10272f"/>
-            <path d="M25 271c52-28 98-19 144 0s94 28 148-1" fill="none" stroke="#21e69a" stroke-width="3" opacity=".7"/>
-            <g transform="translate(22 22)">
-              <rect width="106" height="34" rx="17" fill="#071015" opacity=".8"/>
-              <circle cx="18" cy="17" r="5" fill="#21e69a"/>
-              <text x="32" y="22" fill="#f0fff8" font-family="sans-serif" font-size="12" font-weight="600">여행의 한 장면</text>
-            </g>
-            <g transform="translate(232 230)">
-              <rect width="88" height="46" rx="12" fill="#071015" opacity=".84"/>
-              <text x="16" y="20" fill="#b9cbbc" font-family="sans-serif" font-size="10">여수 · 2026.08</text>
-              <text x="16" y="36" fill="#21e69a" font-family="sans-serif" font-size="10" font-weight="700">기록 남기기</text>
-            </g>
-          </svg>
+        <div class="memory-photo" aria-label="장소와 날짜를 선택하는 여행 기록 작성 화면 미리보기">
+          <img class="app-screen-shot" src="assets/record-editor-screen.png" alt="장소와 날짜를 선택하는 여행 기록 작성 화면">
         </div>
 
         <h1 class="screen-title">지역을 선택하고<br>여행을 기록해요</h1>
@@ -314,19 +299,8 @@
     <section class="screen screen-3" id="start" aria-label="온보딩 3번 화면">
       <a class="skip" href="#start">건너뛰기</a>
       <div class="screen-content">
-        <div class="memory-illustration" aria-label="사진을 나중에 추가할 수 있음을 나타내는 여행 기록 일러스트">
-          <svg viewBox="0 0 216 216" role="img" aria-hidden="true">
-            <rect x="28" y="37" width="113" height="99" rx="22" fill="#263940" stroke="#f0fff8" stroke-width="8"/>
-            <circle cx="61" cy="70" r="12" fill="#9aa8a1"/>
-            <path d="m42 119 28-28 20 18 32-32 28 29v29H42Z" fill="#9aa8a1"/>
-            <path d="M133 50v32M117 66h32" stroke="#21e69a" stroke-width="8" stroke-linecap="round"/>
-            <path d="M147 139 98 178" stroke="#7bf5bd" stroke-width="5" stroke-linecap="round" stroke-dasharray="5 10"/>
-            <path d="m95 168 4 18 17-8" fill="none" stroke="#7bf5bd" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M168 119c0 23-22 35-22 35s-22-12-22-35a22 22 0 1 1 44 0Z" fill="#21e69a"/>
-            <circle cx="146" cy="119" r="7" fill="#071c15"/>
-            <circle cx="173" cy="174" r="24" fill="#21e69a"/>
-            <path d="M173 161v15l10 7" fill="none" stroke="#071c15" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div class="memory-illustration" aria-label="저장된 여행 기록 목록 화면 미리보기">
+          <img class="app-screen-shot" src="assets/record-list-screen.png" alt="여행 기록 목록에 저장된 여행 기록 화면">
         </div>
 
         <h1 class="screen-title">사진은 나중에<br>추가해도 괜찮아요</h1>

@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="784" height="1516" viewBox="0 0 784 1516" fill="none">
+  <title>Mapmory 프로토타입 경기 상세 지도 화면</title>
+  <desc>대한민국 지도에서 경기도를 선택한 상태의 Mapmory 화면. 컴포넌트별 그룹을 유지한 Figma용 SVG 시안.</desc>
+
+  <defs>
+    <filter id="device-shadow" x="72" y="40" width="688" height="1436" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="24" flood-color="#69727B" flood-opacity=".30"/>
+    </filter>
+    <clipPath id="app-clip">
+      <rect width="390" height="844" rx="34"/>
+    </clipPath>
+  </defs>
+
+  <!-- Figma presentation canvas -->
+  <g id="presentation-canvas">
+    <rect width="784" height="1516" fill="#E8EBEE"/>
+
+    <!-- Mobile app frame -->
+    <g id="mobile-app-frame" filter="url(#device-shadow)">
+      <rect x="112" y="84" width="624" height="1350" rx="54" fill="#090D15"/>
+      <g id="mapmory-app" transform="translate(112 84) scale(1.6)" clip-path="url(#app-clip)">
+        <rect id="app-background" width="390" height="844" fill="#090D15"/>
+
+        <!-- Component: AppHeader -->
+        <g id="component-app-header">
+          <text x="19" y="42" fill="#F4F8F5" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="18" font-weight="800" letter-spacing="-0.8">Map<tspan fill="#67D9A2">mory</tspan></text>
+
+          <!-- Component: MapModeSegment -->
+          <g id="component-map-mode-segment">
+            <rect x="198" y="14" width="174" height="42" rx="14" fill="#151C19" stroke="#2D3A34"/>
+            <rect x="203" y="19" width="82" height="32" rx="10" fill="#2A3832"/>
+            <g stroke="#EEF7F1" stroke-width="1.4" fill="none">
+              <circle cx="219" cy="35" r="5"/>
+              <path d="M219 27v16M211 35h16"/>
+            </g>
+            <text x="238" y="39" fill="#EEF7F1" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="11" font-weight="800">대한민국</text>
+            <g stroke="#92A09A" stroke-width="1.4" fill="none">
+              <circle cx="301" cy="35" r="5"/>
+              <circle cx="301" cy="35" r="2"/>
+            </g>
+            <text x="321" y="39" fill="#92A09A" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="11" font-weight="800">전세계</text>
+          </g>
+        </g>
+
+        <!-- Component: MapDashboard -->
+        <g id="component-map-dashboard">
+          <rect x="12.5" y="67" width="365" height="124" rx="20" fill="#101419" stroke="#2B343E"/>
+          <g id="component-focused-province">
+            <rect x="32" y="84" width="327" height="26" rx="8" fill="#173B2D"/>
+            <text x="41" y="101" fill="#9CE6BF" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="10" font-weight="750">← 경기 전체에서 나가기</text>
+          </g>
+          <g id="component-dashboard-summary">
+            <text x="32" y="132" fill="#AFC0D8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="10" font-weight="700">나의 대한민국 지도</text>
+            <text x="32" y="169" fill="#35C987" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="25" font-weight="800">2<tspan fill="#8C96A2" font-size="14" font-weight="700"> / 163</tspan></text>
+            <rect x="303" y="147" width="56" height="29" rx="9" fill="#173B2D"/>
+            <text x="313" y="166" fill="#9CE6BF" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="10" font-weight="700">1% 채움</text>
+          </g>
+        </g>
+
+        <!-- Component: TagFilter -->
+        <g id="component-tag-filter" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="10" font-weight="700">
+          <rect x="19" y="208" width="40" height="32" rx="10" fill="#35C987"/>
+          <text x="31" y="228" fill="#071B12">전체</text>
+          <rect x="66" y="208" width="40" height="32" rx="10" fill="#151F1D"/>
+          <text x="78" y="228" fill="#BDC8C2">가족</text>
+          <rect x="113" y="208" width="40" height="32" rx="10" fill="#151F1D"/>
+          <text x="125" y="228" fill="#BDC8C2">애인</text>
+          <rect x="160" y="208" width="40" height="32" rx="10" fill="#151F1D"/>
+          <text x="172" y="228" fill="#BDC8C2">친구</text>
+          <rect x="207" y="208" width="40" height="32" rx="10" fill="#151F1D"/>
+          <text x="219" y="228" fill="#BDC8C2">혼자</text>
+        </g>
+
+        <!-- Component: GyeonggiMap -->
+        <g id="component-gyeonggi-map">
+          <rect x="0" y="240" width="390" height="540" fill="#090D15"/>
+          <g id="gyeonggi-boundaries">
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M177.5 517.9 L180.4 525.1 L179.5 533.0 L166.6 535.1 L164.8 530.7 L166.9 522.6 L169.2 524.0 L177.5 517.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M180.5 546.7 L176.9 552.3 L170.2 549.6 L166.8 550.9 L162.7 543.6 L158.9 542.2 L158.4 536.4 L160.7 532.6 L159.3 530.5 L164.8 530.7 L172.8 541.4 L178.9 542.0 L180.5 546.7Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M180.7 533.9 L181.6 538.5 L179.1 540.5 L180.6 541.0 L179.8 543.4 L172.8 541.4 L168.1 534.6 L180.7 533.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M182.4 527.0 L184.5 528.3 L184.5 532.3 L190.3 531.8 L190.2 535.0 L185.4 539.6 L187.5 542.1 L189.3 539.7 L188.8 545.3 L183.0 550.4 L180.3 548.8 L180.6 541.0 L179.1 540.5 L181.6 538.5 L179.1 528.1 L180.4 525.5 L182.4 527.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M203.7 483.9 L207.5 483.8 L203.6 491.2 L196.0 494.7 L195.6 501.1 L189.1 504.4 L181.1 502.6 L181.0 495.7 L186.3 495.1 L186.8 491.9 L193.2 486.4 L195.7 487.4 L198.8 482.9 L203.7 483.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M208.3 483.3 L211.2 491.5 L209.1 499.3 L206.7 502.2 L196.1 499.3 L196.0 494.7 L203.6 491.2 L208.3 483.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M202.0 500.6 L207.0 502.0 L205.8 505.7 L207.6 507.2 L199.2 515.3 L199.8 520.3 L194.5 521.7 L178.1 511.4 L181.1 502.6 L189.1 504.4 L196.7 498.9 L202.0 500.6Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M195.5 399.8 L201.7 406.0 L198.0 407.1 L197.4 412.8 L194.0 418.2 L182.8 424.4 L182.2 422.1 L175.6 420.0 L173.0 403.1 L176.0 401.4 L184.5 403.2 L193.5 398.2 L195.5 399.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M160.6 493.6 L162.4 492.9 L162.4 497.5 L157.8 500.7 L161.0 505.9 L160.9 510.0 L156.5 510.0 L152.1 514.9 L147.2 500.1 L150.7 500.5 L152.6 492.9 L154.7 494.2 L158.5 489.7 L160.6 493.6Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M165.8 492.8 L165.2 497.8 L169.2 503.7 L165.1 514.3 L160.6 509.1 L161.0 505.9 L157.8 500.7 L162.4 497.5 L162.4 492.9 L165.8 492.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M127.5 462.5 L132.0 466.0 L137.5 464.6 L138.4 473.5 L135.7 476.9 L137.7 479.3 L136.0 482.9 L139.6 482.2 L138.3 487.1 L126.7 483.7 L121.7 479.5 L121.6 473.5 L125.2 470.9 L126.4 460.9 L127.5 462.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M147.0 478.8 L152.8 493.9 L150.7 500.5 L147.2 500.1 L148.3 503.1 L144.8 503.1 L142.3 500.2 L140.6 487.8 L138.3 487.1 L139.6 482.2 L142.0 483.2 L142.3 481.0 L147.0 478.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M140.4 628.5 L139.5 630.8 L140.4 628.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M196.9 574.5 L196.4 578.6 L194.1 580.4 L197.5 591.9 L192.7 595.5 L198.3 598.3 L193.4 604.8 L194.9 607.1 L196.7 604.8 L202.7 606.7 L201.1 610.9 L203.0 615.1 L198.8 618.0 L200.4 620.4 L191.8 625.6 L192.9 627.6 L191.5 630.5 L189.6 629.0 L178.7 634.5 L171.6 632.5 L154.8 641.8 L152.7 634.0 L146.4 633.0 L144.7 628.2 L144.7 630.6 L142.9 629.4 L138.2 618.4 L135.7 618.1 L137.7 617.0 L131.1 616.0 L128.9 612.5 L143.2 609.4 L149.6 596.0 L153.7 594.2 L160.7 597.7 L166.5 594.3 L171.8 595.2 L170.7 590.3 L172.6 590.8 L171.4 582.8 L172.9 579.1 L179.6 576.7 L181.5 579.6 L183.6 577.5 L189.7 579.4 L192.4 575.0 L196.9 574.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M185.2 343.9 L190.6 345.1 L191.4 352.7 L194.0 354.0 L196.6 360.4 L201.5 362.0 L203.2 366.4 L201.6 371.6 L194.1 376.0 L190.0 372.7 L184.7 373.6 L181.5 366.3 L174.7 363.7 L174.5 357.2 L177.7 353.6 L178.3 349.5 L180.8 348.3 L182.3 343.1 L185.2 343.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M149.2 509.9 L152.1 514.9 L147.8 525.5 L154.4 525.3 L155.8 529.8 L158.8 529.4 L160.7 532.7 L158.2 537.2 L153.0 533.7 L141.6 540.3 L136.3 533.0 L137.5 530.3 L141.4 529.6 L141.5 519.2 L139.9 517.5 L141.3 513.9 L145.9 514.2 L149.2 509.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M66.1 590.1 L65.1 589.3 L66.1 590.1Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M63.9 588.1 L63.8 585.6 L63.9 588.1Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M51.4 582.3 L53.1 583.3 L52.7 587.0 L50.2 585.2 L51.4 582.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M99.8 563.0 L99.8 563.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M82.5 557.4 L82.5 557.4Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M82.5 557.4 L80.6 559.3 L82.5 557.4Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M97.1 552.5 L97.1 552.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M96.1 537.3 L96.1 537.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M99.6 536.8 L100.6 538.3 L99.6 536.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M99.6 536.8 L99.6 536.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M96.1 537.3 L99.6 536.8 L96.1 537.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M90.8 533.9 L90.8 533.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M90.8 533.9 L90.4 535.6 L91.7 534.2 L95.6 537.1 L91.5 534.1 L90.8 535.8 L98.4 541.3 L100.9 539.0 L101.8 541.7 L99.8 536.6 L102.0 539.2 L100.9 544.4 L104.6 554.8 L102.8 561.5 L101.7 554.9 L99.4 554.0 L98.8 558.4 L98.0 549.1 L97.3 550.9 L91.3 549.9 L96.6 556.5 L94.6 555.7 L92.7 559.5 L93.9 553.1 L91.8 555.3 L88.9 553.3 L86.3 561.0 L82.7 557.4 L82.6 554.9 L85.2 554.1 L82.1 552.3 L82.6 549.8 L87.6 548.8 L85.9 547.4 L85.5 540.6 L80.4 534.4 L86.1 537.6 L89.1 534.1 L88.0 532.0 L89.3 533.3 L96.8 527.5 L89.3 533.4 L90.8 533.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M139.1 514.0 L141.3 513.8 L139.9 517.5 L141.5 519.2 L141.2 529.8 L126.7 533.4 L116.8 529.1 L125.4 520.0 L130.2 520.8 L132.2 516.1 L139.1 514.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M158.9 407.3 L157.1 412.1 L157.8 418.1 L154.4 428.7 L160.9 428.5 L163.7 422.4 L169.1 424.6 L171.4 428.0 L168.6 432.6 L169.5 438.1 L164.4 440.0 L164.1 433.5 L162.2 431.8 L157.6 435.4 L153.8 434.6 L155.3 435.9 L152.8 451.0 L149.9 449.9 L148.2 454.2 L143.7 456.0 L125.1 439.9 L126.0 438.4 L131.3 441.1 L132.2 437.0 L136.4 435.4 L135.2 432.0 L137.6 430.7 L137.2 428.3 L143.7 423.8 L141.3 411.7 L144.1 410.6 L150.6 414.1 L153.4 412.5 L155.0 407.5 L158.9 407.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M135.3 413.7 L140.4 412.8 L144.2 422.5 L137.2 428.3 L137.6 430.7 L135.2 432.0 L136.4 435.4 L132.2 437.0 L131.3 441.1 L120.5 436.2 L122.9 430.2 L125.7 430.6 L128.7 426.4 L129.5 420.7 L127.9 417.9 L131.9 410.8 L135.3 413.7Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M127.9 419.4 L129.5 420.7 L127.9 428.0 L122.9 430.2 L119.8 435.0 L109.0 428.3 L107.5 425.0 L108.2 420.4 L111.4 423.6 L118.4 419.2 L127.9 419.4Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M173.4 485.0 L175.4 488.4 L179.4 485.8 L179.6 492.8 L181.9 495.1 L180.2 499.8 L169.1 503.4 L165.2 497.8 L165.5 491.1 L173.4 485.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M201.5 436.2 L201.8 446.5 L205.8 450.0 L204.3 451.8 L206.3 453.4 L193.3 460.3 L192.6 454.8 L195.9 446.9 L195.5 442.9 L193.1 442.2 L194.5 436.4 L201.5 436.2Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M226.6 400.0 L235.8 402.1 L240.3 412.3 L242.7 413.9 L243.4 422.0 L246.0 422.6 L244.9 423.9 L247.8 426.8 L233.9 464.7 L233.1 471.8 L230.3 474.4 L228.1 468.9 L219.6 463.1 L212.5 451.2 L204.4 452.2 L205.9 450.3 L202.3 448.2 L201.5 436.2 L191.3 435.8 L191.5 423.5 L188.4 420.6 L194.0 418.2 L197.4 412.8 L198.0 407.1 L201.6 404.9 L205.3 407.3 L207.9 403.1 L214.1 401.2 L217.0 405.6 L223.9 401.5 L225.0 398.1 L226.6 400.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M180.8 559.8 L185.3 559.4 L186.7 567.9 L192.0 571.4 L192.9 574.7 L190.1 579.1 L183.6 577.5 L181.4 579.5 L177.6 568.8 L171.6 565.9 L174.2 561.0 L180.8 559.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M129.0 505.3 L131.4 505.5 L131.5 502.2 L130.0 505.8 L123.0 502.6 L123.9 497.3 L127.3 495.2 L130.0 483.6 L140.5 487.5 L142.3 500.2 L148.3 503.1 L149.2 510.3 L144.1 514.9 L137.9 513.1 L132.2 516.1 L130.2 520.8 L125.4 520.0 L116.8 529.1 L107.7 523.3 L96.5 527.4 L111.6 521.4 L111.1 517.8 L114.0 517.2 L119.5 507.4 L121.7 508.5 L120.1 506.7 L122.0 504.1 L129.0 505.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M161.1 509.6 L165.1 514.3 L164.9 517.2 L162.4 520.2 L161.8 525.8 L158.6 526.7 L159.2 529.2 L155.8 529.8 L154.4 525.3 L147.8 525.5 L155.3 511.0 L161.1 509.6Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M181.6 499.8 L174.3 520.5 L169.2 524.0 L166.9 522.6 L165.1 530.7 L159.0 530.3 L158.6 526.7 L161.8 525.8 L169.8 501.8 L181.6 499.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M209.2 450.5 L212.5 451.2 L220.1 463.7 L228.7 469.9 L226.8 473.6 L222.8 474.2 L223.7 478.4 L220.8 480.0 L220.9 482.4 L207.7 479.5 L206.3 484.4 L200.9 483.1 L204.5 475.9 L200.3 473.2 L204.8 463.4 L208.8 463.4 L207.6 453.4 L205.9 454.0 L209.2 450.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M219.7 514.9 L224.9 519.6 L228.5 518.9 L227.7 539.8 L239.5 539.6 L237.8 553.4 L241.6 558.1 L245.6 557.9 L247.3 560.4 L246.0 563.0 L253.9 564.0 L253.9 571.6 L257.0 573.9 L254.0 581.4 L256.3 583.5 L254.6 589.9 L249.6 584.6 L242.0 586.7 L237.1 581.4 L233.4 585.2 L229.4 578.0 L226.6 577.3 L224.7 571.4 L222.1 574.2 L222.1 580.4 L213.7 583.8 L209.3 591.4 L196.9 589.5 L194.1 580.4 L196.4 578.6 L198.8 567.7 L204.3 564.7 L202.0 547.8 L207.2 542.8 L207.1 534.5 L199.7 525.9 L200.7 521.2 L210.4 518.3 L212.4 523.5 L216.5 518.5 L215.5 516.0 L219.7 514.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M199.7 526.0 L206.1 531.4 L207.2 542.8 L202.1 547.5 L203.4 551.4 L202.2 553.6 L190.0 554.5 L186.2 550.8 L185.5 547.0 L188.7 545.6 L189.5 540.0 L187.5 542.1 L185.5 539.0 L190.2 535.0 L192.1 525.3 L199.7 526.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M183.5 514.7 L195.7 522.1 L200.0 520.3 L200.7 524.2 L192.1 525.3 L190.3 531.8 L184.5 532.3 L184.0 527.1 L180.4 525.6 L179.2 519.0 L175.8 515.8 L178.1 511.4 L183.5 514.7Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M170.6 335.3 L175.9 341.0 L165.6 354.3 L165.0 359.2 L162.6 359.9 L163.7 361.9 L161.9 364.7 L160.1 381.3 L155.3 381.5 L153.2 385.8 L155.2 391.3 L153.6 395.3 L160.3 396.3 L158.6 407.0 L155.0 407.5 L153.4 412.5 L150.6 414.1 L144.1 410.6 L135.8 413.9 L132.9 410.3 L127.9 419.4 L118.4 419.2 L111.4 423.6 L108.2 420.4 L109.5 411.7 L106.0 398.1 L107.7 383.1 L105.3 381.5 L109.3 380.0 L111.8 373.7 L108.0 373.3 L109.8 370.6 L107.5 368.3 L110.0 361.4 L106.7 359.7 L107.6 349.7 L110.9 349.1 L114.1 344.2 L120.6 346.7 L123.6 342.6 L127.8 343.2 L132.4 339.0 L137.2 349.1 L140.2 348.3 L142.8 341.0 L150.3 346.6 L152.0 345.7 L152.0 338.7 L160.4 342.6 L167.1 335.2 L170.6 335.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M265.9 515.0 L269.2 519.5 L274.0 520.5 L276.8 526.6 L280.4 528.4 L277.0 538.5 L278.7 544.6 L276.3 548.2 L277.4 559.4 L274.7 564.0 L276.8 566.6 L282.9 564.4 L285.3 567.4 L285.9 562.6 L290.2 561.9 L294.0 569.1 L297.5 569.6 L297.8 587.1 L290.1 590.1 L292.0 595.5 L286.7 593.7 L284.1 597.7 L285.0 601.2 L282.5 603.1 L274.9 598.4 L272.2 601.2 L269.0 599.7 L272.5 597.5 L274.6 591.9 L274.3 586.0 L271.1 580.4 L263.1 578.4 L259.9 573.4 L254.4 572.4 L253.7 563.7 L246.0 563.0 L247.3 560.4 L245.6 557.9 L241.6 558.1 L237.8 553.4 L239.4 539.5 L241.5 537.8 L239.7 534.7 L243.0 532.9 L244.3 526.9 L252.5 523.8 L259.9 515.2 L265.9 515.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M225.7 572.2 L226.6 577.3 L229.4 578.0 L233.5 585.3 L237.1 581.4 L242.0 586.7 L249.6 584.6 L254.6 589.9 L256.3 583.5 L254.0 581.4 L258.0 573.3 L263.1 578.4 L270.9 580.2 L274.4 586.3 L272.5 597.5 L265.0 599.7 L260.8 611.5 L250.2 615.3 L248.6 619.1 L251.8 623.5 L246.7 628.8 L241.6 627.6 L237.1 632.3 L230.9 633.6 L232.5 637.7 L229.4 644.0 L222.6 636.1 L220.8 637.4 L214.1 633.8 L212.8 628.3 L207.8 624.9 L196.5 623.3 L200.4 620.4 L198.8 618.0 L199.8 616.2 L203.0 615.1 L201.1 610.9 L202.7 606.8 L196.7 604.8 L194.9 607.1 L193.5 604.5 L198.3 598.3 L192.7 595.5 L193.0 593.5 L197.2 592.9 L197.0 589.2 L209.3 591.4 L213.7 583.8 L222.1 580.4 L222.1 574.2 L225.7 572.2Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M83.7 449.3 L83.5 446.4 L83.7 449.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M88.8 403.1 L92.4 403.5 L100.0 398.0 L106.1 398.1 L109.5 411.7 L107.5 424.6 L108.6 427.8 L133.6 446.8 L133.3 451.5 L123.7 453.8 L122.1 450.3 L118.4 450.4 L114.3 447.5 L112.3 442.5 L104.3 437.6 L101.0 440.8 L98.7 447.5 L96.5 446.4 L92.0 450.1 L89.3 446.8 L85.7 447.9 L80.1 433.0 L82.6 430.7 L79.2 427.6 L80.6 424.5 L78.2 416.5 L80.0 407.3 L77.5 403.0 L78.4 395.5 L88.8 403.1Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M121.8 604.0 L121.8 604.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M121.8 604.0 L120.1 603.9 L121.8 604.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M118.6 602.1 L118.6 602.1Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M84.9 597.9 L84.9 597.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M84.9 597.9 L83.7 599.9 L84.9 597.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M84.7 595.6 L84.7 595.6Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M82.2 585.8 L80.9 582.8 L82.2 585.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M97.5 580.8 L103.9 582.3 L95.7 581.9 L97.5 580.8Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M104.8 572.4 L102.3 575.3 L104.8 572.4Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M104.8 572.4 L104.8 572.4Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M98.7 565.9 L97.4 570.8 L96.9 566.4 L98.7 565.9Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M126.3 542.2 L126.3 542.2Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M122.0 536.0 L120.3 535.8 L121.6 534.1 L122.0 536.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M121.8 604.0 L124.6 599.2 L108.3 582.1 L110.3 581.5 L109.3 574.9 L105.5 576.3 L112.6 572.7 L109.9 570.1 L103.5 571.7 L105.7 569.4 L104.2 564.3 L105.5 565.6 L107.4 562.1 L103.4 563.7 L105.6 553.3 L103.1 546.9 L104.3 539.8 L100.1 535.0 L102.8 537.3 L105.7 533.8 L100.1 534.4 L105.8 533.4 L105.8 537.5 L110.2 536.6 L107.8 538.8 L109.4 543.2 L127.9 545.7 L129.7 550.8 L128.8 546.4 L131.0 546.9 L131.3 540.5 L135.3 540.3 L134.0 533.1 L136.9 534.0 L142.9 543.3 L144.4 538.9 L148.0 537.7 L145.7 538.9 L145.6 536.5 L155.7 533.9 L158.9 542.2 L162.7 543.6 L166.9 551.0 L170.2 549.6 L176.9 552.3 L180.7 545.9 L180.8 549.2 L183.0 550.4 L185.8 547.9 L190.0 554.5 L202.3 553.5 L203.6 557.0 L202.6 559.3 L204.3 564.7 L198.8 567.7 L197.8 574.2 L193.2 575.2 L191.3 570.6 L186.7 567.9 L185.3 559.4 L174.1 561.0 L171.6 565.9 L177.6 568.8 L179.6 576.7 L172.1 579.8 L171.8 595.3 L166.5 594.3 L160.8 597.7 L153.9 594.2 L149.6 596.0 L141.4 610.6 L132.7 610.8 L131.1 606.3 L123.3 606.3 L121.8 604.0Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M242.7 466.3 L248.7 476.4 L249.0 485.1 L245.4 487.9 L246.1 491.2 L248.2 491.7 L255.5 507.3 L260.4 507.6 L260.6 514.2 L257.5 518.4 L249.8 525.9 L244.3 526.9 L243.0 532.9 L239.7 534.7 L240.7 538.6 L231.5 541.1 L227.1 538.7 L228.5 518.9 L224.9 519.6 L219.5 514.7 L215.5 516.0 L216.5 518.5 L212.4 523.5 L210.4 518.3 L199.5 520.0 L199.2 515.3 L207.4 507.7 L205.8 504.9 L210.9 496.8 L211.0 489.4 L207.2 482.2 L207.7 479.5 L220.8 482.4 L220.8 480.0 L223.7 478.4 L222.8 474.2 L229.0 471.9 L230.8 474.3 L236.6 466.2 L242.7 466.3Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M168.3 354.5 L172.9 355.0 L175.3 359.2 L173.8 360.8 L174.7 363.7 L181.5 366.3 L184.5 373.5 L190.0 372.7 L193.8 375.4 L196.7 389.4 L192.9 398.7 L184.5 403.2 L176.0 401.4 L173.0 403.1 L176.2 419.0 L174.3 424.8 L170.8 426.0 L163.7 422.4 L161.3 428.2 L155.1 429.1 L153.9 427.3 L157.8 418.1 L157.1 412.1 L159.0 410.0 L160.3 396.3 L153.6 395.3 L155.2 391.3 L153.2 385.8 L155.3 381.5 L160.1 381.3 L161.9 364.7 L163.7 361.9 L162.6 359.9 L165.0 359.2 L165.6 354.3 L168.3 354.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M209.9 285.6 L209.9 292.5 L216.4 299.2 L225.2 287.2 L231.4 288.4 L228.7 293.0 L227.0 302.8 L229.1 305.5 L233.7 304.5 L235.1 310.0 L239.1 312.4 L239.7 309.2 L247.3 304.4 L254.2 309.0 L257.6 305.3 L260.5 310.2 L260.8 322.2 L256.4 328.0 L254.1 337.9 L248.6 342.2 L246.9 347.9 L248.5 353.0 L243.0 359.1 L237.8 357.9 L236.3 372.9 L229.4 373.5 L226.8 384.4 L227.6 391.4 L223.9 401.5 L217.0 405.6 L214.4 401.2 L208.7 402.6 L204.9 407.4 L193.5 398.2 L196.7 389.4 L194.1 376.0 L201.6 371.6 L203.2 366.2 L201.3 361.7 L196.6 360.4 L194.0 354.0 L191.4 352.7 L190.3 341.9 L194.6 340.3 L196.3 343.1 L201.7 338.1 L199.7 326.7 L195.2 326.2 L195.4 320.5 L200.7 317.0 L202.0 321.2 L209.9 319.4 L208.6 305.4 L206.4 303.5 L207.0 287.2 L209.9 285.6Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M276.3 494.5 L279.8 500.9 L288.0 499.8 L289.1 497.5 L300.1 502.3 L302.5 499.0 L307.5 499.7 L307.6 504.1 L312.4 500.8 L313.7 503.6 L311.5 506.1 L311.2 511.1 L316.7 510.2 L322.5 512.8 L324.2 529.5 L320.6 532.1 L322.7 538.9 L320.0 548.0 L320.4 554.0 L308.5 577.0 L296.9 571.8 L297.0 568.7 L294.2 569.3 L290.2 561.9 L285.9 562.6 L285.3 567.4 L282.9 564.4 L276.8 566.6 L274.7 564.0 L277.4 559.4 L276.3 548.2 L278.7 544.6 L277.0 538.5 L280.3 528.3 L265.5 514.3 L261.1 516.8 L260.4 507.6 L255.5 507.3 L251.2 499.3 L256.0 492.7 L266.0 497.5 L272.6 492.4 L276.3 494.5Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M191.4 259.2 L194.4 262.1 L195.0 271.6 L204.8 271.1 L204.1 276.4 L206.4 278.1 L206.1 282.5 L208.2 285.7 L206.4 303.5 L208.6 305.4 L209.9 319.4 L202.0 321.2 L200.7 317.0 L194.7 323.1 L195.3 326.4 L199.7 326.7 L201.0 339.4 L196.3 343.1 L192.5 340.2 L190.3 341.9 L190.6 345.1 L183.1 342.6 L174.5 357.2 L167.2 353.3 L176.0 340.9 L170.5 334.3 L160.4 342.6 L152.0 338.7 L152.0 345.7 L150.3 346.6 L142.4 341.1 L140.2 348.3 L137.2 349.1 L133.3 339.6 L130.5 340.6 L131.1 337.6 L137.0 335.9 L138.2 330.5 L144.0 328.4 L143.5 322.5 L146.8 315.7 L144.2 309.6 L145.4 307.2 L153.8 299.0 L158.3 302.0 L166.0 299.2 L166.3 296.4 L162.6 292.3 L165.8 289.8 L166.0 282.1 L169.4 278.9 L169.0 274.2 L173.5 275.8 L176.6 269.1 L191.4 259.2Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M261.8 327.7 L265.7 335.5 L279.2 337.1 L280.2 346.2 L291.1 349.3 L294.3 357.2 L292.2 371.5 L286.7 372.2 L276.7 382.6 L276.1 385.8 L278.7 389.8 L275.4 394.8 L280.1 403.8 L272.6 412.7 L273.6 416.1 L276.2 413.1 L279.2 415.1 L283.1 412.5 L281.7 431.1 L278.2 435.1 L285.1 445.5 L283.1 452.8 L275.6 452.0 L270.7 456.2 L265.4 453.7 L265.6 442.1 L262.4 436.8 L259.5 436.0 L259.4 431.0 L257.1 428.5 L251.2 434.0 L245.9 435.0 L247.8 426.8 L244.9 423.9 L246.0 422.6 L243.4 422.0 L242.7 413.9 L240.3 412.3 L238.5 405.8 L235.0 401.3 L225.3 398.3 L229.4 373.5 L236.3 372.9 L237.8 357.9 L243.0 359.1 L248.5 353.0 L246.9 347.9 L248.6 342.2 L254.1 337.9 L256.4 328.0 L260.7 323.1 L261.8 327.7Z" fill="#111A2A"/>
+            <path stroke="#293A52" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" d="M245.9 435.0 L251.2 434.0 L257.1 428.5 L259.7 431.6 L258.4 433.3 L259.5 436.0 L262.4 436.8 L265.6 442.1 L265.4 453.7 L270.7 456.2 L275.6 452.0 L283.1 452.8 L285.2 444.5 L283.2 439.9 L287.2 438.9 L291.5 433.9 L303.6 441.6 L312.3 452.0 L321.4 450.4 L327.4 454.2 L329.3 452.3 L333.3 458.1 L338.3 459.5 L340.0 461.4 L338.8 465.1 L332.4 465.4 L327.6 472.2 L322.6 475.0 L322.6 477.9 L325.5 478.2 L330.7 484.2 L331.3 495.6 L325.9 508.3 L326.3 511.7 L311.2 511.1 L311.5 506.1 L313.7 503.6 L312.4 500.8 L307.6 504.1 L307.5 499.7 L302.5 499.0 L300.1 502.3 L289.1 497.5 L288.0 499.8 L279.8 500.9 L276.8 495.1 L272.6 492.4 L266.0 497.5 L256.0 492.7 L251.3 497.6 L246.1 491.2 L245.4 487.9 L248.7 487.0 L249.3 482.7 L247.7 478.7 L248.7 476.4 L244.4 467.4 L237.0 466.0 L233.0 469.8 L241.7 441.4 L245.9 435.0Z" fill="#111A2A"/>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="176.3" y="541.2">수원시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="196.2" y="504.1">성남시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="186.9" y="413.2">의정부시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="159.8" y="506.5">안양시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="131.7" y="477.7">부천시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="146.0" y="492.0">광명시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="171.3" y="607.4">평택시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="187.7" y="364.7">동두천시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="104.9" y="548.3">안산시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="139.2" y="430.7">고양시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="173.8" y="497.5">과천시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="198.8" y="450.8">구리시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="218.3" y="436.5">남양주시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="181.0" y="571.7">오산시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="127.4" y="511.0">시흥시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="157.1" y="524.2">군포시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="168.8" y="517.8">의왕시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="211.1" y="473.7">하남시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="209.5" y="549.5">용인시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="135.8" y="376.2">파주시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="270.0" y="563.3">이천시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="230.5" y="607.6">안성시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="101.7" y="439.6">김포시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="138.4" y="569.2">화성시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="227.9" y="506.8">광주시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="171.1" y="393.1">양주시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="220.3" y="345.0">포천시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="288.3" y="530.5">여주시</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="174.1" y="315.9">연천군</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="258.9" y="395.2">가평군</text>
+            <text fill="#7085A8" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" font-size="8.6" font-weight="700" text-anchor="middle" x="286.1" y="474.7">양평군</text>
+
+          </g>
+        </g>
+
+        <!-- Component: MapFloatingActions -->
+        <g id="component-map-floating-actions">
+          <circle cx="50" cy="703" r="22" fill="#15221D" stroke="#385549"/>
+          <g stroke="#CCE8DA" stroke-width="1.6" fill="none">
+            <circle cx="50" cy="703" r="6"/>
+            <circle cx="50" cy="703" r="2"/>
+          </g>
+          <circle cx="340" cy="703" r="22" fill="#35C987"/>
+          <path d="M340 692v22M329 703h22" stroke="#071B12" stroke-width="2" stroke-linecap="round"/>
+        </g>
+
+        <!-- Component: BottomNavigation -->
+        <g id="component-bottom-navigation" font-family="Arial, 'Apple SD Gothic Neo', sans-serif" text-anchor="middle">
+          <rect y="780" width="390" height="64" fill="#121518" stroke="#2C3431"/>
+          <g id="nav-map" stroke="#54D596" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <path d="m53 789 8-3.5 10 3.7 8-3.7v19l-8 3.1-10-3.7-8 3.4zM61 789v18.8M71 789.2v18.8"/>
+            <text x="66" y="827" fill="#A2ADA7" stroke="none" font-size="11" font-weight="750">지도</text>
+          </g>
+          <g id="nav-journal" stroke="#77827D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <rect x="174" y="786" width="6" height="6" rx="1"/>
+            <path d="M184 789h12M184 795h12M184 801h12"/>
+            <rect x="174" y="795" width="6" height="6" rx="1"/>
+            <rect x="174" y="804" width="6" height="6" rx="1"/>
+            <text x="195" y="827" fill="#77827D" stroke="none" font-size="11" font-weight="750">일지</text>
+          </g>
+          <g id="nav-stats" stroke="#77827D" stroke-width="1.8" stroke-linecap="round" fill="none">
+            <path d="M302 811h28M305 808v-11M315 808v-19M325 808v-7"/>
+            <text x="324" y="827" fill="#77827D" stroke="none" font-size="11" font-weight="750">통계</text>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

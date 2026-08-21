@@ -14,6 +14,13 @@ kotlin {
         minSdk = libs.versions.minSdk.get().toInt()
 
         withHostTest {}
+        withDeviceTest {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+            execution = "HOST"
+        }
+    }
+    androidLibrary {
+        androidResources.enable = true
     }
     jvm()
     listOf(
@@ -59,6 +66,14 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.ktor.client.mock)
         }
+
+        getByName("androidDeviceTest") {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.androidx.test.core)
+                implementation(libs.androidx.test.runner)
+            }
+        }
     }
 }
 
@@ -68,4 +83,11 @@ ksp {
 
 dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
+}
+
+// Compose 1.11.1 does not initialize the output for the newly added KMP device-test variant.
+tasks.matching { it.name == "copyAndroidDeviceTestComposeResourcesToAndroidAssets" }.configureEach {
+    val outputDirectory = javaClass.getMethod("getOutputDirectory").invoke(this)
+        as org.gradle.api.file.DirectoryProperty
+    outputDirectory.set(layout.buildDirectory.dir("generated/compose/$name"))
 }

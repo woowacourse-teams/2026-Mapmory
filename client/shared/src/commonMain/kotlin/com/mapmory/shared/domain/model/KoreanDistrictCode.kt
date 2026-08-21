@@ -265,3 +265,30 @@ internal val KoreanDistrictCodes: List<KoreanDistrictCode> = listOf(
     KoreanDistrictCode("52790", "전북특별자치도 고창군", "KR-45"),
     KoreanDistrictCode("52800", "전북특별자치도 부안군", "KR-45"),
 )
+
+private val CityDistrictPattern = Regex("^(.+\\s)(.+시).+구$")
+
+private val MetropolitanProvinceCodes = setOf(
+    "KR-11",
+    "KR-26",
+    "KR-27",
+    "KR-28",
+    "KR-29",
+    "KR-30",
+    "KR-31",
+    "KR-50",
+)
+
+internal val KoreanSelectableDistrictCodes: List<KoreanDistrictCode> = KoreanDistrictCodes
+    .map { district ->
+        val city = CityDistrictPattern.matchEntire(district.name)
+        if (district.provinceCode in MetropolitanProvinceCodes || city == null) {
+            district
+        } else {
+            district.copy(
+                code = district.code.dropLast(1) + "0",
+                name = city.groupValues[1] + city.groupValues[2],
+            )
+        }
+    }
+    .distinctBy(KoreanDistrictCode::code)

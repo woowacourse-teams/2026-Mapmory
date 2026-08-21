@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import com.mapmory.shared.domain.TripRecords
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
-import com.mapmory.shared.presentation.photo.MaxPhotosPerRecord
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
@@ -180,8 +179,6 @@ class TripRecordsViewModel(
 
     private fun addPhotos(incoming: List<SelectedPhoto>) {
         val editor = uiState.editor
-        val requested = (editor.selectedPhotos.map(TripRecordPhotoUiState::id) + incoming.map(SelectedPhoto::id))
-            .distinct()
         val merged = buildList {
             addAll(editor.selectedPhotos)
             incoming.forEach { photo ->
@@ -189,19 +186,12 @@ class TripRecordsViewModel(
                     add(photo.toTripRecordPhotoUiState(sortOrder = size))
                 }
             }
-        }.take(MaxPhotosPerRecord)
+        }
 
         val updatedEditor = editor.copy(
             selectedPhotos = merged,
             mediaObjectKeys = merged.map(TripRecordPhotoUiState::id),
-            fieldErrors = if (merged.size < requested.size) {
-                editor.fieldErrors + mapOf(
-                    TripRecordEditorErrorTarget.PHOTOS to
-                        "사진은 최대 ${MaxPhotosPerRecord}장까지 추가할 수 있어요.",
-                )
-            } else {
-                editor.fieldErrors - TripRecordEditorErrorTarget.PHOTOS
-            },
+            fieldErrors = editor.fieldErrors - TripRecordEditorErrorTarget.PHOTOS,
         ).revalidatedAfterChange()
         uiState = uiState.copy(
             editor = updatedEditor,

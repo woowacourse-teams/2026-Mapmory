@@ -27,11 +27,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -40,6 +45,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
@@ -60,6 +66,44 @@ internal object TripRecordPalette {
     val photoRecommendBorder = Color(0xFF99555D)
     val photoGalleryBackground = Color(0xFF1B2D26)
     val photoGalleryBorder = Color(0xFF3E7960)
+
+    // Shared tokens used by the map, journal, and statistics dashboards.
+    val pageBackground = Color(0xFF121518)
+    val softSurface = Color(0xFF1C2124)
+    val border = Color(0xFF2B3135)
+    val primary = Color(0xFF35C987)
+    val primarySoft = Color(0xFF173B2D)
+    val secondaryAccent = Color(0xFF67D9A2)
+    val onPrimary = Color(0xFF071B12)
+    val headingText = Color(0xFFF1F5F3)
+    val bodyText = Color(0xFFBDC6C2)
+    val secondaryText = Color(0xFF89938F)
+    val navigationDivider = Color(0xFF2C3431)
+    val navigationUnselected = Color(0xFF77827D)
+    val navigationSelectedLabel = Color(0xFFA2ADA7)
+    val contentOnMedia = Color.White
+    val mediaScrim = Color.Black.copy(alpha = 0.62f)
+    val metadataDateBackground = Color(0xFF24292D)
+}
+
+internal object TripMapPalette {
+    val logoText = Color(0xFFF4F8F5)
+    val scopeBackground = Color(0xFF151C19)
+    val scopeBorder = Color(0xFF2D3A34)
+    val scopeSelectedBackground = Color(0xFF2A3832)
+    val scopeSelectedText = Color(0xFFEEF7F1)
+    val scopeUnselectedText = Color(0xFF92A09A)
+    val tagBackground = Color(0xFF1A2421)
+    val tagText = Color(0xFFBDC8C2)
+    val tagSelectedText = Color(0xFF072118)
+    val dashboardBadgeText = Color(0xFF9CE6BF)
+}
+
+internal object TripStatisticsPalette {
+    val divider = Color(0xFF30363A)
+    val mapBorder = Color(0xFF343B40)
+    val mapLand = Color(0xFF293039)
+    val mapOutline = Color(0xFF424B53)
 }
 
 @Composable
@@ -97,12 +141,13 @@ internal fun TripRecordTheme(content: @Composable () -> Unit) {
 @Composable
 internal fun TripRecordBackground(
     modifier: Modifier = Modifier,
+    backgroundColor: Color = TripRecordPalette.background,
     content: @Composable () -> Unit,
 ) {
     TripRecordTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = TripRecordPalette.background,
+            color = backgroundColor,
         ) {
             Box(
                 modifier = modifier.fillMaxSize(),
@@ -199,48 +244,66 @@ internal fun TripBottomBar(
     onMapClick: () -> Unit = {},
     onCreateClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    backgroundColor: Color = TripRecordPalette.background,
+    dividerColor: Color = TripRecordPalette.line,
+    selectedIconColor: Color = TripRecordPalette.accent,
+    selectedLabelColor: Color = TripRecordPalette.accent,
+    unselectedColor: Color = TripRecordPalette.muted,
+    contentTopPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(80.dp)
-            .background(TripRecordPalette.background)
-            .padding(horizontal = 22.dp),
+            .height(64.dp)
+            .background(backgroundColor)
+            .drawBehind {
+                drawLine(
+                    color = dividerColor,
+                    start = Offset.Zero,
+                    end = Offset(size.width, 0f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         TripBottomItem(
             tab = TripBottomTab.MAP,
             selected = selected == TripBottomTab.MAP,
             onClick = onMapClick,
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            contentTopPadding = contentTopPadding,
+            modifier = Modifier.weight(1f),
         )
         TripBottomItem(
             tab = TripBottomTab.RECORD,
             selected = selected == TripBottomTab.RECORD,
             onClick = onRecordClick,
-        )
-        TripBottomItem(
-            tab = TripBottomTab.CREATE,
-            selected = selected == TripBottomTab.CREATE,
-            onClick = onCreateClick,
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            contentTopPadding = contentTopPadding,
+            modifier = Modifier.weight(1f),
         )
         TripBottomItem(
             tab = TripBottomTab.PROFILE,
             selected = selected == TripBottomTab.PROFILE,
             onClick = onProfileClick,
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            contentTopPadding = contentTopPadding,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
-internal enum class TripBottomTab(
-    val icon: String,
-    val label: String,
-) {
-    MAP("⌖", "지도"),
-    RECORD("▤", "기록"),
-    CREATE("＋", "작성"),
-    PROFILE("●", "내 정보"),
+internal enum class TripBottomTab(val label: String) {
+    MAP("지도"),
+    RECORD("일지"),
+    PROFILE("통계"),
 }
 
 @Composable
@@ -248,28 +311,120 @@ private fun TripBottomItem(
     tab: TripBottomTab,
     selected: Boolean,
     onClick: () -> Unit,
+    selectedIconColor: Color,
+    selectedLabelColor: Color,
+    unselectedColor: Color,
+    contentTopPadding: Dp,
+    modifier: Modifier = Modifier,
 ) {
+    val iconColor = if (selected) selectedIconColor else unselectedColor
+    val labelColor = if (selected) selectedLabelColor else unselectedColor
     Column(
-        modifier = Modifier
-            .width(58.dp)
-            .clip(RoundedCornerShape(14.dp))
+        modifier = modifier
+            .height(64.dp)
             .clickable(onClick = onClick)
-            .padding(vertical = 5.dp),
+            .padding(top = contentTopPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = tab.icon,
-            color = if (selected) TripRecordPalette.accent else TripRecordPalette.muted,
-            fontSize = if (tab == TripBottomTab.CREATE) 26.sp else 20.sp,
-            lineHeight = 22.sp,
+        TripBottomIcon(
+            tab = tab,
+            color = iconColor,
+            modifier = Modifier.size(25.dp),
         )
+        Spacer(Modifier.height(4.dp))
         Text(
             text = tab.label,
-            color = if (selected) TripRecordPalette.accent else TripRecordPalette.muted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
+            color = labelColor,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
         )
+    }
+}
+
+@Composable
+private fun TripBottomIcon(
+    tab: TripBottomTab,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier) {
+        val stroke = Stroke(
+            width = 1.7.dp.toPx(),
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
+        )
+        when (tab) {
+            TripBottomTab.MAP -> {
+                val mapPath = Path().apply {
+                    moveTo(size.width * 0.12f, size.height * 0.23f)
+                    lineTo(size.width * 0.36f, size.height * 0.10f)
+                    lineTo(size.width * 0.66f, size.height * 0.23f)
+                    lineTo(size.width * 0.90f, size.height * 0.10f)
+                    lineTo(size.width * 0.90f, size.height * 0.77f)
+                    lineTo(size.width * 0.66f, size.height * 0.90f)
+                    lineTo(size.width * 0.36f, size.height * 0.77f)
+                    lineTo(size.width * 0.12f, size.height * 0.90f)
+                    close()
+                }
+                drawPath(mapPath, color = color, style = stroke)
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.36f, size.height * 0.10f),
+                    end = Offset(size.width * 0.36f, size.height * 0.77f),
+                    strokeWidth = stroke.width,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.66f, size.height * 0.23f),
+                    end = Offset(size.width * 0.66f, size.height * 0.90f),
+                    strokeWidth = stroke.width,
+                    cap = StrokeCap.Round,
+                )
+            }
+
+            TripBottomTab.RECORD -> {
+                listOf(0.18f, 0.47f, 0.76f).forEach { y ->
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(size.width * 0.12f, size.height * y),
+                        size = Size(size.width * 0.17f, size.height * 0.17f),
+                        style = stroke,
+                    )
+                    drawLine(
+                        color = color,
+                        start = Offset(size.width * 0.43f, size.height * (y + 0.085f)),
+                        end = Offset(size.width * 0.90f, size.height * (y + 0.085f)),
+                        strokeWidth = stroke.width,
+                        cap = StrokeCap.Round,
+                    )
+                }
+            }
+
+            TripBottomTab.PROFILE -> {
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.08f, size.height * 0.88f),
+                    end = Offset(size.width * 0.92f, size.height * 0.88f),
+                    strokeWidth = stroke.width,
+                    cap = StrokeCap.Round,
+                )
+                listOf(
+                    0.24f to 0.50f,
+                    0.50f to 0.16f,
+                    0.76f to 0.34f,
+                ).forEach { (x, top) ->
+                    drawLine(
+                        color = color,
+                        start = Offset(size.width * x, size.height * top),
+                        end = Offset(size.width * x, size.height * 0.88f),
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
+                }
+            }
+        }
     }
 }
 

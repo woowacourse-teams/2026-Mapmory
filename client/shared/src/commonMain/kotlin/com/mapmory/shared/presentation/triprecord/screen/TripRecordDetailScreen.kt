@@ -176,9 +176,12 @@ private fun TripRecordPhotoSection(
             ) { page ->
                 val photo = media[page]
                 TripPhotoImage(
-                    imageBytes = photo.originalBytes?.bytesForDecoding()
-                        ?: photo.previewBytes?.bytesForDecoding(),
-                    fallbackBytes = photo.previewBytes?.bytesForDecoding(),
+                    // Preview bytes are orientation-normalized display data. Original bytes stay
+                    // untouched for persistence/upload and may carry EXIF orientation that the
+                    // common Skia decoder does not apply consistently across platforms.
+                    imageBytes = photo.previewBytes?.bytesForDecoding()
+                        ?: photo.originalBytes?.bytesForDecoding(),
+                    fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                     contentDescription = "${record.title} 사진 ${page + 1}",
                     modifier = Modifier.fillMaxSize(),
                     placeholderVariant = record.id.toInt() + page + 1,
@@ -270,7 +273,7 @@ private fun DetailBackButton(
         contentDescription = "뒤로가기",
         onClick = onClick,
         containerColor = TripRecordPalette.surface.copy(alpha = 0.5f),
-        contentColor = Color.White,
+        contentColor = TripRecordPalette.contentOnMedia,
         modifier = modifier,
     )
 }
@@ -289,7 +292,7 @@ private fun DetailMoreButton(
             contentDescription = "더보기",
             onClick = { expanded = true },
             containerColor = TripRecordPalette.surface.copy(alpha = 0.5f),
-            contentColor = Color.White,
+            contentColor = TripRecordPalette.contentOnMedia,
         )
         DropdownMenu(
             expanded = expanded,
@@ -350,7 +353,7 @@ private fun TripRecordBottomCard(
                 RecordMetadataChip(
                     text = it,
                     icon = RecordMetadataIcon.Date,
-                    containerColor = TripRecordMetadataDateBackground,
+                    containerColor = TripRecordPalette.metadataDateBackground,
                     contentColor = TripRecordPalette.text,
                 )
             }
@@ -484,7 +487,6 @@ private enum class RecordMetadataIcon {
     Date,
 }
 
-private val TripRecordMetadataDateBackground = Color(0xFF24292D)
 
 private fun Modifier.overlapPhoto(overlap: Dp): Modifier = layout { measurable, constraints ->
     val overlapPx = overlap.roundToPx()

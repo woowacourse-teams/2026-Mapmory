@@ -20,8 +20,9 @@ android {
         applicationId = "com.mapmory.android"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.compileSdk.get().toInt()
-        versionCode = 2
-        versionName = "0.1.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = 3
+        versionName = "0.1.2"
         resValue(
             type = "string",
             name = "mapmory_api_base_url",
@@ -50,4 +51,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:${libs.versions.androidxCompose.get()}")
     debugImplementation("androidx.compose.ui:ui-tooling:${libs.versions.androidxCompose.get()}")
     implementation(libs.ktor.client.core)
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:${libs.versions.androidxCompose.get()}")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:${libs.versions.androidxCompose.get()}")
 }

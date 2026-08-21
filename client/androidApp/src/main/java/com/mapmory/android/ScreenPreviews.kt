@@ -13,6 +13,7 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.presentation.triprecord.screen.TripMapArtwork
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
+import com.mapmory.shared.presentation.triprecord.screen.TripProfileScreen
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordDetailScreen
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordEditorScreen
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordListScreen
@@ -20,6 +21,9 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordDetailUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
+import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
+import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
+import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
 import com.mapmory.shared.presentation.triprecord.state.toTripRecordItemUiState
 
 @Preview(
@@ -121,6 +125,39 @@ fun TripMapScreenPreview() {
         TripMapScreen(
             mapContent = { TripMapArtwork() },
             onBackClick = {},
+        )
+    }
+}
+
+@Preview(
+    name = "여행 통계",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+fun TripStatisticsScreenPreview() {
+    PreviewTheme {
+        TripProfileScreen(
+            statisticsUiState = TripStatisticsUiState.Success(
+                TripStatisticsUiModel(
+                    travelerName = "도우너",
+                    recordCount = 24,
+                    photoCount = 138,
+                    worldVisitedCount = 5,
+                    koreaVisitedCount = 8,
+                    visitedCountryCodes = setOf("KR", "JP", "US", "FR", "IT"),
+                    topLocations = listOf(
+                        TopLocationUiModel("서울", 7),
+                        TopLocationUiModel("부산", 4),
+                        TopLocationUiModel("도쿄", 3),
+                    ),
+                ),
+            ),
+            onMapClick = {},
+            onRecordClick = {},
+            onCreateClick = {},
+            onProfileClick = {},
         )
     }
 }

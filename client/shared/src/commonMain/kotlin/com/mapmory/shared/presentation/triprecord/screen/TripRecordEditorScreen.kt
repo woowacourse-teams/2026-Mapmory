@@ -3,6 +3,9 @@ package com.mapmory.shared.presentation.triprecord.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -33,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -54,7 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
-import com.mapmory.shared.presentation.photo.MaxPhotosPerRecord
+import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.photo.rememberPhotoLibraryActions
 import com.mapmory.shared.presentation.date.PlatformDatePicker
@@ -65,8 +71,24 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 private const val StartDatePickerTarget = "start"
 private const val EndDatePickerTarget = "end"
 
+private val EditorBringIntoViewSpec = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(
+        offset: Float,
+        size: Float,
+        containerSize: Float,
+    ): Float {
+        val trailingEdge = offset + size
+        return when {
+            offset < 0f && trailingEdge > containerSize -> 0f
+            offset < 0f -> offset
+            trailingEdge > containerSize -> trailingEdge - containerSize
+            else -> 0f
+        }
+    }
+}
+
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 fun TripRecordEditorScreen(
     uiState: TripRecordEditorUiState,
     locations: List<Location>,
@@ -83,6 +105,9 @@ fun TripRecordEditorScreen(
     onMapClick: () -> Unit = {},
     onRecordClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    photoLibraryActionsFactory: PhotoLibraryActionsFactory = { onPicked, onRecommended, onMessage ->
+        rememberPhotoLibraryActions(onPicked, onRecommended, onMessage)
+    },
     modifier: Modifier = Modifier,
 ) {
     val selectableLocations = remember(locations) {
@@ -95,17 +120,23 @@ fun TripRecordEditorScreen(
     var photoMessage by remember { mutableStateOf<String?>(null) }
     var recommendedPhotos by remember { mutableStateOf(emptyList<SelectedPhoto>()) }
     var selectedRecommendationIds by remember { mutableStateOf(emptySet<String>()) }
+    var knownRecommendationIds by remember { mutableStateOf(emptySet<String>()) }
     var showRecommendationSheet by remember { mutableStateOf(false) }
+    var isPreparingRecommendationPhotos by remember { mutableStateOf(false) }
     var datePickerTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val dismissKeyboardOnTap = rememberDismissKeyboardOnTapModifier()
-    val photoLibrary = rememberPhotoLibraryActions(
-        onPhotosPicked = { photos ->
+    val photoLibrary = photoLibraryActionsFactory(
+        { photos ->
             photoMessage = null
             onPhotosAdded(photos)
         },
-        onPhotosRecommended = { photos ->
+        { photos ->
+            val incomingIds = photos.map(SelectedPhoto::id).toSet()
+            val newlyLoadedIds = incomingIds - knownRecommendationIds
             recommendedPhotos = photos
-            selectedRecommendationIds = photos.map(SelectedPhoto::id).toSet()
+            selectedRecommendationIds =
+                (selectedRecommendationIds intersect incomingIds) + newlyLoadedIds
+            knownRecommendationIds = incomingIds
             showRecommendationSheet = photos.isNotEmpty()
             photoMessage = if (photos.isEmpty()) {
                 "선택한 지역에서 촬영된 GPS 사진을 찾지 못했어요."
@@ -113,7 +144,7 @@ fun TripRecordEditorScreen(
                 null
             }
         },
-        onMessage = { photoMessage = it },
+        { photoMessage = it },
     )
     val locationResultsListState = rememberLazyListState()
     val filteredLocations = remember(locationSearchQuery, selectableLocations) {
@@ -133,120 +164,122 @@ fun TripRecordEditorScreen(
                 isSaving = uiState.isSaving,
                 onSaveClick = onSaveClick,
             )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(bottom = 32.dp),
+            CompositionLocalProvider(
+                LocalBringIntoViewSpec provides EditorBringIntoViewSpec,
             ) {
-                item {
-                    PhotoSection(
-                        locationName = uiState.selectedLocation?.name ?: "여행 장소",
-                        photos = uiState.selectedPhotos,
-                        onAddClick = photoLibrary.pickFromGallery,
-                        onRecommendClick = {
-                            val selectedLocation = uiState.selectedLocation
-                            if (selectedLocation == null) {
-                                photoMessage = "사진을 추천받으려면 장소를 먼저 선택해 주세요."
-                            } else {
-                                photoMessage = "${selectedLocation.name}에서 촬영된 사진을 찾고 있어요."
-                                val parentName = locations
-                                    .firstOrNull { it.id == selectedLocation.parentId }
-                                    ?.name
-                                photoLibrary.recommendForLocation(selectedLocation, parentName)
-                            }
-                        },
-                        onRemoveClick = onPhotoRemoved,
-                        recommendationsAvailable = photoLibrary.recommendationsAvailable,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .clipToBounds(),
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 18.dp),
-                    )
-                    photoMessage?.let { message ->
-                        Text(
-                            text = message,
-                            color = TripRecordPalette.muted,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        )
-                    }
-                    EditorErrorMessage(
-                        message = uiState.errorMessageFor(TripRecordEditorErrorTarget.PHOTOS),
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
-                    )
-                    EditorDivider()
-                }
-
-                item {
-                    Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
-                        EditorTitleField(
-                            value = uiState.title,
-                            onValueChange = onTitleChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        EditorErrorMessage(
-                            message = uiState.errorMessageFor(TripRecordEditorErrorTarget.TITLE),
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                    EditorDivider(Modifier.padding(horizontal = 20.dp))
-                }
-
-                item {
-                    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                        LocationSelector(
-                            selectedLocation = uiState.selectedLocation,
-                            locations = locations,
-                            onClick = {
-                                onLocationTouched()
-                                showLocationSheet = true
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 32.dp),
+                    ) {
+                        PhotoSection(
+                            locationName = uiState.selectedLocation?.name ?: "여행 장소",
+                            photos = uiState.selectedPhotos,
+                            onAddClick = photoLibrary.pickFromGallery,
+                            onRecommendClick = {
+                                val selectedLocation = uiState.selectedLocation
+                                if (selectedLocation == null) {
+                                    photoMessage = "사진을 추천받으려면 장소를 먼저 선택해 주세요."
+                                } else {
+                                    photoMessage = "${selectedLocation.name}에서 촬영된 사진을 찾고 있어요."
+                                    recommendedPhotos = emptyList()
+                                    selectedRecommendationIds = emptySet()
+                                    knownRecommendationIds = emptySet()
+                                    showRecommendationSheet = false
+                                    val parentName = locations
+                                        .firstOrNull { it.id == selectedLocation.parentId }
+                                        ?.name
+                                    photoLibrary.recommendForLocation(selectedLocation, parentName)
+                                }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            onRemoveClick = onPhotoRemoved,
+                            recommendationsAvailable = photoLibrary.recommendationsAvailable,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 18.dp),
                         )
+                        photoMessage?.let { message ->
+                            Text(
+                                text = message,
+                                color = TripRecordPalette.muted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                            )
+                        }
                         EditorErrorMessage(
-                            message = uiState.errorMessageFor(TripRecordEditorErrorTarget.LOCATION),
-                            modifier = Modifier.padding(top = 6.dp),
+                            message = uiState.errorMessageFor(TripRecordEditorErrorTarget.PHOTOS),
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
                         )
-                    }
-                    EditorDivider(Modifier.padding(horizontal = 20.dp))
-                }
+                        EditorDivider()
 
-                item {
-                    DateFields(
-                        startDate = uiState.startDate,
-                        endDate = uiState.endDate,
-                        startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
-                        endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
-                        onStartDateClick = { datePickerTarget = StartDatePickerTarget },
-                        onEndDateClick = { datePickerTarget = EndDatePickerTarget },
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    )
-                    EditorDivider(Modifier.padding(horizontal = 20.dp))
-                }
+                        Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+                            EditorTitleField(
+                                value = uiState.title,
+                                onValueChange = onTitleChanged,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            EditorErrorMessage(
+                                message = uiState.errorMessageFor(TripRecordEditorErrorTarget.TITLE),
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                        EditorDivider(Modifier.padding(horizontal = 20.dp))
 
-                item {
-                    CompanionChips(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    )
-                }
+                        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                            LocationSelector(
+                                selectedLocation = uiState.selectedLocation,
+                                locations = locations,
+                                onClick = {
+                                    onLocationTouched()
+                                    showLocationSheet = true
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            EditorErrorMessage(
+                                message = uiState.errorMessageFor(TripRecordEditorErrorTarget.LOCATION),
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                        EditorDivider(Modifier.padding(horizontal = 20.dp))
 
-                item {
-                    EditorContentField(
-                        value = uiState.content,
-                        onValueChange = onContentChanged,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 8.dp),
-                    )
-                }
-
-                uiState.generalErrorMessage?.takeIf { uiState.isDirty }?.let { message ->
-                    item {
-                        EditorErrorMessage(
-                            message = message,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        DateFields(
+                            startDate = uiState.startDate,
+                            endDate = uiState.endDate,
+                            startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
+                            endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
+                            onStartDateClick = { datePickerTarget = StartDatePickerTarget },
+                            onEndDateClick = { datePickerTarget = EndDatePickerTarget },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
+                        EditorDivider(Modifier.padding(horizontal = 20.dp))
+
+                        CompanionChips(
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        )
+
+                        EditorContentField(
+                            value = uiState.content,
+                            onValueChange = onContentChanged,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                        )
+
+                        uiState.generalErrorMessage?.takeIf { uiState.isDirty }?.let { message ->
+                            EditorErrorMessage(
+                                message = message,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -377,16 +410,33 @@ fun TripRecordEditorScreen(
                 }
                 TextButton(
                     onClick = {
-                        onPhotosAdded(
-                            recommendedPhotos.filter { it.id in selectedRecommendationIds },
-                        )
-                        showRecommendationSheet = false
-                        photoMessage = null
+                        val selectedPhotos = recommendedPhotos
+                            .filter { it.id in selectedRecommendationIds }
+                        isPreparingRecommendationPhotos = true
+                        photoLibrary.prepareForAdding(selectedPhotos) { preparedPhotos ->
+                            isPreparingRecommendationPhotos = false
+                            if (preparedPhotos.isEmpty()) {
+                                photoMessage = "선택한 사진의 원본을 읽지 못했어요."
+                            } else {
+                                onPhotosAdded(preparedPhotos)
+                                showRecommendationSheet = false
+                                photoMessage = null
+                            }
+                        }
                     },
-                    enabled = selectedRecommendationIds.isNotEmpty(),
+                    enabled = selectedRecommendationIds.isNotEmpty() &&
+                        !isPreparingRecommendationPhotos,
                     modifier = Modifier.align(Alignment.End),
                 ) {
-                    Text("선택한 사진 추가", color = TripRecordPalette.accent, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (isPreparingRecommendationPhotos) {
+                            "원본 불러오는 중…"
+                        } else {
+                            "선택한 사진 추가"
+                        },
+                        color = TripRecordPalette.accent,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -724,7 +774,7 @@ private fun EditorContentField(
                 innerTextField()
             }
         },
-        modifier = modifier.heightIn(min = 150.dp),
+        modifier = modifier.heightIn(min = 150.dp, max = 200.dp),
     )
 }
 
@@ -752,9 +802,7 @@ private fun PhotoEditor(
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (photos.size < MaxPhotosPerRecord) {
-            PhotoActionButton(onClick = onAddClick)
-        }
+        PhotoActionButton(onClick = onAddClick)
         photos.forEach { photo ->
             Box {
                 PhotoPreview(photo = photo, modifier = Modifier.size(112.dp, 84.dp))

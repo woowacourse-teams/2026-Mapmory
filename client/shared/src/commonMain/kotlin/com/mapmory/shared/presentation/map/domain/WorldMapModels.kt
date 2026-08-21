@@ -16,5 +16,6 @@ data class CountryPolygon(
 data class ProvincePolygon(
     val code: String,
     val name: String,
+    /** Exterior rings only. Interior GeoJSON rings (holes) are discarded at generation time. */
     val rings: List<List<GeoPoint>>,
 )

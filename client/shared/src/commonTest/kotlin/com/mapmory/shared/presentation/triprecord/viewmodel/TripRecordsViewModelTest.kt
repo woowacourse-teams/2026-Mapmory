@@ -18,21 +18,29 @@ import kotlin.test.assertTrue
 
 class TripRecordsViewModelTest {
     @Test
-    fun `저장 버튼은 제목과 위치가 모두 입력된 수정 상태에서만 활성화된다`() {
+    fun `저장 버튼은 저장 중이 아닐 때 활성화되고 입력값은 저장 시 검증된다`() {
         val viewModel = TripRecordsViewModel(locations)
         viewModel.onAction(TripRecordAction.StartCreating())
         viewModel.onAction(TripRecordAction.EffectHandled)
 
-        assertFalse(viewModel.uiState.editor.isSaveEnabled)
+        assertTrue(viewModel.uiState.editor.isSaveEnabled)
 
         viewModel.onAction(TripRecordAction.TitleChanged("서울 여행"))
-        assertFalse(viewModel.uiState.editor.isSaveEnabled)
+        assertTrue(viewModel.uiState.editor.isSaveEnabled)
+
+        viewModel.onAction(TripRecordAction.Save)
+        assertEquals(
+            mapOf(TripRecordEditorErrorTarget.LOCATION to "장소를 선택해 주세요."),
+            viewModel.uiState.editor.fieldErrors,
+        )
+        assertEquals("장소를 선택해 주세요.", viewModel.uiState.editor.errorMessage)
+        assertNull(viewModel.uiState.effect)
 
         viewModel.onAction(TripRecordAction.LocationSelected(gangnam))
         assertTrue(viewModel.uiState.editor.isSaveEnabled)
 
         viewModel.onAction(TripRecordAction.TitleChanged(" "))
-        assertFalse(viewModel.uiState.editor.isSaveEnabled)
+        assertTrue(viewModel.uiState.editor.isSaveEnabled)
     }
 
     @Test

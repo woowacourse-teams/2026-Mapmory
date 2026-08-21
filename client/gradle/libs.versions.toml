@@ -9,6 +9,7 @@ androidxCompose = "1.11.4"
 navigationCompose = "2.9.2"
 ksp = "2.3.10"
 room = "2.8.4"
+androidxTest = "1.7.0"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -32,3 +33,5 @@ androidx-compose-foundation = { module = "androidx.compose.foundation:foundation
 jetbrains-androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTest" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTest" }
