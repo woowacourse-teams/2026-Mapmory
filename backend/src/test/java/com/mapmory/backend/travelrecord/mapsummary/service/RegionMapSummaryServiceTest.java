@@ -11,6 +11,8 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.region.RegionRepository;
+import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.mapsummary.dto.RegionMapSummaryResponse;
 import com.mapmory.backend.travelrecord.mapsummary.policy.LevelPolicy;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
@@ -39,6 +41,9 @@ class RegionMapSummaryServiceTest {
     @Mock
     private RegionMapSummaryRepository regionMapSummaryRepository;
 
+    @Mock
+    private TagService tagService;
+
     private final LevelPolicy levelPolicy = LevelPolicy.standard();
 
     @Nested
@@ -50,10 +55,10 @@ class RegionMapSummaryServiceTest {
         void returnsRootCountrySummaries() {
             RegionMapSummaryService service = service();
             when(member.getId()).thenReturn(10L);
-            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null))
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, null))
                     .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 3L)));
 
-            List<RegionMapSummaryResponse> responses = service.getSummaries(member, null);
+            List<RegionMapSummaryResponse> responses = service.getSummaries(member, null, null);
 
             assertThat(responses).containsExactly(new RegionMapSummaryResponse(
                     1L,
@@ -82,10 +87,10 @@ class RegionMapSummaryServiceTest {
             RegionMapSummaryService service = service();
             when(member.getId()).thenReturn(10L);
             when(regionRepository.existsById(parentRegionId)).thenReturn(true);
-            when(regionMapSummaryRepository.findRegionMapSummaries(10L, parentRegionId))
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, parentRegionId, null))
                     .thenReturn(List.of(result(childRegionId, regionCode, name, regionType, 1L)));
 
-            List<RegionMapSummaryResponse> responses = service.getSummaries(member, parentRegionId);
+            List<RegionMapSummaryResponse> responses = service.getSummaries(member, parentRegionId, null);
 
             assertThat(responses).containsExactly(new RegionMapSummaryResponse(
                     childRegionId,
@@ -103,10 +108,26 @@ class RegionMapSummaryServiceTest {
             RegionMapSummaryService service = service();
             when(regionRepository.existsById(999L)).thenReturn(false);
 
-            assertThatThrownBy(() -> service.getSummaries(member, 999L))
+            assertThatThrownBy(() -> service.getSummaries(member, 999L, null))
                     .isInstanceOfSatisfying(BusinessException.class, exception ->
                             assertThat(exception.getErrorCode()).isEqualTo(RegionErrorCode.REGION_NOT_FOUND));
-            verify(regionMapSummaryRepository, never()).findRegionMapSummaries(10L, 999L);
+            verify(regionMapSummaryRepository, never()).findRegionMapSummaries(10L, 999L, null);
+        }
+
+        @Test
+        @DisplayName("태그가 있으면 소유권을 확인하고 해당 태그로 요약을 필터링한다")
+        void filtersSummariesByOwnedTag() {
+            RegionMapSummaryService service = service();
+            Tag tag = org.mockito.Mockito.mock(Tag.class);
+            when(member.getId()).thenReturn(10L);
+            when(tagService.getOwnedTag(member, 7L)).thenReturn(tag);
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, 7L))
+                    .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 1L)));
+
+            List<RegionMapSummaryResponse> responses = service.getSummaries(member, null, 7L);
+
+            assertThat(responses).singleElement().extracting(RegionMapSummaryResponse::count).isEqualTo(1L);
+            verify(tagService).getOwnedTag(member, 7L);
         }
     }
 
@@ -114,7 +135,8 @@ class RegionMapSummaryServiceTest {
         return new RegionMapSummaryService(
                 regionRepository,
                 regionMapSummaryRepository,
-                levelPolicy
+                levelPolicy,
+                tagService
         );
     }
 
