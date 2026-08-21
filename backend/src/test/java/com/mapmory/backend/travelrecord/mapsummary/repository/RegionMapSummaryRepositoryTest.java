@@ -6,7 +6,9 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
+import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecordtag.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.List;
@@ -27,6 +29,31 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private RegionMapSummaryRepository regionMapSummaryRepository;
+
+    @Test
+    @DisplayName("선택한 태그가 연결된 기록만 지역별로 합산한다")
+    void filtersRecordsByTag() {
+        Member member = member("태그 필터 회원");
+        SavedRegion country = country("T1", "태그 테스트 국가");
+        Tag selectedTag = persist(Tag.of(member, "연인"));
+        Tag otherTag = persist(Tag.of(member, "친구"));
+        TravelRecord selectedRecord = persist(record(member, country, "선택 기록"));
+        TravelRecord otherRecord = persist(record(member, country, "다른 기록"));
+        persist(TravelRecordTag.of(selectedRecord, selectedTag));
+        persist(TravelRecordTag.of(otherRecord, otherTag));
+        flushAndClear();
+
+        List<RegionMapSummaryQueryResult> results = regionMapSummaryRepository.findRegionMapSummaries(
+                member.getId(),
+                null,
+                selectedTag.getId()
+        );
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.getRegionId()).isEqualTo(country.id());
+            assertThat(result.getRecordCount()).isEqualTo(1L);
+        });
+    }
 
     @Nested
     @DisplayName("루트 지역별 지도 요약을 조회할 때")
@@ -181,7 +208,7 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
         if (parent != null) {
             parentRegionId = parent.id();
         }
-        return regionMapSummaryRepository.findRegionMapSummaries(member.getId(), parentRegionId);
+        return regionMapSummaryRepository.findRegionMapSummaries(member.getId(), parentRegionId, null);
     }
 
     private void assertSummaries(
@@ -240,6 +267,17 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
             ));
         }
         return count;
+    }
+
+    private TravelRecord record(Member member, SavedRegion region, String title) {
+        return TravelRecord.of(
+                member,
+                region.entity(),
+                title,
+                "내용",
+                LocalDate.of(2026, 8, 11),
+                null
+        );
     }
 
     private void flushAndClear() {

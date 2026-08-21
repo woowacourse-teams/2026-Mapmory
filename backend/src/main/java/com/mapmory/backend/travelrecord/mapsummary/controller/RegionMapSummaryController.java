@@ -11,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
@@ -25,8 +26,11 @@ public class RegionMapSummaryController {
     }
 
     @GetMapping("/roots")
-    public ApiResponse<List<RegionMapSummaryResponse>> getRootSummaries(@LoginMember Member member) {
-        return ApiResponse.from(regionMapSummaryService.getSummaries(member, null));
+    public ApiResponse<List<RegionMapSummaryResponse>> getRootSummaries(
+            @LoginMember Member member,
+            @RequestParam(required = false) @Positive Long tagId
+    ) {
+        return ApiResponse.from(regionMapSummaryService.getSummaries(member, null, tagId));
     }
 
     @GetMapping("/{regionId}/children")
@@ -34,8 +38,9 @@ public class RegionMapSummaryController {
             @LoginMember Member member,
             @PathVariable
             @Positive(message = "지역 ID는 양수여야 합니다.")
-            Long regionId
+            Long regionId,
+            @RequestParam(required = false) @Positive Long tagId
     ) {
-        return ApiResponse.from(regionMapSummaryService.getSummaries(member, regionId));
+        return ApiResponse.from(regionMapSummaryService.getSummaries(member, regionId, tagId));
     }
 }

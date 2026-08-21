@@ -73,7 +73,7 @@ class RegionMapSummaryControllerTest {
         @Test
         @DisplayName("회원의 루트 지역별 지도 요약을 의미 기반 단계와 함께 반환한다")
         void returnsRootSummaries() throws Exception {
-            when(regionMapSummaryService.getSummaries(any(Member.class), isNull())).thenReturn(List.of(
+            when(regionMapSummaryService.getSummaries(any(Member.class), isNull(), isNull())).thenReturn(List.of(
                     new RegionMapSummaryResponse(
                             1L,
                             "KR",
@@ -96,7 +96,26 @@ class RegionMapSummaryControllerTest {
 
             verify(regionMapSummaryService).getSummaries(
                     same(member),
+                    isNull(),
                     isNull()
+            );
+        }
+
+        @Test
+        @DisplayName("tagId를 지도 요약 서비스에 전달한다")
+        void passesTagId() throws Exception {
+            when(regionMapSummaryService.getSummaries(any(Member.class), isNull(), eq(7L)))
+                    .thenReturn(List.of());
+
+            mockMvc.perform(get("/api/v1/travel-records/map-summary/regions/roots")
+                            .queryParam("tagId", "7")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(memberId)))
+                    .andExpect(status().isOk());
+
+            verify(regionMapSummaryService).getSummaries(
+                    same(member),
+                    isNull(),
+                    eq(7L)
             );
         }
 
@@ -125,7 +144,7 @@ class RegionMapSummaryControllerTest {
         @Test
         @DisplayName("선택 지역의 직속 하위 지역별 지도 요약을 반환한다")
         void returnsChildSummaries() throws Exception {
-            when(regionMapSummaryService.getSummaries(any(Member.class), eq(1L))).thenReturn(List.of(
+            when(regionMapSummaryService.getSummaries(any(Member.class), eq(1L), isNull())).thenReturn(List.of(
                     new RegionMapSummaryResponse(
                             15L,
                             "49",
@@ -147,7 +166,8 @@ class RegionMapSummaryControllerTest {
 
             verify(regionMapSummaryService).getSummaries(
                     same(member),
-                    eq(1L)
+                    eq(1L),
+                    isNull()
             );
         }
 
@@ -163,7 +183,7 @@ class RegionMapSummaryControllerTest {
         @Test
         @DisplayName("상위 지역을 찾을 수 없으면 REGION_NOT_FOUND를 반환한다")
         void returnsRegionNotFound() throws Exception {
-            when(regionMapSummaryService.getSummaries(any(Member.class), eq(999L)))
+            when(regionMapSummaryService.getSummaries(any(Member.class), eq(999L), isNull()))
                     .thenThrow(new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
 
             mockMvc.perform(get("/api/v1/travel-records/map-summary/regions/999/children")

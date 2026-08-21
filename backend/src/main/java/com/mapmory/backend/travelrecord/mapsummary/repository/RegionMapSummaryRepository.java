@@ -28,6 +28,12 @@ public interface RegionMapSummaryRepository extends Repository<TravelRecord, Lon
                   OR summary_region.id = recorded_region.parent_id
                   OR summary_region.id = recorded_region.root_id
                 WHERE tr.member_id = :memberId
+                  AND (:tagId IS NULL OR EXISTS (
+                      SELECT 1
+                      FROM travel_record_tag trt
+                      WHERE trt.travel_record_id = tr.id
+                        AND trt.tag_id = :tagId
+                  ))
                 GROUP BY summary_region.id
             )
             SELECT summary_region.id AS regionId,
@@ -42,6 +48,7 @@ public interface RegionMapSummaryRepository extends Repository<TravelRecord, Lon
             """, nativeQuery = true)
     List<RegionMapSummaryQueryResult> findRegionMapSummaries(
             @Param("memberId") Long memberId,
-            @Param("parentRegionId") Long parentRegionId
+            @Param("parentRegionId") Long parentRegionId,
+            @Param("tagId") Long tagId
     );
 }
