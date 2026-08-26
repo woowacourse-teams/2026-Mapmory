@@ -55,8 +55,6 @@ class UploadedObjectVerificationIntegrationTest extends IntegrationTest {
     void setUp() {
         given(uploadedObjectChecker.exists(anyString())).willReturn(true);
         given(uploadedObjectChecker.exists(MISSING_KEY)).willReturn(false);
-        // 기동 시 권한 자가진단이 대역을 한 번 호출하므로, 호출 횟수 검증 전에 비운다
-        clearInvocations(uploadedObjectChecker);
     }
 
     @Test
