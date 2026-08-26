@@ -25,6 +25,7 @@ import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
+import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.List;
@@ -63,6 +64,10 @@ class TravelRecordServiceTest {
 
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
+
+    // 업로드 실존 검증은 UploadedObjectVerificationIntegrationTest가 담당한다
+    @Mock
+    private UploadedObjectVerifier uploadedObjectVerifier;
 
     @InjectMocks
     private TravelRecordService travelRecordService;
