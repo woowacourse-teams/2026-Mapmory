@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class S3UploadedObjectChecker implements UploadedObjectChecker {
 
     private static final int NOT_FOUND = 404;
+    private static final int FORBIDDEN = 403;
 
     private final S3Client s3Client;
     private final String bucket;
@@ -48,17 +49,19 @@ public class S3UploadedObjectChecker implements UploadedObjectChecker {
             if (exception.statusCode() == NOT_FOUND) {
                 return false;
             }
-            throw storageUnavailable(exception);
+            // s3:ListBucket 권한이 없으면 S3는 "없는 객체"에도 404 대신 403을 준다.
+            // 객체 존재 여부를 권한 없는 호출자에게 흘리지 않기 위한 동작이라, 403을 "없음"으로
+            // 취급하면 멀쩡히 있는 사진을 거절하게 된다. 설정 문제로 따로 알린다.
+            if (exception.statusCode() == FORBIDDEN) {
+                throw failure(UploadErrorCode.STORAGE_ACCESS_DENIED, exception);
+            }
+            throw failure(UploadErrorCode.STORAGE_UNAVAILABLE, exception);
         } catch (SdkException exception) {
-            throw storageUnavailable(exception);
+            throw failure(UploadErrorCode.STORAGE_UNAVAILABLE, exception);
         }
     }
 
-    private BusinessException storageUnavailable(SdkException cause) {
-        return new BusinessException(
-                UploadErrorCode.STORAGE_UNAVAILABLE,
-                UploadErrorCode.STORAGE_UNAVAILABLE.detail(),
-                cause
-        );
+    private BusinessException failure(UploadErrorCode errorCode, SdkException cause) {
+        return new BusinessException(errorCode, errorCode.detail(), cause);
     }
 }

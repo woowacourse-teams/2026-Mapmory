@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -54,6 +55,8 @@ class UploadedObjectVerificationIntegrationTest extends IntegrationTest {
     void setUp() {
         given(uploadedObjectChecker.exists(anyString())).willReturn(true);
         given(uploadedObjectChecker.exists(MISSING_KEY)).willReturn(false);
+        // 기동 시 권한 자가진단이 대역을 한 번 호출하므로, 호출 횟수 검증 전에 비운다
+        clearInvocations(uploadedObjectChecker);
     }
 
     @Test
@@ -128,7 +131,7 @@ class UploadedObjectVerificationIntegrationTest extends IntegrationTest {
         String accessToken = guestAccessToken();
         long recordId = createRecord(accessToken, UPLOADED_KEY);
         // 생성 때 한 번 확인했으므로, 수정 시점의 호출만 세기 위해 기록을 지운다
-        clearInvocations();
+        clearInvocations(uploadedObjectChecker);
 
         mockMvc.perform(put("/api/v1/travel-records/" + recordId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -154,8 +157,18 @@ class UploadedObjectVerificationIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("STORAGE_UNAVAILABLE"));
     }
 
-    private void clearInvocations() {
-        org.mockito.Mockito.clearInvocations(uploadedObjectChecker);
+    @Test
+    void 저장소_접근이_거부되면_일시_장애와_다른_코드로_응답한다() throws Exception {
+        String accessToken = guestAccessToken();
+        willThrow(new BusinessException(UploadErrorCode.STORAGE_ACCESS_DENIED))
+                .given(uploadedObjectChecker).exists(UPLOADED_KEY);
+
+        mockMvc.perform(post("/api/v1/travel-records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(recordBody("제주도 여행", UPLOADED_KEY)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("STORAGE_ACCESS_DENIED"));
     }
 
     private long createRecord(String accessToken, String... objectKeys) throws Exception {

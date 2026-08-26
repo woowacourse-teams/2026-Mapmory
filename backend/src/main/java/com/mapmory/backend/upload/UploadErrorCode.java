@@ -29,6 +29,15 @@ public enum UploadErrorCode implements ErrorCode {
             ErrorKind.SERVICE_UNAVAILABLE,
             "이미지 저장소를 확인할 수 없습니다.",
             "이미지 저장소가 응답하지 않아 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    ),
+    /**
+     * 저장소 접근이 거부된 상태. 일시적 장애가 아니라 서버 설정(IAM 권한) 문제이므로
+     * 재시도로 풀리지 않는다. STORAGE_UNAVAILABLE과 섞으면 원인을 구분할 수 없어 분리한다.
+     */
+    STORAGE_ACCESS_DENIED(
+            ErrorKind.SERVICE_UNAVAILABLE,
+            "이미지 저장소에 접근할 수 없습니다.",
+            "서버가 이미지 저장소에 접근하지 못했습니다. 문제가 계속되면 문의해 주세요."
     );
 
     private final ErrorKind kind;

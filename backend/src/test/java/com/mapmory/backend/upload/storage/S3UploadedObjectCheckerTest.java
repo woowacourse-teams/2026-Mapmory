@@ -62,6 +62,16 @@ class S3UploadedObjectCheckerTest {
     }
 
     @Test
+    void 접근이_거부되면_없음이_아니라_STORAGE_ACCESS_DENIED로_알린다() {
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(s3Exception(403));
+
+        assertThatThrownBy(() -> checker.exists("object-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(UploadErrorCode.STORAGE_ACCESS_DENIED);
+    }
+
+    @Test
     void 저장소_확인이_실패하면_STORAGE_UNAVAILABLE로_알린다() {
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(s3Exception(500));
 
