@@ -25,6 +25,7 @@ import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
+import com.mapmory.backend.upload.service.UploadedObjectDeletionScheduler;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
@@ -72,6 +73,10 @@ class TravelRecordServiceTest {
 
     @Mock
     private UploadedObjectVerifier uploadedObjectVerifier;
+
+    @Mock
+    private UploadedObjectDeletionScheduler uploadedObjectDeletionScheduler;
+
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
 
@@ -91,7 +96,8 @@ class TravelRecordServiceTest {
                 tagService,
                 operationTimer,
                 FIXED_CLOCK,
-                uploadedObjectVerifier
+                uploadedObjectVerifier,
+                uploadedObjectDeletionScheduler
         );
     }
 
@@ -377,6 +383,7 @@ class TravelRecordServiceTest {
                     && !iterator.hasNext();
         }));
         verify(operationTimer).record(eq(MonitoredOperation.MEDIA_SYNC), any());
+        verify(uploadedObjectDeletionScheduler).schedule(List.of("travel-records/10/a.jpg"));
     }
 
     @Test
@@ -475,6 +482,7 @@ class TravelRecordServiceTest {
                 records.iterator().hasNext()
         ));
         verify(recordMediaRepository, never()).findByObjectKeyIn(anyList());
+        verify(uploadedObjectDeletionScheduler).schedule(List.of("travel-records/10/a.jpg"));
     }
 
     @Test
@@ -593,10 +601,19 @@ class TravelRecordServiceTest {
         TravelRecord travelRecord = mock(TravelRecord.class);
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
+        when(recordMediaRepository.findObjectKeysByTravelRecordId(101L))
+                .thenReturn(List.of(
+                        "travel-records/10/a.jpg",
+                        "travel-records/10/b.jpg"
+                ));
 
         travelRecordService.delete(member, 101L);
 
         verify(travelRecordRepository).delete(travelRecord);
+        verify(uploadedObjectDeletionScheduler).schedule(List.of(
+                "travel-records/10/a.jpg",
+                "travel-records/10/b.jpg"
+        ));
     }
 
     @Test
@@ -606,6 +623,8 @@ class TravelRecordServiceTest {
 
         assertError(() -> travelRecordService.delete(member, 101L), "TRAVEL_RECORD_NOT_FOUND");
         verify(travelRecordRepository, never()).delete(any(TravelRecord.class));
+        verify(recordMediaRepository, never()).findObjectKeysByTravelRecordId(any());
+        verify(uploadedObjectDeletionScheduler, never()).schedule(anyList());
     }
 
     private Region region(Long id) {

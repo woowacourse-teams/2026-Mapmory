@@ -14,6 +14,7 @@ import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
+import com.mapmory.backend.upload.service.UploadedObjectDeletionScheduler;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -45,6 +46,7 @@ public class TravelRecordService {
     private final OperationTimer operationTimer;
     private final Clock clock;
     private final UploadedObjectVerifier uploadedObjectVerifier;
+    private final UploadedObjectDeletionScheduler uploadedObjectDeletionScheduler;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -54,7 +56,8 @@ public class TravelRecordService {
             TagService tagService,
             OperationTimer operationTimer,
             Clock clock,
-            UploadedObjectVerifier uploadedObjectVerifier
+            UploadedObjectVerifier uploadedObjectVerifier,
+            UploadedObjectDeletionScheduler uploadedObjectDeletionScheduler
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -64,6 +67,7 @@ public class TravelRecordService {
         this.operationTimer = operationTimer;
         this.clock = clock;
         this.uploadedObjectVerifier = uploadedObjectVerifier;
+        this.uploadedObjectDeletionScheduler = uploadedObjectDeletionScheduler;
     }
 
     @Transactional
@@ -132,6 +136,7 @@ public class TravelRecordService {
         List<RecordMedia> existingMedia = recordMediaRepository
                 .findByTravelRecordIdOrderBySortOrderAsc(travelRecordId);
         List<String> newObjectKeys = newObjectKeys(objectKeys, existingMedia);
+        List<String> removedObjectKeys = removedObjectKeys(objectKeys, existingMedia);
         validateObjectKeysAreAvailable(newObjectKeys);
         uploadedObjectVerifier.verifyAllUploaded(newObjectKeys);
 
@@ -155,6 +160,7 @@ public class TravelRecordService {
                     return synchronizedMedia;
                 }
         );
+        uploadedObjectDeletionScheduler.schedule(removedObjectKeys);
 
         return TravelRecordDetailResponse.from(travelRecord, updatedMedia, tags);
     }
@@ -163,8 +169,10 @@ public class TravelRecordService {
     public void delete(Member member, Long travelRecordId) {
         TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
                 .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        List<String> objectKeys = recordMediaRepository.findObjectKeysByTravelRecordId(travelRecordId);
 
         travelRecordRepository.delete(travelRecord);
+        uploadedObjectDeletionScheduler.schedule(objectKeys);
     }
 
     @Transactional(readOnly = true)
@@ -327,6 +335,17 @@ public class TravelRecordService {
                 .collect(Collectors.toSet());
         return objectKeys.stream()
                 .filter(objectKey -> !existingObjectKeys.contains(objectKey))
+                .toList();
+    }
+
+    private static List<String> removedObjectKeys(
+            List<String> objectKeys,
+            List<RecordMedia> existingMedia
+    ) {
+        Set<String> requestedObjectKeys = new HashSet<>(objectKeys);
+        return existingMedia.stream()
+                .map(RecordMedia::getObjectKey)
+                .filter(objectKey -> !requestedObjectKeys.contains(objectKey))
                 .toList();
     }
 
