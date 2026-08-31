@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.dto;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMedia;
+import com.mapmory.backend.recordmedia.RecordMediaView;
 
 public record TravelRecordMediaResponse(
         Long id,
@@ -10,6 +11,10 @@ public record TravelRecordMediaResponse(
         long viewUrlExpiresIn,
         int sortOrder
 ) {
+    public static TravelRecordMediaResponse from(RecordMediaView mediaView) {
+        return from(mediaView.recordMedia(), mediaView.viewUrl());
+    }
+
     public static TravelRecordMediaResponse from(
             RecordMedia recordMedia,
             ExpiringUrl viewUrl
