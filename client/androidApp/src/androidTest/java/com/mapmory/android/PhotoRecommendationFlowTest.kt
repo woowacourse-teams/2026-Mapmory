@@ -161,7 +161,6 @@ class PhotoRecommendationFlowTest {
         assertEquals(first.top, third.top, 0.5f)
         assertTrue(first.left < second.left && second.left < third.left)
 
-        composeRule.onNodeWithTag("photo-recommendation-grid").performScrollToIndex(3)
         val fourth = composeRule
             .onNodeWithTag("photo-recommendation-item-photo-4")
             .fetchSemanticsNode()
@@ -320,7 +319,7 @@ class PhotoRecommendationFlowTest {
         composeRule.runOnIdle {
             onRecommendationLoadingChanged?.invoke(true)
         }
-        composeRule.onNodeWithText("불러오는 중").performClick()
+        composeRule.onNodeWithText("중단").performClick()
 
         composeRule.runOnIdle { assertEquals(1, cancelCalls) }
     }

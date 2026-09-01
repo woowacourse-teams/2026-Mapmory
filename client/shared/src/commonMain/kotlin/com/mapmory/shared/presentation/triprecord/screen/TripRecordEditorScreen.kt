@@ -695,10 +695,8 @@ private fun PhotoSection(
                         )
                         Text(
                             text = loadingProgress?.let { progress ->
-                                progress.percentage?.let { percentage ->
-                                    "${progress.processed}/${progress.total} ($percentage%)"
-                                }
-                            } ?: "불러오는 중",
+                                progress.percentage?.let { percentage -> "중단 · $percentage%" }
+                            } ?: "중단",
                             color = TripRecordPalette.photoRecommendText,
                             fontSize = 9.sp,
                         )

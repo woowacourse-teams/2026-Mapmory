@@ -244,6 +244,7 @@ private class IosPhotoLibraryController(
         ++recommendationGeneration
         recommendationJob?.cancel()
         recommendationJob = null
+        recommendationSession = null
         finishRecommendationLoading()
     }
 

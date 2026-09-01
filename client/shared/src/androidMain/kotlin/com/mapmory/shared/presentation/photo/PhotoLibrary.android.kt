@@ -68,6 +68,7 @@ actual fun rememberPhotoLibraryActions(
     val recommendationSession = remember { mutableStateOf<AndroidRecommendationSession?>(null) }
 
     fun cancelRecommendations() {
+        pendingRecommendation = null
         recommendationGeneration.value += 1
         recommendationJob.value?.cancel()
         recommendationJob.value = null
