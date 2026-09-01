@@ -90,6 +90,263 @@ final result: passed
 
 ---
 
+# Rejected typography experiment: SUIT — 2026-08-27
+
+## Target and evidence
+
+- Selected typography direction: second displayed typography concept, combined with the third concept's relaxed spacing while preserving the current landing layout.
+- Generated type reference: `C:\Users\YongSung\.codex\generated_images\01a03c75-bb1d-7201-bea1-2716a4bced09\exec-a21a1831-e26e-4000-86a9-d2471f7233ce.png`
+- Previous desktop baseline: `design-qa/manus-typography-source/mapmory-current-desktop-1280x720.png`
+- Previous mobile baseline: `design-qa/manus-typography-source/mapmory-current-mobile-390x844.png`
+- SUIT desktop implementation: `design-qa/suit-typography-v1/desktop-1280x720.png`
+- SUIT mobile implementation: `design-qa/suit-typography-v1/mobile-390x844.png`
+
+## Applied system
+
+- Primary interface and body: self-hosted `SUIT Variable`, weight range 100–900.
+- Hero and section headings: weight 600 with relaxed line height and restrained negative tracking.
+- Buttons: weight 650 so controls remain clear without matching the headline's former heavy block tone.
+- Memory word and photo-record captions: `Nanum Pen Script` only.
+- Existing photography, copy, line breaks, layout, color, interaction, and component geometry were preserved.
+
+## Verification
+
+- Desktop 1280 × 720: hero stays on one line, SUIT is loaded at weight 600, and horizontal overflow is absent.
+- Mobile 390 × 844: hero remains two lines, SUIT is loaded at weight 600, and horizontal overflow is absent.
+- Computed mobile hero: 32.79 px, 41.32 px line height, −0.79 px tracking.
+- Computed desktop hero: 40.96 px, 51.2 px line height, −0.90 px tracking.
+- Browser console errors and warnings: none.
+- The preview server is bound to `127.0.0.1` only; the previously opened LAN/mobile port remains closed.
+
+## Decision
+
+- Technical QA passed, but the visual result felt too rigid in user review.
+- This experiment was rejected and replaced with the third displayed LINE Seed editorial direction.
+
+final result: rejected by user
+
+---
+
+# LINE Seed editorial typography QA — 2026-08-27
+
+## Target and evidence
+
+- Selected typography direction: third displayed typography concept.
+- Generated type reference: `C:\Users\YongSung\.codex\generated_images\01a03c75-bb1d-7201-bea1-2716a4bced09\exec-b2f52f37-e78f-4335-bba2-cc457e11d313.png`
+- Desktop implementation: `design-qa/line-seed-editorial-v1/desktop-1280x720.png`
+- Mobile implementation: `design-qa/line-seed-editorial-v1/mobile-390x844.png`
+- Side-by-side comparison: `design-qa/line-seed-editorial-v1/comparison-option3-vs-implementation.png`
+
+## Applied system
+
+- Primary interface and body: self-hosted `LINE Seed Sans KR` Regular/Bold.
+- Hero: Bold with 1.24 line height and restrained negative tracking, preserving the selected concept's clear weight without the compressed SUIT tone.
+- Body: Regular for a quieter reading rhythm.
+- Memory word and photo captions: `Nanum Pen Script` only.
+- Existing centered layout, photographs, copy, controls, and interactions are unchanged.
+
+## Verification
+
+- Desktop 1280 × 720: hero remains on one line; computed size 42.88 px, weight 700, line height 53.17 px, tracking −0.64 px.
+- Mobile 390 × 844: hero remains two lines; computed size 33.18 px, weight 700, line height 42.14 px, tracking −0.60 px.
+- Horizontal overflow: none at both viewports.
+- Browser console errors and warnings: none.
+- The rejected SUIT runtime asset was removed; only the existing LINE Seed files remain.
+- The preview server remains bound to `127.0.0.1` only.
+
+## Final result
+
+final result: passed
+
+---
+
+# Korea multi-add and desktop density QA — 2026-08-27
+
+## Audit scope and evidence
+
+- Desktop initial map before density adjustment: `design-qa/korea-multi-add-spacing-v1/01-desktop-korea-before-add.png`
+- Desktop compact map with attached add tray: `design-qa/korea-multi-add-spacing-v1/02-desktop-korea-compact.png`
+- Desktop add tray reopened after the first region: `design-qa/korea-multi-add-spacing-v1/03-desktop-second-add-open.png`
+- Desktop with two colored regions: `design-qa/korea-multi-add-spacing-v1/04-desktop-two-regions-added.png`
+- Mobile with two colored regions: `design-qa/korea-multi-add-spacing-v1/05-mobile-two-regions-added.png`
+- Verified viewports: desktop 1280 × 720, mobile 390 × 844
+
+## Numbered flow health
+
+1. Initial Korea map — Healthy: the map and attached photo tray remain in the same surface; desktop canvas height was reduced so the add choices begin inside the first viewport.
+2. First region fill — Healthy: the 1,500 ms province-fill motion completes before actions are enabled.
+3. Continue adding — Fixed: the completion tray now exposes `다른 지역 추가`; reopening the tray preserves the first colored province.
+4. Second region fill — Healthy: a second example can be added without entering level 3, and the progress changes from `1 / 17` to `2 / 17`.
+5. Browse an added memory — Healthy: the active region has an explicit memory-view action, while previously added photo cards change to `기억 보기` instead of implying another add.
+
+## Desktop density changes
+
+- Desktop hero no longer forces a viewport-height minimum; its top padding and photo-cluster gap were reduced.
+- World, Korea, and final conversion section vertical padding was reduced only above the 900 px breakpoint.
+- Korea map canvas maximum height changed from 430/520 px to 340/460 px for compact/regular desktop viewports.
+- Mobile spacing and the mobile map aspect ratio remain unchanged.
+
+## Typography list
+
+- Selected primary: `LINE Seed Sans KR` Regular/Bold — body, headings, navigation, buttons, and form controls.
+- Selected accent: `Nanum Pen Script` — handwritten `기억` and photo-record captions only.
+- Alternative for denser product UI: `SUIT` — clean and compact, but less warm than the selected direction.
+- Alternative for softer editorial copy: `Gowun Dodum` — warm and readable, but has less weight range for an interface system.
+- Neutral fallback: `Noto Sans KR` — dependable, but visually generic for Mapmory's first impression.
+- Removed mixed Latin voice: `Be Vietnam Pro` — no longer used so Korean and Latin interface text share one family.
+
+## Verification and limits
+
+- Two consecutive additions were completed on desktop and mobile, with two provinces still colored and `2 / 17` exposed to accessibility APIs.
+- Browser console errors and warnings: none.
+- No upload, API call, persistence, or database write was introduced; the demo state resets on reload.
+- Screenshot review does not replace physical-device touch testing or assistive-technology testing.
+
+## Final result
+
+final result: passed
+
+---
+
+# Map-first Reveal QA — 2026-08-27
+
+## Visual reference and evidence
+
+- Selected Manus reference: `design-qa/map-first-v1/reference-manus-map-first.png`
+- Desktop neutral state: `design-qa/map-first-v1/01-desktop-initial-1280x720.png`
+- Desktop Seoul reveal complete: `design-qa/map-first-v1/03-desktop-seoul-ready-1280x720.png`
+- Desktop Seoul detail opened from the map: `design-qa/map-first-v1/04-desktop-seoul-detail-map-click-1280x720.png`
+- Mobile neutral state: `design-qa/map-first-v1/05-mobile-initial-390x844.png`
+- Mobile Seoul reveal complete: `design-qa/map-first-v1/09-mobile-seoul-ready-final-390x844.png`
+- Mobile Jeju detail: `design-qa/map-first-v1/07-mobile-jeju-detail-390x844.png`
+- Mobile Seoul dark theme: `design-qa/map-first-v1/10-mobile-seoul-ready-dark-390x844.png`
+- Verified viewports: desktop 1280 × 720, mobile 390 × 844
+
+## Scope and intentional differences
+
+- Applied the selected Map-first Reveal direction only to the Korea level-2 experience. The 3D globe and its country-memory flow remain unchanged.
+- Matched the reference hierarchy: neutral Korea map → province fill animation → one attached result tray → user-opened local detail.
+- Removed province pins, place-name labels, the separate right-side guide, and duplicated administrative names from the level-2 map.
+- Kept the real Mapmory behavior instead of the reference's illustrative photo-on-map state: a colored province opens a separate real memory panel; no photo is pinned directly to the map.
+- Preserved the existing Mapmory app header, 1 / 17 progress, actual province geometry, actual district JSON, and actual team-owned memory data.
+
+## Interaction results
+
+1. The neutral state shows the complete Korea boundary without pins or labels and keeps the three real example memories in the attached add tray: Passed.
+2. Selecting Seoul keeps level 2 visible while an expanding mint reveal is clipped inside Seoul for 1,500 ms. Competing add controls are disabled and `aria-busy` is exposed during the motion: Passed.
+3. After completion, the add tray is replaced by one result tray reading `서울 · 기억 1개 / 서울의 기억이 채워졌어요 / 서울의 기억 보기`: Passed.
+4. The colored Seoul province itself is directly clickable. Clicking its actual geometry opens `서울의 기억`, the Seoul district map, and the real 희옥 record: Passed.
+5. The explicit result-tray action opens the same detail state, preserving an accessible non-canvas path: Passed.
+6. The same path works with Jeju and the real Jeju district data and memory panel: Passed.
+7. Mobile level 2 fits in one viewport after focus: demo top 88 px to bottom 703 px; result tray bottom 683 px; no horizontal overflow: Passed.
+8. Desktop level 2 fits in 1280 × 720 after focus: demo top 88 px to bottom 685 px; no horizontal overflow: Passed.
+9. Dark theme keeps the map boundary, selected province, result tray, text, and CTA legible with no horizontal overflow: Passed.
+10. No API request, upload, persistence, or database write was added. All add/reveal state remains browser-memory-only: Passed.
+
+## Console and limitations
+
+- A negative canvas radius error found during the first reveal implementation was fixed by clamping animation progress before drawing. Fresh desktop/mobile/light/dark runs after the fix produced no new console or React overlay errors.
+- The retained browser log contains only that pre-fix entry at 2026-08-27 09:39:35 UTC; subsequent final QA ran after 09:45 UTC.
+- Physical-phone browser chrome, real touch latency, and assistive-technology behavior remain outside this local browser pass.
+
+## Final result
+
+final result: passed
+
+---
+
+# Globe viewport alignment and scoped onboarding QA — 2026-08-27
+
+## Evidence
+
+- Previous visual direction: `C:\Users\YongSung\.codex\generated_images\01a03c75-bb1d-7201-bea1-2716a4bced09\exec-124eadcc-79da-4ac2-9c9e-806cfe6157f4.png`
+- Desktop implementation: `design-qa/globe-onboarding-v3/desktop-onboarding-1440x1024.png`
+- Mobile implementation: `design-qa/globe-onboarding-v3/mobile-onboarding-390x844.png`
+- Viewports: desktop 1440 × 1024, mobile 390 × 844
+
+## User-feedback changes
+
+- Removed the sticky globe experience and the artificial extra scroll height. The page now follows ordinary document scrolling without locking or pinning.
+- Kept `지구본을 돌려 기억을 찾아요.` on one line at both verified viewports.
+- Confined the dimmed onboarding layer to the globe canvas instead of covering the full viewport or blocking the adjacent memory panel.
+- The earlier full-screen onboarding mock is now only historical reference; the canvas-scoped treatment is an intentional user-directed override.
+
+## Interaction and layout results
+
+- Desktop CTA arrival: experience section top 100 px; heading bottom 203 px; both 520 px panels bottom 747 px inside the 1024 px viewport: Passed.
+- Desktop overlay bounds exactly matched the globe canvas bounds: left 123 px, top 280 px, right 785 px, bottom 687 px: Passed.
+- After dismissing the guide, a 430 px wheel input moved the experience content by approximately 430 px; no sticky stop remained: Passed.
+- Mobile CTA arrival: heading top 155 px and bottom 191 px; complete globe panel bottom 783 px inside the 844 px viewport: Passed.
+- Mobile overlay bounds exactly matched the globe canvas bounds: left 9 px, top 337 px, right 366 px, bottom 695 px: Passed.
+- Mobile headline rendered at 29 px in one line without clipping; no horizontal overflow was present: Passed.
+- Desktop and mobile console errors/warnings: none.
+- React error overlay: none.
+
+## Final result
+
+final result: passed
+
+---
+
+# Globe onboarding and compact experience QA — 2026-08-27
+
+## Evidence
+
+- Source visual truth: `C:\Users\YongSung\.codex\generated_images\01a03c75-bb1d-7201-bea1-2716a4bced09\exec-124eadcc-79da-4ac2-9c9e-806cfe6157f4.png` (1487 × 1058 px). This is the revised full-viewport gray onboarding direction selected after option 1.
+- Desktop onboarding: `design-qa/globe-onboarding-v2/desktop-onboarding-1440x1024.png` (1425 × 1013 px browser capture, 1440 × 1024 CSS viewport override).
+- Desktop dismissed state: `design-qa/globe-onboarding-v2/desktop-experience-1440x1024.png` (1425 × 1013 px browser capture, 1440 × 1024 CSS viewport override).
+- Mobile onboarding: `design-qa/globe-onboarding-v2/mobile-onboarding-390x844.png` (375 × 811 px browser capture, 390 × 844 CSS viewport override).
+- Mobile dismissed state: `design-qa/globe-onboarding-v2/mobile-experience-390x844.png` (375 × 811 px browser capture, 390 × 844 CSS viewport override).
+- QA captures remain local under the ignored `design-qa/` subdirectory; only paths and results are tracked.
+- Density normalization: both browser captures use device scale 1. The in-app browser reserves 15 px horizontally and 11–33 px vertically, so the comparison uses the complete content region and relative component proportions rather than raw pixel equality.
+- Full-view comparison evidence: the source and desktop onboarding capture were opened together in one comparison input at original density.
+- Focused comparison: no separate crop was required because the guide icon, three text levels, globe silhouette, country controls, and right memory panel remain legible in the full-view pair.
+
+## States and interactions checked
+
+- Hero CTA enters `#experience` and the guide appears when at least 45% of the experience section is visible.
+- The guide covers the full viewport with a translucent neutral-gray layer and centers the instruction over the globe.
+- Clicking anywhere on the overlay removes it immediately; reloading the same tab does not show it again during that browser session.
+- The globe remains draggable after dismissal.
+- Country selection sits below the globe on desktop and mobile; the mobile selector begins after the globe shell with no overlap.
+- Selecting China highlights China and opens `상하이 · 와이탄` with `황푸강 건너로 번지던 상하이의 밤` in the separate memory panel.
+- At 1440 × 1024, the heading, 520 px globe panel, country selector, and 520 px memory card fit in one viewport.
+- The desktop experience remains sticky for roughly two 430 px wheel movements, then releases into the Korea section without directly cancelling wheel input.
+- At 390 × 844, the globe and country selector fit in one compact card, there is no horizontal overflow, and the memory panel continues below it.
+- Desktop and mobile console errors/warnings: none.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing LINE Seed Sans KR hierarchy is preserved. The guide uses one 22 px headline, one 13 px instruction, and one quiet 11 px dismissal hint so the new layer reads before the underlying page.
+- Spacing and layout rhythm: the globe and memory panel share a 520 px desktop height. Moving the country selector below the globe makes the interaction order read as globe → country → memory without increasing the panel height.
+- Colors and visual tokens: the overlay uses neutral gray translucency and the guide reuses the existing deep-navy surface and mint action color. No new gradient or decorative visual system was introduced.
+- Image quality and asset fidelity: the default Korea memory now uses the team-owned 제주 coast photo. The hero supporting photos use the team-owned Shanghai Bund and Antelope Canyon assets, strengthening travel identity without generated or placeholder imagery.
+- Copy and content: the onboarding only explains existing rotation and visited-country selection. The default Korea copy describes a 제주 travel memory rather than making the product appear to be a ramen map.
+- Accessibility: the full overlay is one semantic button with an explicit label, visible focus styling, reduced-motion support, and no permanent wheel or body-scroll lock.
+
+## Comparison history
+
+1. Selected source direction.
+   - Full-screen translucent gray onboarding, a compact globe-centered instruction, and click-anywhere dismissal.
+2. Product feedback incorporated during implementation.
+   - Replaced the mock's ramen memory with 제주 travel imagery.
+   - Moved country selection from the top of the globe to a dedicated bottom row.
+   - Reduced both product panels to one-screen height and added a two-scroll sticky dwell instead of cancelling wheel events.
+3. Final comparison.
+   - No actionable P0/P1/P2 differences remain. Overlay hierarchy, opacity, globe focus, and dismissal affordance match the selected direction.
+   - The photo and country-control differences from the mock are intentional, user-requested product corrections.
+
+## Follow-up polish
+
+- P3: measure guide dismissal rate and subsequent globe drag/country selection before deciding whether the session-only guide should become shorter or more persistent.
+- The existing `react-globe.gl` production chunk warning remains a performance follow-up.
+
+## Final result
+
+final result: passed
+
+---
+
 # Centered hero and scroll-built memory collage QA — 2026-08-27
 
 ## Evidence
@@ -326,6 +583,158 @@ final result: passed
 - 브라우저 콘솔 오류/경고와 React 오류 오버레이: 없음.
 - `npm run build`: passed. 기존 WebGL 대형 청크 경고만 유지됨.
 - `npm test`: 10/10 passed.
+
+## Final result
+
+final result: passed
+
+---
+
+# Compact Korea add-to-map QA — 2026-08-27
+
+## Evidence
+
+- Previous Korea layout: `design-qa/desktop-korea-level2.png`
+- Compact desktop implementation: `design-qa/korea-compact-v1/desktop-korea-1440x1024.png`
+- Compact laptop implementation: `design-qa/korea-compact-v1/laptop-korea-1280x720.png`
+- Compact mobile implementation: `design-qa/korea-compact-v1/mobile-korea-390x844.png`
+- Verified viewports: desktop 1440 × 1024, laptop 1280 × 720, mobile 390 × 844
+
+## User-feedback changes
+
+- Removed the separate full-width photo tray that pushed the Korea map below the fold.
+- Moved the three example-memory add controls into a compact dock directly beneath the Korea map in the same bounded panel.
+- Reduced the province-map canvas height while reprojecting the same 17-region boundary data; no map area is cropped or replaced.
+- Uses a uniform centered map projection at every height so compact laptop mode does not flatten or stretch the Korea boundary.
+- Shortened the section explanation and reduced vertical spacing without changing the real add → color → browse flow.
+
+## Results
+
+- Desktop CTA/navigation arrival: section heading top 133 px; complete demo bottom 992 px inside the 1024 px viewport: Passed.
+- Desktop map and add dock are visible together: map top 407 px to bottom 835 px; add dock bottom 973 px: Passed.
+- Laptop-height mode keeps the complete section inside 720 px: demo top 234 px to bottom 702 px; map bottom 582 px; add dock bottom 690 px: Passed.
+- Mobile arrival: heading top 123 px; map top 417 px to bottom 650 px; add dock bottom 819 px inside the 844 px viewport: Passed.
+- Mobile horizontal add tray retains touch scrolling and shows the next example partially as an affordance: Passed.
+- Adding the Seoul example changes progress to 1 / 17 and 6%, colors Seoul, exposes a map hotspot, and changes the control to `기억 보기`: Passed.
+- Opening `기억 보기` retains the real level-3 flow: 서울특별시 district map, 희옥 memory card, and `대한민국 지도로 돌아가기`: Passed.
+- State remains browser-memory-only; no API, upload, or database write was added: Passed.
+- Desktop browser console errors/warnings and React error overlay: none.
+
+## Final result
+
+final result: passed
+
+---
+
+# Single-viewport map interaction QA — 2026-08-27
+
+## Evidence
+
+- Mobile globe: `design-qa/single-viewport-v1/world-globe-mobile-390x844.png`
+- Mobile country memory: `design-qa/single-viewport-v1/world-memory-mobile-390x844.png`
+- Mobile Korea automatic detail: `design-qa/single-viewport-v1/korea-detail-mobile-390x844.png`
+- Laptop Korea automatic detail: `design-qa/single-viewport-v1/korea-detail-laptop-1280x720.png`
+- Verified viewports: mobile 390 × 844, laptop 1280 × 720
+
+## User-feedback changes
+
+- On mobile and tablet, the world experience initially shows only the interactive globe. Selecting a recorded country replaces that same stage with its memory card; closing the card restores the rotatable globe at the same scroll position.
+- Removed native tap highlight, text selection, and focus outline behavior from the WebGL canvas region so a country click does not appear as an unrelated blue browser selection.
+- Adding a Korea example holds the level-2 map long enough to show its province filling, then leaves the next step to the user. Selecting `상세지역 보기` opens the real level-3 district map and corresponding memory in the same focused viewport.
+- The transition remains local browser state only; no API, upload, or database write was added.
+
+## Results
+
+- Mobile globe-only state occupies one bounded stage (top 284 px, bottom 783 px, height 499 px) with the memory card hidden: Passed.
+- Direct WebGL canvas click opens the China memory in-place; the stage remains 499 px tall and automatically aligns below the fixed header: Passed.
+- `기억 닫기` restores the globe in the same stage and immediately allows globe interaction again: Passed.
+- Mobile Korea user-opened detail fits inside one viewport after focus: demo top 88 px to bottom 747 px; district map top 216 px to bottom 736 px; no horizontal overflow: Passed.
+- Laptop Korea user-opened detail fits inside 720 px: demo top 88 px to bottom 581 px; district map and record card top 201 px to bottom 571 px: Passed.
+- Browser console and React error overlay: no errors or warnings; only Vite connection and React DevTools informational messages.
+
+## Final result
+
+final result: passed
+
+---
+
+# Motion pacing and user-controlled progression QA — 2026-08-27
+
+## Evidence
+
+- Direct 3D country selection in progress: `design-qa/motion-pacing-v1/world-direct-selection-mobile-390x844.png`
+- Mobile world memory with visible return control: `design-qa/motion-pacing-v1/world-memory-mobile-390x844.png`
+- Mobile Korea fill completed: `design-qa/motion-pacing-v1/korea-fill-ready-mobile-390x844.png`
+- Mobile Korea detail opened by the user: `design-qa/motion-pacing-v1/korea-detail-user-opened-mobile-390x844.png`
+- Laptop Korea fill completed: `design-qa/motion-pacing-v1/korea-fill-ready-laptop-1280x720.png`
+- Verified viewports: mobile 390 × 844, laptop 1280 × 720
+
+## Flow and timing results
+
+1. Direct WebGL country click changes the country to gold and raises its polygon for 1,050 ms while the globe stays visible: Passed.
+2. The memory panel waits until the globe motion finishes, then opens after 1,170 ms total. At 520 ms the globe is still visible and the memory panel remains hidden: Passed.
+3. The mobile memory header now exposes a 112 × 38 px `지구본으로` close control. Closing restores the globe; the separate `대한민국 상세지도 체험하기` link advances only when the user chooses it: Passed.
+4. The memory-to-Korea link targets the bounded map demo rather than the section heading, aligning the complete interaction surface below the fixed header: Passed.
+5. Adding Seoul keeps level 2 visible during a 1,500 ms fill animation, disables competing add controls, and does not enter the district map automatically: Passed.
+6. After the fill finishes, the mobile level-2 demo is aligned from 88 px to 739 px within the 844 px viewport; the enabled action reads `상세지역 보기`: Passed.
+7. Selecting `상세지역 보기` is the only action that enters level 3. The focused mobile detail demo remains within 88 px to 747 px with no horizontal overflow: Passed.
+8. Laptop 1280 × 720 keeps the completed level-2 demo within 88 px to 555 px: Passed.
+9. No API, upload, persistence, or database write was introduced: Passed.
+
+## Accessibility and limits
+
+- Selection and fill states expose `aria-busy`; transition controls are disabled while their visual result is in progress.
+- Visual screenshots verify layout, hierarchy, and visible focus targets. They do not replace testing with a physical phone's browser toolbar, touch latency, or assistive technology.
+
+## Final result
+
+final result: passed
+
+---
+
+# Lean content and typography QA — 2026-08-27
+
+## Audit scope and evidence
+
+- User goal: understand Mapmory by trying the globe and Korea map, then register for launch notification if interested.
+- Desktop before: `design-qa/lean-content-font-v1/01-desktop-hero-1280x720.png`
+- Desktop after: `design-qa/lean-content-font-v1/10-desktop-hero-after-1280x720.png`
+- Mobile before: `design-qa/lean-content-font-v1/05-mobile-hero-390x844.png`
+- Mobile after: `design-qa/lean-content-font-v1/08-mobile-hero-after-390x844.png`
+- Mobile globe before: `design-qa/lean-content-font-v1/06-mobile-world-390x844.png`
+- Mobile globe after: `design-qa/lean-content-font-v1/09-mobile-world-after-390x844.png`
+- Desktop globe after: `design-qa/lean-content-font-v1/11-desktop-world-after-1280x720.png`
+- Desktop Korea after: `design-qa/lean-content-font-v1/12-desktop-korea-after-1280x720.png`
+- Verified viewports: desktop 1280 × 720, mobile 390 × 844
+
+## Numbered flow health
+
+1. Hero — Healthy: one primary action (`지구본 돌려보기`), one availability note, and one scroll cue remain. The duplicate hero waitlist CTA and decorative English archive label were removed.
+2. World globe — Healthy: the section heading, in-globe manipulation instruction, and recorded-country choices remain. The repeated explanatory paragraph, color legend, and `나라 선택` pill were removed.
+3. Korea map — Healthy: the progression label is now `02 · 대한민국`; the repeated side explanation was removed. The real add → fill → open-memory interaction is unchanged.
+4. Flow explanation — Removed: the three-card `앱 흐름` section repeated the two interactions immediately above it. Its header-navigation item was removed with it.
+5. Launch notification — Healthy: the final conversion section, email input, consent, age confirmation, and retention disclosure remain. Only the decorative English label was removed.
+
+## Typography decision
+
+- Primary interface family: LINE Seed Sans KR Regular and Bold, self-hosted from the official LINE Seed distribution.
+- Record accent: Nanum Pen Script only for the handwritten `기억` layer and photo-record captions.
+- Removed Noto Sans KR and Be Vietnam Pro from the page font stack, reducing the interface from four visible font voices to two.
+- Rationale: LINE Seed keeps Korean and Latin text in one friendly geometric voice and is designed for service readability; the handwriting remains a semantic signal for personal records rather than general decoration.
+- License/source: `https://seed.line.me/`, SIL Open Font License 1.1. Local attribution is recorded in `public/assets/fonts/README.md`.
+
+## Measured result
+
+- Desktop document height reduced from 3,930 px to 3,278 px at 1280 × 720: 652 px removed.
+- Mobile hero retains the full first-screen composition within 390 × 844 and has no horizontal overflow.
+- Mobile globe stage begins at 221 px instead of 284 px and ends at 716 px, leaving the complete interactive surface inside one viewport.
+- Desktop and mobile use `LINE Seed Sans KR` for both body and headings; the removed journey route no longer exists in the DOM.
+- No product capability, data source, API behavior, waitlist requirement, or database write was changed.
+
+## Accessibility and evidence limits
+
+- The remaining heading order, explicit button labels, canvas region labels, focus styles, consent labels, and waitlist status messaging are preserved.
+- Screenshot review confirms hierarchy and reflow, but physical-device font rasterization, touch latency, screen-reader announcements, and zoom behavior still require device/assistive-technology testing.
 
 ## Final result
 

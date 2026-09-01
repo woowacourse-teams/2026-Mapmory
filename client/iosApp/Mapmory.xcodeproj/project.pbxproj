@@ -11,6 +11,9 @@
 		A10000000000000000000002 /* MediaPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* MediaPermissionManager.swift */; };
 		A10000000000000000000003 /* MediaPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* MediaPermissionView.swift */; };
 		A10000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* Assets.xcassets */; };
+		A10000000000000000000005 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* GoogleService-Info.plist */; };
+		A10000000000000000000006 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000001 /* FirebaseAnalytics */; };
+		A10000000000000000000007 /* FirebaseAnalyticsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +23,8 @@
 		A20000000000000000000004 /* Mapmory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mapmory.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000005 /* MediaPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPermissionView.swift; sourceTree = "<group>"; };
 		A20000000000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000000000000000000007 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAnalyticsLogger.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -27,6 +32,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000006 /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,6 +47,8 @@
 				A20000000000000000000005 /* MediaPermissionView.swift */,
 				A20000000000000000000003 /* Info.plist */,
 				A20000000000000000000006 /* Assets.xcassets */,
+				A20000000000000000000007 /* GoogleService-Info.plist */,
+				A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */,
 				A40000000000000000000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -68,6 +76,10 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			packageProductDependencies = (
+				C10000000000000000000001 /* FirebaseAnalytics */,
+				C10000000000000000000002 /* FirebaseCore */,
 			);
 			name = Mapmory;
 			productName = Mapmory;
@@ -101,6 +113,9 @@
 			productRefGroup = A40000000000000000000002 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				C00000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			targets = (
 				A50000000000000000000001 /* Mapmory */,
 			);
@@ -113,6 +128,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000004 /* Assets.xcassets in Resources */,
+				A10000000000000000000005 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,6 +164,7 @@
 				A10000000000000000000001 /* MapmoryApp.swift in Sources */,
 				A10000000000000000000002 /* MediaPermissionManager.swift in Sources */,
 				A10000000000000000000003 /* MediaPermissionView.swift in Sources */,
+				A10000000000000000000007 /* FirebaseAnalyticsLogger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,7 +212,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = L6Q9CDH9AF;
+				DEVELOPMENT_TEAM = G5Y5QL2BYA;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
@@ -211,7 +228,7 @@
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios3;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -227,7 +244,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = L6Q9CDH9AF;
+				DEVELOPMENT_TEAM = G5Y5QL2BYA;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -242,7 +259,7 @@
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios3;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -253,6 +270,30 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C00000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 12.17.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C10000000000000000000001 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C00000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		C10000000000000000000002 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C00000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		A90000000000000000000001 /* Build configuration list for PBXProject "Mapmory" */ = {

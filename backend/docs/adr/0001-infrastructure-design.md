@@ -37,8 +37,14 @@ flowchart LR
 - Nginx가 Let's Encrypt TLS 종료와 리버스 프록시를 담당한다.
 - RDS MySQL 8.4 `db.t4g.micro`는 퍼블릭 접근을 막고 EC2 보안 그룹에서만 접근하도록 한다.
 - S3는 퍼블릭 접근을 차단한다. 모든 객체 키에는 `mapmory/` 접두사를 붙이고 Presigned URL로만 업로드·조회한다.
-- EC2는 SSM Session Manager로 접속하며 SSH 포트는 열지 않는다.
-- CloudWatch 로그는 7일 보관하고, AWS Budgets $40 알람을 둔다. (아직 추가 x)
+- 운영 EC2는 현재 키 기반 SSH 접속을 사용한다. 접근 대상을 제한하고, 향후 SSM Session Manager
+  전용 접속으로 전환할 때 SSH 인바운드 규칙을 제거한다.
+- CloudWatch Agent가 `/var/log/mapmory/application.log`를
+  `/mapmory/prod/application` 로그 그룹으로 전송하며, 로그 그룹 보존 기간은 7일로 설정한다.
+- Prometheus EMF 로그 그룹 `/mapmory/prod/prometheus-emf`의 보존 기간은 14일이다.
+- `dashboard-mapmory-prod` 대시보드와 EC2·RDS 알람을 구성하고
+  `mapmory-prod-alerts` SNS 주제로 알림을 전달한다.
+- AWS Budgets $40 알람은 별도로 구성한다.
 
 ### 업로드 파일 형식 정책 (2026-08-19 보완)
 

@@ -27,6 +27,7 @@ expect fun PlatformDatePicker(
     visible: Boolean,
     initialDate: String?,
     minimumDate: String?,
+    maximumDate: String? = null,
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 )
@@ -54,6 +55,7 @@ internal fun MaterialDatePickerFallback(
     visible: Boolean,
     initialDate: String?,
     minimumDate: String?,
+    maximumDate: String?,
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -62,18 +64,22 @@ internal fun MaterialDatePickerFallback(
     val minimumDateMillis = minimumDate
         .toDatePickerLocalDate()
         ?.toDatePickerEpochMillis()
-    val selectableDates = remember(minimumDateMillis) {
-        if (minimumDateMillis == null) {
+    val maximumDateMillis = maximumDate
+        .toDatePickerLocalDate()
+        ?.toDatePickerEpochMillis()
+    val selectableDates = remember(minimumDateMillis, maximumDateMillis) {
+        if (minimumDateMillis == null && maximumDateMillis == null) {
             DatePickerDefaults.AllDates
         } else {
             object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                    utcTimeMillis >= minimumDateMillis
+                    (minimumDateMillis == null || utcTimeMillis >= minimumDateMillis) &&
+                        (maximumDateMillis == null || utcTimeMillis <= maximumDateMillis)
             }
         }
     }
 
-    key(initialDate, minimumDate) {
+    key(initialDate, minimumDate, maximumDate) {
         val pickerState = androidx.compose.material3.rememberDatePickerState(
             initialSelectedDateMillis = initialDate
                 .toDatePickerLocalDate()

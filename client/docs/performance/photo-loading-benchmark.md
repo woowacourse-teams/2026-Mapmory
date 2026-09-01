@@ -4,6 +4,19 @@
 
 Room 기반 사진 메타데이터 인덱스를 연결한 뒤, 사진 추천 흐름의 단계별 소요 시간과 EXIF 좌표 재사용 여부를 확인한다.
 
+## 추세 그래프
+
+측정 결과는 `photo-loading-results.csv`에 누적하고, 외부 Python 패키지 없이 SVG 그래프로 생성한다.
+
+```bash
+cd /Users/chohs4164/2026-Mapmory
+python3 client/docs/performance/generate_photo_loading_chart.py
+```
+
+![사진 로딩 성능 추세](./photo-loading-trend.svg)
+
+현재 그래프는 동일 앱 버전에서 실행 횟수와 캐시 상태를 비교하는 초기 기준선이다. 앱 버전 간 개선을 판단하려면 같은 기기·같은 사진 목록·같은 캐시 조건으로 측정 결과를 추가해야 한다.
+
 ## 측정 환경
 
 - 측정일: 2026-08-18

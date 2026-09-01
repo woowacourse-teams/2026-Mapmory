@@ -29,6 +29,7 @@ import com.mapmory.shared.presentation.map.math.Vec3
 import com.mapmory.shared.presentation.map.math.clipToFrontHemisphere
 import com.mapmory.shared.presentation.map.math.projectToScreen
 import com.mapmory.shared.presentation.map.math.toSphere
+import com.mapmory.shared.presentation.triprecord.screen.TripMapPalette
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -67,6 +68,7 @@ internal fun WorldGlobe(
             }
         }
     }
+    val colors = TripMapPalette.current
 
     Box(
         modifier = modifier
@@ -112,14 +114,14 @@ internal fun WorldGlobe(
             val globeRadius = min(size.width, size.height) * 0.42f * zoom
             val center = Offset(size.width / 2f, size.height / 2f)
 
-            drawRect(color = Color(0xFF121518))
+            drawRect(color = colors.globeBackground)
 
             drawCircle(
                 brush = Brush.radialGradient(
                     colorStops = arrayOf(
                         0f to Color.Transparent,
                         0.82f to Color.Transparent,
-                        0.91f to Color(0xFF7F9ABA).copy(alpha = 0.055f),
+                        0.91f to colors.globeOuterGlow,
                         1f to Color.Transparent,
                     ),
                     center = center,
@@ -132,9 +134,9 @@ internal fun WorldGlobe(
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF2A3747),
-                        Color(0xFF1B2533),
-                        Color(0xFF111923),
+                        colors.globeGradientCenter,
+                        colors.globeGradientMiddle,
+                        colors.globeGradientEdge,
                     ),
                     center = center - Offset(globeRadius * 0.28f, globeRadius * 0.28f),
                     radius = globeRadius * 1.2f,
@@ -158,15 +160,11 @@ internal fun WorldGlobe(
                 val isVisited = country.code in visitedCountryCodes
                 drawPath(
                     path = path,
-                    color = if (isVisited) Color(0xFF35C987) else Color(0xFF2B3546),
+                    color = if (isVisited) colors.globeVisitedFill else colors.globeUnvisitedFill,
                 )
                 drawPath(
                     path = path,
-                    color = if (isVisited) {
-                        Color(0xFF8AEBC1).copy(alpha = 0.82f)
-                    } else {
-                        Color(0xFF7C8FAA).copy(alpha = 0.54f)
-                    },
+                    color = if (isVisited) colors.globeVisitedOutline else colors.globeUnvisitedOutline,
                     style = Stroke(width = if (isVisited) 1.25.dp.toPx() else 0.85.dp.toPx()),
                 )
             }
@@ -174,8 +172,8 @@ internal fun WorldGlobe(
             drawCircle(
                 brush = Brush.radialGradient(
                     colorStops = arrayOf(
-                        0f to Color.White.copy(alpha = 0.09f),
-                        0.42f to Color.White.copy(alpha = 0.025f),
+                        0f to colors.globeHighlightCenter,
+                        0.42f to colors.globeHighlightMiddle,
                         1f to Color.Transparent,
                     ),
                     center = center - Offset(globeRadius * 0.42f, globeRadius * 0.42f),

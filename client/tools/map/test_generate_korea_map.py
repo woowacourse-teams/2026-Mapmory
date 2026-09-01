@@ -15,7 +15,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 class GenerateKoreaMapTest(unittest.TestCase):
-    def test_bundled_resources_have_canonical_codes_by_province(self):
+    def test_시도별_번들_리소스는_정규_코드를_사용한다(self):
         client_dir = MODULE_PATH.parents[2]
         resource_dir = client_dir / "shared/src/commonMain/composeResources/files"
         locations_file = client_dir / "shared/src/commonMain/kotlin/com/mapmory/shared/domain/model/KoreanDistrictCode.kt"
@@ -36,7 +36,7 @@ class GenerateKoreaMapTest(unittest.TestCase):
         self.assertEqual("51760", next(item["code"] for item in gangwon["districts"] if item["name"] == "평창군"))
         self.assertEqual("11680", next(item["code"] for item in seoul["districts"] if item["name"] == "강남구"))
 
-    def test_outer_rings_discards_polygon_holes(self):
+    def test_외곽_링은_폴리곤_구멍을_제외한다(self):
         geometry = {
             "type": "Polygon",
             "coordinates": [
@@ -47,7 +47,7 @@ class GenerateKoreaMapTest(unittest.TestCase):
 
         self.assertEqual(1, len(MODULE.outer_rings(geometry)))
 
-    def test_outer_rings_keeps_each_multipolygon_exterior(self):
+    def test_외곽_링은_멀티폴리곤의_각_외곽을_유지한다(self):
         geometry = {
             "type": "MultiPolygon",
             "coordinates": [
@@ -58,7 +58,7 @@ class GenerateKoreaMapTest(unittest.TestCase):
 
         self.assertEqual(2, len(MODULE.outer_rings(geometry)))
 
-    def test_simplify_ring_preserves_closed_ring(self):
+    def test_링_단순화는_닫힌_링을_유지한다(self):
         ring = [[0, 0], [1, 0.001], [2, 0], [2, 2], [0, 2], [0, 0]]
 
         simplified = MODULE.simplify_ring(ring, 0.01)
@@ -67,7 +67,7 @@ class GenerateKoreaMapTest(unittest.TestCase):
         self.assertLess(len(simplified), len(ring))
         self.assertIn([2, 2], simplified)
 
-    def test_major_province_override_replaces_only_target_codes(self):
+    def test_주요_시도_재정의는_대상_코드만_교체한다(self):
         base = [
             ("KR-11", "서울특별시", [[[0, 0], [1, 0], [0, 1]]]),
             ("KR-41", "경기도", [[[2, 2], [3, 2], [2, 3]]]),
@@ -81,13 +81,13 @@ class GenerateKoreaMapTest(unittest.TestCase):
         self.assertEqual(10, merged[0][2][0][0][0])
         self.assertEqual(base[1], merged[1])
 
-    def test_overview_override_uses_one_source_for_every_province(self):
+    def test_개요_재정의는_모든_시도에_하나의_소스를_사용한다(self):
         self.assertEqual(
             frozenset(MODULE.PROVINCE_NAMES),
             MODULE.PROVINCE_OVERRIDE_CODES,
         )
 
-    def test_province_parts_are_split_by_coordinate_count(self):
+    def test_시도_조각은_좌표_개수에_따라_분할된다(self):
         feature = lambda code, count: (code, code, [[[index, 0] for index in range(count)]])
 
         parts = MODULE.partition_province_features(
@@ -97,7 +97,7 @@ class GenerateKoreaMapTest(unittest.TestCase):
 
         self.assertEqual([["A", "B"], ["C"]], [[feature[0] for feature in part] for part in parts])
 
-    def test_canonicalizes_legacy_pyeongchang_code_to_app_code(self):
+    def test_기존_평창_코드를_앱_코드로_정규화한다(self):
         feature = {
             "type": "Feature",
             "properties": {"code": "32340", "name": "평창군"},

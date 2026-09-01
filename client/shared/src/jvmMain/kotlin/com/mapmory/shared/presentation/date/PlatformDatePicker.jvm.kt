@@ -7,6 +7,7 @@ actual fun PlatformDatePicker(
     visible: Boolean,
     initialDate: String?,
     minimumDate: String?,
+    maximumDate: String?,
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -14,6 +15,7 @@ actual fun PlatformDatePicker(
         visible = visible,
         initialDate = initialDate,
         minimumDate = minimumDate,
+        maximumDate = maximumDate,
         onDateSelected = onDateSelected,
         onDismiss = onDismiss,
     )

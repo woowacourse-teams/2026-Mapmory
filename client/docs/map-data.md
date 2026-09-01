@@ -56,6 +56,6 @@ python3 tools/map/generate_korea_map.py \
   --resource-output shared/src/commonMain/composeResources/files
 ```
 
-현재 생성 결과는 17개 시·도, 225개 표시 경계입니다. 2018년 원본에만 존재하는 인천의 과거 구역 4개는 현재 앱의 canonical `Location`과 대응하지 않아 생성에서 제외했습니다. 행정구역 데이터가 갱신되면 새 원본과 `KoreanDistrictCode.kt`를 함께 검토한 뒤 생성해야 합니다.
+현재 생성 결과는 17개 시·도, 225개 표시 경계입니다. 2018년 원본에만 존재하는 인천의 과거 구역은 현재 앱의 canonical `Location`과 대응하지 않아 생성에서 제외했습니다. 그 결과 2026년 기준 제물포구(`28125`), 영종구(`28155`), 미추홀구(`28177`), 서해구(`28275`), 검단구(`28290`)는 선택 가능한 지역이지만 번들 경계가 없습니다. 이 지역은 다른 구나 인천 전체 경계로 대체하지 않고 명시적인 경계 조회 실패로 처리합니다. 행정구역 데이터가 갱신되면 새 원본과 `KoreanDistrictCode.kt`를 함께 검토한 뒤 생성해야 합니다.
 
 경계 원본의 이용 조건과 출처 표기는 [원본 저장소 안내](https://github.com/southkorea/southkorea-maps)를 따릅니다. 경계 데이터는 앱 기능을 위한 정적 리소스이고 여행 기록·Location ID 같은 비즈니스 데이터의 소유자가 아닙니다.

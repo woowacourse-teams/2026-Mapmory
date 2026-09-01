@@ -19,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TravelRecordTagService {
-    private static final int MAX_TAGS_PER_RECORD = 5;
-
     private final TagRepository tagRepository;
     private final TravelRecordTagRepository travelRecordTagRepository;
 
@@ -34,7 +32,7 @@ public class TravelRecordTagService {
 
     @Transactional
     public List<Tag> replace(Member member, TravelRecord travelRecord, List<Long> requestedTagIds) {
-        Set<Long> tagIds = validateAndCollectTagIds(requestedTagIds);
+        Set<Long> tagIds = validateAndCollectTagIds(travelRecord, requestedTagIds);
         List<Tag> tags = findOwnedTags(member.getId(), tagIds);
 
         replaceAssociations(travelRecord, tags);
@@ -61,26 +59,11 @@ public class TravelRecordTagService {
         return result;
     }
 
-    private Set<Long> validateAndCollectTagIds(List<Long> requestedTagIds) {
+    private Set<Long> validateAndCollectTagIds(TravelRecord travelRecord, List<Long> requestedTagIds) {
         List<Long> tagIds = requestedTagIds == null ? List.of() : requestedTagIds;
-        validateTagCount(tagIds);
+        travelRecord.validateTagIds(tagIds);
 
-        Set<Long> uniqueTagIds = new HashSet<>(tagIds);
-        validateNoDuplicateTagIds(tagIds, uniqueTagIds);
-
-        return uniqueTagIds;
-    }
-
-    private void validateTagCount(List<Long> tagIds) {
-        if (tagIds.size() > MAX_TAGS_PER_RECORD) {
-            throw new BusinessException(TagErrorCode.TOO_MANY_TAGS);
-        }
-    }
-
-    private void validateNoDuplicateTagIds(List<Long> tagIds, Set<Long> uniqueTagIds) {
-        if (uniqueTagIds.size() != tagIds.size()) {
-            throw new BusinessException(TagErrorCode.INVALID_TAG_IDS);
-        }
+        return new HashSet<>(tagIds);
     }
 
     private List<Tag> findOwnedTags(Long memberId, Set<Long> tagIds) {

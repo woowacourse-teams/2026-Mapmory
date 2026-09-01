@@ -1,0 +1,18 @@
+package com.mapmory.shared.data.remote
+
+import com.mapmory.shared.data.media.PhotoRemoteSource
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+
+/** 서버가 내려준 조회용 Presigned GET URL로 S3에서 사진 원본을 읽는다. */
+internal class PresignedPhotoRemoteSource(
+    private val client: HttpClient,
+) : PhotoRemoteSource {
+    override suspend fun download(url: String): Result<ByteArray> = apiCall {
+        require(url.startsWith(HttpsPrefix)) { "사진 조회 URL은 HTTPS여야 합니다." }
+        client.get(url).requireSuccess().body()
+    }
+}
+
+private const val HttpsPrefix = "https://"

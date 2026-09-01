@@ -1,3 +1,4 @@
 <resources>
-    <color name="mapmory_system_bar">#111518</color>
+    <color name="mapmory_system_bar_light">#FAFCFB</color>
+    <color name="mapmory_system_bar_dark">#111518</color>
 </resources>

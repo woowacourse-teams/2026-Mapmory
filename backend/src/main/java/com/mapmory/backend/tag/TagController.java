@@ -35,14 +35,18 @@ public class TagController {
             @LoginMember Member member,
             @Valid @RequestBody TagRequest request
     ) {
-        TagResponse response = tagService.create(member, request);
+        TagResponse response = TagResponse.from(tagService.create(member, request.name()));
         return ResponseEntity.created(URI.create("/api/v1/tags/" + response.id()))
                 .body(ApiResponse.from(response));
     }
 
     @GetMapping
     public ApiResponse<List<TagResponse>> findAll(@LoginMember Member member) {
-        return ApiResponse.from(tagService.findAll(member));
+        List<TagResponse> allTagsResponse = tagService.findAll(member).stream()
+                .map(TagResponse::from)
+                .toList();
+
+        return ApiResponse.from(allTagsResponse);
     }
 
     @PatchMapping("/{tagId}")
@@ -51,7 +55,8 @@ public class TagController {
             @PathVariable @Positive Long tagId,
             @Valid @RequestBody TagRequest request
     ) {
-        return ApiResponse.from(tagService.update(member, tagId, request));
+        Tag update = tagService.update(member, tagId, request.name());
+        return ApiResponse.from(TagResponse.from(update));
     }
 
     @DeleteMapping("/{tagId}")

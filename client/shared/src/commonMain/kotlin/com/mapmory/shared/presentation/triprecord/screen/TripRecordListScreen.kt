@@ -22,6 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,33 +34,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
+import com.mapmory.shared.preview.PreviewSurface
+import com.mapmory.shared.preview.previewUiRecords
 
 @Composable
 fun TripRecordListScreen(
     uiState: TripRecordListUiState,
     filter: TripRecordFilterUiState,
-    locations: List<Location>,
-    onKeywordChanged: (String) -> Unit,
-    onLocationChanged: (Long?) -> Unit,
-    onSearchClick: () -> Unit,
     onPreviousPageClick: () -> Unit,
     onNextPageClick: () -> Unit,
     onCreateClick: () -> Unit,
     onMapClick: () -> Unit,
     onRecordClick: (Long) -> Unit,
+    onRetryClick: () -> Unit,
     onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
     TripRecordBackground(
         modifier = modifier.then(rememberDismissKeyboardOnTapModifier()),
-        backgroundColor = TripRecordPalette.pageBackground,
+        backgroundColor = TripRecordPalette.current.pageBackground,
     ) {
         Column(Modifier.fillMaxSize()) {
             JournalHeader(
@@ -78,26 +83,30 @@ fun TripRecordListScreen(
                     TripRecordListUiState.Idle,
                     TripRecordListUiState.Loading,
                     -> CircularProgressIndicator(
-                        color = TripRecordPalette.accent,
+                        color = TripRecordPalette.current.accent,
                         modifier = Modifier.padding(top = 20.dp),
                     )
 
+
                     is TripRecordListUiState.Error -> Text(
                         text = uiState.message,
-                        color = TripRecordPalette.danger,
+                        color = TripRecordPalette.current.danger,
                         modifier = Modifier.padding(top = 20.dp),
                     )
 
                     is TripRecordListUiState.Success -> {
                         if (uiState.records.isEmpty()) {
                             EmptyTripRecords(
-                                hasFilter = filter.keyword.isNotBlank() || filter.locationId != null,
+                                hasFilter = filter.locationId != null,
                                 modifier = Modifier.weight(1f),
                             )
                         } else {
                             TripRecordList(
                                 records = uiState.records,
-                                onRecordClick = onRecordClick,
+                                onRecordClick = { recordId ->
+                                    analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED)
+                                    onRecordClick(recordId)
+                                },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -105,8 +114,20 @@ fun TripRecordListScreen(
                             PageControls(
                                 page = uiState.page,
                                 totalPages = uiState.totalPages,
-                                onPreviousPageClick = onPreviousPageClick,
-                                onNextPageClick = onNextPageClick,
+                                onPreviousPageClick = {
+                                    analytics.logEvent(
+                                        MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
+                                        mapOf("direction" to "previous"),
+                                    )
+                                    onPreviousPageClick()
+                                },
+                                onNextPageClick = {
+                                    analytics.logEvent(
+                                        MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
+                                        mapOf("direction" to "next"),
+                                    )
+                                    onNextPageClick()
+                                },
                             )
                         }
                     }
@@ -118,12 +139,63 @@ fun TripRecordListScreen(
                 onMapClick = onMapClick,
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
-                backgroundColor = TripRecordPalette.pageBackground,
-                dividerColor = TripRecordPalette.navigationDivider,
-                selectedIconColor = TripRecordPalette.primary,
-                selectedLabelColor = TripRecordPalette.navigationSelectedLabel,
-                unselectedColor = TripRecordPalette.navigationUnselected,
+                backgroundColor = TripRecordPalette.current.pageBackground,
+                dividerColor = TripRecordPalette.current.navigationDivider,
+                selectedIconColor = TripRecordPalette.current.primary,
+                selectedLabelColor = TripRecordPalette.current.navigationSelectedLabel,
+                unselectedColor = TripRecordPalette.current.navigationUnselected,
             )
+        }
+    }
+}
+
+@Composable
+private fun TripRecordLoadError(
+    onRetryClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+            border = BorderStroke(1.dp, TripRecordPalette.current.border),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "여행 기록을 불러오지 못했어요.",
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "인터넷 연결을 확인한 뒤\n다시 시도해 주세요.",
+                    color = TripRecordPalette.current.bodyText,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Button(
+                    onClick = onRetryClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TripRecordPalette.current.primary,
+                        contentColor = TripRecordPalette.current.onPrimary,
+                    ),
+                ) {
+                    Text("다시 시도")
+                }
+            }
         }
     }
 }
@@ -133,7 +205,7 @@ private fun JournalHeader(recordCount: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(TripRecordPalette.pageBackground)
+            .background(TripRecordPalette.current.pageBackground)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -141,14 +213,14 @@ private fun JournalHeader(recordCount: Int) {
         Column {
             Text(
                 text = "TRAVEL ARCHIVE",
-                color = TripRecordPalette.primary,
+                color = TripRecordPalette.current.primary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 1.2.sp,
             )
             Text(
                 text = "모든 여행 기록",
-                color = TripRecordPalette.headingText,
+                color = TripRecordPalette.current.headingText,
                 fontSize = 25.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp),
@@ -157,12 +229,12 @@ private fun JournalHeader(recordCount: Int) {
         Box(
             modifier = Modifier
                 .size(35.dp)
-                .background(TripRecordPalette.primarySoft, CircleShape),
+                .background(TripRecordPalette.current.primarySoft, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = recordCount.toString(),
-                color = TripRecordPalette.primary,
+                color = TripRecordPalette.current.primary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -172,6 +244,7 @@ private fun JournalHeader(recordCount: Int) {
 
 @Composable
 private fun JournalTagFilters() {
+    val analytics = LocalMapmoryAnalytics.current
     val tags = remember { listOf("전체", "가족", "애인", "친구", "혼자") }
     var selectedTag by remember { mutableStateOf(tags.first()) }
 
@@ -185,7 +258,13 @@ private fun JournalTagFilters() {
             TripFilterChip(
                 text = tag,
                 selected = selectedTag == tag,
-                onClick = { selectedTag = tag },
+                onClick = {
+                    analytics.logEvent(
+                        MapmoryAnalyticsEvent.JOURNAL_FILTER_SELECTED,
+                        mapOf("tag" to tag),
+                    )
+                    selectedTag = tag
+                },
             )
         }
     }
@@ -199,12 +278,12 @@ private fun TripFilterChip(
 ) {
     Text(
         text = text,
-        color = if (selected) TripRecordPalette.primary else TripRecordPalette.secondaryText,
+        color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.secondaryText,
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
             .clip(RoundedCornerShape(9.dp))
-            .background(if (selected) TripRecordPalette.primarySoft else TripRecordPalette.softSurface)
+            .background(if (selected) TripRecordPalette.current.primarySoft else TripRecordPalette.current.softSurface)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
@@ -240,8 +319,8 @@ private fun TripRecordCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.surface),
-        border = BorderStroke(1.dp, TripRecordPalette.border),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
     ) {
         Column {
             Box {
@@ -273,20 +352,20 @@ private fun TripRecordCard(
                 formattedDate(record)?.let { date ->
                     Text(
                         text = date,
-                        color = TripRecordPalette.secondaryText,
+                        color = TripRecordPalette.current.secondaryText,
                         fontSize = 11.sp,
                     )
                 }
                 Text(
                     text = record.title,
-                    color = TripRecordPalette.headingText,
+                    color = TripRecordPalette.current.headingText,
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 7.dp),
                 )
                 Text(
                     text = record.content,
-                    color = TripRecordPalette.bodyText,
+                    color = TripRecordPalette.current.bodyText,
                     fontSize = 13.sp,
                     lineHeight = 20.sp,
                     maxLines = 2,
@@ -305,11 +384,11 @@ private fun JournalImageBadge(
 ) {
     Text(
         text = text,
-        color = TripRecordPalette.contentOnMedia,
+        color = TripRecordPalette.current.contentOnMedia,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = modifier
-            .background(TripRecordPalette.mediaScrim, RoundedCornerShape(10.dp))
+            .background(TripRecordPalette.current.mediaScrim, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp),
     )
 }
@@ -337,13 +416,13 @@ private fun EmptyTripRecords(
     ) {
         Text(
             text = if (hasFilter) "조건에 맞는 여행 기록이 없어요." else "아직 작성한 여행 기록이 없어요.",
-            color = TripRecordPalette.text,
+            color = TripRecordPalette.current.text,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = "새로운 여행의 순간을 기록해 보세요.",
-            color = TripRecordPalette.muted,
+            color = TripRecordPalette.current.muted,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -365,21 +444,109 @@ private fun PageControls(
     ) {
         Text(
             text = "‹ 이전",
-            color = if (page > 0) TripRecordPalette.accent else TripRecordPalette.muted.copy(alpha = 0.45f),
+            color = if (page > 0) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
             modifier = Modifier.clickable(enabled = page > 0, onClick = onPreviousPageClick),
         )
         Text(
             text = "${page + 1} / $totalPages",
-            color = TripRecordPalette.contentOnMedia,
+            color = TripRecordPalette.current.contentOnMedia,
             fontSize = 12.sp,
         )
         Text(
             text = "다음 ›",
-            color = if (page + 1 < totalPages) TripRecordPalette.accent else TripRecordPalette.muted.copy(alpha = 0.45f),
+            color = if (page + 1 < totalPages) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
             modifier = Modifier.clickable(
                 enabled = page + 1 < totalPages,
                 onClick = onNextPageClick,
             ),
+        )
+    }
+}
+
+@Preview(
+    name = "여행 기록 목록",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+fun TripRecordListScreenPreview() {
+    PreviewSurface {
+        TripRecordListScreen(
+            uiState = TripRecordListUiState.Success(previewUiRecords, page = 0, totalPages = 3),
+            filter = TripRecordFilterUiState(),
+            onPreviousPageClick = {},
+            onNextPageClick = {},
+            onCreateClick = {},
+            onMapClick = {},
+            onRecordClick = {},
+            onRetryClick = {},
+        )
+    }
+}
+
+@Preview(
+    name = "여행 기록 없음",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+fun EmptyTripRecordListScreenPreview() {
+    PreviewSurface {
+        TripRecordListScreen(
+            uiState = TripRecordListUiState.Success(emptyList(), page = 0, totalPages = 0),
+            filter = TripRecordFilterUiState(),
+            onPreviousPageClick = {},
+            onNextPageClick = {},
+            onCreateClick = {},
+            onMapClick = {},
+            onRecordClick = {},
+            onRetryClick = {},
+        )
+    }
+}
+
+@Preview(
+    name = "여행 기록 목록 로딩",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+fun LoadingTripRecordListScreenPreview() {
+    PreviewSurface {
+        TripRecordListScreen(
+            uiState = TripRecordListUiState.Loading,
+            filter = TripRecordFilterUiState(),
+            onPreviousPageClick = {},
+            onNextPageClick = {},
+            onCreateClick = {},
+            onMapClick = {},
+            onRecordClick = {},
+            onRetryClick = {},
+        )
+    }
+}
+
+@Preview(
+    name = "여행 기록 목록 오류",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+fun ErrorTripRecordListScreenPreview() {
+    PreviewSurface {
+        TripRecordListScreen(
+            uiState = TripRecordListUiState.Error("여행 기록을 불러오지 못했어요."),
+            filter = TripRecordFilterUiState(),
+            onPreviousPageClick = {},
+            onNextPageClick = {},
+            onCreateClick = {},
+            onMapClick = {},
+            onRecordClick = {},
+            onRetryClick = {},
         )
     }
 }

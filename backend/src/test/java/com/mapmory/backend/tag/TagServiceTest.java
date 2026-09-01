@@ -11,8 +11,6 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.tag.dto.TagRequest;
-import com.mapmory.backend.tag.dto.TagResponse;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,10 +49,10 @@ class TagServiceTest {
             return tag;
         });
 
-        TagResponse response = tagService.create(member, new TagRequest("  Date   Course  "));
+        Tag created = tagService.create(member, "  Date   Course  ");
 
-        assertThat(response.id()).isEqualTo(1L);
-        assertThat(response.name()).isEqualTo("Date Course");
+        assertThat(created.getId()).isEqualTo(1L);
+        assertThat(created.getName()).isEqualTo("Date Course");
         verify(tagRepository).existsByMemberIdAndNameKey(10L, "date course");
     }
 
@@ -63,14 +61,14 @@ class TagServiceTest {
         when(member.getId()).thenReturn(10L);
         when(tagRepository.countByMemberId(10L)).thenReturn(10L);
 
-        assertError(() -> tagService.create(member, new TagRequest("연인")), "TAG_LIMIT_EXCEEDED");
+        assertError(() -> tagService.create(member, "연인"), "TAG_LIMIT_EXCEEDED");
 
         verify(tagRepository, never()).saveAndFlush(any(Tag.class));
     }
 
     @Test
     void 샵이_포함된_태그_이름을_거부한다() {
-        assertError(() -> tagService.create(member, new TagRequest("#연인")), "VALIDATION_ERROR");
+        assertError(() -> tagService.create(member, "#연인"), "VALIDATION_ERROR");
 
         verifyNoInteractions(tagRepository);
     }
@@ -85,7 +83,7 @@ class TagServiceTest {
                 .thenReturn(true);
 
         assertError(
-                () -> tagService.update(member, 1L, new TagRequest("  Date   Course  ")),
+                () -> tagService.update(member, 1L, "  Date   Course  "),
                 "TAG_NAME_CONFLICT"
         );
 
@@ -103,7 +101,7 @@ class TagServiceTest {
                 new DataIntegrityViolationException("이름 중복", constraintViolation);
         when(tagRepository.saveAndFlush(any(Tag.class))).thenThrow(integrityViolation);
 
-        assertError(() -> tagService.create(member, new TagRequest("친구")), "TAG_NAME_CONFLICT");
+        assertError(() -> tagService.create(member, "친구"), "TAG_NAME_CONFLICT");
     }
 
     @Test
@@ -114,7 +112,7 @@ class TagServiceTest {
         DataIntegrityViolationException integrityViolation = new DataIntegrityViolationException("FK 위반");
         when(tagRepository.saveAndFlush(any(Tag.class))).thenThrow(integrityViolation);
 
-        assertThatThrownBy(() -> tagService.create(member, new TagRequest("친구")))
+        assertThatThrownBy(() -> tagService.create(member, "친구"))
                 .isSameAs(integrityViolation);
     }
 

@@ -15,34 +15,49 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.colorResource
 import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
-
-private val SystemBarColor = Color(0xFF111518)
+import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 
 class MainActivity : ComponentActivity() {
     private val appViewModel: MapmoryAppViewModel by viewModels()
+    private val analyticsLogger by lazy { FirebaseAnalyticsLogger(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(SystemBarColor.toArgb()),
-            navigationBarStyle = SystemBarStyle.dark(SystemBarColor.toArgb()),
-        )
         setContent {
             val navigation = remember { MapmoryNavigation() }
             var lastBackPressedAt by remember { mutableLongStateOf(0L) }
+            var isDarkTheme by rememberSaveable { mutableStateOf(false) }
+            val systemBarColor = colorResource(
+                if (isDarkTheme) R.color.mapmory_system_bar_dark else R.color.mapmory_system_bar_light,
+            )
+
+            SideEffect {
+                val barStyle = if (isDarkTheme) {
+                    SystemBarStyle.dark(systemBarColor.toArgb())
+                } else {
+                    SystemBarStyle.light(systemBarColor.toArgb(), systemBarColor.toArgb())
+                }
+                enableEdgeToEdge(
+                    statusBarStyle = barStyle,
+                    navigationBarStyle = barStyle,
+                )
+            }
 
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
-                containerColor = SystemBarColor,
+                containerColor = systemBarColor,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
             ) { innerPadding ->
                 Box(
@@ -51,9 +66,12 @@ class MainActivity : ComponentActivity() {
                         .padding(innerPadding),
                 ) {
                     MapmoryApp(
-                        providedRecordsViewModel = appViewModel.recordsViewModel,
+                        container = appViewModel.container,
                         navigation = navigation,
+                        analytics = analyticsLogger,
                         contentWindowInsets = WindowInsets.safeDrawing,
+                        initialIsDarkTheme = isDarkTheme,
+                        onThemeChanged = { isDarkTheme = it },
                     )
                     BackHandler {
                         if (navigation.popBackStack()) {

@@ -28,13 +28,17 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
+import com.mapmory.shared.preview.PreviewSurface
+import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -53,8 +57,9 @@ fun KoreaMapArtwork(
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     val currentOnRegionClick by rememberUpdatedState(onRegionClick)
     val textMeasurer = rememberTextMeasurer()
+    val isDark = LocalMapmoryTheme.current.isDark
     val labelStyle = TextStyle(
-        color = Color(0xFF7085A8),
+        color = if (isDark) Color(0xFF7085A8) else Color(0xFF6B786F),
         fontSize = when {
             regions.size >= 35 -> 7.sp
             regions.size >= 25 -> 8.sp
@@ -69,11 +74,20 @@ fun KoreaMapArtwork(
     var zoom by remember(regions) { mutableStateOf(1f) }
     var pan by remember(regions) { mutableStateOf(Offset.Zero) }
     val currentTransform = rememberUpdatedState(MapTransform(zoom, pan))
+    val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
+    val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
+    val unvisitedFillColor = if (isDark) Color(0xFF1B2536) else Color(0xFFEDF2EE)
+    val visitedOutlineColor = if (isDark) {
+        Color(0xFF8AEBC1).copy(alpha = 0.82f)
+    } else {
+        Color(0xFF2F7659).copy(alpha = 0.72f)
+    }
+    val unvisitedOutlineColor = if (isDark) Color(0xFF4B5870) else Color(0xFFCAD6CE)
 
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF121518))
+            .background(backgroundColor)
             .onSizeChanged { viewportSize = it }
             .pointerInput(viewportSize, projection) {
                 detectTransformGestures(
@@ -122,12 +136,8 @@ fun KoreaMapArtwork(
 
         regions.forEach { region ->
             val isVisited = region.code in visitedRegionCodes
-            val fillColor = if (isVisited) Color(0xFF35C987) else Color(0xFF1B2536)
-            val outlineColor = if (isVisited) {
-                Color(0xFF8AEBC1).copy(alpha = 0.82f)
-            } else {
-                Color(0xFF4B5870)
-            }
+            val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
+            val outlineColor = if (isVisited) visitedOutlineColor else unvisitedOutlineColor
 
             region.rings.forEach { ring ->
                 if (ring.size < 3) return@forEach
@@ -180,6 +190,7 @@ private data class MapTransform(
 private const val MinZoom = 1f
 private const val MaxZoom = 6f
 private const val PanSlackFraction = 0.1f
+private const val BoundaryEpsilon = 0.000001f
 
 @Composable
 fun KoreaMapStatusMessage(
@@ -205,6 +216,36 @@ fun KoreaMapStatusMessage(
             }
         }
     }
+}
+
+@Preview(
+    name = "대한민국 지도 아트워크",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 500,
+)
+@Composable
+fun KoreaMapArtworkPreview() {
+    PreviewSurface {
+        KoreaMapArtwork(
+            visitedRegionCodes = previewVisitedRegions,
+            showRegionLabels = true,
+        )
+    }
+}
+
+@Preview(
+    name = "지도 상태 메시지",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 300,
+)
+@Composable
+fun KoreaMapStatusMessagePreview() {
+    KoreaMapStatusMessage(
+        message = "시·군·구 지도를 불러오는 중...",
+        actionLabel = "다시 시도",
+    )
 }
 
 private data class KoreaProjection(
@@ -340,6 +381,7 @@ private fun pointInRing(point: GeoPoint, ring: List<GeoPoint>): Boolean {
     var inside = false
     var previous = ring.last()
     ring.forEach { current ->
+        if (pointOnSegment(point, previous, current)) return true
         val crossesY = (current.latitude > point.latitude) != (previous.latitude > point.latitude)
         if (crossesY) {
             val intersectionLongitude =
@@ -351,6 +393,14 @@ private fun pointInRing(point: GeoPoint, ring: List<GeoPoint>): Boolean {
         previous = current
     }
     return inside
+}
+
+private fun pointOnSegment(point: GeoPoint, start: GeoPoint, end: GeoPoint): Boolean {
+    val cross = (point.latitude - start.latitude) * (end.longitude - start.longitude) -
+        (point.longitude - start.longitude) * (end.latitude - start.latitude)
+    if (kotlin.math.abs(cross) > BoundaryEpsilon) return false
+    return point.longitude in minOf(start.longitude, end.longitude)..maxOf(start.longitude, end.longitude) &&
+        point.latitude in minOf(start.latitude, end.latitude)..maxOf(start.latitude, end.latitude)
 }
 
 private data class KoreaBounds(

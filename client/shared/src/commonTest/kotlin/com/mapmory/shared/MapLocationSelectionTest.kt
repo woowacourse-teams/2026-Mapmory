@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 
 class MapLocationSelectionTest {
     @Test
-    fun matchesMapNameBeforeRegionCodeWhenLegacyCodesCollide() {
+    fun `기존_코드가_충돌하면_지역_코드보다_지도_이름을_먼저_일치시킨다`() {
         val busanDistricts = listOf(
             location(code = "26110", name = "중구"),
             location(code = "26410", name = "금정구"),
@@ -25,7 +25,7 @@ class MapLocationSelectionTest {
     }
 
     @Test
-    fun removesProvinceNameBeforeMatchingDistrict() {
+    fun `지역을_일치시키기_전에_시도_이름을_제거한다`() {
         val district = location(code = "26410", name = "금정구")
 
         assertEquals(
@@ -35,14 +35,14 @@ class MapLocationSelectionTest {
     }
 
     @Test
-    fun doesNotGuessWhenMapNameDoesNotMatchAnyDistrict() {
+    fun `지도_이름이_어떤_지역과도_일치하지_않으면_추측하지_않는다`() {
         val district = location(code = "26110", name = "중구")
 
         assertNull(findMapDistrictLocation("금정구", listOf(district)))
     }
 
     @Test
-    fun resolvesDistrictByCanonicalCodeAndProvince() {
+    fun `정규_코드와_시도로_지역을_조회한다`() {
         val province = Location(
             id = 4L,
             countryId = 1L,

@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | 가치 제안 명확화 | 첫 화면만 보고 장소 기반 기억 지도라고 이해하는가 | 5초 이해도 테스트 |
 | 방해 요소 최소화 | 사용자가 다음 행동을 망설이지 않는가 | CTA 약속 이행률 |
-| 명확한 CTA | `지구본 돌려보기`가 실제 기억 열기로 이어지는가 | CTA 이후 `place_select` |
+| 명확한 CTA | `지구본 돌려보기`가 실제 기억 열기로 이어지는가 | CTA 이후 `memory_open(open_index=1)` |
 | 마찰 제거 | 관심 있는 사용자가 폼에서 이탈하지 않는가 | 폼 완료율과 오류 원인 |
 | 모바일 대응 | 모바일에서 핵심 체험이 약해지지 않는가 | 모바일·데스크톱 체험률 차이 |
 | 속도 | 첫 화면과 지구본이 충분히 빠르게 반응하는가 | Core Web Vitals 릴리스 기준 |
@@ -68,7 +68,7 @@ Unbounce가 언급한 소셜 증거와 긴급성은 현재 핵심 지표에 넣�
 
 ## 최소 측정 지표
 
-운영 점수판에는 결과 지표 1개, 원인 지표 2개, 가드레일 2개만 둡니다.
+운영 점수판에는 결과 지표 1개, 원인 지표 3개, 가드레일 2개만 둡니다.
 
 ### 결과 지표: 신규 출시 알림 전환율
 
@@ -88,7 +88,7 @@ waitlist_submit(result = subscribed) 고유 사용자 수
 
 ```text
 핵심 체험 완료율 =
-place_select(experience_type = globe) 고유 사용자 수
+memory_open(experience_type = globe, open_index = 1) 고유 사용자 수
 ÷ experience_view(experience_type = globe) 고유 사용자 수
 ```
 
@@ -100,25 +100,70 @@ place_select(experience_type = globe) 고유 사용자 수
 
 ```text
 CTA 약속 이행률 =
-experience_start(interaction_type = hero_cta) 이후 같은 세션에서
-place_select(experience_type = globe)를 한 고유 사용자 수
-÷ experience_start(interaction_type = hero_cta) 고유 사용자 수
+experience_cta_click(cta_placement = hero) 이후 같은 세션에서
+memory_open(experience_type = globe, open_index = 1)을 한 고유 사용자 수
+÷ experience_cta_click(cta_placement = hero) 고유 사용자 수
 ```
 
 이 수치는 새 안의 CTA 진단용이며 이전안과 직접 비교하지 않습니다. 이전 Hero의
 체험 CTA에는 같은 클릭 이벤트가 없기 때문입니다.
 
-### 원인 지표 2: 체험 후 신청 의도율
+### 원인 지표 2: 기억 탐색 깊이와 정확한 체험시간
+
+`memory_open`은 같은 체험에서 같은 기억을 한 번만 기록하며 `open_index`로 첫째,
+둘째, 셋째 고유 기억을 구분합니다. `experience_end`는 체험 영역이 화면에 보이고
+브라우저 탭이 활성화된 시간만 `active_duration_ms`에 누적합니다.
+
+```text
+체험당 고유 기억 수 =
+experience_end.unique_memories_opened
+
+정확한 활성 체험시간 =
+experience_end.active_duration_ms
+
+첫 가치 도달시간 =
+memory_open(open_index = 1).time_since_start_ms
+```
+
+체험시간은 단독 성공 지표로 사용하지 않습니다. `기억 0개 + 긴 체험`은 혼란일
+수 있고 `기억 2개 이상 + 긴 체험`은 자발적 탐색일 수 있으므로 기억 개수와 신청
+결과로 나눠서 봅니다. 10·30·60초 마일스톤 이벤트 대신 각 사용자의 실제 시간을
+숫자형 맞춤 측정항목으로 분석합니다.
+
+### 원인 지표 3: 체험 후 신청 의도율
 
 이 지표는 장소 기억을 연 경험이 출시 알림 신청 의도로 이어졌는지 측정합니다.
 
 ```text
 체험 후 신청 의도율 =
-place_select 이후 같은 세션에서 waitlist_form_start를 한 고유 사용자 수
-÷ place_select를 한 고유 사용자 수
+memory_open 이후 같은 세션에서 waitlist_form_start를 한 고유 사용자 수
+÷ memory_open을 한 고유 사용자 수
 ```
 
-GA4 탐색 보고서에서 순서가 있는 사용자 세그먼트로 계산합니다.
+GA4 탐색 보고서 또는 PostHog의 순서 고정 Funnel에서 계산합니다. 반복 점검은 `POSTHOG_DASHBOARD_SETUP.md`의 운영 대시보드를 사용합니다.
+
+### 단계별 이탈률
+
+별도의 이탈 이벤트는 만들지 않습니다. 같은 세션의 닫힌 순차 퍼널에서 다음
+단계가 없는 사용자를 이탈로 계산합니다.
+
+```text
+page_view
+→ experience_cta_click 또는 experience_view
+→ experience_start
+→ memory_open(open_index = 1)
+→ memory_open(open_index = 2)
+→ waitlist_form_view
+→ waitlist_form_start
+→ waitlist_submit_attempt
+→ generate_lead
+
+단계 이탈률 =
+1 - 다음 단계 사용자 수 ÷ 현재 단계 사용자 수
+```
+
+CTA를 누르지 않고 직접 스크롤한 방문자는 `experience_view`부터 퍼널에 들어옵니다.
+각 단계는 `landing_version`, 기기 유형, 유입 소스로 나눠 비교합니다.
 
 ### 가드레일 1: 폼 완료율
 
@@ -127,7 +172,7 @@ GA4 탐색 보고서에서 순서가 있는 사용자 세그먼트로 계산합�
 ```text
 폼 완료율 =
 waitlist_submit(result = subscribed | already_subscribed) 고유 사용자 수
-÷ waitlist_form_start 고유 사용자 수
+÷ waitlist_submit_attempt 고유 사용자 수
 ```
 
 `waitlist_submit_error`는 KPI가 아니라 원인 진단에 사용합니다. 검증 오류는
@@ -186,22 +231,25 @@ CLS 0.1 이하를 통과해야 합니다.
 
 ## 현재 이벤트로 가능한 것과 부족한 것
 
-현재 구현으로 신규 전환, 체험 완료, 체험 후 신청 의도, 폼 완료를 계산할 수
-있습니다. 분석할 때 다음 제한을 적용합니다.
+현재 구현은 같은 허용 이벤트를 GA4와 PostHog에 보내므로 신규 전환, 체험 완료,
+고유 기억 탐색 수, 정확한 활성 체험시간, 단계별 이탈, 폼 완료를 계산할 수
+있습니다. GA4는 유입·최종 전환, PostHog은 반복해서 보는 체험 대시보드에
+사용합니다. 분석할 때 다음 제한을 적용합니다.
 
-- Hero CTA는 `experience_start(interaction_type = hero_cta)`로 기록됩니다.
-- `experience_start`는 체험 유형마다 한 번만 기록되므로 지구본 드래그율로
-  사용하지 않습니다.
-- `place_select`는 기본으로 열린 기억이 아닌 다른 국가나 지역을 선택했을 때
-  기록되므로 핵심 체험의 보수적인 대리 지표입니다.
-- 기술 제출 오류율을 시도 단위로 정확히 계산하려면 제출 직전
-  `waitlist_submit_attempt` 이벤트가 추가로 필요합니다.
-- 새 안을 배포하기 전에 `VITE_LANDING_VERSION`을 이전안과 다른 값으로
-  설정해야 합니다.
+- Hero CTA와 스크롤 유도는 `experience_cta_click`으로, 실제 첫 조작은
+  `experience_start`로 분리됩니다.
+- `memory_open`은 선택 모션 이후 별도 기억 패널이 실제로 열린 시점에 기록되며,
+  같은 체험에서 같은 기억의 반복 열기는 고유 기억 수에 중복하지 않습니다.
+- `experience_end.active_duration_ms`는 체험 영역이 보이고 탭이 활성화된 시간만
+  누적하며, 첫 연속 체험이 끝날 때 체험 유형별 한 번 기록합니다.
+- 페이지 종료 이벤트는 브라우저 상황에 따라 전송이 누락될 수 있으므로
+  `section_exit` 표본을 함께 보고 GA4 전체 페이지 참여시간으로 결측을 점검합니다.
+- `waitlist_submit_attempt`는 클라이언트 검증 전 모든 제출 시도를 기록합니다.
+- 현재 새 랜딩 기본 버전은 `v2`이며 자동 `page_view`에도 포함됩니다.
 - Core Web Vitals의 실제 사용자 측정은 아직 현재 이벤트 목록에 없습니다.
 
-대한민국 상세지도 선택률과 10초·30초·60초 체류는 상위 KPI가 아닙니다. 핵심
-체험 완료율이 낮을 때 어느 단계에서 이탈했는지 찾는 진단 지표로만 사용합니다.
+대한민국 기억 추가와 정확한 체험시간은 상위 결과 KPI가 아닙니다. 기억을 열지
+못한 사용자와 여러 기억을 연 사용자, 신규 신청자를 나눠 이탈 원인을 진단합니다.
 
 ## 검증 순서
 
@@ -210,7 +258,7 @@ CLS 0.1 이하를 통과해야 합니다.
 1. 처음 보는 사용자 5명으로 문구 이해도와 CTA 발견성을 확인합니다.
 2. Control과 Variant에 서로 다른 `landing_version`을 설정합니다.
 3. 같은 유입을 무작위로 나누고 모바일, 데스크톱, 유입 소스를 함께 기록합니다.
-4. 결과 지표 1개, 원인 지표 2개, 가드레일 2개만 주간으로 확인합니다.
+4. 결과 지표 1개, 원인 지표 3개, 가드레일 2개만 주간으로 확인합니다.
 5. 최소 14일과 계산된 표본 수를 모두 충족한 뒤 성공, 실패, 보류를 판정합니다.
 6. 보류이면 지표를 추가하지 않고 실험 기간을 늘리거나 더 큰 문구 차이를
    테스트합니다.

@@ -10,9 +10,12 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.travelrecord.TravelRecord;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,15 +37,24 @@ class TravelRecordTagServiceTest {
     @Mock
     private Member member;
 
-    @Mock
-    private TravelRecord travelRecord;
-
     private TravelRecordTagService service;
+
+    // 태그 개수·중복 규칙이 TravelRecord 애그리거트에 있으므로 실제 엔티티를 쓴다.
+    private TravelRecord travelRecord;
 
     @BeforeEach
     void setUp() {
         service = new TravelRecordTagService(tagRepository, travelRecordTagRepository);
         lenient().when(member.getId()).thenReturn(10L);
+        travelRecord = TravelRecord.of(
+                member,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
+                "일본 여행",
+                "본문",
+                LocalDate.of(2026, 8, 11),
+                null
+        );
+        ReflectionTestUtils.setField(travelRecord, "id", 100L);
     }
 
     @Test
@@ -77,7 +89,6 @@ class TravelRecordTagServiceTest {
         LocalDateTime now = LocalDateTime.now();
         Tag later = tag(2L, "라멘맛집", now.plusSeconds(1));
         Tag earlier = tag(1L, "연인", now);
-        when(travelRecord.getId()).thenReturn(100L);
         when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, java.util.Set.of(1L, 2L)))
                 .thenReturn(List.of(earlier, later));
 

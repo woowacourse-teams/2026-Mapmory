@@ -9,7 +9,7 @@ import kotlin.test.assertSame
 
 class TripRecordsTest {
     @Test
-    fun `여행 기록을 추가한다`() {
+    fun `여행_기록을_추가한다`() {
         val tripRecords = TripRecords()
 
         val result = tripRecords.addTripRecord(
@@ -27,7 +27,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `시작일이 종료일보다 늦은 여행 기록은 추가할 수 없다`() {
+    fun `시작일이_종료일보다_늦은_여행_기록은_추가할_수_없다`() {
         val tripRecords = TripRecords()
 
         assertFailsWith<IllegalArgumentException> {
@@ -44,7 +44,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `여행 기록을 삭제한다`() {
+    fun `여행_기록을_삭제한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
 
@@ -54,7 +54,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `존재하지 않는 여행 기록을 삭제하면 기존 객체를 반환한다`() {
+    fun `존재하지_않는_여행_기록을_삭제하면_기존_객체를_반환한다`() {
         val tripRecords = TripRecords(listOf(createTripRecord(id = 1L)))
 
         val result = tripRecords.removeTripRecord(createTripRecord(id = 2L))
@@ -63,7 +63,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `빈 목록에서 여행 기록을 삭제하면 기존 객체를 반환한다`() {
+    fun `빈_목록에서_여행_기록을_삭제하면_기존_객체를_반환한다`() {
         val tripRecords = TripRecords()
 
         val result = tripRecords.removeTripRecord(createTripRecord())
@@ -72,7 +72,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `내용이 달라도 ID가 같은 여행 기록을 삭제한다`() {
+    fun `내용이_달라도_ID가_같은_여행_기록을_삭제한다`() {
         val storedRecord = createTripRecord(id = 1L, title = "저장된 제목")
         val deletingRecord = createTripRecord(id = 1L, title = "변경된 제목")
         val tripRecords = TripRecords(listOf(storedRecord))
@@ -83,7 +83,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `여행 기록의 전달된 필드만 수정한다`() {
+    fun `여행_기록의_전달된_필드만_수정한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
 
@@ -109,7 +109,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `여행 기록을 수정해도 목록 순서는 유지된다`() {
+    fun `여행_기록을_수정해도_목록_순서는_유지된다`() {
         val firstRecord = createTripRecord(id = 1L, title = "첫 번째")
         val secondRecord = createTripRecord(id = 2L, title = "두 번째")
         val tripRecords = TripRecords(listOf(firstRecord, secondRecord))
@@ -129,7 +129,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `수정할 필드가 없으면 기록 내용을 유지한다`() {
+    fun `수정할_필드가_없으면_기록_내용을_유지한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
 
@@ -148,7 +148,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `여행 시작일과 종료일을 함께 수정한다`() {
+    fun `여행_시작일과_종료일을_함께_수정한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
         val editingStartTripDate = LocalDate(2026, 9, 1)
@@ -170,7 +170,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `시작일만 수정하면 기존 종료일을 유지한다`() {
+    fun `시작일만_수정하면_기존_종료일을_유지한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
         val editingStartTripDate = LocalDate(2026, 8, 2)
@@ -191,7 +191,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `수정한 시작일이 종료일보다 늦으면 예외가 발생한다`() {
+    fun `수정한_시작일이_종료일보다_늦으면_예외가_발생한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
 
@@ -210,7 +210,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `수정한 종료일이 시작일보다 빠르면 예외가 발생한다`() {
+    fun `수정한_종료일이_시작일보다_빠르면_예외가_발생한다`() {
         val record = createTripRecord()
         val tripRecords = TripRecords(listOf(record))
 
@@ -229,7 +229,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `존재하지 않는 여행 기록을 수정하면 예외가 발생한다`() {
+    fun `존재하지_않는_여행_기록을_수정하면_예외가_발생한다`() {
         val tripRecords = TripRecords(listOf(createTripRecord(id = 1L)))
 
         assertFailsWith<IllegalArgumentException> {
@@ -246,7 +246,7 @@ class TripRecordsTest {
     }
 
     @Test
-    fun `생성자에 전달한 목록이 바뀌어도 여행 기록 목록은 바뀌지 않는다`() {
+    fun `생성자에_전달한_목록이_바뀌어도_여행_기록_목록은_바뀌지_않는다`() {
         val source = mutableListOf(createTripRecord(id = 1L))
         val tripRecords = TripRecords(source)
 

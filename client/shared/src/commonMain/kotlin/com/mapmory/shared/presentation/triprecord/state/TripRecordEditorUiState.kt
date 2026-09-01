@@ -14,6 +14,7 @@ data class TripRecordEditorUiState(
     val isDirty: Boolean = false,
     val dirtyFields: Set<TripRecordEditorErrorTarget> = emptySet(),
     val isSaving: Boolean = false,
+    val isPhotoLoading: Boolean = false,
     val fieldErrors: Map<TripRecordEditorErrorTarget, String> = emptyMap(),
     val generalErrorMessage: String? = null,
 ) {

@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.recordmedia.RecordMedia;
-import com.mapmory.backend.recordmedia.RecordMediaRepository;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.region.RegionType;
@@ -15,7 +13,6 @@ import com.mapmory.backend.travelrecordtag.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -34,9 +31,6 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private RegionRepository regionRepository;
-
-    @Autowired
-    private RecordMediaRepository recordMediaRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -87,8 +81,9 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                 )
         );
 
-        Page<TravelRecord> result = travelRecordRepository.findByMemberId(
+        Page<TravelRecord> result = travelRecordRepository.findByMemberIdAndOptionalTagId(
                 member.getId(),
+                null,
                 PageRequest.of(
                         0, // 첫 페이지
                         20, // 최대 20개
@@ -147,8 +142,9 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         null
                 )
         );
-        recordMediaRepository.save(RecordMedia.of(travelRecord, "mapmory/detail/b.jpg", null, 1));
-        recordMediaRepository.save(RecordMedia.of(travelRecord, "mapmory/detail/a.jpg", null, 0));
+        travelRecord.synchronizeMedia(
+                java.util.List.of("mapmory/detail/a.jpg", "mapmory/detail/b.jpg")
+        );
 
         entityManager.flush();
         entityManager.clear();
@@ -157,19 +153,22 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                 .isPresent();
         assertThat(travelRecordRepository.findByIdAndMemberId(travelRecord.getId(), otherMember.getId()))
                 .isEmpty();
-        assertThat(recordMediaRepository.findByTravelRecordIdOrderBySortOrderAsc(travelRecord.getId()))
+        assertThat(travelRecordRepository.findByIdAndMemberId(travelRecord.getId(), owner.getId())
+                .orElseThrow()
+                .getMedia())
                 .extracting(RecordMedia::getObjectKey)
                 .containsExactly("mapmory/detail/a.jpg", "mapmory/detail/b.jpg");
-        assertThat(recordMediaRepository.findByTravelRecordIdInOrderByTravelRecordIdAscSortOrderAscIdAsc(
+        assertThat(travelRecordRepository.findMediaByTravelRecordIdIn(
                 java.util.List.of(travelRecord.getId())
         ))
                 .extracting(RecordMedia::getObjectKey)
                 .containsExactly("mapmory/detail/a.jpg", "mapmory/detail/b.jpg");
-        assertThat(recordMediaRepository.findByObjectKeyIn(
+        assertThat(travelRecordRepository.existsMediaByObjectKeyIn(
                 java.util.List.of("mapmory/detail/a.jpg")
-        ))
-                .extracting(RecordMedia::getObjectKey)
-                .containsExactly("mapmory/detail/a.jpg");
+        )).isTrue();
+        assertThat(travelRecordRepository.existsMediaByObjectKeyIn(
+                java.util.List.of("mapmory/detail/없는키.jpg")
+        )).isFalse();
     }
 
     @Test
@@ -188,14 +187,11 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         null
                 )
         );
-        RecordMedia recordMedia = recordMediaRepository.save(
-                RecordMedia.of(travelRecord, "mapmory/delete/a.jpg", null, 0)
-        );
+        travelRecord.synchronizeMedia(java.util.List.of("mapmory/delete/a.jpg"));
         entityManager.flush();
         entityManager.clear();
 
         Long travelRecordId = travelRecord.getId();
-        Long recordMediaId = recordMedia.getId();
         TravelRecord foundTravelRecord = travelRecordRepository.findById(travelRecordId)
                 .orElseThrow();
 
@@ -204,6 +200,8 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         entityManager.clear();
 
         assertThat(travelRecordRepository.findById(travelRecordId)).isEmpty();
-        assertThat(recordMediaRepository.findById(recordMediaId)).isEmpty();
+        assertThat(travelRecordRepository.findMediaByTravelRecordIdIn(
+                java.util.List.of(travelRecordId)
+        )).isEmpty();
     }
 }

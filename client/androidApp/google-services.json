@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "601411744421",
+    "project_id": "mapmory-analytics-b6a50",
+    "storage_bucket": "mapmory-analytics-b6a50.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:601411744421:android:92487516773bf6d1ec934c",
+        "android_client_info": {
+          "package_name": "com.mapmory.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbsultg5QXOVTml5MrsEd0dGnOyFoLOsM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

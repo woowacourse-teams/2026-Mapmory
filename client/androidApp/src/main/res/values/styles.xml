@@ -1,8 +1,8 @@
 <resources>
     <style name="Theme.Mapmory" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/mapmory_system_bar</item>
-        <item name="android:navigationBarColor">@color/mapmory_system_bar</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">@color/mapmory_system_bar_light</item>
+        <item name="android:navigationBarColor">@color/mapmory_system_bar_light</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

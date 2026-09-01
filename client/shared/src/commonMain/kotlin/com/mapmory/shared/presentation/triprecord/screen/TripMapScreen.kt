@@ -1,5 +1,6 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,9 +16,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,12 +28,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.MapScope
+import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 import com.mapmory.shared.presentation.map.ui.MapViewport
+import com.mapmory.shared.preview.PreviewSurface
+import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.math.roundToInt
 
 @Composable
@@ -50,14 +62,16 @@ fun TripMapScreen(
     onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val palette = TripRecordPalette.current
+    val analytics = LocalMapmoryAnalytics.current
     TripRecordBackground(
         modifier = modifier,
-        backgroundColor = TripRecordPalette.pageBackground,
+        backgroundColor = palette.pageBackground,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(TripRecordPalette.pageBackground),
+                .background(TripRecordPalette.current.pageBackground),
         ) {
             MapHeaderOverlay(
                 mapScope = mapScope,
@@ -76,8 +90,6 @@ fun TripMapScreen(
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-                // Keep zoomed map pixels inside a dedicated viewport so they cannot
-                // paint over the bottom app navigation.
                 MapViewport(
                     modifier = Modifier.fillMaxSize(),
                     content = mapContent,
@@ -89,16 +101,36 @@ fun TripMapScreen(
                         .padding(end = 28.dp, bottom = 33.dp)
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(TripRecordPalette.primary)
-                        .clickable(onClick = onCreateClick),
+                        .background(palette.primary)
+                        .clickable {
+                            analytics.logEvent(
+                                MapmoryAnalyticsEvent.RECORD_CREATE_STARTED,
+                                mapOf("source" to "map_fab"),
+                            )
+                            onCreateClick()
+                        }
+                        .semantics { contentDescription = "새 기록 작성" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        "＋",
-                        color = TripRecordPalette.onPrimary,
-                        fontSize = 27.sp,
-                        fontWeight = FontWeight.Light,
-                    )
+                    Canvas(Modifier.size(24.dp)) {
+                        val strokeWidth = 2.dp.toPx()
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        val armLength = size.minDimension * 0.32f
+                        drawLine(
+                            color = palette.onPrimary,
+                            start = Offset(center.x - armLength, center.y),
+                            end = Offset(center.x + armLength, center.y),
+                            strokeWidth = strokeWidth,
+                            cap = StrokeCap.Round,
+                        )
+                        drawLine(
+                            color = palette.onPrimary,
+                            start = Offset(center.x, center.y - armLength),
+                            end = Offset(center.x, center.y + armLength),
+                            strokeWidth = strokeWidth,
+                            cap = StrokeCap.Round,
+                        )
+                    }
                 }
             }
 
@@ -108,12 +140,11 @@ fun TripMapScreen(
                 onRecordClick = onRecordClick,
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
-                backgroundColor = TripRecordPalette.pageBackground,
-                dividerColor = TripRecordPalette.navigationDivider,
-                selectedIconColor = TripRecordPalette.primary,
-                selectedLabelColor = TripRecordPalette.navigationSelectedLabel,
-                unselectedColor = TripRecordPalette.navigationUnselected,
-                contentTopPadding = 6.dp,
+                backgroundColor = TripRecordPalette.current.pageBackground,
+                dividerColor = TripRecordPalette.current.navigationDivider,
+                selectedIconColor = TripRecordPalette.current.primary,
+                selectedLabelColor = TripRecordPalette.current.navigationSelectedLabel,
+                unselectedColor = TripRecordPalette.current.navigationUnselected,
             )
         }
     }
@@ -140,13 +171,13 @@ private fun MapHeaderOverlay(
             Row {
                 Text(
                     text = "Map",
-                    color = TripMapPalette.logoText,
+                    color = TripMapPalette.current.logoText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
                     text = "mory",
-                    color = TripRecordPalette.secondaryAccent,
+                    color = TripRecordPalette.current.secondaryAccent,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -179,10 +210,10 @@ private fun MapScopeToggle(
         modifier = Modifier
             .width(174.dp)
             .background(
-                color = TripMapPalette.scopeBackground,
+                color = TripMapPalette.current.scopeBackground,
                 shape = RoundedCornerShape(12.dp),
             )
-            .border(1.dp, TripMapPalette.scopeBorder, RoundedCornerShape(12.dp))
+            .border(1.dp, TripMapPalette.current.scopeBorder, RoundedCornerShape(12.dp))
             .padding(3.dp),
     ) {
         MapScopeChip(
@@ -209,14 +240,14 @@ private fun MapScopeChip(
 ) {
     Text(
         text = label,
-        color = if (selected) TripMapPalette.scopeSelectedText else TripMapPalette.scopeUnselectedText,
+        color = if (selected) TripMapPalette.current.scopeSelectedText else TripMapPalette.current.scopeUnselectedText,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(
-                if (selected) TripMapPalette.scopeSelectedBackground else TripMapPalette.scopeBackground,
+                if (selected) TripMapPalette.current.scopeSelectedBackground else TripMapPalette.current.scopeBackground,
             )
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp),
@@ -238,13 +269,13 @@ private fun MapTagFilter(modifier: Modifier = Modifier) {
             val selected = selectedTag == tag
             Text(
                 text = tag,
-                color = if (selected) TripMapPalette.tagSelectedText else TripMapPalette.tagText,
+                color = if (selected) TripMapPalette.current.tagSelectedText else TripMapPalette.current.tagText,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(
-                        if (selected) TripRecordPalette.primary else TripMapPalette.tagBackground,
+                        if (selected) TripRecordPalette.current.primary else TripMapPalette.current.tagBackground,
                     )
                     .clickable { selectedTag = tag }
                     .padding(horizontal = 11.dp, vertical = 4.dp),
@@ -278,12 +309,12 @@ private fun MapSummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                color = TripRecordPalette.pageBackground,
+                color = TripRecordPalette.current.pageBackground,
                 shape = cardShape,
             )
             .border(
                 width = 1.dp,
-                color = TripRecordPalette.border,
+                color = TripRecordPalette.current.border,
                 shape = cardShape,
             )
             .padding(
@@ -296,13 +327,13 @@ private fun MapSummaryCard(
         mapDetailTitle?.let { title ->
             Text(
                 text = "← $title 전체에서 나가기",
-                color = TripRecordPalette.accent,
+                color = TripRecordPalette.current.accent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(TripRecordPalette.accentSoft)
+                    .background(TripRecordPalette.current.accentSoft)
                     .clickable(onClick = onMapDetailBackClick)
                     .padding(horizontal = 10.dp, vertical = 7.dp),
             )
@@ -316,7 +347,7 @@ private fun MapSummaryCard(
             Column {
                 Text(
                     text = title,
-                    color = TripRecordPalette.secondaryText,
+                    color = TripRecordPalette.current.secondaryText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -324,18 +355,101 @@ private fun MapSummaryCard(
                     modifier = Modifier.padding(top = 3.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    Text(safeVisitedCount.toString(), color = TripRecordPalette.primary, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text(" / $total", color = TripRecordPalette.headingText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        safeVisitedCount.toString(),
+                        color = TripRecordPalette.current.primary,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        " / $total",
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             Text(
                 text = "$completionPercent% 채움",
-                color = TripMapPalette.dashboardBadgeText,
+                color = TripMapPalette.current.dashboardBadgeText,
                 fontSize = 10.sp,
                 modifier = Modifier
-                    .background(TripRecordPalette.primarySoft, RoundedCornerShape(10.dp))
+                    .background(TripRecordPalette.current.primarySoft, RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp, vertical = 7.dp),
             )
         }
     }
+}
+
+@Preview(
+    name = "여행 지도 화면",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 760,
+)
+@Composable
+private fun TripMapScreenPreview() {
+    PreviewSurface {
+        TripMapScreen(
+            mapContent = { TripMapArtwork() },
+            mapScope = MapScope.KOREA,
+            visitedCount = 8,
+            onBackClick = {},
+        )
+    }
+}
+
+@Preview(
+    name = "여행 지도 상세 화면",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 760,
+)
+@Composable
+private fun TripMapDetailScreenPreview() {
+    PreviewSurface {
+        TripMapScreen(
+            mapContent = {
+                KoreaMapArtwork(
+                    regions = GeneratedKoreaMapData.provinces,
+                    visitedRegionCodes = previewVisitedRegions,
+                    showRegionLabels = true,
+                )
+            },
+            mapScope = MapScope.KOREA,
+            visitedCount = 3,
+            mapDetailTitle = "서울특별시",
+            mapDetailTotal = 25,
+            onBackClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MapScopeChipPreview() {
+    MapScopeChip(
+        label = "대한민국",
+        selected = true,
+        onClick = {},
+    )
+}
+
+@Preview
+@Composable
+private fun MapTagFilterPreview() {
+    MapTagFilter()
+}
+
+@Preview
+@Composable
+private fun MapSummaryCardPreview() {
+    MapSummaryCard(
+        mapScope = MapScope.WORLD,
+        visitedCount = 3,
+        mapDetailTitle = "끄룽텝 마하나콘 아몬 랏따나꼬신 마힌따라 아유타야 마하딜록 뽑놉빠랏 랏차타니 부리롬 우돔랏차니우엣 마하싸탄 아몬삐만 아와딴싸티 싸카타띠야 위쓰누깜쁘라씻",
+        // 방콕의 본 도시명에 세계에서 제일 긴 도시 명이랍니다...
+        mapDetailTotal = 9,
+        onMapDetailBackClick = {},
+    )
 }

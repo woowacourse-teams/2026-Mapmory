@@ -2,7 +2,7 @@
 
 - 상태: 채택
 - 날짜: 2026-08-23
-- 최종 갱신: 2026-08-24
+- 최종 갱신: 2026-08-31
 - 관련: ADR 0001, ADR 0002, ADR 0006
 
 ---
@@ -19,10 +19,11 @@ Mapmory는 Spring Boot 기본 로깅과 Micrometer·Actuator·Prometheus Registr
 - 어떤 사건을 `ERROR`, `WARN`, `INFO`, `DEBUG`로 기록하는가?
 - 어떤 API와 내부 작업이 느리거나 실패했는가?
 - 메트릭 태그가 무제한으로 늘어나는 것을 어떻게 방지하는가?
-- 로그와 메트릭을 이후 CloudWatch에서 안정적으로 검색·집계하려면 어떤 형식이 필요한가?
+- 로그와 메트릭을 CloudWatch에서 안정적으로 검색·집계하려면 어떤 형식이 필요한가?
 
-이 ADR은 애플리케이션이 관측 데이터를 **생성하고 노출하는 단계**까지만 결정한다.
-CloudWatch Agent, 로그 그룹, 대시보드와 알림 구성은 후속 작업으로 남긴다.
+이 ADR은 애플리케이션의 관측 데이터 생성 규칙과 운영 CloudWatch 수집 경계를 결정한다.
+운영 대시보드와 인프라 장애 알림은 구성되어 있으며, 서비스 수준 알람 기준은 후속 작업으로
+남긴다.
 
 ## 현재 구현 요약
 
@@ -35,9 +36,11 @@ CloudWatch Agent, 로그 그룹, 대시보드와 알림 구성은 후속 작업�
 | HTTP 메트릭 | `http.server.requests`의 p95를 애플리케이션에서 계산하고 `uri` 태그 값은 최대 50개까지만 등록한다. | `MetricsConfiguration`, `application.yaml` |
 | 내부 작업 메트릭 | `mapmory.operation.duration`으로 미디어 동기화와 지도 요약 쿼리 시간을 성공·실패별로 기록한다. | `OperationTimer`, `MonitoredOperation` |
 | 메트릭 노출 | `health`, `prometheus`만 읽기 전용으로 노출한다. 운영에서는 `127.0.0.1:8081`로 관리 포트를 분리한다. | `application.yaml`, `application-prod.yaml` |
+| 운영 수집 | EC2의 CloudWatch Agent가 애플리케이션 로그와 Prometheus 메트릭을 CloudWatch로 전송한다. 애플리케이션 로그 그룹은 7일, Prometheus EMF 로그 그룹은 14일간 보관한다. | EC2 CloudWatch Agent, `/mapmory/prod/application`, `/mapmory/prod/prometheus-emf` |
+| 대시보드·알림 | 운영 대시보드, EC2·RDS 인프라 알람과 SNS 알림 채널을 구성한다. | `dashboard-mapmory-prod`, `mapmory-prod-alerts` |
 
-현재 애플리케이션이 생성하고 노출하는 단계까지 구현되어 있다. CloudWatch 수집·저장·대시보드·알림은
-아직 구현하지 않았다.
+애플리케이션 로그와 Prometheus 메트릭의 CloudWatch 수집은 운영 환경에 적용되어 있다.
+CloudWatch 대시보드와 인프라 장애 알림도 적용되어 있다.
 
 ## 결정
 
@@ -185,17 +188,16 @@ CloudWatch 요금이 발생하지 않는다. 다만 메트릭 시계열은 애�
 - 예외 메시지나 임의 문자열
 
 클라이언트 percentile은 운영 판단에 필요한 HTTP 요청과 중요 내부 Timer에만 적용한다.
-CloudWatch 전송 전에는 노출되는 메트릭과 시계열 수를 확인하고 수집 대상 allowlist를 별도로
-정한다.
+CloudWatch로 전송하는 메트릭과 시계열 수를 정기적으로 확인하고 수집 대상 allowlist를
+제한한다.
 
 ### Prometheus 서버는 현재 EC2에 설치하지 않는다
 
 운영 EC2는 `t4g.small` 한 대에서 Nginx와 Spring Boot를 실행할 계획이다. Prometheus 서버는
 수집뿐 아니라 로컬 시계열 DB와 WAL을 관리하므로 같은 인스턴스에 추가하지 않는다.
 
-애플리케이션은 현재처럼 운영 관리 포트의 `/actuator/prometheus`만 로컬 주소에 노출한다.
-후속 CloudWatch 작업에서 CloudWatch Agent가 이 엔드포인트를 주기적으로 읽어 필요한 메트릭만
-전송한다.
+애플리케이션은 운영 관리 포트의 `/actuator/prometheus`만 로컬 주소에 노출한다.
+운영 EC2의 CloudWatch Agent가 이 엔드포인트를 주기적으로 읽어 설정된 메트릭을 전송한다.
 
 ## 확인 방법
 
@@ -257,8 +259,11 @@ mapmory_operation_duration_seconds_count{operation="MAP_SUMMARY_QUERY",outcome="
 - [x] `http.server.requests`의 p95 Summary와 URI 태그 상한
 - [x] `mapmory.operation.duration`과 초기 2개 내부 작업 계측
 - [x] 성공·실패 Timer, p95 설정, URI 카디널리티 테스트
-- [ ] CloudWatch Agent 수집 설정과 전송 메트릭 allowlist
-- [ ] CloudWatch 대시보드와 알림 기준
+- [x] CloudWatch Agent의 애플리케이션 로그·Prometheus 메트릭 수집 설정
+- [x] `/mapmory/prod/application` 로그 그룹 보존 기간 7일 설정
+- [x] `/mapmory/prod/prometheus-emf` 로그 그룹 보존 기간 14일 설정
+- [x] CloudWatch 운영 대시보드와 EC2·RDS 인프라 알람·SNS 채널 구성
+- [ ] API 오류율·지연과 내부 작업 메트릭의 서비스 수준 알람 기준 확정
 
 ## 검토한 대안
 

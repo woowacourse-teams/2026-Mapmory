@@ -2,8 +2,11 @@ package com.mapmory.shared.presentation.map.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
+import com.mapmory.shared.preview.PreviewSurface
+import com.mapmory.shared.preview.previewVisitedCountries
 
 @Composable
 fun MapArtwork(
@@ -29,6 +32,22 @@ fun MapArtwork(
             showRegionLabels = showRegionLabels,
             onRegionClick = onRegionClick,
             modifier = modifier,
+        )
+    }
+}
+
+@Preview(
+    name = "세계 지도 아트워크",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 500,
+)
+@Composable
+fun WorldMapArtworkPreview() {
+    PreviewSurface {
+        MapArtwork(
+            scope = MapScope.WORLD,
+            visitedCountryCodes = previewVisitedCountries,
         )
     }
 }

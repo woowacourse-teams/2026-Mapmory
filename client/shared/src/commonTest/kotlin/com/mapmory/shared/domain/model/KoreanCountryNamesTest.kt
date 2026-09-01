@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 
 class KoreanCountryNamesTest {
     @Test
-    fun everyWorldMapCountryHasKoreanName() {
+    fun `세계_지도_모든_국가에_한글_이름이_있다`() {
         val missingCodes = GeneratedWorldMapData.countries
             .map { it.code }
             .filterNot(KoreanCountryNames.byCode::containsKey)

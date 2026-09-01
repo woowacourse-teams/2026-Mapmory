@@ -8,7 +8,7 @@ import com.mapmory.shared.domain.model.TripRecordQuery
 // 여행 기록 데이터를 조회하고 변경하는 도메인 계약
 interface TripRecordRepository {
     // 조건에 맞는 여행 기록 목록을 페이지 단위로 가져온다.
-    suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage>
+    suspend fun getTripRecords(query: TripRecordQuery = TripRecordQuery()): Result<TripRecordPage>
 
     // ID로 여행 기록 하나를 가져온다.
     suspend fun getTripRecord(id: Long): Result<TripRecordData>

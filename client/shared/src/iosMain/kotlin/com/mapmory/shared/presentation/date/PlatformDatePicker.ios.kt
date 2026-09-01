@@ -36,6 +36,7 @@ actual fun PlatformDatePicker(
     visible: Boolean,
     initialDate: String?,
     minimumDate: String?,
+    maximumDate: String?,
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -44,9 +45,9 @@ actual fun PlatformDatePicker(
     presenter.onDateSelected = onDateSelected
     presenter.onDismiss = onDismiss
 
-    LaunchedEffect(visible, initialDate, minimumDate) {
+    LaunchedEffect(visible, initialDate, minimumDate, maximumDate) {
         if (visible) {
-            nativeUnavailable = !presenter.present(initialDate, minimumDate)
+            nativeUnavailable = !presenter.present(initialDate, minimumDate, maximumDate)
         } else {
             nativeUnavailable = false
             presenter.dismiss()
@@ -62,6 +63,7 @@ actual fun PlatformDatePicker(
             visible = true,
             initialDate = initialDate,
             minimumDate = minimumDate,
+            maximumDate = maximumDate,
             onDateSelected = onDateSelected,
             onDismiss = onDismiss,
         )
@@ -74,13 +76,24 @@ private class IosDatePickerPresenter {
 
     private var controller: IosDatePickerViewController? = null
 
-    fun present(initialDate: String?, minimumDate: String?): Boolean {
-        if (controller != null) return true
+    fun present(
+        initialDate: String?,
+        minimumDate: String?,
+        maximumDate: String?,
+    ): Boolean {
+        controller?.let { existingController ->
+            existingController.updateDateBounds(
+                minimumDate = minimumDate.toIosDate(),
+                maximumDate = maximumDate.toIosDate(),
+            )
+            return true
+        }
 
         val presenter = topViewControllerForDatePicker() ?: return false
         val pickerController = IosDatePickerViewController(
             initialDate = initialDate.toIosDate(),
             minimumDate = minimumDate.toIosDate(),
+            maximumDate = maximumDate.toIosDate(),
             onDateSelected = { date -> onDateSelected(date) },
             onDismiss = {
                 controller = null
@@ -103,6 +116,7 @@ private class IosDatePickerPresenter {
 private class IosDatePickerViewController(
     initialDate: NSDate?,
     minimumDate: NSDate?,
+    maximumDate: NSDate?,
     private val onDateSelected: (String) -> Unit,
     private val onDismiss: () -> Unit,
 ) : UIViewController(nibName = null, bundle = null) {
@@ -117,6 +131,7 @@ private class IosDatePickerViewController(
         datePicker.locale = NSLocale(localeIdentifier = "ko_KR")
         datePicker.date = initialDate ?: NSDate()
         minimumDate?.let { datePicker.minimumDate = it }
+        maximumDate?.let { datePicker.maximumDate = it }
     }
 
     override fun viewDidLoad() {
@@ -162,6 +177,11 @@ private class IosDatePickerViewController(
     fun dismissSilently() {
         didFinish = true
         dismissViewControllerAnimated(true, completion = null)
+    }
+
+    fun updateDateBounds(minimumDate: NSDate?, maximumDate: NSDate?) {
+        datePicker.minimumDate = minimumDate
+        datePicker.maximumDate = maximumDate
     }
 
     override fun viewDidDisappear(animated: Boolean) {

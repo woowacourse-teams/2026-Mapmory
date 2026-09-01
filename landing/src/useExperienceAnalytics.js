@@ -3,7 +3,7 @@ import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 
 const VIEW_THRESHOLD = 0.5;
 const VIEW_DURATION_MS = 1000;
-const ENGAGEMENT_MILESTONES = [10, 30, 60];
+const EXIT_GRACE_MS = 1500;
 const OBSERVER_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1];
 
 function occupiesEnoughOfViewport(entry) {
@@ -12,31 +12,108 @@ function occupiesEnoughOfViewport(entry) {
     && entry.intersectionRect.height >= referenceHeight * VIEW_THRESHOLD;
 }
 
+function currentTime() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 export function useExperienceAnalytics(experienceType) {
   const sectionRef = useRef(null);
   const isVisibleRef = useRef(false);
   const hasViewedRef = useRef(false);
   const hasStartedRef = useRef(false);
-  const activeSecondsRef = useRef(0);
-  const sentMilestonesRef = useRef(new Set());
+  const hasBeenVisibleSinceStartRef = useRef(false);
+  const hasEndedRef = useRef(false);
+  const activeStartedAtRef = useRef(null);
+  const activeDurationMsRef = useRef(0);
+  const openedMemoryIdsRef = useRef(new Set());
+  const addedMemoryIdsRef = useRef(new Set());
+  const lastCompletedStepRef = useRef("experience_start");
   const viewTimerRef = useRef(null);
+  const exitTimerRef = useRef(null);
+
+  const clearViewTimer = useCallback(() => {
+    if (!viewTimerRef.current) return;
+    window.clearTimeout(viewTimerRef.current);
+    viewTimerRef.current = null;
+  }, []);
+
+  const clearExitTimer = useCallback(() => {
+    if (!exitTimerRef.current) return;
+    window.clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = null;
+  }, []);
+
+  const resumeActiveTimer = useCallback(() => {
+    if (
+      !hasStartedRef.current
+      || hasEndedRef.current
+      || !isVisibleRef.current
+      || document.hidden
+      || activeStartedAtRef.current !== null
+    ) return;
+    activeStartedAtRef.current = currentTime();
+  }, []);
+
+  const pauseActiveTimer = useCallback(() => {
+    if (activeStartedAtRef.current === null) return;
+    activeDurationMsRef.current += currentTime() - activeStartedAtRef.current;
+    activeStartedAtRef.current = null;
+  }, []);
+
+  const getActiveDurationMs = useCallback(() => {
+    const inProgress = activeStartedAtRef.current === null
+      ? 0
+      : currentTime() - activeStartedAtRef.current;
+    return Math.max(0, Math.round(activeDurationMsRef.current + inProgress));
+  }, []);
+
+  const endExperience = useCallback((exitReason, transportType) => {
+    if (
+      hasEndedRef.current
+      || !hasStartedRef.current
+      || !hasBeenVisibleSinceStartRef.current
+    ) return false;
+
+    pauseActiveTimer();
+    clearExitTimer();
+    hasEndedRef.current = true;
+    return trackEvent(ANALYTICS_EVENTS.EXPERIENCE_END, {
+      experience_type: experienceType,
+      active_duration_ms: getActiveDurationMs(),
+      unique_memories_opened: openedMemoryIdsRef.current.size,
+      last_completed_step: lastCompletedStepRef.current,
+      exit_reason: exitReason,
+      transport_type: transportType,
+    });
+  }, [clearExitTimer, experienceType, getActiveDurationMs, pauseActiveTimer]);
 
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return undefined;
 
-    const clearViewTimer = () => {
-      if (viewTimerRef.current) {
-        window.clearTimeout(viewTimerRef.current);
-        viewTimerRef.current = null;
-      }
-    };
-
     const observer = new IntersectionObserver(([entry]) => {
       isVisibleRef.current = occupiesEnoughOfViewport(entry);
       if (!isVisibleRef.current) {
+        pauseActiveTimer();
         clearViewTimer();
+        if (
+          hasStartedRef.current
+          && hasBeenVisibleSinceStartRef.current
+          && !hasEndedRef.current
+          && !exitTimerRef.current
+        ) {
+          exitTimerRef.current = window.setTimeout(() => {
+            exitTimerRef.current = null;
+            endExperience("section_exit");
+          }, EXIT_GRACE_MS);
+        }
         return;
+      }
+
+      clearExitTimer();
+      if (hasStartedRef.current && !hasEndedRef.current) {
+        hasBeenVisibleSinceStartRef.current = true;
+        resumeActiveTimer();
       }
 
       if (!hasViewedRef.current && !viewTimerRef.current) {
@@ -54,53 +131,83 @@ export function useExperienceAnalytics(experienceType) {
     observer.observe(section);
     return () => {
       clearViewTimer();
+      clearExitTimer();
+      pauseActiveTimer();
       observer.disconnect();
     };
-  }, [experienceType]);
+  }, [clearExitTimer, clearViewTimer, endExperience, experienceType, pauseActiveTimer, resumeActiveTimer]);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      if (!hasStartedRef.current || !isVisibleRef.current || document.hidden) return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) pauseActiveTimer();
+      else resumeActiveTimer();
+    };
+    const handlePageHide = () => endExperience("page_hide", "beacon");
 
-      activeSecondsRef.current += 1;
-      for (const milestoneSeconds of ENGAGEMENT_MILESTONES) {
-        if (
-          activeSecondsRef.current >= milestoneSeconds
-          && !sentMilestonesRef.current.has(milestoneSeconds)
-        ) {
-          sentMilestonesRef.current.add(milestoneSeconds);
-          trackEvent(ANALYTICS_EVENTS.EXPERIENCE_ENGAGEMENT, {
-            experience_type: experienceType,
-            milestone_seconds: milestoneSeconds,
-          });
-        }
-      }
-    }, 1000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [endExperience, pauseActiveTimer, resumeActiveTimer]);
 
-    return () => window.clearInterval(intervalId);
+  const trackEntryClick = useCallback((placement) => {
+    trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, {
+      experience_type: experienceType,
+      cta_placement: placement,
+    });
   }, [experienceType]);
 
   const startExperience = useCallback((interactionType) => {
-    if (hasStartedRef.current) return;
+    if (hasStartedRef.current || hasEndedRef.current) return;
     hasStartedRef.current = true;
+    lastCompletedStepRef.current = "experience_start";
     trackEvent(ANALYTICS_EVENTS.EXPERIENCE_START, {
       experience_type: experienceType,
       interaction_type: interactionType,
     });
-  }, [experienceType]);
+    if (isVisibleRef.current) {
+      hasBeenVisibleSinceStartRef.current = true;
+      resumeActiveTimer();
+    }
+  }, [experienceType, resumeActiveTimer]);
 
-  const trackPlaceSelect = useCallback((placeId, selectionSource) => {
+  const trackMemoryOpen = useCallback((memoryId, selectionSource) => {
     startExperience("place_select");
-    trackEvent(ANALYTICS_EVENTS.PLACE_SELECT, {
+    if (hasEndedRef.current || openedMemoryIdsRef.current.has(memoryId)) return;
+
+    openedMemoryIdsRef.current.add(memoryId);
+    lastCompletedStepRef.current = "memory_open";
+    trackEvent(ANALYTICS_EVENTS.MEMORY_OPEN, {
       experience_type: experienceType,
-      place_id: placeId,
+      memory_id: memoryId,
       selection_source: selectionSource,
+      open_index: openedMemoryIdsRef.current.size,
+      time_since_start_ms: getActiveDurationMs(),
     });
-  }, [experienceType, startExperience]);
+  }, [experienceType, getActiveDurationMs, startExperience]);
+
+  const trackMemoryAdd = useCallback((memoryId) => {
+    startExperience("memory_add");
+    if (hasEndedRef.current || addedMemoryIdsRef.current.has(memoryId)) return;
+
+    addedMemoryIdsRef.current.add(memoryId);
+    lastCompletedStepRef.current = "korea_memory_add";
+    trackEvent(ANALYTICS_EVENTS.KOREA_MEMORY_ADD, {
+      experience_type: experienceType,
+      memory_id: memoryId,
+      add_index: addedMemoryIdsRef.current.size,
+      time_since_start_ms: getActiveDurationMs(),
+    });
+  }, [experienceType, getActiveDurationMs, startExperience]);
 
   return {
     sectionRef,
+    trackEntryClick,
     startExperience,
-    trackPlaceSelect,
+    trackMemoryOpen,
+    trackMemoryAdd,
+    endExperience,
   };
 }

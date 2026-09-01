@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -20,6 +21,7 @@ actual fun PlatformDatePicker(
     visible: Boolean,
     initialDate: String?,
     minimumDate: String?,
+    maximumDate: String?,
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -28,7 +30,7 @@ actual fun PlatformDatePicker(
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     var dialog by remember { mutableStateOf<DatePickerDialog?>(null) }
 
-    DisposableEffect(visible, initialDate, minimumDate) {
+    DisposableEffect(visible, initialDate, minimumDate, maximumDate) {
         if (!visible) {
             onDispose { }
         } else {
@@ -50,8 +52,12 @@ actual fun PlatformDatePicker(
             )
             minimumDate
                 .toDatePickerLocalDate()
-                ?.toDatePickerEpochMillis()
+                ?.toDatePickerLocalEpochMillis()
                 ?.let { picker.datePicker.minDate = it }
+            maximumDate
+                .toDatePickerLocalDate()
+                ?.toDatePickerLocalEpochMillis()
+                ?.let { picker.datePicker.maxDate = it }
             picker.setOnDismissListener {
                 if (!callbackSent) latestOnDismiss()
                 if (dialog === picker) dialog = null
@@ -68,3 +74,6 @@ actual fun PlatformDatePicker(
         }
     }
 }
+
+private fun LocalDate.toDatePickerLocalEpochMillis(): Long =
+    atStartOfDayIn(TimeZone.currentSystemDefault()).toEpochMilliseconds()

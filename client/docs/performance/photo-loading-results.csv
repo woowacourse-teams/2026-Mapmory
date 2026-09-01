@@ -1,0 +1,12 @@
+scenario,run,app_version,recorded_at,device,cache_state,metric,value_ms
+photo_recommendation,1,0.1.2,2026-08-18,SM-S938N,cold,recommend_total_ms,300
+photo_recommendation,1,0.1.2,2026-08-18,SM-S938N,cold,target_geocode_ms,217
+photo_recommendation,1,0.1.2,2026-08-18,SM-S938N,cold,metadata_sync_ms,81
+photo_recommendation,2,0.1.2,2026-08-18,SM-S938N,warm,recommend_total_ms,174
+photo_recommendation,2,0.1.2,2026-08-18,SM-S938N,warm,target_geocode_ms,137
+photo_recommendation,2,0.1.2,2026-08-18,SM-S938N,warm,metadata_sync_ms,37
+photo_recommendation,3,0.1.2,2026-08-18,SM-S938N,warm,recommend_total_ms,159
+photo_recommendation,3,0.1.2,2026-08-18,SM-S938N,warm,target_geocode_ms,128
+photo_recommendation,3,0.1.2,2026-08-18,SM-S938N,warm,metadata_sync_ms,30
+photo_pick,1,0.1.2,2026-08-18,SM-S938N,not_applicable,pick_total_ms,67
+photo_pick,2,0.1.2,2026-08-18,SM-S938N,not_applicable,pick_total_ms,60

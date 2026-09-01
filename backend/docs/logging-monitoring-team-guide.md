@@ -14,8 +14,11 @@ Mapmory의 관측 기능은 다음 네 가지 역할로 나뉜다.
 애플리케이션이 로그와 메트릭을 **만드는 코드**는 구현되어 있다. 운영 로그는 파일로 남고,
 메트릭은 `/actuator/prometheus`에 노출된다.
 
-CloudWatch Agent, 로그 그룹, 대시보드와 알림 같은 **AWS 수집 환경은 아직 연결 전**이다.
-따라서 현재 상태를 “CloudWatch 모니터링이 완성됐다”고 이해하면 안 된다.
+운영 EC2의 CloudWatch Agent는 `/var/log/mapmory/application.log`와 Prometheus 메트릭을
+CloudWatch로 전송한다. 애플리케이션 로그 그룹 `/mapmory/prod/application`의 보존 기간은
+7일이고 Prometheus EMF 로그 그룹 `/mapmory/prod/prometheus-emf`의 보존 기간은 14일이다.
+`dashboard-mapmory-prod` 대시보드와 EC2·RDS 인프라 알람, `mapmory-prod-alerts` SNS 알림 채널도
+구성되어 있다.
 
 ## 먼저 알아둘 개념
 
@@ -83,7 +86,7 @@ Controller → Service → Repository / Kakao / S3
 
 운영 로그 파일과 메트릭
     │
-    └─ 추후 CloudWatch가 수집 → 대시보드·검색·알림
+    └─ CloudWatch Agent가 수집 → CloudWatch에서 저장·검색·대시보드·알림
 ```
 
 ## 로그: 개별 사건의 원인을 찾는다
@@ -171,8 +174,8 @@ ERROR [requestId:550e8400-...] Unhandled exception while processing POST /api/..
 }
 ```
 
-JSON 로그가 CloudWatch에 들어가면 정규식 대신 `requestId`, `event`, `status` 같은 필드로 검색할
-수 있다.
+JSON 로그는 CloudWatch에서 정규식 대신 `requestId`, `event`, `status` 같은 필드로 검색할 수
+있다. `/mapmory/prod/application` 로그 그룹은 로그를 7일간 보관한 뒤 자동 삭제한다.
 
 ## 메트릭: 서비스 전체 상태를 숫자로 본다
 
@@ -392,14 +395,17 @@ curl -s http://localhost:8080/actuator/prometheus \
 - [x] 메트릭 공통 태그와 URI 태그 개수 제한
 - [x] 관련 단위·통합 테스트
 
-### AWS에서 아직 해야 하는 것
+### AWS 운영 상태와 남은 작업
 
-- [ ] EC2 IAM Role과 CloudWatch Agent 설정
-- [ ] `/var/log/mapmory/application.log`를 CloudWatch Logs에 전송
-- [ ] 로그 그룹 보존 기간 설정
-- [ ] EC2·RDS 기본 메트릭과 애플리케이션 로그 대시보드 구성
-- [ ] 장애 알람과 SNS 알림 채널 구성
-- [ ] 전송할 애플리케이션 메트릭 범위와 방법 결정
+- [x] EC2 IAM Role과 CloudWatch Agent 설정
+- [x] `/var/log/mapmory/application.log`를 CloudWatch Logs에 전송
+- [x] 애플리케이션 로그 그룹 보존 기간 7일 설정
+- [x] Prometheus 메트릭 수집 설정
+- [x] Prometheus EMF 로그 그룹 보존 기간 14일 설정
+- [x] EC2·RDS 기본 메트릭과 애플리케이션 로그 대시보드 구성
+- [x] EC2·RDS 장애 알람과 SNS 알림 채널 구성
+- [ ] API 오류율·지연과 내부 작업 메트릭의 서비스 수준 알람 기준 확정
+- [ ] 운영 지표에 맞춰 전송 메트릭 allowlist 지속 점검
 
 ## 코드 위치
 

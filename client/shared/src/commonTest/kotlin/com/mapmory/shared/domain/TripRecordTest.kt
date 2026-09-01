@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class TripRecordTest {
     @Test
-    fun `시작일과 종료일이 같은 당일 여행을 생성할 수 있다`() {
+    fun `시작일과_종료일이_같은_당일_여행을_생성할_수_있다`() {
         val date = LocalDate(2026, 8, 7)
 
         val record = createTripRecord(
@@ -21,7 +21,7 @@ class TripRecordTest {
     }
 
     @Test
-    fun `시작일이 종료일보다 늦으면 여행 기록을 생성할 수 없다`() {
+    fun `시작일이_종료일보다_늦으면_여행_기록을_생성할_수_없다`() {
         val exception = assertFailsWith<IllegalArgumentException> {
             createTripRecord(
                 startTripDate = LocalDate(2026, 8, 8),
@@ -33,7 +33,7 @@ class TripRecordTest {
     }
 
     @Test
-    fun `연도 경계를 넘는 여행을 생성할 수 있다`() {
+    fun `연도_경계를_넘는_여행을_생성할_수_있다`() {
         val record = createTripRecord(
             startTripDate = LocalDate(2026, 12, 31),
             endTripDate = LocalDate(2027, 1, 1),
@@ -43,7 +43,7 @@ class TripRecordTest {
     }
 
     @Test
-    fun `시작일과 종료일 없이 여행 기록을 생성할 수 있다`() {
+    fun `시작일과_종료일_없이_여행_기록을_생성할_수_있다`() {
         val record = TripRecord(
             imageUrl = "",
             tripRecordTitle = "날짜 없는 여행",
@@ -58,14 +58,14 @@ class TripRecordTest {
     }
 
     @Test
-    fun `ID는 Long 타입으로 지정한 값을 유지한다`() {
+    fun `ID는_Long_타입으로_지정한_값을_유지한다`() {
         val record = createTripRecord(id = Long.MAX_VALUE)
 
         assertEquals(Long.MAX_VALUE, record.id)
     }
 
     @Test
-    fun `자동 생성된 ID는 양수다`() {
+    fun `자동_생성된_ID는_양수다`() {
         val record = TripRecord(
             imageUrl = "image.jpg",
             tripRecordTitle = "제주도 여행",

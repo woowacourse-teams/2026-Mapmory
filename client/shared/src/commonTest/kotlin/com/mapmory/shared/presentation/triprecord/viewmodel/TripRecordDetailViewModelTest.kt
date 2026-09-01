@@ -12,22 +12,24 @@ import kotlin.test.assertIs
 
 class TripRecordDetailViewModelTest {
     @Test
-    fun loadChangesStateForSuccessAndFailure() {
+    fun `로드는_성공과_실패에_따라_상태를_변경한다`() {
         runSuspend {
-            val repository = FakeTripRecordRepository(10) { "2026-08-07T00:00:00Z" }
+            val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
             val record = repository.createTripRecord(
                 TripRecordDraft(
                     locationId = 101,
                     title = "서울 여행",
                     content = "한강을 걸었다.",
-                    startDate = null,
+                    startDate = "2026-08-01",
                     endDate = null,
                     mediaObjectKeys = emptyList(),
                 ),
             ).getOrThrow()
+            var changeCount = 0
             val viewModel = TripRecordDetailViewModel(
                 getTripRecord = GetTripRecordUseCase(repository),
                 deleteTripRecord = DeleteTripRecordUseCase(repository),
+                onTripRecordsChanged = { changeCount += 1 },
             )
 
             viewModel.load(record.id)
@@ -36,6 +38,7 @@ class TripRecordDetailViewModelTest {
             assertEquals("서울 여행", success.record.title)
 
             assertEquals(true, viewModel.delete())
+            assertEquals(1, changeCount)
             viewModel.load(record.id)
 
             assertIs<TripRecordDetailUiState.Error>(viewModel.uiState)
