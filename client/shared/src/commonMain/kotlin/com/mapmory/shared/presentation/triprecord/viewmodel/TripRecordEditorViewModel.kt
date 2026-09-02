@@ -4,14 +4,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMediaDraft
+import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
+import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
+import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.domain.usecase.UpdateTripRecordUseCase
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.triprecord.isSelectableTripRecordDestination
@@ -25,6 +30,8 @@ class TripRecordEditorViewModel(
     private val getTripRecord: GetTripRecordUseCase? = null,
     private val regionCatalog: RegionCatalog? = null,
     private val onTripRecordsChanged: () -> Unit = {},
+    private val getTags: GetTagsUseCase? = null,
+    private val createTag: CreateTagUseCase? = null,
 ) : ViewModel() {
     private var isRouteInitialized = false
 
@@ -46,6 +53,7 @@ class TripRecordEditorViewModel(
     ) {
         if (isRouteInitialized) return
         isRouteInitialized = true
+        loadTags()
         if (recordId == null) {
             startCreating(selectedLocation)
         } else {
@@ -56,6 +64,8 @@ class TripRecordEditorViewModel(
     fun startCreating(location: Location?) {
         uiState = TripRecordEditorUiState(
             selectedLocation = location?.takeIf(Location::isSelectableTripRecordDestination),
+            availableTags = uiState.availableTags,
+            tagErrorMessage = uiState.tagErrorMessage,
         )
         savedRecordId = null
     }
@@ -78,6 +88,7 @@ class TripRecordEditorViewModel(
     }
 
     fun startEditing(record: TripRecordData, location: Location) {
+        val allTags = (uiState.availableTags + record.tags).distinctBy { it.id }
         uiState = TripRecordEditorUiState(
             recordId = record.id,
             selectedLocation = location,
@@ -96,6 +107,106 @@ class TripRecordEditorViewModel(
                     longitude = media.longitude,
                     capturedAt = media.capturedAt,
                 ).toTripRecordPhotoUiState(media.sortOrder)
+                    .copy(isUploaded = true)
+            },
+            availableTags = allTags,
+            selectedTagIds = record.tags.mapTo(linkedSetOf()) { it.id },
+        )
+    }
+
+    private suspend fun loadTags() {
+        val loadTags = getTags ?: return
+        uiState = uiState.copy(isTagsLoading = true, tagErrorMessage = null)
+        loadTags().fold(
+            onSuccess = { tags ->
+                uiState = uiState.copy(
+                    availableTags = tags,
+                    isTagsLoading = false,
+                )
+            },
+            onFailure = { error ->
+                uiState = uiState.copy(
+                    isTagsLoading = false,
+                    tagErrorMessage = error.message ?: "태그를 불러오지 못했습니다.",
+                )
+            },
+        )
+    }
+
+    fun updateTagInput(value: String) {
+        uiState = uiState.copy(
+            tagInput = value,
+            tagErrorMessage = null,
+            fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+            isDirty = true,
+        )
+    }
+
+    fun toggleTag(tagId: Long) {
+        if (uiState.availableTags.none { it.id == tagId }) return
+        val selected = uiState.selectedTagIds
+        uiState = when {
+            tagId in selected -> uiState.copy(
+                selectedTagIds = selected - tagId,
+                tagErrorMessage = null,
+                fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                isDirty = true,
+            )
+            else -> runCatching {
+                TagRules.requireCanAddToRecord(selected)
+                selected + tagId
+            }.fold(
+                onSuccess = { updatedSelection ->
+                    uiState.copy(
+                        selectedTagIds = updatedSelection,
+                        tagErrorMessage = null,
+                        fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                        isDirty = true,
+                    )
+                },
+                onFailure = { error -> uiState.copy(tagErrorMessage = error.message) },
+            )
+        }
+    }
+
+    suspend fun createAndSelectTag() {
+        val create = createTag ?: return
+        val normalizedName = runCatching {
+            TagRules.requireCanAddToRecord(uiState.selectedTagIds)
+            TagRules.normalizeAndValidateName(uiState.tagInput)
+        }.getOrElse { error ->
+            uiState = uiState.copy(tagErrorMessage = error.message)
+            return
+        }
+
+        uiState.availableTags.firstOrNull { it.name.equals(normalizedName, ignoreCase = true) }?.let { tag ->
+            uiState = uiState.copy(
+                selectedTagIds = uiState.selectedTagIds + tag.id,
+                tagInput = "",
+                tagErrorMessage = null,
+                fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                isDirty = true,
+            )
+            return
+        }
+
+        uiState = uiState.copy(isCreatingTag = true, tagErrorMessage = null)
+        create(normalizedName, uiState.availableTags).fold(
+            onSuccess = { tag ->
+                uiState = uiState.copy(
+                    availableTags = uiState.availableTags + tag,
+                    selectedTagIds = uiState.selectedTagIds + tag.id,
+                    tagInput = "",
+                    isCreatingTag = false,
+                    fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                    isDirty = true,
+                )
+            },
+            onFailure = { error ->
+                uiState = uiState.copy(
+                    isCreatingTag = false,
+                    tagErrorMessage = error.message ?: "태그를 만들지 못했습니다.",
+                )
             },
         )
     }
@@ -126,7 +237,7 @@ class TripRecordEditorViewModel(
     fun updateContent(content: String) {
         uiState = uiState.copy(
             content = content,
-        ).revalidatedAfterChange()
+        ).revalidatedAfterChange(TripRecordEditorErrorTarget.CONTENT)
     }
 
     fun updateStartDate(startDate: String) {
@@ -144,25 +255,42 @@ class TripRecordEditorViewModel(
     fun addMediaObjectKey(objectKey: String) {
         val trimmedObjectKey = objectKey.trim()
         if (trimmedObjectKey.isBlank() || trimmedObjectKey in uiState.mediaObjectKeys) return
+        if (uiState.mediaObjectKeys.size >= TripRecordPhotoRules.MaxPhotosPerRecord) {
+            uiState = uiState.withPhotoLimitError()
+            return
+        }
 
         uiState = uiState.copy(
             mediaObjectKeys = uiState.mediaObjectKeys + trimmedObjectKey,
+            fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.PHOTOS,
         ).revalidatedAfterChange()
     }
 
     fun addPhotos(photos: List<SelectedPhoto>) {
+        val existingIds = uiState.selectedPhotos.mapTo(mutableSetOf()) { photo -> photo.id }
+        val newPhotos = photos
+            .filterNot { photo -> photo.id in existingIds }
+            .distinctBy(SelectedPhoto::id)
+        val acceptedPhotos = newPhotos.take(
+            TripRecordPhotoRules.remainingSlots(uiState.selectedPhotos.size),
+        )
         val merged = buildList {
             addAll(uiState.selectedPhotos)
-            photos.forEach { photo ->
-                if (none { existing -> existing.id == photo.id }) {
-                    add(photo.toTripRecordPhotoUiState(sortOrder = size))
-                }
+            acceptedPhotos.forEach { photo ->
+                add(photo.toTripRecordPhotoUiState(sortOrder = size))
             }
+        }
+        val photoErrors = when {
+            acceptedPhotos.size < newPhotos.size -> uiState.fieldErrors + (
+                TripRecordEditorErrorTarget.PHOTOS to TripRecordPhotoRules.LimitMessage
+            )
+            newPhotos.isNotEmpty() -> uiState.fieldErrors - TripRecordEditorErrorTarget.PHOTOS
+            else -> uiState.fieldErrors
         }
         uiState = uiState.copy(
             selectedPhotos = merged,
             mediaObjectKeys = merged.map { it.id },
-            fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.PHOTOS,
+            fieldErrors = photoErrors,
         ).revalidatedAfterChange()
     }
 
@@ -193,6 +321,9 @@ class TripRecordEditorViewModel(
             startDate = state.startDate.ifBlank { null },
             endDate = state.endDate.ifBlank { null },
             mediaObjectKeys = state.mediaObjectKeys,
+            uploadedMediaObjectKeys = state.selectedPhotos
+                .filter { photo -> photo.isUploaded }
+                .mapTo(mutableSetOf()) { photo -> photo.id },
             localMedia = state.selectedPhotos.mapIndexed { index, photo ->
                 TripRecordMediaDraft(
                     objectKey = photo.id,
@@ -205,6 +336,9 @@ class TripRecordEditorViewModel(
                     capturedAt = photo.capturedAt,
                 )
             },
+            tagIds = state.availableTags
+                .filter { it.id in state.selectedTagIds }
+                .map { it.id },
         )
         uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
         val result = state.recordId?.let { updateTripRecord(it, draft) }
@@ -218,9 +352,17 @@ class TripRecordEditorViewModel(
                 true
             },
             onFailure = { error ->
+                val fieldErrors = error.toEditorFieldErrors()
                 uiState = uiState.copy(
                     isSaving = false,
-                    generalErrorMessage = error.message ?: "여행 기록을 저장하지 못했습니다.",
+                    isDirty = true,
+                    dirtyFields = uiState.dirtyFields + fieldErrors.keys,
+                    fieldErrors = fieldErrors,
+                    generalErrorMessage = if (fieldErrors.isEmpty()) {
+                        error.message ?: "여행 기록을 저장하지 못했습니다."
+                    } else {
+                        null
+                    },
                 )
                 false
             },
@@ -246,8 +388,9 @@ private fun TripRecordEditorUiState.revalidatedAfterChange(
     }
 
     val updatedDirtyFields = if (dirtyTarget in dirtyFields) dirtyFields else dirtyFields + dirtyTarget
-    val nonValidationErrors = fieldErrors.filterKeys { target ->
-        target == TripRecordEditorErrorTarget.PHOTOS
+    val retainedErrors = fieldErrors.filterKeys { target ->
+        target != dirtyTarget &&
+            !(dirtyTarget.isDateTarget() && target.isDateTarget())
     }
     val dateRangeErrorTarget = when (dirtyTarget) {
         TripRecordEditorErrorTarget.START_DATE,
@@ -261,15 +404,33 @@ private fun TripRecordEditorUiState.revalidatedAfterChange(
     return copy(
         isDirty = true,
         dirtyFields = updatedDirtyFields,
-        fieldErrors = nonValidationErrors + validationErrors(dateRangeErrorTarget)
+        fieldErrors = retainedErrors + validationErrors(dateRangeErrorTarget)
             .filterKeys(updatedDirtyFields::contains),
         generalErrorMessage = null,
     )
 }
 
+private fun TripRecordEditorUiState.withPhotoLimitError(): TripRecordEditorUiState = copy(
+    isDirty = true,
+    dirtyFields = dirtyFields + TripRecordEditorErrorTarget.PHOTOS,
+    fieldErrors = fieldErrors + (
+        TripRecordEditorErrorTarget.PHOTOS to TripRecordPhotoRules.LimitMessage
+    ),
+    generalErrorMessage = null,
+)
+
+private fun TripRecordEditorErrorTarget.isDateTarget(): Boolean =
+    this == TripRecordEditorErrorTarget.START_DATE || this == TripRecordEditorErrorTarget.END_DATE
+
 private fun TripRecordEditorUiState.validationErrors(
     dateRangeErrorTarget: TripRecordEditorErrorTarget = TripRecordEditorErrorTarget.END_DATE,
 ): Map<TripRecordEditorErrorTarget, String> = buildMap {
+    if (
+        mediaObjectKeys.size > TripRecordPhotoRules.MaxPhotosPerRecord ||
+        selectedPhotos.size > TripRecordPhotoRules.MaxPhotosPerRecord
+    ) {
+        put(TripRecordEditorErrorTarget.PHOTOS, TripRecordPhotoRules.LimitMessage)
+    }
     if (selectedLocation == null) {
         put(TripRecordEditorErrorTarget.LOCATION, "장소를 선택해 주세요.")
     } else if (!selectedLocation.isSelectableTripRecordDestination()) {
@@ -301,3 +462,47 @@ private fun TripRecordEditorUiState.validationErrors(
 }
 
 private const val MaxTitleLength = 200
+
+internal fun Throwable.toEditorFieldErrors(): Map<TripRecordEditorErrorTarget, String> {
+    val apiError = this as? MapmoryApiException
+    val errorsByTarget = apiError?.errors.orEmpty()
+        .mapNotNull { error ->
+            error.field.toEditorErrorTarget()?.let { target -> target to error.detail }
+        }
+        .toMap()
+    if (errorsByTarget.isNotEmpty()) return errorsByTarget
+
+    val target = when (apiError?.code) {
+        "INVALID_FILE_TYPE",
+        "FILE_SIZE_EXCEEDED",
+        "TOO_MANY_FILES",
+        "MEDIA_NOT_UPLOADED",
+        "STORAGE_UNAVAILABLE",
+        "INVALID_OBJECT_KEY" -> TripRecordEditorErrorTarget.PHOTOS
+
+        "INVALID_REGION_CODE",
+        "INVALID_REGION_TYPE",
+        "REGION_REQUIRED" -> TripRecordEditorErrorTarget.LOCATION
+
+        "INVALID_TRAVEL_DATE_RANGE" -> TripRecordEditorErrorTarget.END_DATE
+        "TOO_MANY_TAGS", "INVALID_TAG_IDS" -> TripRecordEditorErrorTarget.TAGS
+        else -> when {
+            apiError?.instance.orEmpty().contains("/uploads/") -> TripRecordEditorErrorTarget.PHOTOS
+            message.orEmpty().contains("사진") -> TripRecordEditorErrorTarget.PHOTOS
+            else -> null
+        }
+    } ?: return emptyMap()
+
+    return mapOf(target to (message ?: "입력한 내용을 확인해 주세요."))
+}
+
+private fun String.toEditorErrorTarget(): TripRecordEditorErrorTarget? = when {
+    this in setOf("countryCode", "provinceCode", "districtCode") -> TripRecordEditorErrorTarget.LOCATION
+    this == "title" -> TripRecordEditorErrorTarget.TITLE
+    this == "startDate" -> TripRecordEditorErrorTarget.START_DATE
+    this == "endDate" -> TripRecordEditorErrorTarget.END_DATE
+    this == "content" -> TripRecordEditorErrorTarget.CONTENT
+    startsWith("objectKeys") || startsWith("files") -> TripRecordEditorErrorTarget.PHOTOS
+    startsWith("tagIds") -> TripRecordEditorErrorTarget.TAGS
+    else -> null
+}

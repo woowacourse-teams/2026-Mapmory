@@ -13,6 +13,7 @@ data class TripRecordData(
     val createdAt: String,
     val updatedAt: String,
     val thumbnailUrl: String? = null,
+    val tags: List<Tag> = emptyList(),
 )
 
 /** 목록 API가 반환하는 얇은 모델이다. 본문과 전체 미디어는 상세 조회에서만 가져온다. */
@@ -29,6 +30,7 @@ data class TripRecordSummary(
     val locationId: Long? = null,
     val content: String = "",
     val media: List<TripRecordMedia> = emptyList(),
+    val tags: List<Tag> = emptyList(),
 )
 
 data class TripRecordDraft(
@@ -38,9 +40,20 @@ data class TripRecordDraft(
     val startDate: String?,
     val endDate: String?,
     val mediaObjectKeys: List<String>,
+    /** 이미 업로드된 미디어는 키 형식을 해석하지 않고 원본 바이트 없이 그대로 저장한다. */
+    val uploadedMediaObjectKeys: Set<String> = emptySet(),
     // API 요청에는 object key만 사용하고, 로컬 저장소에서는 선택한 사진 표시 데이터를 보존한다.
     val localMedia: List<TripRecordMediaDraft> = emptyList(),
+    val tagIds: List<Long> = emptyList(),
 )
+
+object TripRecordPhotoRules {
+    const val MaxPhotosPerRecord = 10
+    const val LimitMessage = "사진은 기록당 최대 10장까지 추가할 수 있습니다."
+
+    fun remainingSlots(currentPhotoCount: Int): Int =
+        (MaxPhotosPerRecord - currentPhotoCount).coerceAtLeast(0)
+}
 
 fun TripRecordDraft.dateValidationError(): String? = when {
     startDate == null -> "시작일을 입력해 주세요."
@@ -67,6 +80,7 @@ private fun String.isValidIsoDate(): Boolean {
 
 data class TripRecordQuery(
     val locationId: Long? = null,
+    val tagId: Long? = null,
     val page: Int = 0,
     val size: Int = 20,
 )

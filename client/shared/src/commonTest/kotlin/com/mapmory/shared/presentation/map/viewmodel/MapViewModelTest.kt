@@ -2,13 +2,52 @@ package com.mapmory.shared.presentation.map.viewmodel
 
 import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
+import com.mapmory.shared.domain.model.MapRegionLevel
+import com.mapmory.shared.domain.model.MapRegionSummary
+import com.mapmory.shared.domain.model.MapRegionType
 import com.mapmory.shared.domain.model.TripRecordDraft
+import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.runSuspend
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MapViewModelTest {
+    @Test
+    fun `캐시된_지도_요약으로_첫_화면을_즉시_구성한다`() {
+        val korea = MapRegionSummary(1, "KR", MapRegionType.COUNTRY, "대한민국", 2, MapRegionLevel.LOW)
+        val seoul = MapRegionSummary(11, "11", MapRegionType.PROVINCE, "서울특별시", 2, MapRegionLevel.LOW)
+        val repository = object : MapSummaryRepository {
+            override fun getCachedRootRegions(tagId: Long?) = listOf(korea)
+            override fun getCachedChildRegions(regionId: Long, tagId: Long?) = listOf(seoul)
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(listOf(korea))
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) = Result.success(listOf(seoul))
+        }
+
+        val viewModel = MapViewModel(repository, StaticRegionCatalog())
+
+        assertEquals(setOf("KR"), viewModel.visitedCountryCodes)
+        assertEquals(setOf("KR-11"), viewModel.visitedProvinceCodes)
+    }
+
+    @Test
+    fun `선택한_태그가_연결된_지역만_지도에_표시한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository(catalog) { "2026-08-31T00:00:00" }
+        val family = repository.createTag("가족").getOrThrow()
+        val solo = repository.createTag("혼자").getOrThrow()
+        repository.createTripRecord(draft(catalog.requireByCode("11680").id, "서울").copy(tagIds = listOf(family.id)))
+        repository.createTripRecord(draft(catalog.requireByCode("JP").id, "일본").copy(tagIds = listOf(solo.id)))
+        val viewModel = MapViewModel(repository, catalog, GetTagsUseCase(repository))
+
+        viewModel.refresh()
+        viewModel.selectTag(family.id)
+
+        assertEquals(setOf("KR"), viewModel.visitedCountryCodes)
+        assertEquals(family.id, viewModel.uiState.selectedTagId)
+    }
+
     @Test
     fun `새로고침은_기록_지역_변경_후_열린_시도를_다시_조회한다`() = runSuspend {
         val catalog = StaticRegionCatalog()

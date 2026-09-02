@@ -27,6 +27,8 @@ public class UploadController {
             @LoginMember Member member,
             @Valid @RequestBody CreatePresignedUrlsRequest request
     ) {
-        return ApiResponse.from(uploadService.createPresignedUrls(member, request));
+        return ApiResponse.from(CreatePresignedUrlsResponse.from(
+                uploadService.createPresignedUrls(member, request.toCommands())
+        ));
     }
 }

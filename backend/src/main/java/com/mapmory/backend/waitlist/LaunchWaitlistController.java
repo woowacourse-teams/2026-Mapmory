@@ -3,7 +3,6 @@ package com.mapmory.backend.waitlist;
 import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.waitlist.dto.LaunchWaitlistRequest;
 import com.mapmory.backend.waitlist.dto.LaunchWaitlistResponse;
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistStatus;
 import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
@@ -26,8 +25,9 @@ public class LaunchWaitlistController {
     public ResponseEntity<ApiResponse<LaunchWaitlistResponse>> subscribe(
             @Valid @RequestBody LaunchWaitlistRequest request
     ) {
-        LaunchWaitlistResponse response = service.subscribe(request);
-        if (response.status() == LaunchWaitlistStatus.ALREADY_SUBSCRIBED) {
+        LaunchWaitlistStatus status = service.subscribe(request.email());
+        LaunchWaitlistResponse response = LaunchWaitlistResponse.from(status);
+        if (status == LaunchWaitlistStatus.ALREADY_SUBSCRIBED) {
             return ResponseEntity.ok(ApiResponse.from(response));
         }
         return ResponseEntity.created(URI.create("/api/v1/waitlist"))

@@ -48,7 +48,7 @@ internal class PhotoUploadRemoteRepository(
             sources.forEach { source ->
                 require(source.fileName.isNotBlank()) { "사진 파일 이름은 비어 있을 수 없습니다." }
                 require(source.contentType in SupportedImageContentTypes) {
-                    "JPEG, PNG, WEBP, HEIC 사진만 업로드할 수 있습니다: ${source.contentType}"
+                    "지원하지 않는 사진 형식입니다. JPEG, PNG, WEBP 또는 HEIC 사진을 선택해 주세요."
                 }
                 require(source.bytes.isNotEmpty()) { "빈 사진은 업로드할 수 없습니다." }
             }
@@ -73,18 +73,19 @@ internal class PhotoUploadRemoteRepository(
                 .uploads
 
             require(uploads.size == sources.size) {
-                "발급된 업로드 URL 개수가 요청한 사진 개수와 다릅니다."
+                PhotoUploadPreparationFailureMessage
             }
 
             coroutineScope {
                 sources.zip(uploads).map { (source, upload) ->
                     async {
                         require(upload.method.equals(ExpectedUploadMethod, ignoreCase = true)) {
-                            "지원하지 않는 업로드 방식입니다: ${upload.method}"
+                            PhotoUploadPreparationFailureMessage
                         }
-                        val contentType = ContentType.parse(upload.contentType)
+                        val contentType = runCatching { ContentType.parse(upload.contentType) }
+                            .getOrElse { throw IllegalArgumentException(PhotoUploadPreparationFailureMessage) }
                         require(contentType.contentType == "image") {
-                            "서버가 이미지가 아닌 MIME 타입을 반환했습니다: ${upload.contentType}"
+                            PhotoUploadPreparationFailureMessage
                         }
                         client.put(upload.presignedUrl) {
                             setBody(ByteArrayContent(source.bytes, contentType))
@@ -97,6 +98,8 @@ internal class PhotoUploadRemoteRepository(
 }
 
 private const val ExpectedUploadMethod = "PUT"
+private const val PhotoUploadPreparationFailureMessage =
+    "사진 업로드를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요."
 private val SupportedImageContentTypes = setOf(
     "image/jpeg",
     "image/png",

@@ -3,9 +3,8 @@ package com.mapmory.backend.upload.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.upload.dto.CreatePresignedUrlsRequest;
-import com.mapmory.backend.upload.dto.CreatePresignedUrlsResponse;
-import com.mapmory.backend.upload.dto.UploadFileRequest;
+import com.mapmory.backend.upload.PresignedUpload;
+import com.mapmory.backend.upload.UploadFileCommand;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.policy.UploadPolicy;
@@ -32,30 +31,30 @@ class UploadServiceTest {
                 provider,
                 properties
         );
-        CreatePresignedUrlsRequest request = new CreatePresignedUrlsRequest(List.of(
-                new UploadFileRequest("jeju-trip", "IMAGE/JPEG", 3_145_728L),
-                new UploadFileRequest("map.webp", "image/webp", 1024L)
-        ));
+        List<UploadFileCommand> files = List.of(
+                new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
+                new UploadFileCommand("map.webp", "image/webp", 1024L)
+        );
 
-        CreatePresignedUrlsResponse response = uploadService.createPresignedUrls(member(), request);
+        List<PresignedUpload> uploads = uploadService.createPresignedUrls(member(), files);
 
-        assertThat(response.uploads()).hasSize(2);
-        assertThat(response.uploads().getFirst().objectKey()).startsWith("travel-records/10/")
+        assertThat(uploads).hasSize(2);
+        assertThat(uploads.getFirst().objectKey()).startsWith("travel-records/10/")
                 .endsWith(".jpg");
-        assertThat(response.uploads().getFirst().presignedUrl())
+        assertThat(uploads.getFirst().presignedUrl().toString())
                 .startsWith("https://upload.example/travel-records/10/");
-        assertThat(response.uploads().getFirst().method()).isEqualTo("PUT");
-        assertThat(response.uploads().getFirst().contentType()).isEqualTo("image/jpeg");
-        assertThat(response.uploads().getFirst().expiresIn()).isEqualTo(300L);
+        assertThat(uploads.getFirst().method()).isEqualTo("PUT");
+        assertThat(uploads.getFirst().contentType()).isEqualTo("image/jpeg");
+        assertThat(uploads.getFirst().expiration()).isEqualTo(java.time.Duration.ofSeconds(300L));
         assertThat(provider.requests).containsExactly(
                 new PresignRequest(
-                        response.uploads().getFirst().objectKey(),
+                        uploads.getFirst().objectKey(),
                         "image/jpeg",
                         3_145_728L,
                         Duration.ofMinutes(5)
                 ),
                 new PresignRequest(
-                        response.uploads().get(1).objectKey(),
+                        uploads.get(1).objectKey(),
                         "image/webp",
                         1024L,
                         Duration.ofMinutes(5)

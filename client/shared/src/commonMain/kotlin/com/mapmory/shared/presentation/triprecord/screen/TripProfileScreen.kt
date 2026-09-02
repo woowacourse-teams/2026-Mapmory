@@ -61,6 +61,7 @@ fun TripProfileScreen(
     onRecordClick: () -> Unit,
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onRetryClick: () -> Unit = {},
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
@@ -88,7 +89,16 @@ fun TripProfileScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(24.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(statisticsUiState.message, color = TripRecordPalette.current.secondaryText, fontSize = 13.sp)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            statisticsUiState.message,
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 13.sp,
+                        )
+                        TextButton(onClick = onRetryClick, modifier = Modifier.padding(top = 6.dp)) {
+                            Text("다시 시도", color = TripRecordPalette.current.primary)
+                        }
+                    }
                 }
 
                 is TripStatisticsUiState.Success -> StatisticsContent(

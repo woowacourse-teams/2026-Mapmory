@@ -38,7 +38,7 @@ public class TravelRecordController {
             @LoginMember Member member,
             @Valid @RequestBody TravelRecordRequest travelRecordRequest
     ) {
-        TravelRecord travelRecord = travelRecordService.create(member, travelRecordRequest);
+        TravelRecord travelRecord = travelRecordService.create(member, travelRecordRequest.toCommand());
         CreateTravelRecordResponse response = CreateTravelRecordResponse.from(travelRecord);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -55,7 +55,7 @@ public class TravelRecordController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        TravelRecordListResponse response = travelRecordService.findAll(
+        TravelRecordSummaries summaries = travelRecordService.findAll(
                 member,
                 countryCode,
                 provinceCode,
@@ -64,6 +64,7 @@ public class TravelRecordController {
                 page,
                 size
         );
+        TravelRecordListResponse response = TravelRecordListResponse.from(summaries);
 
         return ResponseEntity.ok(TravelRecordResponse.of(response));
     }
@@ -73,7 +74,9 @@ public class TravelRecordController {
             @LoginMember Member member,
             @PathVariable @Positive Long travelRecordId
     ) {
-        TravelRecordDetailResponse response = travelRecordService.findById(member, travelRecordId);
+        TravelRecordDetailResponse response = TravelRecordDetailResponse.from(
+                travelRecordService.findById(member, travelRecordId)
+        );
 
         return ResponseEntity.ok(TravelRecordResponse.of(response));
     }
@@ -84,11 +87,12 @@ public class TravelRecordController {
             @PathVariable @Positive Long travelRecordId,
             @Valid @RequestBody TravelRecordRequest travelRecordRequest
     ) {
-        TravelRecordDetailResponse response = travelRecordService.update(
+        TravelRecordDetail detail = travelRecordService.update(
                 member,
                 travelRecordId,
-                travelRecordRequest
+                travelRecordRequest.toCommand()
         );
+        TravelRecordDetailResponse response = TravelRecordDetailResponse.from(detail);
 
         return ResponseEntity.ok(TravelRecordResponse.of(response));
     }

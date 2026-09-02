@@ -28,6 +28,28 @@ class PhotoRecommendationPagingTest {
         assertEquals(2, third.pageIndex)
         assertFalse(third.hasMore)
         assertEquals(50, third.photos.map(SelectedPhoto::id).toSet().size)
+        assertEquals(10, third.selectedIds.size)
+    }
+
+    @Test
+    fun `추천_사진은_남은_자리보다_많이_선택할_수_없다`() {
+        val initial = PhotoRecommendationPagingState(maxSelectionCount = 3)
+            .accept(
+                PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..5).map(::photo),
+                    hasMore = false,
+                ),
+            )
+
+        assertNotNull(initial)
+        assertEquals(setOf("1", "2", "3"), initial.selectedIds)
+        assertEquals(initial, initial.toggleSelection("4"))
+
+        val replaced = initial
+            .toggleSelection("1")
+            .toggleSelection("4")
+        assertEquals(setOf("2", "3", "4"), replaced.selectedIds)
     }
 
     @Test

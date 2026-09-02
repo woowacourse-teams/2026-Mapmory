@@ -19,7 +19,7 @@ internal object GeneratedKoreaDistrictMapData {
 
     suspend fun forProvince(provinceCode: String): List<ProvincePolygon> {
         val suffix = provinceCode.removePrefix("KR-")
-        require(suffix in supportedProvinceCodes) { "지원하지 않는 시·도 코드입니다: $provinceCode" }
+        require(suffix in supportedProvinceCodes) { "선택한 지역의 지도를 불러오지 못했습니다." }
 
         val file = Res.readBytes("files/korea-districts-$suffix.json")
             .decodeToString()

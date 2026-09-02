@@ -33,18 +33,18 @@ public class AuthController {
             @Valid @RequestBody KakaoLoginRequest request,
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
-        return ApiResponse.from(
-                authService.loginWithKakao(request.kakaoAccessToken(), authenticatedMemberId));
+        return ApiResponse.from(LoginResponse.from(
+                authService.loginWithKakao(request.kakaoAccessToken(), authenticatedMemberId)));
     }
 
     @PostMapping("/login/guest")
     public ApiResponse<LoginResponse> loginAsGuest() {
-        return ApiResponse.from(authService.loginAsGuest());
+        return ApiResponse.from(LoginResponse.from(authService.loginAsGuest()));
     }
 
     @PostMapping("/token/refresh")
     public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        return ApiResponse.from(authService.refresh(request.refreshToken()));
+        return ApiResponse.from(TokenResponse.from(authService.refresh(request.refreshToken())));
     }
 
     @PostMapping("/logout")

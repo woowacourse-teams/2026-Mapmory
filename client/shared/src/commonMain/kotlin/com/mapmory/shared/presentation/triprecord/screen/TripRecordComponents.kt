@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.triprecord.screen
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
@@ -84,6 +86,38 @@ internal fun TripRecordTopBar(
 }
 
 @Composable
+internal fun TripTagChip(
+    text: String,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(50.dp)
+    val isDark = LocalMapmoryTheme.current.isDark
+
+    Text(
+        text = text,
+        color = if (selected) TripMapPalette.current.tagSelectedText else TripMapPalette.current.tagText,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier
+            .clip(shape)
+            .background(
+                if (selected) TripRecordPalette.current.primary else TripMapPalette.current.tagBackground,
+            )
+            .then(
+                if (isDark) {
+                    Modifier
+                } else {
+                    Modifier.border(1.dp, TripRecordPalette.current.border, shape)
+                },
+            )
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 11.dp, vertical = 4.dp),
+    )
+}
+
+@Composable
 internal fun TripIconButton(
     label: String,
     contentDescription: String,
@@ -110,6 +144,52 @@ internal fun TripIconButton(
             fontSize = if (label == "•••") 20.sp else 28.sp,
             fontWeight = FontWeight.Light,
         )
+    }
+}
+
+@Composable
+internal fun TripRecordCreateButton(
+    source: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = TripRecordPalette.current
+    val analytics = LocalMapmoryAnalytics.current
+    Box(
+        modifier = modifier
+            .padding(end = 28.dp, bottom = 33.dp)
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(palette.primary)
+            .clickable {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.RECORD_CREATE_STARTED,
+                    mapOf("source" to source),
+                )
+                onClick()
+            }
+            .semantics { contentDescription = "새 기록 작성" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(24.dp)) {
+            val strokeWidth = 2.dp.toPx()
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val armLength = size.minDimension * 0.32f
+            drawLine(
+                color = palette.onPrimary,
+                start = Offset(center.x - armLength, center.y),
+                end = Offset(center.x + armLength, center.y),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = palette.onPrimary,
+                start = Offset(center.x, center.y - armLength),
+                end = Offset(center.x, center.y + armLength),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
     }
 }
 

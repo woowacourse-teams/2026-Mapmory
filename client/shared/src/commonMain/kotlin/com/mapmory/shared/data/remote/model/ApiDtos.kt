@@ -78,6 +78,17 @@ data class PageDto<T>(
 )
 
 @Serializable
+data class TagDto(
+    val id: Long,
+    val name: String,
+)
+
+@Serializable
+data class TagRequestDto(
+    val name: String,
+)
+
+@Serializable
 data class TripRecordListItemDto(
     val id: Long,
     val title: String,
@@ -86,6 +97,7 @@ data class TripRecordListItemDto(
     val endDate: String?,
     val thumbnailUrl: String? = null,
     val thumbnailUrlExpiresIn: Long? = null,
+    val tags: List<TagDto> = emptyList(),
 )
 
 @Serializable
@@ -111,6 +123,7 @@ data class TripRecordDetailDto(
     val endDate: String?,
     val objectKeys: List<String> = emptyList(),
     val media: List<TripRecordMediaDto> = emptyList(),
+    val tags: List<TagDto> = emptyList(),
     val createdAt: String,
     val updatedAt: String,
 )
@@ -134,6 +147,7 @@ data class TripRecordRequestDto(
     val startDate: String,
     val endDate: String?,
     val objectKeys: List<String> = emptyList(),
+    val tagIds: List<Long> = emptyList(),
 )
 
 @Serializable
@@ -149,4 +163,23 @@ data class MapRegionSummaryDto(
     val name: String,
     val count: Long,
     val level: String,
+)
+
+@Serializable
+data class TripStatisticsDto(
+    val recordCount: Long,
+    val mediaCount: Long,
+    val visitedCountryCount: Long,
+    val visitedKoreaDistrictCount: Long,
+    val visitedCountryCodes: List<String>,
+    val topRegions: List<TopRegionStatisticsDto>,
+)
+
+@Serializable
+data class TopRegionStatisticsDto(
+    val regionId: Long,
+    val code: String,
+    val regionType: String,
+    val name: String,
+    val recordCount: Long,
 )

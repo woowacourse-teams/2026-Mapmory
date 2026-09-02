@@ -1,7 +1,5 @@
 package com.mapmory.backend.auth;
 
-import com.mapmory.backend.auth.dto.LoginResponse;
-import com.mapmory.backend.auth.dto.TokenResponse;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.jwt.JwtProvider;
 import com.mapmory.backend.auth.kakao.KakaoApiClient;
@@ -50,7 +48,7 @@ public class AuthService {
      * (ADR 0015)
      */
     @Transactional
-    public LoginResponse loginWithKakao(String kakaoAccessToken, Long authenticatedMemberId) {
+    public LoginResult loginWithKakao(String kakaoAccessToken, Long authenticatedMemberId) {
         KakaoUserResponse kakaoUser = kakaoApiClient.fetchUser(kakaoAccessToken);
         String providerId = String.valueOf(kakaoUser.id());
         Optional<Member> guest = findGuest(authenticatedMemberId);
@@ -87,7 +85,7 @@ public class AuthService {
      * 발급 이후의 토큰 체계는 소셜 로그인과 완전히 동일하다. (ADR 0015)
      */
     @Transactional
-    public LoginResponse loginAsGuest() {
+    public LoginResult loginAsGuest() {
         Member member = memberRepository.save(Member.ofGuest(
                 UUID.randomUUID().toString(),
                 resolveName(null),
@@ -98,12 +96,12 @@ public class AuthService {
 
     // @Transactional을 두지 않는다. validateAndRevoke가 자체 트랜잭션에서 (재사용 시) 토큰 폐기를
     // 커밋한 뒤, 재사용이면 여기서 트랜잭션 밖에서 401을 던져 그 폐기가 롤백되지 않게 한다.
-    public TokenResponse refresh(String refreshToken) {
+    public AuthTokens refresh(String refreshToken) {
         Member member = refreshTokenService.validateAndRevoke(refreshToken)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
         String accessToken = jwtProvider.issueAccessToken(member.getId());
         String newRefreshToken = refreshTokenService.issue(member);
-        return new TokenResponse(accessToken, newRefreshToken);
+        return new AuthTokens(accessToken, newRefreshToken);
     }
 
     @Transactional
@@ -111,10 +109,10 @@ public class AuthService {
         refreshTokenService.revoke(refreshToken);
     }
 
-    private LoginResponse issueTokens(Member member, boolean isNewMember) {
+    private LoginResult issueTokens(Member member, boolean isNewMember) {
         String accessToken = jwtProvider.issueAccessToken(member.getId());
         String refreshToken = refreshTokenService.issue(member);
-        return new LoginResponse(accessToken, refreshToken, isNewMember);
+        return new LoginResult(new AuthTokens(accessToken, refreshToken), isNewMember);
     }
 
     private Member register(String providerId, String nickname) {

@@ -73,6 +73,11 @@ class MapmoryAppNavigationTest {
 
         composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
 
+        composeRule.onNodeWithContentDescription("새 기록 작성").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()
+        composeRule.onNodeWithText("←").performClick()
+        composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
+
         composeRule.onNodeWithText("지도").performClick()
         composeRule.onNodeWithContentDescription("새 기록 작성").performClick()
         composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()

@@ -14,6 +14,7 @@
 		A10000000000000000000005 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* GoogleService-Info.plist */; };
 		A10000000000000000000006 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000001 /* FirebaseAnalytics */; };
 		A10000000000000000000007 /* FirebaseAnalyticsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */; };
+		A10000000000000000000008 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		A20000000000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000007 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAnalyticsLogger.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,6 +48,7 @@
 				A20000000000000000000002 /* MediaPermissionManager.swift */,
 				A20000000000000000000005 /* MediaPermissionView.swift */,
 				A20000000000000000000003 /* Info.plist */,
+				A20000000000000000000009 /* PrivacyInfo.xcprivacy */,
 				A20000000000000000000006 /* Assets.xcassets */,
 				A20000000000000000000007 /* GoogleService-Info.plist */,
 				A20000000000000000000008 /* FirebaseAnalyticsLogger.swift */,
@@ -129,6 +132,7 @@
 			files = (
 				A10000000000000000000004 /* Assets.xcassets in Resources */,
 				A10000000000000000000005 /* GoogleService-Info.plist in Resources */,
+				A10000000000000000000008 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -212,7 +216,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = G5Y5QL2BYA;
+				DEVELOPMENT_TEAM = 22YUT65LMV;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
@@ -222,18 +226,21 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -244,7 +251,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = G5Y5QL2BYA;
+				DEVELOPMENT_TEAM = 22YUT65LMV;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -253,18 +260,21 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mapmory.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

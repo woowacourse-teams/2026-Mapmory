@@ -1,10 +1,8 @@
 package com.mapmory.backend.travelrecord.dto;
 
-import com.mapmory.backend.recordmedia.ExpiringUrl;
-import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.TravelRecordSummaries;
 import java.util.List;
-import java.util.Map;
 import org.springframework.data.domain.Page;
 
 public record TravelRecordListResponse(
@@ -15,17 +13,15 @@ public record TravelRecordListResponse(
         int totalPages,
         boolean hasNext
 ) {
-    public static TravelRecordListResponse from(
-            Page<TravelRecord> travelRecords,
-            Map<Long, List<Tag>> tagsByTravelRecordId,
-            Map<Long, ExpiringUrl> thumbnailUrlsByTravelRecordId
-    ) {
+    public static TravelRecordListResponse from(TravelRecordSummaries summaries) {
+        Page<TravelRecord> travelRecords = summaries.travelRecords();
+
         return new TravelRecordListResponse(
                 travelRecords.getContent().stream()
                         .map(travelRecord -> TravelRecordListItemResponse.from(
                                 travelRecord,
-                                tagsByTravelRecordId.getOrDefault(travelRecord.getId(), List.of()),
-                                thumbnailUrlsByTravelRecordId.get(travelRecord.getId())
+                                summaries.tagsOf(travelRecord),
+                                summaries.thumbnailUrlOf(travelRecord)
                         ))
                         .toList(),
                 travelRecords.getNumber(),

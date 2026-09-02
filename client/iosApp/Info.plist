@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>여행 기록에 첨부할 사진을 촬영하기 위해 카메라를 사용합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -6,9 +6,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistRequest;
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistResponse;
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -40,11 +37,9 @@ class LaunchWaitlistServiceTest {
 
     @Test
     void 이메일을_정규화해_출시_알림을_신청한다() {
-        LaunchWaitlistRequest request = request("  MapMory.User@Example.COM  ");
+        LaunchWaitlistStatus status = service.subscribe("  MapMory.User@Example.COM  ");
 
-        LaunchWaitlistResponse response = service.subscribe(request);
-
-        assertThat(response.status()).isEqualTo(LaunchWaitlistStatus.SUBSCRIBED);
+        assertThat(status).isEqualTo(LaunchWaitlistStatus.SUBSCRIBED);
         ArgumentCaptor<LaunchWaitlistEntry> captor = ArgumentCaptor.forClass(LaunchWaitlistEntry.class);
         verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("mapmory.user@example.com");
@@ -55,9 +50,9 @@ class LaunchWaitlistServiceTest {
     void 이미_등록된_이메일은_다시_저장하지_않는다() {
         when(repository.existsByEmail("user@example.com")).thenReturn(true);
 
-        LaunchWaitlistResponse response = service.subscribe(request("USER@example.com"));
+        LaunchWaitlistStatus status = service.subscribe("USER@example.com");
 
-        assertThat(response.status()).isEqualTo(LaunchWaitlistStatus.ALREADY_SUBSCRIBED);
+        assertThat(status).isEqualTo(LaunchWaitlistStatus.ALREADY_SUBSCRIBED);
         verify(repository, never()).saveAndFlush(any());
     }
 
@@ -65,12 +60,8 @@ class LaunchWaitlistServiceTest {
     void 동시에_같은_이메일이_저장되어도_중복_신청으로_응답한다() {
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
-        LaunchWaitlistResponse response = service.subscribe(request("user@example.com"));
+        LaunchWaitlistStatus status = service.subscribe("user@example.com");
 
-        assertThat(response.status()).isEqualTo(LaunchWaitlistStatus.ALREADY_SUBSCRIBED);
-    }
-
-    private LaunchWaitlistRequest request(String email) {
-        return new LaunchWaitlistRequest(email, true, true);
+        assertThat(status).isEqualTo(LaunchWaitlistStatus.ALREADY_SUBSCRIBED);
     }
 }

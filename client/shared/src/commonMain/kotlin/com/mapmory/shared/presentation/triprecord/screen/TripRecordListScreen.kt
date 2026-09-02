@@ -26,10 +26,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
@@ -53,6 +50,7 @@ fun TripRecordListScreen(
     filter: TripRecordFilterUiState,
     onPreviousPageClick: () -> Unit,
     onNextPageClick: () -> Unit,
+    onTagClick: (Long?) -> Unit = {},
     onCreateClick: () -> Unit,
     onMapClick: () -> Unit,
     onRecordClick: (Long) -> Unit,
@@ -70,68 +68,83 @@ fun TripRecordListScreen(
                 recordCount = (uiState as? TripRecordListUiState.Success)?.records?.size ?: 0,
             )
 
-            Column(
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 18.dp),
+                    .fillMaxWidth()
+                    .weight(1f),
             ) {
-                Spacer(Modifier.height(14.dp))
-                JournalTagFilters()
-                Spacer(Modifier.height(18.dp))
-
-                when (uiState) {
-                    TripRecordListUiState.Idle,
-                    TripRecordListUiState.Loading,
-                    -> CircularProgressIndicator(
-                        color = TripRecordPalette.current.accent,
-                        modifier = Modifier.padding(top = 20.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 18.dp),
+                ) {
+                    Spacer(Modifier.height(14.dp))
+                    JournalTagFilters(
+                        tags = filter.tags,
+                        selectedTagId = filter.selectedTagId,
+                        onTagClick = onTagClick,
                     )
+                    Spacer(Modifier.height(18.dp))
 
+                    when (uiState) {
+                        TripRecordListUiState.Idle,
+                        TripRecordListUiState.Loading,
+                        -> CircularProgressIndicator(
+                            color = TripRecordPalette.current.accent,
+                            modifier = Modifier.padding(top = 20.dp),
+                        )
 
-                    is TripRecordListUiState.Error -> Text(
-                        text = uiState.message,
-                        color = TripRecordPalette.current.danger,
-                        modifier = Modifier.padding(top = 20.dp),
-                    )
+                        is TripRecordListUiState.Error -> Text(
+                            text = uiState.message,
+                            color = TripRecordPalette.current.danger,
+                            modifier = Modifier.padding(top = 20.dp),
+                        )
 
-                    is TripRecordListUiState.Success -> {
-                        if (uiState.records.isEmpty()) {
-                            EmptyTripRecords(
-                                hasFilter = filter.locationId != null,
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else {
-                            TripRecordList(
-                                records = uiState.records,
-                                onRecordClick = { recordId ->
-                                    analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED)
-                                    onRecordClick(recordId)
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (uiState.totalPages > 1) {
-                            PageControls(
-                                page = uiState.page,
-                                totalPages = uiState.totalPages,
-                                onPreviousPageClick = {
-                                    analytics.logEvent(
-                                        MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
-                                        mapOf("direction" to "previous"),
-                                    )
-                                    onPreviousPageClick()
-                                },
-                                onNextPageClick = {
-                                    analytics.logEvent(
-                                        MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
-                                        mapOf("direction" to "next"),
-                                    )
-                                    onNextPageClick()
-                                },
-                            )
+                        is TripRecordListUiState.Success -> {
+                            if (uiState.records.isEmpty()) {
+                                EmptyTripRecords(
+                                    hasFilter = filter.locationId != null || filter.selectedTagId != null,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            } else {
+                                TripRecordList(
+                                    records = uiState.records,
+                                    onRecordClick = { recordId ->
+                                        analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED)
+                                        onRecordClick(recordId)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            if (uiState.totalPages > 1) {
+                                PageControls(
+                                    page = uiState.page,
+                                    totalPages = uiState.totalPages,
+                                    onPreviousPageClick = {
+                                        analytics.logEvent(
+                                            MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
+                                            mapOf("direction" to "previous"),
+                                        )
+                                        onPreviousPageClick()
+                                    },
+                                    onNextPageClick = {
+                                        analytics.logEvent(
+                                            MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
+                                            mapOf("direction" to "next"),
+                                        )
+                                        onNextPageClick()
+                                    },
+                                )
+                            }
                         }
                     }
                 }
+
+                TripRecordCreateButton(
+                    source = "journal_fab",
+                    onClick = onCreateClick,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
             }
 
             TripBottomBar(
@@ -243,50 +256,43 @@ private fun JournalHeader(recordCount: Int) {
 }
 
 @Composable
-private fun JournalTagFilters() {
+private fun JournalTagFilters(
+    tags: List<Tag>,
+    selectedTagId: Long?,
+    onTagClick: (Long?) -> Unit,
+) {
     val analytics = LocalMapmoryAnalytics.current
-    val tags = remember { listOf("전체", "가족", "애인", "친구", "혼자") }
-    var selectedTag by remember { mutableStateOf(tags.first()) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        TripTagChip(
+            text = "전체",
+            selected = selectedTagId == null,
+            onClick = {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.JOURNAL_FILTER_SELECTED,
+                    mapOf("tag" to "전체"),
+                )
+                onTagClick(null)
+            },
+        )
         tags.forEach { tag ->
-            TripFilterChip(
-                text = tag,
-                selected = selectedTag == tag,
+            TripTagChip(
+                text = tag.name,
+                selected = selectedTagId == tag.id,
                 onClick = {
                     analytics.logEvent(
                         MapmoryAnalyticsEvent.JOURNAL_FILTER_SELECTED,
-                        mapOf("tag" to tag),
+                        mapOf("tag" to tag.name),
                     )
-                    selectedTag = tag
+                    onTagClick(tag.id)
                 },
             )
         }
     }
-}
-
-@Composable
-private fun TripFilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = text,
-        color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.secondaryText,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (selected) TripRecordPalette.current.primarySoft else TripRecordPalette.current.softSurface)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
 }
 
 @Composable
@@ -372,6 +378,17 @@ private fun TripRecordCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 7.dp),
                 )
+                if (record.tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 9.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        record.tags.forEach { tag -> TripTagChip(text = tag.name) }
+                    }
+                }
             }
         }
     }

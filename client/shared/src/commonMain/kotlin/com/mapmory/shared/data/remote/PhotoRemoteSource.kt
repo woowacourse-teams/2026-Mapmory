@@ -10,7 +10,9 @@ internal class PresignedPhotoRemoteSource(
     private val client: HttpClient,
 ) : PhotoRemoteSource {
     override suspend fun download(url: String): Result<ByteArray> = apiCall {
-        require(url.startsWith(HttpsPrefix)) { "사진 조회 URL은 HTTPS여야 합니다." }
+        require(url.startsWith(HttpsPrefix)) {
+            "사진을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+        }
         client.get(url).requireSuccess().body()
     }
 }

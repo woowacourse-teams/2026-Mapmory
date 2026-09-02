@@ -30,7 +30,9 @@ public class RegionMapSummaryController {
             @LoginMember Member member,
             @RequestParam(required = false) @Positive Long tagId
     ) {
-        return ApiResponse.from(regionMapSummaryService.getSummaries(member, null, tagId));
+        return ApiResponse.from(RegionMapSummaryResponse.from(
+                regionMapSummaryService.getSummaries(member, null, tagId)
+        ));
     }
 
     @GetMapping("/{regionId}/children")
@@ -41,6 +43,8 @@ public class RegionMapSummaryController {
             Long regionId,
             @RequestParam(required = false) @Positive Long tagId
     ) {
-        return ApiResponse.from(regionMapSummaryService.getSummaries(member, regionId, tagId));
+        return ApiResponse.from(RegionMapSummaryResponse.from(
+                regionMapSummaryService.getSummaries(member, regionId, tagId)
+        ));
     }
 }

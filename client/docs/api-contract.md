@@ -220,6 +220,47 @@ travel-records/{memberId}/{uuid}.{extension}
 
 헤더: `X-Member-Id` 필수. 성공 시 `204 No Content`를 반환한다.
 
+## 여행 통계 API
+
+### 내 전체 여행 통계 조회
+
+`GET /api/v1/travel-records/statistics`
+
+현재 회원이 작성한 전체 기간의 여행 기록과 연결된 미디어를 실시간 집계한다.
+
+```json
+{
+  "data": {
+    "recordCount": 24,
+    "mediaCount": 138,
+    "visitedCountryCount": 3,
+    "visitedKoreaDistrictCount": 8,
+    "visitedCountryCodes": ["JP", "KR", "US"],
+    "topRegions": [
+      {
+        "regionId": 10,
+        "code": "11",
+        "regionType": "PROVINCE",
+        "name": "서울특별시",
+        "recordCount": 7
+      }
+    ]
+  }
+}
+```
+
+| 필드 | 설명 |
+| --- | --- |
+| `recordCount` | 현재 회원의 전체 여행 기록 수 |
+| `mediaCount` | 여행 기록에 연결된 전체 미디어 수 |
+| `visitedCountryCount` | 기록이 하나 이상 있는 고유 국가 수 |
+| `visitedKoreaDistrictCount` | 기록이 하나 이상 있는 대한민국 고유 시·군·구 수 |
+| `visitedCountryCodes` | 방문 국가 ISO 코드의 오름차순 목록 |
+| `topRegions` | `recordCount DESC`, `regionId ASC` 순서의 상위 3개 지역 |
+
+대한민국 시·군·구 기록은 직속 시·도로 올려 합산하고, 해외 기록은 국가로 합산한다.
+기록이 없으면 숫자 필드는 `0`, 목록 필드는 빈 배열을 반환한다.
+
 ## 오류 코드
 
 클라이언트에서 우선 처리할 오류 코드는 다음과 같다.
@@ -246,6 +287,7 @@ travel-records/{memberId}/{uuid}.{extension}
 | GET | `/api/v1/travel-records/{travelRecordId}` | 내 여행 기록 상세 |
 | PUT | `/api/v1/travel-records/{travelRecordId}` | 여행 기록 전체 수정 |
 | DELETE | `/api/v1/travel-records/{travelRecordId}` | 여행 기록 삭제 |
+| GET | `/api/v1/travel-records/statistics` | 내 전체 여행 통계 조회 |
 
 ## 아직 결정할 운영 정책
 
@@ -259,7 +301,6 @@ travel-records/{memberId}/{uuid}.{extension}
 임의로 구현하지 않는다.
 
 - 지도 방문 지역 전용 API: `GET /travel-records/map` 추가 여부와 응답 형식
-- 여행 통계 API: `GET /travel-statistics` 추가 여부와 응답 형식
 
 ## 지도 데이터 경계
 

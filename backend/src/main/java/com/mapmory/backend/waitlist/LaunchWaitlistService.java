@@ -1,11 +1,7 @@
 package com.mapmory.backend.waitlist;
 
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistRequest;
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistResponse;
-import java.text.Normalizer;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Locale;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -28,27 +24,18 @@ public class LaunchWaitlistService {
     }
 
     @Transactional
-    public LaunchWaitlistResponse subscribe(LaunchWaitlistRequest request) {
-        String normalizedEmail = normalizeEmail(request.email());
-        if (repository.existsByEmail(normalizedEmail)) {
-            return LaunchWaitlistResponse.alreadySubscribed();
+    public LaunchWaitlistStatus subscribe(String rawEmail) {
+        Email email = Email.from(rawEmail);
+        if (repository.existsByEmail(email.value())) {
+            return LaunchWaitlistStatus.ALREADY_SUBSCRIBED;
         }
 
-        LaunchWaitlistEntry entry = LaunchWaitlistEntry.of(
-                normalizedEmail,
-                LocalDateTime.now(clock)
-        );
         try {
-            repository.saveAndFlush(entry);
-            return LaunchWaitlistResponse.subscribed();
+            repository.saveAndFlush(LaunchWaitlistEntry.of(email, LocalDateTime.now(clock)));
+            return LaunchWaitlistStatus.SUBSCRIBED;
         } catch (DataIntegrityViolationException exception) {
             // 동시에 같은 주소가 들어온 경우에도 한 번만 저장하고 성공으로 취급한다.
-            return LaunchWaitlistResponse.alreadySubscribed();
+            return LaunchWaitlistStatus.ALREADY_SUBSCRIBED;
         }
-    }
-
-    static String normalizeEmail(String email) {
-        return Normalizer.normalize(email.trim(), Normalizer.Form.NFKC)
-                .toLowerCase(Locale.ROOT);
     }
 }

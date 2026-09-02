@@ -4,23 +4,15 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.recordmedia.ExpiringUrl;
-import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
-import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordMediaResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,7 +31,7 @@ public class TravelRecordService {
     private final TravelRecordTagService travelRecordTagService;
     private final TagService tagService;
     private final OperationTimer operationTimer;
-    private final RecordMediaUrlService recordMediaUrlService;
+    private final TravelRecordAssembler travelRecordAssembler;
     private final Clock clock;
     private final UploadedObjectVerifier uploadedObjectVerifier;
 
@@ -49,7 +41,7 @@ public class TravelRecordService {
             TravelRecordTagService travelRecordTagService,
             TagService tagService,
             OperationTimer operationTimer,
-            RecordMediaUrlService recordMediaUrlService,
+            TravelRecordAssembler travelRecordAssembler,
             Clock clock,
             UploadedObjectVerifier uploadedObjectVerifier
     ) {
@@ -58,74 +50,70 @@ public class TravelRecordService {
         this.travelRecordTagService = travelRecordTagService;
         this.tagService = tagService;
         this.operationTimer = operationTimer;
-        this.recordMediaUrlService = recordMediaUrlService;
+        this.travelRecordAssembler = travelRecordAssembler;
         this.clock = clock;
         this.uploadedObjectVerifier = uploadedObjectVerifier;
     }
 
     @Transactional
-    public TravelRecord create(Member member, TravelRecordRequest request) {
-        validateTravelDates(request.startDate(), request.endDate());
-        validateTravelRecordRegion(request);
-        List<String> objectKeys = objectKeys(request);
+    public TravelRecord create(Member member, TravelRecordCommand command) {
+        validateTravelDates(command.startDate(), command.endDate());
+        validateTravelRecordRegion(command);
+        List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
         uploadedObjectVerifier.verifyAllUploaded(objectKeys);
-        Region region = resolveRegion(request);
+        Region region = resolveRegion(command);
 
         TravelRecord travelRecord = TravelRecord.of(
                 member,
                 region,
-                request.title(),
-                request.content(),
-                request.startDate(),
-                request.endDate()
+                command.title(),
+                command.content(),
+                command.startDate(),
+                command.endDate()
         );
         travelRecord.synchronizeMedia(objectKeys);
 
         TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
-        travelRecordTagService.replace(member, savedTravelRecord, request.tagIds());
+        travelRecordTagService.replace(member, savedTravelRecord, command.tagIds());
 
         return savedTravelRecord;
     }
 
     @Transactional(readOnly = true)
-    public TravelRecordDetailResponse findById(Member member, Long travelRecordId) {
+    public TravelRecordDetail findById(Member member, Long travelRecordId) {
         TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
                 .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
-        return createDetailResponse(
-                travelRecord,
-                travelRecord.getMedia(),
-                travelRecordTagService.findByTravelRecordId(travelRecordId)
-        );
+        return travelRecordAssembler.assembleDetail(travelRecord);
     }
 
     @Transactional
-    public TravelRecordDetailResponse update(
+    public TravelRecordDetail update(
             Member member,
             Long travelRecordId,
-            TravelRecordRequest request
+            TravelRecordCommand command
     ) {
-        validateTravelDates(request.startDate(), request.endDate());
-        validateTravelRecordRegion(request);
+        validateTravelDates(command.startDate(), command.endDate());
+        validateTravelRecordRegion(command);
         TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
                 .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
-        List<String> objectKeys = objectKeys(request);
+        List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
 
-        Region region = resolveRegion(request);
+        Region region = resolveRegion(command);
         List<String> newObjectKeys = travelRecord.newObjectKeys(objectKeys);
         validateObjectKeysAreAvailable(newObjectKeys);
         uploadedObjectVerifier.verifyAllUploaded(newObjectKeys);
 
         travelRecord.update(
                 region,
-                request.title(),
-                request.content(),
-                request.startDate(),
-                request.endDate()
+                command.title(),
+                command.content(),
+                command.startDate(),
+                command.endDate()
         );
-        List<Tag> tags = travelRecordTagService.replace(member, travelRecord, request.tagIds());
-        List<RecordMedia> updatedMedia = operationTimer.record(
+        List<Tag> tags = travelRecordTagService.replace(member, travelRecord, command.tagIds());
+        operationTimer.record(
                 MonitoredOperation.MEDIA_SYNC,
                 () -> {
                     travelRecord.synchronizeMedia(objectKeys);
@@ -134,7 +122,7 @@ public class TravelRecordService {
                 }
         );
 
-        return createDetailResponse(travelRecord, updatedMedia, tags);
+        return travelRecordAssembler.assembleDetail(travelRecord, tags);
     }
 
     @Transactional
@@ -146,7 +134,7 @@ public class TravelRecordService {
     }
 
     @Transactional(readOnly = true)
-    public TravelRecordListResponse findAll(
+    public TravelRecordSummaries findAll(
             Member member,
             String countryCode,
             String provinceCode,
@@ -194,18 +182,7 @@ public class TravelRecordService {
             }
         }
 
-        List<Long> travelRecordIds = travelRecords.getContent().stream()
-                .map(TravelRecord::getId)
-                .toList();
-        Map<Long, List<Tag>> tagsByTravelRecordId =
-                travelRecordTagService.findByTravelRecordIds(travelRecordIds);
-        Map<Long, ExpiringUrl> thumbnailUrlsByTravelRecordId =
-                createThumbnailUrls(travelRecordIds);
-        return TravelRecordListResponse.from(
-                travelRecords,
-                tagsByTravelRecordId,
-                thumbnailUrlsByTravelRecordId
-        );
+        return travelRecordAssembler.assembleSummaries(travelRecords);
     }
 
     private void validateRegionFilterHierarchy(
@@ -259,18 +236,18 @@ public class TravelRecordService {
         );
     }
 
-    private Region resolveRegion(TravelRecordRequest request) {
+    private Region resolveRegion(TravelRecordCommand command) {
         return regionResolver.resolve(
-                request.countryCode(),
-                request.provinceCode(),
-                request.districtCode()
+                command.countryCode(),
+                command.provinceCode(),
+                command.districtCode()
         );
     }
 
-    private void validateTravelRecordRegion(TravelRecordRequest request) {
-        String countryCode = request.countryCode();
-        String provinceCode = request.provinceCode();
-        String districtCode = request.districtCode();
+    private void validateTravelRecordRegion(TravelRecordCommand command) {
+        String countryCode = command.countryCode();
+        String provinceCode = command.provinceCode();
+        String districtCode = command.districtCode();
         validateRegionCodeFormat(countryCode, provinceCode, districtCode);
 
         if (KOREA_COUNTRY_CODE.equals(countryCode)) {
@@ -285,45 +262,13 @@ public class TravelRecordService {
         }
     }
 
-    private static List<String> objectKeys(TravelRecordRequest request) {
-        return request.objectKeys() == null ? List.of() : request.objectKeys();
-    }
-
-    private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
+        private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
         if (!newObjectKeys.isEmpty()
                 && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }
 
-    private Map<Long, ExpiringUrl> createThumbnailUrls(List<Long> travelRecordIds) {
-        if (travelRecordIds.isEmpty()) {
-            return Map.of();
-        }
 
-        Map<Long, ExpiringUrl> thumbnailUrls = new HashMap<>();
-        for (RecordMedia recordMedia : travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds)) {
-            thumbnailUrls.computeIfAbsent(
-                    recordMedia.travelRecordId(),
-                    ignored -> recordMediaUrlService.createViewUrl(recordMedia.getThumbnailObjectKey())
-            );
-        }
-        return Map.copyOf(thumbnailUrls);
-    }
-
-    private TravelRecordDetailResponse createDetailResponse(
-            TravelRecord travelRecord,
-            List<RecordMedia> recordMedia,
-            List<Tag> tags
-    ) {
-        List<TravelRecordMediaResponse> media = recordMedia.stream()
-                .map(item -> TravelRecordMediaResponse.from(
-                        item,
-                        recordMediaUrlService.createViewUrl(item.getObjectKey())
-                ))
-                .toList();
-
-        return TravelRecordDetailResponse.from(travelRecord, recordMedia, tags, media);
-    }
 
 }

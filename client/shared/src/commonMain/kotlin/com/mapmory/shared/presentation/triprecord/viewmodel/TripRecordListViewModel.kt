@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
+import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
 import com.mapmory.shared.presentation.triprecord.state.toTripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoadResult
@@ -23,6 +25,7 @@ class TripRecordListViewModel(
     private val getTripRecords: GetTripRecordsUseCase,
     private val regionCatalog: RegionCatalog? = null,
     private val thumbnailLoader: TripRecordThumbnailLoader? = null,
+    private val getTags: GetTagsUseCase? = null,
 ) : ViewModel() {
     private var isRouteInitialized = false
     private var loadGeneration = 0L
@@ -33,14 +36,22 @@ class TripRecordListViewModel(
     var query by mutableStateOf(TripRecordQuery())
         private set
 
+    var availableTags by mutableStateOf<List<Tag>>(emptyList())
+        private set
+
     fun filterByLocation(locationId: Long?) {
         query = query.copy(locationId = locationId, page = 0)
+    }
+
+    private fun filterByTag(tagId: Long?) {
+        query = query.copy(tagId = tagId, page = 0)
     }
 
     suspend fun initialize(locationId: Long?) {
         if (isRouteInitialized) return
         isRouteInitialized = true
         filterByLocation(locationId)
+        refreshTags()
         load()
     }
 
@@ -52,7 +63,25 @@ class TripRecordListViewModel(
         if (query.locationId != locationId) {
             filterByLocation(locationId)
         }
+        refreshTags()
         load()
+    }
+
+    suspend fun selectTag(tagId: Long?) {
+        if (tagId != null && availableTags.none { it.id == tagId }) return
+        if (query.tagId == tagId) return
+        filterByTag(tagId)
+        load()
+    }
+
+    private suspend fun refreshTags() {
+        val loadTags = getTags ?: return
+        loadTags().onSuccess { tags ->
+            availableTags = tags
+            if (query.tagId != null && tags.none { it.id == query.tagId }) {
+                filterByTag(null)
+            }
+        }
     }
 
     suspend fun load(query: TripRecordQuery = this.query) {

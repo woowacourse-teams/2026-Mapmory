@@ -44,7 +44,7 @@ class MemoryPhotoPreviewCache(
 }
 
 internal fun objectKeyCacheFileName(objectKey: String): String {
-    require(objectKey.isNotBlank()) { "사진 Object Key는 비어 있을 수 없습니다." }
+    require(objectKey.isNotBlank()) { "사진 정보를 확인하지 못했습니다." }
     // v1에는 Android 원격 사진의 EXIF 방향이 적용되지 않았으므로 기존 파일을 재사용하지 않는다.
     val bytes = "$PreviewCacheSchemaVersion:$objectKey".encodeToByteArray()
     val forward = bytes.fold(FnvOffsetBasis) { hash, byte ->

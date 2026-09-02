@@ -1,5 +1,7 @@
 package com.mapmory.backend.auth.dto;
 
+import com.mapmory.backend.auth.LoginResult;
+
 /**
  * 로그인 응답.
  *
@@ -13,4 +15,12 @@ public record LoginResponse(
         String refreshToken,
         boolean isNewMember
 ) {
+
+    public static LoginResponse from(LoginResult result) {
+        return new LoginResponse(
+                result.tokens().accessToken(),
+                result.tokens().refreshToken(),
+                result.newMember()
+        );
+    }
 }

@@ -88,13 +88,22 @@ internal fun MapRoute(
             )
             viewModel.changeScope(selectedScope)
         },
+        tags = uiState.tags,
+        selectedTagId = uiState.selectedTagId,
+        onTagSelected = { tagId ->
+            scope.launch { viewModel.selectTag(tagId) }
+        },
         mapContent = {
             when (uiState.scope) {
                 MapScope.WORLD -> MapArtwork(
                     scope = MapScope.WORLD,
                     visitedCountryCodes = viewModel.visitedCountryCodes,
                     onCountryClick = { countryCode ->
-                        regionCatalog.findByCode(countryCode)?.let(::openLocation)
+                        if (countryCode == KoreaCountryCode) {
+                            viewModel.changeScope(MapScope.KOREA)
+                        } else {
+                            regionCatalog.findByCode(countryCode)?.let(::openLocation)
+                        }
                     },
                 )
 
@@ -160,3 +169,5 @@ private fun KoreaMapUiState.provinceCodeOrNull(): String? = when (this) {
     is KoreaMapUiState.Error -> provinceCode
     KoreaMapUiState.ProvinceOverview -> null
 }
+
+private const val KoreaCountryCode = "KR"

@@ -2,6 +2,7 @@ package com.mapmory.shared.presentation.triprecord.screen
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -367,6 +368,17 @@ private fun TripRecordBottomCard(
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
         )
+        if (record.tags.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                record.tags.forEach { tag -> TripTagChip(text = tag.name) }
+            }
+        }
         Text(
             text = record.content,
             color = TripRecordPalette.current.muted,

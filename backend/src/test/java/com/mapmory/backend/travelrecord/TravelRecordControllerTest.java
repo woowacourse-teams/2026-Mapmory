@@ -17,19 +17,17 @@ import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.recordmedia.ExpiringUrl;
+import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
-import com.mapmory.backend.travelrecord.dto.RegionDetailResponse;
-import com.mapmory.backend.travelrecord.dto.RegionItemResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordListItemResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordMediaResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,6 +38,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -112,7 +112,7 @@ class TravelRecordControllerTest {
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
 
-        when(travelRecordService.create(MEMBER, request)).thenReturn(travelRecord);
+        when(travelRecordService.create(MEMBER, request.toCommand())).thenReturn(travelRecord);
 
         ResponseEntity<TravelRecordResponse<CreateTravelRecordResponse>> response =
                 travelRecordController.create(MEMBER, request);
@@ -121,7 +121,7 @@ class TravelRecordControllerTest {
         assertThat(response.getBody()).isEqualTo(
                 TravelRecordResponse.of(new CreateTravelRecordResponse(1L))
         );
-        verify(travelRecordService).create(MEMBER, request);
+        verify(travelRecordService).create(MEMBER, request.toCommand());
     }
 
     @ParameterizedTest
@@ -136,7 +136,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("title"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -155,7 +155,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("title"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -169,7 +169,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("title"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @ParameterizedTest
@@ -182,7 +182,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("countryCode"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -194,7 +194,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("provinceCode"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -206,7 +206,7 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors[0].field").value("districtCode"));
 
-        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService, never()).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -220,7 +220,7 @@ class TravelRecordControllerTest {
                 null
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
-        when(travelRecordService.create(eq(MEMBER), any(TravelRecordRequest.class)))
+        when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
                 .thenReturn(travelRecord);
 
         mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
@@ -237,7 +237,7 @@ class TravelRecordControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(1L));
 
-        verify(travelRecordService).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
@@ -251,7 +251,7 @@ class TravelRecordControllerTest {
                 null
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
-        when(travelRecordService.create(eq(MEMBER), any(TravelRecordRequest.class)))
+        when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
                 .thenReturn(travelRecord);
 
         mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
@@ -260,12 +260,12 @@ class TravelRecordControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(1L));
 
-        verify(travelRecordService).create(eq(MEMBER), any(TravelRecordRequest.class));
+        verify(travelRecordService).create(eq(MEMBER), any(TravelRecordCommand.class));
     }
 
     @Test
     void 여행_일지_상세_조회를_서비스에_위임한다() {
-        TravelRecordDetailResponse detail = detail("제주 여행", "제주시를 걸었다.",
+        TravelRecordDetail detail = detail("제주 여행", "제주시를 걸었다.",
                 List.of("mapmory/travel-records/a.jpg"));
         when(travelRecordService.findById(MEMBER, 101L)).thenReturn(detail);
 
@@ -273,13 +273,15 @@ class TravelRecordControllerTest {
                 travelRecordController.findById(MEMBER, 101L);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(TravelRecordResponse.of(detail));
+        assertThat(response.getBody()).isEqualTo(
+                TravelRecordResponse.of(TravelRecordDetailResponse.from(detail))
+        );
         verify(travelRecordService).findById(MEMBER, 101L);
     }
 
     @Test
     void 여행_일지_상세_HTTP_응답을_반환한다() throws Exception {
-        TravelRecordDetailResponse detail = detail("제주 여행", "제주시를 걸었다.",
+        TravelRecordDetail detail = detail("제주 여행", "제주시를 걸었다.",
                 List.of("mapmory/travel-records/a.jpg"));
         when(travelRecordService.findById(MEMBER, 101L)).thenReturn(detail);
 
@@ -300,25 +302,17 @@ class TravelRecordControllerTest {
 
     @Test
     void 여행_일지_목록에_썸네일_URL을_반환한다() throws Exception {
-        TravelRecordListResponse list = new TravelRecordListResponse(
-                List.of(new TravelRecordListItemResponse(
-                        101L,
-                        "제주 여행",
-                        "제주시",
-                        LocalDate.of(2026, 8, 11),
-                        LocalDate.of(2026, 8, 13),
+        TravelRecord travelRecord = travelRecord("제주 여행", "");
+        TravelRecordSummaries summaries = new TravelRecordSummaries(
+                new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1),
+                Map.of(),
+                Map.of(101L, new ExpiringUrl(
                         "https://download.example/mapmory/travel-records/a.jpg",
-                        300L,
-                        List.of()
-                )),
-                0,
-                20,
-                1,
-                1,
-                false
+                        300L
+                ))
         );
         when(travelRecordService.findAll(MEMBER, null, null, null, null, 0, 20))
-                .thenReturn(list);
+                .thenReturn(summaries);
 
         mockMvcWithLoginMember().perform(get("/api/v1/travel-records"))
                 .andExpect(status().isOk())
@@ -329,12 +323,12 @@ class TravelRecordControllerTest {
 
     @Test
     void 여행_일지를_수정한다() throws Exception {
-        TravelRecordDetailResponse detail = detail("수정된 제주 여행", "수정된 본문",
+        TravelRecordDetail detail = detail("수정된 제주 여행", "수정된 본문",
                 List.of("travel-records/10/b.jpg"));
         when(travelRecordService.update(
                 ArgumentMatchers.eq(MEMBER),
                 ArgumentMatchers.eq(101L),
-                ArgumentMatchers.any(TravelRecordRequest.class)
+                ArgumentMatchers.any(TravelRecordCommand.class)
         )).thenReturn(detail);
 
         mockMvcWithLoginMember().perform(put("/api/v1/travel-records/101")
@@ -369,32 +363,34 @@ class TravelRecordControllerTest {
         verify(travelRecordService).delete(MEMBER, 101L);
     }
 
-    private TravelRecordDetailResponse detail(String title, String content, List<String> objectKeys) {
-        return new TravelRecordDetailResponse(
-                101L,
+    private TravelRecordDetail detail(String title, String content, List<String> objectKeys) {
+        TravelRecord travelRecord = travelRecord(title, content);
+        travelRecord.synchronizeMedia(objectKeys);
+        List<MediaView> mediaViews = travelRecord.getMedia().stream()
+                .map(recordMedia -> new MediaView(recordMedia, new ExpiringUrl(
+                        "https://download.example/" + recordMedia.getObjectKey(),
+                        300L
+                )))
+                .toList();
+
+        return new TravelRecordDetail(travelRecord, List.of(), mediaViews);
+    }
+
+    private TravelRecord travelRecord(String title, String content) {
+        Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+        Region province = Region.of(country, country, "49", "제주특별자치도", RegionType.PROVINCE);
+        Region district = Region.of(province, country, "50110", "제주시", RegionType.DISTRICT);
+        TravelRecord travelRecord = TravelRecord.of(
+                null,
+                district,
                 title,
                 content,
-                new RegionDetailResponse(
-                        new RegionItemResponse("KR", "대한민국"),
-                        new RegionItemResponse("49", "제주특별자치도"),
-                        new RegionItemResponse("50110", "제주시")
-                ),
                 LocalDate.of(2026, 8, 11),
-                LocalDate.of(2026, 8, 13),
-                objectKeys,
-                IntStream.range(0, objectKeys.size())
-                        .mapToObj(index -> new TravelRecordMediaResponse(
-                                (long) index + 1,
-                                objectKeys.get(index),
-                                "https://download.example/" + objectKeys.get(index),
-                                300L,
-                                index
-                        ))
-                        .toList(),
-                List.of(),
-                null,
-                null
+                LocalDate.of(2026, 8, 13)
         );
+        ReflectionTestUtils.setField(travelRecord, "id", 101L);
+
+        return travelRecord;
     }
 
     private String validCreateRequestBody(String title, String content) {

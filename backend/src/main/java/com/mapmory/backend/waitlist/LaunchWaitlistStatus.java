@@ -1,4 +1,4 @@
-package com.mapmory.backend.waitlist.dto;
+package com.mapmory.backend.waitlist;
 
 public enum LaunchWaitlistStatus {
     SUBSCRIBED,

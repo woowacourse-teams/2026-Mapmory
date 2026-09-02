@@ -52,6 +52,27 @@ class GuestSessionManagerTest {
     }
 
     @Test
+    fun validStoredAccessTokenSkipsRefreshAtAppSessionStart() = runBlocking {
+        val storedTokens = AuthTokens(
+            accessToken = "header.eyJleHAiOjIwMDB9.signature",
+            refreshToken = "stored-refresh",
+        )
+        val gateway = FakeAuthGateway()
+        val store = FakeAuthTokenStore(storedTokens)
+        val session = GuestSessionManager(
+            gateway = gateway,
+            tokenStore = store,
+            nowEpochSeconds = { 1_000L },
+        )
+
+        session.ensureAuthenticated().getOrThrow()
+
+        assertEquals(0, gateway.loginCount)
+        assertEquals(0, gateway.refreshCount)
+        assertEquals(storedTokens.accessToken, session.getAccessToken())
+    }
+
+    @Test
     fun refreshFailureDoesNotCreateAnotherGuestOrDiscardStoredIdentity() = runBlocking {
         val storedTokens = AuthTokens("old-access", "old-refresh")
         val failure = IllegalStateException("refresh failed")

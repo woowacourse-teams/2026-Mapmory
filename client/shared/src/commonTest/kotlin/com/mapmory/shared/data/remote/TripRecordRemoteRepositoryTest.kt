@@ -30,15 +30,16 @@ class TripRecordRemoteRepositoryTest {
             assertEquals("KR", request.url.parameters["countryCode"])
             assertEquals("49", request.url.parameters["provinceCode"])
             assertEquals(null, request.url.parameters["districtCode"])
+            assertEquals("7", request.url.parameters["tagId"])
             assertEquals("0", request.url.parameters["page"])
             assertEquals("20", request.url.parameters["size"])
             jsonResponse(
-                """{"data":{"items":[{"id":101,"title":"제주 여행","regionName":"제주특별자치도","startDate":"2026-08-11","endDate":null,"thumbnailUrl":"https://bucket.example.com/photo.jpg?signature=fresh","thumbnailUrlExpiresIn":300}],"page":0,"size":20,"totalElements":1,"totalPages":1,"hasNext":false}}""",
+                """{"data":{"items":[{"id":101,"title":"제주 여행","regionName":"제주특별자치도","startDate":"2026-08-11","endDate":null,"thumbnailUrl":"https://bucket.example.com/photo.jpg?signature=fresh","thumbnailUrlExpiresIn":300,"tags":[{"id":7,"name":"가족"}]}],"page":0,"size":20,"totalElements":1,"totalPages":1,"hasNext":false}}""",
             )
         }
 
         val page = repository(client).getTripRecords(
-            TripRecordQuery(locationId = jejuProvince.id),
+            TripRecordQuery(locationId = jejuProvince.id, tagId = 7),
         ).getOrThrow()
 
         assertEquals("제주특별자치도", page.records.single().regionName)
@@ -47,6 +48,7 @@ class TripRecordRemoteRepositoryTest {
             page.records.single().thumbnailUrl,
         )
         assertEquals(300L, page.records.single().thumbnailUrlExpiresIn)
+        assertEquals("가족", page.records.single().tags.single().name)
         client.close()
     }
 
@@ -61,6 +63,8 @@ class TripRecordRemoteRepositoryTest {
                 1 -> {
                     assertEquals("POST", request.method.value)
                     assertEquals(ContentType.Application.Json, request.body.contentType)
+                    val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
+                    assertTrue("\"tagIds\":[7]" in body)
                     jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
                 }
 
@@ -80,6 +84,7 @@ class TripRecordRemoteRepositoryTest {
                 startDate = "2026-08-11",
                 endDate = null,
                 mediaObjectKeys = listOf("travel-records/guest/a.jpg"),
+                tagIds = listOf(7),
             ),
         ).getOrThrow()
 
@@ -222,5 +227,5 @@ class TripRecordRemoteRepositoryTest {
     )
 
     private fun detailResponse(title: String): String =
-        """{"data":{"id":101,"title":"$title","content":"골목을 걸었다.","region":{"country":{"code":"KR","name":"대한민국"},"province":{"code":"49","name":"제주특별자치도"},"district":{"code":"50110","name":"제주시"}},"startDate":"2026-08-11","endDate":null,"objectKeys":["travel-records/guest/a.jpg"],"createdAt":"2026-08-14T10:30:00","updatedAt":"2026-08-15T09:00:00"}}"""
+        """{"data":{"id":101,"title":"$title","content":"골목을 걸었다.","region":{"country":{"code":"KR","name":"대한민국"},"province":{"code":"49","name":"제주특별자치도"},"district":{"code":"50110","name":"제주시"}},"startDate":"2026-08-11","endDate":null,"objectKeys":["travel-records/guest/a.jpg"],"tags":[{"id":7,"name":"가족"}],"createdAt":"2026-08-14T10:30:00","updatedAt":"2026-08-15T09:00:00"}}"""
 }

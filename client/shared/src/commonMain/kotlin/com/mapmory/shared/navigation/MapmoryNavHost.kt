@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -14,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.logging.mapmoryDebugLog
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
@@ -33,7 +35,10 @@ internal fun MapmoryNavHost(
         navController = navController,
         startDestination = MapRoute,
     ) {
-        composable<MapRoute> {
+        composable<MapRoute> { backStackEntry ->
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(NavigationLogTag, "screen=map")
+            }
             val viewModel = viewModel {
                 container.viewModelFactory.createMapViewModel()
             }
@@ -53,6 +58,12 @@ internal fun MapmoryNavHost(
 
         composable<RecordsRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<RecordsRoute>()
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(
+                    NavigationLogTag,
+                    "screen=records, locationId=${route.locationId}",
+                )
+            }
             val viewModel = viewModel {
                 container.viewModelFactory.createTripRecordListViewModel()
             }
@@ -70,6 +81,13 @@ internal fun MapmoryNavHost(
 
         composable<EditorRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<EditorRoute>()
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(
+                    NavigationLogTag,
+                    "screen=editor, recordId=${route.recordId}, " +
+                        "selectedLocationId=${route.selectedLocationId}",
+                )
+            }
             val viewModel = viewModel {
                 container.viewModelFactory.createTripRecordEditorViewModel()
             }
@@ -96,9 +114,17 @@ internal fun MapmoryNavHost(
             )
         }
 
-        composable<ProfileRoute> {
+        composable<ProfileRoute> { backStackEntry ->
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(NavigationLogTag, "screen=profile")
+            }
+            val viewModel = viewModel {
+                container.viewModelFactory.createTripStatisticsViewModel()
+            }
             TripProfileRoute(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                viewModel = viewModel,
+                tripRecordRevision = tripRecordRevision,
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
@@ -108,6 +134,12 @@ internal fun MapmoryNavHost(
 
         composable<DetailRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<DetailRoute>()
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(
+                    NavigationLogTag,
+                    "screen=detail, recordId=${route.recordId}",
+                )
+            }
             val viewModel = viewModel {
                 container.viewModelFactory.createTripRecordDetailViewModel()
             }
@@ -133,3 +165,5 @@ internal fun MapmoryNavHost(
         }
     }
 }
+
+private const val NavigationLogTag = "MapmoryNavigation"

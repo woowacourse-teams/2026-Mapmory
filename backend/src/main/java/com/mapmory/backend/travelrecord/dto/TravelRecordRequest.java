@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.dto;
 
+import com.mapmory.backend.travelrecord.TravelRecordCommand;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -36,5 +37,19 @@ public record TravelRecordRequest(
             List<String> objectKeys
     ) {
         this(countryCode, provinceCode, districtCode, title, content, startDate, endDate, objectKeys, List.of());
+    }
+
+    public TravelRecordCommand toCommand() {
+        return new TravelRecordCommand(
+                countryCode,
+                provinceCode,
+                districtCode,
+                title,
+                content,
+                startDate,
+                endDate,
+                objectKeys,
+                tagIds
+        );
     }
 }

@@ -1,5 +1,6 @@
 package com.mapmory.shared.data.repository
 
+import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
 import com.mapmory.shared.domain.model.TripRecordData
@@ -65,7 +66,13 @@ internal class UploadingTripRecordRepository(
         save: suspend (TripRecordDraft) -> Result<TripRecordData>,
     ): Result<TripRecordData> {
         val prepared = prepareDraft(draft).getOrElse { error -> return Result.failure(error) }
-        return save(prepared).withCachedMedia(prepared.localMedia)
+        val firstResult = save(prepared)
+        if (firstResult.isSuccess || !draft.canRetryWithFreshObjectKeys(firstResult.exceptionOrNull())) {
+            return firstResult.withCachedMedia(prepared.localMedia)
+        }
+
+        val retried = prepareDraft(draft).getOrElse { error -> return Result.failure(error) }
+        return save(retried).withCachedMedia(retried.localMedia)
     }
 
     private suspend fun prepareDraft(draft: TripRecordDraft): Result<TripRecordDraft> {
@@ -73,19 +80,23 @@ internal class UploadingTripRecordRepository(
         val pendingSources = mutableListOf<PhotoUploadSource>()
 
         draft.mediaObjectKeys.forEachIndexed { index, key ->
-            if (key.isServerObjectKey()) return@forEachIndexed
+            if (key in draft.uploadedMediaObjectKeys) return@forEachIndexed
             val media = mediaByLocalId[key]
                 ?: return Result.failure(
-                    IllegalStateException("업로드할 사진 데이터를 찾을 수 없습니다: $key"),
+                    IllegalStateException(
+                        "사진 정보를 확인하지 못했습니다. 잠시 후 다시 저장해 주세요.",
+                    ),
                 )
             val bytes = media.originalBytes
                 ?: return Result.failure(
-                    IllegalStateException("사진 원본을 읽지 못했습니다: ${media.fileName ?: key}"),
+                    IllegalStateException(
+                        "사진 원본을 불러오지 못했습니다. 잠시 후 다시 저장해 주세요.",
+                    ),
                 )
             val contentType = detectImageContentType(media.fileName, bytes)
                 ?: return Result.failure(
                     IllegalArgumentException(
-                        "JPEG, PNG, WEBP, HEIC 사진만 업로드할 수 있습니다: ${media.fileName ?: key}",
+                        "지원하지 않는 사진 형식입니다. JPEG, PNG, WEBP 또는 HEIC 사진을 선택해 주세요.",
                     ),
                 )
             pendingSources += PhotoUploadSource(
@@ -110,6 +121,9 @@ internal class UploadingTripRecordRepository(
                 mediaObjectKeys = draft.mediaObjectKeys.map { key ->
                     objectKeyByLocalId[key] ?: key
                 },
+                uploadedMediaObjectKeys = draft.mediaObjectKeys
+                    .map { key -> objectKeyByLocalId[key] ?: key }
+                    .toSet(),
                 localMedia = draft.localMedia.map { media ->
                     objectKeyByLocalId[media.objectKey]
                         ?.let { objectKey -> media.copy(objectKey = objectKey) }
@@ -169,6 +183,11 @@ internal class UploadingTripRecordRepository(
     }
 }
 
+private fun TripRecordDraft.canRetryWithFreshObjectKeys(error: Throwable?): Boolean =
+    mediaObjectKeys.any { key -> key !in uploadedMediaObjectKeys } &&
+        error is MapmoryApiException &&
+        error.code == InvalidObjectKeyCode
+
 private fun List<TripRecordMedia>.toListMedia(): List<TripRecordMedia> =
     sortedBy(TripRecordMedia::sortOrder).mapIndexed { index, media ->
         media.copy(
@@ -176,8 +195,6 @@ private fun List<TripRecordMedia>.toListMedia(): List<TripRecordMedia> =
             originalBytes = null,
         )
     }
-
-private fun String.isServerObjectKey(): Boolean = startsWith(ServerObjectKeyPrefix)
 
 private fun normalizedFileName(
     fileName: String?,
@@ -240,5 +257,5 @@ private fun ByteArray.hasAsciiAt(offset: Int, expected: String): Boolean =
 private fun ByteArray.hasAnyAsciiAt(offset: Int, vararg expected: String): Boolean =
     expected.any { value -> hasAsciiAt(offset, value) }
 
-private const val ServerObjectKeyPrefix = "travel-records/"
 private const val DefaultMaxCachedPreviewBytes = 32L * 1024L * 1024L
+private const val InvalidObjectKeyCode = "INVALID_OBJECT_KEY"

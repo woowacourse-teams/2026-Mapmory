@@ -31,7 +31,12 @@ internal fun TripRecordListRoute(
         uiState = viewModel.uiState,
         filter = TripRecordFilterUiState(
             locationId = viewModel.query.locationId,
+            tags = viewModel.availableTags,
+            selectedTagId = viewModel.query.tagId,
         ),
+        onTagClick = { tagId ->
+            scope.launch { viewModel.selectTag(tagId) }
+        },
         onPreviousPageClick = {
             scope.launch { viewModel.previousPage() }
         },

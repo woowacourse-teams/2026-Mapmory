@@ -2,6 +2,7 @@ package com.mapmory.backend.waitlist;
 
 import com.mapmory.backend.common.entity.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,8 +25,8 @@ public class LaunchWaitlistEntry extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 254)
-    private String email;
+    @Embedded
+    private Email email;
 
     @Column(name = "consented_at", nullable = false, updatable = false)
     private LocalDateTime consentedAt;
@@ -33,13 +34,13 @@ public class LaunchWaitlistEntry extends BaseEntity {
     protected LaunchWaitlistEntry() {
     }
 
-    private LaunchWaitlistEntry(String email, LocalDateTime consentedAt) {
+    private LaunchWaitlistEntry(Email email, LocalDateTime consentedAt) {
         this.email = email;
         this.consentedAt = consentedAt;
     }
 
-    public static LaunchWaitlistEntry of(String normalizedEmail, LocalDateTime consentedAt) {
-        return new LaunchWaitlistEntry(normalizedEmail, consentedAt);
+    public static LaunchWaitlistEntry of(Email email, LocalDateTime consentedAt) {
+        return new LaunchWaitlistEntry(email, consentedAt);
     }
 
     public Long getId() {
@@ -47,7 +48,7 @@ public class LaunchWaitlistEntry extends BaseEntity {
     }
 
     String getEmail() {
-        return email;
+        return email.value();
     }
 
     LocalDateTime getConsentedAt() {

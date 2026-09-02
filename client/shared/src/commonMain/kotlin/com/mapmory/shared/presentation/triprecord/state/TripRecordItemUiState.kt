@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.triprecord.state
 import com.mapmory.shared.domain.TripRecord
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordSummary
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 
 /** 화면에 필요한 여행 기록 표현. 도메인 모델과 플랫폼 사진 데이터를 UI 경계에서 분리한다. */
@@ -14,6 +15,7 @@ data class TripRecordItemUiState(
     val endDate: String?,
     val locationName: String,
     val photos: List<TripRecordPhotoUiState>,
+    val tags: List<Tag> = emptyList(),
 )
 
 data class TripRecordPhotoUiState(
@@ -21,6 +23,7 @@ data class TripRecordPhotoUiState(
     val displayName: String,
     val previewBytes: PhotoPreviewBytes?,
     val sortOrder: Int,
+    val isUploaded: Boolean = false,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val capturedAt: String? = null,
@@ -68,6 +71,7 @@ fun TripRecordData.toTripRecordItemUiState(
     startDate = startDate,
     endDate = endDate,
     locationName = locationName,
+    tags = tags,
     photos = media
         .sortedBy { it.sortOrder }
         .map { media ->
@@ -76,6 +80,7 @@ fun TripRecordData.toTripRecordItemUiState(
                 displayName = media.objectKey.substringAfterLast('/'),
                 previewBytes = PhotoPreviewBytes.from(media.previewBytes ?: media.originalBytes),
                 sortOrder = media.sortOrder,
+                isUploaded = true,
                 latitude = media.latitude,
                 longitude = media.longitude,
                 capturedAt = media.capturedAt,
@@ -93,6 +98,7 @@ fun TripRecordSummary.toTripRecordItemUiState(
     startDate = startDate,
     endDate = endDate,
     locationName = locationName,
+    tags = tags,
     photos = thumbnailPreviewBytes?.let { bytes ->
         listOf(
             TripRecordPhotoUiState(
@@ -114,6 +120,7 @@ fun TripRecordSummary.toTripRecordItemUiState(
                     null
                 },
                 sortOrder = media.sortOrder,
+                isUploaded = true,
                 latitude = media.latitude,
                 longitude = media.longitude,
                 capturedAt = media.capturedAt,

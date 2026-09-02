@@ -24,6 +24,7 @@ class MapSummaryRemoteRepositoryTest {
                 addHandler { request ->
                     requestCount += 1
                     assertEquals("Bearer guest-token", request.headers[HttpHeaders.Authorization])
+                    assertEquals("7", request.url.parameters["tagId"])
                     val expectedPath = if (requestCount == 1) {
                         "/api/v1/travel-records/map-summary/regions/roots"
                     } else {
@@ -50,8 +51,8 @@ class MapSummaryRemoteRepositoryTest {
             accessTokenProvider = AccessTokenProvider { "guest-token" },
         )
 
-        val root = repository.getRootRegions().getOrThrow().single()
-        val province = repository.getChildRegions(root.regionId).getOrThrow().single()
+        val root = repository.getRootRegions(tagId = 7).getOrThrow().single()
+        val province = repository.getChildRegions(root.regionId, tagId = 7).getOrThrow().single()
 
         assertEquals(MapRegionType.COUNTRY, root.type)
         assertEquals(MapRegionLevel.HIGH, root.level)

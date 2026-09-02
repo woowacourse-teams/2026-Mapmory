@@ -14,7 +14,7 @@ import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.tag.Tag;
-import com.mapmory.backend.travelrecord.mapsummary.dto.RegionMapSummaryResponse;
+import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.LevelPolicy;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.repository.RegionMapSummaryQueryResult;
@@ -61,9 +61,9 @@ class RegionMapSummaryServiceTest {
             when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, null))
                     .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 3L)));
 
-            List<RegionMapSummaryResponse> responses = service.getSummaries(member, null, null);
+            List<RegionMapSummary> responses = service.getSummaries(member, null, null);
 
-            assertThat(responses).containsExactly(new RegionMapSummaryResponse(
+            assertThat(responses).containsExactly(new RegionMapSummary(
                     1L,
                     "KR",
                     RegionType.COUNTRY,
@@ -93,9 +93,9 @@ class RegionMapSummaryServiceTest {
             when(regionMapSummaryRepository.findRegionMapSummaries(10L, parentRegionId, null))
                     .thenReturn(List.of(result(childRegionId, regionCode, name, regionType, 1L)));
 
-            List<RegionMapSummaryResponse> responses = service.getSummaries(member, parentRegionId, null);
+            List<RegionMapSummary> responses = service.getSummaries(member, parentRegionId, null);
 
-            assertThat(responses).containsExactly(new RegionMapSummaryResponse(
+            assertThat(responses).containsExactly(new RegionMapSummary(
                     childRegionId,
                     regionCode,
                     RegionType.valueOf(regionType),
@@ -127,9 +127,9 @@ class RegionMapSummaryServiceTest {
             when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, 7L))
                     .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 1L)));
 
-            List<RegionMapSummaryResponse> responses = service.getSummaries(member, null, 7L);
+            List<RegionMapSummary> responses = service.getSummaries(member, null, 7L);
 
-            assertThat(responses).singleElement().extracting(RegionMapSummaryResponse::count).isEqualTo(1L);
+            assertThat(responses).singleElement().extracting(RegionMapSummary::recordCount).isEqualTo(1L);
             verify(tagService).getOwnedTag(member, 7L);
         }
     }

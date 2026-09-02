@@ -15,5 +15,5 @@ interface RegionCatalog {
     ): Location?
 
     fun requireByCode(code: String): Location =
-        requireNotNull(findByCode(code)) { "지역 코드를 찾을 수 없습니다: $code" }
+        requireNotNull(findByCode(code)) { "선택한 지역 정보를 확인하지 못했습니다." }
 }

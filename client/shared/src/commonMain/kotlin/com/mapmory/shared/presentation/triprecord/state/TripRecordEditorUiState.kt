@@ -1,6 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.state
 
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.Tag
 
 data class TripRecordEditorUiState(
     val recordId: Long? = null,
@@ -11,6 +12,12 @@ data class TripRecordEditorUiState(
     val endDate: String = "",
     val mediaObjectKeys: List<String> = emptyList(),
     val selectedPhotos: List<TripRecordPhotoUiState> = emptyList(),
+    val availableTags: List<Tag> = emptyList(),
+    val selectedTagIds: Set<Long> = emptySet(),
+    val tagInput: String = "",
+    val isTagsLoading: Boolean = false,
+    val isCreatingTag: Boolean = false,
+    val tagErrorMessage: String? = null,
     val isDirty: Boolean = false,
     val dirtyFields: Set<TripRecordEditorErrorTarget> = emptySet(),
     val isSaving: Boolean = false,
@@ -29,7 +36,7 @@ data class TripRecordEditorUiState(
         }
 
     val isSaveEnabled: Boolean
-        get() = !isSaving
+        get() = !isSaving && !isCreatingTag
 
     fun isFieldDirty(target: TripRecordEditorErrorTarget): Boolean = target in dirtyFields
 }
@@ -41,5 +48,6 @@ enum class TripRecordEditorErrorTarget {
     START_DATE,
     END_DATE,
     CONTENT,
+    TAGS,
     GENERAL,
 }

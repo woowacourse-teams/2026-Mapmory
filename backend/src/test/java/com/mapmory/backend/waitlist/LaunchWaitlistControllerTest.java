@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.mapmory.backend.waitlist.dto.LaunchWaitlistResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +34,7 @@ class LaunchWaitlistControllerTest {
 
     @Test
     void 출시_알림을_신청하면_201로_응답한다() throws Exception {
-        when(service.subscribe(any())).thenReturn(LaunchWaitlistResponse.subscribed());
+        when(service.subscribe(any())).thenReturn(LaunchWaitlistStatus.SUBSCRIBED);
 
         mockMvc.perform(post("/api/v1/waitlist")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -46,7 +45,7 @@ class LaunchWaitlistControllerTest {
 
     @Test
     void 이미_등록된_이메일은_200으로_응답한다() throws Exception {
-        when(service.subscribe(any())).thenReturn(LaunchWaitlistResponse.alreadySubscribed());
+        when(service.subscribe(any())).thenReturn(LaunchWaitlistStatus.ALREADY_SUBSCRIBED);
 
         mockMvc.perform(post("/api/v1/waitlist")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -18,7 +18,7 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.region.exception.RegionErrorCode;
-import com.mapmory.backend.travelrecord.mapsummary.dto.RegionMapSummaryResponse;
+import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.service.RegionMapSummaryService;
 import java.util.List;
@@ -74,7 +74,7 @@ class RegionMapSummaryControllerTest {
         @DisplayName("회원의 루트 지역별 지도 요약을 의미 기반 단계와 함께 반환한다")
         void returnsRootSummaries() throws Exception {
             when(regionMapSummaryService.getSummaries(any(Member.class), isNull(), isNull())).thenReturn(List.of(
-                    new RegionMapSummaryResponse(
+                    new RegionMapSummary(
                             1L,
                             "KR",
                             RegionType.COUNTRY,
@@ -145,7 +145,7 @@ class RegionMapSummaryControllerTest {
         @DisplayName("선택 지역의 직속 하위 지역별 지도 요약을 반환한다")
         void returnsChildSummaries() throws Exception {
             when(regionMapSummaryService.getSummaries(any(Member.class), eq(1L), isNull())).thenReturn(List.of(
-                    new RegionMapSummaryResponse(
+                    new RegionMapSummary(
                             15L,
                             "49",
                             RegionType.PROVINCE,

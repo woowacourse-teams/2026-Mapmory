@@ -1,5 +1,6 @@
 package com.mapmory.shared.data.repository
 
+import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
 import com.mapmory.shared.data.remote.UploadedPhoto
@@ -15,12 +16,13 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class UploadingTripRecordRepositoryTest {
     @Test
     fun updateKeepsServerMediaAndUploadsOnlyNewLocalPhotosInOrder() = runBlocking {
-        val existingObjectKey = "travel-records/10/existing.jpg"
+        val existingObjectKey = "mapmory/travel-records/10/existing.jpg"
         val newObjectKey = "travel-records/10/new.jpg"
         val newBytes = byteArrayOf(0x01, 0x02)
         var uploadedSources: List<PhotoUploadSource> = emptyList()
@@ -40,6 +42,7 @@ class UploadingTripRecordRepositoryTest {
                 startDate = "2026-08-26",
                 endDate = null,
                 mediaObjectKeys = listOf(existingObjectKey, "content://photo/new"),
+                uploadedMediaObjectKeys = setOf(existingObjectKey),
                 localMedia = listOf(
                     TripRecordMediaDraft(
                         objectKey = existingObjectKey,
@@ -66,6 +69,118 @@ class UploadingTripRecordRepositoryTest {
         )
         assertContentEquals(byteArrayOf(0x0A), result.media[1].previewBytes)
         assertNull(result.media[1].originalBytes)
+    }
+
+    @Test
+    fun existingServerMediaIsRecognizedWithoutInterpretingItsObjectKey() = runBlocking {
+        val opaqueObjectKey = "production-prefix/member-media/existing.jpg"
+        var uploadCalled = false
+        val uploader = PhotoUploader {
+            uploadCalled = true
+            Result.success(emptyList())
+        }
+        val delegate = CapturingTripRecordRepository()
+        val repository = UploadingTripRecordRepository(uploader, delegate)
+
+        repository.updateTripRecord(
+            id = 101,
+            draft = TripRecordDraft(
+                locationId = 1,
+                title = "기존 사진 기록",
+                content = "",
+                startDate = "2026-08-26",
+                endDate = null,
+                mediaObjectKeys = listOf(opaqueObjectKey),
+                uploadedMediaObjectKeys = setOf(opaqueObjectKey),
+                localMedia = listOf(
+                    TripRecordMediaDraft(
+                        objectKey = opaqueObjectKey,
+                        sortOrder = 0,
+                        previewBytes = null,
+                    ),
+                ),
+            ),
+        ).getOrThrow()
+
+        assertFalse(uploadCalled)
+        assertEquals(listOf(opaqueObjectKey), delegate.updatedDraft?.mediaObjectKeys)
+    }
+
+    @Test
+    fun missingLocalOriginalDoesNotExposeItsInternalIdentifier() = runBlocking {
+        val internalId = "content://media/external/images/media/12345"
+        val repository = UploadingTripRecordRepository(
+            uploader = indexedUploader(),
+            delegate = CapturingTripRecordRepository(),
+        )
+
+        val error = repository.updateTripRecord(
+            id = 101,
+            draft = TripRecordDraft(
+                locationId = 1,
+                title = "원본 없는 기록",
+                content = "",
+                startDate = "2026-08-26",
+                endDate = null,
+                mediaObjectKeys = listOf(internalId),
+                localMedia = listOf(
+                    TripRecordMediaDraft(
+                        objectKey = internalId,
+                        sortOrder = 0,
+                        previewBytes = byteArrayOf(0x01),
+                        originalBytes = null,
+                        fileName = "internal-file-name.jpg",
+                    ),
+                ),
+            ),
+        ).exceptionOrNull()
+
+        assertEquals(
+            "사진 원본을 불러오지 못했습니다. 잠시 후 다시 저장해 주세요.",
+            error?.message,
+        )
+        assertFalse(error?.message.orEmpty().contains(internalId))
+        assertFalse(error?.message.orEmpty().contains("internal-file-name.jpg"))
+    }
+
+    @Test
+    fun invalidNewObjectKeyIsReissuedAndSavedOnceWithoutReselectingThePhoto() = runBlocking {
+        var uploadAttempt = 0
+        val uploader = PhotoUploader { sources ->
+            uploadAttempt += 1
+            Result.success(
+                sources.map { source ->
+                    UploadedPhoto(source, "travel-records/10/reissued-$uploadAttempt.jpg")
+                },
+            )
+        }
+        val savedDrafts = mutableListOf<TripRecordDraft>()
+        val baseDelegate = CapturingTripRecordRepository()
+        val delegate = object : TripRecordRepository by baseDelegate {
+            override suspend fun updateTripRecord(
+                id: Long,
+                draft: TripRecordDraft,
+            ): Result<TripRecordData> {
+                savedDrafts += draft
+                return if (savedDrafts.size == 1) {
+                    Result.failure(invalidObjectKeyError())
+                } else {
+                    Result.success(draft.toRecord(id))
+                }
+            }
+        }
+        val repository = UploadingTripRecordRepository(uploader, delegate)
+
+        val result = repository.updateTripRecord(
+            id = 101,
+            draft = draftWithPhotos("다시 선택하지 않는 기록", listOf(byteArrayOf(0x01, 0x02))),
+        ).getOrThrow()
+
+        assertEquals(2, uploadAttempt)
+        assertEquals(2, savedDrafts.size)
+        assertEquals("travel-records/10/reissued-1.jpg", savedDrafts[0].mediaObjectKeys.single())
+        assertEquals("travel-records/10/reissued-2.jpg", savedDrafts[1].mediaObjectKeys.single())
+        assertEquals("travel-records/10/reissued-2.jpg", result.media.single().objectKey)
     }
 
     @Test
@@ -173,6 +288,15 @@ private fun indexedUploader(): PhotoUploader = PhotoUploader { sources ->
         },
     )
 }
+
+private fun invalidObjectKeyError(): MapmoryApiException = MapmoryApiException(
+    statusCode = 400,
+    code = "INVALID_OBJECT_KEY",
+    title = "Object Key가 올바르지 않습니다.",
+    detail = "중복되거나 다른 여행 일지에서 사용 중인 Object Key가 포함되어 있습니다.",
+    instance = "/api/v1/travel-records/101",
+    errors = emptyList(),
+)
 
 private fun draftWithPhotos(
     title: String,

@@ -8,6 +8,7 @@ import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
+import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoadResult
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoader
@@ -22,6 +23,30 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class TripRecordListViewModelTest {
+    @Test
+    fun `선택한_태그_ID로_기록을_필터링한다`() = runSuspend {
+        val repository = FakeTripRecordRepository { "2026-08-31T00:00:00Z" }
+        val family = repository.createTag("가족").getOrThrow()
+        val food = repository.createTag("맛집").getOrThrow()
+        repository.createTripRecord(
+            TripRecordDraft(101, "가족 여행", "", "2026-08-01", null, emptyList(), tagIds = listOf(family.id)),
+        )
+        repository.createTripRecord(
+            TripRecordDraft(101, "맛집 여행", "", "2026-08-02", null, emptyList(), tagIds = listOf(food.id)),
+        )
+        val viewModel = TripRecordListViewModel(
+            getTripRecords = GetTripRecordsUseCase(repository),
+            getTags = GetTagsUseCase(repository),
+        )
+
+        viewModel.initialize(locationId = null)
+        viewModel.selectTag(food.id)
+
+        val state = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertEquals("맛집 여행", state.records.single().title)
+        assertEquals(food.id, viewModel.query.tagId)
+    }
+
     @Test
     fun `목록_본문을_먼저_표시하고_썸네일은_완료되는_대로_채운다`() = runBlocking {
         val thumbnailGate = CompletableDeferred<Unit>()

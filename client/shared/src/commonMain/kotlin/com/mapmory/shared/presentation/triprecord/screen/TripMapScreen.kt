@@ -1,6 +1,5 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,28 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mapmory.shared.analytics.LocalMapmoryAnalytics
-import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
@@ -53,6 +42,9 @@ fun TripMapScreen(
     mapScope: MapScope = MapScope.WORLD,
     visitedCount: Int = 0,
     onMapScopeChange: (MapScope) -> Unit = {},
+    tags: List<Tag> = emptyList(),
+    selectedTagId: Long? = null,
+    onTagSelected: (Long?) -> Unit = {},
     onBackClick: () -> Unit,
     mapDetailTitle: String? = null,
     mapDetailTotal: Int? = null,
@@ -62,11 +54,9 @@ fun TripMapScreen(
     onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val palette = TripRecordPalette.current
-    val analytics = LocalMapmoryAnalytics.current
     TripRecordBackground(
         modifier = modifier,
-        backgroundColor = palette.pageBackground,
+        backgroundColor = TripRecordPalette.current.pageBackground,
     ) {
         Column(
             modifier = Modifier
@@ -77,6 +67,9 @@ fun TripMapScreen(
                 mapScope = mapScope,
                 visitedCount = visitedCount,
                 onMapScopeChange = onMapScopeChange,
+                tags = tags,
+                selectedTagId = selectedTagId,
+                onTagSelected = onTagSelected,
                 mapDetailTitle = mapDetailTitle,
                 mapDetailTotal = mapDetailTotal,
                 onMapDetailBackClick = onMapDetailBackClick,
@@ -95,43 +88,11 @@ fun TripMapScreen(
                     content = mapContent,
                 )
 
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 28.dp, bottom = 33.dp)
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(palette.primary)
-                        .clickable {
-                            analytics.logEvent(
-                                MapmoryAnalyticsEvent.RECORD_CREATE_STARTED,
-                                mapOf("source" to "map_fab"),
-                            )
-                            onCreateClick()
-                        }
-                        .semantics { contentDescription = "새 기록 작성" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Canvas(Modifier.size(24.dp)) {
-                        val strokeWidth = 2.dp.toPx()
-                        val center = Offset(size.width / 2f, size.height / 2f)
-                        val armLength = size.minDimension * 0.32f
-                        drawLine(
-                            color = palette.onPrimary,
-                            start = Offset(center.x - armLength, center.y),
-                            end = Offset(center.x + armLength, center.y),
-                            strokeWidth = strokeWidth,
-                            cap = StrokeCap.Round,
-                        )
-                        drawLine(
-                            color = palette.onPrimary,
-                            start = Offset(center.x, center.y - armLength),
-                            end = Offset(center.x, center.y + armLength),
-                            strokeWidth = strokeWidth,
-                            cap = StrokeCap.Round,
-                        )
-                    }
-                }
+                TripRecordCreateButton(
+                    source = "map_fab",
+                    onClick = onCreateClick,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
             }
 
             TripBottomBar(
@@ -155,6 +116,9 @@ private fun MapHeaderOverlay(
     mapScope: MapScope,
     visitedCount: Int,
     onMapScopeChange: (MapScope) -> Unit,
+    tags: List<Tag>,
+    selectedTagId: Long?,
+    onTagSelected: (Long?) -> Unit,
     mapDetailTitle: String?,
     mapDetailTotal: Int?,
     onMapDetailBackClick: () -> Unit,
@@ -196,8 +160,14 @@ private fun MapHeaderOverlay(
             onMapDetailBackClick = onMapDetailBackClick,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        Spacer(Modifier.height(14.dp))
-        MapTagFilter(modifier = Modifier.padding(horizontal = 18.dp))
+        Spacer(Modifier.height(8.dp))
+        MapTagFilter(
+            tags = tags,
+            selectedTagId = selectedTagId,
+            onTagSelected = onTagSelected,
+            modifier = Modifier.padding(horizontal = 18.dp),
+        )
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -255,30 +225,25 @@ private fun MapScopeChip(
 }
 
 @Composable
-private fun MapTagFilter(modifier: Modifier = Modifier) {
-    val tags = remember { listOf("전체", "가족", "애인", "친구", "혼자") }
-    var selectedTag by remember { mutableStateOf(tags.first()) }
-
+private fun MapTagFilter(
+    tags: List<Tag>,
+    selectedTagId: Long?,
+    onTagSelected: (Long?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        tags.forEach { tag ->
-            val selected = selectedTag == tag
-            Text(
-                text = tag,
-                color = if (selected) TripMapPalette.current.tagSelectedText else TripMapPalette.current.tagText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (selected) TripRecordPalette.current.primary else TripMapPalette.current.tagBackground,
-                    )
-                    .clickable { selectedTag = tag }
-                    .padding(horizontal = 11.dp, vertical = 4.dp),
+        val filterTags = listOf<Tag?>(null) + tags
+        filterTags.forEach { tag ->
+            val selected = selectedTagId == tag?.id
+            TripTagChip(
+                text = tag?.name ?: "전체",
+                selected = selected,
+                onClick = { onTagSelected(tag?.id) },
             )
         }
     }
@@ -438,7 +403,11 @@ private fun MapScopeChipPreview() {
 @Preview
 @Composable
 private fun MapTagFilterPreview() {
-    MapTagFilter()
+    MapTagFilter(
+        tags = listOf(Tag(1L, "가족"), Tag(2L, "맛집")),
+        selectedTagId = 1L,
+        onTagSelected = {},
+    )
 }
 
 @Preview

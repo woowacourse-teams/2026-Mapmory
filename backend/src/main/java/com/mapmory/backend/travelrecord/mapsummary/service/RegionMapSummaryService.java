@@ -7,7 +7,8 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.tag.TagService;
-import com.mapmory.backend.travelrecord.mapsummary.dto.RegionMapSummaryResponse;
+import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.LevelPolicy;
 import com.mapmory.backend.travelrecord.mapsummary.repository.RegionMapSummaryQueryResult;
 import com.mapmory.backend.travelrecord.mapsummary.repository.RegionMapSummaryRepository;
@@ -39,7 +40,7 @@ public class RegionMapSummaryService {
     }
 
     @Transactional(readOnly = true)
-    public List<RegionMapSummaryResponse> getSummaries(Member member, Long parentRegionId, Long tagId) {
+    public List<RegionMapSummary> getSummaries(Member member, Long parentRegionId, Long tagId) {
         validateParentRegion(parentRegionId);
         if (tagId != null) {
             tagService.getOwnedTag(member, tagId);
@@ -49,8 +50,19 @@ public class RegionMapSummaryService {
                 () -> regionMapSummaryRepository.findRegionMapSummaries(member.getId(), parentRegionId, tagId)
         );
         return summaries.stream()
-                .map(result -> RegionMapSummaryResponse.from(result, levelPolicy))
+                .map(this::toSummary)
                 .toList();
+    }
+
+    private RegionMapSummary toSummary(RegionMapSummaryQueryResult result) {
+        return new RegionMapSummary(
+                result.getRegionId(),
+                result.getRegionCode(),
+                RegionType.valueOf(result.getRegionType()),
+                result.getName(),
+                result.getRecordCount(),
+                levelPolicy.levelFor(result.getRecordCount())
+        );
     }
 
     private void validateParentRegion(Long parentRegionId) {
