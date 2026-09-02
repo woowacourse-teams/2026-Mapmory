@@ -60,7 +60,15 @@ internal fun TripRecordEditorRoute(
         )
     }
 
-    fun requestExit(exit: () -> Unit) {
+    fun requestExit(reason: String, exit: () -> Unit) {
+        analytics.logEvent(
+            MapmoryAnalyticsEvent.RECORD_EDITOR_EXIT_REQUESTED,
+            mapOf(
+                "reason" to reason,
+                "has_unsaved_changes" to viewModel.uiState.isDirty.toString(),
+                "is_photo_loading" to viewModel.uiState.isPhotoLoading.toString(),
+            ),
+        )
         when {
             viewModel.uiState.isPhotoLoading -> {
                 isPhotoLoadingSaveConfirmation = false
@@ -96,7 +104,7 @@ internal fun TripRecordEditorRoute(
     }
 
     val latestBackHandler = rememberUpdatedState {
-        requestExit(onBack)
+        requestExit("back", onBack)
         true
     }
     DisposableEffect(viewModel, backHandlerRegistry) {
@@ -112,7 +120,13 @@ internal fun TripRecordEditorRoute(
         modifier = modifier,
         uiState = viewModel.uiState,
         locations = regionCatalog.locations,
-        onLocationSelected = viewModel::selectLocation,
+        onLocationSelected = { location ->
+            analytics.logEvent(
+                MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
+                mapOf("location_type" to location.type.name.lowercase()),
+            )
+            viewModel.selectLocation(location)
+        },
         onLocationTouched = viewModel::touchLocation,
         onTitleChanged = viewModel::updateTitle,
         onContentChanged = viewModel::updateContent,
@@ -137,10 +151,10 @@ internal fun TripRecordEditorRoute(
                 save()
             }
         },
-        onBackClick = { requestExit(onBack) },
-        onMapClick = { requestExit(onOpenMap) },
-        onRecordClick = { requestExit(onOpenRecords) },
-        onProfileClick = { requestExit(onOpenProfile) },
+        onBackClick = { requestExit("back", onBack) },
+        onMapClick = { requestExit("map", onOpenMap) },
+        onRecordClick = { requestExit("records", onOpenRecords) },
+        onProfileClick = { requestExit("profile", onOpenProfile) },
     )
 
     pendingEditorExit?.let { exit ->

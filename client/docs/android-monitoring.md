@@ -40,7 +40,8 @@ Android 앱은 `com.mapmory.android`, iOS 앱은 `com.mapmory.ios3`으로 등록
 | 성능 조사 | System Trace·Perfetto·Macrobenchmark | 앱 시작, 지도 전환, UI 응답성 |
 | Play 배포 후 | Play Console Android Vitals | 크래시, ANR, 시작 시간, 렌더링, 메모리 |
 
-CI 실행 방법은 [ci.md](./ci.md), 사진 측정 결과는 [photo-loading-benchmark.md](./performance/photo-loading-benchmark.md)에 기록한다.
+CI 실행 방법은 [ci.md](./ci.md), 사진 측정 결과는 [photo-loading-benchmark.md](./performance/photo-loading-benchmark.md),
+사용자 행동 분석 결과는 [firebase-analytics-user-behavior-report.md](./firebase-analytics-user-behavior-report.md)에 기록한다.
 
 ## 우선 모니터링 항목
 
@@ -124,13 +125,18 @@ Firebase Analytics는 기능 사용 여부와 전환 흐름을 확인하기 위�
 
 | 이벤트 | 기록 시점 | 주요 파라미터 |
 | --- | --- | --- |
-| `screen_view` | 지도·기록 작성 화면 진입 | `screen_name` |
+| `screen_view` | 주요 화면 진입 | `screen_name` (`map`, `journal`, `statistics`, `record_editor`, `record_detail`) |
 | `bottom_nav_clicked` | 하단 지도·일지·통계 탭 클릭 | `from_tab`, `to_tab` |
 | `map_scope_changed` | 대한민국·전세계 전환 | `scope` |
 | `map_province_selected` | 대한민국 시·도 선택 | `province_code` |
 | `map_location_selected` | 지도 또는 장소 검색에서 지역 선택 | `location_type`, `has_records` |
 | `record_create_started` | 지도 FAB 클릭 | `source` |
+| `record_location_selected` | 기록 작성 화면에서 장소 확정 | `location_type` |
+| `record_date_set` | 시작·종료 날짜 확정 | `field` (`start`, `end`) |
+| `record_content_started` | 기록 본문에 최초 입력 | 없음 |
+| `record_editor_exit_requested` | 기록 작성 중 뒤로가기·탭 이동 시도 | `reason`, `has_unsaved_changes`, `is_photo_loading` |
 | `photo_recommendation_started` | 위치 기반 사진 추천 시작 | `location_type` |
+| `photo_recommendation_completed` | 최초 추천 결과 수신 | `result` (`success`, `empty`), `count` |
 | `photo_recommendation_cancelled` | 사진 추천 중단 | 없음 |
 | `photos_added` | 갤러리·추천 사진을 기록에 추가 | `source`, `count` |
 | `record_save_started` | 기록 저장 시작 | `mode` |

@@ -177,6 +177,7 @@ fun TripRecordEditorScreen(
     var photoLoadingProgress by remember { mutableStateOf<PhotoLoadingProgress?>(null) }
     var datePickerTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val remainingPhotoSlots = TripRecordPhotoRules.remainingSlots(uiState.selectedPhotos.size)
+    var contentInputStarted by remember { mutableStateOf(false) }
     val dismissKeyboardOnTap = rememberDismissKeyboardOnTapModifier()
     val photoLibrary = photoLibraryActionsFactory(
         { photos ->
@@ -188,9 +189,19 @@ fun TripRecordEditorScreen(
             onPhotosAdded(photos)
         },
         { page ->
+            val isFirstPage = recommendationPagingState.generation == null
             val nextState = recommendationPagingState.accept(page)
             if (nextState != null) {
                 recommendationPagingState = nextState
+                if (isFirstPage) {
+                    analytics.logEvent(
+                        MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_COMPLETED,
+                        mapOf(
+                            "result" to if (nextState.photos.isEmpty()) "empty" else "success",
+                            "count" to nextState.photos.size.toString(),
+                        ),
+                    )
+                }
                 if (nextState.photos.isNotEmpty()) {
                     showRecommendationSheet = true
                     photoMessage = null
@@ -403,7 +414,13 @@ fun TripRecordEditorScreen(
                         Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                             EditorContentField(
                                 value = uiState.content,
-                                onValueChange = onContentChanged,
+                                onValueChange = { content ->
+                                    if (!contentInputStarted && content.isNotBlank()) {
+                                        contentInputStarted = true
+                                        analytics.logEvent(MapmoryAnalyticsEvent.RECORD_CONTENT_STARTED)
+                                    }
+                                    onContentChanged(content)
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             EditorErrorMessage(
@@ -672,8 +689,16 @@ fun TripRecordEditorScreen(
         maximumDate = maximumDate,
         onDateSelected = { date ->
             if (isStartDatePicker) {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.RECORD_DATE_SET,
+                    mapOf("field" to StartDatePickerTarget),
+                )
                 onStartDateChanged(date)
             } else if (activeDatePickerTarget == EndDatePickerTarget) {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.RECORD_DATE_SET,
+                    mapOf("field" to EndDatePickerTarget),
+                )
                 onEndDateChanged(date)
             }
             datePickerTarget = null

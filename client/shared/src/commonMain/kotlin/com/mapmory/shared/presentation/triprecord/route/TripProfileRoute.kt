@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.triprecord.screen.TripProfileScreen
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripStatisticsViewModel
 import kotlinx.coroutines.launch
@@ -22,6 +24,15 @@ internal fun TripProfileRoute(
 
     LaunchedEffect(viewModel, tripRecordRevision) {
         viewModel.refresh(dataRevision = tripRecordRevision)
+    }
+
+    val analytics = LocalMapmoryAnalytics.current
+
+    LaunchedEffect(Unit) {
+        analytics.logEvent(
+            MapmoryAnalyticsEvent.SCREEN_VIEW,
+            mapOf("screen_name" to "statistics"),
+        )
     }
 
     TripProfileScreen(
