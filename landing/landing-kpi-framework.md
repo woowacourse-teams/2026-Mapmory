@@ -1,5 +1,7 @@
 # Mapmory 랜딩페이지 Lean 검증안 (출시 전 기록)
 
+현재 화면·schema 2 운영 기준과 보고서는 [ANALYTICS_MEASUREMENT_PLAN.md](ANALYTICS_MEASUREMENT_PLAN.md)를 따른다. 아래는 과거 가설을 보존한 문서다.
+
 이 문서는 2026-08-26, 출시 알림 신청을 최종 전환으로 삼던 시점에 이전 랜딩과
 리팩터링 랜딩 중 어느 쪽이 Mapmory의 가치를 더 잘 전달하는지 판정하기 위해
 작성했습니다. 외부 평균 전환율을 성공 기준으로 복사하지 않고, Unbounce가
@@ -9,10 +11,10 @@
 - 문서 상태: 출시 알림 단계의 역사 기록
 - 당시 비교 대상: 이전 랜딩(Control)과 에디토리얼 랜딩(Variant)
 - 당시 최종 전환: 신규 출시 알림 신청
-- 현재 1차 전환: 공식 Google Play 이동 (`download_click`)
+- 현재 1차 전환: 공식 App Store / Google Play 이동 (`download_click`, `store`로 구분)
 - 후속 제품 성과: 앱 설치와 첫 기억 지도 생성(랜딩 웹 분석만으로는 확인하지 않음)
 
-> 현재 운영 판단에서는 `Google Play 이동 전환율 = download_click 고유 외부 사용자 수 ÷ 유효 랜딩 방문 고유 외부 사용자 수`를 결과 KPI로 사용합니다. 팀원·QA·봇 트래픽은 제외하고 `cta_placement`별로 나눠 봅니다. `download_click`은 스토어 이동 의도이며 앱 설치 완료를 뜻하지 않습니다. 아래 출시 알림·폼·Control/Variant 내용은 당시 의사결정 기록으로 보존합니다.
+> 현재 KPI는 `앱 스토어 이동 전환율 = download_click 총 외부 사용자 수 ÷ page_view 총 외부 사용자 수`입니다. `surface=landing`, `analytics_schema_version=2`, `traffic_type=external`을 공통 적용하고 `store`, `cta_placement`별 클릭 분포를 봅니다. 설치 완료나 CTA 노출 대비 CTR은 아닙니다. 아래 출시 알림·폼·Control/Variant는 당시 기록입니다.
 
 ## 당시 검증이 답하려던 질문
 

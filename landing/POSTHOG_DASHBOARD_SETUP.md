@@ -1,5 +1,7 @@
 # Mapmory PostHog 대시보드 설정
 
+> 아래는 v2 출시 전 대시보드 설정 기록이다. 현재 기준은 [ANALYTICS_MEASUREMENT_PLAN.md](ANALYTICS_MEASUREMENT_PLAN.md)를 따른다. 운영 시 `surface=landing`, `analytics_schema_version=2`, `traffic_type=external`, `landing_version=v3`로 분리하고 최종 전환은 두 스토어의 `download_click`이다. 아래 출시 알림 폼을 현재 퍼널에 다시 넣지 않는다. 이번 코드 변경이 기존 PostHog 대시보드 설정까지 수정한 것은 아니다.
+
 ## 목적
 
 GA4에서 여러 탐색 보고서를 반복해서 만들지 않고, 랜딩의 제품 체험 흐름을 한 화면에서 진단한다. GA4는 유입과 최종 전환 판단에 유지하고 PostHog은 체험 퍼널, 활성 시간, 기억 열람 깊이, 단계별 이탈의 운영 화면으로 사용한다.

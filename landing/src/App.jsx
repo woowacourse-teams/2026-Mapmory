@@ -21,6 +21,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
+import { classifyGlobeGesture } from "./globe-gesture.js";
 import { createCachedAsyncLoader } from "./cachedAsyncLoader.js";
 import {
   HERO_MOBILE_ENTRY_APPLY_AT_MS,
@@ -306,10 +307,32 @@ function StoreButton({ className = "", placement, platform, label, onSelect, tab
 
 function HeaderStoreMenu() {
   const menuRef = useRef(null);
-  const closeMenu = () => menuRef.current?.removeAttribute("open");
+  const [isOpen, setIsOpen] = useState(false);
+  const closeMenu = useCallback(() => {
+    menuRef.current?.removeAttribute("open");
+    setIsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!menuRef.current?.contains(event.target)) closeMenu();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      closeMenu();
+      menuRef.current?.querySelector("summary")?.focus();
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMenu, isOpen]);
 
   return (
-    <details className="header-store-menu" ref={menuRef}>
+    <details className="header-store-menu" ref={menuRef} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
       <summary className="button button-primary header-store-trigger" aria-label="앱 다운로드 메뉴 열기">
         <DownloadSimple size={18} weight="bold" /><span>앱 받기</span>
       </summary>
@@ -477,6 +500,7 @@ function LaunchWaitlistForm() {
 
 function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme, guideVisible, onGuideDismiss, isSelecting }) {
   const globeRef = useRef(null);
+  const gestureStartRef = useRef(null);
   const containerRef = useRef(null);
   const [size, setSize] = useState({ width: 540, height: 540 });
   const [hoveredId, setHoveredId] = useState(null);
@@ -569,8 +593,22 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
       role="region"
       aria-label="회전 가능한 Mapmory 세계 지구본"
       aria-busy={isSelecting}
-      onPointerDown={() => onInteract("globe_drag")}
-      onWheel={() => onInteract("globe_zoom")}
+      onPointerDown={(event) => {
+        if (!isGlobeReady || guideVisible || event.target.tagName !== "CANVAS") return;
+        gestureStartRef.current = { pointerId: event.pointerId, pointerType: event.pointerType, clientX: event.clientX, clientY: event.clientY };
+      }}
+      onPointerMove={(event) => {
+        const gesture = classifyGlobeGesture(gestureStartRef.current, event);
+        if (gesture === "pending") return;
+        gestureStartRef.current = null;
+        if (gesture === "globe_drag") onInteract(gesture);
+      }}
+      onPointerUp={() => { gestureStartRef.current = null; }}
+      onPointerCancel={() => { gestureStartRef.current = null; }}
+      onPointerLeave={() => { gestureStartRef.current = null; }}
+      onWheel={(event) => {
+        if (isGlobeReady && !guideVisible && event.target.tagName === "CANVAS" && event.deltaY !== 0) onInteract("globe_zoom");
+      }}
     >
       <Suspense fallback={<div className="globe-loading"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 준비하고 있어요</span></div>}>
         {hasGlobeMounted && globeMaterial && countries.length > 0 && <Globe ref={globeRef} width={size.width} height={size.height} backgroundColor="rgba(0,0,0,0)" globeMaterial={globeMaterial} rendererConfig={GLOBE_RENDERER_CONFIG} showAtmosphere atmosphereColor={globePalette.atmosphere} atmosphereAltitude={0.12} polygonsData={countries}
@@ -1038,6 +1076,7 @@ function KoreaDetailExperience({ theme }) {
   const [detailLevel, setDetailLevel] = useState(2);
   const [transitioningKey, setTransitioningKey] = useState(null);
   const detailDemoRef = useRef(null);
+  const pendingMemorySourceRef = useRef(null);
   const transitionTimerRef = useRef(null);
   const analytics = useExperienceAnalytics("korea_detail");
   const addedMemories = useMemo(
@@ -1065,13 +1104,19 @@ function KoreaDetailExperience({ theme }) {
 
   const openDetail = (memory, selectionSource) => {
     if (selected?.key !== memory.key || detailLevel !== 3) {
-      analytics.trackMemoryOpen(memory.key, selectionSource);
+      pendingMemorySourceRef.current = selectionSource;
     }
     setSelected(memory);
     setIsAddPanelOpen(false);
     setTransitioningKey(null);
     setDetailLevel(3);
   };
+
+  useEffect(() => {
+    if (detailLevel !== 3 || !selected || !pendingMemorySourceRef.current) return;
+    analytics.trackMemoryOpen(selected.key, pendingMemorySourceRef.current);
+    pendingMemorySourceRef.current = null;
+  }, [detailLevel, selected, analytics.trackMemoryOpen]);
 
   const handleSelect = (memory, selectionSource) => {
     if (!addedMemoryKeys.has(memory.key) || transitioningKey) return;
@@ -1185,7 +1230,7 @@ function KoreaDetailExperience({ theme }) {
                     className="button button-primary region-cta"
                     href="#download"
                     onClick={() => trackEvent(
-                      GOOGLE_PLAY_URL ? ANALYTICS_EVENTS.DOWNLOAD_CLICK : ANALYTICS_EVENTS.WAITLIST_CTA_CLICK,
+                      ANALYTICS_EVENTS.DOWNLOAD_CTA_CLICK,
                       { cta_placement: "korea_memory" },
                     )}
                   >
@@ -1748,6 +1793,7 @@ function App() {
   const experienceStageRef = useRef(null);
   const globePanelRef = useRef(null);
   const worldSelectionTimerRef = useRef(null);
+  const pendingWorldMemorySourceRef = useRef(null);
   const globeAnalytics = useExperienceAnalytics("globe");
 
   const returnToExperienceStage = useCallback(() => {
@@ -1782,7 +1828,7 @@ function App() {
       }
       setIsWorldMemoryOpen(true);
       setIsWorldSelecting(false);
-      globeAnalytics.trackMemoryOpen(memory.key, selectionSource);
+      pendingWorldMemorySourceRef.current = selectionSource;
     }, isNewSelection ? WORLD_SELECTION_MOTION_MS + 120 : 320);
   };
 
@@ -1830,6 +1876,12 @@ function App() {
   const dismissGlobeGuide = () => {
     setIsGlobeGuideVisible(false);
   };
+
+  useEffect(() => {
+    if (!isWorldMemoryOpen || !pendingWorldMemorySourceRef.current) return;
+    globeAnalytics.trackMemoryOpen(displayedMemory.key, pendingWorldMemorySourceRef.current);
+    pendingWorldMemorySourceRef.current = null;
+  }, [displayedMemory, isWorldMemoryOpen, globeAnalytics.trackMemoryOpen]);
 
   const closeWorldMemory = () => {
     if (isWorldMemoryHistoryEntry(window.history.state)) {

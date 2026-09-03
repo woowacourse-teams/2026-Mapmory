@@ -1,5 +1,14 @@
 # Prototype Instructions
 
+## Shared AWS account operations
+
+- The travel campaign belongs at https://map-mory.com/recap/ beside the existing landing at /. Build/test both apps and package only campaign dist/recap into client/recap. Do not overwrite the current landing UI or reuse its root asset directory for campaign files.
+- Start landing changes from upstream/main and integrate through a PR to main. landing-release is a separate production promotion target, not a development branch. Promote only reviewed landing paths and landing-owned workflows; never carry backend/client changes by merging an unrelated integration branch wholesale. main integration does not authorize release promotion or deployment. See DEPLOYMENT.md.
+- Reuse the existing Mapmory build project and CodeDeploy resources; verify whether CodePipeline is actually provisioned rather than inferring installation from checked-in configuration. Preserve the manual approval design. No production approval, AWS resource changes or Nginx configuration mutation is implied by preparing a PR.
+
+- Before any AWS resource creation/change, tell the user the exact targets, steps, cost and operational risks. Afterward report what actually changed.
+- Follow the institution settings and `DEPLOYMENT.md`: existing project roles only, required Service/Role/ProjectTeam tags on every new resource, no changes to other teams, shared IAM/network settings or backend deployment. Do not infer permissions from the EC2 role; use the existing human AWS console login when needed.
+
 Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
 
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
@@ -7,6 +16,13 @@ Before making substantial visual changes, use the Product Design plugin's `get-c
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
 
 ## Mapmory Landing Decisions
+
+### Current analytics decisions (2026-09-03)
+
+- Follow ANALYTICS_MEASUREMENT_PLAN.md for the current UI, not the historical waitlist funnel. The primary web conversion is an actual App Store or Google Play link click; internal download-section navigation is not a conversion.
+- Keep illustrative hero motion and mobile vertical scrolling out of interactive experience events. Record memory opening after the panel is committed to the screen.
+- Separate landing/recap, schema revisions, internal QA, and demo/own-photo Recap use. Do not overwrite incoming campaign attribution with internal UTMs or a fixed campaign_name.
+- Preserve historical measurements and reports. New tracking code, GA4 console configuration, and live event receipt are separate verification steps; do not report one as proof of the others.
 
 ### Current mobile decisions (2026-09-03)
 

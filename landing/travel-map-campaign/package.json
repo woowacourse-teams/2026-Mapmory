@@ -1,0 +1,31 @@
+{
+  "name": "travel-map-campaign",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:sites && npm run build:recap",
+    "build:sites": "vite build && node scripts/prepare-sites-build.mjs",
+    "build:recap": "vite build --base=/recap/ --outDir dist/recap",
+    "pretest": "npm run build",
+    "test": "node --test tests/*.test.mjs",
+    "test:built": "node --test tests/*.test.mjs",
+    "preview": "vite preview",
+    "preview:recap": "vite preview --base=/recap/ --outDir dist/recap",
+    "pretest:sites": "npm run build:sites",
+    "test:sites": "node --test tests/sites-worker.test.mjs"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
+    "@vitejs/plugin-react": "5.0.4",
+    "d3-geo": "3.1.1",
+    "exifr": "7.1.3",
+    "exifreader": "^4.44.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "topojson-client": "3.1.0",
+    "vite": "6.4.3",
+    "world-atlas": "2.0.2"
+  }
+}

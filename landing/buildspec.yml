@@ -1,0 +1,39 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 24
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/landing"
+      - npm ci
+      - npm --prefix travel-map-campaign ci
+  pre_build:
+    commands:
+      - '[[ "${VITE_GA_MEASUREMENT_ID:-}" =~ ^G-[A-Z0-9]+$ ]]'
+      - '[[ "${VITE_GA_CAPTURE_LOCAL:-false}" != true && "${VITE_GA_DEBUG:-false}" != true ]]'
+      - test "$CODEBUILD_RESOLVED_SOURCE_VERSION" = "$SOURCE_COMMIT_ID"
+      - '[[ "$SOURCE_COMMIT_ID" =~ ^[0-9a-f]{40}$ ]]'
+  build:
+    commands:
+      - npm run build
+      - npm --prefix travel-map-campaign run build
+      - npm test
+      - npm --prefix travel-map-campaign run test:built
+  post_build:
+    commands:
+      - |
+        set -Eeuo pipefail
+        [[ "$CODEBUILD_BUILD_SUCCEEDING" == 1 ]] || exit 1
+        bash scripts/package-codedeploy.sh "$SOURCE_COMMIT_ID" /tmp/mapmory-landing-codedeploy.tar.gz
+        mkdir -p deploy
+        tar -xzf /tmp/mapmory-landing-codedeploy.tar.gz -C deploy
+
+artifacts:
+  base-directory: landing/deploy
+  files:
+    - '**/*'
+  discard-paths: no
