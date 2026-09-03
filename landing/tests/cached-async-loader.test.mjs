@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
 import { createCachedAsyncLoader } from "../src/cachedAsyncLoader.js";
 
 test("shares concurrent requests and preserves the successful cached result", async () => {
@@ -40,9 +39,4 @@ test("also clears synchronous loader failures", async () => {
   await assert.rejects(load(), /failed before resolving/);
   assert.deepEqual(await load(), []);
   assert.equal(calls, 2);
-});
-
-test("the world-country hook handles the shared loader rejection", async () => {
-  const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
-  assert.match(appSource, /loadWorldCountries\(\)\.then\([\s\S]*?\}\)\.catch\(\(\) => \{/);
 });

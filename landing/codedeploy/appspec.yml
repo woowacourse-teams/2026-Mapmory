@@ -1,0 +1,10 @@
+version: 0.0
+os: linux
+
+# No files/ApplicationStop hooks: never overwrite backend files or stop its service.
+# Operate on the extracted bundle, then switch only the landing symlink.
+hooks:
+  ApplicationStart:
+    - location: scripts/activate.sh
+      timeout: 180
+      runas: root

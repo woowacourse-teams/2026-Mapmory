@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -71,6 +72,30 @@ fun KoreaMapArtwork(
     val projection = remember(bounds, viewportSize) {
         KoreaProjection.from(bounds, viewportSize)
     }
+    val preparedRegions = remember(regions, projection) {
+        if (!projection.isValid) {
+            emptyList()
+        } else {
+            regions.map { region ->
+                PreparedKoreaRegion(
+                    region = region,
+                    fillPath = Path().apply {
+                        region.rings.forEach { ring ->
+                            addProjectedRing(ring, projection)
+                        }
+                    },
+                    outlinePath = Path().apply {
+                        region.outerEdges().forEach { edge ->
+                            val start = projection.project(edge.start)
+                            val end = projection.project(edge.end)
+                            moveTo(start.x, start.y)
+                            lineTo(end.x, end.y)
+                        }
+                    },
+                )
+            }
+        }
+    }
     var zoom by remember(regions) { mutableStateOf(1f) }
     var pan by remember(regions) { mutableStateOf(Offset.Zero) }
     val currentTransform = rememberUpdatedState(MapTransform(zoom, pan))
@@ -83,6 +108,20 @@ fun KoreaMapArtwork(
         Color(0xFF2F7659).copy(alpha = 0.72f)
     }
     val unvisitedOutlineColor = if (isDark) Color(0xFF4B5870) else Color(0xFFCAD6CE)
+    val preparedLabels = remember(regions, projection, labelStyle, showRegionLabels) {
+        if (!showRegionLabels || !projection.isValid) {
+            emptyList()
+        } else {
+            regions.mapNotNull { region ->
+                val labelPoint = region.labelPoint() ?: return@mapNotNull null
+                PreparedKoreaLabel(
+                    region = region,
+                    baseCenter = projection.project(labelPoint),
+                    layout = textMeasurer.measure(region.name, labelStyle),
+                )
+            }
+        }
+    }
 
     Canvas(
         modifier = modifier
@@ -103,21 +142,19 @@ fun KoreaMapArtwork(
                     )
                 }
             }
-            .pointerInput(viewportSize, projection, zoom, pan) {
+            .pointerInput(viewportSize, projection, regions, showRegionLabels, preparedLabels) {
                 detectTapGestures { position ->
                     val transform = currentTransform.value
                     val mapPoint = projection.unproject(position, transform, viewportSize)
                     val labelRegion = if (showRegionLabels) {
-                        regions.mapNotNull { region ->
-                            val labelPoint = region.labelPoint() ?: return@mapNotNull null
-                            val labelCenter = projection.project(labelPoint, transform, viewportSize)
-                            val layout = textMeasurer.measure(region.name, labelStyle)
+                        preparedLabels.mapNotNull { label ->
+                            val labelCenter = transformMapPoint(label.baseCenter, transform, viewportSize)
                             val horizontalDistance = abs(position.x - labelCenter.x)
                             val verticalDistance = abs(position.y - labelCenter.y)
-                            if (horizontalDistance <= layout.size.width / 2f + labelHitPadding &&
-                                verticalDistance <= layout.size.height / 2f + labelHitPadding
+                            if (horizontalDistance <= label.layout.size.width / 2f + labelHitPadding &&
+                                verticalDistance <= label.layout.size.height / 2f + labelHitPadding
                             ) {
-                                region to (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance)
+                                label.region to (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance)
                             } else {
                                 null
                             }
@@ -133,51 +170,34 @@ fun KoreaMapArtwork(
         if (!projection.isValid) return@Canvas
         val transform = MapTransform(zoom, pan)
         val outlineWidth = max(0.7f, size.minDimension * 0.0028f)
+        val center = Offset(size.width / 2f, size.height / 2f)
 
-        regions.forEach { region ->
-            val isVisited = region.code in visitedRegionCodes
-            val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
-            val outlineColor = if (isVisited) visitedOutlineColor else unvisitedOutlineColor
+        withTransform({
+            translate(transform.pan.x, transform.pan.y)
+            scale(transform.zoom, transform.zoom, pivot = center)
+        }) {
+            preparedRegions.forEach { prepared ->
+                val isVisited = prepared.region.code in visitedRegionCodes
+                val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
+                val outlineColor = if (isVisited) visitedOutlineColor else unvisitedOutlineColor
 
-            region.rings.forEach { ring ->
-                if (ring.size < 3) return@forEach
-                val path = Path().apply {
-                    ring.forEachIndexed { index, point ->
-                        val screen = projection.project(point, transform, viewportSize)
-                        if (index == 0) moveTo(screen.x, screen.y) else lineTo(screen.x, screen.y)
-                    }
-                    close()
-                }
-                drawPath(path = path, color = fillColor)
+                drawPath(path = prepared.fillPath, color = fillColor)
+                drawPath(
+                    path = prepared.outlinePath,
+                    color = outlineColor,
+                    style = Stroke(width = outlineWidth / transform.zoom),
+                )
             }
-
-            val outline = Path().apply {
-                region.outerEdges().forEach { edge ->
-                    val start = projection.project(edge.start, transform, viewportSize)
-                    val end = projection.project(edge.end, transform, viewportSize)
-                    moveTo(start.x, start.y)
-                    lineTo(end.x, end.y)
-                }
-            }
-            drawPath(
-                path = outline,
-                color = outlineColor,
-                style = Stroke(width = outlineWidth),
-            )
         }
 
         // Prototype detail screens keep the map readable by showing the
         // selected province's district names directly on the boundaries.
-        if (showRegionLabels) {
-            regions.forEach { region ->
-                val labelPoint = region.labelPoint() ?: return@forEach
-                val layout = textMeasurer.measure(region.name, labelStyle)
-                val center = projection.project(labelPoint, transform, viewportSize)
-                drawText(
-                    textLayoutResult = layout,
-                    topLeft = center - Offset(layout.size.width / 2f, layout.size.height / 2f),
-                )
-            }
+        preparedLabels.forEach { label ->
+            val labelCenter = transformMapPoint(label.baseCenter, transform, viewportSize)
+            drawText(
+                textLayoutResult = label.layout,
+                topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
+            )
         }
     }
 }
@@ -185,6 +205,18 @@ fun KoreaMapArtwork(
 private data class MapTransform(
     val zoom: Float,
     val pan: Offset,
+)
+
+private data class PreparedKoreaRegion(
+    val region: ProvincePolygon,
+    val fillPath: Path,
+    val outlinePath: Path,
+)
+
+private data class PreparedKoreaLabel(
+    val region: ProvincePolygon,
+    val baseCenter: Offset,
+    val layout: androidx.compose.ui.text.TextLayoutResult,
 )
 
 private const val MinZoom = 1f
@@ -263,15 +295,6 @@ private data class KoreaProjection(
         y = top + (bounds.maxLatitude - point.latitude) * scale,
     )
 
-    fun project(point: GeoPoint, transform: MapTransform, viewportSize: IntSize): Offset {
-        val base = project(point)
-        val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
-        return center + Offset(
-            x = (base.x - center.x) * transform.zoom + transform.pan.x,
-            y = (base.y - center.y) * transform.zoom + transform.pan.y,
-        )
-    }
-
     fun unproject(point: Offset, transform: MapTransform, viewportSize: IntSize): GeoPoint {
         val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
         val base = center + (point - center - transform.pan) / transform.zoom
@@ -322,6 +345,24 @@ private data class KoreaProjection(
             return KoreaProjection(bounds, longitudeFactor, scale, left, top, mapWidth, mapHeight, true)
         }
     }
+}
+
+private fun Path.addProjectedRing(ring: List<GeoPoint>, projection: KoreaProjection) {
+    if (ring.size < 3) return
+    ring.forEachIndexed { index, point ->
+        val screen = projection.project(point)
+        if (index == 0) moveTo(screen.x, screen.y) else lineTo(screen.x, screen.y)
+    }
+    close()
+}
+
+private fun transformMapPoint(
+    base: Offset,
+    transform: MapTransform,
+    viewportSize: IntSize,
+): Offset {
+    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    return center + (base - center) * transform.zoom + transform.pan
 }
 
 internal fun clampKoreaMapPan(

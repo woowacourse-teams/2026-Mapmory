@@ -25,13 +25,7 @@ internal suspend fun assertAllSelectableKoreanCityBoundaries() {
         }
 
     assertEquals(
-        listOf(
-            "28125(인천광역시 제물포구)@KR-28",
-            "28155(인천광역시 영종구)@KR-28",
-            "28177(인천광역시 미추홀구)@KR-28",
-            "28275(인천광역시 서해구)@KR-28",
-            "28290(인천광역시 검단구)@KR-28",
-        ),
+        emptyList(),
         missingBoundaries,
     )
 }

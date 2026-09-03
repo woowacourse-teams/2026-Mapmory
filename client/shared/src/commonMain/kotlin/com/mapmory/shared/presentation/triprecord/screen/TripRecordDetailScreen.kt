@@ -69,8 +69,12 @@ fun TripRecordDetailScreen(
                 when (uiState) {
                     TripRecordDetailUiState.Idle,
                     TripRecordDetailUiState.Loading,
-                    TripRecordDetailUiState.Deleting,
-                    -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    -> TripRecordDetailSkeleton(Modifier.fillMaxSize())
+
+                    TripRecordDetailUiState.Deleting -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         CircularProgressIndicator(color = TripRecordPalette.current.accent)
                     }
 

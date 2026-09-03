@@ -5,11 +5,13 @@ on:
     paths:
       - "landing/**"
       - ".github/workflows/landing-cicd.yml"
+      - ".github/workflows/landing-release.yml"
   push:
     branches: [main]
     paths:
       - "landing/**"
       - ".github/workflows/landing-cicd.yml"
+      - ".github/workflows/landing-release.yml"
   workflow_dispatch:
 
 permissions:
@@ -31,6 +33,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -50,3 +54,39 @@ jobs:
 
       - name: Run landing tests
         run: npm test
+
+  travel-map-campaign:
+    name: Build and test travel map campaign
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: landing/travel-map-campaign
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: landing/travel-map-campaign/package-lock.json
+      - name: Install campaign dependencies
+        run: npm ci
+
+      - name: Build travel map campaign
+        run: npm run build
+        env:
+          VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
+      - name: Run campaign tests against the built fixtures
+        run: npm run test:built
+
+      - name: Validate combined static release without deploying
+        run: |
+          npm --prefix .. ci
+          npm --prefix .. run build
+          bash ../scripts/package-codedeploy.sh "$GITHUB_SHA" "$RUNNER_TEMP/mapmory-landing.tar.gz"

@@ -120,9 +120,8 @@ internal fun TripRecordEditorRoute(
         onEndDateChanged = viewModel::updateEndDate,
         onTagInputChanged = viewModel::updateTagInput,
         onTagToggled = viewModel::toggleTag,
-        onTagCreate = {
-            scope.launch { viewModel.createAndSelectTag() }
-        },
+        onPendingTagToggled = viewModel::togglePendingTag,
+        onTagCreate = viewModel::createAndSelectTag,
         onPhotosAdded = viewModel::addPhotos,
         onPhotoRemoved = viewModel::removeMediaObjectKey,
         onPhotoLoadingChanged = viewModel::setPhotoLoading,

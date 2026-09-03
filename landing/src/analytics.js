@@ -1,6 +1,7 @@
+import { canCaptureGa, isScalar, measurementContext, resolveMeasurementId } from "./analytics-contract.js";
+
 const environment = import.meta.env ?? {};
-const measurementId = environment.VITE_GA_MEASUREMENT_ID?.trim()
-  || (environment.PROD ? "G-MC93CZWLZF" : "");
+const measurementId = resolveMeasurementId(environment);
 const landingVersion = environment.VITE_LANDING_VERSION?.trim() || "v3";
 const posthogKey = environment.VITE_POSTHOG_KEY?.trim() || "";
 const posthogHost = environment.VITE_POSTHOG_HOST?.trim() || "";
@@ -85,6 +86,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
   WAITLIST_SUBMIT: "waitlist_submit",
   WAITLIST_SUBMIT_ERROR: "waitlist_submit_error",
   DOWNLOAD_CLICK: "download_click",
+  DOWNLOAD_CTA_CLICK: "download_cta_click",
 });
 
 const supportedEvents = new Set(Object.values(ANALYTICS_EVENTS));
@@ -133,6 +135,7 @@ function initializePostHog() {
         traffic_type: trafficType,
       });
       posthog.capture("$pageview", {
+        ...measurementContext("landing"),
         landing_version: landingVersion,
         traffic_type: trafficType,
         $pathname: window.location.pathname,
@@ -153,7 +156,8 @@ function initializePostHog() {
 export function initializeAnalytics() {
   void initializePostHog();
 
-  if (!measurementId || gaInitialized || typeof window === "undefined") return;
+  if (!measurementId || gaInitialized || typeof window === "undefined"
+    || !canCaptureGa(environment, window.location.hostname)) return;
 
   gaInitialized = true;
   window.dataLayer = window.dataLayer || [];
@@ -165,6 +169,8 @@ export function initializeAnalytics() {
   window.gtag("config", measurementId, {
     anonymize_ip: true,
     send_page_view: true,
+    ...measurementContext("landing"),
+    ...(environment.VITE_GA_DEBUG === "true" ? { debug_mode: true } : {}),
     landing_version: landingVersion,
     traffic_type: trafficType,
   });
@@ -180,13 +186,12 @@ export function buildEventParameters(parameters = {}) {
     Object.entries(parameters).filter(([key, value]) => (
       supportedParameters.has(key)
       && !forbiddenParameterPattern.test(key)
-      && value !== undefined
-      && value !== null
-      && value !== ""
+      && isScalar(value)
     )),
   );
 
   return {
+    ...measurementContext("landing"),
     landing_version: landingVersion,
     traffic_type: trafficType,
     ...safeParameters,
@@ -199,10 +204,12 @@ export function isSupportedEvent(name) {
 
 export function trackEvent(name, parameters = {}) {
   if (!isSupportedEvent(name)) return false;
+  if (name === ANALYTICS_EVENTS.DOWNLOAD_CLICK
+    && !["app_store", "google_play"].includes(parameters.store)) return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;
 
-  if (measurementId && typeof window !== "undefined" && typeof window.gtag === "function") {
+  if (measurementId && gaInitialized && typeof window !== "undefined" && typeof window.gtag === "function") {
     window.gtag("event", name, eventParameters);
     tracked = true;
   }

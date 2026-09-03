@@ -94,6 +94,7 @@ class MapViewModelTest {
         assertEquals(setOf("KR", "JP"), viewModel.visitedCountryCodes)
         assertEquals(setOf("KR-11"), viewModel.visitedProvinceCodes)
         assertEquals(setOf("11680"), viewModel.visitedDistrictCodes("KR-11"))
+        assertTrue(viewModel.hasRecords(catalog.requireByCode("KR")))
         assertTrue(viewModel.hasRecords(gangnam))
         assertTrue(viewModel.hasRecords(seoul))
     }

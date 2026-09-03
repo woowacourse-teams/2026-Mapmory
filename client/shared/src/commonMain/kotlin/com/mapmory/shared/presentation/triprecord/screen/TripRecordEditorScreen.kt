@@ -134,6 +134,7 @@ fun TripRecordEditorScreen(
     onEndDateChanged: (String) -> Unit,
     onTagInputChanged: (String) -> Unit = {},
     onTagToggled: (Long) -> Unit = {},
+    onPendingTagToggled: (String) -> Unit = {},
     onTagCreate: () -> Unit = {},
     onPhotosAdded: (List<SelectedPhoto>) -> Unit = {},
     onPhotoRemoved: (String) -> Unit = {},
@@ -402,6 +403,7 @@ fun TripRecordEditorScreen(
                             saveErrorMessage = uiState.errorMessageFor(TripRecordEditorErrorTarget.TAGS),
                             onInputChanged = onTagInputChanged,
                             onTagToggled = onTagToggled,
+                            onPendingTagToggled = onPendingTagToggled,
                             onCreate = onTagCreate,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
@@ -1023,6 +1025,7 @@ private fun TagEditor(
     saveErrorMessage: String?,
     onInputChanged: (String) -> Unit,
     onTagToggled: (Long) -> Unit,
+    onPendingTagToggled: (String) -> Unit,
     onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1039,7 +1042,7 @@ private fun TagEditor(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "${uiState.selectedTagIds.size}/5",
+                text = "${uiState.selectedTagCount}/5",
                 color = TripRecordPalette.current.muted,
                 fontSize = 11.sp,
             )
@@ -1072,21 +1075,13 @@ private fun TagEditor(
             )
             TextButton(
                 onClick = onCreate,
-                enabled = uiState.tagInput.isNotBlank() && !uiState.isCreatingTag,
+                enabled = uiState.tagInput.isNotBlank() && !uiState.isSaving,
             ) {
-                if (uiState.isCreatingTag) {
-                    CircularProgressIndicator(
-                        color = TripRecordPalette.current.accent,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp),
-                    )
-                } else {
-                    Text("추가", color = TripRecordPalette.current.accent)
-                }
+                Text("추가", color = TripRecordPalette.current.accent)
             }
         }
 
-        if (uiState.availableTags.isNotEmpty()) {
+        if (uiState.availableTags.isNotEmpty() || uiState.pendingTagNames.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1100,6 +1095,13 @@ private fun TagEditor(
                         text = tag.name,
                         selected = selected,
                         onClick = { onTagToggled(tag.id) },
+                    )
+                }
+                uiState.pendingTagNames.forEach { name ->
+                    TripTagChip(
+                        text = name,
+                        selected = name in uiState.selectedPendingTagNames,
+                        onClick = { onPendingTagToggled(name) },
                     )
                 }
             }

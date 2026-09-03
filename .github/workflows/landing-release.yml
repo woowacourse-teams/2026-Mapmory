@@ -1,0 +1,46 @@
+name: Landing Release
+
+on:
+  pull_request:
+    branches: [landing-release]
+  push:
+    branches: [landing-release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# PR validation only. CodePipeline uses the existing institution-managed AWS roles.
+jobs:
+  validate:
+    name: Landing release validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+      - run: npm ci
+      - run: npm --prefix travel-map-campaign ci
+      - run: npm run build
+        env:
+          VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
+      - name: Build travel campaign at /recap/
+        run: npm --prefix travel-map-campaign run build
+        env:
+          VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
+      - run: npm test
+      - run: npm --prefix travel-map-campaign run test:built
+      - name: Validate CodeDeploy bundle
+        run: bash scripts/package-codedeploy.sh "$GITHUB_SHA" "$RUNNER_TEMP/mapmory-landing.tar.gz"
