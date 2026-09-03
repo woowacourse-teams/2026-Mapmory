@@ -30,6 +30,8 @@ import com.mapmory.shared.data.repository.MapSummaryCache
 import com.mapmory.shared.data.repository.MemoryMapSummaryCache
 import com.mapmory.shared.data.repository.TripStatisticsCache
 import com.mapmory.shared.data.repository.UploadingTripRecordRepository
+import com.mapmory.shared.data.settings.MemoryThemePreference
+import com.mapmory.shared.data.settings.ThemePreference
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
 import com.mapmory.shared.domain.repository.TagRepository
@@ -62,6 +64,7 @@ interface AppContainer {
     val mapSummaryRepository: MapSummaryRepository
     val tripStatisticsRepository: TripStatisticsRepository
     val tagRepository: TagRepository
+    val themePreference: ThemePreference
     val viewModelFactory: MapmoryViewModelFactory
     val tripRecordRevision: StateFlow<Long>
 
@@ -132,6 +135,7 @@ private class DefaultAppContainer(
     override val mapSummaryRepository: MapSummaryRepository,
     override val tripStatisticsRepository: TripStatisticsRepository,
     override val tagRepository: TagRepository,
+    override val themePreference: ThemePreference,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val onClose: () -> Unit,
 ) : AppContainer {
@@ -169,6 +173,7 @@ fun createAppContainer(
         tripRecordRepository as? TagRepository,
     ) { "태그 Repository를 함께 전달해 주세요." },
     regionCatalog: RegionCatalog = StaticRegionCatalog(),
+    themePreference: ThemePreference = MemoryThemePreference(),
     thumbnailLoader: TripRecordThumbnailLoader? = null,
     onClose: () -> Unit = {},
 ): AppContainer {
@@ -186,6 +191,7 @@ fun createAppContainer(
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
         tagRepository = tagRepository,
+        themePreference = themePreference,
         thumbnailLoader = thumbnailLoader,
         onClose = onClose,
     )
@@ -246,6 +252,7 @@ fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    themePreference: ThemePreference = MemoryThemePreference(),
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -256,6 +263,7 @@ fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         mapSummaryCache = mapSummaryCache,
         tripStatisticsCache = tripStatisticsCache,
+        themePreference = themePreference,
         onClose = client::close,
     )
 }
@@ -268,6 +276,7 @@ internal fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    themePreference: ThemePreference = MemoryThemePreference(),
     onClose: () -> Unit = client::close,
 ): AppContainer {
     if (tokenStore.load() == null) {
@@ -328,6 +337,7 @@ internal fun createGuestRemoteAppContainer(
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),
         regionCatalog = regionCatalog,
+        themePreference = themePreference,
         thumbnailLoader = CachedTripRecordThumbnailLoader(photoPreviewLoader),
         onClose = onClose,
     )
