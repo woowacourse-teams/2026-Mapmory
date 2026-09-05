@@ -6,18 +6,32 @@ import { build } from "esbuild";
 import { canCaptureGa, resolveMeasurementId } from "../src/analytics-contract.js";
 import { classifyGlobeGesture } from "../src/globe-gesture.js";
 
-async function loadAnalytics(surface, { env = {}, hostname = "map-mory.com", search = "?internal=1" } = {}) {
+async function loadAnalytics(surface, { env = {}, hostname = "map-mory.com", search = "?internal=1", mockPostHog = false } = {}) {
   const entry = surface === "landing" ? "../src/analytics.js" : "../travel-map-campaign/src/analytics.js";
+  const posthogPlugin = {
+    name: "mock-posthog",
+    setup(buildApi) {
+      buildApi.onResolve({ filter: /^posthog-js\/dist\/module\.no-external$/ }, () => ({ path: "posthog", namespace: "mock" }));
+      buildApi.onLoad({ filter: /.*/, namespace: "mock" }, () => ({
+        contents: `export default {
+          init: (...args) => window.__posthogCalls.push(["init", ...args]),
+          register: (...args) => window.__posthogCalls.push(["register", ...args]),
+          capture: (...args) => window.__posthogCalls.push(["capture", ...args]),
+        };`,
+      }));
+    },
+  };
   const result = await build({
     entryPoints: [fileURLToPath(new URL(entry, import.meta.url))], bundle: true,
-    write: false, format: "iife", globalName: "analytics", external: ["posthog-js/*"],
+    write: false, format: "iife", globalName: "analytics",
+    ...(mockPostHog ? { plugins: [posthogPlugin] } : { external: ["posthog-js/*"] }),
     define: { "import.meta.env": JSON.stringify({ VITE_GA_MEASUREMENT_ID: "G-TEST123", ...env }) },
   });
   const scripts = [];
   const storage = new Map();
   const context = vm.createContext({
     URLSearchParams, console,
-    window: { location: { hostname, search }, localStorage: {
+    window: { __posthogCalls: [], location: { hostname, search, pathname: surface === "landing" ? "/" : "/recap/" }, localStorage: {
       getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key),
     } },
     document: { createElement: () => ({}), head: { appendChild: (script) => scripts.push(script) } },
@@ -26,6 +40,33 @@ async function loadAnalytics(surface, { env = {}, hostname = "map-mory.com", sea
   return { api: context.analytics, window: context.window, scripts,
     calls: () => JSON.parse(JSON.stringify((context.window.dataLayer ?? []).map((args) => [...args]))) };
 }
+
+test("Recap initializes its own PostHog client and sends scoped explicit events", async () => {
+  const harness = await loadAnalytics("recap", {
+    mockPostHog: true,
+    env: {
+      VITE_POSTHOG_KEY: "phc_test",
+      VITE_POSTHOG_HOST: "https://us.i.posthog.com",
+    },
+  });
+  harness.api.initializeCampaignAnalytics();
+  harness.api.trackCampaignEvent("travel_map_photo_select", {
+    journey_source: "photos", selected_photos: 3, filename: "private.jpg", latitude: 37.5,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const calls = JSON.parse(JSON.stringify(harness.window.__posthogCalls));
+  assert.equal(calls.filter(([name]) => name === "init").length, 1);
+  assert.equal(calls.filter(([name, event]) => name === "capture" && event === "$pageview").length, 1);
+  const event = calls.find(([name, eventName]) => name === "capture" && eventName === "travel_map_photo_select");
+  assert.ok(event);
+  assert.equal(event[2].surface, "recap");
+  assert.equal(event[2].analytics_schema_version, "2");
+  assert.equal(event[2].journey_source, "photos");
+  assert.equal(event[2].selected_photos, 3);
+  assert.equal(event[2].filename, undefined);
+  assert.equal(event[2].latitude, undefined);
+});
 
 test("GA is explicit, and production builds do not opt local/LAN previews in", () => {
   assert.equal(resolveMeasurementId({ PROD: true }), "");

@@ -52,9 +52,9 @@
 
 | 이벤트 | 의미 / 추가 속성 |
 | --- | --- |
-| `travel_map_photo_select` / `travel_map_demo_start` | 내 사진 선택 / 샘플 시작; `selected_photos` |
-| `travel_map_processing_complete` | 경로 생성 가능; `selected_photos`, `valid_gps_photos`, `duration_seconds` |
-| `travel_map_photo_analysis_empty` | 분석했으나 GPS 경로 없음; 메타데이터 누락/판독 실패/미지원 개수 |
+| `travel_map_photo_select` / `travel_map_demo_start` | 내 사진 선택 / 샘플 시작; `selected_photos`, 내 사진은 `picker_source=file_system_access|legacy_input` |
+| `travel_map_processing_complete` | 경로 생성 가능; `selected_photos`, `valid_gps_photos`, `duration_seconds`, `picker_source` |
+| `travel_map_photo_analysis_empty` | 분석했으나 GPS 경로 없음; 메타데이터 누락/판독 실패/미지원 개수, `picker_source` |
 | `travel_map_processing_failed` | 분석 예외; `error_type=analysis_failed` |
 | `travel_map_replay_complete` | 경로 재생 종료. 영상 파일 생성 성공을 뜻하지 않음 |
 | `travel_map_recap_view` | 결과 미리보기 표시 |
@@ -99,10 +99,12 @@ Recap 내부 화면을 가짜 `page_view`로 보내지 않고 단계별 이벤�
 - Recap→메인 내부 링크에 UTM을 붙이지 않는다. `travel_map_landing_click`으로 진단한다.
 - 외부 Google Play Install Referrer 표기는 유지. 실제 설치 귀속은 별도 검증 대상이다.
 - 두 앱 모두 `VITE_GA_MEASUREMENT_ID` 명시 필수. CodeBuild에 운영 ID가 전달되는지 배포 전에 확인한다.
+- 두 앱은 같은 `VITE_POSTHOG_KEY`와 `VITE_POSTHOG_HOST`를 사용하지만 각각 SDK를 초기화한다. `/recap/` 직접 진입도 메인 랜딩을 거치지 않고 `$pageview`와 Recap 이벤트를 전송해야 한다.
 - CodeBuild는 측정 ID가 없거나 QA/debug 플래그가 켜진 경우 빌드 전에 실패시켜 추적이 빠진 운영 배포를 방지한다.
 - `map-mory.com`/`www.map-mory.com` 외 기본 비활성. QA만 `VITE_GA_CAPTURE_LOCAL=true`, `VITE_GA_DEBUG=true`와 `?internal=1` 사용.
 - 내부 표시는 같은 출처 저장소 공유. 보고서에서 제외하되 영구 데이터 제외 필터는 임의 활성화하지 않는다.
 - 동의 설정·보존기간·Ads 연동·데이터 삭제 정책은 이번 변경에서 수정하지 않는다.
 - 가짜 측정 ID·네트워크 차단 테스트 통과는 GA4 실수신 증거가 아니다.
+- PostHog 운영 타일과 필터는 [POSTHOG_DASHBOARD_SETUP.md](POSTHOG_DASHBOARD_SETUP.md)를 따르며, 코드 연결과 Live Events 수신·대시보드 저장을 각각 확인한다.
 
 이전 계획과 가설은 [보존 문서](ANALYTICS_MEASUREMENT_HISTORY.md)에 남긴다.

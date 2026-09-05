@@ -43,7 +43,7 @@
     "pipelineType": "V2",
     "executionMode": "SUPERSEDED",
     "serviceRoleName": "codepipeline-project",
-    "artifactStore": { "type": "S3", "location": "techcourse-project-2026" },
+    "artifactStore": { "type": "S3", "location": "techcourse-project-2026-artifact" },
     "stages": [
       {
         "name": "Source",

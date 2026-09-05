@@ -74,7 +74,7 @@ test("shared-account resources use approved roles, storage, logs, tags and bound
   assert.equal(resources.codeDeploy.serviceRoleName, "codedeploy-project");
   assert.equal(resources.codeBuild.serviceRoleName, "codebuild-project");
   assert.equal(resources.codePipeline.serviceRoleName, "codepipeline-project");
-  assert.equal(resources.codePipeline.artifactStore.location, "techcourse-project-2026");
+  assert.equal(resources.codePipeline.artifactStore.location, "techcourse-project-2026-artifact");
   assert.equal(resources.codeBuild.logsConfig.cloudWatchLogs.groupName, "/aws/codebuild/project-2026");
   assert.equal(resources.codeBuild.concurrentBuildLimit, 1);
   assert.equal(resources.codeBuild.timeoutInMinutes, 15);

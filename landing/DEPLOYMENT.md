@@ -6,7 +6,7 @@
 - Reuse the institution account and its designated roles. Do not create IAM users, access keys or OIDC roles, modify shared policies, widen SSH/network access, or inspect other teams' resources.
 - Every created resource must carry `Service=techcourse`, `Role=techcourse-etc`, `ProjectTeam=Mapmory`. Apply the common tags in `codedeploy/aws-resources.json` to **each** application, deployment group, build project and pipeline; the JSON is a blueprint, not a CLI request.
 - Monthly team limits provided by the institution: August $50, September $60, October onward $70. EC2 estimates are not the complete team bill. Check the team's usage before provisioning; CodeBuild minutes, CodePipeline and S3 add cost. Do not create budgets, dashboards or alarms with extra costs without discussion.
-- Use `techcourse-project-2026` for frontend source/build/deployment artifacts. CodePipeline generates a Mapmory-identifiable artifact prefix; the live prefix is `mapmory-landing-rele/` (AWS truncates names). Do not change bucket policy, lifecycle or other prefixes. Do not use the backend artifact bucket for frontend serving/deployment.
+- Use `techcourse-project-2026-artifact` for frontend source/build/deployment artifacts. CodePipeline generates a Mapmory-identifiable artifact prefix; the live prefix is `mapmory-landing-rele/` (AWS truncates names). Do not change bucket policy, lifecycle or other prefixes. Do not use `techcourse-project-2026` or the backend artifact bucket for frontend serving/deployment.
 - Permissions or bucket-role mismatches must be raised in the institution's technical-review channel. Never work around them by changing shared IAM policies. Most deletion permissions are absent; avoid speculative resources.
 
 ## Branch, review and approval

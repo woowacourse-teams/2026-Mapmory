@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { APP_ACQUISITION_URL, CAMPAIGN_LANDING_URL, GOOGLE_PLAY_PACKAGE_ID, MAPMORY_DOMAIN_LABEL, MAPMORY_SITE_ORIGIN } from "../src/campaignConfig.js";
-import { initializeCampaignAnalytics, resolveMeasurementId, resolveTrafficType, sanitizeEventProperties, trackCampaignEvent } from "../src/analytics.js";
+import { initializeCampaignAnalytics, POSTHOG_CAPTURE_CONFIG, resolveMeasurementId, resolveTrafficType, sanitizeEventProperties, trackCampaignEvent } from "../src/analytics.js";
 
 test("uses the official Google Play listing for app acquisition", () => {
   const destination = new URL(APP_ACQUISITION_URL);
@@ -51,5 +51,21 @@ test("marks internal campaign traffic without collecting personal fields", () =>
   assert.equal(resolveTrafficType({ search: "?internal=1", storage }), "internal");
   assert.equal(resolveTrafficType({ storage }), "internal");
   assert.equal(resolveTrafficType({ search: "?internal=0", storage }), "external");
-  assert.deepEqual(sanitizeEventProperties({ journey_source: "demo", selected_photos: 5, latitude: 37.5, filename: "private.jpg", email: "private@example.com" }), { journey_source: "demo", selected_photos: 5 });
+  assert.deepEqual(sanitizeEventProperties({ journey_source: "photos", picker_source: "file_system_access", selected_photos: 5, latitude: 37.5, filename: "private.jpg", email: "private@example.com" }), { journey_source: "photos", picker_source: "file_system_access", selected_photos: 5 });
+  assert.deepEqual(sanitizeEventProperties({ journey_source: "photos", picker_source: "unknown" }), { journey_source: "photos" });
+});
+
+test("keeps Recap PostHog anonymous and explicit", () => {
+  assert.deepEqual(POSTHOG_CAPTURE_CONFIG, {
+    defaults: "2026-05-30",
+    autocapture: false,
+    capture_pageview: false,
+    capture_pageleave: false,
+    disable_session_recording: true,
+    disable_surveys: true,
+    person_profiles: "never",
+    persistence: "memory",
+    advanced_disable_feature_flags: true,
+    advanced_disable_feature_flags_on_first_load: true,
+  });
 });

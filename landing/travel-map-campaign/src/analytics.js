@@ -4,10 +4,16 @@ export { resolveMeasurementId } from "../../src/analytics-contract.js";
 const environment = import.meta.env ?? {};
 const measurementId = resolveMeasurementId(environment);
 const campaignVersion = environment.VITE_CAMPAIGN_VERSION?.trim() || "travel-map-v1";
+const posthogKey = environment.VITE_POSTHOG_KEY?.trim() || "";
+const posthogHost = environment.VITE_POSTHOG_HOST?.trim() || "";
+const capturePosthogLocally = environment.VITE_POSTHOG_CAPTURE_LOCAL === "true";
+const isLocalBrowser = typeof window !== "undefined"
+  && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const forbiddenParameterPattern = /(email|phone|name|address|message|free.?text)/i;
 const supportedParameters = new Set([
   "journey_source", "selected_photos", "valid_gps_photos", "duration_seconds",
   "metadata_missing_photos", "read_failed_photos", "unsupported_photos",
+  "picker_source",
   "cta_placement", "destination", "store", "format", "result", "error_type",
 ]);
 const supportedEvents = new Set([
@@ -47,15 +53,66 @@ function resolveBrowserTrafficType() {
 
 const trafficType = resolveBrowserTrafficType();
 let gaInitialized = false;
+let posthogInitialization = null;
+
+export const POSTHOG_CAPTURE_CONFIG = Object.freeze({
+  defaults: "2026-05-30",
+  autocapture: false,
+  capture_pageview: false,
+  capture_pageleave: false,
+  disable_session_recording: true,
+  disable_surveys: true,
+  person_profiles: "never",
+  persistence: "memory",
+  advanced_disable_feature_flags: true,
+  advanced_disable_feature_flags_on_first_load: true,
+});
+
+function initializePostHog() {
+  const shouldInitialize = posthogKey
+    && posthogHost
+    && (!isLocalBrowser || capturePosthogLocally)
+    && typeof window !== "undefined";
+
+  if (!shouldInitialize) return null;
+  if (posthogInitialization) return posthogInitialization;
+
+  posthogInitialization = import("posthog-js/dist/module.no-external")
+    .then(({ default: posthog }) => {
+      posthog.init(posthogKey, {
+        ...POSTHOG_CAPTURE_CONFIG,
+        api_host: posthogHost,
+      });
+      posthog.register({
+        ...measurementContext("recap"),
+        campaign_version: campaignVersion,
+        traffic_type: trafficType,
+        $geoip_disable: true,
+      });
+      posthog.capture("$pageview", { $pathname: window.location.pathname });
+      return posthog;
+    })
+    .catch((error) => {
+      if (capturePosthogLocally) {
+        console.warn("PostHog campaign analytics initialization failed.", error);
+      }
+      return null;
+    });
+
+  return posthogInitialization;
+}
 
 export function sanitizeEventProperties(properties = {}) {
   return Object.fromEntries(Object.entries(properties).filter(([key, value]) => (
     supportedParameters.has(key) && !forbiddenParameterPattern.test(key) && isScalar(value)
     && (key !== "journey_source" || ["demo", "photos"].includes(value))
+    && (key !== "picker_source" || ["file_system_access", "legacy_input"].includes(value))
   )));
 }
 
 export function initializeCampaignAnalytics() {
+  void initializePostHog();
+
   if (!measurementId || gaInitialized || typeof window === "undefined"
     || !canCaptureGa(environment, window.location.hostname)) return false;
 
@@ -94,9 +151,12 @@ export function trackCampaignEvent(eventName, properties = {}) {
     window.gtag("event", eventName, eventProperties);
     tracked = true;
   }
-  if (typeof window !== "undefined" && window.posthog?.capture) {
-    window.posthog.capture(eventName, { ...eventProperties, $geoip_disable: true });
+  const posthogClient = initializePostHog();
+  if (posthogClient) {
     tracked = true;
+    void posthogClient.then((posthog) => {
+      posthog?.capture(eventName, { ...eventProperties, $geoip_disable: true });
+    });
   }
   return tracked;
 }

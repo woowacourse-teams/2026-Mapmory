@@ -9,6 +9,7 @@ import { APP_ACQUISITION_URL, CAMPAIGN_LANDING_URL } from "./campaignConfig.js";
 import { analyzePhotoFiles, createPlaybackJourney, demoJourney, formatShortDate, getAutoDuration, getJourneyStats, getReplayDuration } from "./journeyData.js";
 import { drawJourneyMap, getActivePoint, loadJourneyImages } from "./mapRenderer.js";
 import { getJourneyProgressState } from "./journeyProgress.js";
+import { pickOriginalPhotoFiles } from "./photoPicker.js";
 import { downloadBlob, drawShareFrame, renderJourneyVideo, renderShareImage } from "./videoRenderer.js";
 import { shareVideo } from "./shareVideo.js";
 
@@ -72,8 +73,7 @@ function StatPills({ journey }) {
   return <div className="stat-pills" aria-label="여행 통계"><span><strong>{stats.trips}</strong> TRIPS</span><span><strong>{stats.cities}</strong> CITIES</span><span><strong>{stats.photos}</strong> PHOTOS</span></div>;
 }
 
-function EntryScreen({ onFiles, onDemo }) {
-  const inputRef = useRef(null);
+function EntryScreen({ onPickFiles, onDemo }) {
   return (
     <section className="screen screen-entry" aria-labelledby="entry-title">
       <CampaignHeader />
@@ -86,8 +86,7 @@ function EntryScreen({ onFiles, onDemo }) {
           <JourneyMap journey={demoJourney} progress={1} />
           <small>Map data · Natural Earth</small>
         </figure>
-        <input ref={inputRef} className="visually-hidden" type="file" accept=".jpg,.jpeg,.heic,.heif,.png,.tif,.tiff,.avif,.webp" multiple onChange={(event) => event.target.files?.length && onFiles(event.target.files)} />
-        <button className="primary-button" type="button" onClick={() => inputRef.current?.click()}><UploadSimple size={20} weight="bold" /> 사진 선택하고 지도 만들기</button>
+        <button className="primary-button" type="button" onClick={onPickFiles}><UploadSimple size={20} weight="bold" /> 원본 사진 선택하고 지도 만들기</button>
         <p className="accuracy-note">최대 200장 · 총 500MB · 사진 한 장 50MB 이하</p>
         <button className="text-button" type="button" onClick={onDemo}>사진 없이 샘플 결과 먼저 보기 <ArrowRight size={16} weight="bold" /></button>
         <aside className="privacy-note"><ShieldCheck size={23} weight="duotone" /><div><strong>원본 사진은 업로드하지 않아요</strong><p>이 브라우저에서 날짜·GPS만 읽고 결과를 만들어요.</p></div></aside>
@@ -119,7 +118,7 @@ function ProcessingScreen({ progress, selectedCount }) {
   );
 }
 
-function EmptyScreen({ analysis, selectedCount, onRetry, onDemo }) {
+function EmptyScreen({ analysis, selectedCount, onRetry, onRetryOriginals, onDemo }) {
   const supportedCount = analysis?.supportedPhotoCount ?? 0;
   const readFailedCount = analysis?.readFailedCount ?? 0;
   const unsupportedCount = analysis?.unsupportedCount ?? 0;
@@ -130,17 +129,17 @@ function EmptyScreen({ analysis, selectedCount, onRetry, onDemo }) {
     ? "선택한 파일을 분석할 수 없어요."
     : parserFailedCompletely
       ? "파일 정보를 읽는 중 문제가 생겼어요."
-      : "웹에서 받은 파일에 GPS 좌표가 없어요.";
+      : "웹에 전달된 사진에서 GPS가 빠졌어요.";
   const description = analysis?.error || (unsupportedCompletely
     ? "JPG, HEIC, HEIF, PNG, TIFF, AVIF, WEBP 형식의 사진을 선택해주세요."
     : parserFailedCompletely
       ? "사진은 정상적으로 선택됐지만 파일 내부 정보를 판독하지 못했습니다."
-      : "사진 앱에 위치가 표시되어도 웹에 전달된 파일에는 좌표가 빠질 수 있어요.");
+      : "Android 사진 선택기는 사진 앱에 위치가 표시되어도 웹에 넘기는 파일에서 좌표를 가릴 수 있어요.");
   const resultMessage = analysis?.error ? "사진 수와 용량을 확인한 뒤 다시 선택해주세요. 선택한 사진은 일부만 처리하지 않아요." : unsupportedCompletely
     ? "선택한 파일 형식을 확인해주세요."
     : parserFailedCompletely
       ? "원본 파일로 다시 시도하면 해결될 수 있어요."
-      : "사진 앱의 위치정보가 없다는 뜻은 아니며, 웹에서 받은 파일 데이터만 기준으로 한 결과예요.";
+      : "사진 앱의 위치정보가 없다는 뜻은 아니에요. ‘내 파일’의 DCIM/Camera 폴더에서 원본을 다시 선택해주세요.";
 
   return (
     <section className="screen screen-empty" aria-labelledby="empty-title">
@@ -163,7 +162,7 @@ function EmptyScreen({ analysis, selectedCount, onRetry, onDemo }) {
           {unsupportedCount > 0 && <p className="is-error"><strong>지원하지 않는 형식</strong> {unsupportedCount}장</p>}
         </div>
         <p className="file-result-note">{resultMessage}</p>
-        <button className="primary-button" type="button" onClick={onRetry}>원본 사진 다시 선택하기</button>
+        <button className="primary-button" type="button" onClick={onRetryOriginals}>내 파일에서 원본 다시 선택하기</button>
         <button className="text-button" type="button" onClick={onDemo}>샘플 지도로 결과 미리보기 <ArrowRight size={16} /></button>
       </div>
     </section>
@@ -376,6 +375,7 @@ export function App() {
   const [selectedCount, setSelectedCount] = useState(0);
   const [processingProgress, setProcessingProgress] = useState(0);
   const objectUrlsRef = useRef([]);
+  const fallbackInputRef = useRef(null);
   useEffect(() => () => objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   const navigate = (nextScreen) => { setScreen(nextScreen); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -393,6 +393,7 @@ export function App() {
       if (result.points.length === 0) {
         trackCampaignEvent("travel_map_photo_analysis_empty", {
           journey_source: journeySource,
+          picker_source: result.pickerSource,
           selected_photos: count,
           metadata_missing_photos: result.metadataMissingCount,
           read_failed_photos: result.readFailedCount,
@@ -401,7 +402,7 @@ export function App() {
         navigate("empty");
         return;
       }
-      trackCampaignEvent("travel_map_processing_complete", { journey_source: journeySource, selected_photos: count, valid_gps_photos: result.validPhotoCount, duration_seconds: getAutoDuration(result) });
+      trackCampaignEvent("travel_map_processing_complete", { journey_source: journeySource, picker_source: result.pickerSource, selected_photos: count, valid_gps_photos: result.validPhotoCount, duration_seconds: getAutoDuration(result) });
       navigate("replay");
     } catch (error) {
       window.clearInterval(timer);
@@ -425,15 +426,35 @@ export function App() {
       navigate("empty");
     }
   };
-  const handleFiles = (files) => { trackCampaignEvent("travel_map_photo_select", { journey_source: "photos", selected_photos: files.length }); runProcessing(analyzePhotoFiles(files), files.length, "photos"); };
+  const handleFiles = (files, pickerSource) => {
+    trackCampaignEvent("travel_map_photo_select", { journey_source: "photos", selected_photos: files.length, picker_source: pickerSource });
+    const analysisPromise = analyzePhotoFiles(files).then((result) => ({ ...result, pickerSource }));
+    runProcessing(analysisPromise, files.length, "photos");
+  };
+  const handlePickFiles = async () => {
+    const result = await pickOriginalPhotoFiles(window);
+    if (result.status === "selected" && result.files.length > 0) {
+      handleFiles(result.files, "file_system_access");
+      return;
+    }
+    if (result.status === "unsupported" || result.status === "failed") {
+      fallbackInputRef.current?.click();
+    }
+  };
+  const handleFallbackFiles = (event) => {
+    const files = event.target.files;
+    if (files?.length) handleFiles(files, "legacy_input");
+    event.target.value = "";
+  };
   const handleDemo = () => { trackCampaignEvent("travel_map_demo_start", { journey_source: "demo" }); runProcessing(Promise.resolve(demoJourney), demoJourney.photoCount, "demo", 700); };
 
   return (
     <main className="campaign-page">
+      <input ref={fallbackInputRef} className="visually-hidden" type="file" accept=".jpg,.jpeg,.heic,.heif,.png,.tif,.tiff,.avif,.webp" multiple onChange={handleFallbackFiles} />
       <div className="campaign-stage" data-screen={screen}>
-        {screen === "entry" && <EntryScreen onFiles={handleFiles} onDemo={handleDemo} />}
+        {screen === "entry" && <EntryScreen onPickFiles={handlePickFiles} onDemo={handleDemo} />}
         {screen === "processing" && <ProcessingScreen progress={processingProgress} selectedCount={selectedCount} />}
-        {screen === "empty" && <EmptyScreen analysis={journey} selectedCount={selectedCount} onRetry={() => navigate("entry")} onDemo={handleDemo} />}
+        {screen === "empty" && <EmptyScreen analysis={journey} selectedCount={selectedCount} onRetry={() => navigate("entry")} onRetryOriginals={handlePickFiles} onDemo={handleDemo} />}
         {screen === "replay" && <ReplayScreen journey={journey} onBack={() => navigate("entry")} onNext={() => navigate("recap")} />}
         {screen === "recap" && <RecapScreen journey={journey} onBack={() => navigate("replay")} onNext={() => navigate("demand")} />}
         {screen === "demand" && <DemandScreen journeySource={journey.source} onBack={() => navigate("recap")} />}
