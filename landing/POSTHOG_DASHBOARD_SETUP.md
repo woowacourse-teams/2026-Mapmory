@@ -1,6 +1,6 @@
 # Mapmory PostHog 대시보드 설정
 
-> 아래는 v2 출시 전 대시보드 설정 기록이다. 현재 기준은 [ANALYTICS_MEASUREMENT_PLAN.md](ANALYTICS_MEASUREMENT_PLAN.md)를 따른다. 운영 시 `surface=landing`, `analytics_schema_version=2`, `traffic_type=external`, `landing_version=v3`로 분리하고 최종 전환은 두 스토어의 `download_click`이다. 아래 출시 알림 폼을 현재 퍼널에 다시 넣지 않는다. 이번 코드 변경이 기존 PostHog 대시보드 설정까지 수정한 것은 아니다.
+> 아래는 v2 출시 전 대시보드 설정 기록이다. 현재 기준은 [ANALYTICS_MEASUREMENT_PLAN.md](ANALYTICS_MEASUREMENT_PLAN.md)를 따른다. 운영 시 `surface=landing`, `analytics_schema_version=2`, `traffic_type=external`, `landing_version=v4`로 분리하고 최종 전환은 두 스토어의 `download_click`이다. 아래 출시 알림 폼을 현재 퍼널에 다시 넣지 않는다. 이번 코드 변경이 기존 PostHog 대시보드 설정까지 수정한 것은 아니다.
 
 ## 목적
 
@@ -65,7 +65,7 @@ $pageview
 
 ### 타일 B · 정확한 활성 체험시간
 
-`experience_end`만 선택하고 숫자 속성 `active_duration_ms`의 중앙값을 본다. 가능하면 25·75 백분위도 함께 표시한다. 평균은 소수의 장시간 체험에 크게 흔들리므로 보조값으로만 사용한다.
+`experience_end`만 선택하고 숫자 속성 `active_duration_seconds`의 중앙값을 본다. 가능하면 25·75 백분위도 함께 표시한다. 평균은 소수의 장시간 체험에 크게 흔들리므로 보조값으로만 사용한다.
 
 ### 타일 C · 기억 열람 깊이
 
@@ -79,9 +79,13 @@ $pageview
 
 ### 타일 D · 첫 가치 도달시간
 
-`memory_open` 중 `open_index = 1`만 선택하고 `time_since_start_ms` 중앙값을 본다. 시간이 길어지면서 기억 열기 비율이 함께 떨어지면 조작 안내나 전환 모션을 먼저 점검한다.
+`memory_open` 중 `open_index = 1`만 선택하고 `time_since_start_seconds` 중앙값을 본다. 시간이 길어지면서 기억 열기 비율이 함께 떨어지면 조작 안내나 전환 모션을 먼저 점검한다.
 
-### 타일 E · 폼 마찰
+### 타일 E · 모바일 기억 바텀시트 (v4 운영)
+
+이 타일은 위의 v2 대시보드와 분리해 `landing_version = v4`, `traffic_type != internal` 필터로 만든다. `memory_open → memory_photo_swiped → memory_sheet_closed` 흐름을 모바일로 제한해 본다. `close_method`, `photos_viewed`, `time_since_memory_open_seconds`로 사진을 넘겨본 뒤 닫았는지, 닫기 버튼과 브라우저 뒤로가기 중 어떤 경로가 쓰였는지 확인한다.
+
+### 타일 F · 폼 마찰
 
 `waitlist_submit_attempt → waitlist_submit` 퍼널과 `waitlist_submit_error` 추이를 함께 둔다. 오류는 `error_type`과 `validation_field`로 나누며 이메일이나 입력값은 분석 속성으로 추가하지 않는다.
 

@@ -16,6 +16,10 @@ function currentTime() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
+function millisecondsToSeconds(milliseconds) {
+  return Math.max(0, Math.round(milliseconds / 100) / 10);
+}
+
 export function useExperienceAnalytics(experienceType) {
   const sectionRef = useRef(null);
   const isVisibleRef = useRef(false);
@@ -60,11 +64,11 @@ export function useExperienceAnalytics(experienceType) {
     activeStartedAtRef.current = null;
   }, []);
 
-  const getActiveDurationMs = useCallback(() => {
+  const getActiveDurationSeconds = useCallback(() => {
     const inProgress = activeStartedAtRef.current === null
       ? 0
       : currentTime() - activeStartedAtRef.current;
-    return Math.max(0, Math.round(activeDurationMsRef.current + inProgress));
+    return millisecondsToSeconds(activeDurationMsRef.current + inProgress);
   }, []);
 
   const endExperience = useCallback((exitReason, transportType) => {
@@ -79,13 +83,13 @@ export function useExperienceAnalytics(experienceType) {
     hasEndedRef.current = true;
     return trackEvent(ANALYTICS_EVENTS.EXPERIENCE_END, {
       experience_type: experienceType,
-      active_duration_ms: getActiveDurationMs(),
+      active_duration_seconds: getActiveDurationSeconds(),
       unique_memories_opened: openedMemoryIdsRef.current.size,
       last_completed_step: lastCompletedStepRef.current,
       exit_reason: exitReason,
       transport_type: transportType,
     });
-  }, [clearExitTimer, experienceType, getActiveDurationMs, pauseActiveTimer]);
+  }, [clearExitTimer, experienceType, getActiveDurationSeconds, pauseActiveTimer]);
 
   const markViewed = useCallback(() => {
     if (hasViewedRef.current || document.hidden) return;
@@ -192,9 +196,9 @@ export function useExperienceAnalytics(experienceType) {
       memory_id: memoryId,
       selection_source: selectionSource,
       open_index: openedMemoryIdsRef.current.size,
-      time_since_start_ms: getActiveDurationMs(),
+      time_since_start_seconds: getActiveDurationSeconds(),
     });
-  }, [experienceType, getActiveDurationMs, startExperience]);
+  }, [experienceType, getActiveDurationSeconds, startExperience]);
 
   const trackMemoryAdd = useCallback((memoryId) => {
     startExperience("memory_add");
@@ -206,9 +210,9 @@ export function useExperienceAnalytics(experienceType) {
       experience_type: experienceType,
       memory_id: memoryId,
       add_index: addedMemoryIdsRef.current.size,
-      time_since_start_ms: getActiveDurationMs(),
+      time_since_start_seconds: getActiveDurationSeconds(),
     });
-  }, [experienceType, getActiveDurationMs, startExperience]);
+  }, [experienceType, getActiveDurationSeconds, startExperience]);
 
   return {
     sectionRef,
