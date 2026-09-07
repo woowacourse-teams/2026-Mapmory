@@ -40,7 +40,7 @@
   },
   "codePipeline": {
     "name": "mapmory-landing-release",
-    "pipelineType": "V1",
+    "pipelineType": "V2",
     "executionMode": "SUPERSEDED",
     "serviceRoleName": "codepipeline-project",
     "artifactStore": { "type": "S3", "location": "techcourse-project-2026" },
@@ -48,7 +48,7 @@
       {
         "name": "Source",
         "actions": [{
-          "name": "GitHubSource",
+          "name": "Source",
           "namespace": "SourceVariables",
           "actionTypeId": { "category": "Source", "owner": "ThirdParty", "provider": "GitHub", "version": "1" },
           "configuration": { "Owner": "woowacourse-teams", "Repo": "2026-Mapmory", "Branch": "landing-release", "PollForSourceChanges": "false" },
@@ -59,26 +59,15 @@
       {
         "name": "Build",
         "actions": [{
-          "name": "BuildAndTestLanding",
+          "name": "Build",
+          "namespace": "BuildVariables",
           "actionTypeId": { "category": "Build", "owner": "AWS", "provider": "CodeBuild", "version": "1" },
           "configuration": {
             "ProjectName": "mapmory-landing-build",
             "EnvironmentVariables": "[{\"name\":\"SOURCE_COMMIT_ID\",\"value\":\"#{SourceVariables.CommitId}\",\"type\":\"PLAINTEXT\"}]"
           },
           "inputArtifacts": [{ "name": "SourceArtifact" }],
-          "outputArtifacts": [{ "name": "LandingBundle" }],
-          "runOrder": 1
-        }]
-      },
-      {
-        "name": "Approve",
-        "actions": [{
-          "name": "ApproveLandingProduction",
-          "actionTypeId": { "category": "Approval", "owner": "AWS", "provider": "Manual", "version": "1" },
-          "configuration": {
-            "CustomData": "Mapmory release owner: approve only after CodeRabbit/required checks pass and this SHA is the latest landing-release head: #{SourceVariables.CommitId}. Never approve a backend deployment here.",
-            "ExternalEntityLink": "https://github.com/woowacourse-teams/2026-Mapmory/commit/#{SourceVariables.CommitId}"
-          },
+          "outputArtifacts": [{ "name": "BuildArtifact" }],
           "runOrder": 1
         }]
       },
@@ -88,7 +77,7 @@
           "name": "DeployLandingOnly",
           "actionTypeId": { "category": "Deploy", "owner": "AWS", "provider": "CodeDeploy", "version": "1" },
           "configuration": { "ApplicationName": "mapmory-landing", "DeploymentGroupName": "mapmory-landing-production" },
-          "inputArtifacts": [{ "name": "LandingBundle" }],
+          "inputArtifacts": [{ "name": "BuildArtifact" }],
           "runOrder": 1
         }]
       }

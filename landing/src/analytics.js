@@ -2,7 +2,7 @@ import { canCaptureGa, isScalar, measurementContext, resolveMeasurementId } from
 
 const environment = import.meta.env ?? {};
 const measurementId = resolveMeasurementId(environment);
-const landingVersion = environment.VITE_LANDING_VERSION?.trim() || "v3";
+const landingVersion = environment.VITE_LANDING_VERSION?.trim() || "v4";
 const posthogKey = environment.VITE_POSTHOG_KEY?.trim() || "";
 const posthogHost = environment.VITE_POSTHOG_HOST?.trim() || "";
 const capturePosthogLocally = environment.VITE_POSTHOG_CAPTURE_LOCAL === "true";
@@ -77,6 +77,8 @@ export const ANALYTICS_EVENTS = Object.freeze({
   EXPERIENCE_VIEW: "experience_view",
   EXPERIENCE_START: "experience_start",
   MEMORY_OPEN: "memory_open",
+  MEMORY_PHOTO_SWIPED: "memory_photo_swiped",
+  MEMORY_SHEET_CLOSED: "memory_sheet_closed",
   KOREA_MEMORY_ADD: "korea_memory_add",
   EXPERIENCE_END: "experience_end",
   WAITLIST_CTA_CLICK: "waitlist_cta_click",
@@ -100,8 +102,9 @@ const supportedParameters = new Set([
   "store",
   "open_index",
   "add_index",
-  "time_since_start_ms",
-  "active_duration_ms",
+  "time_since_start_seconds",
+  "active_duration_seconds",
+  "time_since_memory_open_seconds",
   "unique_memories_opened",
   "last_completed_step",
   "exit_reason",
@@ -110,6 +113,11 @@ const supportedParameters = new Set([
   "error_type",
   "validation_field",
   "transport_type",
+  "photo_index",
+  "photo_count",
+  "close_method",
+  "max_photo_index",
+  "photos_viewed",
 ]);
 
 let gaInitialized = false;

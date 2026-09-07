@@ -19,7 +19,7 @@
 
 - 자동 `page_view`와 커스텀 이벤트: `analytics_schema_version=2`, `surface=landing|recap`, `traffic_type=external|internal`.
 - 운영 보고서는 **schema 2 + traffic_type=external + 해당 surface**를 모두 적용한다. 과거 오집계와 내부 QA를 섞지 않는다.
-- 화면 버전은 `landing_version=v3`, `campaign_version=travel-map-v1` 유지. 측정 방식 변경은 별도 schema로 분리한다.
+- 화면 버전은 `landing_version=v4`, `campaign_version=travel-map-v1` 유지. 측정 방식 변경은 별도 schema로 분리한다.
 - 주요 KPI: 같은 기간 `download_click` **총 사용자 수** ÷ 해당 화면 `page_view` **총 사용자 수**. 이벤트 수와 사용자 수를 혼용하지 않는다. 두 스토어를 모두 누른 사용자는 전체 전환자에서 한 번만 센다.
 - 위치별 수치는 클릭 사용자 분포다. CTA 노출 이벤트가 없으므로 위치별 CTR로 명명하지 않는다.
 - 기기는 기본 `device category`로 비교한다. 모바일 모션 완료와 데스크톱 스크롤 완료를 직접 비교하지 않는다.
@@ -32,9 +32,11 @@
 | `experience_cta_click` | 헤더·각 히어로 체험 진입 링크 | `experience_type`, `cta_placement`; 클릭마다 |
 | `experience_view` | 활성 탭에서 영역이 뷰포트 기준 50% 이상 1초 노출, 또는 명시적 첫 조작 | `experience_type`; 유형별 페이지당 1회 |
 | `experience_start` | 나라 선택·드래그 의도·확대·예시 사진 추가 | `interaction_type`; 유형별 페이지당 1회 |
-| `memory_open` | 패널이 React 화면에 반영된 뒤 | `memory_id`, `selection_source`, `open_index`, `time_since_start_ms`; 첫 연속 체험에서 기억별 1회 |
-| `korea_memory_add` | 대한민국 예시 사진 색칠 모션 완료 | `memory_id`, `add_index`, `time_since_start_ms`; 기억별 1회 |
-| `experience_end` | 체험을 1.5초 벗어나거나 pagehide | `active_duration_ms`, `unique_memories_opened`, `last_completed_step`, `exit_reason`; 유형별 첫 연속 체험 1회 |
+| `memory_open` | 패널이 React 화면에 반영된 뒤 | `memory_id`, `selection_source`, `open_index`, `time_since_start_seconds`; 첫 연속 체험에서 기억별 1회 |
+| `memory_photo_swiped` | 모바일 기억 바텀시트에서 첫 실제 사진 스와이프 | `memory_id`, `photo_index`, `photo_count`, `time_since_memory_open_seconds`; 패널을 열 때마다 1회 |
+| `memory_sheet_closed` | 닫기 버튼 또는 브라우저 뒤로가기로 기억 바텀시트 종료 | `memory_id`, `close_method`, `max_photo_index`, `photos_viewed`, `time_since_memory_open_seconds`; 패널을 열 때마다 1회 |
+| `korea_memory_add` | 대한민국 예시 사진 색칠 모션 완료 | `memory_id`, `add_index`, `time_since_start_seconds`; 기억별 1회 |
+| `experience_end` | 체험을 1.5초 벗어나거나 pagehide | `active_duration_seconds`, `unique_memories_opened`, `last_completed_step`, `exit_reason`; 유형별 첫 연속 체험 1회 |
 | `download_cta_click` | ‘내 기억 지도도 만들기’로 `#download`에 이동 | `cta_placement=korea_memory`; **전환 아님** |
 | `download_click` | 실제 App Store·Google Play 링크 클릭 | `store=app_store|google_play`, `cta_placement`; **설치 완료 아님** |
 
@@ -85,8 +87,8 @@ Recap 내부 화면을 가짜 `page_view`로 보내지 않고 단계별 이벤�
 
 이벤트 범위 맞춤 측정기준(기존 항목 재사용):
 `analytics_schema_version`, `surface`, `traffic_type`, `experience_type`, `cta_placement`, `store`, `journey_source`, `result`, `error_type`, `format`, `last_completed_step`.
-세부 탐색용 추가 기준: `memory_id`, `selection_source`, `landing_version`, `campaign_version`, `interaction_type`, `exit_reason`.
-맞춤 측정항목: `active_duration_ms`/`time_since_start_ms`(밀리초), `unique_memories_opened`/`selected_photos`/`valid_gps_photos`(표준).
+세부 탐색용 추가 기준: `memory_id`, `selection_source`, `landing_version`, `campaign_version`, `interaction_type`, `exit_reason`, `close_method`.
+맞춤 측정항목: `active_duration_seconds`/`time_since_start_seconds`/`time_since_memory_open_seconds`(초), `unique_memories_opened`/`selected_photos`/`valid_gps_photos`/`photo_index`/`photo_count`/`max_photo_index`/`photos_viewed`(표준).
 `open_index`/`add_index`는 순서 필터용이며 합계를 KPI로 쓰지 않는다.
 
 주요 이벤트 `download_click`은 ‘앱 스토어 이동’으로 설명하며 세션당 한 번 집계를 권장한다.
