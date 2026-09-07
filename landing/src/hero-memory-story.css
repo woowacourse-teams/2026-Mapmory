@@ -1,6 +1,6 @@
 .hero-memory-story {
   height: 340svh;
-  min-height: 2550px;
+  min-height: min(2550px, 340svh);
   --hero-globe-opacity: 1;
   --hero-globe-scale: 1.04;
   --hero-moment-reveal: 0;
@@ -227,7 +227,7 @@
 .hero-memory-story[data-map-cta-ready="true"] .hero-map-cta { pointer-events: auto; }
 
 @media (max-width: 900px) {
-  .hero-memory-story { height: 340svh; min-height: 2500px; }
+  .hero-memory-story { height: 340svh; min-height: min(2500px, 340svh); }
   .hero-memory-story:not([data-relay-phase="intro"]) .hero-map-story { min-height: calc(100svh - 102px); }
   .hero-memory-story:not([data-relay-phase="intro"]) .hero-globe-preview { left: 50%; }
 
