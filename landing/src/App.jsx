@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import koreaProvinces from "./data/korea-provinces.json";
 import {
   AppleLogo,
@@ -6,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Bell,
+  CaretDown,
   CheckCircle,
   DownloadSimple,
   EnvelopeSimple,
@@ -18,7 +20,6 @@ import {
   Play,
   Plus,
   Sun,
-  X,
 } from "@phosphor-icons/react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
@@ -46,9 +47,33 @@ const GOOGLE_PLAY_URL = import.meta.env.VITE_GOOGLE_PLAY_URL?.trim()
   || "https://play.google.com/store/apps/details?id=com.mapmory.android";
 const APP_STORE_URL = "https://apps.apple.com/kr/app/mapmory-%EC%97%AC%ED%96%89-%EA%B8%B0%EB%A1%9D-%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/id6807056166";
 const Globe = lazy(() => import("react-globe.gl"));
-const WORLD_SELECTION_MOTION_MS = 1050;
+const WORLD_SELECTION_MOTION_MS = 720;
 const KOREA_FILL_MOTION_MS = 1500;
+const HERO_CUE_POST_MOTION_DELAY_MS = 400;
+const KOREA_DETAIL_HISTORY_KEY = "__mapmoryKoreaDetail";
 const GLOBE_RENDERER_CONFIG = Object.freeze({ antialias: true, alpha: true, powerPreference: "high-performance" });
+
+function currentTimeMs() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function elapsedSeconds(startedAt) {
+  return Math.max(0, Math.round((currentTimeMs() - startedAt) / 100) / 10);
+}
+
+function isKoreaDetailHistoryEntry(state) {
+  return Boolean(
+    state
+    && typeof state === "object"
+    && typeof state[KOREA_DETAIL_HISTORY_KEY] === "string"
+    && state[KOREA_DETAIL_HISTORY_KEY].length > 0,
+  );
+}
+
+function createKoreaDetailHistoryState(state, memoryKey) {
+  const currentState = state && typeof state === "object" ? state : {};
+  return { ...currentState, [KOREA_DETAIL_HISTORY_KEY]: memoryKey };
+}
 
 const memories = [
   {
@@ -141,7 +166,7 @@ const HERO_JOURNEY_RECORD = Object.freeze({
   title: "붉은 협곡에서 라스베이거스의 밤까지",
   quote: "빛이 들어오던 순간, 한참을 올려다봤어요.",
   recordLine: "흩어진 순간이, 여행 하나로.",
-  mapLine: "기록이 쌓일수록, 지도는 나다워져요.",
+  mapLine: "기록이 쌓일수록, 나만의 지도가 완성돼요.",
   photoCount: usaWestMemory.photos.length,
   representative: usaWestMemory.photos[1],
   supporting: Object.freeze([usaWestMemory.photos[0], usaWestMemory.photos[3]]),
@@ -510,6 +535,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
   const [isGlobeReady, setIsGlobeReady] = useState(false);
   const [isGlobeInView, setIsGlobeInView] = useState(false);
   const hasFocusedRef = useRef(false);
+  const lastFocusRequestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -563,9 +589,23 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
 
   useEffect(() => {
     if (!isGlobeReady || !globeRef.current) return;
-    const viewpoint = selected.viewpoint ?? { lat: selected.lat, lng: selected.lng, altitude: 2.05 };
-    globeRef.current.pointOfView(viewpoint, hasFocusedRef.current ? 850 : 0);
-    hasFocusedRef.current = true;
+    if (!hasFocusedRef.current) {
+      const initialViewpoint = selected.viewpoint ?? { lat: selected.lat, lng: selected.lng, altitude: 2.05 };
+      globeRef.current.pointOfView(initialViewpoint, 0);
+      hasFocusedRef.current = true;
+      return;
+    }
+    if (!focusRequest || focusRequest.id === lastFocusRequestRef.current) return;
+    lastFocusRequestRef.current = focusRequest.id;
+    if (focusRequest.selectionSource !== "shortcut") return;
+
+    const currentViewpoint = globeRef.current.pointOfView();
+    const requestedViewpoint = selected.viewpoint ?? { lat: selected.lat, lng: selected.lng, altitude: 2.05 };
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : WORLD_SELECTION_MOTION_MS;
+    globeRef.current.pointOfView({
+      ...requestedViewpoint,
+      altitude: currentViewpoint?.altitude ?? requestedViewpoint.altitude,
+    }, duration);
   }, [focusRequest, isGlobeReady, selected]);
 
   useEffect(() => {
@@ -594,20 +634,26 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
       aria-label="회전 가능한 Mapmory 세계 지구본"
       aria-busy={isSelecting}
       onPointerDown={(event) => {
-        if (!isGlobeReady || guideVisible || event.target.tagName !== "CANVAS") return;
+        if (!isGlobeReady || event.target.tagName !== "CANVAS") return;
         gestureStartRef.current = { pointerId: event.pointerId, pointerType: event.pointerType, clientX: event.clientX, clientY: event.clientY };
       }}
       onPointerMove={(event) => {
         const gesture = classifyGlobeGesture(gestureStartRef.current, event);
         if (gesture === "pending") return;
         gestureStartRef.current = null;
-        if (gesture === "globe_drag") onInteract(gesture);
+        if (gesture === "globe_drag") {
+          onInteract(gesture);
+          onGuideDismiss();
+        }
       }}
       onPointerUp={() => { gestureStartRef.current = null; }}
       onPointerCancel={() => { gestureStartRef.current = null; }}
       onPointerLeave={() => { gestureStartRef.current = null; }}
       onWheel={(event) => {
-        if (isGlobeReady && !guideVisible && event.target.tagName === "CANVAS" && event.deltaY !== 0) onInteract("globe_zoom");
+        if (isGlobeReady && event.target.tagName === "CANVAS" && event.deltaY !== 0) {
+          onInteract("globe_zoom");
+          onGuideDismiss();
+        }
       }}
     >
       <Suspense fallback={<div className="globe-loading"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 준비하고 있어요</span></div>}>
@@ -621,8 +667,14 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
           onPolygonHover={(polygon) => { const visited = polygon && isVisited(polygon); setHoveredId(visited ? String(polygon.id) : null); if (containerRef.current) containerRef.current.style.cursor = visited ? "pointer" : "grab"; }}
           onPolygonClick={(polygon) => { const memory = memoryByCountry.get(String(polygon.id)); if (memory) onSelect(memory, "globe"); }} />}
       </Suspense>
-      {guideVisible && <GlobeOnboarding onDismiss={onGuideDismiss} />}
-      <p className="globe-instruction"><NavigationArrow size={18} weight="fill" />{isSelecting ? "선택한 나라가 올라오는 중 · 잠시만 기다려주세요" : "잡고 돌려보세요 · 민트색 나라를 누르면 기억이 열려요"}</p>
+      {guideVisible && <GlobeOnboarding />}
+      <p className="globe-instruction" aria-live="polite"><NavigationArrow size={18} weight="fill" />{
+        isSelecting
+          ? "선택한 나라로 이동하는 중이에요"
+          : guideVisible
+            ? "지구본을 좌우로 움직여보세요"
+            : "민트색 나라를 눌러 사진을 열어보세요"
+      }</p>
     </div>
   );
 }
@@ -643,35 +695,75 @@ function PhotoCredit({ label, url }) {
   return <span className="photo-credit photo-credit-owned">Photo: {label}</span>;
 }
 
-function MemoryCard({ memory, onClose, priority = false }) {
+function MemoryCard({ memory, onClose, onPhotoChange, openSequence = 0, priority = false, isModal = false }) {
   const photos = memory.photos ?? [{
     src: memory.image,
     caption: memory.location,
     alt: `${memory.location}에서 남긴 실제 여행 장면`,
   }];
   const [photoIndex, setPhotoIndex] = useState(0);
+  const swipeStartRef = useRef(null);
   const activePhoto = photos[photoIndex];
   const hasGallery = photos.length > 1;
 
-  const movePhoto = (offset) => {
-    setPhotoIndex((current) => (current + offset + photos.length) % photos.length);
+  useEffect(() => {
+    setPhotoIndex(0);
+    swipeStartRef.current = null;
+  }, [memory.key, openSequence]);
+
+  const movePhoto = (offset, source = "button") => {
+    setPhotoIndex((current) => {
+      const next = Math.min(photos.length - 1, Math.max(0, current + offset));
+      if (next !== current) onPhotoChange?.({ photoIndex: next, photoCount: photos.length, source });
+      return next;
+    });
+  };
+
+  const handleSwipeStart = (event) => {
+    if (event.pointerType === "mouse") return;
+    swipeStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  const handleSwipeEnd = (event) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const deltaX = start.x - event.clientX;
+    const deltaY = start.y - event.clientY;
+    if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    movePhoto(deltaX > 0 ? 1 : -1, "swipe");
   };
 
   return (
-    <article className="memory-card world-memory-card" aria-live="polite">
+    <article
+      className="memory-card world-memory-card"
+      aria-live="polite"
+      aria-modal={isModal ? "true" : undefined}
+      aria-label={isModal ? `${memory.location} 기억 사진` : undefined}
+      role={isModal ? "dialog" : undefined}
+    >
       <header>
         <MapPin size={18} weight="fill" />
         <span className="memory-location"><span className="memory-location-full">{memory.location}</span><span className="memory-location-compact">{memory.location.replace(" · ", " ").replace(" 여행", "")}</span></span>
         <small>{memory.country}</small>
-        {onClose && <button type="button" className="world-memory-close" onClick={onClose} aria-label="기억 닫고 지구본으로 돌아가기"><X size={18} weight="bold" /><span>지구본으로</span></button>}
+        {onClose && <button type="button" className="world-memory-close" onClick={() => onClose("button")} aria-label="기억 닫기"><CaretDown size={16} weight="bold" aria-hidden="true" /><span>닫기</span></button>}
       </header>
-      <div className={`memory-image-wrap ${hasGallery ? "is-gallery" : ""}`}>
+      <div
+        className={`memory-image-wrap ${hasGallery ? "is-gallery" : ""}`}
+        onPointerDown={handleSwipeStart}
+        onPointerUp={handleSwipeEnd}
+        onPointerCancel={() => { swipeStartRef.current = null; }}
+      >
         <img key={activePhoto.src} src={activePhoto.src} alt={activePhoto.alt} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding={priority ? "auto" : "async"} />
         {hasGallery && (
           <>
             <span className="memory-photo-count" aria-hidden="true">{photoIndex + 1} / {photos.length}</span>
-            <button type="button" className="memory-gallery-arrow is-prev" onClick={() => movePhoto(-1)} aria-label={`이전 ${memory.country} 여행 사진`}><ArrowLeft size={18} weight="bold" /></button>
-            <button type="button" className="memory-gallery-arrow is-next" onClick={() => movePhoto(1)} aria-label={`다음 ${memory.country} 여행 사진`}><ArrowRight size={18} weight="bold" /></button>
+            <button type="button" className="memory-gallery-arrow is-prev" disabled={photoIndex === 0} onClick={() => movePhoto(-1)} aria-label={`이전 ${memory.country} 여행 사진`}><ArrowLeft size={18} weight="bold" /></button>
+            <button type="button" className="memory-gallery-arrow is-next" disabled={photoIndex === photos.length - 1} onClick={() => movePhoto(1)} aria-label={`다음 ${memory.country} 여행 사진`}><ArrowRight size={18} weight="bold" /></button>
             <div className="memory-photo-meta">
               <span className="memory-photo-caption">{activePhoto.caption}</span>
               <div className="memory-photo-dots" role="group" aria-label={`${memory.country} 여행 사진 선택`}>
@@ -680,7 +772,11 @@ function MemoryCard({ memory, onClose, priority = false }) {
                     key={photo.src}
                     type="button"
                     className={index === photoIndex ? "is-active" : ""}
-                    onClick={() => setPhotoIndex(index)}
+                    onClick={() => {
+                      if (index === photoIndex) return;
+                      setPhotoIndex(index);
+                      onPhotoChange?.({ photoIndex: index, photoCount: photos.length, source: "dot" });
+                    }}
                     aria-label={`${index + 1}번째 사진: ${photo.caption}`}
                     aria-pressed={index === photoIndex}
                   />
@@ -690,7 +786,20 @@ function MemoryCard({ memory, onClose, priority = false }) {
           </>
         )}
       </div>
-      {hasGallery && <p className="memory-mobile-photo-caption">{activePhoto.caption}</p>}
+      {hasGallery && (
+        <div className="memory-sheet-gallery-controls">
+          <button type="button" disabled={photoIndex === 0} onClick={() => movePhoto(-1)} aria-label={`이전 ${memory.country} 여행 사진`}><ArrowLeft size={18} weight="bold" /></button>
+          <div>
+            <p className="memory-mobile-photo-caption">{activePhoto.caption}</p>
+            <span className="memory-sheet-photo-count">{photoIndex + 1} / {photos.length}</span>
+            <div className="memory-sheet-photo-dots" aria-hidden="true">
+              {photos.map((photo, index) => <span key={photo.src} className={index === photoIndex ? "is-active" : ""} />)}
+            </div>
+          </div>
+          <button type="button" disabled={photoIndex === photos.length - 1} onClick={() => movePhoto(1)} aria-label={`다음 ${memory.country} 여행 사진`}><ArrowRight size={18} weight="bold" /></button>
+        </div>
+      )}
+      {!hasGallery && <div className="memory-single-title"><h2>{memory.title}</h2></div>}
       <div className="memory-card-body">
         <span className="memory-kind">실제 사진으로 열린 기억</span>
         <h2>{memory.title}</h2>
@@ -1072,12 +1181,13 @@ function KoreaDetailExperience({ theme }) {
   const [selected, setSelected] = useState(null);
   const [addedMemoryKeys, setAddedMemoryKeys] = useState(() => new Set());
   const [isAddPanelOpen, setIsAddPanelOpen] = useState(true);
-  const [addFeedback, setAddFeedback] = useState("아래 사진을 추가해 지도가 채워지는 과정을 체험해보세요.");
+  const [addFeedback, setAddFeedback] = useState("사진을 고르면 그 장소의 지역이 지도에 채워져요.");
   const [detailLevel, setDetailLevel] = useState(2);
   const [transitioningKey, setTransitioningKey] = useState(null);
   const detailDemoRef = useRef(null);
   const pendingMemorySourceRef = useRef(null);
   const transitionTimerRef = useRef(null);
+  const detailLevelRef = useRef(2);
   const analytics = useExperienceAnalytics("korea_detail");
   const addedMemories = useMemo(
     () => koreaMemories.filter((memory) => addedMemoryKeys.has(memory.key)),
@@ -1094,13 +1204,24 @@ function KoreaDetailExperience({ theme }) {
     return () => clearTimeout(transitionTimerRef.current);
   }, []);
 
+  const showKoreaOverview = useCallback(({ consumeHistory = true } = {}) => {
+    const shouldConsumeHistory = consumeHistory && isKoreaDetailHistoryEntry(window.history.state);
+    clearTimeout(transitionTimerRef.current);
+    detailLevelRef.current = 2;
+    setTransitioningKey(null);
+    setIsAddPanelOpen(false);
+    setDetailLevel(2);
+    if (shouldConsumeHistory) window.history.back();
+  }, []);
+
   useEffect(() => {
-    if (detailLevel !== 3 || (window.innerWidth > 900 && window.innerHeight > 800)) return undefined;
-    const frame = requestAnimationFrame(() => {
-      detailDemoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [detailLevel]);
+    const handleKoreaHistoryBack = () => {
+      if (detailLevelRef.current !== 3) return;
+      showKoreaOverview({ consumeHistory: false });
+    };
+    window.addEventListener("popstate", handleKoreaHistoryBack);
+    return () => window.removeEventListener("popstate", handleKoreaHistoryBack);
+  }, [showKoreaOverview]);
 
   const openDetail = (memory, selectionSource) => {
     if (selected?.key !== memory.key || detailLevel !== 3) {
@@ -1109,6 +1230,14 @@ function KoreaDetailExperience({ theme }) {
     setSelected(memory);
     setIsAddPanelOpen(false);
     setTransitioningKey(null);
+    if (window.matchMedia("(max-width: 900px)").matches && detailLevelRef.current !== 3 && !isKoreaDetailHistoryEntry(window.history.state)) {
+      window.history.pushState(
+        createKoreaDetailHistoryState(window.history.state, memory.key),
+        "",
+        window.location.href,
+      );
+    }
+    detailLevelRef.current = 3;
     setDetailLevel(3);
   };
 
@@ -1136,27 +1265,18 @@ function KoreaDetailExperience({ theme }) {
     setSelected(memory);
     setIsAddPanelOpen(false);
     setTransitioningKey(memory.key);
-    setAddFeedback(`${memory.province}가 지도에 채워지고 있어요. 색이 모두 채워질 때까지 잠시 봐주세요.`);
+    setAddFeedback(`${memory.province}에 기억을 남기고 있어요.`);
     transitionTimerRef.current = setTimeout(() => {
       analytics.trackMemoryAdd(memory.key);
       setTransitioningKey(null);
-      setAddFeedback(`${memory.province}가 채워졌어요. 색칠된 지역이나 상세지역 보기 버튼을 눌러 기억을 열어보세요.`);
-      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-      detailDemoRef.current?.scrollIntoView({ behavior, block: "start" });
+      setAddFeedback(`${memory.province}에 기억이 남았어요. 색칠된 지역이나 기억 보기를 눌러 열어보세요.`);
     }, KOREA_FILL_MOTION_MS);
-  };
-
-  const handleBack = () => {
-    clearTimeout(transitionTimerRef.current);
-    setTransitioningKey(null);
-    setIsAddPanelOpen(false);
-    setDetailLevel(2);
   };
 
   return (
     <section className="detail-section" id="korea-detail" ref={analytics.sectionRef}>
       <div className="detail-heading">
-        <div><p className="eyebrow">02 · 대한민국</p><h2>사진을 더하면<br /><em>지역의 기억이</em> 채워져요.</h2></div>
+        <div><p className="eyebrow">02 · 대한민국</p><h2>사진을 기록하면<br /><em>지도가 채워져요.</em></h2></div>
       </div>
 
       <div className={`detail-demo detail-level-${detailLevel}`} id="korea-map-demo" ref={detailDemoRef}>
@@ -1173,23 +1293,21 @@ function KoreaDetailExperience({ theme }) {
                   <div className="region-reveal-tray" aria-live="polite">
                     <div className="region-reveal-copy">
                       <span><CheckCircle size={17} weight="fill" />{activeAddedMemory.provinceShort} · 기억 1개</span>
-                      <strong>{activeAddedMemory.provinceShort}의 기억이 채워졌어요</strong>
+                      <strong>{activeAddedMemory.provinceShort}에 기억이 남았어요</strong>
                     </div>
                     <div className="region-reveal-actions">
-                      {addedMemories.length < koreaAddMemories.length && (
-                        <button className="region-reveal-add" type="button" onClick={() => setIsAddPanelOpen(true)}>
-                          다른 지역 추가
-                        </button>
-                      )}
+                      <button className="region-reveal-add" type="button" onClick={() => setIsAddPanelOpen(true)}>
+                        {addedMemories.length < koreaAddMemories.length ? "다른 지역 추가" : "기록 목록 보기"}
+                      </button>
                       <button className="region-reveal-open" type="button" onClick={() => handleSelect(activeAddedMemory, "reveal_tray")}>
-                        {activeAddedMemory.provinceShort}의 기억 보기<ArrowRight size={18} weight="bold" />
+                        {activeAddedMemory.provinceShort} 기억 열기<ArrowRight size={18} weight="bold" />
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="memory-add-panel">
                     <div className="memory-add-heading">
-                      <span><b>2단계</b> 사진 한 장을 골라 지도를 채워보세요</span>
+                      <span><b>2단계</b> 사진 한 장을 골라 지도에 기록해보세요</span>
                       <p aria-live="polite">{addFeedback}</p>
                     </div>
                     <div className="memory-add-list" role="list" aria-label="지도에 추가할 예시 사진">
@@ -1215,7 +1333,7 @@ function KoreaDetailExperience({ theme }) {
         ) : (
           <div className="region-detail-stage detail-level-content" aria-live="polite">
             <div className="region-detail-toolbar">
-              <button type="button" onClick={handleBack}><ArrowLeft size={18} weight="bold" />대한민국 지도로 돌아가기</button>
+              <button type="button" onClick={() => showKoreaOverview()}><ArrowLeft size={18} weight="bold" />대한민국 지도로 돌아가기</button>
             </div>
             <div className="district-detail-grid">
               <DistrictMap memory={selected} theme={theme} />
@@ -1246,21 +1364,19 @@ function KoreaDetailExperience({ theme }) {
   );
 }
 
-function GlobeOnboarding({ onDismiss }) {
+function GlobeOnboarding() {
   return (
-    <button
-      type="button"
+    <div
       className="globe-onboarding-overlay"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onDismiss}
-      aria-label="지구본을 돌려보세요. 민트색 나라를 누르면 기억이 열려요."
+      role="status"
+      aria-label="지구본을 좌우로 움직여보세요. 첫 움직임부터 바로 반응합니다."
     >
       <span className="globe-onboarding-card">
         <span className="globe-onboarding-gesture" aria-hidden="true"><HandSwipeLeft size={46} weight="duotone" /></span>
-        <strong>지구본을 돌려보세요</strong>
-        <span className="globe-onboarding-copy">민트색 나라를 누르면 기억이 열려요 · 눌러서 시작</span>
+        <strong>지구본을 좌우로 움직여보세요</strong>
+        <span className="globe-onboarding-copy">첫 움직임부터 바로 반응해요</span>
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -1443,10 +1559,13 @@ function MobileHeroSection({ onExperienceEntry, theme }) {
     reducedMotion: window.matchMedia(reducedMotionQuery).matches,
   }));
   const [isGlobeReady, setIsGlobeReady] = useState(false);
+  const [isCueVisible, setIsCueVisible] = useState(prefersReducedMotion);
+  const [isCueNudging, setIsCueNudging] = useState(false);
   const visualRef = useRef(null);
   const recordRef = useRef(null);
   const playedRef = useRef(prefersReducedMotion);
   const startedRef = useRef(false);
+  const hasDismissedCueRef = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia(reducedMotionQuery);
@@ -1504,6 +1623,38 @@ function MobileHeroSection({ onExperienceEntry, theme }) {
     };
   }, [isGlobeReady, prefersReducedMotion]);
 
+  useEffect(() => {
+    const handleFirstScroll = () => {
+      if (hasDismissedCueRef.current || window.scrollY <= 0) return;
+      hasDismissedCueRef.current = true;
+      setIsCueVisible(false);
+      setIsCueNudging(false);
+    };
+
+    window.addEventListener("scroll", handleFirstScroll, { passive: true });
+    handleFirstScroll();
+    return () => window.removeEventListener("scroll", handleFirstScroll);
+  }, []);
+
+  useEffect(() => {
+    if (hasDismissedCueRef.current) return undefined;
+    if (prefersReducedMotion) {
+      setIsCueVisible(true);
+      setIsCueNudging(false);
+      return undefined;
+    }
+    if (!entryState.isComplete) {
+      setIsCueVisible(false);
+      return undefined;
+    }
+    const cueTimer = window.setTimeout(() => {
+      if (hasDismissedCueRef.current) return;
+      setIsCueVisible(true);
+      setIsCueNudging(true);
+    }, HERO_CUE_POST_MOTION_DELAY_MS);
+    return () => window.clearTimeout(cueTimer);
+  }, [entryState.isComplete, prefersReducedMotion]);
+
   const isComplete = entryState.isComplete;
   const sourceIsHidden = isComplete && !prefersReducedMotion;
   const resultIsHidden = !isComplete || prefersReducedMotion;
@@ -1556,7 +1707,13 @@ function MobileHeroSection({ onExperienceEntry, theme }) {
             <CheckCircle size={19} weight="fill" />
           </div>
         </div>
-        <a className="hero-mobile-experience-cue" href="#experience" onClick={() => onExperienceEntry("hero_mobile")}><span>기록된 추억 열어보기</span><ArrowDown size={18} weight="bold" /></a>
+        <a
+          className={`hero-mobile-experience-cue ${isCueNudging ? "is-nudging" : ""} ${isCueVisible ? "" : "is-hidden"}`}
+          href="#experience"
+          aria-hidden={!isCueVisible}
+          tabIndex={isCueVisible ? 0 : -1}
+          onClick={() => onExperienceEntry("hero_mobile")}
+        ><span>아래로 내려 기록 과정을 보세요</span><ArrowDown size={18} weight="bold" /></a>
         <p className="sr-only" aria-live="polite">{liveStatus}</p>
       </div>
     </section>
@@ -1594,7 +1751,7 @@ function useHeroMemoryRelay() {
       section.style.setProperty("--hero-handoff-reveal", nextState.handoffReveal.toFixed(4));
       section.style.setProperty("--hero-copy-x", `${(-42 * nextState.introExit).toFixed(2)}px`);
       const mobileLayout = window.innerWidth <= 560;
-      const tabletLayout = window.innerWidth <= 900;
+      const tabletLayout = window.innerWidth <= 680;
       const compactShortLayout = mobileLayout && window.innerHeight <= 680;
       section.style.setProperty("--hero-map-x", `${(tabletLayout ? 0 : -150 * nextState.introExit).toFixed(2)}px`);
       const compactMapShift = mobileLayout ? getHeroMobileMapShift(nextState.introExit, window.innerHeight) : 0;
@@ -1719,14 +1876,14 @@ function DesktopHeroSection({ onExperienceEntry, theme }) {
       <div className="hero-story-frame" ref={frameRef}>
         <div className="hero-layout">
           <div className="hero-copy" aria-hidden={!isIntroAccessible} inert={!isIntroAccessible}>
-            <h1><span>여행에서 남긴 순간을,</span><em>나만의 기억 지도로 기록해요.</em></h1>
-            <p className="hero-description">다시 보고 싶은 장소를 골라 <br />그날의 사진과 함께 남겨보세요.</p>
+            <h1><span>여행의 순간을,</span><em>나만의 지도로.</em></h1>
+            <p className="hero-description">사진과 글을 남기면, 그 장소가 <br />나만의 지도에 기억으로 쌓여요.</p>
             <div className="hero-actions">
               <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
                 <StoreButton placement="hero" platform="ios" label="App Store" tabIndex={isIntroAccessible ? 0 : -1} />
                 <StoreButton placement="hero" platform="android" label="Google Play" tabIndex={isIntroAccessible ? 0 : -1} />
               </div>
-              <a className="button button-secondary" href="#experience" tabIndex={isIntroAccessible ? 0 : -1} onClick={() => onExperienceEntry("hero")}><GlobeHemisphereEast size={19} weight="duotone" />지구본을 직접 돌려보기</a>
+              <a className="button button-secondary" href="#experience" tabIndex={isIntroAccessible ? 0 : -1} onClick={() => onExperienceEntry("hero")}><GlobeHemisphereEast size={19} weight="duotone" />기억 지도 둘러보기</a>
             </div>
             <p className="release-note"><CheckCircle size={17} weight="fill" />iPhone과 Android에서 바로 시작할 수 있어요</p>
           </div>
@@ -1758,7 +1915,9 @@ function DesktopHeroSection({ onExperienceEntry, theme }) {
 
                 <p className="hero-scene-line hero-line-moment" aria-hidden={relayState.momentReveal < 0.5}>“{HERO_JOURNEY_RECORD.quote}”</p>
                 <p className="hero-scene-line hero-line-record" aria-hidden={relayState.recordReveal < 0.5}>{HERO_JOURNEY_RECORD.recordLine}</p>
-                <p className="hero-scene-line hero-line-map" aria-hidden={relayState.mapResultReveal < 0.5}>{HERO_JOURNEY_RECORD.mapLine}</p>
+                <p className="hero-scene-line hero-line-map" aria-hidden={relayState.mapResultReveal < 0.5} aria-label={HERO_JOURNEY_RECORD.mapLine}>
+                  <span>기록이 쌓일수록, </span><span className="hero-map-line-keyword"><em>나만의 지도</em>가</span><span> 완성돼요.</span>
+                </p>
                 <a className="button button-primary hero-map-cta" href="#experience" aria-hidden={!isMapCtaReady} tabIndex={isMapCtaReady ? 0 : -1} onClick={() => onExperienceEntry("hero_handoff")}><GlobeHemisphereEast size={19} weight="duotone" />기록된 추억 직접 열어보기</a>
               </div>
             </div>
@@ -1769,7 +1928,7 @@ function DesktopHeroSection({ onExperienceEntry, theme }) {
           <p><CheckCircle size={19} weight="fill" />사진과 글이 하나의 여행 기록으로 묶여, 3D 기억 지도에 남아요.</p>
           <a className="button button-primary" href="#experience" onClick={() => onExperienceEntry("hero_reduced_handoff")}><GlobeHemisphereEast size={19} weight="duotone" />기록된 추억 직접 열어보기</a>
         </div>
-        <a className="hero-fold-cue" href="#hero-relay" aria-hidden={!isFoldCueAccessible} tabIndex={isFoldCueAccessible ? 0 : -1}><span>아래로 내려 사진을 지도에 더해보기</span><ArrowDown size={18} weight="bold" /></a>
+        <a className="hero-fold-cue" href="#hero-relay" aria-hidden={!isFoldCueAccessible} tabIndex={isFoldCueAccessible ? 0 : -1}><span>아래로 내려 기록 과정을 보세요</span><ArrowDown size={18} weight="bold" /></a>
       </div>
     </section>
   );
@@ -1784,41 +1943,98 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("mapmory-theme") || "light");
   const [selectedMemory, setSelectedMemory] = useState(memories[0]);
   const [displayedMemory, setDisplayedMemory] = useState(memories[0]);
-  const [globeFocusRequest, setGlobeFocusRequest] = useState(0);
+  const [globeFocusRequest, setGlobeFocusRequest] = useState({ id: 0, selectionSource: "initial" });
   const [isGlobeGuideVisible, setIsGlobeGuideVisible] = useState(false);
   const [isGlobeFocused, setIsGlobeFocused] = useState(false);
   const [isWorldMemoryOpen, setIsWorldMemoryOpen] = useState(false);
   const [isWorldSelecting, setIsWorldSelecting] = useState(false);
+  const [worldMemoryOpenSequence, setWorldMemoryOpenSequence] = useState(0);
+  const isMobileExperience = useMediaQuery("(max-width: 900px)");
   const experienceRef = useRef(null);
   const experienceStageRef = useRef(null);
   const globePanelRef = useRef(null);
   const worldSelectionTimerRef = useRef(null);
   const pendingWorldMemorySourceRef = useRef(null);
+  const isWorldMemoryOpenRef = useRef(false);
+  const sheetSessionRef = useRef(null);
   const globeAnalytics = useExperienceAnalytics("globe");
 
-  const returnToExperienceStage = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-      experienceStageRef.current?.scrollIntoView({ behavior, block: "start" });
+  const beginSheetSession = useCallback((memory) => {
+    sheetSessionRef.current = {
+      memoryId: memory.key,
+      startedAt: currentTimeMs(),
+      maxPhotoIndex: 1,
+      viewedPhotos: new Set([0]),
+      hasTrackedSwipe: false,
+    };
+  }, []);
+
+  const handleMemoryPhotoChange = useCallback(({ photoIndex, photoCount, source }) => {
+    const session = sheetSessionRef.current;
+    if (!session) return;
+    session.maxPhotoIndex = Math.max(session.maxPhotoIndex, photoIndex + 1);
+    session.viewedPhotos.add(photoIndex);
+    if (source !== "swipe" || session.hasTrackedSwipe) return;
+    session.hasTrackedSwipe = true;
+    trackEvent(ANALYTICS_EVENTS.MEMORY_PHOTO_SWIPED, {
+      experience_type: "globe",
+      memory_id: session.memoryId,
+      photo_index: photoIndex + 1,
+      photo_count: photoCount,
+      time_since_memory_open_seconds: elapsedSeconds(session.startedAt),
     });
   }, []);
 
-  const dismissWorldMemory = useCallback(() => {
+  const finishSheetSession = useCallback((closeMethod) => {
+    const session = sheetSessionRef.current;
+    if (!session) return;
+    trackEvent(ANALYTICS_EVENTS.MEMORY_SHEET_CLOSED, {
+      experience_type: "globe",
+      memory_id: session.memoryId,
+      close_method: closeMethod,
+      max_photo_index: session.maxPhotoIndex,
+      photos_viewed: session.viewedPhotos.size,
+      time_since_memory_open_seconds: elapsedSeconds(session.startedAt),
+    });
+    sheetSessionRef.current = null;
+  }, []);
+
+  const dismissWorldMemory = useCallback((closeMethod = "button") => {
+    if (!isWorldMemoryOpenRef.current) return;
     window.clearTimeout(worldSelectionTimerRef.current);
+    finishSheetSession(closeMethod);
+    isWorldMemoryOpenRef.current = false;
     setIsWorldSelecting(false);
     setIsWorldMemoryOpen(false);
-    returnToExperienceStage();
-  }, [returnToExperienceStage]);
+  }, [finishSheetSession]);
+
+  const closeWorldMemory = useCallback((closeMethod = "button", { consumeHistory = true } = {}) => {
+    if (!isWorldMemoryOpenRef.current) return;
+    const shouldConsumeHistory = consumeHistory && isWorldMemoryHistoryEntry(window.history.state);
+    dismissWorldMemory(closeMethod);
+    if (shouldConsumeHistory) window.history.back();
+  }, [dismissWorldMemory]);
 
   const handleWorldSelect = (memory, selectionSource) => {
     globeAnalytics.startExperience("place_select");
+    dismissGlobeGuide();
     clearTimeout(worldSelectionTimerRef.current);
-    setGlobeFocusRequest((current) => current + 1);
+    if (selectionSource === "shortcut") {
+      setGlobeFocusRequest((current) => ({ id: current.id + 1, selectionSource }));
+    }
     const isNewSelection = selectedMemory.id !== memory.id;
     setIsWorldSelecting(true);
     if (selectedMemory.id !== memory.id) setSelectedMemory(memory);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const selectionDelay = reduceMotion
+      ? 80
+      : selectionSource === "shortcut"
+        ? WORLD_SELECTION_MOTION_MS + 120
+        : 260;
     worldSelectionTimerRef.current = setTimeout(() => {
       setDisplayedMemory(memory);
+      setWorldMemoryOpenSequence((current) => current + 1);
+      beginSheetSession(memory);
       if (window.matchMedia("(max-width: 900px)").matches && !isWorldMemoryHistoryEntry(window.history.state)) {
         window.history.pushState(
           createWorldMemoryHistoryState(window.history.state, memory.key),
@@ -1826,31 +2042,46 @@ function App() {
           window.location.href,
         );
       }
+      isWorldMemoryOpenRef.current = true;
       setIsWorldMemoryOpen(true);
       setIsWorldSelecting(false);
       pendingWorldMemorySourceRef.current = selectionSource;
-    }, isNewSelection ? WORLD_SELECTION_MOTION_MS + 120 : 320);
+    }, isNewSelection || selectionSource === "shortcut" ? selectionDelay : 220);
   };
 
   useEffect(() => () => clearTimeout(worldSelectionTimerRef.current), []);
 
   useEffect(() => {
-    if (!isWorldMemoryOpen) return undefined;
-    const handleHistoryBack = () => dismissWorldMemory();
+    const handleHistoryBack = () => {
+      if (!isWorldMemoryOpenRef.current) return;
+      closeWorldMemory("browser_back", { consumeHistory: false });
+    };
     window.addEventListener("popstate", handleHistoryBack);
     return () => window.removeEventListener("popstate", handleHistoryBack);
-  }, [dismissWorldMemory, isWorldMemoryOpen]);
-
-  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("mapmory-theme", theme); }, [theme]);
+  }, [closeWorldMemory]);
 
   useEffect(() => {
-    if (!isWorldMemoryOpen || window.innerWidth > 900) return undefined;
-    const frame = requestAnimationFrame(() => {
-      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-      experienceStageRef.current?.scrollIntoView({ behavior, block: "start" });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [isWorldMemoryOpen]);
+    if (!isMobileExperience || !isWorldMemoryOpen) return undefined;
+    const root = document.getElementById("root");
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootAriaHidden = root?.getAttribute("aria-hidden");
+    const rootWasInert = root?.hasAttribute("inert") ?? false;
+    document.body.style.overflow = "hidden";
+    root?.setAttribute("inert", "");
+    root?.setAttribute("aria-hidden", "true");
+    const focusTimer = window.setTimeout(() => {
+      document.querySelector(".world-memory-modal .world-memory-close")?.focus({ preventScroll: true });
+    }, 0);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousBodyOverflow;
+      if (!rootWasInert) root?.removeAttribute("inert");
+      if (previousRootAriaHidden === null) root?.removeAttribute("aria-hidden");
+      else root?.setAttribute("aria-hidden", previousRootAriaHidden);
+    };
+  }, [isMobileExperience, isWorldMemoryOpen]);
+
+  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("mapmory-theme", theme); }, [theme]);
 
   useEffect(() => {
     if (!globePanelRef.current) return undefined;
@@ -1883,14 +2114,6 @@ function App() {
     pendingWorldMemorySourceRef.current = null;
   }, [displayedMemory, isWorldMemoryOpen, globeAnalytics.trackMemoryOpen]);
 
-  const closeWorldMemory = () => {
-    if (isWorldMemoryHistoryEntry(window.history.state)) {
-      window.history.back();
-      return;
-    }
-    dismissWorldMemory();
-  };
-
   const setExperienceSectionRef = (node) => {
     experienceRef.current = node;
     globeAnalytics.sectionRef.current = node;
@@ -1912,8 +2135,8 @@ function App() {
       <section className={`experience-section ${isGlobeFocused ? "is-focused" : ""}`} id="experience" ref={setExperienceSectionRef}>
         <div className="experience-pin">
           <div className="section-heading section-heading-flow">
-            <div><p className="eyebrow">01 · 세계</p><h2>지구본을 돌려 기억을 찾아요.</h2></div>
-            <p>잡고 돌린 뒤 민트색 나라를 눌러보세요. 선택한 장소의 실제 사진과 기억이 별도 패널에서 열려요.</p>
+            <div><p className="eyebrow">01 · 세계</p><h2>지구본에서 기억을 꺼내봐요.</h2></div>
+            <p>지구본을 움직이고 민트색 나라를 눌러보세요. 지도는 그대로, 그곳의 사진만 열려요.</p>
           </div>
           <div className={`experience-stage ${isWorldMemoryOpen ? "is-memory-open" : ""}`} ref={experienceStageRef}>
             <article className="globe-panel" id="globe-demo" ref={globePanelRef}>
@@ -1921,17 +2144,42 @@ function App() {
               <InteractiveGlobe selected={selectedMemory} focusRequest={globeFocusRequest} onSelect={handleWorldSelect} onInteract={globeAnalytics.startExperience} theme={theme} guideVisible={isGlobeGuideVisible} onGuideDismiss={dismissGlobeGuide} isSelecting={isWorldSelecting} />
               <LocationSelector selected={selectedMemory} onSelect={handleWorldSelect} disabled={isWorldSelecting} />
             </article>
-            <MemoryCard key={displayedMemory.id} memory={displayedMemory} onClose={closeWorldMemory} priority />
+            {!isMobileExperience && (
+              <MemoryCard
+                key={displayedMemory.id}
+                memory={displayedMemory}
+                onClose={closeWorldMemory}
+                onPhotoChange={handleMemoryPhotoChange}
+                openSequence={worldMemoryOpenSequence}
+                priority
+              />
+            )}
           </div>
         </div>
       </section>
+
+      {isMobileExperience && isWorldMemoryOpen && createPortal(
+        <div className="world-memory-modal">
+          <div className="world-memory-backdrop" aria-hidden="true" />
+          <MemoryCard
+            key={`${displayedMemory.id}-${worldMemoryOpenSequence}`}
+            memory={displayedMemory}
+            onClose={closeWorldMemory}
+            onPhotoChange={handleMemoryPhotoChange}
+            openSequence={worldMemoryOpenSequence}
+            priority
+            isModal
+          />
+        </div>,
+        document.body,
+      )}
 
 
       <KoreaDetailExperience theme={theme} />
 
       <section className="download-section" id="download">
         <h2>방금 본 장소처럼,<br />당신의 기억도 지도로.</h2>
-        <p>iPhone과 Android에서 Mapmory를 다운로드하고 나만의 기억 지도를 시작하세요.</p>
+        <p>여행의 순간을 기록하고, 나만의 기억 지도를 시작하세요.</p>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
           <StoreButton placement="final" platform="ios" label="App Store" />
           <StoreButton placement="final" platform="android" label="Google Play" />
