@@ -19,7 +19,7 @@ phases:
       - '[[ "$SOURCE_COMMIT_ID" =~ ^[0-9a-f]{40}$ ]]'
   build:
     commands:
-      - npm run build
+      - VITE_LANDING_VERSION=v4 npm run build
       - npm --prefix travel-map-campaign run build
       - npm test
       - npm --prefix travel-map-campaign run test:built
