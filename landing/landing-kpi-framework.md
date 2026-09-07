@@ -118,17 +118,17 @@ memory_open(experience_type = globe, open_index = 1)을 한 고유 사용자 수
 
 `memory_open`은 같은 체험에서 같은 기억을 한 번만 기록하며 `open_index`로 첫째,
 둘째, 셋째 고유 기억을 구분합니다. `experience_end`는 체험 영역이 화면에 보이고
-브라우저 탭이 활성화된 시간만 `active_duration_ms`에 누적합니다.
+브라우저 탭이 활성화된 시간만 `active_duration_seconds`에 누적합니다.
 
 ```text
 체험당 고유 기억 수 =
 experience_end.unique_memories_opened
 
 정확한 활성 체험시간 =
-experience_end.active_duration_ms
+experience_end.active_duration_seconds
 
 첫 가치 도달시간 =
-memory_open(open_index = 1).time_since_start_ms
+memory_open(open_index = 1).time_since_start_seconds
 ```
 
 체험시간은 단독 성공 지표로 사용하지 않습니다. `기억 0개 + 긴 체험`은 혼란일
@@ -246,12 +246,14 @@ CLS 0.1 이하를 통과해야 합니다.
   `experience_start`로 분리됩니다.
 - `memory_open`은 선택 모션 이후 별도 기억 패널이 실제로 열린 시점에 기록되며,
   같은 체험에서 같은 기억의 반복 열기는 고유 기억 수에 중복하지 않습니다.
-- `experience_end.active_duration_ms`는 체험 영역이 보이고 탭이 활성화된 시간만
+- `experience_end.active_duration_seconds`는 체험 영역이 보이고 탭이 활성화된 시간만
   누적하며, 첫 연속 체험이 끝날 때 체험 유형별 한 번 기록합니다.
 - 페이지 종료 이벤트는 브라우저 상황에 따라 전송이 누락될 수 있으므로
   `section_exit` 표본을 함께 보고 GA4 전체 페이지 참여시간으로 결측을 점검합니다.
 - `download_click`은 공식 Google Play 링크를 여는 CTA 클릭 시 `cta_placement`와 함께 기록됩니다. 이는 앱 설치 완료가 아니라 스토어 이동 의도입니다.
-- 현재 새 랜딩 기본 버전은 `v3`이며 자동 `page_view`에도 포함됩니다.
+- 모바일 기억 바텀시트의 첫 실제 사진 스와이프와 닫힘은 각각 `memory_photo_swiped`,
+  `memory_sheet_closed`로 기록해 사진 탐색과 종료 방식을 분리합니다.
+- 현재 새 랜딩 기본 버전은 `v4`이며 자동 `page_view`에도 포함됩니다.
 - Core Web Vitals의 실제 사용자 측정은 아직 현재 이벤트 목록에 없습니다.
 
 대한민국 기억 추가와 정확한 체험시간은 상위 결과 KPI가 아닙니다. 기억을 열지

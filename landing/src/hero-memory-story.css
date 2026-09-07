@@ -1,6 +1,6 @@
 .hero-memory-story {
-  height: 440svh;
-  min-height: 3300px;
+  height: 340svh;
+  min-height: min(2550px, 340svh);
   --hero-globe-opacity: 1;
   --hero-globe-scale: 1.04;
   --hero-moment-reveal: 0;
@@ -189,8 +189,27 @@
 }
 
 .hero-memory-story .hero-line-map {
+  left: 43%;
+  width: min(650px, calc(100% - 48px));
   opacity: var(--hero-map-line-reveal);
   transform: translate3d(-50%, 0, 0);
+}
+
+.hero-memory-story .hero-map-line-keyword {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.hero-memory-story .hero-line-map em {
+  color: var(--accent-strong);
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 1.28em;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  text-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 18%, transparent);
+  vertical-align: -0.06em;
 }
 
 .hero-memory-story .hero-map-cta {
@@ -208,7 +227,7 @@
 .hero-memory-story[data-map-cta-ready="true"] .hero-map-cta { pointer-events: auto; }
 
 @media (max-width: 900px) {
-  .hero-memory-story { height: 440svh; min-height: 3200px; }
+  .hero-memory-story { height: 340svh; min-height: min(2500px, 340svh); }
   .hero-memory-story:not([data-relay-phase="intro"]) .hero-map-story { min-height: calc(100svh - 102px); }
   .hero-memory-story:not([data-relay-phase="intro"]) .hero-globe-preview { left: 50%; }
 
@@ -334,6 +353,78 @@
   }
 }
 
+/* Keep compact desktop windows in the desktop hero composition. */
+@media (min-width: 681px) and (max-width: 900px) {
+  .hero-memory-story {
+    width: min(1240px, calc(100% - 48px));
+  }
+
+  .hero-memory-story .hero-story-frame {
+    top: 96px;
+    min-height: calc(100svh - 112px);
+    padding: 24px 0 40px;
+  }
+
+  .hero-memory-story .hero-layout {
+    min-height: min(560px, calc(100svh - 138px));
+    grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+    align-content: normal;
+    gap: 20px;
+  }
+
+  .hero-memory-story .hero-copy {
+    margin-top: 0;
+    text-align: left;
+    transform: translate3d(calc(var(--hero-copy-x) + 18px), 0, 0);
+  }
+
+  .hero-memory-story .hero-copy h1 {
+    max-width: 390px;
+    margin: 0;
+    font-size: clamp(31px, 4.7vw, 40px);
+  }
+
+  .hero-memory-story .hero-description {
+    margin-top: 24px;
+    font-size: 15px;
+  }
+
+  .hero-memory-story .hero-actions,
+  .hero-memory-story .release-note {
+    justify-content: flex-start;
+  }
+
+  .hero-memory-story .hero-map-story,
+  .hero-memory-story:not([data-relay-phase="intro"]) .hero-map-story {
+    min-height: min(520px, calc(100svh - 150px));
+  }
+
+  .hero-memory-story .hero-globe-preview {
+    left: 43%;
+    top: 53%;
+    width: clamp(296px, 40vw, 350px);
+    transform: translate3d(-50%, -50%, 0) scale(var(--hero-globe-scale));
+  }
+
+  .hero-memory-story:not([data-relay-phase="intro"]) .hero-globe-preview {
+    left: 43%;
+    top: 46%;
+    width: min(76vw, 296px);
+    transform: translate3d(-50%, -50%, 0) scale(var(--hero-globe-scale));
+  }
+
+  .hero-memory-story .hero-line-record,
+  .hero-memory-story .hero-line-map {
+    top: -18px;
+  }
+
+  .hero-memory-story .hero-memory-preview {
+    right: 0;
+    width: min(190px, 48%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-memory-story .hero-globe-preview { opacity: 1; transform: translate3d(-50%, -50%, 0) scale(1.04); }
   .hero-memory-story { height: auto; min-height: 0; }
@@ -419,15 +510,16 @@
   .hero-mobile-title {
     margin: 0;
     color: var(--text);
-    font: 700 clamp(29px, 8.3vw, 36px)/1.24 "LINE Seed Sans KR", system-ui, sans-serif;
-    letter-spacing: -0.052em;
+    font: 400 clamp(24px, 7vw, 30px)/1.2 "LINE Seed Sans KR", system-ui, sans-serif;
+    letter-spacing: -0.025em;
     text-align: center;
     word-break: keep-all;
   }
 
   .hero-mobile-title span,
   .hero-mobile-title em { display: block; }
-  .hero-mobile-title em { margin-top: 3px; color: var(--accent-strong); font-style: normal; }
+  .hero-mobile-title span { font-weight: 400; }
+  .hero-mobile-title em { margin-top: 3px; color: var(--accent-strong); font-family: "Nanum Pen Script", cursive; font-size: clamp(43px, 12vw, 52px); font-style: normal; font-weight: 400; line-height: 0.96; letter-spacing: -0.015em; text-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 22%, transparent); }
 
   .hero-mobile-visual {
     --globe-size: min(82vw, 320px);
@@ -598,11 +690,15 @@
     color: var(--text);
     background: color-mix(in srgb, var(--surface) 96%, transparent);
     box-shadow: 0 8px 22px rgba(25, 52, 38, 0.08);
+    opacity: 0.82;
+    transition: opacity 180ms ease, visibility 180ms ease;
     font-size: 11px;
     font-weight: 700;
   }
 
   .hero-mobile-experience-cue > svg { color: var(--accent-strong); }
+  .hero-mobile-experience-cue.is-nudging > svg { animation: hero-mobile-cue-nudge 560ms cubic-bezier(0.22, 1, 0.36, 1) 1; }
+  .hero-mobile-experience-cue.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
 
   .hero-mobile[data-reduced-motion="true"] .hero-mobile-source-record {
     opacity: 1;
@@ -613,15 +709,21 @@
   .hero-mobile[data-reduced-motion="true"] .hero-mobile-recorded-result { display: none; }
 }
 
+@keyframes hero-mobile-cue-nudge {
+  0%, 100% { transform: translateY(0); }
+  48% { transform: translateY(7px); }
+}
+
 @media (max-width: 360px), (max-width: 560px) and (max-height: 680px) {
   .hero-mobile-frame {
     min-height: calc(100svh - 80px);
     padding: 8px 0 max(10px, env(safe-area-inset-bottom));
-    grid-template-rows: auto auto;
+    grid-template-rows: auto minmax(0, 1fr) 44px;
     gap: 4px;
   }
 
-  .hero-mobile-title { font-size: 24px; line-height: 1.25; }
+  .hero-mobile-title { font-size: 22px; line-height: 1.2; }
+  .hero-mobile-title em { font-size: 40px; }
   .hero-mobile-visual {
     --globe-size: min(72vw, 228px);
     --globe-top: 124px;
@@ -633,11 +735,12 @@
   .hero-mobile-source-record figcaption { min-height: 27px; padding-top: 4px; }
   .hero-mobile-recorded-result { top: 4px; min-height: 58px; grid-template-columns: 52px minmax(0, 1fr) auto; }
   .hero-mobile-recorded-result > img { width: 52px; height: 44px; }
-  .hero-mobile-experience-cue { display: none; }
+  .hero-mobile-experience-cue { padding-inline: 10px; font-size: 10px; }
 }
 
 @media (max-width: 560px) and (prefers-reduced-motion: reduce) {
   .hero-mobile-source-record,
   .hero-mobile-record-stamp,
   .hero-mobile-recorded-result { animation: none !important; transition: none !important; }
+  .hero-mobile-experience-cue > svg { animation: none !important; }
 }
