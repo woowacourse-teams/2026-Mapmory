@@ -58,6 +58,7 @@ test("Recap operator guidance follows the shared automatic landing deployment po
 
 test("CodeBuild binds the tested source SHA to a static-only CodeDeploy bundle", () => {
   assert.match(buildspec, /CODEBUILD_RESOLVED_SOURCE_VERSION.*SOURCE_COMMIT_ID/);
+  assert.match(buildspec, /VITE_LANDING_VERSION=v4 npm run build/);
   assert.ok(buildspec.indexOf("npm run build") < buildspec.indexOf("npm test"));
   assert.match(buildspec, /CODEBUILD_BUILD_SUCCEEDING/);
   assert.match(packager, /dist\/client/);
