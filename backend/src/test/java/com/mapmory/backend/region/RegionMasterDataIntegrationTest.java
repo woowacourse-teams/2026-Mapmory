@@ -28,6 +28,36 @@ class RegionMasterDataIntegrationTest extends IntegrationTest {
             new ExpectedCity("48", "48120", "창원시")
     );
 
+    private static final List<ExpectedCity> CANONICAL_GWANGJU_AND_JEONNAM = List.of(
+            new ExpectedCity("29", "29110", "동구"),
+            new ExpectedCity("29", "29140", "서구"),
+            new ExpectedCity("29", "29155", "남구"),
+            new ExpectedCity("29", "29170", "북구"),
+            new ExpectedCity("29", "29200", "광산구"),
+            new ExpectedCity("46", "46110", "목포시"),
+            new ExpectedCity("46", "46130", "여수시"),
+            new ExpectedCity("46", "46150", "순천시"),
+            new ExpectedCity("46", "46170", "나주시"),
+            new ExpectedCity("46", "46230", "광양시"),
+            new ExpectedCity("46", "46710", "담양군"),
+            new ExpectedCity("46", "46720", "곡성군"),
+            new ExpectedCity("46", "46730", "구례군"),
+            new ExpectedCity("46", "46770", "고흥군"),
+            new ExpectedCity("46", "46780", "보성군"),
+            new ExpectedCity("46", "46790", "화순군"),
+            new ExpectedCity("46", "46800", "장흥군"),
+            new ExpectedCity("46", "46810", "강진군"),
+            new ExpectedCity("46", "46820", "해남군"),
+            new ExpectedCity("46", "46830", "영암군"),
+            new ExpectedCity("46", "46840", "무안군"),
+            new ExpectedCity("46", "46860", "함평군"),
+            new ExpectedCity("46", "46870", "영광군"),
+            new ExpectedCity("46", "46880", "장성군"),
+            new ExpectedCity("46", "46890", "완도군"),
+            new ExpectedCity("46", "46900", "진도군"),
+            new ExpectedCity("46", "46910", "신안군")
+    );
+
     private static final List<String> DEPRECATED_DISTRICT_CODES = List.of(
             "41111", "41113", "41115", "41117",
             "41131", "41133", "41135",
@@ -62,6 +92,18 @@ class RegionMasterDataIntegrationTest extends IntegrationTest {
             assertThat(city.getName()).isEqualTo(expected.name());
             assertThat(city.getRegionType()).isEqualTo(RegionType.DISTRICT);
             assertThat(findParentCode(city.getId())).isEqualTo(expected.provinceCode());
+        });
+    }
+
+    @Test
+    @DisplayName("광주와 전남 지역을 canonical 코드로 조회한다")
+    void resolvesCanonicalGwangjuAndJeonnamRegions() {
+        assertThat(CANONICAL_GWANGJU_AND_JEONNAM).allSatisfy(expected -> {
+            Region district = regionResolver.resolve("KR", expected.provinceCode(), expected.regionCode());
+
+            assertThat(district.getName()).isEqualTo(expected.name());
+            assertThat(district.getRegionType()).isEqualTo(RegionType.DISTRICT);
+            assertThat(findParentCode(district.getId())).isEqualTo(expected.provinceCode());
         });
     }
 
