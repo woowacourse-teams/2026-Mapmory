@@ -24,9 +24,16 @@ CI·Android Vitals·Logcat·Xcode Console·System Trace를 기본으로 사용�
 
 Firebase Analytics는 팀 공용 Firebase 프로젝트 `Mapmory Analytics`
 ([콘솔](https://console.firebase.google.com/project/mapmory-analytics-b6a50/overview))에 연결했다.
-Android 앱은 `com.mapmory.android`, App Store용 iOS 앱은 `com.mapmory.ios`를 사용한다. 두 앱의
-이벤트는 같은 프로젝트의 Analytics에서 앱별로 확인한다. iOS 출시 전에는 Firebase Console에
-`com.mapmory.ios` 앱이 등록되어 있고 해당 앱에서 내려받은 `GoogleService-Info.plist`가 포함됐는지 확인한다.
+Android 앱은 `com.mapmory.android`, iOS 앱은 `com.mapmory.ios`로 등록되어 있으며, 두 앱의
+이벤트는 같은 프로젝트의 Analytics에서 앱별로 확인한다.
+
+### iOS Firebase Analytics 식별자 변경 이력
+
+- 이전 식별자: `com.mapmory.ios3` (테스트용 Firebase 앱)
+- 현재 식별자: `com.mapmory.ios` (현재 iOS 앱)
+- 기존 `ios3` 이벤트 데이터는 과거 테스트 기록으로 보존하고, 현재 `ios` 데이터와 합산하지 않는다.
+- Git 커밋 이력에 남은 `ios3` 문자열은 과거 설정 기록이므로 삭제하거나 재작성하지 않는다.
+- Firebase·GA4 대시보드에서는 현재 사용자 행동을 `com.mapmory.ios` 앱 스트림으로만 조회한다.
 
 이 문서는 현재 MVP의 개발·출시 전 검증 기준이다. 지도 전환을 자동 반복하는 Macrobenchmark와 원격 오류 수집은 별도 도입 조건이 충족될 때 추가한다.
 
@@ -131,7 +138,6 @@ Firebase Analytics는 기능 사용 여부와 전환 흐름을 확인하기 위�
 | `map_province_selected` | 대한민국 시·도 선택 | `province_code` |
 | `map_location_selected` | 지도 또는 장소 검색에서 지역 선택 | `location_type`, `has_records` |
 | `record_create_started` | 지도 FAB 클릭 | `source` |
-| `photo_picker_opened` | 사진 선택기 열기 | 없음 |
 | `photo_recommendation_started` | 위치 기반 사진 추천 시작 | `location_type` |
 | `photo_recommendation_cancelled` | 사진 추천 중단 | 없음 |
 | `photos_added` | 갤러리·추천 사진을 기록에 추가 | `source`, `count` |
@@ -139,17 +145,10 @@ Firebase Analytics는 기능 사용 여부와 전환 흐름을 확인하기 위�
 | `record_save_completed` | 기록 저장 성공 | `mode` |
 | `record_save_failed` | 기록 저장 실패 또는 검증 실패 | `mode` |
 | `journal_record_opened` | 일지에서 기록 선택 | 없음 |
-| `journal_retry_clicked` | 일지 조회 재시도 | 없음 |
-| `journal_filter_selected` | 일지 태그 필터 선택 | `tag`(사용자가 만든 태그 이름 포함) |
-| `journal_page_changed` | 일지 페이지 이동 | `direction` |
-| `settings_opened` | 설정 열기 | 없음 |
-| `theme_changed` | 화면 테마 변경 | `theme` |
-| `privacy_policy_opened` | 개인정보 처리방침 열기 | 없음 |
+| `journal_filter_selected` | 일지 태그 필터 선택 | `tag` |
 
-기록 제목·본문, 사진 파일명·원본, GPS 좌표와 회원 식별자는 이벤트 파라미터로 보내지 않는다.
-제품 개선을 위해 일지 필터에서 사용자가 만든 태그 이름은 `tag` 파라미터로 전송한다. 태그는 자유
-입력값이므로 개인정보를 입력하지 않도록 안내하고, 개인정보 처리방침과 스토어 개인정보 응답에
-사용자 콘텐츠의 분석 목적 수집으로 반영한다. `count`는 사진 내용이 아니라 처리된 개수만 의미한다.
+기록 제목·본문, 사진 파일명·원본, GPS 좌표, 회원 식별자와 같은 개인정보 또는 원본 데이터는
+이벤트 파라미터로 보내지 않는다. `count`도 사진 내용이 아니라 처리된 개수만 의미한다.
 
 ### DebugView로 Android 이벤트 확인
 
@@ -254,8 +253,8 @@ Firebase는 백엔드 API나 데이터베이스를 대신하지 않는다.
 현재 구현은 Android·iOS 앱에 Firebase Analytics 어댑터와 이벤트 호출을 연결했다. Android는
 `google-services.json`, iOS는 `GoogleService-Info.plist`가 포함된 빌드에서 이벤트를 전송한다.
 Android는 설정 파일이 없으면 no-op으로 동작하지만, iOS는 `GoogleService-Info.plist`가 앱 번들에
-포함되어야 한다. 출시 빌드는 Firebase Analytics 수집을 활성화하므로 개인정보처리방침, Play Console
-데이터 보안 응답과 App Store Connect App Privacy 응답을 최종 배포 빌드 기준으로 갱신해야 한다.
+포함되어야 한다. Firebase Analytics를 실제 출시 빌드에서 활성화하면 개인정보처리방침과 Play
+Console 데이터 보안 응답을 최종 배포 빌드 기준으로 갱신해야 한다.
 
 실제 사용자 환경에서 재현되지 않는 오류를 원격으로 추적해야 할 때 Crashlytics 도입을 별도 결정한다.
 Crashlytics와 Performance Monitoring은 현재 연결하지 않았다.

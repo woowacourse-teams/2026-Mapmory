@@ -14,9 +14,10 @@ data class TripRecordEditorUiState(
     val selectedPhotos: List<TripRecordPhotoUiState> = emptyList(),
     val availableTags: List<Tag> = emptyList(),
     val selectedTagIds: Set<Long> = emptySet(),
+    val pendingTagNames: List<String> = emptyList(),
+    val selectedPendingTagNames: Set<String> = emptySet(),
     val tagInput: String = "",
     val isTagsLoading: Boolean = false,
-    val isCreatingTag: Boolean = false,
     val tagErrorMessage: String? = null,
     val isDirty: Boolean = false,
     val dirtyFields: Set<TripRecordEditorErrorTarget> = emptySet(),
@@ -36,7 +37,10 @@ data class TripRecordEditorUiState(
         }
 
     val isSaveEnabled: Boolean
-        get() = !isSaving && !isCreatingTag
+        get() = !isSaving
+
+    val selectedTagCount: Int
+        get() = selectedTagIds.size + selectedPendingTagNames.size
 
     fun isFieldDirty(target: TripRecordEditorErrorTarget): Boolean = target in dirtyFields
 }

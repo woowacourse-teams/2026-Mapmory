@@ -87,6 +87,21 @@ export function useExperienceAnalytics(experienceType) {
     });
   }, [clearExitTimer, experienceType, getActiveDurationMs, pauseActiveTimer]);
 
+  const markViewed = useCallback(() => {
+    if (hasViewedRef.current || document.hidden) return;
+    clearViewTimer();
+    hasViewedRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.EXPERIENCE_VIEW, { experience_type: experienceType });
+  }, [clearViewTimer, experienceType]);
+
+  const scheduleView = useCallback(() => {
+    if (document.hidden || !isVisibleRef.current || hasViewedRef.current || viewTimerRef.current) return;
+    viewTimerRef.current = window.setTimeout(() => {
+      viewTimerRef.current = null;
+      if (isVisibleRef.current) markViewed();
+    }, VIEW_DURATION_MS);
+  }, [markViewed]);
+
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return undefined;
@@ -116,16 +131,7 @@ export function useExperienceAnalytics(experienceType) {
         resumeActiveTimer();
       }
 
-      if (!hasViewedRef.current && !viewTimerRef.current) {
-        viewTimerRef.current = window.setTimeout(() => {
-          viewTimerRef.current = null;
-          if (!isVisibleRef.current || hasViewedRef.current) return;
-          hasViewedRef.current = true;
-          trackEvent(ANALYTICS_EVENTS.EXPERIENCE_VIEW, {
-            experience_type: experienceType,
-          });
-        }, VIEW_DURATION_MS);
-      }
+      scheduleView();
     }, { threshold: OBSERVER_THRESHOLDS });
 
     observer.observe(section);
@@ -135,12 +141,12 @@ export function useExperienceAnalytics(experienceType) {
       pauseActiveTimer();
       observer.disconnect();
     };
-  }, [clearExitTimer, clearViewTimer, endExperience, experienceType, pauseActiveTimer, resumeActiveTimer]);
+  }, [clearExitTimer, clearViewTimer, endExperience, pauseActiveTimer, resumeActiveTimer, scheduleView]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) pauseActiveTimer();
-      else resumeActiveTimer();
+      if (document.hidden) { pauseActiveTimer(); clearViewTimer(); }
+      else { resumeActiveTimer(); scheduleView(); }
     };
     const handlePageHide = () => endExperience("page_hide", "beacon");
 
@@ -150,7 +156,7 @@ export function useExperienceAnalytics(experienceType) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [endExperience, pauseActiveTimer, resumeActiveTimer]);
+  }, [clearViewTimer, endExperience, pauseActiveTimer, resumeActiveTimer, scheduleView]);
 
   const trackEntryClick = useCallback((placement) => {
     trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, {
@@ -161,6 +167,8 @@ export function useExperienceAnalytics(experienceType) {
 
   const startExperience = useCallback((interactionType) => {
     if (hasStartedRef.current || hasEndedRef.current) return;
+    // A deliberate interaction proves exposure even before the passive 1s threshold.
+    markViewed();
     hasStartedRef.current = true;
     lastCompletedStepRef.current = "experience_start";
     trackEvent(ANALYTICS_EVENTS.EXPERIENCE_START, {
@@ -171,7 +179,7 @@ export function useExperienceAnalytics(experienceType) {
       hasBeenVisibleSinceStartRef.current = true;
       resumeActiveTimer();
     }
-  }, [experienceType, resumeActiveTimer]);
+  }, [experienceType, markViewed, resumeActiveTimer]);
 
   const trackMemoryOpen = useCallback((memoryId, selectionSource) => {
     startExperience("place_select");

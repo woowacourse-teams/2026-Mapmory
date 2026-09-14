@@ -153,7 +153,10 @@ class TripRecordEditorViewModel(
                 isDirty = true,
             )
             else -> runCatching {
-                TagRules.requireCanAddToRecord(selected)
+                TagRules.validateRecordTagIds(selected)
+                require(uiState.selectedTagCount < TagRules.MaxTagsPerRecord) {
+                    TagRules.RecordLimitMessage
+                }
                 selected + tagId
             }.fold(
                 onSuccess = { updatedSelection ->
@@ -169,10 +172,40 @@ class TripRecordEditorViewModel(
         }
     }
 
-    suspend fun createAndSelectTag() {
-        val create = createTag ?: return
+    fun togglePendingTag(name: String) {
+        if (name !in uiState.pendingTagNames) return
+        val selected = uiState.selectedPendingTagNames
+        uiState = when {
+            name in selected -> uiState.copy(
+                selectedPendingTagNames = selected - name,
+                tagErrorMessage = null,
+                fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                isDirty = true,
+            )
+            else -> runCatching {
+                require(uiState.selectedTagCount < TagRules.MaxTagsPerRecord) {
+                    TagRules.RecordLimitMessage
+                }
+                selected + name
+            }.fold(
+                onSuccess = { updatedSelection ->
+                    uiState.copy(
+                        selectedPendingTagNames = updatedSelection,
+                        tagErrorMessage = null,
+                        fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                        isDirty = true,
+                    )
+                },
+                onFailure = { error -> uiState.copy(tagErrorMessage = error.message) },
+            )
+        }
+    }
+
+    fun createAndSelectTag() {
         val normalizedName = runCatching {
-            TagRules.requireCanAddToRecord(uiState.selectedTagIds)
+            require(uiState.selectedTagCount < TagRules.MaxTagsPerRecord) {
+                TagRules.RecordLimitMessage
+            }
             TagRules.normalizeAndValidateName(uiState.tagInput)
         }.getOrElse { error ->
             uiState = uiState.copy(tagErrorMessage = error.message)
@@ -190,25 +223,36 @@ class TripRecordEditorViewModel(
             return
         }
 
-        uiState = uiState.copy(isCreatingTag = true, tagErrorMessage = null)
-        create(normalizedName, uiState.availableTags).fold(
-            onSuccess = { tag ->
-                uiState = uiState.copy(
-                    availableTags = uiState.availableTags + tag,
-                    selectedTagIds = uiState.selectedTagIds + tag.id,
-                    tagInput = "",
-                    isCreatingTag = false,
-                    fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
-                    isDirty = true,
-                )
-            },
-            onFailure = { error ->
-                uiState = uiState.copy(
-                    isCreatingTag = false,
-                    tagErrorMessage = error.message ?: "태그를 만들지 못했습니다.",
-                )
-            },
-        )
+        uiState.pendingTagNames.firstOrNull { it.equals(normalizedName, ignoreCase = true) }?.let { name ->
+            uiState = uiState.copy(
+                selectedPendingTagNames = uiState.selectedPendingTagNames + name,
+                tagInput = "",
+                tagErrorMessage = null,
+                fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                isDirty = true,
+            )
+            return
+        }
+
+        runCatching {
+            require(uiState.availableTags.size + uiState.pendingTagNames.size < TagRules.MaxTagsPerMember) {
+                TagRules.MemberLimitMessage
+            }
+            require(
+                uiState.availableTags.none { it.name.equals(normalizedName, ignoreCase = true) },
+            ) { TagRules.DuplicateNameMessage }
+        }.onFailure { error ->
+            uiState = uiState.copy(tagErrorMessage = error.message)
+        }.onSuccess {
+            uiState = uiState.copy(
+                pendingTagNames = uiState.pendingTagNames + normalizedName,
+                selectedPendingTagNames = uiState.selectedPendingTagNames + normalizedName,
+                tagInput = "",
+                tagErrorMessage = null,
+                fieldErrors = uiState.fieldErrors - TripRecordEditorErrorTarget.TAGS,
+                isDirty = true,
+            )
+        }
     }
 
     fun selectLocation(location: Location) {
@@ -314,6 +358,42 @@ class TripRecordEditorViewModel(
 
         val location = requireNotNull(state.selectedLocation)
 
+        uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
+        var availableTags = state.availableTags
+        var selectedTagIds = state.selectedTagIds
+        var pendingTagNames = state.pendingTagNames
+        var selectedPendingTagNames = state.selectedPendingTagNames
+        val pendingSelectedNames = state.pendingTagNames.filter { it in state.selectedPendingTagNames }
+        for (pendingTagName in pendingSelectedNames) {
+            val create = createTag
+            if (create == null) {
+                return failTagSave(IllegalStateException("태그를 저장하지 못했습니다."))
+            }
+            val result = create(pendingTagName, availableTags)
+            if (result.isFailure) {
+                return failTagSave(
+                    result.exceptionOrNull() ?: IllegalStateException("태그를 저장하지 못했습니다."),
+                )
+            }
+            val tag = result.getOrThrow()
+            availableTags += tag
+            selectedTagIds += tag.id
+            pendingTagNames -= pendingTagName
+            selectedPendingTagNames -= pendingTagName
+            uiState = uiState.copy(
+                availableTags = availableTags,
+                selectedTagIds = selectedTagIds,
+                pendingTagNames = pendingTagNames,
+                selectedPendingTagNames = selectedPendingTagNames,
+            )
+        }
+        uiState = uiState.copy(
+            availableTags = availableTags,
+            selectedTagIds = selectedTagIds,
+            pendingTagNames = pendingTagNames,
+            selectedPendingTagNames = selectedPendingTagNames,
+        )
+
         val draft = TripRecordDraft(
             locationId = location.id,
             title = state.title.trim(),
@@ -336,11 +416,10 @@ class TripRecordEditorViewModel(
                     capturedAt = photo.capturedAt,
                 )
             },
-            tagIds = state.availableTags
-                .filter { it.id in state.selectedTagIds }
+            tagIds = availableTags
+                .filter { it.id in selectedTagIds }
                 .map { it.id },
         )
-        uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
         val result = state.recordId?.let { updateTripRecord(it, draft) }
             ?: createTripRecord(draft)
 
@@ -374,6 +453,21 @@ class TripRecordEditorViewModel(
             isDirty = true,
             dirtyFields = uiState.dirtyFields + errors.keys,
             fieldErrors = errors,
+            generalErrorMessage = null,
+        )
+        return false
+    }
+
+    private fun failTagSave(error: Throwable): Boolean {
+        val message = error.toEditorFieldErrors()[TripRecordEditorErrorTarget.TAGS]
+            ?: error.message
+            ?: "태그를 저장하지 못했습니다."
+        uiState = uiState.copy(
+            isSaving = false,
+            isDirty = true,
+            dirtyFields = uiState.dirtyFields + TripRecordEditorErrorTarget.TAGS,
+            fieldErrors = uiState.fieldErrors + (TripRecordEditorErrorTarget.TAGS to message),
+            tagErrorMessage = message,
             generalErrorMessage = null,
         )
         return false

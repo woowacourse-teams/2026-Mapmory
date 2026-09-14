@@ -1,5 +1,7 @@
 package com.mapmory.shared.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -34,6 +36,11 @@ internal fun MapmoryNavHost(
     NavHost(
         navController = navController,
         startDestination = MapRoute,
+        // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<MapRoute> { backStackEntry ->
             LaunchedEffect(backStackEntry) {

@@ -45,6 +45,7 @@ test("declares the agreed landing funnel events", () => {
       "waitlist_submit",
       "waitlist_submit_error",
       "download_click",
+      "download_cta_click",
     ]),
   );
 });
@@ -59,6 +60,8 @@ test("adds the landing version and removes direct personal information", () => {
       unused: undefined,
     }),
     {
+      surface: "landing",
+      analytics_schema_version: "2",
       landing_version: "v3",
       traffic_type: "external",
       cta_placement: "hero",
@@ -80,6 +83,8 @@ test("keeps exact experience duration and distinct-memory parameters", () => {
       last_completed_step: "memory_open",
     }),
     {
+      surface: "landing",
+      analytics_schema_version: "2",
       landing_version: "v3",
       traffic_type: "external",
       experience_type: "globe",
@@ -93,6 +98,8 @@ test("keeps exact experience duration and distinct-memory parameters", () => {
 test("preserves both public store destinations for download attribution", () => {
   for (const store of ["app_store", "google_play"]) {
     assert.deepEqual(buildEventParameters({ cta_placement: "header", store }), {
+      surface: "landing",
+      analytics_schema_version: "2",
       landing_version: "v3",
       traffic_type: "external",
       cta_placement: "header",

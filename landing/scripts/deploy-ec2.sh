@@ -5,7 +5,7 @@ set -Eeuo pipefail
 release_id="${1:?release id is required}"
 archive_path="${2:?archive path is required}"
 
-if [[ ! "$release_id" =~ ^[0-9a-f]{40}-[0-9]+$ ]]; then
+if [[ ! "$release_id" =~ ^[0-9a-f]{40}-[0-9]+(-[0-9]+)?$ ]]; then
   echo "Invalid release id: $release_id" >&2
   exit 2
 fi

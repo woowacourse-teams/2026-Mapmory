@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.mapmory.ios3</string>
+	<string>com.mapmory.ios</string>
 	<key>PROJECT_ID</key>
 	<string>mapmory-analytics-b6a50</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:601411744421:ios:71f4888d5a84b12aec934c</string>
+	<string>1:601411744421:ios:77308d87df1281ddec934c</string>
 </dict>
 </plist>

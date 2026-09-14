@@ -39,6 +39,7 @@ class TripRecordEditorViewModelTest {
         viewModel.initialize(recordId = null, selectedLocation = null)
         viewModel.updateTagInput(" 라멘맛집 ")
         viewModel.createAndSelectTag()
+        assertTrue(repository.getTags().getOrThrow().isEmpty())
         viewModel.selectLocation(Location(101, 1, 1, "11680", "강남구", LocationType.DISTRICT))
         viewModel.updateTitle("서울 여행")
         viewModel.updateStartDate("2026-08-31")
@@ -46,6 +47,29 @@ class TripRecordEditorViewModelTest {
         assertTrue(viewModel.save())
         assertEquals("라멘맛집", repository.getTags().getOrThrow().single().name)
         assertEquals("라멘맛집", repository.getTripRecord(1).getOrThrow().tags.single().name)
+    }
+
+    @Test
+    fun `저장하지_않고_나가면_직접_만든_태그는_저장되지_않는다`() = runSuspend {
+        val repository = FakeTripRecordRepository { "2026-08-31T00:00:00Z" }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            getTags = GetTagsUseCase(repository),
+            createTag = CreateTagUseCase(repository),
+        )
+
+        viewModel.initialize(recordId = null, selectedLocation = null)
+        viewModel.updateTagInput(" 라멘맛집 ")
+        viewModel.createAndSelectTag()
+
+        assertEquals(listOf("라멘맛집"), viewModel.uiState.pendingTagNames)
+        assertEquals(setOf("라멘맛집"), viewModel.uiState.selectedPendingTagNames)
+        assertTrue(repository.getTags().getOrThrow().isEmpty())
+
+        viewModel.reset()
+
+        assertTrue(repository.getTags().getOrThrow().isEmpty())
     }
 
     @Test

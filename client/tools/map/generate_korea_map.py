@@ -8,7 +8,13 @@ Examples:
     python3 tools/map/generate_korea_map.py /tmp/geoBoundaries-KOR-ADM1.geojson
     python3 tools/map/generate_korea_map.py \
         --district-source /tmp/skorea-municipalities.json \
-        --locations-source shared/src/commonMain/kotlin/com/mapmory/shared/domain/model/KoreanDistrictCode.kt
+        --locations-source shared/src/commonMain/kotlin/com/mapmory/shared/domain/model/KoreanDistrictCode.kt \
+        --district-tolerance 0.0005 \
+        --district-override-source /tmp/incheon-reorganized-districts.json
+
+The 2025 Q2 Korean boundary Shapefiles can be converted first with
+``convert_korea_shapefile.py``. Both scripts run only during development;
+generated Kotlin/resources are the runtime source.
 """
 
 from __future__ import annotations
@@ -136,6 +142,8 @@ def simplify_ring(ring: list[list[float]], tolerance: float) -> list[list[float]
     simplified = _rdp(points + [points[0]], tolerance)
     if simplified[-1] != simplified[0]:
         simplified.append(simplified[0])
+    if len(simplified) < 4:
+        return []
     return [[longitude, latitude] for longitude, latitude in simplified]
 
 
@@ -158,6 +166,7 @@ def read_province_features(
         rings = outer_rings(feature.get("geometry", {}))
         if simplify_tolerance > 0:
             rings = [simplify_ring(ring, simplify_tolerance) for ring in rings]
+            rings = [ring for ring in rings if len(ring) >= 4]
         if rings:
             features.append((code, PROVINCE_NAMES.get(code, properties.get("name", code)), rings))
     return features
@@ -207,7 +216,11 @@ def selectable_locations(locations: list[Location]) -> list[Location]:
     return list(unique.values())
 
 
-def canonicalize_districts(source: Path, locations_source: Path) -> tuple[list[Boundary], list[str]]:
+def canonicalize_districts(
+    source: Path,
+    locations_source: Path,
+    simplify_tolerance: float = 0.0,
+) -> tuple[list[Boundary], list[str]]:
     targets = selectable_locations(read_locations(locations_source))
     by_name = {(location.province_code, location.name): location for location in targets}
     grouped: dict[tuple[str, str], Boundary] = {}
@@ -216,7 +229,8 @@ def canonicalize_districts(source: Path, locations_source: Path) -> tuple[list[B
     for feature in json.loads(source.read_text())["features"]:
         properties = feature.get("properties", {})
         raw_code = str(properties.get("code", ""))
-        province_code = DISTRICT_FEATURE_PROVINCE_OVERRIDES.get(raw_code)
+        province_code = properties.get("provinceCode")
+        province_code = province_code or DISTRICT_FEATURE_PROVINCE_OVERRIDES.get(raw_code)
         province_code = province_code or DISTRICT_SOURCE_PROVINCE_CODES.get(raw_code[:2])
         raw_name = properties.get("name")
         if not province_code or not raw_name:
@@ -228,8 +242,14 @@ def canonicalize_districts(source: Path, locations_source: Path) -> tuple[list[B
                 display_name = city.group(1)
         target = by_name.get((province_code, display_name))
         rings = outer_rings(feature.get("geometry", {}))
+        if simplify_tolerance > 0:
+            rings = [simplify_ring(ring, simplify_tolerance) for ring in rings]
+            rings = [ring for ring in rings if len(ring) >= 4]
         if target is None:
             skipped.append(f"{province_code} {raw_code} {raw_name}")
+            continue
+        if not rings:
+            skipped.append(f"{province_code} {raw_code} {raw_name} (no valid exterior rings)")
             continue
         key = (province_code, target.code)
         if key in grouped:
@@ -240,6 +260,13 @@ def canonicalize_districts(source: Path, locations_source: Path) -> tuple[list[B
     result = list(grouped.values())
     result.sort(key=lambda boundary: (boundary.province_code, boundary.code))
     return result, skipped
+
+
+def merge_district_boundaries(base: list[Boundary], overrides: list[Boundary]) -> list[Boundary]:
+    by_key = {(boundary.province_code, boundary.code): boundary for boundary in base}
+    for boundary in overrides:
+        by_key[(boundary.province_code, boundary.code)] = boundary
+    return sorted(by_key.values(), key=lambda boundary: (boundary.province_code, boundary.code))
 
 
 def write_province_part(output: Path, index: int, features) -> str:
@@ -274,13 +301,29 @@ def partition_province_features(features, max_points: int = MAX_PROVINCE_POINTS_
     current = []
     current_points = 0
     for feature in features:
-        feature_points = sum(len(ring) for ring in feature[2])
-        if current and current_points + feature_points > max_points:
-            parts.append(current)
-            current = []
-            current_points = 0
-        current.append(feature)
-        current_points += feature_points
+        code, name, rings = feature
+        ring_chunks = []
+        current_rings = []
+        current_ring_points = 0
+        for ring in rings:
+            if current_rings and current_ring_points + len(ring) > max_points:
+                ring_chunks.append(current_rings)
+                current_rings = []
+                current_ring_points = 0
+            current_rings.append(ring)
+            current_ring_points += len(ring)
+        if current_rings:
+            ring_chunks.append(current_rings)
+
+        for ring_chunk in ring_chunks:
+            chunk = (code, name, ring_chunk)
+            chunk_points = sum(len(ring) for ring in ring_chunk)
+            if current and current_points + chunk_points > max_points:
+                parts.append(current)
+                current = []
+                current_points = 0
+            current.append(chunk)
+            current_points += chunk_points
     if current:
         parts.append(current)
     return parts
@@ -291,10 +334,11 @@ def write_provinces(
     source: Path,
     override_source: Path | None = None,
     override_tolerance: float = DEFAULT_PROVINCE_OVERRIDE_TOLERANCE,
+    simplify_tolerance: float = 0.0,
 ) -> None:
     for old in output.glob("GeneratedKoreaMapDataPart*.kt"):
         old.unlink()
-    features = read_province_features(source)
+    features = read_province_features(source, simplify_tolerance)
     if override_source:
         override_features = read_province_features(override_source, override_tolerance)
         features = merge_province_features(features, override_features, PROVINCE_OVERRIDE_CODES)
@@ -310,9 +354,17 @@ import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 
 /** Generated from a development-time GeoJSON source. */
 internal object GeneratedKoreaMapData {{
-    val provinces: List<ProvincePolygon> = listOf(
+    private val fragments: List<ProvincePolygon> = listOf(
 {parts},
     ).flatten()
+
+    val provinces: List<ProvincePolygon> = fragments
+        .groupBy(ProvincePolygon::code)
+        .values
+        .map {{ provinceFragments ->
+            val first = provinceFragments.first()
+            first.copy(rings = provinceFragments.flatMap {{ it.rings }})
+        }}
 }}
 """
     (output / "GeneratedKoreaMapData.kt").write_text(aggregator)
@@ -340,11 +392,25 @@ def write_district_resource(output: Path, province_code: str, boundaries: list[B
     )
 
 
-def write_districts(resource_output: Path, source: Path, locations_source: Path) -> None:
+def write_districts(
+    resource_output: Path,
+    source: Path,
+    locations_source: Path,
+    simplify_tolerance: float = 0.0,
+    override_source: Path | None = None,
+) -> None:
     resource_output.mkdir(parents=True, exist_ok=True)
     for old in resource_output.glob("korea-districts-*.json"):
         old.unlink()
-    boundaries, skipped = canonicalize_districts(source, locations_source)
+    boundaries, skipped = canonicalize_districts(source, locations_source, simplify_tolerance)
+    if override_source:
+        overrides, override_skipped = canonicalize_districts(
+            override_source,
+            locations_source,
+            simplify_tolerance,
+        )
+        boundaries = merge_district_boundaries(boundaries, overrides)
+        skipped.extend(override_skipped)
     by_province: dict[str, list[Boundary]] = defaultdict(list)
     for boundary in boundaries:
         by_province[boundary.province_code].append(boundary)
@@ -366,8 +432,21 @@ def main() -> None:
         default=DEFAULT_PROVINCE_OVERRIDE_TOLERANCE,
         help="RDP tolerance in degrees for the topology-compatible province overrides.",
     )
+    parser.add_argument(
+        "--province-tolerance",
+        type=float,
+        default=0.0,
+        help="RDP tolerance in degrees for the generated province map.",
+    )
     parser.add_argument("--district-source", type=Path)
+    parser.add_argument("--district-override-source", type=Path)
     parser.add_argument("--locations-source", type=Path)
+    parser.add_argument(
+        "--district-tolerance",
+        type=float,
+        default=0.0,
+        help="RDP tolerance in degrees for generated district resources.",
+    )
     parser.add_argument("--resource-output", type=Path, default=Path("shared/src/commonMain/composeResources/files"))
     parser.add_argument(
         "--output",
@@ -382,11 +461,18 @@ def main() -> None:
             args.province_source,
             args.province_override_source,
             args.province_override_tolerance,
+            args.province_tolerance,
         )
     if args.district_source:
         if not args.locations_source:
             parser.error("--locations-source is required with --district-source")
-        write_districts(args.resource_output, args.district_source, args.locations_source)
+        write_districts(
+            args.resource_output,
+            args.district_source,
+            args.locations_source,
+            args.district_tolerance,
+            args.district_override_source,
+        )
     if not args.province_source and not args.district_source:
         parser.error("province source or --district-source is required")
 

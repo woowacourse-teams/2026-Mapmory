@@ -1,0 +1,86 @@
+{
+  "region": "ap-northeast-2",
+  "tags": [
+    { "key": "Service", "value": "techcourse" },
+    { "key": "Role", "value": "techcourse-etc" },
+    { "key": "ProjectTeam", "value": "Mapmory" }
+  ],
+  "codeDeploy": {
+    "applicationName": "mapmory-landing",
+    "computePlatform": "Server",
+    "deploymentGroupName": "mapmory-landing-production",
+    "serviceRoleName": "codedeploy-project",
+    "deploymentConfigName": "CodeDeployDefault.AllAtOnce",
+    "ec2TagSet": {
+      "ec2TagSetList": [
+        [{ "Key": "Name", "Value": "ec2-mapmory", "Type": "KEY_AND_VALUE" }],
+        [{ "Key": "ProjectTeam", "Value": "Mapmory", "Type": "KEY_AND_VALUE" }]
+      ]
+    },
+    "deploymentStyle": { "deploymentType": "IN_PLACE", "deploymentOption": "WITHOUT_TRAFFIC_CONTROL" },
+    "autoRollbackConfiguration": { "enabled": true, "events": ["DEPLOYMENT_FAILURE"] }
+  },
+  "codeBuild": {
+    "name": "mapmory-landing-build",
+    "serviceRoleName": "codebuild-project",
+    "source": { "type": "CODEPIPELINE", "buildspec": "landing/buildspec.yml" },
+    "artifacts": { "type": "CODEPIPELINE" },
+    "environment": {
+      "type": "LINUX_CONTAINER",
+      "computeType": "BUILD_GENERAL1_SMALL",
+      "image": "aws/codebuild/standard:7.0",
+      "privilegedMode": false,
+      "imagePullCredentialsType": "CODEBUILD"
+    },
+    "timeoutInMinutes": 15,
+    "concurrentBuildLimit": 1,
+    "logsConfig": {
+      "cloudWatchLogs": { "status": "ENABLED", "groupName": "/aws/codebuild/project-2026", "streamName": "mapmory-landing" }
+    }
+  },
+  "codePipeline": {
+    "name": "mapmory-landing-release",
+    "pipelineType": "V2",
+    "executionMode": "SUPERSEDED",
+    "serviceRoleName": "codepipeline-project",
+    "artifactStore": { "type": "S3", "location": "techcourse-project-2026" },
+    "stages": [
+      {
+        "name": "Source",
+        "actions": [{
+          "name": "Source",
+          "namespace": "SourceVariables",
+          "actionTypeId": { "category": "Source", "owner": "ThirdParty", "provider": "GitHub", "version": "1" },
+          "configuration": { "Owner": "woowacourse-teams", "Repo": "2026-Mapmory", "Branch": "landing-release", "PollForSourceChanges": "false" },
+          "outputArtifacts": [{ "name": "SourceArtifact" }],
+          "runOrder": 1
+        }]
+      },
+      {
+        "name": "Build",
+        "actions": [{
+          "name": "Build",
+          "namespace": "BuildVariables",
+          "actionTypeId": { "category": "Build", "owner": "AWS", "provider": "CodeBuild", "version": "1" },
+          "configuration": {
+            "ProjectName": "mapmory-landing-build",
+            "EnvironmentVariables": "[{\"name\":\"SOURCE_COMMIT_ID\",\"value\":\"#{SourceVariables.CommitId}\",\"type\":\"PLAINTEXT\"}]"
+          },
+          "inputArtifacts": [{ "name": "SourceArtifact" }],
+          "outputArtifacts": [{ "name": "BuildArtifact" }],
+          "runOrder": 1
+        }]
+      },
+      {
+        "name": "Deploy",
+        "actions": [{
+          "name": "DeployLandingOnly",
+          "actionTypeId": { "category": "Deploy", "owner": "AWS", "provider": "CodeDeploy", "version": "1" },
+          "configuration": { "ApplicationName": "mapmory-landing", "DeploymentGroupName": "mapmory-landing-production" },
+          "inputArtifacts": [{ "name": "BuildArtifact" }],
+          "runOrder": 1
+        }]
+      }
+    ]
+  }
+}
