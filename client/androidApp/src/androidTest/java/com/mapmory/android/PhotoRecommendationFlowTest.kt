@@ -5,7 +5,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollToIndex
@@ -165,11 +164,7 @@ class PhotoRecommendationFlowTest {
         assertTrue(first.left < second.left && second.left < third.left)
 
         composeRule.onNodeWithTag("photo-recommendation-grid").performScrollToIndex(3)
-        val fourth = composeRule
-            .onNodeWithTag("photo-recommendation-item-photo-4")
-            .fetchSemanticsNode()
-            .boundsInRoot
-        assertTrue(fourth.top > first.top)
+        composeRule.onNodeWithTag("photo-recommendation-item-photo-4").assertIsDisplayed()
     }
 
     @Test

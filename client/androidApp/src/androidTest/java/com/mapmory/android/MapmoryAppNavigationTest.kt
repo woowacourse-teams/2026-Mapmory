@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,6 +49,9 @@ class MapmoryAppNavigationTest {
             MapmoryApp(container = container)
         }
 
+        composeRule.waitUntil(2_000) {
+            composeRule.onAllNodesWithText("일지").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("일지").performClick()
         composeRule.onNodeWithContentDescription("계측 테스트 여행").assertIsDisplayed()
         composeRule.onNodeWithText("계측 테스트 여행").assertIsDisplayed().performClick()
