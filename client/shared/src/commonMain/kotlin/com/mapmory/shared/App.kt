@@ -31,25 +31,31 @@ fun MapmoryApp(
     container: AppContainer? = null,
     navigation: MapmoryNavigation? = null,
     contentWindowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
-    initialIsDarkTheme: Boolean = false,
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ) {
-    var isDarkTheme by rememberSaveable { mutableStateOf(initialIsDarkTheme) }
-    val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
-    val themeState = remember(isDarkTheme) {
-        MapmoryThemeState(
-            isDark = isDarkTheme,
-            onThemeChange = { shouldUseDarkTheme ->
-                isDarkTheme = shouldUseDarkTheme
-                latestOnThemeChanged(shouldUseDarkTheme)
-            },
-        )
-    }
     val ownedContainer = remember(container) {
         if (container == null) createInMemoryAppContainer() else null
     }
     val appContainer = requireNotNull(container ?: ownedContainer)
+    val themePreference = appContainer.themePreference
+    var isDarkTheme by remember(themePreference) {
+        mutableStateOf(themePreference.loadIsDarkTheme())
+    }
+    val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
+    LaunchedEffect(themePreference) {
+        latestOnThemeChanged(isDarkTheme)
+    }
+    val themeState = remember(isDarkTheme, themePreference) {
+        MapmoryThemeState(
+            isDark = isDarkTheme,
+            onThemeChange = { shouldUseDarkTheme ->
+                isDarkTheme = shouldUseDarkTheme
+                themePreference.saveIsDarkTheme(shouldUseDarkTheme)
+                latestOnThemeChanged(shouldUseDarkTheme)
+            },
+        )
+    }
     val navController = rememberNavController()
     val navigator = remember(navController) { MapmoryNavigator(navController) }
     val backHandlerRegistry = remember { MapmoryBackHandlerRegistry() }

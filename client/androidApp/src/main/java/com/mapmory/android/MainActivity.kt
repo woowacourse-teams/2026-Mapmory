@@ -70,7 +70,6 @@ class MainActivity : ComponentActivity() {
                         navigation = navigation,
                         analytics = analyticsLogger,
                         contentWindowInsets = WindowInsets.safeDrawing,
-                        initialIsDarkTheme = isDarkTheme,
                         onThemeChanged = { isDarkTheme = it },
                     )
                     BackHandler {
