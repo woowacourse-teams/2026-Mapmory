@@ -496,7 +496,7 @@ fun TripRecordEditorScreen(
                                 selected = uiState.selectedLocation?.regionCode == location.regionCode,
                                 onClick = {
                                     analytics.logEvent(
-                                        MapmoryAnalyticsEvent.MAP_LOCATION_SELECTED,
+                                        MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
                                         mapOf(
                                             "source" to "location_search",
                                             "location_type" to location.type.name.lowercase(),

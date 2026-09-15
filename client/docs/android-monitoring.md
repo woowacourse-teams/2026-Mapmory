@@ -130,65 +130,67 @@ adb -s <serial> logcat -v time -s MapmoryPhotoPerf:D
 Firebase Analytics는 기능 사용 여부와 전환 흐름을 확인하기 위한 용도로만 사용한다. 모든
 `Modifier.clickable`을 기록하지 않고, 제품 판단에 필요한 의미 있는 행동을 한 번씩 기록한다.
 
-| 이벤트 | 기록 시점 | 주요 파라미터 |
-| --- | --- | --- |
-| `screen_view` | 지도·기록 작성 화면 진입 | `screen_name` |
-| `bottom_nav_clicked` | 하단 지도·일지·통계 탭 클릭 | `from_tab`, `to_tab` |
-| `map_scope_changed` | 대한민국·전세계 전환 | `scope` |
-| `map_province_selected` | 대한민국 시·도 선택 | `province_code` |
-| `map_location_selected` | 지도 또는 장소 검색에서 지역 선택 | `location_type`, `has_records` |
-| `record_create_started` | 지도 FAB 클릭 | `source` |
-| `photo_recommendation_started` | 위치 기반 사진 추천 시작 | `location_type` |
-| `photo_recommendation_cancelled` | 사진 추천 중단 | 없음 |
-| `photos_added` | 갤러리·추천 사진을 기록에 추가 | `source`, `count` |
-| `record_save_started` | 기록 저장 시작 | `mode` |
-| `record_save_completed` | 기록 저장 성공 | `mode` |
-| `record_save_failed` | 기록 저장 실패 또는 검증 실패 | `mode` |
-| `journal_record_opened` | 일지에서 기록 선택 | 없음 |
-| `journal_filter_selected` | 일지 태그 필터 선택 | `tag` |
+Firebase 이벤트와 파라미터 이름은 영문으로 유지하고, 아래 한글 표시명은 문서와 대시보드에서 사용한다.
+
+| 이벤트 | 한글 표시명 | 기록 시점 | 주요 파라미터 |
+| --- | --- | --- | --- |
+| `app_screen_view` | 앱 화면 조회 | 지도·일지·기록 작성·프로필·기록 상세 화면 진입 | `screen_name` |
+| `bottom_nav_clicked` | 하단 탭 선택 | 하단 지도·일지·프로필 탭 클릭 | `from_tab`, `to_tab` |
+| `map_scope_changed` | 지도 범위 변경 | 대한민국·전세계 전환 | `scope` |
+| `map_province_selected` | 시·도 선택 | 대한민국 시·도 선택 | `province_code` |
+| `map_location_selected` | 지도 지역 선택 | 지도에서 지역 선택 | `location_type`, `has_records` |
+| `record_location_selected` | 기록 장소 선택 | 기록 작성 화면의 장소 검색 결과 선택 | `source`, `location_type` |
+| `map_detail_back_clicked` | 상세 지도 뒤로가기 | 시·군·구 지도에서 시·도 지도로 이동 | 없음 |
+| `record_create_started` | 기록 작성 시작 | 지도·일지 FAB 클릭 | `source` |
+| `photo_picker_opened` | 사진 선택기 열기 | 갤러리 사진 선택 시작 | 없음 |
+| `photo_recommendation_started` | 사진 추천 시작 | 위치 기반 사진 추천 시작 | `location_type` |
+| `photo_recommendation_cancelled` | 사진 추천 취소 | 사진 추천 중단 | 없음 |
+| `photos_added` | 사진 추가 | 갤러리·추천 사진을 기록에 추가 | `source`, `count` |
+| `record_save_started` | 기록 저장 시작 | 기록 저장 시작 | `mode` |
+| `record_save_completed` | 기록 저장 완료 | 기록 저장 성공 | `mode` |
+| `record_save_failed` | 기록 저장 실패 | 기록 저장 실패 또는 검증 실패 | `mode` |
+| `journal_record_opened` | 일지 기록 열기 | 일지에서 기록 선택 | 없음 |
+| `journal_retry_clicked` | 일지 재시도 | 일지 조회 오류 후 재시도 | 없음 |
+| `journal_filter_selected` | 일지 필터 선택 | 전체·사용자 태그 필터 선택 | `filter_type` |
+| `journal_page_changed` | 일지 페이지 이동 | 이전·다음 페이지 선택 | `direction` |
+| `statistics_retry_clicked` | 통계 재시도 | 통계 조회 오류 후 재시도 | 없음 |
+| `settings_opened` | 설정 열기 | 프로필에서 설정 열기 | 없음 |
+| `theme_changed` | 테마 변경 | 라이트·다크 테마 선택 | `theme` |
+| `privacy_policy_opened` | 개인정보처리방침 열기 | 설정에서 개인정보처리방침 선택 | 없음 |
+| `app_remove` | Android 앱 삭제 | Android 기기에서 앱 패키지 삭제 시 Firebase가 자동 수집 | 없음 |
 
 기록 제목·본문, 사진 파일명·원본, GPS 좌표, 회원 식별자와 같은 개인정보 또는 원본 데이터는
-이벤트 파라미터로 보내지 않는다. `count`도 사진 내용이 아니라 처리된 개수만 의미한다.
+이벤트 파라미터로 보내지 않는다. 사용자가 작성한 태그 이름도 보내지 않고 `filter_type`으로 전체
+필터인지 사용자 태그 필터인지만 구분한다. `count`도 사진 내용이 아니라 처리된 개수만 의미한다.
 
-### DebugView로 Android 이벤트 확인
+`app_remove`는 Android 전용 자동 이벤트다. iOS 앱 삭제는 앱 코드에서 이벤트를 보낼 수 없으므로
+App Store Connect의 `Deletions` 지표로 확인한다.
 
-Debug 빌드에서 대상 기기를 지정하고 앱을 다시 실행한다.
+### Android 수집 정책
 
-```bash
-adb -s <serial> shell setprop debug.firebase.analytics.app com.mapmory.android
-```
-
-Firebase Console의 `Analytics > DebugView`에서 이벤트를 즉시 확인한다. 확인이 끝나면 다음 명령으로
-해당 기기의 DebugView 모드를 해제한다.
-
-```bash
-adb -s <serial> shell setprop debug.firebase.analytics.app .none.
-```
+Android Debug 빌드는 전용 Manifest의 `firebase_analytics_collection_deactivated=true` 설정으로
+Analytics 수집 자체를 비활성화한다. USB 실기기와 에뮬레이터에서 Android Studio의 기본 Debug
+Run을 사용한 경우에도 이벤트를 보내지 않는다. Release 빌드만 운영 Analytics로 전송한다.
 
 Android 프로젝트의 `google-services.json`은 `client/androidApp/google-services.json`에 두고,
 앱 시작 시 `FirebaseApp.initializeApp()`으로 Firebase Analytics를 초기화한다. 설정 파일이 없는
 개발·CI 환경에서는 Analytics 어댑터가 no-op으로 동작하므로 빌드와 공통 테스트를 막지 않는다.
 
-### DebugView로 iOS 이벤트 확인
+### iOS 수집 정책
 
-Debug 빌드의 Scheme > Run > Arguments Passed On Launch에 `-FIRAnalyticsDebugEnabled`를 추가한 뒤
-Simulator 또는 실제 기기에서 앱을 실행한다. Firebase Console의 `Analytics > DebugView`에서
-`screen_view`, `map_location_selected` 등의 이벤트가 들어오는지 확인한다. 확인이 끝나면 해당
-실행 인자를 제거하거나 `-FIRAnalyticsDebugDisabled`를 사용해 DebugView를 해제한다.
+iOS Debug 구성은 `Info-Debug.plist`의 `FIREBASE_ANALYTICS_COLLECTION_DEACTIVATED=true` 설정으로
+Analytics 수집 자체를 비활성화한다. Xcode에서 Simulator 또는 실기기로 기본 Debug Run한 경우에도
+이벤트를 보내지 않는다. Release 구성만 운영 Analytics로 전송한다.
 
 iOS 설정 파일은 `client/iosApp/GoogleService-Info.plist`에 두고, `MapmoryApp` 초기화 시
 `FirebaseApp.configure()`를 호출한다. Firebase Analytics 이벤트는 Swift 어댑터가 공통
 `MapmoryAnalytics` 인터페이스를 구현해 전달한다.
 
-### 현재 연결 확인 결과
+### 출시 전 연결 확인
 
-- Android Debug 빌드에서 새 Firebase App ID로 초기화되고 `screen_view`,
-  `record_create_started` 이벤트가 Logcat에 기록되며 업로드 응답 `204`를 확인했다.
-- iOS Simulator Debug 빌드에서 새 Firebase App ID로 초기화되고 Analytics 수집이 활성화되는 것을
-  확인했다. Simulator의 키체인 제약 때문에 Installation ID와 실제 이벤트 수신은 iOS 실기기에서
-  추가 확인한다.
-- DebugView는 이벤트 전송 후 콘솔에 반영되기까지 지연될 수 있으므로, 즉시 확인할 때는 기기 로그와
-  DebugView를 함께 확인한다.
+- Android·iOS Debug 빌드에서 Analytics 이벤트가 전송되지 않는지 확인한다.
+- Android·iOS Release 후보 빌드에서 현재 앱 ID로 초기화되는지 확인한다.
+- Release 후보의 핵심 이벤트 수신 여부는 운영 데이터 오염을 줄이도록 최소 횟수로 검증한다.
 
 ## iOS 사진 성능 로그
 
