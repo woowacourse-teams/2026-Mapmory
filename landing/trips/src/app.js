@@ -73,7 +73,7 @@ function choosePhotos() { analytics.track('trips_picker_open',{picker_type:'phot
 function renderStart(message = '') {
   app.className = 'start-screen'; app.replaceChildren();
   const content = el('div', 'start-content');
-  content.append(button('사진 정리하기', choosePhotos, 'button button-primary start-button', 'photo'));
+  content.append(button('여행 사진 정리하기', choosePhotos, 'button button-primary start-button', 'photo'));
   content.append(button('선택이 안 되나요? 파일에서 원본 선택',()=>{analytics.track('trips_picker_open',{picker_type:'files'});originalInput.value='';originalInput.click();},'button button-secondary'));
   content.append(el('p','keep-open','한 번에 최대 1,000장 · 50MB를 넘는 사진은 제외하고 나머지를 정리해요.'));
   content.append(el('p','keep-open','실험 기준: /recap 사진 읽기 · iOS 웹 / 안드로이드 카톡에서 확인한 선택 경로를 이용해주세요. 선택 경로에서 빠진 GPS는 복구할 수 없어요.'));

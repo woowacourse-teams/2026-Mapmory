@@ -19,6 +19,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 ### Trips experiment (2026-09-22)
 
+- The primary start button uses the exact label `여행 사진 정리하기`. Keep the static HTML fallback and JavaScript-rendered button in sync.
 - Keep the metadata-only experiment separate at `/trips/`; `/trips` redirects with HTTP 308 and preserves the query. Do not replace the homepage or Recap.
 - Maintain `trips/src/` as the experiment source and package only `trips/dist/trips/` into `client/trips/`. No personal test photos, test fixtures, credentials or original third-party hosting IDs may enter the deployment artifact.
 - Retain the tested /recap File/byte EXIF reading path; date/GPS extraction is not image analysis or guaranteed HEIC preview support.
