@@ -899,7 +899,7 @@ private fun EditorTitleField(
             Box(contentAlignment = Alignment.CenterStart) {
                 if (value.isBlank()) {
                     Text(
-                        text = "여행의 제목을 적어주세요",
+                        text = "여행의 제목을 적어주세요 (선택)",
                         color = TripRecordPalette.current.muted,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
@@ -934,7 +934,7 @@ private fun DateFields(
             modifier = Modifier.weight(1f),
         )
         DateField(
-            label = "종료",
+            label = "종료 (선택)",
             value = endDate,
             errorMessage = endDateError,
             onClick = onEndDateClick,
@@ -1036,7 +1036,7 @@ private fun TagEditor(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "태그",
+                text = "태그 (선택)",
                 color = TripRecordPalette.current.text,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,

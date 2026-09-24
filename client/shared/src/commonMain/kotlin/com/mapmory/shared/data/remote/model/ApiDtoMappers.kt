@@ -11,6 +11,7 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPage
+import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripStatistics
@@ -94,6 +95,7 @@ internal fun TripRecordQuery.toRegionQuery(regionCatalog: RegionCatalog): Region
 internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRecordRequestDto {
     require(title.length <= MaxTitleLength) { "제목은 200자 이하여야 합니다." }
     dateValidationError()?.let { error -> throw IllegalArgumentException(error) }
+    require(mediaObjectKeys.isNotEmpty()) { TripRecordPhotoRules.RequiredMessage }
     require(mediaObjectKeys.distinct().size == mediaObjectKeys.size) {
         "같은 사진을 중복해서 추가할 수 없습니다."
     }
@@ -107,8 +109,8 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         provinceCode = region.provinceCode,
         districtCode = region.districtCode,
         title = title,
-        content = content,
-        startDate = requireNotNull(startDate),
+        content = content.orEmpty(),
+        startDate = startDate,
         endDate = endDate,
         objectKeys = mediaObjectKeys,
         tagIds = tagIds,

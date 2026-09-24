@@ -397,8 +397,8 @@ class TripRecordEditorViewModel(
         val draft = TripRecordDraft(
             locationId = location.id,
             title = state.title.trim(),
-            content = state.content.trim(),
-            startDate = state.startDate.ifBlank { null },
+            content = state.content.trim().takeIf(String::isNotEmpty),
+            startDate = state.startDate,
             endDate = state.endDate.ifBlank { null },
             mediaObjectKeys = state.mediaObjectKeys,
             uploadedMediaObjectKeys = state.selectedPhotos
@@ -519,7 +519,9 @@ private fun TripRecordEditorErrorTarget.isDateTarget(): Boolean =
 private fun TripRecordEditorUiState.validationErrors(
     dateRangeErrorTarget: TripRecordEditorErrorTarget = TripRecordEditorErrorTarget.END_DATE,
 ): Map<TripRecordEditorErrorTarget, String> = buildMap {
-    if (
+    if (mediaObjectKeys.isEmpty() || selectedPhotos.isEmpty()) {
+        put(TripRecordEditorErrorTarget.PHOTOS, TripRecordPhotoRules.RequiredMessage)
+    } else if (
         mediaObjectKeys.size > TripRecordPhotoRules.MaxPhotosPerRecord ||
         selectedPhotos.size > TripRecordPhotoRules.MaxPhotosPerRecord
     ) {
@@ -530,9 +532,7 @@ private fun TripRecordEditorUiState.validationErrors(
     } else if (!selectedLocation.isSelectableTripRecordDestination()) {
         put(TripRecordEditorErrorTarget.LOCATION, "장소를 선택해 주세요.")
     }
-    if (title.isBlank()) {
-        put(TripRecordEditorErrorTarget.TITLE, "제목을 입력해 주세요.")
-    } else if (title.length > MaxTitleLength) {
+    if (title.length > MaxTitleLength) {
         put(TripRecordEditorErrorTarget.TITLE, "제목은 200자 이하여야 합니다.")
     }
 
@@ -540,7 +540,7 @@ private fun TripRecordEditorUiState.validationErrors(
         locationId = selectedLocation?.id ?: 0L,
         title = title,
         content = content,
-        startDate = startDate.ifBlank { null },
+        startDate = startDate,
         endDate = endDate.ifBlank { null },
         mediaObjectKeys = mediaObjectKeys,
     ).dateValidationError()
