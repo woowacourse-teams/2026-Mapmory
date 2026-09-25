@@ -141,14 +141,16 @@ Firebase 이벤트와 파라미터 이름은 영문으로 유지하고, 아래 �
 | `map_location_selected` | 지도 지역 선택 | 지도에서 지역 선택 | `location_type`, `has_records` |
 | `record_location_selected` | 기록 장소 선택 | 기록 작성 화면의 장소 검색 결과 선택 | `source`, `location_type` |
 | `map_detail_back_clicked` | 상세 지도 뒤로가기 | 시·군·구 지도에서 시·도 지도로 이동 | 없음 |
-| `record_create_started` | 기록 작성 시작 | 지도·일지 FAB 클릭 | `source` |
+| `record_create_started` | 기록 작성 시작 | 지도·일지 FAB 클릭 또는 기록이 없는 지도 지역 선택 후 작성 화면 진입 | `source` (`map_fab`, `journal_fab`, `map_location`) |
+| `record_editor_field_interacted` | 기록 작성 항목 사용 | 작성 화면에서 각 항목을 처음 조작하거나 포커스 | `field_name` (`photos`, `title`, `location`, `start_date`, `end_date`, `tags`, `content`) |
+| `record_editor_exited` | 기록 작성 화면 이탈 | 사용자가 뒤로가기·하단 탭 이동을 확정해 작성 화면을 나감 | `mode`, `destination`, `has_unsaved_changes` |
 | `photo_picker_opened` | 사진 선택기 열기 | 갤러리 사진 선택 시작 | 없음 |
 | `photo_recommendation_started` | 사진 추천 시작 | 위치 기반 사진 추천 시작 | `location_type` |
 | `photo_recommendation_cancelled` | 사진 추천 취소 | 사진 추천 중단 | 없음 |
 | `photos_added` | 사진 추가 | 갤러리·추천 사진을 기록에 추가 | `source`, `count` |
-| `record_save_started` | 기록 저장 시작 | 기록 저장 시작 | `mode` |
-| `record_save_completed` | 기록 저장 완료 | 기록 저장 성공 | `mode` |
-| `record_save_failed` | 기록 저장 실패 | 기록 저장 실패 또는 검증 실패 | `mode` |
+| `record_save_started` | 기록 저장 시작 | 기록 저장 시작 | `mode`, `has_title`, `has_content`, `has_end_date`, `has_tags`, `has_photos` |
+| `record_save_completed` | 기록 저장 완료 | 기록 저장 성공 | 저장 시작 이벤트와 같은 작성 상태 파라미터 |
+| `record_save_failed` | 기록 저장 실패 | 기록 저장 실패 또는 검증 실패 | 저장 시작 이벤트와 같은 작성 상태 파라미터 |
 | `journal_record_opened` | 일지 기록 열기 | 일지에서 기록 선택 | 없음 |
 | `journal_retry_clicked` | 일지 재시도 | 일지 조회 오류 후 재시도 | 없음 |
 | `journal_filter_selected` | 일지 필터 선택 | 전체·사용자 태그 필터 선택 | `filter_type` |
@@ -160,8 +162,23 @@ Firebase 이벤트와 파라미터 이름은 영문으로 유지하고, 아래 �
 | `app_remove` | Android 앱 삭제 | Android 기기에서 앱 패키지 삭제 시 Firebase가 자동 수집 | 없음 |
 
 기록 제목·본문, 사진 파일명·원본, GPS 좌표, 회원 식별자와 같은 개인정보 또는 원본 데이터는
-이벤트 파라미터로 보내지 않는다. 사용자가 작성한 태그 이름도 보내지 않고 `filter_type`으로 전체
-필터인지 사용자 태그 필터인지만 구분한다. `count`도 사진 내용이 아니라 처리된 개수만 의미한다.
+이벤트 파라미터로 보내지 않는다. 작성 화면 이벤트도 입력값은 수집하지 않고 항목 이름과 저장 시점의
+입력 여부만 기록한다. `record_editor_field_interacted`는 항목별 첫 상호작용만 기록한다.
+`record_editor_exited`는 앱 안에서 사용자가 실제로 이동을 확정한 경우만 기록하며, 앱 백그라운드 전환이나
+강제 종료를 의미하지 않는다. 사용자가 작성한 태그 이름도 보내지 않고 `filter_type`으로 전체 필터인지
+사용자 태그 필터인지만 구분한다. `count`도 사진 내용이 아니라 처리된 개수만 의미한다.
+
+기록 작성 퍼널은 `record_create_started` → `record_editor_field_interacted` →
+`record_save_completed` 또는 `record_editor_exited` 순으로 살펴본다. `source`와 `field_name`,
+`destination`, `mode`, `has_unsaved_changes`, `has_title`, `has_content`, `has_end_date`, `has_tags`,
+`has_photos`를 GA4 탐색에서 비교하면 작성 시작 경로와 사용한 항목,
+명시적으로 나간 시점을 구분할 수 있다. 다만 앱을 닫거나 백그라운드로 보낸 경우는 명시적 이탈로
+계산되지 않으므로, 이 이벤트만으로 모든 이탈 원인을 단정하지 않는다.
+
+이벤트 파라미터를 GA4 탐색에서 분류 기준으로 쓰려면 GA4 관리 화면의 `맞춤 정의`에 이벤트 범위
+맞춤 측정기준으로 등록해야 한다. `source`, `field_name`, `destination`, `mode`와 작성 상태의
+참/거짓 값만 등록해 값 종류가 과도하게 늘어나지 않도록 한다. 새 정의는 데이터가 수집된 뒤 보고서와
+탐색에 반영되기까지 최대 24~48시간 걸릴 수 있다.
 
 `app_remove`는 Android 전용 자동 이벤트다. iOS 앱 삭제는 앱 코드에서 이벤트를 보낼 수 없으므로
 App Store Connect의 `Deletions` 지표로 확인한다.

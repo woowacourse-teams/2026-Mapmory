@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -167,6 +168,15 @@ fun TripRecordEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    val interactedFields = remember(uiState.recordId) { mutableSetOf<String>() }
+    fun logFieldInteraction(fieldName: String) {
+        if (interactedFields.add(fieldName)) {
+            analytics.logEvent(
+                MapmoryAnalyticsEvent.RECORD_EDITOR_FIELD_INTERACTED,
+                mapOf("field_name" to fieldName),
+            )
+        }
+    }
     val selectableLocations = remember(locations) {
         locations.selectableTripRecordDestinations()
     }
@@ -300,6 +310,7 @@ fun TripRecordEditorScreen(
                             locationName = uiState.selectedLocation?.name ?: "여행 장소",
                             photos = uiState.selectedPhotos,
                             onAddClick = {
+                                logFieldInteraction("photos")
                                 if (remainingPhotoSlots == 0) {
                                     photoMessage = TripRecordPhotoRules.LimitMessage
                                 } else {
@@ -308,6 +319,7 @@ fun TripRecordEditorScreen(
                                 }
                             },
                             onRecommendClick = {
+                                logFieldInteraction("photos")
                                 if (isRecommendationLoading) {
                                     analytics.logEvent(MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_CANCELLED)
                                     photoLibrary.cancelRecommendation()
@@ -361,6 +373,7 @@ fun TripRecordEditorScreen(
                             EditorTitleField(
                                 value = uiState.title,
                                 onValueChange = onTitleChanged,
+                                onFocus = { logFieldInteraction("title") },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             EditorErrorMessage(
@@ -375,6 +388,7 @@ fun TripRecordEditorScreen(
                                 selectedLocation = uiState.selectedLocation,
                                 locations = locations,
                                 onClick = {
+                                    logFieldInteraction("location")
                                     onLocationTouched()
                                     showLocationSheet = true
                                 },
@@ -392,8 +406,14 @@ fun TripRecordEditorScreen(
                             endDate = uiState.endDate,
                             startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
                             endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
-                            onStartDateClick = { datePickerTarget = StartDatePickerTarget },
-                            onEndDateClick = { datePickerTarget = EndDatePickerTarget },
+                            onStartDateClick = {
+                                logFieldInteraction("start_date")
+                                datePickerTarget = StartDatePickerTarget
+                            },
+                            onEndDateClick = {
+                                logFieldInteraction("end_date")
+                                datePickerTarget = EndDatePickerTarget
+                            },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
                         EditorDivider(Modifier.padding(horizontal = 20.dp))
@@ -402,9 +422,19 @@ fun TripRecordEditorScreen(
                             uiState = uiState,
                             saveErrorMessage = uiState.errorMessageFor(TripRecordEditorErrorTarget.TAGS),
                             onInputChanged = onTagInputChanged,
-                            onTagToggled = onTagToggled,
-                            onPendingTagToggled = onPendingTagToggled,
-                            onCreate = onTagCreate,
+                            onTagToggled = {
+                                logFieldInteraction("tags")
+                                onTagToggled(it)
+                            },
+                            onPendingTagToggled = {
+                                logFieldInteraction("tags")
+                                onPendingTagToggled(it)
+                            },
+                            onCreate = {
+                                logFieldInteraction("tags")
+                                onTagCreate()
+                            },
+                            onInteracted = { logFieldInteraction("tags") },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
 
@@ -412,6 +442,7 @@ fun TripRecordEditorScreen(
                             EditorContentField(
                                 value = uiState.content,
                                 onValueChange = onContentChanged,
+                                onFocus = { logFieldInteraction("content") },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             EditorErrorMessage(
@@ -883,6 +914,7 @@ private fun PhotoPermissionDialog(
 private fun EditorTitleField(
     value: String,
     onValueChange: (String) -> Unit,
+    onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BasicTextField(
@@ -908,7 +940,9 @@ private fun EditorTitleField(
                 innerTextField()
             }
         },
-        modifier = modifier.height(34.dp),
+        modifier = modifier
+            .height(34.dp)
+            .onFocusChanged { if (it.isFocused) onFocus() },
     )
 }
 
@@ -1027,6 +1061,7 @@ private fun TagEditor(
     onTagToggled: (Long) -> Unit,
     onPendingTagToggled: (String) -> Unit,
     onCreate: () -> Unit,
+    onInteracted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
@@ -1071,7 +1106,9 @@ private fun TagEditor(
                     focusedPlaceholderColor = TripRecordPalette.current.muted,
                     unfocusedPlaceholderColor = TripRecordPalette.current.muted,
                 ),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { if (it.isFocused) onInteracted() },
             )
             TextButton(
                 onClick = onCreate,
@@ -1094,14 +1131,20 @@ private fun TagEditor(
                     TripTagChip(
                         text = tag.name,
                         selected = selected,
-                        onClick = { onTagToggled(tag.id) },
+                        onClick = {
+                            onInteracted()
+                            onTagToggled(tag.id)
+                        },
                     )
                 }
                 uiState.pendingTagNames.forEach { name ->
                     TripTagChip(
                         text = name,
                         selected = name in uiState.selectedPendingTagNames,
-                        onClick = { onPendingTagToggled(name) },
+                        onClick = {
+                            onInteracted()
+                            onPendingTagToggled(name)
+                        },
                     )
                 }
             }
@@ -1125,6 +1168,7 @@ private fun TagEditor(
 private fun EditorContentField(
     value: String,
     onValueChange: (String) -> Unit,
+    onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BasicTextField(
@@ -1148,7 +1192,9 @@ private fun EditorContentField(
                 innerTextField()
             }
         },
-        modifier = modifier.heightIn(min = 150.dp, max = 200.dp),
+        modifier = modifier
+            .heightIn(min = 150.dp, max = 200.dp)
+            .onFocusChanged { if (it.isFocused) onFocus() },
     )
 }
 

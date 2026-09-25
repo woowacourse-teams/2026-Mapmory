@@ -45,6 +45,7 @@ internal fun TripRecordEditorRoute(
     var pendingEditorExit by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingPhotoLoadingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var isPhotoLoadingSaveConfirmation by remember { mutableStateOf(false) }
+    val mode = if (recordId == null) "create" else "edit"
 
     LaunchedEffect(viewModel, recordId, selectedLocationId) {
         viewModel.initialize(
@@ -60,28 +61,47 @@ internal fun TripRecordEditorRoute(
         )
     }
 
-    fun requestExit(exit: () -> Unit) {
+    fun requestExit(destination: String, exit: () -> Unit) {
+        val trackAndExit = {
+            analytics.logEvent(
+                MapmoryAnalyticsEvent.RECORD_EDITOR_EXITED,
+                mapOf(
+                    "mode" to mode,
+                    "destination" to destination,
+                    "has_unsaved_changes" to viewModel.uiState.isDirty.toString(),
+                ),
+            )
+            exit()
+        }
         when {
             viewModel.uiState.isPhotoLoading -> {
                 isPhotoLoadingSaveConfirmation = false
-                pendingPhotoLoadingAction = exit
+                pendingPhotoLoadingAction = trackAndExit
             }
-            viewModel.uiState.isDirty -> pendingEditorExit = exit
-            else -> exit()
+            viewModel.uiState.isDirty -> pendingEditorExit = trackAndExit
+            else -> trackAndExit()
         }
     }
 
     fun save() {
         scope.launch {
-            val mode = if (recordId == null) "create" else "edit"
+            val state = viewModel.uiState
+            val saveParameters = mapOf(
+                "mode" to mode,
+                "has_title" to state.title.isNotBlank().toString(),
+                "has_content" to state.content.isNotBlank().toString(),
+                "has_end_date" to state.endDate.isNotBlank().toString(),
+                "has_tags" to (state.selectedTagCount > 0).toString(),
+                "has_photos" to state.mediaObjectKeys.isNotEmpty().toString(),
+            )
             analytics.logEvent(
                 MapmoryAnalyticsEvent.RECORD_SAVE_STARTED,
-                mapOf("mode" to mode),
+                saveParameters,
             )
             if (viewModel.save()) {
                 analytics.logEvent(
                     MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED,
-                    mapOf("mode" to mode),
+                    saveParameters,
                 )
                 viewModel.savedRecordId?.let { savedId ->
                     onSaved(recordId != null, savedId)
@@ -89,14 +109,14 @@ internal fun TripRecordEditorRoute(
             } else {
                 analytics.logEvent(
                     MapmoryAnalyticsEvent.RECORD_SAVE_FAILED,
-                    mapOf("mode" to mode),
+                    saveParameters,
                 )
             }
         }
     }
 
     val latestBackHandler = rememberUpdatedState {
-        requestExit(onBack)
+        requestExit("back", onBack)
         true
     }
     DisposableEffect(viewModel, backHandlerRegistry) {
@@ -136,10 +156,10 @@ internal fun TripRecordEditorRoute(
                 save()
             }
         },
-        onBackClick = { requestExit(onBack) },
-        onMapClick = { requestExit(onOpenMap) },
-        onRecordClick = { requestExit(onOpenRecords) },
-        onProfileClick = { requestExit(onOpenProfile) },
+        onBackClick = { requestExit("back", onBack) },
+        onMapClick = { requestExit("map_tab", onOpenMap) },
+        onRecordClick = { requestExit("journal_tab", onOpenRecords) },
+        onProfileClick = { requestExit("profile_tab", onOpenProfile) },
     )
 
     pendingEditorExit?.let { exit ->
