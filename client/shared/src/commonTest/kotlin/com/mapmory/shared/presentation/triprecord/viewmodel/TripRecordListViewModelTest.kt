@@ -29,10 +29,24 @@ class TripRecordListViewModelTest {
         val family = repository.createTag("가족").getOrThrow()
         val food = repository.createTag("맛집").getOrThrow()
         repository.createTripRecord(
-            TripRecordDraft(101, "가족 여행", "", "2026-08-01", null, emptyList(), tagIds = listOf(family.id)),
+            TripRecordDraft(
+                locationId = 101,
+                startDate = "2026-08-01",
+                mediaObjectKeys = listOf("family.jpg"),
+                title = "가족 여행",
+                content = "",
+                tagIds = listOf(family.id),
+            ),
         )
         repository.createTripRecord(
-            TripRecordDraft(101, "맛집 여행", "", "2026-08-02", null, emptyList(), tagIds = listOf(food.id)),
+            TripRecordDraft(
+                locationId = 101,
+                startDate = "2026-08-02",
+                mediaObjectKeys = listOf("food.jpg"),
+                title = "맛집 여행",
+                content = "",
+                tagIds = listOf(food.id),
+            ),
         )
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
@@ -107,7 +121,7 @@ class TripRecordListViewModelTest {
                 content = "",
                 startDate = "2026-08-01",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("before.jpg"),
             ),
         ).getOrThrow()
         val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
@@ -121,7 +135,7 @@ class TripRecordListViewModelTest {
                 content = "",
                 startDate = "2026-08-01",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("after.jpg"),
             ),
         ).getOrThrow()
         viewModel.refresh(locationId = 101)
@@ -155,7 +169,7 @@ class TripRecordListViewModelTest {
                     content = "한강을 걸었다.",
                     startDate = "2026-08-01",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("seoul.jpg"),
                 ),
             )
             repository.createTripRecord(
@@ -165,7 +179,7 @@ class TripRecordListViewModelTest {
                     content = "바다를 보았다.",
                     startDate = "2026-08-02",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("busan.jpg"),
                 ),
             )
             val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))

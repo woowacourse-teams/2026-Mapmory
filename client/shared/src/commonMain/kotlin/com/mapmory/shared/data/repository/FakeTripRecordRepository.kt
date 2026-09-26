@@ -12,6 +12,7 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPage
+import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripStatistics
@@ -65,13 +66,16 @@ class FakeTripRecordRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> {
         draft.dateValidationError()?.let { return Result.failure(IllegalArgumentException(it)) }
+        if (draft.mediaObjectKeys.isEmpty()) {
+            return Result.failure(IllegalArgumentException(TripRecordPhotoRules.RequiredMessage))
+        }
         val timestamp = now()
         val record = TripRecordData(
             id = nextRecordId++,
             locationId = draft.locationId,
             title = draft.title,
-            content = draft.content,
-            startDate = requireNotNull(draft.startDate),
+            content = draft.content.orEmpty(),
+            startDate = draft.startDate,
             endDate = draft.endDate,
             media = createMedia(draft),
             createdAt = timestamp,
@@ -86,12 +90,15 @@ class FakeTripRecordRepository(
         val index = records.indexOfFirst { it.id == id }
         if (index == -1) return Result.failure(NoSuchElementException("여행 기록을 찾을 수 없습니다."))
         draft.dateValidationError()?.let { return Result.failure(IllegalArgumentException(it)) }
+        if (draft.mediaObjectKeys.isEmpty()) {
+            return Result.failure(IllegalArgumentException(TripRecordPhotoRules.RequiredMessage))
+        }
 
         val updatedRecord = records[index].copy(
             locationId = draft.locationId,
             title = draft.title,
-            content = draft.content,
-            startDate = requireNotNull(draft.startDate),
+            content = draft.content.orEmpty(),
+            startDate = draft.startDate,
             endDate = draft.endDate,
             media = createMedia(draft),
             tags = tagsFor(draft.tagIds),

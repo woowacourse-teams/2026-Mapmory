@@ -53,6 +53,23 @@ class PhotoRecommendationPagingTest {
     }
 
     @Test
+    fun `새_앨범_플로우는_추천_사진을_자동으로_선택하지_않는다`() {
+        val result = PhotoRecommendationPagingState(maxSelectionCount = 3)
+            .accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..5).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+            )
+
+        assertNotNull(result)
+        assertEquals(5, result.photos.size)
+        assertTrue(result.selectedIds.isEmpty())
+    }
+
+    @Test
     fun `빈_추가_페이지는_기존_사진과_선택을_보존한다`() {
         val first = PhotoRecommendationPagingState()
             .accept(PhotoRecommendationPage(1, listOf(photo(1), photo(2)), hasMore = true))

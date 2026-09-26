@@ -7,6 +7,7 @@ import com.mapmory.shared.data.remote.AccessTokenProvider
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
 import com.mapmory.shared.data.remote.configureCommonHttpClient
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
+import com.mapmory.shared.data.settings.MemoryOnboardingPreference
 import com.mapmory.shared.data.settings.MemoryThemePreference
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -212,16 +213,22 @@ class AppContainerTest {
     fun `교체_가능한_저장소로_컨테이너를_구성할_수_있다`() {
         val repository = FakeTripRecordRepository { "2026-08-24T00:00:00" }
         val themePreference = MemoryThemePreference(initialIsDarkTheme = true)
+        val onboardingPreference = MemoryOnboardingPreference(
+            initialHasSeenRecordIntroduction = false,
+        )
 
         val container = createAppContainer(
             tripRecordRepository = repository,
             regionCatalog = StaticRegionCatalog(),
             themePreference = themePreference,
+            onboardingPreference = onboardingPreference,
         )
 
         assertSame(repository, container.tripRecordRepository)
         assertSame(themePreference, container.themePreference)
+        assertSame(onboardingPreference, container.onboardingPreference)
         assertTrue(container.themePreference.loadIsDarkTheme())
+        assertTrue(!container.onboardingPreference.hasSeenRecordIntroduction())
         assertEquals(null, container.mapSummaryRepository.getCachedRootRegions())
     }
 

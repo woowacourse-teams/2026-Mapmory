@@ -22,7 +22,7 @@ class TripRecordDetailViewModelTest {
                     content = "한강을 걸었다.",
                     startDate = "2026-08-01",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("records/1/photo.jpg"),
                 ),
             ).getOrThrow()
             var changeCount = 0

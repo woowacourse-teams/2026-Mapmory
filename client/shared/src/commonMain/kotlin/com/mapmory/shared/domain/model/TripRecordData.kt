@@ -35,11 +35,11 @@ data class TripRecordSummary(
 
 data class TripRecordDraft(
     val locationId: Long,
-    val title: String,
-    val content: String,
-    val startDate: String?,
-    val endDate: String?,
+    val startDate: String,
     val mediaObjectKeys: List<String>,
+    val title: String = "",
+    val content: String? = null,
+    val endDate: String? = null,
     /** 이미 업로드된 미디어는 키 형식을 해석하지 않고 원본 바이트 없이 그대로 저장한다. */
     val uploadedMediaObjectKeys: Set<String> = emptySet(),
     // API 요청에는 object key만 사용하고, 로컬 저장소에서는 선택한 사진 표시 데이터를 보존한다.
@@ -49,6 +49,7 @@ data class TripRecordDraft(
 
 object TripRecordPhotoRules {
     const val MaxPhotosPerRecord = 10
+    const val RequiredMessage = "사진을 한 장 이상 추가해 주세요."
     const val LimitMessage = "사진은 기록당 최대 10장까지 추가할 수 있습니다."
 
     fun remainingSlots(currentPhotoCount: Int): Int =
@@ -56,7 +57,7 @@ object TripRecordPhotoRules {
 }
 
 fun TripRecordDraft.dateValidationError(): String? = when {
-    startDate == null -> "시작일을 입력해 주세요."
+    startDate.isBlank() -> "시작일을 입력해 주세요."
     !startDate.isValidIsoDate() -> "올바른 시작일을 입력해 주세요."
     endDate != null && !endDate.isValidIsoDate() -> "올바른 종료일을 입력해 주세요."
     endDate != null && endDate < startDate -> "종료일은 시작일보다 빠를 수 없습니다."

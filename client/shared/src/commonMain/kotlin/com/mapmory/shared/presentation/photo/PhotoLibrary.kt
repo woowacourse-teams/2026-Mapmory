@@ -2,6 +2,13 @@ package com.mapmory.shared.presentation.photo
 
 import androidx.compose.runtime.Composable
 import com.mapmory.shared.domain.model.Location
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
 data class SelectedPhoto(
     val id: String,
@@ -28,6 +35,11 @@ data class PhotoRecommendationPage(
     val hasMore: Boolean,
 )
 
+data class PhotoRecommendationDateRange(
+    val fromInclusiveMillis: Long,
+    val untilExclusiveMillis: Long,
+)
+
 enum class PhotoLibraryPermissionIssue {
     LIMITED,
     DENIED,
@@ -37,6 +49,11 @@ enum class PhotoLibraryPermissionIssue {
 data class PhotoLibraryActions(
     val pickFromGallery: () -> Unit,
     val recommendForLocation: (Location, String?) -> Unit,
+    val recommendForLocationInDateRange: (
+        Location,
+        String?,
+        PhotoRecommendationDateRange,
+    ) -> Unit = { location, parentName, _ -> recommendForLocation(location, parentName) },
     val loadNextRecommendationPage: () -> Unit = {},
     val prepareForAdding: (
         photos: List<SelectedPhoto>,
@@ -72,3 +89,24 @@ internal fun mergeSelectedPhotos(
     existing: List<SelectedPhoto>,
     incoming: List<SelectedPhoto>,
 ): List<SelectedPhoto> = (existing + incoming).distinctBy(SelectedPhoto::id)
+
+internal fun photoRecommendationDateRange(
+    startDate: String,
+    endDate: String?,
+    timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    today: LocalDate = Clock.System.now().toLocalDateTime(timeZone).date,
+): PhotoRecommendationDateRange? {
+    val start = runCatching { LocalDate.parse(startDate) }.getOrNull() ?: return null
+    val end = if (endDate.isNullOrBlank()) {
+        today
+    } else {
+        runCatching { LocalDate.parse(endDate) }.getOrNull() ?: return null
+    }
+    if (end < start) return null
+
+    val until = end.plus(1, DateTimeUnit.DAY)
+    return PhotoRecommendationDateRange(
+        fromInclusiveMillis = start.atStartOfDayIn(timeZone).toEpochMilliseconds(),
+        untilExclusiveMillis = until.atStartOfDayIn(timeZone).toEpochMilliseconds(),
+    )
+}

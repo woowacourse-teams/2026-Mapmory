@@ -51,7 +51,12 @@ class MapmoryAppNavigationTest {
         composeRule.onNodeWithText("일지").performClick()
         composeRule.onNodeWithContentDescription("계측 테스트 여행").assertIsDisplayed()
         composeRule.onNodeWithText("계측 테스트 여행").assertIsDisplayed().performClick()
-        composeRule.onNodeWithContentDescription("계측 테스트 여행 사진 1").assertIsDisplayed()
+        composeRule.onNodeWithText("강남구 사진첩").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("2026. 08. 24 여행 사진 확대")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithContentDescription("강남구 확대 사진 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진첩으로 돌아가기").performClick()
 
         composeRule.onNodeWithContentDescription("더보기").performClick()
         composeRule.onNodeWithText("수정").performClick()
@@ -74,13 +79,13 @@ class MapmoryAppNavigationTest {
         composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("새 기록 작성").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()
+        composeRule.onNodeWithText("일자, 장소 선택").assertIsDisplayed()
         composeRule.onNodeWithText("←").performClick()
         composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
 
         composeRule.onNodeWithText("지도").performClick()
         composeRule.onNodeWithContentDescription("새 기록 작성").performClick()
-        composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()
+        composeRule.onNodeWithText("일자, 장소 선택").assertIsDisplayed()
     }
 
     private fun createPngBytes(): ByteArray {
