@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -1039,9 +1040,17 @@ private fun PhotoLoadingStep(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 26.dp),
             )
+            val percentage = progress?.percentage
             PhotoLoadingBar(
-                progress = progress,
+                percentage = percentage,
                 modifier = Modifier.padding(top = 18.dp),
+            )
+            Text(
+                text = percentage?.let { "$it%" } ?: "진행률 계산 중",
+                color = TripRecordPalette.current.accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 10.dp),
             )
             Text(
                 text = "$locationName 사진을 불러오는 중입니다.",
@@ -1072,26 +1081,26 @@ private fun PhotoLoadingStep(
 
 @Composable
 private fun PhotoLoadingBar(
-    progress: PhotoLoadingProgress?,
+    percentage: Int?,
     modifier: Modifier = Modifier,
 ) {
-    val fraction = progress
-        ?.takeIf { it.total > 0 }
-        ?.let { it.processed.toFloat() / it.total.toFloat() }
-        ?.coerceIn(0f, 1f)
-        ?: 0.08f
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(TripRecordPalette.current.primarySoft),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(8.dp)
-                .background(TripRecordPalette.current.primary, RoundedCornerShape(8.dp)),
+    val palette = TripRecordPalette.current
+    val barModifier = modifier
+        .fillMaxWidth()
+        .height(8.dp)
+        .clip(RoundedCornerShape(8.dp))
+    if (percentage == null) {
+        LinearProgressIndicator(
+            modifier = barModifier,
+            color = palette.primary,
+            trackColor = palette.primarySoft,
+        )
+    } else {
+        LinearProgressIndicator(
+            progress = { percentage / 100f },
+            modifier = barModifier,
+            color = palette.primary,
+            trackColor = palette.primarySoft,
         )
     }
 }
