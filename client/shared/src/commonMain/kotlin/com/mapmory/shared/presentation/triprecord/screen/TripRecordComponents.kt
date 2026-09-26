@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,31 +60,36 @@ internal fun TripRecordTopBar(
     trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .height(64.dp)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 8.dp),
     ) {
         if (onBackClick != null) {
             TripIconButton(
                 label = "←",
                 contentDescription = "뒤로가기",
                 onClick = onBackClick,
+                modifier = Modifier.align(Alignment.CenterStart),
             )
-            Spacer(Modifier.width(14.dp))
-        } else {
-            Spacer(Modifier.width(4.dp))
         }
         Text(
             text = title,
             color = TripRecordPalette.current.text,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.Center),
         )
-        Spacer(Modifier.weight(1f))
-        trailing?.invoke()
+        trailing?.let { content ->
+            Box(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                contentAlignment = Alignment.Center,
+            ) {
+                content()
+            }
+        }
     }
 }
 
@@ -487,6 +493,7 @@ internal fun TripPhotoImage(
     modifier: Modifier = Modifier,
     placeholderVariant: Int = 0,
     shape: Shape = RoundedCornerShape(18.dp),
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     var useFallback by remember(imageBytes, fallbackBytes) { mutableStateOf(false) }
     var showPlaceholder by remember(imageBytes, fallbackBytes) { mutableStateOf(true) }
@@ -506,7 +513,7 @@ internal fun TripPhotoImage(
             AsyncImage(
                 model = model,
                 contentDescription = contentDescription,
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 modifier = Modifier.fillMaxSize(),
                 onLoading = { showPlaceholder = true },
                 onSuccess = { showPlaceholder = false },

@@ -9,6 +9,7 @@ import com.mapmory.shared.data.auth.AndroidAuthTokenStore
 import com.mapmory.shared.data.media.AndroidPhotoPreviewCache
 import com.mapmory.shared.data.repository.AndroidMapSummaryCache
 import com.mapmory.shared.data.repository.AndroidTripStatisticsCache
+import com.mapmory.shared.data.settings.AndroidOnboardingPreference
 import com.mapmory.shared.data.settings.AndroidThemePreference
 
 class MapmoryAppViewModel(application: Application) : AndroidViewModel(application) {
@@ -23,6 +24,7 @@ class MapmoryAppViewModel(application: Application) : AndroidViewModel(applicati
         mapSummaryCache = AndroidMapSummaryCache(application),
         tripStatisticsCache = AndroidTripStatisticsCache(application),
         themePreference = AndroidThemePreference(application),
+        onboardingPreference = AndroidOnboardingPreference(application),
     )
 
     override fun onCleared() {

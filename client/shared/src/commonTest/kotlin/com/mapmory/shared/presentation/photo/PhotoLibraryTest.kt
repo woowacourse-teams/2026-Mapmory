@@ -5,6 +5,7 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -12,6 +13,30 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PhotoLibraryTest {
+    @Test
+    fun `사진_추천_범위는_선택한_여행_일자만_포함한다`() {
+        val range = photoRecommendationDateRange(
+            startDate = "2026-09-10",
+            endDate = "2026-09-12",
+            timeZone = TimeZone.UTC,
+        )
+
+        assertEquals(1_788_998_400_000L, range?.fromInclusiveMillis)
+        assertEquals(1_789_257_600_000L, range?.untilExclusiveMillis)
+    }
+
+    @Test
+    fun `종료일이_없으면_시작일_하루만_포함한다`() {
+        val range = photoRecommendationDateRange(
+            startDate = "2026-09-10",
+            endDate = null,
+            timeZone = TimeZone.UTC,
+        )
+
+        assertEquals(1_788_998_400_000L, range?.fromInclusiveMillis)
+        assertEquals(1_789_084_800_000L, range?.untilExclusiveMillis)
+    }
+
     @Test
     fun `선택한_사진은_앱_제한_없이_중복_제거된다`() {
         val existing = listOf(photo("same"), photo("existing"))

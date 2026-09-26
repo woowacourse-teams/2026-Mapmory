@@ -431,16 +431,23 @@ class TripRecordEditorViewModel(
                 true
             },
             onFailure = { error ->
-                val fieldErrors = error.toEditorFieldErrors()
+                val responseFieldErrors = error.toEditorFieldErrors()
+                val rejectedOptionalBlankTitle = state.title.isBlank() &&
+                    TripRecordEditorErrorTarget.TITLE in responseFieldErrors
+                val fieldErrors = if (rejectedOptionalBlankTitle) {
+                    responseFieldErrors - TripRecordEditorErrorTarget.TITLE
+                } else {
+                    responseFieldErrors
+                }
                 uiState = uiState.copy(
                     isSaving = false,
                     isDirty = true,
                     dirtyFields = uiState.dirtyFields + fieldErrors.keys,
                     fieldErrors = fieldErrors,
-                    generalErrorMessage = if (fieldErrors.isEmpty()) {
-                        error.message ?: "여행 기록을 저장하지 못했습니다."
-                    } else {
-                        null
+                    generalErrorMessage = when {
+                        fieldErrors.isNotEmpty() -> null
+                        rejectedOptionalBlankTitle -> BlankTitleServerCompatibilityMessage
+                        else -> error.message ?: "여행 기록을 저장하지 못했습니다."
                     },
                 )
                 false
@@ -556,6 +563,8 @@ private fun TripRecordEditorUiState.validationErrors(
 }
 
 private const val MaxTitleLength = 200
+internal const val BlankTitleServerCompatibilityMessage =
+    "제목 없는 기록 저장은 서버 반영 후 사용할 수 있어요."
 
 internal fun Throwable.toEditorFieldErrors(): Map<TripRecordEditorErrorTarget, String> {
     val apiError = this as? MapmoryApiException

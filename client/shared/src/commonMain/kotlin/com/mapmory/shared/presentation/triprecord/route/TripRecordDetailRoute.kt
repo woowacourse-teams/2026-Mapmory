@@ -1,11 +1,18 @@
 package com.mapmory.shared.presentation.triprecord.route
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordDetailScreen
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordDetailViewModel
 import kotlinx.coroutines.launch
@@ -15,6 +22,7 @@ internal fun TripRecordDetailRoute(
     recordId: Long,
     tripRecordRevision: Long,
     viewModel: TripRecordDetailViewModel,
+    backHandlerRegistry: MapmoryBackHandlerRegistry,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
     onDeleted: () -> Unit,
@@ -26,6 +34,15 @@ internal fun TripRecordDetailRoute(
 ) {
     val scope = rememberCoroutineScope()
     val analytics = LocalMapmoryAnalytics.current
+    var photoViewerBackHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
+    val latestBackHandler by rememberUpdatedState {
+        photoViewerBackHandler?.invoke() == true
+    }
+
+    DisposableEffect(viewModel, backHandlerRegistry) {
+        val registration = backHandlerRegistry.register { latestBackHandler() }
+        onDispose { backHandlerRegistry.unregister(registration) }
+    }
 
     LaunchedEffect(Unit) {
         analytics.logEvent(
@@ -54,5 +71,6 @@ internal fun TripRecordDetailRoute(
         onRecordClick = onOpenRecords,
         onCreateClick = onOpenEditor,
         onProfileClick = onOpenProfile,
+        onInternalBackHandlerChanged = { handler -> photoViewerBackHandler = handler },
     )
 }

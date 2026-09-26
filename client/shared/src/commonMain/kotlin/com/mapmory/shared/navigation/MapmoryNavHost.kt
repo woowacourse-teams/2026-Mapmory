@@ -53,6 +53,7 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 regionCatalog = container.regionCatalog,
+                onboardingPreference = container.onboardingPreference,
                 backHandlerRegistry = backHandlerRegistry,
                 tripRecordRevision = tripRecordRevision,
                 onOpenRecords = navigator::navigateToRecords,
@@ -100,7 +101,7 @@ internal fun MapmoryNavHost(
             }
             TripRecordEditorRoute(
                 modifier = Modifier.windowInsetsPadding(
-                    contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                    contentWindowInsets.only(WindowInsetsSides.Horizontal),
                 ),
                 recordId = route.recordId,
                 selectedLocationId = route.selectedLocationId,
@@ -159,6 +160,7 @@ internal fun MapmoryNavHost(
                 recordId = route.recordId,
                 tripRecordRevision = tripRecordRevision,
                 viewModel = viewModel,
+                backHandlerRegistry = backHandlerRegistry,
                 onBack = { navigator.navigateBack() },
                 onEdit = { recordId ->
                     navigator.navigateToEditor(recordId = recordId)

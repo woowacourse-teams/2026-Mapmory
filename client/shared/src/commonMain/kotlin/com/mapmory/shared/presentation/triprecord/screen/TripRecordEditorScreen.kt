@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -84,12 +85,11 @@ import com.mapmory.shared.presentation.photo.RecommendationLoadKey
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.photo.accept
 import com.mapmory.shared.presentation.photo.rememberPhotoLibraryActions
+import com.mapmory.shared.presentation.photo.photoRecommendationDateRange
 import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
-import com.mapmory.shared.presentation.date.PlatformDatePicker
-import com.mapmory.shared.presentation.triprecord.endDatePickerMinimumDate
+import com.mapmory.shared.presentation.date.PlatformDateRangePicker
 import com.mapmory.shared.presentation.triprecord.initialSelectableTripRecordDate
-import com.mapmory.shared.presentation.triprecord.startDatePickerMaximumDate
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
@@ -100,8 +100,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
-private const val StartDatePickerTarget = "start"
-private const val EndDatePickerTarget = "end"
 private const val RecommendationGridPrefetchItems = 3
 internal const val PhotoRecommendationGridTestTag = "photo-recommendation-grid"
 
@@ -181,7 +179,7 @@ fun TripRecordEditorScreen(
     var isRecommendationLoading by remember { mutableStateOf(false) }
     var photoLoadingProgress by remember { mutableStateOf<PhotoLoadingProgress?>(null) }
     var photoPermissionIssue by remember { mutableStateOf<PhotoLibraryPermissionIssue?>(null) }
-    var datePickerTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
     val remainingPhotoSlots = TripRecordPhotoRules.remainingSlots(uiState.selectedPhotos.size)
     val dismissKeyboardOnTap = rememberDismissKeyboardOnTapModifier()
     val photoLibrary = photoLibraryActionsFactory(
@@ -330,7 +328,19 @@ fun TripRecordEditorScreen(
                                         val parentName = locations
                                             .firstOrNull { it.id == selectedLocation.parentId }
                                             ?.name
-                                        photoLibrary.recommendForLocation(selectedLocation, parentName)
+                                        val dateRange = photoRecommendationDateRange(
+                                            uiState.startDate,
+                                            uiState.endDate,
+                                        )
+                                        if (dateRange == null) {
+                                            photoLibrary.recommendForLocation(selectedLocation, parentName)
+                                        } else {
+                                            photoLibrary.recommendForLocationInDateRange(
+                                                selectedLocation,
+                                                parentName,
+                                                dateRange,
+                                            )
+                                        }
                                     }
                                 }
                             },
@@ -392,21 +402,11 @@ fun TripRecordEditorScreen(
                             endDate = uiState.endDate,
                             startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
                             endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
-                            onStartDateClick = { datePickerTarget = StartDatePickerTarget },
-                            onEndDateClick = { datePickerTarget = EndDatePickerTarget },
+                            onStartDateClick = { showDateRangePicker = true },
+                            onEndDateClick = { showDateRangePicker = true },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
                         EditorDivider(Modifier.padding(horizontal = 20.dp))
-
-                        TagEditor(
-                            uiState = uiState,
-                            saveErrorMessage = uiState.errorMessageFor(TripRecordEditorErrorTarget.TAGS),
-                            onInputChanged = onTagInputChanged,
-                            onTagToggled = onTagToggled,
-                            onPendingTagToggled = onPendingTagToggled,
-                            onCreate = onTagCreate,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                        )
 
                         Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                             EditorContentField(
@@ -656,48 +656,28 @@ fun TripRecordEditorScreen(
         )
     }
 
-    val activeDatePickerTarget = datePickerTarget
-    val isStartDatePicker = activeDatePickerTarget == StartDatePickerTarget
-    val today = remember(activeDatePickerTarget) {
+    val today = remember {
         Clock.System.now()
             .toLocalDateTime(TimeZone.currentSystemDefault())
             .date
             .toString()
     }
-    val minimumDate = if (activeDatePickerTarget == EndDatePickerTarget) {
-        endDatePickerMinimumDate(uiState.startDate, today)
-    } else {
-        null
-    }
-    val maximumDate = if (activeDatePickerTarget == StartDatePickerTarget) {
-        startDatePickerMaximumDate(uiState.endDate, today)
-    } else {
-        today
-    }
-    val selectedDate = when (activeDatePickerTarget) {
-        StartDatePickerTarget -> uiState.startDate
-        EndDatePickerTarget -> uiState.endDate
-        else -> null
-    }
-    PlatformDatePicker(
-        visible = activeDatePickerTarget != null,
-        initialDate = initialSelectableTripRecordDate(
-            selectedDate = selectedDate,
+    PlatformDateRangePicker(
+        visible = showDateRangePicker,
+        initialStartDate = initialSelectableTripRecordDate(
+            selectedDate = uiState.startDate,
             fallbackDate = today,
-            minimumDate = minimumDate,
-            maximumDate = maximumDate,
+            minimumDate = null,
+            maximumDate = today,
         ),
-        minimumDate = minimumDate,
-        maximumDate = maximumDate,
-        onDateSelected = { date ->
-            if (isStartDatePicker) {
-                onStartDateChanged(date)
-            } else if (activeDatePickerTarget == EndDatePickerTarget) {
-                onEndDateChanged(date)
-            }
-            datePickerTarget = null
+        initialEndDate = uiState.endDate.ifBlank { null },
+        maximumDate = today,
+        onDatesSelected = { startDate, endDate ->
+            onStartDateChanged(startDate)
+            onEndDateChanged(endDate)
+            showDateRangePicker = false
         },
-        onDismiss = { datePickerTarget = null },
+        onDismiss = { showDateRangePicker = false },
     )
 }
 
@@ -713,6 +693,7 @@ private fun EditorTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .height(64.dp),
         ) {
             TextButton(
@@ -840,7 +821,7 @@ private fun PhotoSection(
 }
 
 @Composable
-private fun PhotoPermissionDialog(
+internal fun PhotoPermissionDialog(
     issue: PhotoLibraryPermissionIssue,
     onOpenSettings: () -> Unit,
     onExit: () -> Unit,
@@ -1018,108 +999,6 @@ private fun TripRecordEditorUiState.errorMessageFor(target: TripRecordEditorErro
     fieldErrors[target]?.takeIf {
         target == TripRecordEditorErrorTarget.PHOTOS || isFieldDirty(target)
     }
-
-@Composable
-private fun TagEditor(
-    uiState: TripRecordEditorUiState,
-    saveErrorMessage: String?,
-    onInputChanged: (String) -> Unit,
-    onTagToggled: (Long) -> Unit,
-    onPendingTagToggled: (String) -> Unit,
-    onCreate: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = "태그 (선택)",
-                color = TripRecordPalette.current.text,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${uiState.selectedTagCount}/5",
-                color = TripRecordPalette.current.muted,
-                fontSize = 11.sp,
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = uiState.tagInput,
-                onValueChange = onInputChanged,
-                placeholder = { Text("직접 입력 (# 제외)") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TripRecordPalette.current.text,
-                    unfocusedTextColor = TripRecordPalette.current.text,
-                    cursorColor = TripRecordPalette.current.accent,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    disabledBorderColor = Color.Transparent,
-                    errorBorderColor = Color.Transparent,
-                    focusedPlaceholderColor = TripRecordPalette.current.muted,
-                    unfocusedPlaceholderColor = TripRecordPalette.current.muted,
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = onCreate,
-                enabled = uiState.tagInput.isNotBlank() && !uiState.isSaving,
-            ) {
-                Text("추가", color = TripRecordPalette.current.accent)
-            }
-        }
-
-        if (uiState.availableTags.isNotEmpty() || uiState.pendingTagNames.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                uiState.availableTags.forEach { tag ->
-                    val selected = tag.id in uiState.selectedTagIds
-                    TripTagChip(
-                        text = tag.name,
-                        selected = selected,
-                        onClick = { onTagToggled(tag.id) },
-                    )
-                }
-                uiState.pendingTagNames.forEach { name ->
-                    TripTagChip(
-                        text = name,
-                        selected = name in uiState.selectedPendingTagNames,
-                        onClick = { onPendingTagToggled(name) },
-                    )
-                }
-            }
-        } else if (!uiState.isTagsLoading) {
-            Text(
-                text = "아직 태그가 없어요. 원하는 태그를 직접 만들어 보세요.",
-                color = TripRecordPalette.current.muted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-
-        EditorErrorMessage(
-            message = uiState.tagErrorMessage ?: saveErrorMessage,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-    }
-}
 
 @Composable
 private fun EditorContentField(

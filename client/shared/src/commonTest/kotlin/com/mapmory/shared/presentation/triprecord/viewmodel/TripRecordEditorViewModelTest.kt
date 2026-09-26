@@ -430,6 +430,34 @@ class TripRecordEditorViewModelTest {
             error.toEditorFieldErrors(),
         )
     }
+
+    @Test
+    fun `빈_제목을_거부한_서버_오류는_제목_필수_입력_오류로_노출하지_않는다`() = runSuspend {
+        val error = MapmoryApiException(
+            statusCode = 400,
+            code = "VALIDATION_ERROR",
+            title = "요청 값이 올바르지 않습니다.",
+            detail = null,
+            instance = "/api/v1/travel-records",
+            errors = listOf(ProblemFieldErrorDto("title", "제목은 필수입니다.")),
+        )
+        val delegate = FakeTripRecordRepository { "2026-08-31T00:00:00Z" }
+        val repository = object : TripRecordRepository by delegate {
+            override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
+                Result.failure(error)
+        }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+        )
+        viewModel.selectLocation(Location(101, 1, 1, "11680", "강남구", LocationType.DISTRICT))
+        viewModel.updateStartDate("2026-08-31")
+        viewModel.addPhotos(listOf(selectedPhoto("content://photo/blank-title")))
+
+        assertFalse(viewModel.save())
+        assertNull(viewModel.uiState.fieldErrors[TripRecordEditorErrorTarget.TITLE])
+        assertEquals(BlankTitleServerCompatibilityMessage, viewModel.uiState.generalErrorMessage)
+    }
 }
 
 private fun selectedPhoto(id: String): SelectedPhoto = SelectedPhoto(

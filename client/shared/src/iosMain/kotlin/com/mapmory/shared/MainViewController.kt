@@ -10,6 +10,7 @@ import com.mapmory.shared.data.auth.IosAuthTokenStore
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.repository.IosMapSummaryCache
 import com.mapmory.shared.data.repository.IosTripStatisticsCache
+import com.mapmory.shared.data.settings.IosOnboardingPreference
 import com.mapmory.shared.data.settings.IosThemePreference
 
 fun MainViewController(
@@ -21,6 +22,7 @@ fun MainViewController(
     mapSummaryCache = IosMapSummaryCache(),
     tripStatisticsCache = IosTripStatisticsCache(),
     themePreference = IosThemePreference(),
+    onboardingPreference = IosOnboardingPreference(),
 ).let { container ->
     ComposeUIViewController {
         DisposableEffect(container) {

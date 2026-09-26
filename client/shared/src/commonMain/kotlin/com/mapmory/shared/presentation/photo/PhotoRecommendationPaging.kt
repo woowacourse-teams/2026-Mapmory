@@ -24,6 +24,7 @@ internal const val PhotoRecommendationPageSize = 24
 
 internal fun PhotoRecommendationPagingState.accept(
     page: PhotoRecommendationPage,
+    autoSelectNewPhotos: Boolean = true,
 ): PhotoRecommendationPagingState? {
     if (generation != null && generation != page.generation) return null
 
@@ -38,12 +39,16 @@ internal fun PhotoRecommendationPagingState.accept(
     }
 
     val nextPhotos = if (isFirstPage) incoming else photos + incoming
-    val selectedFromIncoming = incoming
-        .asSequence()
-        .map(SelectedPhoto::id)
-        .filterNot(selectedIds::contains)
-        .take((maxSelectionCount - selectedIds.size).coerceAtLeast(0))
-        .toSet()
+    val selectedFromIncoming = if (autoSelectNewPhotos) {
+        incoming
+            .asSequence()
+            .map(SelectedPhoto::id)
+            .filterNot(selectedIds::contains)
+            .take((maxSelectionCount - selectedIds.size).coerceAtLeast(0))
+            .toSet()
+    } else {
+        emptySet()
+    }
     return copy(
         generation = page.generation,
         photos = nextPhotos,

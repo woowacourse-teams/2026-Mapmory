@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.date
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
@@ -31,6 +32,92 @@ expect fun PlatformDatePicker(
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 )
+
+/** 하나의 달력에서 시작일과 종료일을 연속으로 선택한다. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlatformDateRangePicker(
+    visible: Boolean,
+    initialStartDate: String?,
+    initialEndDate: String?,
+    minimumDate: String? = null,
+    maximumDate: String? = null,
+    onDatesSelected: (startDate: String, endDate: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!visible) return
+
+    val minimumDateMillis = minimumDate
+        .toDatePickerLocalDate()
+        ?.toDatePickerEpochMillis()
+    val maximumDateMillis = maximumDate
+        .toDatePickerLocalDate()
+        ?.toDatePickerEpochMillis()
+    val initialStartMillis = initialStartDate
+        .toDatePickerLocalDate()
+        ?.toDatePickerEpochMillis()
+        ?.takeIf { selected ->
+            (minimumDateMillis == null || selected >= minimumDateMillis) &&
+                (maximumDateMillis == null || selected <= maximumDateMillis)
+        }
+    val initialEndMillis = initialEndDate
+        .toDatePickerLocalDate()
+        ?.toDatePickerEpochMillis()
+        ?.takeIf { selected ->
+            initialStartMillis != null &&
+                selected >= initialStartMillis &&
+                (maximumDateMillis == null || selected <= maximumDateMillis)
+        }
+    val selectableDates = remember(minimumDateMillis, maximumDateMillis) {
+        if (minimumDateMillis == null && maximumDateMillis == null) {
+            DatePickerDefaults.AllDates
+        } else {
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    (minimumDateMillis == null || utcTimeMillis >= minimumDateMillis) &&
+                        (maximumDateMillis == null || utcTimeMillis <= maximumDateMillis)
+            }
+        }
+    }
+
+    key(initialStartMillis, initialEndMillis, minimumDateMillis, maximumDateMillis) {
+        val pickerState = androidx.compose.material3.rememberDateRangePickerState(
+            initialSelectedStartDateMillis = initialStartMillis,
+            initialSelectedEndDateMillis = initialEndMillis,
+            selectableDates = selectableDates,
+        )
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(
+                    enabled = pickerState.selectedStartDateMillis != null,
+                    onClick = {
+                        val startMillis = pickerState.selectedStartDateMillis
+                            ?: return@TextButton
+                        val endMillis = pickerState.selectedEndDateMillis ?: startMillis
+                        onDatesSelected(
+                            startMillis.toDatePickerString(),
+                            endMillis.toDatePickerString(),
+                        )
+                        onDismiss()
+                    },
+                ) {
+                    Text("적용")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("취소")
+                }
+            },
+        ) {
+            DateRangePicker(
+                state = pickerState,
+                showModeToggle = false,
+            )
+        }
+    }
+}
 
 internal fun String?.toDatePickerLocalDate(): LocalDate? = runCatching {
     this
