@@ -156,8 +156,10 @@ internal fun NewTripRecordFlowScreen(
     var transientPhotoMessage by remember { mutableStateOf<String?>(null) }
     var transientPhotoMessageVersion by remember { mutableStateOf(0) }
     var photoLoadingProgress by remember { mutableStateOf<PhotoLoadingProgress?>(null) }
+    var isPreparingPhotoPreviews by remember { mutableStateOf(false) }
     var isRecommendationLoading by remember { mutableStateOf(false) }
     var isPreparingPhotos by remember { mutableStateOf(false) }
+    var photoPreparationGeneration by remember { mutableStateOf(0) }
     var photoPermissionIssue by remember { mutableStateOf<PhotoLibraryPermissionIssue?>(null) }
     var recommendationPagingState by remember {
         mutableStateOf(PhotoRecommendationPagingState())
@@ -199,6 +201,7 @@ internal fun NewTripRecordFlowScreen(
                 ?.let { nextState ->
                     recommendationPagingState = nextState
                     if (step == NewRecordFlowStep.PHOTO_LOADING) {
+                        isPreparingPhotoPreviews = false
                         stepName = NewRecordFlowStep.PHOTO_PICKER.name
                     }
                     if (nextState.photos.isEmpty() && !page.hasMore) {
@@ -213,7 +216,10 @@ internal fun NewTripRecordFlowScreen(
             onPhotoLoadingChanged(isLoading)
             if (!isLoading && isPreparingPhotos) isPreparingPhotos = false
         },
-        { progress -> photoLoadingProgress = progress },
+        { progress ->
+            photoLoadingProgress = progress
+            isPreparingPhotoPreviews = progress.total > 0 && progress.processed >= progress.total
+        },
         { isLoading -> isRecommendationLoading = isLoading },
         { issue -> photoPermissionIssue = issue },
     )
@@ -278,10 +284,14 @@ internal fun NewTripRecordFlowScreen(
             NewRecordFlowStep.PHOTO_LOADING -> {
                 photoLibrary.cancelRecommendation()
                 onPhotoLoadingChanged(false)
+                isPreparingPhotoPreviews = false
                 stepName = NewRecordFlowStep.DATE_AND_LOCATION.name
             }
             NewRecordFlowStep.PHOTO_PICKER -> {
                 photoLibrary.cancelRecommendation()
+                photoPreparationGeneration += 1
+                isPreparingPhotos = false
+                onPhotoLoadingChanged(false)
                 stepName = NewRecordFlowStep.DATE_AND_LOCATION.name
             }
             NewRecordFlowStep.ALBUM_DETAILS -> {
@@ -335,6 +345,7 @@ internal fun NewTripRecordFlowScreen(
                 detailsErrorMessage = null
                 photoMessage = null
                 photoLoadingProgress = null
+                isPreparingPhotoPreviews = false
                 recommendationPagingState = PhotoRecommendationPagingState()
                 lastAutoLoadTriggerKey = null
                 stepName = NewRecordFlowStep.PHOTO_LOADING.name
@@ -355,9 +366,17 @@ internal fun NewTripRecordFlowScreen(
             photoMessage = "앨범에 넣을 사진을 한 장 이상 선택해 주세요."
             return
         }
+        val preparationGeneration = photoPreparationGeneration + 1
+        photoPreparationGeneration = preparationGeneration
         isPreparingPhotos = true
         onPhotoLoadingChanged(true)
         photoLibrary.prepareForAdding(selectedPhotos) { preparedPhotos ->
+            if (
+                preparationGeneration != photoPreparationGeneration ||
+                stepName != NewRecordFlowStep.PHOTO_PICKER.name
+            ) {
+                return@prepareForAdding
+            }
             isPreparingPhotos = false
             onPhotoLoadingChanged(false)
             if (preparedPhotos.isEmpty()) {
@@ -418,6 +437,7 @@ internal fun NewTripRecordFlowScreen(
             NewRecordFlowStep.PHOTO_LOADING -> PhotoLoadingStep(
                 locationName = uiState.selectedLocation?.name.orEmpty(),
                 progress = photoLoadingProgress,
+                isPreparingPreviews = isPreparingPhotoPreviews,
                 message = photoMessage,
                 onBackClick = ::returnToPreviousStep,
                 onPickFromGallery = photoLibrary.pickFromGallery,
@@ -996,6 +1016,7 @@ private fun LocationSearchResults(
 private fun PhotoLoadingStep(
     locationName: String,
     progress: PhotoLoadingProgress?,
+    isPreparingPreviews: Boolean,
     message: String?,
     onBackClick: () -> Unit,
     onPickFromGallery: () -> Unit,
@@ -1034,7 +1055,12 @@ private fun PhotoLoadingStep(
                 modifier = Modifier.padding(top = 18.dp),
             )
             Text(
-                text = progress?.let { "${it.processed} / ${it.total}장" } ?: "사진첩을 살펴보는 중",
+                text = if (isPreparingPreviews) {
+                    "사진 미리보기 준비 중"
+                } else {
+                    progress?.let { "${it.processed} / ${it.total}장" }
+                        ?: "사진첩을 살펴보는 중"
+                },
                 color = TripRecordPalette.current.accent,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
@@ -1043,17 +1069,26 @@ private fun PhotoLoadingStep(
             val percentage = progress?.percentage
             PhotoLoadingBar(
                 percentage = percentage,
+                indeterminate = isPreparingPreviews,
                 modifier = Modifier.padding(top = 18.dp),
             )
             Text(
-                text = percentage?.let { "$it%" } ?: "진행률 계산 중",
+                text = when {
+                    isPreparingPreviews -> "첫 사진 화면을 준비하고 있어요"
+                    percentage != null -> "$percentage%"
+                    else -> "진행률 계산 중"
+                },
                 color = TripRecordPalette.current.accent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 10.dp),
             )
             Text(
-                text = "$locationName 사진을 불러오는 중입니다.",
+                text = if (isPreparingPreviews) {
+                    "$locationName 사진의 미리보기를 만드는 중입니다."
+                } else {
+                    "$locationName 사진을 불러오는 중입니다."
+                },
                 color = TripRecordPalette.current.secondaryText,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
@@ -1082,6 +1117,7 @@ private fun PhotoLoadingStep(
 @Composable
 private fun PhotoLoadingBar(
     percentage: Int?,
+    indeterminate: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val palette = TripRecordPalette.current
@@ -1089,7 +1125,7 @@ private fun PhotoLoadingBar(
         .fillMaxWidth()
         .height(8.dp)
         .clip(RoundedCornerShape(8.dp))
-    if (percentage == null) {
+    if (indeterminate || percentage == null) {
         LinearProgressIndicator(
             modifier = barModifier,
             color = palette.primary,
