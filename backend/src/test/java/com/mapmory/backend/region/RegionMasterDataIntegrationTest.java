@@ -44,6 +44,44 @@ class RegionMasterDataIntegrationTest extends IntegrationTest {
             "48121", "48123", "48125", "48127", "48129"
     );
 
+    private static final List<ExpectedDistrict> GWANGJU_JEONNAM_DISTRICTS = List.of(
+            new ExpectedDistrict("29", "29110", "동구"),
+            new ExpectedDistrict("29", "29140", "서구"),
+            new ExpectedDistrict("29", "29155", "남구"),
+            new ExpectedDistrict("29", "29170", "북구"),
+            new ExpectedDistrict("29", "29200", "광산구"),
+            new ExpectedDistrict("46", "46110", "목포시"),
+            new ExpectedDistrict("46", "46130", "여수시"),
+            new ExpectedDistrict("46", "46150", "순천시"),
+            new ExpectedDistrict("46", "46170", "나주시"),
+            new ExpectedDistrict("46", "46230", "광양시"),
+            new ExpectedDistrict("46", "46710", "담양군"),
+            new ExpectedDistrict("46", "46720", "곡성군"),
+            new ExpectedDistrict("46", "46730", "구례군"),
+            new ExpectedDistrict("46", "46770", "고흥군"),
+            new ExpectedDistrict("46", "46780", "보성군"),
+            new ExpectedDistrict("46", "46790", "화순군"),
+            new ExpectedDistrict("46", "46800", "장흥군"),
+            new ExpectedDistrict("46", "46810", "강진군"),
+            new ExpectedDistrict("46", "46820", "해남군"),
+            new ExpectedDistrict("46", "46830", "영암군"),
+            new ExpectedDistrict("46", "46840", "무안군"),
+            new ExpectedDistrict("46", "46860", "함평군"),
+            new ExpectedDistrict("46", "46870", "영광군"),
+            new ExpectedDistrict("46", "46880", "장성군"),
+            new ExpectedDistrict("46", "46890", "완도군"),
+            new ExpectedDistrict("46", "46900", "진도군"),
+            new ExpectedDistrict("46", "46910", "신안군")
+    );
+
+    private static final List<String> DEPRECATED_GWANGJU_JEONNAM_CODES = List.of(
+            "12210", "12240", "12270", "12300", "12330",
+            "12110", "12130", "12150", "12170", "12190",
+            "12710", "12720", "12730", "12740", "12750", "12760", "12770",
+            "12780", "12790", "12800", "12810", "12820", "12830", "12840",
+            "12850", "12860", "12870"
+    );
+
     @Autowired
     private RegionResolver regionResolver;
 
@@ -69,6 +107,27 @@ class RegionMasterDataIntegrationTest extends IntegrationTest {
     @DisplayName("통합한 일반구 코드는 Region 마스터에 남기지 않는다")
     void removesDeprecatedDistricts() {
         assertThat(DEPRECATED_DISTRICT_CODES).allSatisfy(code ->
+                assertThat(regionRepository.existsByRegionTypeAndRegionCode(RegionType.DISTRICT, code))
+                        .isFalse()
+        );
+    }
+
+    @Test
+    @DisplayName("광주·전남 시군구를 클라이언트 canonical 코드로 조회한다")
+    void resolvesCanonicalGwangjuJeonnamDistricts() {
+        assertThat(GWANGJU_JEONNAM_DISTRICTS).allSatisfy(expected -> {
+            Region district = regionResolver.resolve("KR", expected.provinceCode(), expected.regionCode());
+
+            assertThat(district.getName()).isEqualTo(expected.name());
+            assertThat(district.getRegionType()).isEqualTo(RegionType.DISTRICT);
+            assertThat(findParentCode(district.getId())).isEqualTo(expected.provinceCode());
+        });
+    }
+
+    @Test
+    @DisplayName("잘못 선반영한 광주·전남 12xxx 코드를 Region 마스터에 남기지 않는다")
+    void removesDeprecatedGwangjuJeonnamCodes() {
+        assertThat(DEPRECATED_GWANGJU_JEONNAM_CODES).allSatisfy(code ->
                 assertThat(regionRepository.existsByRegionTypeAndRegionCode(RegionType.DISTRICT, code))
                         .isFalse()
         );
@@ -104,6 +163,13 @@ class RegionMasterDataIntegrationTest extends IntegrationTest {
     }
 
     private record ExpectedCity(
+            String provinceCode,
+            String regionCode,
+            String name
+    ) {
+    }
+
+    private record ExpectedDistrict(
             String provinceCode,
             String regionCode,
             String name

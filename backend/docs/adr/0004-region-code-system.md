@@ -2,7 +2,7 @@
 
 - 상태: 채택
 - 날짜: 2026-08-10
-- 관련: `V2__create_location.sql`, `V7__insert_location_province.sql`, `V8__insert_location_district.sql`, `V18__canonicalize_city_district_regions.sql`
+- 관련: `V2__create_location.sql`, `V7__insert_location_province.sql`, `V8__insert_location_district.sql`, `V18__canonicalize_city_district_regions.sql`, `V19__restore_gwangju_jeonnam_district_codes.sql`
 
 ---
 
@@ -30,7 +30,7 @@
 | 제주 | **49** | 50110, 50130 |
 | 강원 | **42** | 51xxx |
 | 전북 | **45** | 52xxx |
-| 광주·전남 | **29 / 46** | 12xxx |
+| 광주·전남 | **29 / 46** | 광주 29xxx / 전남 46xxx |
 
 **`50110 제주시`의 앞 두 자리 `50`은 ISO에서 세종특별자치시다.**
 접두사로 상위 지역을 유추하면 제주시가 세종 소속이 된다.
@@ -64,7 +64,8 @@ WHERE parent_id = :provinceId
 통합하면 사용자가 광주만 색칠할 수 없고 진행도 게이지가 화면과 어긋난다.
 
 ISO 갱신 전이므로 기존 코드 `29`(광주) / `46`(전남)을 그대로 사용한다.
-시·군·구는 양쪽 모두 통합 코드 `12xxx`를 쓰며, `parent_id`로 구분한다.
+시·군·구도 클라이언트 지도와 동일하게 광주 `29xxx`, 전남 `46xxx` 기존 코드를 사용한다.
+V8에서 선반영한 통합 코드 `12xxx`는 V19에서 기존 Region ID를 유지한 채 복원한다.
 
 ### 3. 시·도 `location.id`를 1~17로 고정한다
 
@@ -102,6 +103,14 @@ ISO 갱신 전이므로 기존 코드 `29`(광주) / `46`(전남)을 그대로 �
 일반 도의 시 산하 일반구는 별도 여행 기록 Region으로 사용하지 않는다.
 V18에서 39개 일반구 Region을 13개 canonical 시 Region으로 통합하고 기존 여행 기록도 시 Region으로 이관한다.
 Region 타입은 기존 3단계 계층을 유지하기 위해 시와 구 모두 `DISTRICT`를 사용한다.
+
+### 2026-09-15 보완 결정
+
+클라이언트와 DB의 광주·전남 시군구 코드를 일치시킨다.
+
+- 광주광역시: `29110`~`29200`의 기존 코드 사용
+- 전라남도: `46110`~`46910`의 기존 코드 사용
+- V8의 `12xxx` Region은 삭제·재생성하지 않고 V19에서 `region_code`만 갱신하여 기존 여행 기록 참조를 보존
 
 ---
 
