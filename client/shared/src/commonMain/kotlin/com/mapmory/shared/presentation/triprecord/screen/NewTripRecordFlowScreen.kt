@@ -67,7 +67,7 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.dateValidationError
-import com.mapmory.shared.presentation.date.PlatformDateRangePicker
+import com.mapmory.shared.presentation.date.PlatformDatePicker
 import com.mapmory.shared.presentation.map.ui.WorldGlobe
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
@@ -80,8 +80,10 @@ import com.mapmory.shared.presentation.photo.rememberPhotoLibraryActions
 import com.mapmory.shared.presentation.photo.photoRecommendationDateRange
 import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
+import com.mapmory.shared.presentation.triprecord.endDatePickerMinimumDate
 import com.mapmory.shared.presentation.triprecord.initialSelectableTripRecordDate
 import com.mapmory.shared.presentation.triprecord.selectableTripRecordDestinations
+import com.mapmory.shared.presentation.triprecord.startDatePickerMaximumDate
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 import kotlinx.coroutines.delay
@@ -100,6 +102,8 @@ private enum class NewRecordFlowStep {
 private const val PhotoListPrefetchGroups = 2
 private const val KoreaCountryId = 1L
 private const val PhotoLimitMessageDurationMillis = 3_000L
+private const val FlowStartDatePickerTarget = "flow-start"
+private const val FlowEndDatePickerTarget = "flow-end"
 
 @Composable
 internal fun NewTripRecordFlowScreen(
@@ -159,7 +163,7 @@ internal fun NewTripRecordFlowScreen(
     }
     var lastAutoLoadTriggerKey by remember { mutableStateOf<RecommendationLoadKey?>(null) }
     var previewPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
+    var datePickerTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val photoListState = rememberLazyListState()
 
     fun showPhotoLimitMessage() {
@@ -388,8 +392,8 @@ internal fun NewTripRecordFlowScreen(
                     locationSearchQuery = location.flowDisplayName(locations)
                     detailsErrorMessage = null
                 },
-                onStartDateClick = { showDateRangePicker = true },
-                onEndDateClick = { showDateRangePicker = true },
+                onStartDateClick = { datePickerTarget = FlowStartDatePickerTarget },
+                onEndDateClick = { datePickerTarget = FlowEndDatePickerTarget },
                 onGlobeCountryClick = { countryCode ->
                     val location = selectableLocations.firstOrNull { candidate ->
                         candidate.regionCode == countryCode
@@ -514,29 +518,48 @@ internal fun NewTripRecordFlowScreen(
             )
         }
 
-    val today = remember {
+    val activeDatePickerTarget = datePickerTarget
+    val today = remember(activeDatePickerTarget) {
         Clock.System.now()
             .toLocalDateTime(TimeZone.currentSystemDefault())
             .date
             .toString()
     }
-    PlatformDateRangePicker(
-        visible = showDateRangePicker,
-        initialStartDate = initialSelectableTripRecordDate(
-            selectedDate = uiState.startDate,
+    val minimumDate = if (activeDatePickerTarget == FlowEndDatePickerTarget) {
+        endDatePickerMinimumDate(uiState.startDate, today)
+    } else {
+        null
+    }
+    val maximumDate = if (activeDatePickerTarget == FlowStartDatePickerTarget) {
+        startDatePickerMaximumDate(uiState.endDate, today)
+    } else {
+        today
+    }
+    val selectedDate = when (activeDatePickerTarget) {
+        FlowStartDatePickerTarget -> uiState.startDate
+        FlowEndDatePickerTarget -> uiState.endDate
+        else -> null
+    }
+    PlatformDatePicker(
+        visible = activeDatePickerTarget != null,
+        initialDate = initialSelectableTripRecordDate(
+            selectedDate = selectedDate,
             fallbackDate = today,
-            minimumDate = null,
-            maximumDate = today,
+            minimumDate = minimumDate,
+            maximumDate = maximumDate,
         ),
-        initialEndDate = uiState.endDate.ifBlank { null },
-        maximumDate = today,
-        onDatesSelected = { startDate, endDate ->
-            onStartDateChanged(startDate)
-            onEndDateChanged(endDate)
+        minimumDate = minimumDate,
+        maximumDate = maximumDate,
+        onDateSelected = { date ->
+            if (activeDatePickerTarget == FlowStartDatePickerTarget) {
+                onStartDateChanged(date)
+            } else if (activeDatePickerTarget == FlowEndDatePickerTarget) {
+                onEndDateChanged(date)
+            }
             detailsErrorMessage = null
-            showDateRangePicker = false
+            datePickerTarget = null
         },
-        onDismiss = { showDateRangePicker = false },
+        onDismiss = { datePickerTarget = null },
     )
 }
 

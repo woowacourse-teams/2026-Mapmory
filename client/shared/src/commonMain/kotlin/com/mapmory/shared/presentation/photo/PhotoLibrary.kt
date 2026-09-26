@@ -7,6 +7,8 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
 data class SelectedPhoto(
     val id: String,
@@ -92,12 +94,14 @@ internal fun photoRecommendationDateRange(
     startDate: String,
     endDate: String?,
     timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    today: LocalDate = Clock.System.now().toLocalDateTime(timeZone).date,
 ): PhotoRecommendationDateRange? {
     val start = runCatching { LocalDate.parse(startDate) }.getOrNull() ?: return null
-    val end = endDate
-        ?.takeIf(String::isNotBlank)
-        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        ?: start
+    val end = if (endDate.isNullOrBlank()) {
+        today
+    } else {
+        runCatching { LocalDate.parse(endDate) }.getOrNull() ?: return null
+    }
     if (end < start) return null
 
     val until = end.plus(1, DateTimeUnit.DAY)

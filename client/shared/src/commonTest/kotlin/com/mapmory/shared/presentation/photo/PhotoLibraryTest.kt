@@ -5,6 +5,7 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,15 +27,16 @@ class PhotoLibraryTest {
     }
 
     @Test
-    fun `종료일이_없으면_시작일_하루만_포함한다`() {
+    fun `종료일이_없으면_시작일부터_오늘까지_포함한다`() {
         val range = photoRecommendationDateRange(
             startDate = "2026-09-10",
             endDate = null,
             timeZone = TimeZone.UTC,
+            today = LocalDate(2026, 9, 26),
         )
 
         assertEquals(1_788_998_400_000L, range?.fromInclusiveMillis)
-        assertEquals(1_789_084_800_000L, range?.untilExclusiveMillis)
+        assertEquals(1_790_467_200_000L, range?.untilExclusiveMillis)
     }
 
     @Test

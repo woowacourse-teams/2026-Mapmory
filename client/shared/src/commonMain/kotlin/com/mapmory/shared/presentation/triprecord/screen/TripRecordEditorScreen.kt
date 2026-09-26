@@ -88,8 +88,10 @@ import com.mapmory.shared.presentation.photo.rememberPhotoLibraryActions
 import com.mapmory.shared.presentation.photo.photoRecommendationDateRange
 import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
-import com.mapmory.shared.presentation.date.PlatformDateRangePicker
+import com.mapmory.shared.presentation.date.PlatformDatePicker
+import com.mapmory.shared.presentation.triprecord.endDatePickerMinimumDate
 import com.mapmory.shared.presentation.triprecord.initialSelectableTripRecordDate
+import com.mapmory.shared.presentation.triprecord.startDatePickerMaximumDate
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
@@ -102,6 +104,8 @@ import kotlin.time.Clock
 
 private const val RecommendationGridPrefetchItems = 3
 internal const val PhotoRecommendationGridTestTag = "photo-recommendation-grid"
+private const val StartDatePickerTarget = "start"
+private const val EndDatePickerTarget = "end"
 
 private val EditorBringIntoViewSpec = object : BringIntoViewSpec {
     override fun calculateScrollDistance(
@@ -179,7 +183,7 @@ fun TripRecordEditorScreen(
     var isRecommendationLoading by remember { mutableStateOf(false) }
     var photoLoadingProgress by remember { mutableStateOf<PhotoLoadingProgress?>(null) }
     var photoPermissionIssue by remember { mutableStateOf<PhotoLibraryPermissionIssue?>(null) }
-    var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
+    var datePickerTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val remainingPhotoSlots = TripRecordPhotoRules.remainingSlots(uiState.selectedPhotos.size)
     val dismissKeyboardOnTap = rememberDismissKeyboardOnTapModifier()
     val photoLibrary = photoLibraryActionsFactory(
@@ -402,8 +406,8 @@ fun TripRecordEditorScreen(
                             endDate = uiState.endDate,
                             startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
                             endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
-                            onStartDateClick = { showDateRangePicker = true },
-                            onEndDateClick = { showDateRangePicker = true },
+                            onStartDateClick = { datePickerTarget = StartDatePickerTarget },
+                            onEndDateClick = { datePickerTarget = EndDatePickerTarget },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
                         EditorDivider(Modifier.padding(horizontal = 20.dp))
@@ -656,28 +660,48 @@ fun TripRecordEditorScreen(
         )
     }
 
-    val today = remember {
+    val activeDatePickerTarget = datePickerTarget
+    val isStartDatePicker = activeDatePickerTarget == StartDatePickerTarget
+    val today = remember(activeDatePickerTarget) {
         Clock.System.now()
             .toLocalDateTime(TimeZone.currentSystemDefault())
             .date
             .toString()
     }
-    PlatformDateRangePicker(
-        visible = showDateRangePicker,
-        initialStartDate = initialSelectableTripRecordDate(
-            selectedDate = uiState.startDate,
+    val minimumDate = if (activeDatePickerTarget == EndDatePickerTarget) {
+        endDatePickerMinimumDate(uiState.startDate, today)
+    } else {
+        null
+    }
+    val maximumDate = if (activeDatePickerTarget == StartDatePickerTarget) {
+        startDatePickerMaximumDate(uiState.endDate, today)
+    } else {
+        today
+    }
+    val selectedDate = when (activeDatePickerTarget) {
+        StartDatePickerTarget -> uiState.startDate
+        EndDatePickerTarget -> uiState.endDate
+        else -> null
+    }
+    PlatformDatePicker(
+        visible = activeDatePickerTarget != null,
+        initialDate = initialSelectableTripRecordDate(
+            selectedDate = selectedDate,
             fallbackDate = today,
-            minimumDate = null,
-            maximumDate = today,
+            minimumDate = minimumDate,
+            maximumDate = maximumDate,
         ),
-        initialEndDate = uiState.endDate.ifBlank { null },
-        maximumDate = today,
-        onDatesSelected = { startDate, endDate ->
-            onStartDateChanged(startDate)
-            onEndDateChanged(endDate)
-            showDateRangePicker = false
+        minimumDate = minimumDate,
+        maximumDate = maximumDate,
+        onDateSelected = { date ->
+            if (isStartDatePicker) {
+                onStartDateChanged(date)
+            } else if (activeDatePickerTarget == EndDatePickerTarget) {
+                onEndDateChanged(date)
+            }
+            datePickerTarget = null
         },
-        onDismiss = { showDateRangePicker = false },
+        onDismiss = { datePickerTarget = null },
     )
 }
 
