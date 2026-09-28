@@ -35,6 +35,48 @@ function point({
   };
 }
 
+function createGpsJpeg() {
+  const tiff = Buffer.alloc(128);
+  tiff.write("II", 0, "ascii");
+  tiff.writeUInt16LE(42, 2);
+  tiff.writeUInt32LE(8, 4);
+  tiff.writeUInt16LE(1, 8);
+  tiff.writeUInt16LE(0x8825, 10);
+  tiff.writeUInt16LE(4, 12);
+  tiff.writeUInt32LE(1, 14);
+  tiff.writeUInt32LE(26, 18);
+  tiff.writeUInt32LE(0, 22);
+
+  tiff.writeUInt16LE(4, 26);
+  const writeEntry = (offset, tag, type, count, value) => {
+    tiff.writeUInt16LE(tag, offset);
+    tiff.writeUInt16LE(type, offset + 2);
+    tiff.writeUInt32LE(count, offset + 4);
+    if (type === 2) {
+      tiff.write(value, offset + 8, "ascii");
+    } else {
+      tiff.writeUInt32LE(value, offset + 8);
+    }
+  };
+  writeEntry(28, 1, 2, 2, "N\0");
+  writeEntry(40, 2, 5, 3, 80);
+  writeEntry(52, 3, 2, 2, "E\0");
+  writeEntry(64, 4, 5, 3, 104);
+  tiff.writeUInt32LE(0, 76);
+
+  const writeRationals = (offset, values) => values.forEach(([numerator, denominator], index) => {
+    tiff.writeUInt32LE(numerator, offset + index * 8);
+    tiff.writeUInt32LE(denominator, offset + index * 8 + 4);
+  });
+  writeRationals(80, [[37, 1], [33, 1], [0, 1]]);
+  writeRationals(104, [[126, 1], [58, 1], [0, 1]]);
+
+  const exifPayload = Buffer.concat([Buffer.from("Exif\0\0", "binary"), tiff]);
+  const app1Length = Buffer.alloc(2);
+  app1Length.writeUInt16BE(exifPayload.length + 2);
+  return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe1]), app1Length, exifPayload, Buffer.from([0xff, 0xd9])]);
+}
+
 test("accepts an image extension even when the browser leaves MIME blank", async () => {
   const bytes = await readFile(fixturePath);
   const file = new File([bytes], "team-jeju-coast.jpg", { type: "" });
@@ -57,6 +99,19 @@ test("normalizes EXIF and XMP GPS coordinate formats", () => {
   assert.equal(normalizeGpsCoordinate("37.5665", "N", "latitude"), 37.5665);
   assert.equal(normalizeGpsCoordinate(122.4194, "W", "longitude"), -122.4194);
   assert.equal(Number.isNaN(normalizeGpsCoordinate("not-a-coordinate", "", "latitude")), true);
+});
+
+test("reads GPS coordinates embedded in an original JPEG", async () => {
+  const file = new File([createGpsJpeg()], "original-with-gps.jpg", { type: "image/jpeg" });
+  const result = await analyzePhotoFiles([file]);
+
+  assert.equal(result.validPhotoCount, 1);
+  assert.equal(result.metadataReadCount, 1);
+  assert.equal(result.missingGpsCount, 0);
+  assert.equal(result.points[0].lat, 37.55);
+  assert.ok(Math.abs(result.points[0].lng - 126.96666666666667) < 1e-10);
+
+  result.objectUrls.forEach((url) => URL.revokeObjectURL(url));
 });
 
 test("keeps the sample and share video short", () => {
