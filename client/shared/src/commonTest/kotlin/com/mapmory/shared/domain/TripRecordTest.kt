@@ -39,22 +39,38 @@ class TripRecordTest {
             endTripDate = LocalDate(2027, 1, 1),
         )
 
-        assertTrue(requireNotNull(record.startTripDate) < requireNotNull(record.endTripDate))
+        assertTrue(record.startTripDate < requireNotNull(record.endTripDate))
     }
 
     @Test
-    fun `시작일과_종료일_없이_여행_기록을_생성할_수_있다`() {
+    fun `제목과_설명과_종료일_없이_여행_기록을_생성할_수_있다`() {
         val record = TripRecord(
-            imageUrl = "",
-            tripRecordTitle = "날짜 없는 여행",
-            tripRecordDescription = null,
-            startTripDate = null,
-            endTripDate = null,
+            imageUrl = "image.jpg",
+            startTripDate = LocalDate(2026, 8, 1),
             location = "서울",
         )
 
-        assertEquals(null, record.startTripDate)
+        assertEquals("", record.tripRecordTitle)
+        assertEquals(null, record.tripRecordDescription)
         assertEquals(null, record.endTripDate)
+    }
+
+    @Test
+    fun `사진과_장소가_비어_있으면_여행_기록을_생성할_수_없다`() {
+        assertFailsWith<IllegalArgumentException> {
+            TripRecord(
+                imageUrl = " ",
+                startTripDate = LocalDate(2026, 8, 1),
+                location = "서울",
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TripRecord(
+                imageUrl = "image.jpg",
+                startTripDate = LocalDate(2026, 8, 1),
+                location = " ",
+            )
+        }
     }
 
     @Test

@@ -28,7 +28,6 @@ Apple의 질문이나 실제 데이터 처리 방식이 바뀌면 출시 전에 
 | Usage Data → Product Interaction | 앱 실행, 화면 진입, 버튼 클릭, 사진 추천, 기록 저장 결과, 필터·테마 사용 | Analytics | 예 | 아니오 |
 | User Content → Photos or Videos | 이용자가 여행 기록에 첨부한 사진 원본 | App Functionality | 예 | 아니오 |
 | User Content → Other User Content | 여행 제목·내용·날짜·지역·태그 | App Functionality | 예 | 아니오 |
-| User Content → Other User Content | 태그 필터 사용 시 사용자가 만든 태그 이름 | Analytics | 예 | 아니오 |
 | Location → Precise Location | 업로드 사진 원본에 포함될 수 있는 EXIF 위도·경도 | App Functionality | 예 | 아니오 |
 | Location → Coarse Location | 선택한 행정구역, Firebase Analytics가 IP 등으로 산출할 수 있는 대략적인 지역 | App Functionality, Analytics | 예 | 아니오 |
 | Diagnostics → Other Diagnostic Data | 요청 ID, 요청 시각, API 경로·응답 상태와 오류 코드 | App Functionality | 출시 서버 로그와 회원 연결 가능성을 확인해 결정 | 아니오 |
@@ -40,7 +39,7 @@ Apple의 질문이나 실제 데이터 처리 방식이 바뀌면 출시 전에 
 ## Firebase Analytics 이벤트 데이터
 
 분석 이벤트에는 화면 이름, 이동한 탭, 지도 범위, 시·도 코드, 장소 유형, 기록 보유 여부, 사진 수,
-저장 성공·실패, 작성·수정 구분, 페이지 이동 방향, 테마와 사용자가 만든 태그 이름이 포함될 수 있다.
+저장 성공·실패, 작성·수정 구분, 페이지 이동 방향, 테마와 필터 유형이 포함될 수 있다.
 
 다음 데이터는 Analytics 이벤트 파라미터로 보내지 않는다.
 
@@ -48,9 +47,9 @@ Apple의 질문이나 실제 데이터 처리 방식이 바뀌면 출시 전에 
 - 사진 파일명·원본·미리보기
 - 원본 GPS 위도·경도
 - 내부 회원 ID와 인증 토큰
+- 사용자가 작성한 태그 이름
 
-사용자가 만든 태그 이름은 자유 입력값이므로 개인정보가 포함될 가능성이 있다. App Privacy에서는
-`Other User Content`의 Analytics 목적 수집으로 답하고, 개인정보처리방침에도 이를 공개한다.
+태그 필터 이벤트는 사용자가 작성한 태그 이름 대신 `all` 또는 `custom_tag` 유형만 전송한다.
 
 ## 출시 전 콘솔 확인
 

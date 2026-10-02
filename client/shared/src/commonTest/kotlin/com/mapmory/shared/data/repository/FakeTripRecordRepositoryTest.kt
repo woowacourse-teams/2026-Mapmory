@@ -38,7 +38,7 @@ class FakeTripRecordRepositoryTest {
                 content = "한강을 다시 걸었다.",
                 startDate = "2026-08-01",
                 endDate = "2026-08-02",
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("records/1/photo.jpg"),
             ),
         ).getOrThrow()
 
@@ -58,7 +58,7 @@ class FakeTripRecordRepositoryTest {
                 content = "한강을 걸었다.",
                 startDate = "2026-08-02",
                 endDate = "2026-08-01",
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("records/1/photo.jpg"),
             ),
         )
 

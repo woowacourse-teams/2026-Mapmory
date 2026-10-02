@@ -16,6 +16,9 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.place.application.PlaceSelectionService;
+import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.region.Region;
@@ -70,6 +73,10 @@ class TravelRecordServiceTest {
 
     @Mock
     private UploadedObjectVerifier uploadedObjectVerifier;
+    @Mock
+    private PlaceLookupPort placeLookupPort;
+    @Mock
+    private PlaceSelectionService placeSelectionService;
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
 
@@ -98,7 +105,9 @@ class TravelRecordServiceTest {
                         recordMediaUrlService
                 ),
                 FIXED_CLOCK,
-                uploadedObjectVerifier
+                uploadedObjectVerifier,
+                placeLookupPort,
+                placeSelectionService
         );
     }
 
@@ -119,6 +128,81 @@ class TravelRecordServiceTest {
         verify(regionResolver).resolve("JP", null, null);
         verify(travelRecordRepository).save(any(TravelRecord.class));
         verify(travelRecordTagService).replace(member, result, List.of(1L));
+    }
+
+    @Test
+    void 선택한_장소_ID로_조회한_이름을_여행_일지에_저장한다() {
+        Region district = mock(Region.class);
+        TravelRecordCommand command = new TravelRecordCommand(
+                "KR", "11", "11560", "한강 산책", "",
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+        );
+        when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
+        when(placeLookupPort.findById("park-1"))
+                .thenReturn(new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932,
+                        "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"));
+        when(placeLookupPort.providerCode()).thenReturn("TEST_PROVIDER");
+        when(travelRecordRepository.save(any(TravelRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TravelRecord result = travelRecordService.create(member, command);
+
+        assertThat(result.getRegion()).isEqualTo(district);
+        assertThat(result.getPlace()).isEqualTo(new RecordedPlace(
+                "TEST_PROVIDER", "park-1", "여의도한강공원",
+                "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"));
+    }
+
+    @Test
+    void 장소_ID만_보내면_좌표로_추천한_지역에_저장한다() {
+        Region district = mock(Region.class);
+        TravelRecordCommand command = new TravelRecordCommand(
+                null, null, null, "한강 산책", "",
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+        );
+        PlaceDetails place = new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932, null, null);
+        when(placeLookupPort.findById("park-1")).thenReturn(place);
+        when(placeLookupPort.providerCode()).thenReturn("GEOAPIFY");
+        when(placeSelectionService.suggestedRegion(place)).thenReturn(district);
+        when(travelRecordRepository.save(any(TravelRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TravelRecord result = travelRecordService.create(member, command);
+
+        assertThat(result.getRegion()).isEqualTo(district);
+        assertThat(result.getPlace().name()).isEqualTo("여의도한강공원");
+    }
+
+    @Test
+    void 장소_좌표에_맞는_지역이_없으면_직접_지역을_고르게_한다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                null, null, null, "한강 산책", "",
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+        );
+        PlaceDetails place = new PlaceDetails("park-1", "한강공원", "KR", 37.5, 127.0, null, null);
+        when(placeLookupPort.findById("park-1")).thenReturn(place);
+
+        assertThatThrownBy(() -> travelRecordService.create(member, command))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
+                        .isEqualTo("REGION_REQUIRED"));
+        verify(travelRecordRepository, never()).save(any(TravelRecord.class));
+    }
+
+    @Test
+    void 장소의_국가와_요청_국가가_다르면_저장하지_않는다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                "KR", "11", "11560", "한강 산책", "",
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+        );
+        when(placeLookupPort.findById("park-1"))
+                .thenReturn(new PlaceDetails("park-1", "도쿄 타워", "JP", 35.6586, 139.7454, null, null));
+
+        assertThatThrownBy(() -> travelRecordService.create(member, command))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
+                        .isEqualTo("PLACE_COUNTRY_MISMATCH"));
+        verify(travelRecordRepository, never()).save(any(TravelRecord.class));
     }
 
     @Test

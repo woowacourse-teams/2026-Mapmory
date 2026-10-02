@@ -153,6 +153,9 @@ travel-records/{memberId}/{uuid}.{extension}
 클라이언트는 발급받은 URL로 S3에 직접 `PUT`하고, 여행 기록 요청에는
 업로드가 완료된 `objectKeys`만 전달한다. Presigned URL은 DB에 저장하지 않는다.
 
+Presigned URL 발급 요청은 최대 10개 파일을 받는다. 앱은 기록당 최대 100장의 사진을 허용하며,
+10장씩 나누어 최대 10회 URL을 발급받은 뒤 각 URL로 업로드한다.
+
 오류 코드는 `INVALID_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `TOO_MANY_FILES`,
 `MEMBER_NOT_FOUND`를 사용한다.
 

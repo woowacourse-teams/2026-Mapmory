@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.domain.model.Location
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.reinterpret
@@ -23,6 +24,8 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLog
 import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSPredicate
+import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.NSURL
 import platform.Foundation.getBytes
 import platform.Foundation.NSSortDescriptor
@@ -34,6 +37,7 @@ import platform.ImageIO.kCGImageSourceThumbnailMaxPixelSize
 import platform.Photos.PHAccessLevelReadWrite
 import platform.Photos.PHAsset
 import platform.Photos.PHAssetMediaTypeImage
+import platform.Photos.PHAssetMediaSubtypePhotoScreenshot
 import platform.Photos.PHAssetResource
 import platform.Photos.PHAssetResourceManager
 import platform.Photos.PHAssetResourceRequestOptions
@@ -77,7 +81,7 @@ actual fun rememberPhotoLibraryActions(
     onPhotosRecommended: (PhotoRecommendationPage) -> Unit,
     onMessage: (String) -> Unit,
     onLoadingChanged: (Boolean) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onLoadingProgressChanged: (PhotoLoadingProgress) -> Unit,
+    onLoadingProgressChanged: (PhotoLoadingProgress) -> Unit,
     onRecommendationLoadingChanged: (Boolean) -> Unit,
     onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit,
 ): PhotoLibraryActions {
@@ -87,6 +91,7 @@ actual fun rememberPhotoLibraryActions(
     controller.onPhotosRecommended = onPhotosRecommended
     controller.onMessage = onMessage
     controller.onLoadingChanged = onLoadingChanged
+    controller.onLoadingProgressChanged = onLoadingProgressChanged
     controller.onRecommendationLoadingChanged = onRecommendationLoadingChanged
     controller.onPermissionRequired = onPermissionRequired
     DisposableEffect(controller) {
@@ -98,6 +103,7 @@ actual fun rememberPhotoLibraryActions(
         PhotoLibraryActions(
             pickFromGallery = controller::presentPicker,
             recommendForLocation = controller::recommend,
+            recommendForLocationInDateRange = controller::recommendInDateRange,
             loadNextRecommendationPage = controller::loadNextRecommendationPage,
             prepareForAdding = controller::prepareForAdding,
             cancelRecommendation = controller::cancelRecommendation,
@@ -128,6 +134,11 @@ private data class IosRecommendationPage(
     )
 }
 
+private data class PendingIosRecommendation(
+    val location: Location,
+    val dateRange: PhotoRecommendationDateRange?,
+)
+
 private class IosPhotoLibraryController(
     private val scope: CoroutineScope,
 ) : NSObject(), PHPickerViewControllerDelegateProtocol {
@@ -135,14 +146,16 @@ private class IosPhotoLibraryController(
     var onPhotosRecommended: (PhotoRecommendationPage) -> Unit = {}
     var onMessage: (String) -> Unit = {}
     var onLoadingChanged: (Boolean) -> Unit = {}
+    var onLoadingProgressChanged: (PhotoLoadingProgress) -> Unit = {}
     var onRecommendationLoadingChanged: (Boolean) -> Unit = {}
     var onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit = {}
     private var recommendationJob: Job? = null
     private var recommendationGeneration = 0
     private var recommendationSession: IosRecommendationSession? = null
     private var isRecommendationPageLoading = false
-    private var pendingRecommendation: Location? = null
+    private var pendingRecommendation: PendingIosRecommendation? = null
     private var appActiveObserver: Any? = null
+    private val previewCache = IosPhotoPreviewCache()
 
     private var pickerStartedAtMillis: Long? = null
 
@@ -201,14 +214,31 @@ private class IosPhotoLibraryController(
 
     @Suppress("UNUSED_PARAMETER")
     fun recommend(location: Location, parentName: String?) {
+        requestRecommendation(location, dateRange = null)
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun recommendInDateRange(
+        location: Location,
+        parentName: String?,
+        dateRange: PhotoRecommendationDateRange,
+    ) {
+        requestRecommendation(location, dateRange)
+    }
+
+    private fun requestRecommendation(
+        location: Location,
+        dateRange: PhotoRecommendationDateRange?,
+    ) {
+        val request = PendingIosRecommendation(location, dateRange)
         val status = PHPhotoLibrary.authorizationStatusForAccessLevel(PHAccessLevelReadWrite)
         when (status) {
             PHAuthorizationStatusAuthorized -> {
                 pendingRecommendation = null
-                findRecommendations(location)
+                findRecommendations(location, dateRange)
             }
             PHAuthorizationStatusLimited -> {
-                pendingRecommendation = location
+                pendingRecommendation = request
                 onPermissionRequired(PhotoLibraryPermissionIssue.LIMITED)
             }
             PHAuthorizationStatusNotDetermined -> {
@@ -217,14 +247,14 @@ private class IosPhotoLibraryController(
                         when (newStatus) {
                             PHAuthorizationStatusAuthorized -> {
                                 pendingRecommendation = null
-                                findRecommendations(location)
+                                findRecommendations(location, dateRange)
                             }
                             PHAuthorizationStatusLimited -> {
-                                pendingRecommendation = location
+                                pendingRecommendation = request
                                 onPermissionRequired(PhotoLibraryPermissionIssue.LIMITED)
                             }
                             else -> {
-                                pendingRecommendation = location
+                                pendingRecommendation = request
                                 onPermissionRequired(newStatus.toPermissionIssue())
                             }
                         }
@@ -232,7 +262,7 @@ private class IosPhotoLibraryController(
                 }
             }
             else -> {
-                pendingRecommendation = location
+                pendingRecommendation = request
                 onPermissionRequired(status.toPermissionIssue())
             }
         }
@@ -263,7 +293,7 @@ private class IosPhotoLibraryController(
                 PHAuthorizationStatusAuthorized
             ) {
                 pendingRecommendation = null
-                findRecommendations(target)
+                findRecommendations(target.location, target.dateRange)
             }
         }
     }
@@ -273,7 +303,10 @@ private class IosPhotoLibraryController(
         appActiveObserver = null
     }
 
-    private fun findRecommendations(location: Location) {
+    private fun findRecommendations(
+        location: Location,
+        dateRange: PhotoRecommendationDateRange?,
+    ) {
         recommendationJob?.cancel()
         val generation = ++recommendationGeneration
         recommendationSession = null
@@ -308,7 +341,7 @@ private class IosPhotoLibraryController(
                 return@launch
             }
             val matchingAssets = withContext(Dispatchers.Default) {
-                findAssetsInRegion(region)
+                findAssetsInRegion(region, dateRange)
             }
             if (generation != recommendationGeneration) return@launch
 
@@ -362,19 +395,50 @@ private class IosPhotoLibraryController(
         onLoadingChanged(false)
     }
 
-    private fun findAssetsInRegion(region: PhotoRecommendationRegion): List<PHAsset> {
+    private fun findAssetsInRegion(
+        region: PhotoRecommendationRegion,
+        dateRange: PhotoRecommendationDateRange?,
+    ): List<PHAsset> {
         val options = PHFetchOptions().apply {
             sortDescriptors = listOf(NSSortDescriptor("creationDate", ascending = false))
+            if (dateRange != null) {
+                val fromDate = NSDate(
+                    timeIntervalSinceReferenceDate =
+                        dateRange.fromInclusiveMillis / 1_000.0 - NSTimeIntervalSince1970,
+                )
+                val untilDate = NSDate(
+                    timeIntervalSinceReferenceDate =
+                        dateRange.untilExclusiveMillis / 1_000.0 - NSTimeIntervalSince1970,
+                )
+                predicate = NSPredicate.predicateWithFormat(
+                    "creationDate >= %@ AND creationDate < %@",
+                    argumentArray = listOf(fromDate, untilDate),
+                )
+            }
         }
         val result = PHAsset.fetchAssetsWithMediaType(PHAssetMediaTypeImage, options)
+        val total = result.count.toInt()
+        onMain { onLoadingProgressChanged(PhotoLoadingProgress(processed = 0, total = total)) }
         return buildList {
-            for (index in 0 until result.count.toInt()) {
-                val asset = result.objectAtIndex(index.toULong()) as? PHAsset ?: continue
-                val coordinate = asset.location?.coordinate ?: continue
-                val matches = coordinate.useContents {
-                    region.contains(latitude = latitude, longitude = longitude)
+            for (index in 0 until total) {
+                val asset = result.objectAtIndex(index.toULong()) as? PHAsset
+                val coordinate = asset?.location?.coordinate
+                val isScreenshot = asset != null &&
+                    (asset.mediaSubtypes and PHAssetMediaSubtypePhotoScreenshot) != 0UL
+                if (asset != null && !isScreenshot && coordinate != null) {
+                    val matches = coordinate.useContents {
+                        region.contains(latitude = latitude, longitude = longitude)
+                    }
+                    if (matches) add(asset)
                 }
-                if (matches) add(asset)
+                val processed = index + 1
+                if (processed == total || processed % IosProgressUpdateInterval == 0) {
+                    onMain {
+                        onLoadingProgressChanged(
+                            PhotoLoadingProgress(processed = processed, total = total),
+                        )
+                    }
+                }
             }
         }
     }
@@ -454,6 +518,24 @@ private class IosPhotoLibraryController(
     }
 
     private fun loadAssetPreview(asset: PHAsset, completion: (SelectedPhoto?) -> Unit) {
+        val cacheKey = asset.localRecommendationPreviewCacheKey()
+        scope.launch {
+            val cachedPreview = withContext(Dispatchers.Default) {
+                previewCache.read(cacheKey)
+            }
+            if (cachedPreview != null) {
+                onMain { completion(asset.toSelectedPhoto(cachedPreview)) }
+            } else {
+                requestAssetPreview(asset, cacheKey, completion)
+            }
+        }
+    }
+
+    private fun requestAssetPreview(
+        asset: PHAsset,
+        cacheKey: String,
+        completion: (SelectedPhoto?) -> Unit,
+    ) {
         val options = PHImageRequestOptions().apply {
             version = PHImageRequestOptionsVersionCurrent
             deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
@@ -469,27 +551,20 @@ private class IosPhotoLibraryController(
             contentMode = PHImageContentModeAspectFit,
             options = options,
         ) { image, _ ->
-            val coordinate = asset.location?.coordinate
-            val latitude = coordinate?.useContents { latitude }
-            val longitude = coordinate?.useContents { longitude }
             val previewBytes = image
                 ?.let { UIImageJPEGRepresentation(it, PreviewJpegQuality) }
                 ?.toByteArray()
             onMain {
                 if (didComplete) return@onMain
                 didComplete = true
-                completion(
-                    previewBytes?.let {
-                        SelectedPhoto(
-                            id = asset.localIdentifier,
-                            displayName = asset.displayName(),
-                            previewBytes = previewBytes,
-                            latitude = latitude,
-                            longitude = longitude,
-                            capturedAt = asset.creationDate?.formattedPhotoDate(),
-                        )
-                    },
-                )
+                completion(previewBytes?.let(asset::toSelectedPhoto))
+                if (previewBytes != null) {
+                    scope.launch {
+                        withContext(Dispatchers.Default) {
+                            previewCache.write(cacheKey, previewBytes)
+                        }
+                    }
+                }
             }
         }
     }
@@ -572,6 +647,25 @@ private fun NSDate.formattedPhotoDate(): String = NSDateFormatter().run {
     stringFromDate(this@formattedPhotoDate)
 }
 
+private fun PHAsset.localRecommendationPreviewCacheKey(): String {
+    val version = modificationDate?.timeIntervalSinceReferenceDate
+        ?: creationDate?.timeIntervalSinceReferenceDate
+        ?: 0.0
+    return "local-ios:$localIdentifier:$version:$RecommendationPreviewSizePx"
+}
+
+private fun PHAsset.toSelectedPhoto(previewBytes: ByteArray): SelectedPhoto {
+    val coordinate = location?.coordinate
+    return SelectedPhoto(
+        id = localIdentifier,
+        displayName = displayName(),
+        previewBytes = previewBytes,
+        latitude = coordinate?.useContents { latitude },
+        longitude = coordinate?.useContents { longitude },
+        capturedAt = creationDate?.formattedPhotoDate(),
+    )
+}
+
 private fun NSData.toByteArray(): ByteArray {
     if (length == 0UL) return ByteArray(0)
     return ByteArray(length.toInt()).also { bytes ->
@@ -651,6 +745,7 @@ private fun logPhotoPerformance(message: String) {
 private const val PreviewSizePx = 1280
 private const val RecommendationPreviewSizePx = 640
 private const val PreviewJpegQuality = 0.85
+private const val IosProgressUpdateInterval = 25
 private fun Long.toPermissionIssue(): PhotoLibraryPermissionIssue =
     if (this == platform.Photos.PHAuthorizationStatusRestricted) {
         PhotoLibraryPermissionIssue.RESTRICTED

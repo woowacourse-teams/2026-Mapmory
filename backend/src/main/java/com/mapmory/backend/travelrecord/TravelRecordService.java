@@ -4,6 +4,9 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.place.application.PlaceSelectionService;
+import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.tag.Tag;
@@ -34,6 +37,8 @@ public class TravelRecordService {
     private final TravelRecordAssembler travelRecordAssembler;
     private final Clock clock;
     private final UploadedObjectVerifier uploadedObjectVerifier;
+    private final PlaceLookupPort placeLookupPort;
+    private final PlaceSelectionService placeSelectionService;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -43,7 +48,9 @@ public class TravelRecordService {
             OperationTimer operationTimer,
             TravelRecordAssembler travelRecordAssembler,
             Clock clock,
-            UploadedObjectVerifier uploadedObjectVerifier
+            UploadedObjectVerifier uploadedObjectVerifier,
+            PlaceLookupPort placeLookupPort,
+            PlaceSelectionService placeSelectionService
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -53,16 +60,18 @@ public class TravelRecordService {
         this.travelRecordAssembler = travelRecordAssembler;
         this.clock = clock;
         this.uploadedObjectVerifier = uploadedObjectVerifier;
+        this.placeLookupPort = placeLookupPort;
+        this.placeSelectionService = placeSelectionService;
     }
 
     @Transactional
     public TravelRecord create(Member member, TravelRecordCommand command) {
         validateTravelDates(command.startDate(), command.endDate());
-        validateTravelRecordRegion(command);
+        PlaceDetails place = resolvePlace(command);
+        Region region = resolveRegion(command, place);
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
         uploadedObjectVerifier.verifyAllUploaded(objectKeys);
-        Region region = resolveRegion(command);
 
         TravelRecord travelRecord = TravelRecord.of(
                 member,
@@ -72,6 +81,7 @@ public class TravelRecordService {
                 command.startDate(),
                 command.endDate()
         );
+        setPlace(travelRecord, place);
         travelRecord.synchronizeMedia(objectKeys);
 
         TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
@@ -94,13 +104,13 @@ public class TravelRecordService {
             TravelRecordCommand command
     ) {
         validateTravelDates(command.startDate(), command.endDate());
-        validateTravelRecordRegion(command);
         TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
                 .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
 
-        Region region = resolveRegion(command);
+        PlaceDetails place = resolvePlace(command);
+        Region region = resolveRegion(command, place);
         List<String> newObjectKeys = travelRecord.newObjectKeys(objectKeys);
         validateObjectKeysAreAvailable(newObjectKeys);
         uploadedObjectVerifier.verifyAllUploaded(newObjectKeys);
@@ -112,6 +122,7 @@ public class TravelRecordService {
                 command.startDate(),
                 command.endDate()
         );
+        setPlace(travelRecord, place);
         List<Tag> tags = travelRecordTagService.replace(member, travelRecord, command.tagIds());
         operationTimer.record(
                 MonitoredOperation.MEDIA_SYNC,
@@ -236,7 +247,17 @@ public class TravelRecordService {
         );
     }
 
-    private Region resolveRegion(TravelRecordCommand command) {
+    private Region resolveRegion(TravelRecordCommand command, PlaceDetails place) {
+        if (command.countryCode() == null && command.provinceCode() == null
+                && command.districtCode() == null && place != null) {
+            Region suggestion = placeSelectionService.suggestedRegion(place);
+            if (suggestion == null) {
+                throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
+                        "장소의 지역을 자동으로 찾지 못했습니다. 지역을 직접 선택해 주세요.");
+            }
+            return suggestion;
+        }
+        validateTravelRecordRegion(command);
         return regionResolver.resolve(
                 command.countryCode(),
                 command.provinceCode(),
@@ -244,11 +265,33 @@ public class TravelRecordService {
         );
     }
 
+    private PlaceDetails resolvePlace(TravelRecordCommand command) {
+        if (command.placeId() == null) {
+            return null;
+        }
+        PlaceDetails place = placeLookupPort.findById(command.placeId());
+        if (command.countryCode() != null && place.countryCode() != null
+                && !place.countryCode().equals(command.countryCode())) {
+            throw new BusinessException(TravelRecordErrorCode.PLACE_COUNTRY_MISMATCH);
+        }
+        return place;
+    }
+
+    private void setPlace(TravelRecord travelRecord, PlaceDetails place) {
+        travelRecord.setPlace(place == null ? null : new RecordedPlace(
+                placeLookupPort.providerCode(), place.placeId(), place.name(),
+                place.attribution(), place.attributionUrl()));
+    }
+
     private void validateTravelRecordRegion(TravelRecordCommand command) {
         String countryCode = command.countryCode();
         String provinceCode = command.provinceCode();
         String districtCode = command.districtCode();
         validateRegionCodeFormat(countryCode, provinceCode, districtCode);
+
+        if (countryCode == null) {
+            throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
+        }
 
         if (KOREA_COUNTRY_CODE.equals(countryCode)) {
             if (provinceCode == null || districtCode == null) {

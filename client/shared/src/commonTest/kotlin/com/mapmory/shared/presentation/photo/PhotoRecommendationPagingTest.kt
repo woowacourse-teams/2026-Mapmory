@@ -12,23 +12,31 @@ class PhotoRecommendationPagingTest {
         val pages = listOf(
             PhotoRecommendationPage(1, (1..24).map { photo(it) }, hasMore = true),
             PhotoRecommendationPage(1, (25..48).map { photo(it) }, hasMore = true),
-            PhotoRecommendationPage(1, (49..50).map { photo(it) }, hasMore = false),
+            PhotoRecommendationPage(1, (49..72).map { photo(it) }, hasMore = true),
+            PhotoRecommendationPage(1, (73..96).map { photo(it) }, hasMore = true),
+            PhotoRecommendationPage(1, (97..120).map { photo(it) }, hasMore = false),
         )
 
         val first = PhotoRecommendationPagingState().accept(pages[0])
         val second = first?.accept(pages[1])
         val third = second?.accept(pages[2])
+        val fourth = third?.accept(pages[3])
+        val fifth = fourth?.accept(pages[4])
 
         assertNotNull(first)
         assertNotNull(second)
         assertNotNull(third)
+        assertNotNull(fourth)
+        assertNotNull(fifth)
         assertEquals(24, first.photos.size)
         assertEquals(48, second.photos.size)
-        assertEquals(50, third.photos.size)
-        assertEquals(2, third.pageIndex)
-        assertFalse(third.hasMore)
-        assertEquals(50, third.photos.map(SelectedPhoto::id).toSet().size)
-        assertEquals(10, third.selectedIds.size)
+        assertEquals(72, third.photos.size)
+        assertEquals(96, fourth.photos.size)
+        assertEquals(120, fifth.photos.size)
+        assertEquals(4, fifth.pageIndex)
+        assertFalse(fifth.hasMore)
+        assertEquals(120, fifth.photos.map(SelectedPhoto::id).toSet().size)
+        assertEquals(100, fifth.selectedIds.size)
     }
 
     @Test
@@ -50,6 +58,23 @@ class PhotoRecommendationPagingTest {
             .toggleSelection("1")
             .toggleSelection("4")
         assertEquals(setOf("2", "3", "4"), replaced.selectedIds)
+    }
+
+    @Test
+    fun `새_앨범_플로우는_추천_사진을_자동으로_선택하지_않는다`() {
+        val result = PhotoRecommendationPagingState(maxSelectionCount = 3)
+            .accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..5).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+            )
+
+        assertNotNull(result)
+        assertEquals(5, result.photos.size)
+        assertTrue(result.selectedIds.isEmpty())
     }
 
     @Test

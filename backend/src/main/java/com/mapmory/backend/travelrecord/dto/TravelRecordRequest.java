@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record TravelRecordRequest(
-        @NotBlank(message = "국가 코드는 필수입니다.")
         @Pattern(regexp = "[A-Z]{2}", message = "국가 코드는 대문자 2자리여야 합니다.")
         String countryCode,
         @Pattern(regexp = "\\S{1,20}", message = "시도 코드는 공백일 수 없습니다.")
@@ -23,8 +22,19 @@ public record TravelRecordRequest(
         LocalDate startDate,
         LocalDate endDate,
         List<String> objectKeys,
-        List<Long> tagIds
+        List<Long> tagIds,
+        @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
+        String placeId
 ) {
+    public TravelRecordRequest(
+            String countryCode, String provinceCode, String districtCode,
+            String title, String content, LocalDate startDate, LocalDate endDate,
+            List<String> objectKeys, List<Long> tagIds
+    ) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
+                objectKeys, tagIds, null);
+    }
+
     public TravelRecordRequest(
             String countryCode,
             String provinceCode,
@@ -35,7 +45,7 @@ public record TravelRecordRequest(
             LocalDate endDate,
             List<String> objectKeys
     ) {
-        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate, objectKeys, List.of());
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate, objectKeys, List.of(), null);
     }
 
     public TravelRecordCommand toCommand() {
@@ -48,7 +58,8 @@ public record TravelRecordRequest(
                 startDate,
                 endDate,
                 objectKeys,
-                tagIds
+                tagIds,
+                placeId
         );
     }
 }

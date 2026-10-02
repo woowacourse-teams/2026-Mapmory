@@ -105,6 +105,6 @@ class MapViewModelTest {
         content = "",
         startDate = "2026-08-01",
         endDate = null,
-        mediaObjectKeys = emptyList(),
+        mediaObjectKeys = listOf("records/$locationId/photo.jpg"),
     )
 }

@@ -57,7 +57,31 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         entityManager.clear();
 
         assertThat(travelRecord.getId()).isNotNull();
-        assertThat(travelRecordRepository.findById(travelRecord.getId())).isPresent();
+        assertThat(travelRecordRepository.findById(travelRecord.getId())).isPresent()
+                .get().extracting(TravelRecord::getPlace).isNull();
+    }
+
+    @Test
+    void 기록_장소를_하나의_값_객체로_저장하고_다시_읽는다() {
+        Member member = memberRepository.save(Member.of("장소 기록 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(
+                Region.of(null, null, "ZP", "장소 테스트 국가", RegionType.COUNTRY)
+        );
+        TravelRecord travelRecord = TravelRecord.of(
+                member, country, "공원 방문", "", LocalDate.of(2026, 8, 11), null
+        );
+        RecordedPlace place = new RecordedPlace(
+                "GEOAPIFY", "park-1", "여의도한강공원",
+                "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"
+        );
+        travelRecord.setPlace(place);
+        travelRecordRepository.save(travelRecord);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(travelRecordRepository.findById(travelRecord.getId()))
+                .get().extracting(TravelRecord::getPlace).isEqualTo(place);
     }
 
     @Test

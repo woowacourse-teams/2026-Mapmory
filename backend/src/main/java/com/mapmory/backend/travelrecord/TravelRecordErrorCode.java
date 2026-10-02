@@ -5,6 +5,13 @@ import com.mapmory.backend.common.exception.ErrorKind;
 
 public enum TravelRecordErrorCode implements ErrorCode {
 
+    PLACE_COUNTRY_MISMATCH(
+            ErrorKind.INVALID_INPUT,
+            "PLACE_COUNTRY_MISMATCH",
+            "장소와 지역이 일치하지 않습니다.",
+            "선택한 장소의 국가와 여행 기록의 국가가 다릅니다."
+    ),
+
     REGION_REQUIRED(
             ErrorKind.INVALID_INPUT,
             "REGION_REQUIRED",

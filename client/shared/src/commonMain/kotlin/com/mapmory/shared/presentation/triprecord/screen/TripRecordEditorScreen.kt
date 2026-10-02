@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -84,6 +86,7 @@ import com.mapmory.shared.presentation.photo.RecommendationLoadKey
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.photo.accept
 import com.mapmory.shared.presentation.photo.rememberPhotoLibraryActions
+import com.mapmory.shared.presentation.photo.photoRecommendationDateRange
 import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
 import com.mapmory.shared.presentation.date.PlatformDatePicker
@@ -100,10 +103,10 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
-private const val StartDatePickerTarget = "start"
-private const val EndDatePickerTarget = "end"
 private const val RecommendationGridPrefetchItems = 3
 internal const val PhotoRecommendationGridTestTag = "photo-recommendation-grid"
+private const val StartDatePickerTarget = "start"
+private const val EndDatePickerTarget = "end"
 
 private val EditorBringIntoViewSpec = object : BringIntoViewSpec {
     override fun calculateScrollDistance(
@@ -167,6 +170,15 @@ fun TripRecordEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    val interactedFields = remember(uiState.recordId) { mutableSetOf<String>() }
+    fun logFieldInteraction(fieldName: String) {
+        if (interactedFields.add(fieldName)) {
+            analytics.logEvent(
+                MapmoryAnalyticsEvent.RECORD_EDITOR_FIELD_INTERACTED,
+                mapOf("field_name" to fieldName),
+            )
+        }
+    }
     val selectableLocations = remember(locations) {
         locations.selectableTripRecordDestinations()
     }
@@ -300,6 +312,7 @@ fun TripRecordEditorScreen(
                             locationName = uiState.selectedLocation?.name ?: "여행 장소",
                             photos = uiState.selectedPhotos,
                             onAddClick = {
+                                logFieldInteraction("photos")
                                 if (remainingPhotoSlots == 0) {
                                     photoMessage = TripRecordPhotoRules.LimitMessage
                                 } else {
@@ -308,6 +321,7 @@ fun TripRecordEditorScreen(
                                 }
                             },
                             onRecommendClick = {
+                                logFieldInteraction("photos")
                                 if (isRecommendationLoading) {
                                     analytics.logEvent(MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_CANCELLED)
                                     photoLibrary.cancelRecommendation()
@@ -330,7 +344,19 @@ fun TripRecordEditorScreen(
                                         val parentName = locations
                                             .firstOrNull { it.id == selectedLocation.parentId }
                                             ?.name
-                                        photoLibrary.recommendForLocation(selectedLocation, parentName)
+                                        val dateRange = photoRecommendationDateRange(
+                                            uiState.startDate,
+                                            uiState.endDate,
+                                        )
+                                        if (dateRange == null) {
+                                            photoLibrary.recommendForLocation(selectedLocation, parentName)
+                                        } else {
+                                            photoLibrary.recommendForLocationInDateRange(
+                                                selectedLocation,
+                                                parentName,
+                                                dateRange,
+                                            )
+                                        }
                                     }
                                 }
                             },
@@ -361,6 +387,7 @@ fun TripRecordEditorScreen(
                             EditorTitleField(
                                 value = uiState.title,
                                 onValueChange = onTitleChanged,
+                                onFocus = { logFieldInteraction("title") },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             EditorErrorMessage(
@@ -375,6 +402,7 @@ fun TripRecordEditorScreen(
                                 selectedLocation = uiState.selectedLocation,
                                 locations = locations,
                                 onClick = {
+                                    logFieldInteraction("location")
                                     onLocationTouched()
                                     showLocationSheet = true
                                 },
@@ -392,26 +420,23 @@ fun TripRecordEditorScreen(
                             endDate = uiState.endDate,
                             startDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.START_DATE),
                             endDateError = uiState.errorMessageFor(TripRecordEditorErrorTarget.END_DATE),
-                            onStartDateClick = { datePickerTarget = StartDatePickerTarget },
-                            onEndDateClick = { datePickerTarget = EndDatePickerTarget },
+                            onStartDateClick = {
+                                logFieldInteraction("start_date")
+                                datePickerTarget = StartDatePickerTarget
+                            },
+                            onEndDateClick = {
+                                logFieldInteraction("end_date")
+                                datePickerTarget = EndDatePickerTarget
+                            },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         )
                         EditorDivider(Modifier.padding(horizontal = 20.dp))
-
-                        TagEditor(
-                            uiState = uiState,
-                            saveErrorMessage = uiState.errorMessageFor(TripRecordEditorErrorTarget.TAGS),
-                            onInputChanged = onTagInputChanged,
-                            onTagToggled = onTagToggled,
-                            onPendingTagToggled = onPendingTagToggled,
-                            onCreate = onTagCreate,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                        )
 
                         Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                             EditorContentField(
                                 value = uiState.content,
                                 onValueChange = onContentChanged,
+                                onFocus = { logFieldInteraction("content") },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             EditorErrorMessage(
@@ -496,7 +521,7 @@ fun TripRecordEditorScreen(
                                 selected = uiState.selectedLocation?.regionCode == location.regionCode,
                                 onClick = {
                                     analytics.logEvent(
-                                        MapmoryAnalyticsEvent.MAP_LOCATION_SELECTED,
+                                        MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
                                         mapOf(
                                             "source" to "location_search",
                                             "location_type" to location.type.name.lowercase(),
@@ -713,6 +738,7 @@ private fun EditorTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .height(64.dp),
         ) {
             TextButton(
@@ -840,7 +866,7 @@ private fun PhotoSection(
 }
 
 @Composable
-private fun PhotoPermissionDialog(
+internal fun PhotoPermissionDialog(
     issue: PhotoLibraryPermissionIssue,
     onOpenSettings: () -> Unit,
     onExit: () -> Unit,
@@ -883,6 +909,7 @@ private fun PhotoPermissionDialog(
 private fun EditorTitleField(
     value: String,
     onValueChange: (String) -> Unit,
+    onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BasicTextField(
@@ -899,7 +926,7 @@ private fun EditorTitleField(
             Box(contentAlignment = Alignment.CenterStart) {
                 if (value.isBlank()) {
                     Text(
-                        text = "여행의 제목을 적어주세요",
+                        text = "여행의 제목을 적어주세요 (선택)",
                         color = TripRecordPalette.current.muted,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
@@ -908,7 +935,9 @@ private fun EditorTitleField(
                 innerTextField()
             }
         },
-        modifier = modifier.height(34.dp),
+        modifier = modifier
+            .height(34.dp)
+            .onFocusChanged { if (it.isFocused) onFocus() },
     )
 }
 
@@ -934,7 +963,7 @@ private fun DateFields(
             modifier = Modifier.weight(1f),
         )
         DateField(
-            label = "종료",
+            label = "종료 (선택)",
             value = endDate,
             errorMessage = endDateError,
             onClick = onEndDateClick,
@@ -1020,111 +1049,10 @@ private fun TripRecordEditorUiState.errorMessageFor(target: TripRecordEditorErro
     }
 
 @Composable
-private fun TagEditor(
-    uiState: TripRecordEditorUiState,
-    saveErrorMessage: String?,
-    onInputChanged: (String) -> Unit,
-    onTagToggled: (Long) -> Unit,
-    onPendingTagToggled: (String) -> Unit,
-    onCreate: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = "태그",
-                color = TripRecordPalette.current.text,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${uiState.selectedTagCount}/5",
-                color = TripRecordPalette.current.muted,
-                fontSize = 11.sp,
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = uiState.tagInput,
-                onValueChange = onInputChanged,
-                placeholder = { Text("직접 입력 (# 제외)") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TripRecordPalette.current.text,
-                    unfocusedTextColor = TripRecordPalette.current.text,
-                    cursorColor = TripRecordPalette.current.accent,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    disabledBorderColor = Color.Transparent,
-                    errorBorderColor = Color.Transparent,
-                    focusedPlaceholderColor = TripRecordPalette.current.muted,
-                    unfocusedPlaceholderColor = TripRecordPalette.current.muted,
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = onCreate,
-                enabled = uiState.tagInput.isNotBlank() && !uiState.isSaving,
-            ) {
-                Text("추가", color = TripRecordPalette.current.accent)
-            }
-        }
-
-        if (uiState.availableTags.isNotEmpty() || uiState.pendingTagNames.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                uiState.availableTags.forEach { tag ->
-                    val selected = tag.id in uiState.selectedTagIds
-                    TripTagChip(
-                        text = tag.name,
-                        selected = selected,
-                        onClick = { onTagToggled(tag.id) },
-                    )
-                }
-                uiState.pendingTagNames.forEach { name ->
-                    TripTagChip(
-                        text = name,
-                        selected = name in uiState.selectedPendingTagNames,
-                        onClick = { onPendingTagToggled(name) },
-                    )
-                }
-            }
-        } else if (!uiState.isTagsLoading) {
-            Text(
-                text = "아직 태그가 없어요. 원하는 태그를 직접 만들어 보세요.",
-                color = TripRecordPalette.current.muted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-
-        EditorErrorMessage(
-            message = uiState.tagErrorMessage ?: saveErrorMessage,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-    }
-}
-
-@Composable
 private fun EditorContentField(
     value: String,
     onValueChange: (String) -> Unit,
+    onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BasicTextField(
@@ -1148,7 +1076,9 @@ private fun EditorContentField(
                 innerTextField()
             }
         },
-        modifier = modifier.heightIn(min = 150.dp, max = 200.dp),
+        modifier = modifier
+            .heightIn(min = 150.dp, max = 200.dp)
+            .onFocusChanged { if (it.isFocused) onFocus() },
     )
 }
 

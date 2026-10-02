@@ -270,7 +270,7 @@ private fun JournalTagFilters(
             onClick = {
                 analytics.logEvent(
                     MapmoryAnalyticsEvent.JOURNAL_FILTER_SELECTED,
-                    mapOf("tag" to "전체"),
+                    mapOf("filter_type" to "all"),
                 )
                 onTagClick(null)
             },
@@ -282,7 +282,7 @@ private fun JournalTagFilters(
                 onClick = {
                     analytics.logEvent(
                         MapmoryAnalyticsEvent.JOURNAL_FILTER_SELECTED,
-                        mapOf("tag" to tag.name),
+                        mapOf("filter_type" to "custom_tag"),
                     )
                     onTagClick(tag.id)
                 },

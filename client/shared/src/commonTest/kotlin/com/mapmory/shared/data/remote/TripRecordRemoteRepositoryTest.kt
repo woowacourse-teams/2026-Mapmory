@@ -112,7 +112,7 @@ class TripRecordRemoteRepositoryTest {
                 content = "수정한 내용",
                 startDate = "2026-08-11",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("travel-records/10/photo.jpg"),
             ),
         ).getOrThrow()
 

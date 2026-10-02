@@ -53,50 +53,59 @@ internal class PhotoUploadRemoteRepository(
                 require(source.bytes.isNotEmpty()) { "빈 사진은 업로드할 수 없습니다." }
             }
 
-            val uploads = client.post(presignedUploadsUrl) {
-                authorizeWith(accessTokenProvider)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    PresignedUploadRequestDto(
-                        files = sources.map { source ->
-                            UploadFileRequestDto(
-                                fileName = source.fileName,
-                                contentType = source.contentType,
-                                fileSize = source.bytes.size.toLong(),
-                            )
-                        },
-                    ),
-                )
-            }.requireSuccess()
-                .body<ApiResponseDto<PresignedUploadsDto>>()
-                .data
-                .uploads
-
-            require(uploads.size == sources.size) {
-                PhotoUploadPreparationFailureMessage
+            val uploaded = mutableListOf<UploadedPhoto>()
+            for (batch in sources.chunked(MaxFilesPerPresignedUrlRequest)) {
+                uploaded.addAll(uploadBatch(batch))
             }
-
-            coroutineScope {
-                sources.zip(uploads).map { (source, upload) ->
-                    async {
-                        require(upload.method.equals(ExpectedUploadMethod, ignoreCase = true)) {
-                            PhotoUploadPreparationFailureMessage
-                        }
-                        val contentType = runCatching { ContentType.parse(upload.contentType) }
-                            .getOrElse { throw IllegalArgumentException(PhotoUploadPreparationFailureMessage) }
-                        require(contentType.contentType == "image") {
-                            PhotoUploadPreparationFailureMessage
-                        }
-                        client.put(upload.presignedUrl) {
-                            setBody(ByteArrayContent(source.bytes, contentType))
-                        }.requireSuccess()
-                        UploadedPhoto(source = source, objectKey = upload.objectKey)
-                    }
-                }.awaitAll()
-            }
+            uploaded
         }
+
+    private suspend fun uploadBatch(sources: List<PhotoUploadSource>): List<UploadedPhoto> {
+        val uploads = client.post(presignedUploadsUrl) {
+            authorizeWith(accessTokenProvider)
+            contentType(ContentType.Application.Json)
+            setBody(
+                PresignedUploadRequestDto(
+                    files = sources.map { source ->
+                        UploadFileRequestDto(
+                            fileName = source.fileName,
+                            contentType = source.contentType,
+                            fileSize = source.bytes.size.toLong(),
+                        )
+                    },
+                ),
+            )
+        }.requireSuccess()
+            .body<ApiResponseDto<PresignedUploadsDto>>()
+            .data
+            .uploads
+
+        require(uploads.size == sources.size) {
+            PhotoUploadPreparationFailureMessage
+        }
+
+        return coroutineScope {
+            sources.zip(uploads).map { (source, upload) ->
+                async {
+                    require(upload.method.equals(ExpectedUploadMethod, ignoreCase = true)) {
+                        PhotoUploadPreparationFailureMessage
+                    }
+                    val contentType = runCatching { ContentType.parse(upload.contentType) }
+                        .getOrElse { throw IllegalArgumentException(PhotoUploadPreparationFailureMessage) }
+                    require(contentType.contentType == "image") {
+                        PhotoUploadPreparationFailureMessage
+                    }
+                    client.put(upload.presignedUrl) {
+                        setBody(ByteArrayContent(source.bytes, contentType))
+                    }.requireSuccess()
+                    UploadedPhoto(source = source, objectKey = upload.objectKey)
+                }
+            }.awaitAll()
+        }
+    }
 }
 
+private const val MaxFilesPerPresignedUrlRequest = 10
 private const val ExpectedUploadMethod = "PUT"
 private const val PhotoUploadPreparationFailureMessage =
     "사진 업로드를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요."

@@ -323,8 +323,8 @@ private fun TripRecordDraft.toRecord(id: Long): TripRecordData = TripRecordData(
     id = id,
     locationId = locationId,
     title = title,
-    content = content,
-    startDate = requireNotNull(startDate),
+    content = content.orEmpty(),
+    startDate = startDate,
     endDate = endDate,
     media = mediaObjectKeys.mapIndexed { index, objectKey ->
         TripRecordMedia(

@@ -44,6 +44,9 @@ public class TravelRecord extends BaseEntity {
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
 
+    @Embedded
+    private RecordedPlace place;
+
     @Column(nullable = false, length = 200)
     private String title;
 
@@ -97,6 +100,10 @@ public class TravelRecord extends BaseEntity {
         this.title = normalizeTitle(title);
         this.content = normalizeContent(content);
         this.period = TravelPeriod.of(startDate, endDate);
+    }
+
+    public void setPlace(RecordedPlace place) {
+        this.place = place;
     }
 
     /**
@@ -195,6 +202,10 @@ public class TravelRecord extends BaseEntity {
 
     public Region getRegion() {
         return region;
+    }
+
+    public RecordedPlace getPlace() {
+        return place;
     }
 
     public LocalDate getStartDate() {

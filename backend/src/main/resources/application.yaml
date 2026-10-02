@@ -42,6 +42,16 @@ guest-login:
 kakao:
   user-info-uri: https://kapi.kakao.com/v2/user/me
 
+geoapify:
+  api-key: ${GEOAPIFY_API_KEY:}
+  rate-limit:
+    searches-per-member-per-minute: 20
+    selections-per-member-per-day: 100
+    searches-per-day: 2000
+    selections-per-day: 400
+    requests-per-day: 2800
+    requests-per-second: 4
+
 upload:
   policy:
     max-file-size: 10MB

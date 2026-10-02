@@ -114,12 +114,28 @@ class ApiDtoMappersTest {
             content = "",
             startDate = "2026-08-11",
             endDate = null,
-            mediaObjectKeys = emptyList(),
+            mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
         ).toRequestDto(catalog)
 
         assertEquals("JP", request.countryCode)
         assertEquals(null, request.provinceCode)
         assertEquals(null, request.districtCode)
+    }
+
+    @Test
+    fun `선택_항목이_없는_초안은_기존_API의_빈_값으로_매핑한다`() {
+        val japan = catalog.requireByCode("JP")
+
+        val request = TripRecordDraft(
+            locationId = japan.id,
+            startDate = "2026-08-11",
+            mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
+        ).toRequestDto(catalog)
+
+        assertEquals("", request.title)
+        assertEquals("", request.content)
+        assertEquals(null, request.endDate)
+        assertEquals(emptyList(), request.tagIds)
     }
 
     @Test
@@ -131,9 +147,9 @@ class ApiDtoMappersTest {
                 locationId = japan.id,
                 title = "일본 여행",
                 content = "",
-                startDate = null,
+                startDate = "",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
             ).toRequestDto(catalog)
         }
     }
@@ -168,6 +184,6 @@ class ApiDtoMappersTest {
         content = "",
         startDate = "2026-08-11",
         endDate = null,
-        mediaObjectKeys = emptyList(),
+        mediaObjectKeys = listOf("travel-records/guest/photo.jpg"),
     )
 }

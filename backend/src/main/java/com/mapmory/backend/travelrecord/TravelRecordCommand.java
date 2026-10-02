@@ -19,10 +19,20 @@ public record TravelRecordCommand(
         LocalDate startDate,
         LocalDate endDate,
         List<String> objectKeys,
-        List<Long> tagIds
+        List<Long> tagIds,
+        String placeId
 ) {
     public TravelRecordCommand {
         objectKeys = objectKeys == null ? List.of() : objectKeys;
         tagIds = tagIds == null ? List.of() : tagIds;
+    }
+
+    public TravelRecordCommand(
+            String countryCode, String provinceCode, String districtCode,
+            String title, String content, LocalDate startDate, LocalDate endDate,
+            List<String> objectKeys, List<Long> tagIds
+    ) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
+                objectKeys, tagIds, null);
     }
 }

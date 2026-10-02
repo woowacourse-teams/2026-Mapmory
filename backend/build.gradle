@@ -27,7 +27,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.locationtech.jts:jts-core:1.20.0'
     implementation 'org.flywaydb:flyway-mysql'
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.20.0'
+    implementation 'com.bucket4j:bucket4j_jdk17-mysql:8.20.0'
 
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
