@@ -111,13 +111,26 @@ internal fun TripRecordEditorRoute(
                 MapmoryAnalyticsEvent.RECORD_SAVE_STARTED,
                 saveParameters,
             )
-            if (viewModel.save()) {
+            val savedOrQueued = if (recordId == null) {
+                viewModel.saveInBackground()
+            } else {
+                viewModel.save()
+            }
+            if (savedOrQueued) {
                 analytics.logEvent(
-                    MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED,
+                    if (recordId == null) {
+                        MapmoryAnalyticsEvent.RECORD_SAVE_QUEUED
+                    } else {
+                        MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED
+                    },
                     saveParameters,
                 )
-                viewModel.savedRecordId?.let { savedId ->
-                    onSaved(recordId != null, savedId)
+                if (recordId == null) {
+                    onOpenRecords()
+                } else {
+                    viewModel.savedRecordId?.let { savedId ->
+                        onSaved(true, savedId)
+                    }
                 }
             } else {
                 analytics.logEvent(

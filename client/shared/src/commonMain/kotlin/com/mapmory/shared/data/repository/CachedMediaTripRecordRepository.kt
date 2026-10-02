@@ -8,6 +8,7 @@ import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
 
 /**
  * 여행 기록 규칙과 무관한 사진 조회·캐시만 덧붙이는 Repository 데코레이터다.
@@ -16,7 +17,7 @@ import com.mapmory.shared.domain.repository.TripRecordRepository
 internal class CachedMediaTripRecordRepository(
     private val delegate: TripRecordRepository,
     private val loader: PhotoPreviewLoader,
-) : TripRecordRepository {
+) : ProgressReportingTripRecordRepository {
     // 목록 데이터는 사진 다운로드를 기다리지 않고 즉시 반환한다.
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         delegate.getTripRecords(query)
@@ -33,6 +34,15 @@ internal class CachedMediaTripRecordRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         delegate.createTripRecord(draft).map { record -> record.cacheAvailablePreviews() }
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> {
+        val reporting = delegate as? ProgressReportingTripRecordRepository
+        return (reporting?.createTripRecord(draft, onProgress) ?: delegate.createTripRecord(draft))
+            .map { record -> record.cacheAvailablePreviews() }
+    }
 
     override suspend fun updateTripRecord(
         id: Long,

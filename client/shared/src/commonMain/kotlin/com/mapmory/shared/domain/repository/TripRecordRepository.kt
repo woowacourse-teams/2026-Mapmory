@@ -22,3 +22,11 @@ interface TripRecordRepository {
     // 여행 기록을 삭제한다.
     suspend fun deleteTripRecord(id: Long): Result<Unit>
 }
+
+/** 사진 업로드를 포함한 새 기록 저장 진행률을 전달할 수 있는 Repository 계약이다. */
+interface ProgressReportingTripRecordRepository : TripRecordRepository {
+    suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordData>
+}

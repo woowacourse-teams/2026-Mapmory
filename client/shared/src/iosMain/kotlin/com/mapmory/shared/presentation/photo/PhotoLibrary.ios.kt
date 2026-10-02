@@ -10,6 +10,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
+import com.mapmory.shared.data.media.cacheIosPickerPhoto
+import com.mapmory.shared.data.media.isIosLocalPhotoAvailable
 import com.mapmory.shared.domain.model.Location
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.reinterpret
@@ -39,9 +41,6 @@ import platform.Photos.PHAsset
 import platform.Photos.PHAssetMediaTypeImage
 import platform.Photos.PHAssetMediaSubtypePhotoScreenshot
 import platform.Photos.PHAssetResource
-import platform.Photos.PHAssetResourceManager
-import platform.Photos.PHAssetResourceRequestOptions
-import platform.Photos.PHAssetResourceTypePhoto
 import platform.Photos.PHAuthorizationStatusAuthorized
 import platform.Photos.PHAuthorizationStatusLimited
 import platform.Photos.PHAuthorizationStatusNotDetermined
@@ -191,27 +190,27 @@ private class IosPhotoLibraryController(
             return
         }
 
-        val loaded = MutableList<SelectedPhoto?>(results.size) { null }
-        var remaining = results.size
-        results.forEachIndexed { index, result ->
-            loadPickerResult(result) { photo ->
-                loaded[index] = photo
-                remaining -= 1
-                if (remaining == 0) {
-                    val photos = loaded.filterNotNull()
-                    logPhotoPerformance(
-                        "pick_total_ms=${startedAtMillis?.let(::elapsedMillis) ?: 0} " +
-                            "requested_photos=${results.size} loaded_photos=${photos.size}",
-                    )
-                    if (photos.isEmpty()) {
-                        onMessage("선택한 사진을 읽지 못했어요.")
-                    } else {
-                        onPhotosPicked(photos)
-                    }
-                    onLoadingChanged(false)
+        val loaded = mutableListOf<SelectedPhoto>()
+        fun loadNext(index: Int) {
+            if (index >= results.size) {
+                logPhotoPerformance(
+                    "pick_total_ms=${startedAtMillis?.let(::elapsedMillis) ?: 0} " +
+                        "requested_photos=${results.size} loaded_photos=${loaded.size}",
+                )
+                if (loaded.isEmpty()) {
+                    onMessage("선택한 사진을 읽지 못했어요.")
+                } else {
+                    onPhotosPicked(loaded)
                 }
+                onLoadingChanged(false)
+                return
+            }
+            loadPickerResult(results[index]) { photo ->
+                photo?.let(loaded::add)
+                loadNext(index + 1)
             }
         }
+        loadNext(0)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -475,15 +474,7 @@ private class IosPhotoLibraryController(
     private fun loadPickerResult(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
         val asset = result.assetIdentifier?.let(::assetForIdentifier)
         if (asset != null) {
-            loadAssetPreview(asset) { preview ->
-                if (preview == null) {
-                    completion(null)
-                } else {
-                    prepareForAdding(listOf(preview)) { prepared ->
-                        completion(prepared.firstOrNull())
-                    }
-                }
-            }
+            loadAssetPreview(asset, completion)
             return
         }
         result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, _ ->
@@ -491,16 +482,16 @@ private class IosPhotoLibraryController(
                 onMain { completion(null) }
                 return@loadDataRepresentationForTypeIdentifier
             }
-            val originalBytes = data.toByteArray()
-            val previewBytes = data.toPreviewByteArray() ?: originalBytes
+            val localId = cacheIosPickerPhoto(data)
+            val previewBytes = data.toPreviewByteArray(RecommendationPreviewSizePx)
             onMain {
                 completion(
-                    SelectedPhoto(
-                        id = result.assetIdentifier ?: "ios-${data.hash}",
+                    if (localId != null && previewBytes != null) SelectedPhoto(
+                        id = localId,
                         displayName = result.itemProvider.suggestedName ?: "여행 사진",
                         previewBytes = previewBytes,
-                        originalBytes = originalBytes,
-                    ),
+                        originalBytes = null,
+                    ) else null,
                 )
             }
         }
@@ -584,64 +575,11 @@ private class IosPhotoLibraryController(
         photos: List<SelectedPhoto>,
         completion: (List<SelectedPhoto>) -> Unit,
     ) {
-        if (photos.isEmpty()) {
-            completion(emptyList())
-            return
+        val available = photos.filter { photo -> isIosLocalPhotoAvailable(photo.id) }
+        completion(available)
+        if (available.size != photos.size) {
+            onMessage("일부 사진의 원본을 읽지 못했어요.")
         }
-
-        val prepared = MutableList<SelectedPhoto?>(photos.size) { null }
-        var remaining = photos.size
-        fun completeOne(index: Int, photo: SelectedPhoto?) {
-            prepared[index] = photo
-            remaining -= 1
-            if (remaining == 0) {
-                val result = prepared.filterNotNull()
-                completion(result)
-                if (result.size != photos.size) {
-                    onMessage("일부 사진의 원본을 읽지 못했어요.")
-                }
-            }
-        }
-
-        photos.forEachIndexed { index, photo ->
-            if (photo.originalBytes != null) {
-                completeOne(index, photo)
-                return@forEachIndexed
-            }
-            val asset = assetForIdentifier(photo.id)
-            if (asset == null) {
-                completeOne(index, null)
-                return@forEachIndexed
-            }
-            loadOriginalBytes(asset) { bytes ->
-                completeOne(index, bytes?.let { photo.copy(originalBytes = it) })
-            }
-        }
-    }
-
-    private fun loadOriginalBytes(asset: PHAsset, completion: (ByteArray?) -> Unit) {
-        val resources = PHAssetResource.assetResourcesForAsset(asset)
-            .filterIsInstance<PHAssetResource>()
-        val resource = resources.firstOrNull { it.type == PHAssetResourceTypePhoto }
-            ?: resources.firstOrNull()
-        if (resource == null) {
-            completion(null)
-            return
-        }
-
-        val chunks = mutableListOf<ByteArray>()
-        val options = PHAssetResourceRequestOptions().apply {
-            networkAccessAllowed = true
-        }
-        PHAssetResourceManager.defaultManager().requestDataForAssetResource(
-            resource,
-            options,
-            dataReceivedHandler = { data -> data?.let { chunks += it.toByteArray() } },
-            completionHandler = { error ->
-                val bytes = if (error == null) chunks.joinToByteArray() else null
-                onMain { completion(bytes) }
-            },
-        )
     }
 
     private fun assetForIdentifier(identifier: String): PHAsset? =
@@ -684,17 +622,7 @@ private fun NSData.toByteArray(): ByteArray {
     }
 }
 
-private fun List<ByteArray>.joinToByteArray(): ByteArray {
-    val result = ByteArray(sumOf(ByteArray::size))
-    var offset = 0
-    forEach { chunk ->
-        chunk.copyInto(result, destinationOffset = offset)
-        offset += chunk.size
-    }
-    return result
-}
-
-private fun NSData.toPreviewByteArray(): ByteArray? {
+private fun NSData.toPreviewByteArray(maxDimension: Int): ByteArray? {
     val retainedData = CFBridgingRetain(this) ?: return null
     val imageSource = CGImageSourceCreateWithData(retainedData.reinterpret(), null)
     CFRelease(retainedData)
@@ -703,7 +631,7 @@ private fun NSData.toPreviewByteArray(): ByteArray? {
     val thumbnailOptions = mapOf(
         kCGImageSourceCreateThumbnailFromImageAlways to true,
         kCGImageSourceCreateThumbnailWithTransform to true,
-        kCGImageSourceThumbnailMaxPixelSize to PreviewSizePx,
+        kCGImageSourceThumbnailMaxPixelSize to maxDimension,
     )
     val retainedOptions = CFBridgingRetain(thumbnailOptions) ?: run {
         CFRelease(imageSource.reinterpret())
@@ -753,7 +681,6 @@ private fun logPhotoPerformance(message: String) {
     }
 }
 
-private const val PreviewSizePx = 1280
 private const val RecommendationPreviewSizePx = 640
 private const val PreviewJpegQuality = 0.85
 private const val IosProgressUpdateInterval = 25

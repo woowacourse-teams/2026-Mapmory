@@ -4,6 +4,7 @@ import com.mapmory.shared.data.auth.AuthTokenStore
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.data.media.CachedTripRecordThumbnailLoader
+import com.mapmory.shared.data.media.LocalPhotoDataSource
 import com.mapmory.shared.data.media.MemoryPhotoPreviewCache
 import com.mapmory.shared.data.media.PhotoPreviewCache
 import com.mapmory.shared.data.media.PhotoPreviewLoader
@@ -53,6 +54,10 @@ import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordListViewMo
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripStatisticsViewModel
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoader
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,6 +75,7 @@ interface AppContainer {
     val onboardingPreference: OnboardingPreference
     val viewModelFactory: MapmoryViewModelFactory
     val tripRecordRevision: StateFlow<Long>
+    val backgroundTripRecordSaver: BackgroundTripRecordSaver
 
     fun close() = Unit
 }
@@ -94,6 +100,7 @@ private class DefaultMapmoryViewModelFactory(
     private val regionCatalog: RegionCatalog,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val onTripRecordsChanged: () -> Unit,
+    private val backgroundTripRecordSaver: BackgroundTripRecordSaver,
 ) : MapmoryViewModelFactory {
     override fun createMapViewModel(): MapViewModel = MapViewModel(
         mapSummaryRepository = mapSummaryRepository,
@@ -129,6 +136,7 @@ private class DefaultMapmoryViewModelFactory(
             onTripRecordsChanged = onTripRecordsChanged,
             getTags = GetTagsUseCase(tagRepository),
             createTag = CreateTagUseCase(tagRepository),
+            backgroundTripRecordSaver = backgroundTripRecordSaver,
         )
 }
 
@@ -141,10 +149,23 @@ private class DefaultAppContainer(
     override val themePreference: ThemePreference,
     override val onboardingPreference: OnboardingPreference,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
+    backgroundSaveExecution: BackgroundSaveExecution,
     private val onClose: () -> Unit,
 ) : AppContainer {
+    private val backgroundSaveScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutableTripRecordRevision = MutableStateFlow(0L)
     override val tripRecordRevision: StateFlow<Long> = mutableTripRecordRevision.asStateFlow()
+    private val notifyTripRecordsChanged = {
+        (mapSummaryRepository as? CachedMapSummaryRepository)?.invalidate()
+        (tripStatisticsRepository as? CachedTripStatisticsRepository)?.invalidate()
+        mutableTripRecordRevision.update { revision -> revision + 1 }
+    }
+    override val backgroundTripRecordSaver = BackgroundTripRecordSaver(
+        repository = tripRecordRepository,
+        scope = backgroundSaveScope,
+        execution = backgroundSaveExecution,
+        onSaved = notifyTripRecordsChanged,
+    )
 
     override val viewModelFactory: MapmoryViewModelFactory = DefaultMapmoryViewModelFactory(
         repository = tripRecordRepository,
@@ -153,14 +174,14 @@ private class DefaultAppContainer(
         tagRepository = tagRepository,
         regionCatalog = regionCatalog,
         thumbnailLoader = thumbnailLoader,
-        onTripRecordsChanged = {
-            (mapSummaryRepository as? CachedMapSummaryRepository)?.invalidate()
-            (tripStatisticsRepository as? CachedTripStatisticsRepository)?.invalidate()
-            mutableTripRecordRevision.update { revision -> revision + 1 }
-        },
+        onTripRecordsChanged = notifyTripRecordsChanged,
+        backgroundTripRecordSaver = backgroundTripRecordSaver,
     )
 
-    override fun close() = onClose()
+    override fun close() {
+        backgroundSaveScope.cancel()
+        onClose()
+    }
 }
 
 fun createAppContainer(
@@ -180,6 +201,7 @@ fun createAppContainer(
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     thumbnailLoader: TripRecordThumbnailLoader? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onClose: () -> Unit = {},
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
@@ -199,6 +221,7 @@ fun createAppContainer(
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         thumbnailLoader = thumbnailLoader,
+        backgroundSaveExecution = backgroundSaveExecution,
         onClose = onClose,
     )
 }
@@ -260,6 +283,8 @@ fun createGuestRemoteAppContainer(
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    localPhotoDataSource: LocalPhotoDataSource? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
 ): AppContainer {
     val client = createHttpClient()
@@ -273,6 +298,8 @@ fun createGuestRemoteAppContainer(
         tripStatisticsCache = tripStatisticsCache,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
+        localPhotoDataSource = localPhotoDataSource,
+        backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
     )
@@ -288,6 +315,8 @@ internal fun createGuestRemoteAppContainer(
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    localPhotoDataSource: LocalPhotoDataSource? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
 ): AppContainer {
@@ -332,6 +361,7 @@ internal fun createGuestRemoteAppContainer(
             accessTokenProvider = session,
         ),
         delegate = remoteTripRecords,
+        localPhotoDataSource = localPhotoDataSource,
     )
     val photoPreviewLoader = PhotoPreviewLoader(
         cache = photoPreviewCache,
@@ -353,6 +383,7 @@ internal fun createGuestRemoteAppContainer(
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         thumbnailLoader = CachedTripRecordThumbnailLoader(photoPreviewLoader),
+        backgroundSaveExecution = backgroundSaveExecution,
         onClose = onClose,
     )
 }

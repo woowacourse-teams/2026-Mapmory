@@ -31,7 +31,7 @@ data class TripRecordPhotoUiState(
     val originalBytes: PhotoPreviewBytes? = null,
 )
 
-/** ByteArray의 변경 가능성을 UI 상태 밖으로 숨기고 생성 시점에 방어적으로 복사한다. */
+/** 사진 디코딩 전용 바이트. 생성 이후 배열을 변경하지 않는 소유권 규칙으로 불필요한 복사를 피한다. */
 class PhotoPreviewBytes private constructor(
     private val value: ByteArray,
 ) {
@@ -47,7 +47,7 @@ class PhotoPreviewBytes private constructor(
 
     companion object {
         fun from(bytes: ByteArray?): PhotoPreviewBytes? =
-            bytes?.let { PhotoPreviewBytes(it.copyOf()) }
+            bytes?.let(::PhotoPreviewBytes)
     }
 }
 

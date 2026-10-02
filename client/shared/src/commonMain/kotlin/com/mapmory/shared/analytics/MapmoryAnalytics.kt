@@ -31,6 +31,7 @@ object MapmoryAnalyticsEvent {
     const val RECORD_EDITOR_FIELD_INTERACTED = "record_editor_field_interacted"
     const val RECORD_EDITOR_EXITED = "record_editor_exited"
     const val RECORD_SAVE_STARTED = "record_save_started"
+    const val RECORD_SAVE_QUEUED = "record_save_queued"
     const val RECORD_SAVE_COMPLETED = "record_save_completed"
     const val RECORD_SAVE_FAILED = "record_save_failed"
     const val PHOTO_PICKER_OPENED = "photo_picker_opened"

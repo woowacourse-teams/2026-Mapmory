@@ -220,7 +220,9 @@ actual fun rememberPhotoLibraryActions(
                 val startedAt = SystemClock.elapsedRealtime()
                 try {
                     val result = traceSection("photo.pick.read") {
-                        uris.mapNotNull { uri -> context.readPhoto(uri) }
+                        uris.mapNotNull { uri ->
+                            context.readPhoto(uri, includeOriginalBytes = false)
+                        }
                     }
                     logPhotoPickPerformance(
                         totalMillis = SystemClock.elapsedRealtime() - startedAt,
@@ -256,9 +258,7 @@ actual fun rememberPhotoLibraryActions(
                 scope.launch {
                     val preparedPhotos = withContext(Dispatchers.IO) {
                         photos.mapNotNull { photo ->
-                            val originalBytes = photo.originalBytes
-                                ?: context.readOriginalBytes(Uri.parse(photo.id))
-                            originalBytes?.let { photo.copy(originalBytes = it) }
+                            photo.takeIf { context.canOpenPhoto(Uri.parse(photo.id)) }
                         }
                     }
                     onReady(preparedPhotos)
@@ -668,7 +668,7 @@ internal fun Context.readPhoto(
     knownName: String? = null,
     knownCoordinates: Pair<Double, Double>? = null,
     knownCapturedAtMillis: Long? = null,
-    includeOriginalBytes: Boolean = true,
+    includeOriginalBytes: Boolean = false,
 ): SelectedPhoto? = try {
 
     val metadata = traceSection("photo.read.metadata") {
@@ -721,6 +721,10 @@ internal fun Context.readPhoto(
     null
 }
 
+private fun Context.canOpenPhoto(uri: Uri): Boolean = runCatching {
+    contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
+}.getOrDefault(false)
+
 private fun Context.readPreviewBytes(uri: Uri, maxDimension: Int): ByteArray? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
     val bitmap = ImageDecoder.decodeBitmap(
@@ -748,11 +752,6 @@ private fun Context.readPreviewBytes(uri: Uri, maxDimension: Int): ByteArray? {
         bitmap.recycle()
     }
 }
-
-private fun Context.readOriginalBytes(uri: Uri): ByteArray? = runCatching {
-    contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
-        ?.takeIf(ByteArray::isNotEmpty)
-}.getOrNull()
 
 private fun ByteArray.normalizeOrientation(): ByteArray {
     val orientation = try {

@@ -61,6 +61,34 @@ class PhotoRecommendationPagingTest {
     }
 
     @Test
+    fun `드래그_선택은_지나간_사진을_같은_상태로_변경한다`() {
+        val initial = requireNotNull(
+            PhotoRecommendationPagingState(maxSelectionCount = 3).accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..4).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+            ),
+        )
+
+        val selected = initial
+            .setSelection("1", selected = true)
+            .setSelection("2", selected = true)
+            .setSelection("3", selected = true)
+            .setSelection("4", selected = true)
+
+        assertEquals(setOf("1", "2", "3"), selected.selectedIds)
+
+        val deselected = selected
+            .setSelection("1", selected = false)
+            .setSelection("2", selected = false)
+
+        assertEquals(setOf("3"), deselected.selectedIds)
+    }
+
+    @Test
     fun `새_앨범_플로우는_추천_사진을_자동으로_선택하지_않는다`() {
         val result = PhotoRecommendationPagingState(maxSelectionCount = 3)
             .accept(

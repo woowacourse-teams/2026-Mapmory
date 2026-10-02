@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.data.auth.AndroidAuthTokenStore
+import com.mapmory.shared.data.media.AndroidLocalPhotoDataSource
 import com.mapmory.shared.data.media.AndroidPhotoPreviewCache
 import com.mapmory.shared.data.repository.AndroidMapSummaryCache
 import com.mapmory.shared.data.repository.AndroidTripStatisticsCache
@@ -18,6 +19,7 @@ class MapmoryAppViewModel(application: Application) : AndroidViewModel(applicati
         apiBaseUrl = configuredApiBaseUrl,
         tokenStore = AndroidAuthTokenStore(application),
         photoPreviewCache = AndroidPhotoPreviewCache(application),
+        localPhotoDataSource = AndroidLocalPhotoDataSource(application),
         mapSummaryCache = AndroidMapSummaryCache(application),
         tripStatisticsCache = AndroidTripStatisticsCache(application),
         themePreference = AndroidThemePreference(application),

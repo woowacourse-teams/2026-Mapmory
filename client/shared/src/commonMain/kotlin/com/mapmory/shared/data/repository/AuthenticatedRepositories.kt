@@ -11,12 +11,13 @@ import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.repository.MapSummaryRepository
 import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
 import com.mapmory.shared.domain.repository.TripStatisticsRepository
 
 internal class AuthenticatedTripRecordRepository(
     private val session: GuestSessionManager,
     private val delegate: TripRecordRepository,
-) : TripRecordRepository {
+) : ProgressReportingTripRecordRepository {
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         withAuthenticatedSession { delegate.getTripRecords(query) }
 
@@ -25,6 +26,14 @@ internal class AuthenticatedTripRecordRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         withAuthenticatedSession { delegate.createTripRecord(draft) }
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> = withAuthenticatedSession {
+        val reporting = delegate as? ProgressReportingTripRecordRepository
+        reporting?.createTripRecord(draft, onProgress) ?: delegate.createTripRecord(draft)
+    }
 
     override suspend fun updateTripRecord(
         id: Long,

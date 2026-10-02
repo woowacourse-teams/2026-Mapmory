@@ -4,8 +4,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.mapmory.shared.app.BackgroundTripRecordSaver
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -32,6 +34,7 @@ class TripRecordEditorViewModel(
     private val onTripRecordsChanged: () -> Unit = {},
     private val getTags: GetTagsUseCase? = null,
     private val createTag: CreateTagUseCase? = null,
+    private val backgroundTripRecordSaver: BackgroundTripRecordSaver? = null,
 ) : ViewModel() {
     private var isRouteInitialized = false
 
@@ -370,8 +373,6 @@ class TripRecordEditorViewModel(
         val validationErrors = state.validationErrors()
         if (validationErrors.isNotEmpty()) return fail(validationErrors)
 
-        val location = requireNotNull(state.selectedLocation)
-
         uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
         var availableTags = state.availableTags
         var selectedTagIds = state.selectedTagIds
@@ -408,31 +409,9 @@ class TripRecordEditorViewModel(
             selectedPendingTagNames = selectedPendingTagNames,
         )
 
-        val draft = TripRecordDraft(
-            locationId = location.id,
-            title = state.title,
-            content = state.content.trim().takeIf(String::isNotEmpty),
-            startDate = state.startDate,
-            endDate = state.endDate.ifBlank { null },
-            mediaObjectKeys = state.mediaObjectKeys,
-            uploadedMediaObjectKeys = state.selectedPhotos
-                .filter { photo -> photo.isUploaded }
-                .mapTo(mutableSetOf()) { photo -> photo.id },
-            localMedia = state.selectedPhotos.mapIndexed { index, photo ->
-                TripRecordMediaDraft(
-                    objectKey = photo.id,
-                    sortOrder = index,
-                    previewBytes = photo.previewBytes?.bytesForDecoding(),
-                    originalBytes = photo.originalBytes?.bytesForDecoding(),
-                    fileName = photo.displayName,
-                    latitude = photo.latitude,
-                    longitude = photo.longitude,
-                    capturedAt = photo.capturedAt,
-                )
-            },
-            tagIds = availableTags
-                .filter { it.id in selectedTagIds }
-                .map { it.id },
+        val draft = state.toDraft(
+            availableTags = availableTags,
+            selectedTagIds = selectedTagIds,
         )
         val result = state.recordId?.let { updateTripRecord(it, draft) }
             ?: createTripRecord(draft)
@@ -461,6 +440,60 @@ class TripRecordEditorViewModel(
             },
         )
     }
+
+    suspend fun saveInBackground(): Boolean {
+        val state = uiState
+        if (state.recordId != null) return save()
+        if (state.isPhotoLoading || state.isSaving) return false
+        val validationErrors = state.validationErrors()
+        if (validationErrors.isNotEmpty()) return fail(validationErrors)
+        val saver = backgroundTripRecordSaver ?: return save()
+
+        // 현재 생성 화면에는 태그 입력이 없지만, 추후 다시 노출되더라도 생성 전 태그가
+        // 유실되지 않도록 이 경우에는 기존 저장 경로를 유지한다.
+        if (state.pendingTagNames.any { it in state.selectedPendingTagNames }) return save()
+
+        uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
+        saver.enqueue(
+            state.toDraft(
+                availableTags = state.availableTags,
+                selectedTagIds = state.selectedTagIds,
+            ),
+            locationName = requireNotNull(state.selectedLocation).name,
+        )
+        uiState = uiState.copy(isSaving = false, isDirty = false)
+        return true
+    }
+
+    private fun TripRecordEditorUiState.toDraft(
+        availableTags: List<Tag>,
+        selectedTagIds: Set<Long>,
+    ): TripRecordDraft = TripRecordDraft(
+        locationId = requireNotNull(selectedLocation).id,
+        title = title,
+        content = content.trim().takeIf(String::isNotEmpty),
+        startDate = startDate,
+        endDate = endDate.ifBlank { null },
+        mediaObjectKeys = mediaObjectKeys,
+        uploadedMediaObjectKeys = selectedPhotos
+            .filter { photo -> photo.isUploaded }
+            .mapTo(mutableSetOf()) { photo -> photo.id },
+        localMedia = selectedPhotos.mapIndexed { index, photo ->
+            TripRecordMediaDraft(
+                objectKey = photo.id,
+                sortOrder = index,
+                previewBytes = photo.previewBytes?.bytesForDecoding(),
+                originalBytes = photo.originalBytes?.bytesForDecoding(),
+                fileName = photo.displayName,
+                latitude = photo.latitude,
+                longitude = photo.longitude,
+                capturedAt = photo.capturedAt,
+            )
+        },
+        tagIds = availableTags
+            .filter { it.id in selectedTagIds }
+            .map { it.id },
+    )
 
     private fun fail(errors: Map<TripRecordEditorErrorTarget, String>): Boolean {
         uiState = uiState.copy(

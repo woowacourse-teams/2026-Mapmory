@@ -1,5 +1,6 @@
 package com.mapmory.shared.data.repository
 
+import com.mapmory.shared.data.media.LocalPhotoDataSource
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
@@ -10,6 +11,8 @@ import com.mapmory.shared.domain.model.TripRecordMediaDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -17,8 +20,9 @@ import kotlinx.coroutines.sync.withLock
 internal class UploadingTripRecordRepository(
     private val uploader: PhotoUploader,
     private val delegate: TripRecordRepository,
+    private val localPhotoDataSource: LocalPhotoDataSource? = null,
     private val maxCachedPreviewBytes: Long = DefaultMaxCachedPreviewBytes,
-) : TripRecordRepository {
+) : ProgressReportingTripRecordRepository {
     private val mediaCacheMutex = Mutex()
     private val cachedMediaByRecordId = mutableMapOf<Long, List<TripRecordMedia>>()
     private val cachedRecordOrder = mutableListOf<Long>()
@@ -42,7 +46,16 @@ internal class UploadingTripRecordRepository(
         delegate.getTripRecord(id).withCachedMedia()
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
-        saveWithUploadedMedia(draft, delegate::createTripRecord)
+        createTripRecord(draft) {}
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> = saveWithUploadedMedia(
+        draft = draft,
+        onProgress = onProgress,
+        save = delegate::createTripRecord,
+    )
 
     override suspend fun updateTripRecord(
         id: Long,
@@ -63,31 +76,42 @@ internal class UploadingTripRecordRepository(
 
     private suspend fun saveWithUploadedMedia(
         draft: TripRecordDraft,
+        onProgress: (Int) -> Unit = {},
         save: suspend (TripRecordDraft) -> Result<TripRecordData>,
     ): Result<TripRecordData> {
-        val prepared = prepareDraft(draft).getOrElse { error -> return Result.failure(error) }
+        onProgress(0)
+        val prepared = prepareDraft(draft, onProgress).getOrElse { error -> return Result.failure(error) }
+        onProgress(ServerSaveProgress)
         val firstResult = save(prepared)
         if (firstResult.isSuccess || !draft.canRetryWithFreshObjectKeys(firstResult.exceptionOrNull())) {
+            if (firstResult.isSuccess) onProgress(100)
             return firstResult.withCachedMedia(prepared.localMedia)
         }
 
-        val retried = prepareDraft(draft).getOrElse { error -> return Result.failure(error) }
-        return save(retried).withCachedMedia(retried.localMedia)
+        val retried = prepareDraft(draft, onProgress).getOrElse { error -> return Result.failure(error) }
+        val result = save(retried).withCachedMedia(retried.localMedia)
+        if (result.isSuccess) onProgress(100)
+        return result
     }
 
-    private suspend fun prepareDraft(draft: TripRecordDraft): Result<TripRecordDraft> {
+    private suspend fun prepareDraft(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordDraft> {
         val mediaByLocalId = draft.localMedia.associateBy(TripRecordMediaDraft::objectKey)
-        val pendingSources = mutableListOf<PhotoUploadSource>()
+        val objectKeyByLocalId = mutableMapOf<String, String>()
+        val pendingKeys = draft.mediaObjectKeys.filterNot(draft.uploadedMediaObjectKeys::contains)
 
-        draft.mediaObjectKeys.forEachIndexed { index, key ->
-            if (key in draft.uploadedMediaObjectKeys) return@forEachIndexed
+        if (pendingKeys.isEmpty()) onProgress(ServerSaveProgress)
+
+        pendingKeys.forEachIndexed { index, key ->
             val media = mediaByLocalId[key]
                 ?: return Result.failure(
                     IllegalStateException(
                         "사진 정보를 확인하지 못했습니다. 잠시 후 다시 저장해 주세요.",
                     ),
                 )
-            val bytes = media.originalBytes
+            val bytes = media.originalBytes ?: localPhotoDataSource?.read(key)
                 ?: return Result.failure(
                     IllegalStateException(
                         "사진 원본을 불러오지 못했습니다. 잠시 후 다시 저장해 주세요.",
@@ -99,22 +123,28 @@ internal class UploadingTripRecordRepository(
                         "지원하지 않는 사진 형식입니다. JPEG, PNG, WEBP 또는 HEIC 사진을 선택해 주세요.",
                     ),
                 )
-            pendingSources += PhotoUploadSource(
+            val source = PhotoUploadSource(
                 localId = key,
                 fileName = normalizedFileName(media.fileName, contentType, index),
                 contentType = contentType,
                 bytes = bytes,
             )
+            val upload = uploadWithRetry(source).getOrElse { error ->
+                return Result.failure(error)
+            }.singleOrNull()
+                ?: return Result.failure(
+                    IllegalStateException("업로드 결과에 누락되거나 중복된 사진이 있습니다."),
+                )
+            if (upload.localId != key || key in objectKeyByLocalId) {
+                return Result.failure(
+                    IllegalStateException("업로드 결과에 누락되거나 중복된 사진이 있습니다."),
+                )
+            }
+            objectKeyByLocalId[key] = upload.objectKey
+            onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
         }
 
-        if (pendingSources.isEmpty()) return Result.success(draft)
-        val uploads = uploader.upload(pendingSources).getOrElse { error ->
-            return Result.failure(error)
-        }
-        val objectKeyByLocalId = uploads.associate { upload -> upload.localId to upload.objectKey }
-        require(objectKeyByLocalId.size == pendingSources.size) {
-            "업로드 결과에 누락되거나 중복된 사진이 있습니다."
-        }
+        if (objectKeyByLocalId.isEmpty()) return Result.success(draft)
 
         return Result.success(
             draft.copy(
@@ -131,6 +161,16 @@ internal class UploadingTripRecordRepository(
                 },
             ),
         )
+    }
+
+    private suspend fun uploadWithRetry(source: PhotoUploadSource): Result<List<com.mapmory.shared.data.remote.UploadedPhoto>> {
+        var latest = uploader.upload(listOf(source))
+        repeat(PhotoUploadRetryCount) { retryIndex ->
+            if (latest.isSuccess) return latest
+            delay(PhotoUploadRetryDelayMillis * (retryIndex + 1))
+            latest = uploader.upload(listOf(source))
+        }
+        return latest
     }
 
     private suspend fun Result<TripRecordData>.withCachedMedia(
@@ -182,6 +222,10 @@ internal class UploadingTripRecordRepository(
         }
     }
 }
+
+private const val ServerSaveProgress = 95
+private const val PhotoUploadRetryCount = 2
+private const val PhotoUploadRetryDelayMillis = 400L
 
 private fun TripRecordDraft.canRetryWithFreshObjectKeys(error: Throwable?): Boolean =
     mediaObjectKeys.any { key -> key !in uploadedMediaObjectKeys } &&

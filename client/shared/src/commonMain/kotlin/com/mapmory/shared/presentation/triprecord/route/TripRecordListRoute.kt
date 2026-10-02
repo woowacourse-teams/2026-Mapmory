@@ -6,6 +6,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.app.BackgroundTripRecordSave
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordListScreen
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordListViewModel
@@ -16,6 +17,9 @@ internal fun TripRecordListRoute(
     viewModel: TripRecordListViewModel,
     initialLocationId: Long?,
     tripRecordRevision: Long,
+    pendingSaves: List<BackgroundTripRecordSave>,
+    onRetryPendingSave: (Long) -> Unit,
+    onDismissPendingSave: (Long) -> Unit,
     onOpenMap: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenDetail: (Long) -> Unit,
@@ -44,6 +48,9 @@ internal fun TripRecordListRoute(
             tags = viewModel.availableTags,
             selectedTagId = viewModel.query.tagId,
         ),
+        pendingSaves = pendingSaves,
+        onRetryPendingSave = onRetryPendingSave,
+        onDismissPendingSave = onDismissPendingSave,
         onTagClick = { tagId ->
             scope.launch { viewModel.selectTag(tagId) }
         },

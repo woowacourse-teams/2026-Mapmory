@@ -23,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,6 +36,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.domain.model.Tag
+import com.mapmory.shared.app.BackgroundSaveStatus
+import com.mapmory.shared.app.BackgroundTripRecordSave
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
@@ -47,6 +50,9 @@ import com.mapmory.shared.preview.previewUiRecords
 fun TripRecordListScreen(
     uiState: TripRecordListUiState,
     filter: TripRecordFilterUiState,
+    pendingSaves: List<BackgroundTripRecordSave> = emptyList(),
+    onRetryPendingSave: (Long) -> Unit = {},
+    onDismissPendingSave: (Long) -> Unit = {},
     onPreviousPageClick: () -> Unit,
     onNextPageClick: () -> Unit,
     onTagClick: (Long?) -> Unit = {},
@@ -64,7 +70,8 @@ fun TripRecordListScreen(
     ) {
         Column(Modifier.fillMaxSize()) {
             JournalHeader(
-                recordCount = (uiState as? TripRecordListUiState.Success)?.records?.size ?: 0,
+                recordCount = ((uiState as? TripRecordListUiState.Success)?.records?.size ?: 0) +
+                    pendingSaves.size,
             )
 
             Box(
@@ -88,16 +95,38 @@ fun TripRecordListScreen(
                     when (uiState) {
                         TripRecordListUiState.Idle,
                         TripRecordListUiState.Loading,
-                        -> TripRecordListSkeleton(modifier = Modifier.weight(1f))
+                        -> if (pendingSaves.isEmpty()) {
+                            TripRecordListSkeleton(modifier = Modifier.weight(1f))
+                        } else {
+                            TripRecordList(
+                                records = emptyList(),
+                                pendingSaves = pendingSaves,
+                                onRetryPendingSave = onRetryPendingSave,
+                                onDismissPendingSave = onDismissPendingSave,
+                                onRecordClick = {},
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
 
-                        is TripRecordListUiState.Error -> TripRecordLoadError(
-                            message = uiState.message,
-                            onRetryClick = onRetryClick,
-                            modifier = Modifier.weight(1f),
-                        )
+                        is TripRecordListUiState.Error -> if (pendingSaves.isEmpty()) {
+                            TripRecordLoadError(
+                                message = uiState.message,
+                                onRetryClick = onRetryClick,
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else {
+                            TripRecordList(
+                                records = emptyList(),
+                                pendingSaves = pendingSaves,
+                                onRetryPendingSave = onRetryPendingSave,
+                                onDismissPendingSave = onDismissPendingSave,
+                                onRecordClick = {},
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
 
                         is TripRecordListUiState.Success -> {
-                            if (uiState.records.isEmpty()) {
+                            if (uiState.records.isEmpty() && pendingSaves.isEmpty()) {
                                 EmptyTripRecords(
                                     hasFilter = filter.locationId != null || filter.selectedTagId != null,
                                     modifier = Modifier.weight(1f),
@@ -105,6 +134,9 @@ fun TripRecordListScreen(
                             } else {
                                 TripRecordList(
                                     records = uiState.records,
+                                    pendingSaves = pendingSaves,
+                                    onRetryPendingSave = onRetryPendingSave,
+                                    onDismissPendingSave = onDismissPendingSave,
                                     onRecordClick = { recordId ->
                                         analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED)
                                         onRecordClick(recordId)
@@ -296,6 +328,9 @@ private fun JournalTagFilters(
 @Composable
 private fun TripRecordList(
     records: List<TripRecordItemUiState>,
+    pendingSaves: List<BackgroundTripRecordSave>,
+    onRetryPendingSave: (Long) -> Unit,
+    onDismissPendingSave: (Long) -> Unit,
     onRecordClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -304,11 +339,119 @@ private fun TripRecordList(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 18.dp),
     ) {
+        items(pendingSaves, key = { save -> "pending-${save.id}" }) { save ->
+            PendingTripRecordCard(
+                save = save,
+                onRetry = { onRetryPendingSave(save.id) },
+                onDismiss = { onDismissPendingSave(save.id) },
+            )
+        }
         items(records, key = TripRecordItemUiState::id) { record ->
             TripRecordCard(
                 record = record,
                 onClick = { onRecordClick(record.id) },
             )
+        }
+    }
+}
+
+@Composable
+private fun PendingTripRecordCard(
+    save: BackgroundTripRecordSave,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val failed = save.status == BackgroundSaveStatus.FAILED
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .background(TripRecordPalette.current.primarySoft, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${save.photoCount}장",
+                    color = TripRecordPalette.current.primary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "${save.startDate.replace("-", ". ")} ${if (failed) "저장 실패" else "저장 중"}",
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 11.sp,
+                )
+                Text(
+                    text = save.locationName,
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+                Text(
+                    text = if (failed) {
+                        save.errorMessage ?: "기록 저장에 실패했어요."
+                    } else {
+                        save.title
+                    },
+                    color = if (failed) TripRecordPalette.current.danger else TripRecordPalette.current.bodyText,
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+                if (failed) {
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = "다시 시도",
+                            color = TripRecordPalette.current.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable(onClick = onRetry),
+                        )
+                        Text(
+                            text = "삭제",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable(onClick = onDismiss),
+                        )
+                    }
+                }
+            }
+            if (!failed) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        progress = { save.progressPercent / 100f },
+                        modifier = Modifier.size(32.dp),
+                        color = TripRecordPalette.current.primary,
+                        trackColor = TripRecordPalette.current.primarySoft,
+                        strokeWidth = 3.dp,
+                    )
+                    Text(
+                        text = "${save.progressPercent}%",
+                        color = TripRecordPalette.current.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
         }
     }
 }

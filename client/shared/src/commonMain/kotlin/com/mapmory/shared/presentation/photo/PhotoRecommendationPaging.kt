@@ -71,6 +71,18 @@ internal fun PhotoRecommendationPagingState.toggleSelection(
     return copy(selectedIds = nextSelectedIds)
 }
 
+internal fun PhotoRecommendationPagingState.setSelection(
+    photoId: String,
+    selected: Boolean,
+): PhotoRecommendationPagingState {
+    if (photos.none { it.id == photoId }) return this
+    if (selected == (photoId in selectedIds)) return this
+    if (selected && selectedIds.size >= maxSelectionCount) return this
+    return copy(
+        selectedIds = if (selected) selectedIds + photoId else selectedIds - photoId,
+    )
+}
+
 internal fun shouldLoadNextRecommendationPage(
     isAtBottom: Boolean,
     isLoading: Boolean,

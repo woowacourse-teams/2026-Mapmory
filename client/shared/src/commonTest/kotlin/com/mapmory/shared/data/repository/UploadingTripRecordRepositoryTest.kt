@@ -1,5 +1,6 @@
 package com.mapmory.shared.data.repository
 
+import com.mapmory.shared.data.media.LocalPhotoDataSource
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
@@ -20,6 +21,99 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class UploadingTripRecordRepositoryTest {
+    @Test
+    fun transientPhotoUploadFailureIsRetriedWithoutRestartingPreviousPhotos() = runBlocking {
+        val attempts = mutableMapOf<String, Int>()
+        val localIds = listOf("content://photo/1", "content://photo/2")
+        val repository = UploadingTripRecordRepository(
+            uploader = PhotoUploader { sources ->
+                val source = sources.single()
+                val attempt = attempts.getOrElse(source.localId) { 0 } + 1
+                attempts[source.localId] = attempt
+                if (source.localId == localIds.last() && attempt == 1) {
+                    Result.failure(IllegalStateException("temporary"))
+                } else {
+                    Result.success(listOf(UploadedPhoto(source, "uploaded/$attempt/${source.localId}")))
+                }
+            },
+            delegate = CapturingTripRecordRepository(),
+            localPhotoDataSource = LocalPhotoDataSource {
+                byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())
+            },
+        )
+
+        repository.createTripRecord(
+            TripRecordDraft(
+                locationId = 1,
+                title = "retry",
+                startDate = "2026-10-02",
+                mediaObjectKeys = localIds,
+                localMedia = localIds.mapIndexed { index, id ->
+                    TripRecordMediaDraft(
+                        objectKey = id,
+                        sortOrder = index,
+                        previewBytes = null,
+                        fileName = "photo-$index.jpg",
+                    )
+                },
+            ),
+        ).getOrThrow()
+
+        assertEquals(1, attempts[localIds.first()])
+        assertEquals(2, attempts[localIds.last()])
+    }
+
+    @Test
+    fun localPhotosAreReadAndUploadedOneAtATime() = runBlocking {
+        val localIds = (0 until 100).map { index -> "content://photo/$index" }
+        val readIds = mutableListOf<String>()
+        val uploadBatchSizes = mutableListOf<Int>()
+        val repository = UploadingTripRecordRepository(
+            uploader = PhotoUploader { sources ->
+                uploadBatchSizes += sources.size
+                val source = sources.single()
+                Result.success(
+                    listOf(
+                        UploadedPhoto(
+                            source,
+                            "travel-records/10/${source.localId.substringAfterLast('/')}.jpg",
+                        ),
+                    ),
+                )
+            },
+            delegate = CapturingTripRecordRepository(),
+            localPhotoDataSource = LocalPhotoDataSource { localId ->
+                readIds += localId
+                byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())
+            },
+        )
+
+        repository.updateTripRecord(
+            id = 101,
+            draft = TripRecordDraft(
+                locationId = 1,
+                title = "사진 100장",
+                content = "",
+                startDate = "2026-08-26",
+                endDate = null,
+                mediaObjectKeys = localIds,
+                localMedia = localIds.mapIndexed { index, localId ->
+                    TripRecordMediaDraft(
+                        objectKey = localId,
+                        sortOrder = index,
+                        previewBytes = byteArrayOf(index.toByte()),
+                        originalBytes = null,
+                        fileName = "photo-$index.jpg",
+                    )
+                },
+            ),
+        ).getOrThrow()
+
+        assertEquals(localIds, readIds)
+        assertEquals(100, uploadBatchSizes.size)
+        assertEquals(setOf(1), uploadBatchSizes.toSet())
+    }
+
     @Test
     fun updateKeepsServerMediaAndUploadsOnlyNewLocalPhotosInOrder() = runBlocking {
         val existingObjectKey = "mapmory/travel-records/10/existing.jpg"
@@ -267,7 +361,7 @@ private class CapturingTripRecordRepository : TripRecordRepository {
             ?: Result.failure(NoSuchElementException())
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
-        Result.failure(UnsupportedOperationException())
+        Result.success(draft.toRecord(100).also { record -> records[record.id] = record })
 
     override suspend fun updateTripRecord(
         id: Long,
@@ -283,7 +377,8 @@ private class CapturingTripRecordRepository : TripRecordRepository {
 
 private fun indexedUploader(): PhotoUploader = PhotoUploader { sources ->
     Result.success(
-        sources.mapIndexed { index, source ->
+        sources.map { source ->
+            val index = source.localId.substringAfterLast('/')
             UploadedPhoto(source, "travel-records/10/uploaded-$index.jpg")
         },
     )
