@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
 import { initializeAnalytics } from "./analytics.js";
 import "./styles.css";
-import "./hero-memory-story.css";
+import "./photo-finder-hero.css";
 
 initializeAnalytics();
 

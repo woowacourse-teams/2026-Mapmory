@@ -39,9 +39,10 @@
 | `experience_end` | 체험을 1.5초 벗어나거나 pagehide | `active_duration_seconds`, `unique_memories_opened`, `last_completed_step`, `exit_reason`; 유형별 첫 연속 체험 1회 |
 | `download_cta_click` | ‘내 기억 지도도 만들기’로 `#download`에 이동 | `cta_placement=korea_memory`; **전환 아님** |
 | `download_click` | 실제 App Store·Google Play 링크 클릭 | `store=app_store|google_play`, `cta_placement`; **설치 완료 아님** |
+| `hero_demo_select` | 히어로 사진 찾기 데모의 장소 칩(제주·일본·미국) 탭 | `experience_type=hero_demo`, `demo_place`; 탭마다. 자동 재생은 기록하지 않음 |
 
 체험 유형: `globe`, `korea_detail`.
-체험 진입 위치: `header_nav`, `hero`, `hero_mobile`, `hero_handoff`, `hero_reduced_handoff`.
+체험 진입 위치: `header_nav`, `how_section`(3단계 사용법 아래 지구본 미리 보기 링크). (`hero`, `hero_mobile`, `hero_handoff`, `hero_reduced_handoff`는 2026-10 사진 찾기 히어로 교체 전 데이터에만 있음)
 스토어 위치: `header`, `hero`, `final` (Recap은 `demand_primary`).
 `waitlist_*`는 비노출 폴백으로 보존하지만 현재 퍼널에서 제외한다.
 
