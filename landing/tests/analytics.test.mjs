@@ -48,6 +48,7 @@ test("declares the agreed landing funnel events", () => {
       "waitlist_submit_error",
       "download_click",
       "download_cta_click",
+      "hero_demo_select",
     ]),
   );
 });

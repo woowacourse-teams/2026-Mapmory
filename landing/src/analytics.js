@@ -89,6 +89,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
   WAITLIST_SUBMIT_ERROR: "waitlist_submit_error",
   DOWNLOAD_CLICK: "download_click",
   DOWNLOAD_CTA_CLICK: "download_cta_click",
+  HERO_DEMO_SELECT: "hero_demo_select",
 });
 
 const supportedEvents = new Set(Object.values(ANALYTICS_EVENTS));
@@ -118,6 +119,7 @@ const supportedParameters = new Set([
   "close_method",
   "max_photo_index",
   "photos_viewed",
+  "demo_place",
 ]);
 
 let gaInitialized = false;

@@ -17,6 +17,17 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Mapmory Landing Decisions
 
+### Photo-finder hero (2026-10-07)
+
+These decisions supersede the earlier hero guidance below (the editorial `여행의 순간을, 나만의 지도로.` hero, the desktop scroll relay, the mobile 1.8-second globe reveal, the first-viewport Figma direction, and "no separate how-it-works section"). The interactive globe and Korea sections below remain unchanged.
+
+- Goal: visitors from campus community posts (mostly mobile) should think "신기한데 한번 써볼까?" and stop worrying about photo privacy. Usability tests found the wow point is the app finding the photos of one place inside a huge camera roll, not the 3D globe; testers worried the app reads or uploads every photo.
+- The first viewport is one non-looping demo: a dense photo library scans, a place is typed, only that place's photos fly to the map and its region turns mint, then `21,474장 중 <장소> 사진 N장을 찾았어요`. Visitors replay it with the place chips. Reduced motion shows the finished state.
+- Demo places only use units the shipping app can search: whole countries abroad and Korean provinces/districts at home (currently 제주 / 일본 / 미국). Never show city or landmark search such as 오사카 until the app supports it.
+- Keep the one-line trust promise beside the hero CTA and a separate trust + FAQ section before the final download section. Every trust sentence must match the client code: photo matching runs on the device from location/date metadata, only photos the user picks are uploaded when saving, and records can be deleted in the app. Do not promise that deleting a record removes uploaded files from storage until the backend does so.
+- Section order: hero demo -> 3-step how-it-works -> interactive globe -> Korea map -> trust + FAQ -> download.
+- 2026-10-07 design pass: every hero library tile is an EXIF-stripped team thumbnail from `public/assets/team-thumbs/` (never gradient stand-ins), the payoff line is LINE Seed Bold without Nanum Pen or glow, and the result lands as a pill over the grid so the store buttons and trust line stay in the first mobile viewport. Headings are one colour (no mint-accented phrase). Solid mint is kept for found/filled map state and primary actions (download buttons and the in-map CTAs); small mint text, step numbers and labels use `--accent-ink`. Below the hero every section h2 uses `--type-h2`, and trust is one on-device -> on-save boundary panel with the delete line outside it.
+
 ### Trips experiment (2026-09-22)
 
 - The primary start button uses the exact label `여행 사진 정리하기`. Keep the static HTML fallback and JavaScript-rendered button in sync.
