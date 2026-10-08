@@ -80,7 +80,8 @@ function HowItWorksPlay() {
   const act = (action) => {
     hasInteractedRef.current = true;
     // Step 0 shows only the place buttons, so the first tap is always a place pick.
-    if (action.type === "pick-place") startExperience("place_select");
+    // Place buttons live inside the observed phone, so the tap itself proves exposure.
+    if (action.type === "pick-place") startExperience("place_select", { fromSection: true });
     else if ((action.type === "toggle-photo" || action.type === "pick-all") && savedPlacesRef.current.size === 0) completeStep("photo_pick");
     dispatch(action);
   };
