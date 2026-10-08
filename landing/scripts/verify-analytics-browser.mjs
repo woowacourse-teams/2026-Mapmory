@@ -173,8 +173,34 @@ try {
     await page.locator('input[type="file"]').setInputFiles({ name: "no-gps.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64") });
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
     assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
+    // A place tap while under half the phone is on screen still counts as exposure, so leaving ends the session.
+    const partial = await context.newPage();
+    partial.setDefaultTimeout(20000);
+    partial.on("pageerror", (error) => errors.push(error.message));
+    await partial.goto("https://map-mory.com/?internal=1");
+    const partialPhone = partial.locator(".how-play-phone");
+    const busan = partialPhone.getByRole("button", { name: "부산", exact: true });
+    await busan.waitFor();
+    const partialView = await partialPhone.evaluate((node, tile) => {
+      const tileBottom = tile.getBoundingClientRect().bottom - node.getBoundingClientRect().top;
+      const visible = Math.ceil(tileBottom) + 2;
+      window.scrollTo({ top: window.scrollY + node.getBoundingClientRect().top - window.innerHeight + visible, behavior: "instant" });
+      return { visible, reference: Math.min(node.getBoundingClientRect().height, window.innerHeight) };
+    }, await busan.elementHandle());
+    assert.ok(partialView.visible < partialView.reference * 0.5, JSON.stringify(partialView));
+    await busan.click();
+    const partialEvents = () => partial.evaluate(() => (window.dataLayer ?? []).map((args) => [...args])
+      .filter(([command, , props]) => command === "event" && props?.experience_type === "how_play"));
+    assert.equal((await partialEvents()).filter(([, name]) => name === "experience_start").length, 1);
+    await partial.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await partial.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "experience_end" && args[2]?.experience_type === "how_play"));
+    const partialEnds = (await partialEvents()).filter(([, name]) => name === "experience_end");
+    assert.equal(partialEnds.length, 1);
+    assert.equal(partialEnds[0][2].exit_reason, "section_exit");
+    assert.equal(partialEnds[0][2].last_completed_step, "experience_start");
+    await partial.close();
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, how_play view before tap/start/save_index 1-3/reset replay not re-sent/section_exit end, globe-only view/start/open, how-section globe link, header how_play link (desktop), final store without experience context, no photo paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, how_play view before tap/start/save_index 1-3/reset replay not re-sent/section_exit end, partial-view tap end, globe-only view/start/open, how-section globe link, header how_play link (desktop), final store without experience context, no photo paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
     await context.close();
   }
   console.log(JSON.stringify({ output, findings, productionAnalyticsRequests: 0 }, null, 2));

@@ -168,7 +168,7 @@ export function useExperienceAnalytics(experienceType) {
     });
   }, [experienceType]);
 
-  const startExperience = useCallback((interactionType) => {
+  const startExperience = useCallback((interactionType, { fromSection = false } = {}) => {
     if (hasStartedRef.current || hasEndedRef.current) return;
     // A deliberate interaction proves exposure even before the passive 1s threshold.
     markViewed();
@@ -178,7 +178,9 @@ export function useExperienceAnalytics(experienceType) {
       experience_type: experienceType,
       interaction_type: interactionType,
     });
-    if (isVisibleRef.current) {
+    // A tap inside the observed box proves it is on screen below the 50% threshold too,
+    // so leaving without ever reaching it still ends the session.
+    if (isVisibleRef.current || fromSection) {
       hasBeenVisibleSinceStartRef.current = true;
       resumeActiveTimer();
     }
