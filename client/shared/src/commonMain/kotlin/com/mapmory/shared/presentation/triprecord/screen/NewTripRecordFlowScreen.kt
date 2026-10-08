@@ -2538,7 +2538,6 @@ private fun PhotoSelectionCard(
             cacheKey = "picker-preview:${photo.id}",
             contentDescription = photo.displayName,
             modifier = Modifier.fillMaxSize(),
-            placeholderVariant = photo.id.hashCode(),
         )
         if (recorded) {
             Text(

@@ -53,16 +53,18 @@ class TripRecordListViewModel(
         if (isRouteInitialized) return
         isRouteInitialized = true
         filterByLocation(locationId)
-        refreshTags()
-        load()
+        load(refreshTagsFirst = true)
     }
 
     suspend fun refreshIfNeeded(locationId: Long?, dataRevision: Long) {
         if (loadedRevision == dataRevision && query.locationId == locationId &&
+            (uiState as? TripRecordListUiState.Success)?.refreshError == null &&
             uiState is TripRecordListUiState.Success
         ) return
         refresh(locationId)
-        if (uiState is TripRecordListUiState.Success) loadedRevision = dataRevision
+        if ((uiState as? TripRecordListUiState.Success)?.let { !it.isRefreshing && it.refreshError == null } == true) {
+            loadedRevision = dataRevision
+        }
     }
 
     suspend fun refresh(locationId: Long?) {
@@ -73,8 +75,7 @@ class TripRecordListViewModel(
         if (query.locationId != locationId) {
             filterByLocation(locationId)
         }
-        refreshTags()
-        load()
+        load(refreshTagsFirst = true)
     }
 
     suspend fun selectTag(tagId: Long?) {
@@ -84,9 +85,10 @@ class TripRecordListViewModel(
         load()
     }
 
-    private suspend fun refreshTags() {
+    private suspend fun refreshTags(generation: Long) {
         val loadTags = getTags ?: return
         loadTags().onSuccess { tags ->
+            if (generation != loadGeneration) return@onSuccess
             availableTags = tags
             if (query.tagId != null && tags.none { it.id == query.tagId }) {
                 filterByTag(null)
@@ -94,14 +96,36 @@ class TripRecordListViewModel(
         }
     }
 
-    suspend fun load(query: TripRecordQuery = this.query) {
+    suspend fun load(query: TripRecordQuery = this.query, refreshTagsFirst: Boolean = false) {
         val generation = ++loadGeneration
-        val previousSuccess = (uiState as? TripRecordListUiState.Success)
+        var previousSuccess = (uiState as? TripRecordListUiState.Success)
             ?.takeIf { loadedQuery == query }
         this.query = query
         uiState = previousSuccess
             ?.copy(isRefreshing = true, refreshError = null)
             ?: TripRecordListUiState.Loading
+        if (previousSuccess == null) {
+            val cached = getTripRecords.cached(query)
+            if (generation != loadGeneration) return
+            if (cached != null) {
+                loadedQuery = query
+                previousSuccess = TripRecordListUiState.Success(
+                    records = cached.records.map(::toUiState),
+                    page = cached.page,
+                    totalPages = cached.totalPages,
+                    isRefreshing = true,
+                )
+                uiState = previousSuccess
+            }
+        }
+        if (refreshTagsFirst) {
+            refreshTags(generation)
+            if (generation != loadGeneration) return
+            if (this.query != query) {
+                load(this.query)
+                return
+            }
+        }
         val page = getTripRecords(query).getOrElse { error ->
             if (generation == loadGeneration) {
                 uiState = previousSuccess?.copy(

@@ -1202,7 +1202,6 @@ private fun PhotoPreview(photo: SelectedPhoto, modifier: Modifier = Modifier) {
         imageBytes = photo.previewBytes,
         contentDescription = photo.displayName,
         modifier = modifier,
-        placeholderVariant = photo.id.hashCode(),
     )
 }
 
@@ -1213,7 +1212,6 @@ private fun PhotoPreview(photo: TripRecordPhotoUiState, modifier: Modifier = Mod
         imageUri = photo.previewUri,
         contentDescription = photo.displayName,
         modifier = modifier,
-        placeholderVariant = photo.id.hashCode(),
     )
 }
 @Composable

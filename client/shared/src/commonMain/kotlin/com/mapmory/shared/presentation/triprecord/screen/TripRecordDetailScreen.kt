@@ -329,7 +329,6 @@ private fun PhotoDateGroup(
                                     contentDescription = "${group.displayDate} 여행 사진 확대"
                                 }
                                 .clickable(role = Role.Button) { onPhotoClick(photo) },
-                            placeholderVariant = photo.id.hashCode(),
                             shape = RoundedCornerShape(14.dp),
                         )
                     }
@@ -461,7 +460,6 @@ private fun ExpandedTripPhotoViewer(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(vertical = 104.dp),
-                    placeholderVariant = photo.id.hashCode(),
                     shape = RectangleShape,
                     contentScale = ContentScale.Fit,
                 )

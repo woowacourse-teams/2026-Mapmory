@@ -24,6 +24,9 @@ import com.mapmory.shared.data.repository.AuthenticatedPlaceRepository
 import com.mapmory.shared.data.repository.AuthenticatedTagRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripRecordRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripStatisticsRepository
+import com.mapmory.shared.data.repository.CachedTripRecordRepository
+import com.mapmory.shared.data.repository.TripRecordListCache
+import com.mapmory.shared.data.repository.MemoryTripRecordListCache
 import com.mapmory.shared.data.repository.CachedMediaTripRecordRepository
 import com.mapmory.shared.data.repository.CachedMapSummaryRepository
 import com.mapmory.shared.data.repository.CachedTripStatisticsRepository
@@ -305,6 +308,7 @@ fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
@@ -320,6 +324,7 @@ fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         mapSummaryCache = mapSummaryCache,
         tripStatisticsCache = tripStatisticsCache,
+        tripRecordListCache = tripRecordListCache,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         localPhotoDataSource = localPhotoDataSource,
@@ -337,6 +342,7 @@ internal fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
@@ -344,7 +350,8 @@ internal fun createGuestRemoteAppContainer(
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
 ): AppContainer {
-    if (tokenStore.load() == null) {
+    val discardRecordCache = tokenStore.load() == null
+    if (discardRecordCache) {
         mapSummaryCache.clear()
         tripStatisticsCache.clear()
     }
@@ -402,7 +409,11 @@ internal fun createGuestRemoteAppContainer(
     )
 
     return createAppContainer(
-        tripRecordRepository = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
+        tripRecordRepository = CachedTripRecordRepository(
+            delegate = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
+            cache = tripRecordListCache,
+            discardExistingCache = discardRecordCache,
+        ),
         mapSummaryRepository = AuthenticatedMapSummaryRepository(session, remoteMapSummary),
         mapSummaryCache = mapSummaryCache,
         tripStatisticsRepository = AuthenticatedTripStatisticsRepository(session, remoteTripStatistics),

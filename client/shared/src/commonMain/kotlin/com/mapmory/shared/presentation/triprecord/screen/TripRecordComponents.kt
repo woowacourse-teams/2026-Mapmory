@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -426,58 +425,9 @@ private fun TripBottomIcon(
 @Composable
 internal fun TripPhotoPlaceholder(
     modifier: Modifier = Modifier,
-    variant: Int = 0,
     shape: Shape = RoundedCornerShape(18.dp),
 ) {
-    val skyColors = when (variant % 3) {
-        0 -> listOf(Color(0xFFEEA16C), Color(0xFFE56A66), Color(0xFF305C6B))
-        1 -> listOf(Color(0xFFB5C991), Color(0xFF5A896F), Color(0xFF253E4A))
-        else -> listOf(Color(0xFFB88F85), Color(0xFF596D8E), Color(0xFF203846))
-    }
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(Brush.verticalGradient(skyColors)),
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val sun = Offset(size.width * (0.72f - variant.coerceAtMost(2) * 0.12f), size.height * 0.28f)
-            drawCircle(
-                color = Color(0xFFFFE8AB),
-                radius = size.minDimension * 0.09f,
-                center = sun,
-            )
-
-            val backHill = Path().apply {
-                moveTo(0f, size.height * 0.68f)
-                lineTo(size.width * 0.2f, size.height * 0.47f)
-                lineTo(size.width * 0.37f, size.height * 0.65f)
-                lineTo(size.width * 0.58f, size.height * 0.42f)
-                lineTo(size.width, size.height * 0.67f)
-                lineTo(size.width, size.height)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(backHill, color = Color(0xFF456A62))
-
-            val frontHill = Path().apply {
-                moveTo(0f, size.height * 0.82f)
-                lineTo(size.width * 0.32f, size.height * 0.64f)
-                lineTo(size.width * 0.53f, size.height * 0.76f)
-                lineTo(size.width * 0.77f, size.height * 0.55f)
-                lineTo(size.width, size.height * 0.72f)
-                lineTo(size.width, size.height)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(frontHill, color = Color(0xFF1B3C43))
-            drawLine(
-                color = Color.White.copy(alpha = 0.28f),
-                start = Offset(size.width * 0.08f, size.height * 0.8f),
-                end = Offset(size.width * 0.88f, size.height * 0.73f),
-                strokeWidth = size.minDimension * 0.012f,
-            )
-        }
-    }
+    Box(modifier.clip(shape).background(TripRecordPalette.current.imagePlaceholder))
 }
 
 

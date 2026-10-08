@@ -10,6 +10,8 @@ import com.mapmory.shared.domain.repository.TripRecordRepository
 class GetTripRecordsUseCase(
     private val repository: TripRecordRepository,
 ) {
+    suspend fun cached(query: TripRecordQuery): TripRecordPage? = repository.getCachedTripRecords(query)
+
     suspend operator fun invoke(query: TripRecordQuery = TripRecordQuery()): Result<TripRecordPage> =
         repository.getTripRecords(query)
 }

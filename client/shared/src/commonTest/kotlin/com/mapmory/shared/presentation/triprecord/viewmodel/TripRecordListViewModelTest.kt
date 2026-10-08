@@ -25,6 +25,64 @@ import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
     @Test
+    fun `태그와_서버를_기다리기_전에_로컬_기록을_표시하고_실패해도_유지한다`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val source = FakeTripRecordRepository { "2026-10-08" }
+        source.createTripRecord(TripRecordDraft(101, "2026-10-08", listOf("photo.jpg"), title = "로컬 여행"))
+        val cached = source.getTripRecords(TripRecordQuery()).getOrThrow()
+        var remoteCalls = 0
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getCachedTripRecords(query: TripRecordQuery) = cached
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                remoteCalls++
+                return Result.failure(IllegalStateException("오프라인"))
+            }
+        }
+        val tags = object : com.mapmory.shared.domain.repository.TagRepository by source {
+            override suspend fun getTags(): Result<List<com.mapmory.shared.domain.model.Tag>> {
+                gate.await()
+                return Result.success(emptyList())
+            }
+        }
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), getTags = GetTagsUseCase(tags))
+        val job = launch { viewModel.refreshIfNeeded(null, 0) }
+        yield()
+        val local = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertEquals("로컬 여행", local.records.single().title)
+        assertTrue(local.isRefreshing)
+        assertEquals(0, remoteCalls)
+        gate.complete(Unit)
+        job.join()
+        val failed = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertEquals("로컬 여행", failed.records.single().title)
+        assertEquals("오프라인", failed.refreshError)
+        assertTrue(!failed.isRefreshing)
+        viewModel.refreshIfNeeded(null, 0)
+        assertEquals(2, remoteCalls)
+    }
+
+    @Test
+    fun `로컬_목록은_서버_응답이_도착하면_최신_목록으로_교체한다`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val source = ThumbnailListRepository()
+        val cached = source.getTripRecords(TripRecordQuery()).getOrThrow()
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getCachedTripRecords(query: TripRecordQuery) = cached
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                gate.await()
+                return Result.success(cached.copy(records = emptyList(), totalElements = 0, totalPages = 0))
+            }
+        }
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val job = launch { viewModel.load() }
+        yield()
+        assertEquals(1, assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.size)
+        gate.complete(Unit)
+        job.join()
+        assertTrue(assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.isEmpty())
+    }
+
+    @Test
     fun `재진입은_동일_리비전의_본문과_썸네일을_재조회하지_않는다`() = runBlocking {
         val repository = ThumbnailListRepository()
         var thumbnailRequests = 0
