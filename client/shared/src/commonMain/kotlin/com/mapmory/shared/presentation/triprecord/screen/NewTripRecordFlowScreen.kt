@@ -148,10 +148,10 @@ private const val KoreaCountryId = 1L
 private const val MinPlaceQueryLength = 2
 private const val MaxPlaceQueryLength = 100
 private const val PlaceSearchDebounceMillis = 350L
-private const val PhotoListPrefetchGroups = 2
+private const val PhotoListPrefetchItems = 4
 private const val PhotoLimitMessageDurationMillis = 3_000L
 private const val DragAutoScrollFrameMillis = 16L
-private const val DefaultPhotoGridColumns = 3
+private const val DefaultPhotoGridColumns = 2
 private const val MinPhotoGridColumns = 1
 private const val MaxPhotoGridColumns = 4
 private const val PhotoGridZoomThreshold = 1.25f
@@ -652,7 +652,7 @@ internal fun NewTripRecordFlowScreen(
             val info = photoListState.layoutInfo
             val lastVisibleIndex = info.visibleItemsInfo.lastOrNull()?.index ?: -1
             info.totalItemsCount > 0 &&
-                lastVisibleIndex >= info.totalItemsCount - PhotoListPrefetchGroups
+                lastVisibleIndex >= info.totalItemsCount - PhotoListPrefetchItems
         }.collect { isAtBottom ->
             val generation = recommendationPagingState.generation ?: return@collect
             val currentKey = RecommendationLoadKey(
@@ -1523,6 +1523,8 @@ private fun FlowTopBar(
     title: String,
     onBackClick: () -> Unit,
     actionLabel: String? = null,
+    actionStatusLabel: String? = null,
+    reserveActionStatusSlot: Boolean = false,
     actionEnabled: Boolean = true,
     onActionClick: () -> Unit = {},
 ) {
@@ -1537,16 +1539,45 @@ private fun FlowTopBar(
                         enabled = actionEnabled,
                         contentPadding = PaddingValues(horizontal = 10.dp),
                     ) {
-                        Text(
-                            text = label,
-                            color = if (actionEnabled) {
-                                TripRecordPalette.current.accent
-                            } else {
-                                TripRecordPalette.current.muted
-                            },
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (actionEnabled || actionStatusLabel != null) {
+                                    TripRecordPalette.current.accent
+                                } else {
+                                    TripRecordPalette.current.muted
+                                },
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (reserveActionStatusSlot || actionStatusLabel != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .then(
+                                            if (actionStatusLabel != null) {
+                                                Modifier.semantics {
+                                                    contentDescription = actionStatusLabel
+                                                }
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (actionStatusLabel != null) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.fillMaxSize(),
+                                            color = TripRecordPalette.current.accent,
+                                            strokeWidth = 2.dp,
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1862,18 +1893,30 @@ private fun PhotoLoadingBar(
 }
 
 @Composable
-private fun FlowSmallButton(label: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        color = TripRecordPalette.current.accent,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
+private fun FlowSmallButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(TripRecordPalette.current.primarySoft)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    )
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = TripRecordPalette.current.accent,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
@@ -1917,7 +1960,6 @@ private fun PhotoPickerStep(
     onGroupToggle: (List<String>) -> Unit,
     onAllToggle: () -> Unit,
 ) {
-    val groups = remember(pagingState.photos) { pagingState.photos.toPhotoDateGroups() }
     var photoGridColumns by rememberSaveable { mutableStateOf(DefaultPhotoGridColumns) }
     var accumulatedGridZoom by remember { mutableStateOf(1f) }
     val previewButtonSize by animateDpAsState(
@@ -1948,13 +1990,21 @@ private fun PhotoPickerStep(
     LaunchedEffect(gridTransformableState.isTransformInProgress) {
         if (!gridTransformableState.isTransformInProgress) accumulatedGridZoom = 1f
     }
+    val photoPickerItems = remember(pagingState.photos, photoGridColumns) {
+        pagingState.photos.toPhotoPickerListItems(photoGridColumns)
+    }
     val density = LocalDensity.current
     val autoScrollEdgeSize = with(density) { 104.dp.toPx() }
     val maximumAutoScrollStep = with(density) { 30.dp.toPx() }
     var listBounds by remember { mutableStateOf<Rect?>(null) }
     var dragPointerPosition by remember { mutableStateOf<Offset?>(null) }
     val latestSelectedIds by rememberUpdatedState(pagingState.selectedIds)
-    val orderedPhotoIds = remember(groups) { groups.flatMap { it.second }.map { it.id } }
+    val orderedPhotoIds = remember(photoPickerItems) {
+        photoPickerItems
+            .filterIsInstance<PhotoPickerListItem.PhotoRow>()
+            .flatMap { row -> row.photos }
+            .map(SelectedPhoto::id)
+    }
     val latestOrderedIds by rememberUpdatedState(orderedPhotoIds)
     val latestSelectionChange by rememberUpdatedState(onPhotoSelectionChange)
     val dragSelectionController = remember {
@@ -1989,12 +2039,14 @@ private fun PhotoPickerStep(
         FlowTopBar(
             title = "사진 고르기",
             onBackClick = onBackClick,
-            actionLabel = when {
+            actionLabel = actionLabel,
+            actionStatusLabel = when {
                 isPreparing -> "저장 요청 중"
                 isSelectingAll -> "사진 불러오는 중"
                 isRefreshingFilter -> "필터 적용 중"
-                else -> actionLabel
+                else -> null
             },
+            reserveActionStatusSlot = true,
             actionEnabled = pagingState.selectedIds.isNotEmpty() &&
                 !isPreparing &&
                 !isSelectingAll &&
@@ -2053,7 +2105,7 @@ private fun PhotoPickerStep(
                         )
                     },
                 contentPadding = PaddingValues(start = 20.dp, top = 24.dp, end = 24.dp, bottom = 36.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 item {
                     PhotoPickerHeader(
@@ -2071,7 +2123,13 @@ private fun PhotoPickerStep(
                                 enabled = !isRefreshingFilter,
                                 onCheckedChange = onRecordedFilterChanged,
                             )
-                            Text("기록한 사진 제외", color = TripRecordPalette.current.text)
+                            Text(
+                                text = "이미 기록에 포함된 사진 숨기기",
+                                color = TripRecordPalette.current.bodyText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
                         }
                     }
                 }
@@ -2085,35 +2143,51 @@ private fun PhotoPickerStep(
                                 TripRecordPalette.current.danger
                             },
                             fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 24.dp),
                         )
                     }
                 }
-                if (groups.isEmpty()) {
+                if (pagingState.photos.isEmpty()) {
                     item {
-                        EmptyPhotoPicker(onPickFromGallery = onPickFromGallery)
+                        EmptyPhotoPicker(
+                            onPickFromGallery = onPickFromGallery,
+                            modifier = Modifier.padding(top = 24.dp),
+                        )
                     }
                 } else {
-                    items(groups, key = { it.first }) { (date, photos) ->
-                        PhotoDateGroup(
-                            date = date,
-                            photos = photos,
-                            columnCount = photoGridColumns,
-                            previewButtonSize = previewButtonSize,
-                            previewIconSize = previewIconSize,
-                            selectedIds = pagingState.selectedIds,
-                            onGroupToggle = { onGroupToggle(photos.map(SelectedPhoto::id)) },
-                            onPhotoPreview = onPhotoPreview,
-                            onPhotoToggle = onPhotoToggle,
-                            dragSelectionController = dragSelectionController,
-                            recordedPhotoIds = recordedPhotoIds,
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(photoPickerItems, key = PhotoPickerListItem::key) { item ->
+                        when (item) {
+                            is PhotoPickerListItem.DateHeader -> PhotoDateHeader(
+                                date = item.date,
+                                photos = item.photos,
+                                selectedIds = pagingState.selectedIds,
+                                onGroupToggle = {
+                                    onGroupToggle(item.photos.map(SelectedPhoto::id))
+                                },
+                                modifier = Modifier.animateItem().padding(top = 24.dp),
+                            )
+
+                            is PhotoPickerListItem.PhotoRow -> PhotoSelectionRow(
+                                photos = item.photos,
+                                columnCount = photoGridColumns,
+                                previewButtonSize = previewButtonSize,
+                                previewIconSize = previewIconSize,
+                                selectedIds = pagingState.selectedIds,
+                                onPhotoPreview = onPhotoPreview,
+                                onPhotoToggle = onPhotoToggle,
+                                dragSelectionController = dragSelectionController,
+                                recordedPhotoIds = recordedPhotoIds,
+                                modifier = Modifier.animateItem().padding(
+                                    top = if (item.isFirstRowInDate) 12.dp else 10.dp,
+                                ),
+                            )
+                        }
                     }
                 }
                 if (isLoadingMore) {
                     item {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -2150,7 +2224,7 @@ private fun PhotoPickerScrollBar(
     val layoutInfo = listState.layoutInfo
     if (layoutInfo.visibleItemsInfo.isEmpty() || layoutInfo.totalItemsCount <= 0) return
     val density = LocalDensity.current
-    val itemSpacing = with(density) { 24.dp.roundToPx() }
+    val itemSpacing = with(density) { 0.dp.roundToPx() }
     val contentPaddingBefore = with(density) { 24.dp.roundToPx() }
     val contentPaddingAfter = with(density) { 36.dp.roundToPx() }
     val knownItemSizes = remember(listState) { mutableMapOf<Int, Int>() }
@@ -2275,39 +2349,40 @@ private fun PhotoPickerHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 20.dp)
-                .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.End,
+                .padding(top = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (hasPhotos) Text(
-                text = if (allSelected) "모두 해제" else "모두 선택",
-                color = TripRecordPalette.current.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(onClick = onAllToggle)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
-            Text(
-                text = "사진첩",
-                color = TripRecordPalette.current.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(onClick = onPickFromGallery)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            if (hasPhotos) {
+                FlowSmallButton(
+                    label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",
+                    onClick = onAllToggle,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            FlowSmallButton(
+                label = "사진첩에서 선택",
+                onClick = onPickFromGallery,
+                modifier = Modifier.weight(1f),
             )
         }
+        Text(
+            text = "날짜별 선택은 현재 불러온 사진에 적용돼요.\n추천 사진은 최대 ${TripRecordPhotoRules.MaxPhotosPerRecord}장까지 선택할 수 있어요.",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 
 @Composable
-private fun EmptyPhotoPicker(onPickFromGallery: () -> Unit) {
+private fun EmptyPhotoPicker(
+    onPickFromGallery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .background(TripRecordPalette.current.surfaceElevated, RoundedCornerShape(20.dp))
             .padding(horizontal = 24.dp, vertical = 36.dp),
@@ -2341,77 +2416,70 @@ private fun EmptyPhotoPicker(onPickFromGallery: () -> Unit) {
 }
 
 @Composable
-private fun PhotoDateGroup(
+private fun PhotoDateHeader(
     date: String,
+    photos: List<SelectedPhoto>,
+    selectedIds: Set<String>,
+    onGroupToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val allSelected = photos.all { it.id in selectedIds }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = date.toFlowDateDisplay(),
+            color = TripRecordPalette.current.text,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "${photos.size}장",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+        Spacer(Modifier.weight(1f))
+        FlowSmallButton(
+            label = if (allSelected) "이 날짜 선택 해제" else "이 날짜 사진 선택",
+            onClick = onGroupToggle,
+        )
+    }
+}
+
+@Composable
+private fun PhotoSelectionRow(
     photos: List<SelectedPhoto>,
     columnCount: Int,
     previewButtonSize: Dp,
     previewIconSize: Dp,
     selectedIds: Set<String>,
-    onGroupToggle: () -> Unit,
     onPhotoPreview: (SelectedPhoto) -> Unit,
     onPhotoToggle: (SelectedPhoto) -> Unit,
     dragSelectionController: PhotoDragSelectionController,
     recordedPhotoIds: Set<String>,
     modifier: Modifier = Modifier,
 ) {
-    val allSelected = photos.all { it.id in selectedIds }
-    Column(modifier = modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = date.toFlowDateDisplay(),
-                color = TripRecordPalette.current.text,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${photos.size}장",
-                color = TripRecordPalette.current.secondaryText,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = if (allSelected) "선택 해제" else "전체 선택",
-                color = TripRecordPalette.current.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .background(TripRecordPalette.current.primarySoft, RoundedCornerShape(10.dp))
-                    .clickable(onClick = onGroupToggle)
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        photos.forEach { photo ->
+            PhotoSelectionCard(
+                photo = photo,
+                selected = photo.id in selectedIds,
+                onPreview = { onPhotoPreview(photo) },
+                onToggle = { onPhotoToggle(photo) },
+                dragSelectionController = dragSelectionController,
+                recorded = photo.id in recordedPhotoIds,
+                previewButtonSize = previewButtonSize,
+                previewIconSize = previewIconSize,
+                modifier = Modifier.weight(1f),
             )
         }
-        Column(
-            modifier = Modifier.padding(top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            photos.chunked(columnCount).forEach { rowPhotos ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    rowPhotos.forEach { photo ->
-                        PhotoSelectionCard(
-                            photo = photo,
-                            selected = photo.id in selectedIds,
-                            onPreview = { onPhotoPreview(photo) },
-                            onToggle = { onPhotoToggle(photo) },
-                            dragSelectionController = dragSelectionController,
-                            recorded = photo.id in recordedPhotoIds,
-                            previewButtonSize = previewButtonSize,
-                            previewIconSize = previewIconSize,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    repeat(columnCount - rowPhotos.size) {
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
+        repeat((columnCount - photos.size).coerceAtLeast(0)) {
+            Spacer(Modifier.weight(1f))
         }
     }
 }
@@ -2431,16 +2499,15 @@ private fun PhotoSelectionCard(
     DisposableEffect(photo.id, dragSelectionController) {
         onDispose { dragSelectionController.remove(photo.id) }
     }
+    val cardShape = RoundedCornerShape(16.dp)
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(16.dp))
-            .then(
-                if (selected) {
-                    Modifier.border(3.dp, TripRecordPalette.current.accent, RoundedCornerShape(16.dp))
-                } else {
-                    Modifier
-                },
+            .clip(cardShape)
+            .border(
+                width = if (selected) 3.dp else 1.dp,
+                color = if (selected) TripRecordPalette.current.accent else TripRecordPalette.current.photoGalleryBorder,
+                shape = cardShape,
             )
             .onGloballyPositioned { layoutCoordinates ->
                 dragSelectionController.updateBounds(
@@ -2568,13 +2635,40 @@ private fun String.toFlowDateDisplay(): String {
         .joinToString(". ") + "."
 }
 
-private fun List<SelectedPhoto>.toPhotoDateGroups(): List<Pair<String, List<SelectedPhoto>>> =
+internal sealed interface PhotoPickerListItem {
+    val key: String
+
+    data class DateHeader(
+        val date: String,
+        val photos: List<SelectedPhoto>,
+    ) : PhotoPickerListItem {
+        override val key: String = "date:$date"
+    }
+
+    data class PhotoRow(
+        val photos: List<SelectedPhoto>,
+        val isFirstRowInDate: Boolean,
+    ) : PhotoPickerListItem {
+        override val key: String = "row:${photos.first().id}"
+    }
+}
+
+internal fun List<SelectedPhoto>.toPhotoPickerListItems(
+    columnCount: Int = DefaultPhotoGridColumns,
+): List<PhotoPickerListItem> =
     groupBy { photo -> photo.capturedAt ?: "촬영일 미상" }
         .entries
         .sortedByDescending { entry ->
             entry.key.takeUnless { it == "촬영일 미상" }.orEmpty()
         }
-        .map { entry -> entry.key to entry.value }
+        .flatMap { entry ->
+            buildList {
+                add(PhotoPickerListItem.DateHeader(entry.key, entry.value))
+                entry.value.chunked(columnCount.coerceAtLeast(1)).forEachIndexed { index, photos ->
+                    add(PhotoPickerListItem.PhotoRow(photos, isFirstRowInDate = index == 0))
+                }
+            }
+        }
 
 private fun PhotoRecommendationPagingState.toggleGroup(
     photoIds: List<String>,

@@ -79,7 +79,7 @@ private val LightTripRecordColors = TripRecordColors(
     accent = Color(0xFF4D9272), accentSoft = Color(0xFFE9F2ED), danger = Color(0xFFC94C57),
     photoRecommendText = Color(0xFFBB4D56), photoRecommendBackground = Color(0xFFFFF1F1),
     photoRecommendBorder = Color(0xFFDB6A70), photoGalleryBackground = Color(0xFFF3F7F4),
-    photoGalleryBorder = Color(0xFFD9E6DE), pageBackground = Color(0xFFFAFCFB),
+    photoGalleryBorder = Color(0xFFB7C8BC), pageBackground = Color(0xFFFAFCFB),
     softSurface = Color(0xFFF0F4F1), border = Color(0xFFE4E9E6), primary = Color(0xFF4D9272),
     primarySoft = Color(0xFFE9F2ED), secondaryAccent = Color(0xFF4A896B), onPrimary = Color.White,
     headingText = Color(0xFF1F2924), bodyText = Color(0xFF5F6E66), secondaryText = Color(0xFF89948E),
