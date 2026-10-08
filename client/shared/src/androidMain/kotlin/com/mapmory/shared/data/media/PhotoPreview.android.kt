@@ -23,6 +23,15 @@ class AndroidPhotoPreviewCache(context: Context) : PhotoPreviewCache {
             check(usagePreferences.edit().putString("records", value).commit())
         }
     }
+    private val metadataPreferences = context.applicationContext.getSharedPreferences("record-photo-dates", Context.MODE_PRIVATE)
+    override suspend fun capturedAt(objectKey: String): String? = withContext(Dispatchers.IO) {
+        metadataPreferences.getString(objectKey, null)
+    }
+    override suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        withContext(Dispatchers.IO) {
+            check(metadataPreferences.edit().putString(objectKey, capturedAt).commit())
+        }
+    }
     private val directory = File(context.applicationContext.cacheDir, CacheDirectoryName)
     private val mutex = Mutex()
 

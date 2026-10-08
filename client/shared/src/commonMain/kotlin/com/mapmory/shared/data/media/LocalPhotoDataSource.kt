@@ -8,4 +8,7 @@ package com.mapmory.shared.data.media
  */
 fun interface LocalPhotoDataSource {
     suspend fun read(localId: String): ByteArray?
+
+    /** 원본 전체를 메모리에 올리지 않고 로컬 사진의 촬영일만 읽는다. */
+    suspend fun capturedAt(localId: String): String? = null
 }

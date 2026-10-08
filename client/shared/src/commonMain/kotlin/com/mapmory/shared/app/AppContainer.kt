@@ -406,6 +406,7 @@ internal fun createGuestRemoteAppContainer(
     val cachedMediaTripRecords = CachedMediaTripRecordRepository(
         delegate = uploadingTripRecords,
         loader = photoPreviewLoader,
+        localPhotoDataSource = localPhotoDataSource,
     )
 
     return createAppContainer(

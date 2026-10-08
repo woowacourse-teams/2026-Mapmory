@@ -127,7 +127,7 @@ fun TripRecordDetailScreen(
             is TripRecordDetailUiState.Success -> {
                 val record = uiState.record
                 val groups = remember(record.id, record.photos, record.startDate) {
-                    groupTripRecordPhotosByDate(record.photos, record.startDate)
+                    groupTripRecordPhotosByDate(record.photos)
                 }
                 val orderedPhotos = remember(groups) { groups.flatMap(TripRecordPhotoGroup::photos) }
                 val selectedIndex = expandedPhotoIndex
@@ -522,11 +522,9 @@ internal data class TripRecordPhotoGroup(
 
 internal fun groupTripRecordPhotosByDate(
     photos: List<TripRecordPhotoUiState>,
-    fallbackDate: String?,
 ): List<TripRecordPhotoGroup> {
-    val normalizedFallback = fallbackDate.toAlbumDate()
     return photos
-        .groupBy { photo -> photo.capturedAt.toAlbumDate() ?: normalizedFallback }
+        .groupBy { photo -> photo.capturedAt.toAlbumDate() }
         .map { (date, groupedPhotos) ->
             TripRecordPhotoGroup(
                 sortDate = date,
@@ -546,7 +544,7 @@ internal fun String?.toAlbumDate(): String? {
     val year = match.groupValues[1]
     val month = match.groupValues[2].padStart(2, '0')
     val day = match.groupValues[3].padStart(2, '0')
-    return "$year-$month-$day"
+    return "$year-$month-$day".takeIf { runCatching { LocalDate.parse(it) }.isSuccess }
 }
 
 internal fun String.toAlbumDisplayDate(): String {

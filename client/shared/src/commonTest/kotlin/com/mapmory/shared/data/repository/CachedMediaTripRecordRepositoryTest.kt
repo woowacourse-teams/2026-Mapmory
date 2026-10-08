@@ -19,6 +19,64 @@ import kotlin.test.assertNull
 
 class CachedMediaTripRecordRepositoryTest {
     @Test
+    fun `재시작_후_원본_연결로_촬영일을_복원하고_다음_조회는_영속_날짜를_쓴다`() = runBlocking {
+        val cache = MemoryPhotoPreviewCache()
+        cache.linkLocalSource(ObjectKey, "content://photos/42")
+        var metadataReads = 0
+        val local = object : com.mapmory.shared.data.media.LocalPhotoDataSource {
+            override suspend fun read(localId: String): ByteArray? = error("원본 다운로드 금지")
+            override suspend fun capturedAt(localId: String): String? {
+                assertEquals("content://photos/42", localId)
+                metadataReads++
+                return "2026.09.11"
+            }
+        }
+        fun repository(source: com.mapmory.shared.data.media.LocalPhotoDataSource?) = CachedMediaTripRecordRepository(
+            delegate = RefreshingDetailRepository(),
+            loader = PhotoPreviewLoader(cache, PhotoRemoteSource { error("네트워크 다운로드 금지") }),
+            localPhotoDataSource = source,
+        )
+        assertEquals("2026.09.11", repository(local).getTripRecord(101).getOrThrow().media.single().capturedAt)
+        assertEquals("2026.09.11", repository(null).getTripRecord(101).getOrThrow().media.single().capturedAt)
+        assertEquals(1, metadataReads)
+    }
+
+    @Test
+    fun `원본에_접근할_수_없으면_촬영일을_기록_시작일로_채우지_않는다`() = runBlocking {
+        val cache = MemoryPhotoPreviewCache()
+        cache.linkLocalSource(ObjectKey, "content://photos/deleted")
+        val local = object : com.mapmory.shared.data.media.LocalPhotoDataSource {
+            override suspend fun read(localId: String): ByteArray? = null
+            override suspend fun capturedAt(localId: String): String? = error("접근 불가")
+        }
+        val repository = CachedMediaTripRecordRepository(
+            RefreshingDetailRepository(),
+            PhotoPreviewLoader(cache, PhotoRemoteSource { error("다운로드 금지") }),
+            local,
+        )
+        assertNull(repository.getTripRecord(101).getOrThrow().media.single().capturedAt)
+    }
+
+    @Test
+    fun `저장한_촬영일은_새_저장소에서도_복원한다`() = runBlocking {
+        val cache = MemoryPhotoPreviewCache()
+        val source = RefreshingDetailRepository()
+        val saved = source.getTripRecord(101).getOrThrow().let { record ->
+            record.copy(media = record.media.map { it.copy(capturedAt = "2026.09.11") })
+        }
+        val saving = object : TripRecordRepository by source {
+            override suspend fun createTripRecord(draft: TripRecordDraft) = Result.success(saved)
+        }
+        fun loader() = PhotoPreviewLoader(cache, PhotoRemoteSource { error("다운로드 금지") })
+        CachedMediaTripRecordRepository(saving, loader()).createTripRecord(
+            TripRecordDraft(1, "2026-09-09", listOf(ObjectKey)),
+        ).getOrThrow()
+        val restored = CachedMediaTripRecordRepository(RefreshingDetailRepository(), loader())
+            .getTripRecord(101).getOrThrow()
+        assertEquals("2026.09.11", restored.media.single().capturedAt)
+    }
+
+    @Test
     fun diskCacheUriIsReturnedWithoutKeepingPreviewBytesInTheRecord() = runBlocking {
         val cache = UriPhotoPreviewCache()
         cache.write(ObjectKey, byteArrayOf(0x01, 0x02))

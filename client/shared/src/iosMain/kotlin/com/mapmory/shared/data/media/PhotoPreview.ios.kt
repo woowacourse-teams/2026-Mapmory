@@ -28,6 +28,12 @@ import platform.ImageIO.kCGImageSourceThumbnailMaxPixelSize
 import platform.UIKit.UIImageJPEGRepresentation
 
 class IosPhotoPreviewCache : PhotoPreviewCache {
+    override suspend fun capturedAt(objectKey: String): String? =
+        platform.Foundation.NSUserDefaults.standardUserDefaults.stringForKey("mapmory_photo_date:$objectKey")
+    override suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        platform.Foundation.NSUserDefaults.standardUserDefaults.setObject(capturedAt, forKey = "mapmory_photo_date:$objectKey")
+    }
+
     override suspend fun readRecordedPhotoIndex(): String? =
         platform.Foundation.NSUserDefaults.standardUserDefaults.stringForKey("mapmory_recorded_photos")
     override suspend fun writeRecordedPhotoIndex(value: String) {

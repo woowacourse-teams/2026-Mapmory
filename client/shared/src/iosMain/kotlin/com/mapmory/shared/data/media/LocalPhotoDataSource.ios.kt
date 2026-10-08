@@ -22,6 +22,17 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class IosLocalPhotoDataSource : LocalPhotoDataSource {
+    override suspend fun capturedAt(localId: String): String? {
+        val asset = PHAsset.fetchAssetsWithLocalIdentifiers(listOf(localId), null).firstObject as? PHAsset
+            ?: return null
+        return asset.creationDate?.let { date ->
+            platform.Foundation.NSDateFormatter().run {
+                dateFormat = "yyyy.MM.dd"
+                stringFromDate(date)
+            }
+        }
+    }
+
     override suspend fun read(localId: String): ByteArray? {
         if (localId.startsWith(IosPendingPhotoPrefix)) {
             val path = localId.removePrefix(IosPendingPhotoPrefix)

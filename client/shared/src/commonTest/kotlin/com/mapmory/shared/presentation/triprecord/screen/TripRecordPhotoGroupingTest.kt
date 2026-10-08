@@ -6,6 +6,17 @@ import kotlin.test.assertEquals
 
 class TripRecordPhotoGroupingTest {
     @Test
+    fun `9월_11일과_9월_9일_사진은_각_촬영일로_분리한다`() {
+        val groups = groupTripRecordPhotosByDate(listOf(
+            photo("11일", "2026.09.11", 0),
+            photo("9일", "2026-09-09T10:00:00", 1),
+            photo("촬영일 없음", null, 2),
+        ))
+        assertEquals(listOf("2026-09-11", "2026-09-09", null), groups.map { it.sortDate })
+        assertEquals(listOf(listOf("11일"), listOf("9일"), listOf("촬영일 없음")), groups.map { it.photos.map { photo -> photo.id } })
+    }
+
+    @Test
     fun `사진은 촬영일 최신순으로 묶이고 그룹 안에서는 정렬 순서를 유지한다`() {
         val result = groupTripRecordPhotosByDate(
             photos = listOf(
@@ -13,7 +24,6 @@ class TripRecordPhotoGroupingTest {
                 photo(id = "newest", capturedAt = "2026-07-08", sortOrder = 0),
                 photo(id = "older-first", capturedAt = "2026.07.05", sortOrder = 1),
             ),
-            fallbackDate = "2026-07-01",
         )
 
         assertEquals(listOf("2026. 07. 08 (수)", "2026. 07. 05 (일)"), result.map { it.displayDate })
@@ -21,13 +31,12 @@ class TripRecordPhotoGroupingTest {
     }
 
     @Test
-    fun `촬영일이 없는 사진은 기록 시작일로 묶는다`() {
+    fun `촬영일이 없는 사진은 기록 시작일을 추측하지 않고 날짜 미상으로 묶는다`() {
         val result = groupTripRecordPhotosByDate(
             photos = listOf(photo(id = "fallback", capturedAt = null, sortOrder = 0)),
-            fallbackDate = "2026-09-26",
         )
 
-        assertEquals("2026. 09. 26 (토)", result.single().displayDate)
+        assertEquals("날짜 미상", result.single().displayDate)
     }
 
     @Test
@@ -37,20 +46,18 @@ class TripRecordPhotoGroupingTest {
                 photo(id = "unknown", capturedAt = null, sortOrder = 0),
                 photo(id = "known", capturedAt = "2026.09.26", sortOrder = 1),
             ),
-            fallbackDate = null,
         )
 
         assertEquals(listOf("2026. 09. 26 (토)", "날짜 미상"), result.map { it.displayDate })
     }
 
     @Test
-    fun `유효하지 않은 촬영일은 요일 없이 표시한다`() {
+    fun `유효하지 않은 촬영일은 날짜 미상으로 표시한다`() {
         val result = groupTripRecordPhotosByDate(
             photos = listOf(photo(id = "invalid-date", capturedAt = "2026.13.40", sortOrder = 0)),
-            fallbackDate = null,
         )
 
-        assertEquals("2026. 13. 40", result.single().displayDate)
+        assertEquals("날짜 미상", result.single().displayDate)
     }
 
     private fun photo(
