@@ -23,6 +23,7 @@ function millisecondsToSeconds(milliseconds) {
 export function useExperienceAnalytics(experienceType) {
   const sectionRef = useRef(null);
   const isVisibleRef = useRef(false);
+  const isIntersectingRef = useRef(false);
   const hasViewedRef = useRef(false);
   const hasStartedRef = useRef(false);
   const hasBeenVisibleSinceStartRef = useRef(false);
@@ -91,6 +92,14 @@ export function useExperienceAnalytics(experienceType) {
     });
   }, [clearExitTimer, experienceType, getActiveDurationSeconds, pauseActiveTimer]);
 
+  const scheduleExit = useCallback(() => {
+    if (!hasStartedRef.current || hasEndedRef.current || exitTimerRef.current) return;
+    exitTimerRef.current = window.setTimeout(() => {
+      exitTimerRef.current = null;
+      endExperience("section_exit");
+    }, EXIT_GRACE_MS);
+  }, [endExperience]);
+
   const markViewed = useCallback(() => {
     if (hasViewedRef.current || document.hidden) return;
     clearViewTimer();
@@ -112,6 +121,7 @@ export function useExperienceAnalytics(experienceType) {
 
     const observer = new IntersectionObserver(([entry]) => {
       isVisibleRef.current = occupiesEnoughOfViewport(entry);
+      isIntersectingRef.current = entry.isIntersecting;
       if (!isVisibleRef.current) {
         pauseActiveTimer();
         clearViewTimer();
@@ -120,17 +130,7 @@ export function useExperienceAnalytics(experienceType) {
           clearExitTimer();
           return;
         }
-        if (
-          hasStartedRef.current
-          && (hasBeenVisibleSinceStartRef.current || tapExposedRef.current)
-          && !hasEndedRef.current
-          && !exitTimerRef.current
-        ) {
-          exitTimerRef.current = window.setTimeout(() => {
-            exitTimerRef.current = null;
-            endExperience("section_exit");
-          }, EXIT_GRACE_MS);
-        }
+        if (hasBeenVisibleSinceStartRef.current || tapExposedRef.current) scheduleExit();
         return;
       }
 
@@ -150,7 +150,7 @@ export function useExperienceAnalytics(experienceType) {
       pauseActiveTimer();
       observer.disconnect();
     };
-  }, [clearExitTimer, clearViewTimer, endExperience, pauseActiveTimer, resumeActiveTimer, scheduleView]);
+  }, [clearExitTimer, clearViewTimer, pauseActiveTimer, resumeActiveTimer, scheduleExit, scheduleView]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -191,8 +191,10 @@ export function useExperienceAnalytics(experienceType) {
       // A tap inside the observed box proves it is on screen below the 50% threshold too,
       // so leaving it entirely, or closing the page, still ends the session.
       tapExposedRef.current = true;
+      // A keyboard activation can come while the box is already off screen, when no observer callback will follow.
+      if (!isIntersectingRef.current) scheduleExit();
     }
-  }, [experienceType, markViewed, resumeActiveTimer]);
+  }, [experienceType, markViewed, resumeActiveTimer, scheduleExit]);
 
   const trackMemoryOpen = useCallback((memoryId, selectionSource) => {
     startExperience("place_select");

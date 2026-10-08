@@ -82,6 +82,7 @@ test("a tap below the view threshold survives partial scrolling and ends once th
   const harness = await loadHook();
   harness.show(240);
   harness.hook.startExperience("place_select", { fromSection: true });
+  harness.advance(3000);
   harness.show(120);
   harness.advance(5000);
   assert.deepEqual(harness.ends(), []);
@@ -104,8 +105,35 @@ test("a tap below the view threshold still ends on pagehide", async () => {
   const harness = await loadHook();
   harness.show(240);
   harness.hook.startExperience("place_select", { fromSection: true });
+  harness.advance(3000);
   harness.pagehide();
-  assert.deepEqual(harness.ends().map(({ exit_reason }) => exit_reason), ["page_hide"]);
+  const ends = harness.ends();
+  assert.deepEqual(ends.map(({ exit_reason }) => exit_reason), ["page_hide"]);
+  assert.equal(ends[0].active_duration_seconds, 0);
+});
+
+test("a tap that arrives after the box has left the screen ends after the grace period", async () => {
+  const harness = await loadHook();
+  harness.show(240);
+  harness.show(0);
+  harness.hook.startExperience("place_select", { fromSection: true });
+  harness.advance(1499);
+  assert.deepEqual(harness.ends(), []);
+  harness.advance(1);
+  const [end] = harness.ends();
+  assert.equal(end.exit_reason, "section_exit");
+  assert.equal(end.active_duration_seconds, 0);
+});
+
+test("a tap that arrives off screen stays open if the box comes back within the grace period", async () => {
+  const harness = await loadHook();
+  harness.show(240);
+  harness.show(0);
+  harness.hook.startExperience("place_select", { fromSection: true });
+  harness.advance(1000);
+  harness.show(100);
+  harness.advance(5000);
+  assert.deepEqual(harness.ends(), []);
 });
 
 test("coming back on screen within the grace period keeps a tap-only session open", async () => {

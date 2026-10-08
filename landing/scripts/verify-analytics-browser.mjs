@@ -195,9 +195,21 @@ try {
     const partialEvents = () => partial.evaluate(() => (window.dataLayer ?? []).map((args) => [...args])
       .filter(([command, , props]) => command === "event" && props?.experience_type === "how_play"));
     assert.equal((await partialEvents()).filter(([, name]) => name === "experience_start").length, 1);
+    // A probe on the same thresholds is delivered in the same frame as the hook's observer,
+    // so once it reports the smaller ratio the hook has seen the scroll too.
+    await partialPhone.evaluate((node) => new Promise((resolve) => {
+      window.__howProbe = [];
+      new IntersectionObserver((entries) => {
+        window.__howProbe.push(...entries.map((entry) => entry.intersectionRatio));
+        resolve();
+      }, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1] }).observe(node);
+    }));
+    await partial.evaluate(() => { window.__howProbe = []; });
     const scrolledBack = await showPhoneTop(Math.floor(atTap.height * 0.2));
     assert.ok(scrolledBack.visible > 0 && Math.floor(scrolledBack.visible / scrolledBack.height * 10) < Math.floor(atTap.visible / atTap.height * 10), JSON.stringify({ atTap, scrolledBack }));
-    await partial.waitForTimeout(2200);
+    await partial.waitForFunction((tapRatio) => window.__howProbe.some((ratio) => ratio > 0 && ratio < tapRatio), atTap.visible / atTap.height);
+    // Longer than the 1.5s exit grace, so an exit armed by the partial scroll would have fired.
+    await partial.waitForTimeout(1700);
     assert.equal((await partialEvents()).filter(([, name]) => name === "experience_end").length, 0);
     await partialPhone.evaluate((node) => window.scrollTo({ top: window.scrollY + node.getBoundingClientRect().bottom + 40, behavior: "instant" }));
     await partial.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "experience_end" && args[2]?.experience_type === "how_play"));
