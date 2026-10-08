@@ -84,13 +84,11 @@ internal fun TripRecordListSkeleton(
 @Composable
 private fun SkeletonTripRecordCard() {
     TripRecordCardLayout(
-        photo = { TripPhotoPlaceholder(Modifier.size(76.dp), RoundedCornerShape(12.dp)) },
+        photo = { TripPhotoPlaceholder(Modifier.fillMaxSize(), RoundedCornerShape(12.dp)) },
         details = {
             SkeletonCardText(11.sp, Modifier.fillMaxWidth(0.65f))
             Spacer(Modifier.height(7.dp))
             SkeletonCardText(19.sp, Modifier.fillMaxWidth(0.5f), FontWeight.Bold)
-            Spacer(Modifier.height(7.dp))
-            SkeletonCardText(12.sp, Modifier.fillMaxWidth(0.85f))
         },
     )
 }

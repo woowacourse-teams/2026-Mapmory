@@ -448,7 +448,7 @@ private fun TripRecordCard(
                 imageBytes = record.photos.minByOrNull { it.sortOrder }?.previewBytes?.bytesForDecoding(),
                 imageUri = record.photos.minByOrNull { it.sortOrder }?.previewUri,
                 contentDescription = record.locationName,
-                modifier = Modifier.size(76.dp),
+                modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(12.dp),
             )
         },
@@ -502,7 +502,12 @@ internal fun TripRecordCardLayout(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            photo()
+            Box(
+                modifier = Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                photo()
+            }
             Column(Modifier.weight(1f)) { details() }
             Text("›", color = TripRecordPalette.current.muted, fontSize = 25.sp)
         }
