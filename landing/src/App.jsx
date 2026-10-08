@@ -909,7 +909,7 @@ function App() {
       <header className="site-header">
         <Brand />
         <nav aria-label="주요 메뉴">
-          <a href="#how">사용 방법</a>
+          <a href="#how" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "how_play", cta_placement: "header_nav" })}>사용 방법</a>
           <a href="#experience" onClick={() => globeAnalytics.trackEntryClick("header_nav")}>지구본 체험</a>
           <a href="#privacy">안심하고 쓰기</a>
         </nav>
