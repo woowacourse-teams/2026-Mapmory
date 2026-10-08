@@ -78,6 +78,7 @@ test("the first possible tap is a place pick, and demo places never mix with the
 
 test("the demo is observed on the phone box and tracking stays out of the reducer", () => {
   assert.match(componentSource, /className="how-play-phone" ref=\{sectionRef\}/);
+  assert.match(componentSource, /startExperience\("place_select", \{ fromSection: true \}\)/);
   assert.doesNotMatch(componentSource, /className="how-play" ref=/);
   assert.doesNotMatch(componentSource, /how-play-screen"[^>]*ref=\{sectionRef\}/);
   assert.doesNotMatch(reducerSource, /from "\.\/analytics|trackEvent\(/);
