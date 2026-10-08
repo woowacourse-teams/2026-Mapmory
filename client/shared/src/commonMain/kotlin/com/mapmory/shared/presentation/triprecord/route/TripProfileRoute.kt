@@ -18,6 +18,7 @@ internal fun TripProfileRoute(
     onOpenRecords: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenAccountConnection: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -41,6 +42,7 @@ internal fun TripProfileRoute(
         onRecordClick = onOpenRecords,
         onCreateClick = onOpenEditor,
         onProfileClick = onOpenProfile,
+        onOpenAccountConnection = onOpenAccountConnection,
         onRetryClick = {
             analytics.logEvent(MapmoryAnalyticsEvent.STATISTICS_RETRY_CLICKED)
             scope.launch { viewModel.refresh(dataRevision = tripRecordRevision) }

@@ -20,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.logging.mapmoryDebugLog
+import com.mapmory.shared.presentation.account.AccountConnectionScreen
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
@@ -67,6 +68,13 @@ internal fun MapmoryNavHost(
                 },
                 onOpenProfile = navigator::navigateToProfile,
             )
+        }
+
+        composable<AccountRoute> {
+            LaunchedEffect(Unit) {
+                mapmoryDebugLog(NavigationLogTag, "screen=account_connection")
+            }
+            AccountConnectionScreen(onBack = { navigator.navigateBack() })
         }
 
         composable<RecordsRoute> { backStackEntry ->
@@ -149,6 +157,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenAccountConnection = navigator::navigateToAccountConnection,
             )
         }
 

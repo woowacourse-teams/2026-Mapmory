@@ -60,6 +60,7 @@ fun TripProfileScreen(
     onRecordClick: () -> Unit,
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onOpenAccountConnection: () -> Unit = {},
     onRetryClick: () -> Unit = {},
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
@@ -123,6 +124,26 @@ fun TripProfileScreen(
             title = { Text("설정", color = TripRecordPalette.current.headingText) },
             text = {
                 Column {
+                    Text(
+                        text = "계정 연결",
+                        color = TripRecordPalette.current.bodyText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "기존 기록 보존 방식을 확인한 뒤 연결 기능을 열 예정이에요.",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            showSettings = false
+                            onOpenAccountConnection()
+                        },
+                    ) {
+                        Text("계정 연결 살펴보기", color = TripRecordPalette.current.primary)
+                    }
                     Text(
                         text = "화면 테마",
                         color = TripRecordPalette.current.bodyText,
