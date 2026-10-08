@@ -51,10 +51,14 @@ try {
     const menu = page.locator(".header-store-menu");
     const trigger = page.locator(".header-store-trigger");
     // React attaches the Escape and outside-click listeners only after the async toggle event.
+    // The flag is polled with waitForFunction so a menu that never opens fails on the default timeout instead of hanging.
     const openStoreMenu = async () => {
-      const toggled = await menu.evaluateHandle((node) => ({ done: new Promise((resolve) => node.addEventListener("toggle", () => setTimeout(resolve), { once: true })) }));
+      await menu.evaluate((node) => {
+        delete node.dataset.qaToggled;
+        node.addEventListener("toggle", () => setTimeout(() => { node.dataset.qaToggled = "1"; }), { once: true });
+      });
       await trigger.click();
-      await toggled.evaluate(({ done }) => done);
+      await page.waitForFunction(() => document.querySelector(".header-store-menu").dataset.qaToggled === "1");
       await menu.locator('[role="group"]').waitFor({ state: "visible" });
     };
     await openStoreMenu();
