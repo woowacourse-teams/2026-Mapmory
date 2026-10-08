@@ -17,12 +17,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -116,12 +117,24 @@ internal fun TripRecordDetailSkeleton(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        Box(
-            Modifier.fillMaxWidth().statusBarsPadding().height(64.dp).padding(horizontal = 8.dp),
-        ) {
-            SkeletonBox(Modifier.align(Alignment.CenterStart).size(40.dp), CircleShape)
-            SkeletonCardText(19.sp, Modifier.align(Alignment.Center).width(100.dp), FontWeight.Bold)
-            SkeletonBox(Modifier.align(Alignment.CenterEnd).size(40.dp), CircleShape)
+        Box {
+            TripRecordTopBar(
+                title = "",
+                onBackClick = {},
+                trailing = {
+                    Text(
+                        text = "•••",
+                        color = TripRecordPalette.current.text,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Light,
+                        modifier = Modifier.size(48.dp).wrapContentSize(Alignment.Center),
+                    )
+                },
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+            Box(Modifier.matchParentSize().statusBarsPadding(), contentAlignment = Alignment.Center) {
+                SkeletonCardText(19.sp, Modifier.width(100.dp), FontWeight.Bold)
+            }
         }
         Spacer(Modifier.fillMaxWidth().height(1.dp).background(TripRecordPalette.current.line))
         Column(
@@ -134,7 +147,11 @@ internal fun TripRecordDetailSkeleton(
         ) {
             SkeletonCardText(28.sp, Modifier.fillMaxWidth(0.7f), FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
-            SkeletonCardText(14.sp, Modifier.fillMaxWidth(0.8f))
+            Text(
+                text = "날짜별로 모아둔 여행 사진이에요.",
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 14.sp,
+            )
             repeat(2) { groupIndex ->
                 Spacer(Modifier.height(if (groupIndex == 0) 32.dp else 34.dp))
                 SkeletonCardText(18.sp, Modifier.width(132.dp), FontWeight.Bold)
