@@ -26,6 +26,7 @@ export function useExperienceAnalytics(experienceType) {
   const hasViewedRef = useRef(false);
   const hasStartedRef = useRef(false);
   const hasBeenVisibleSinceStartRef = useRef(false);
+  const tapExposedRef = useRef(false);
   const hasEndedRef = useRef(false);
   const activeStartedAtRef = useRef(null);
   const activeDurationMsRef = useRef(0);
@@ -74,7 +75,7 @@ export function useExperienceAnalytics(experienceType) {
     if (
       hasEndedRef.current
       || !hasStartedRef.current
-      || !hasBeenVisibleSinceStartRef.current
+      || (!hasBeenVisibleSinceStartRef.current && !tapExposedRef.current)
     ) return false;
 
     pauseActiveTimer();
@@ -114,9 +115,14 @@ export function useExperienceAnalytics(experienceType) {
       if (!isVisibleRef.current) {
         pauseActiveTimer();
         clearViewTimer();
+        // A session seen only through a tap below the threshold has not left while any of the box is on screen.
+        if (!hasBeenVisibleSinceStartRef.current && tapExposedRef.current && entry.isIntersecting) {
+          clearExitTimer();
+          return;
+        }
         if (
           hasStartedRef.current
-          && hasBeenVisibleSinceStartRef.current
+          && (hasBeenVisibleSinceStartRef.current || tapExposedRef.current)
           && !hasEndedRef.current
           && !exitTimerRef.current
         ) {
@@ -178,11 +184,13 @@ export function useExperienceAnalytics(experienceType) {
       experience_type: experienceType,
       interaction_type: interactionType,
     });
-    // A tap inside the observed box proves it is on screen below the 50% threshold too,
-    // so leaving without ever reaching it still ends the session.
-    if (isVisibleRef.current || fromSection) {
+    if (isVisibleRef.current) {
       hasBeenVisibleSinceStartRef.current = true;
       resumeActiveTimer();
+    } else if (fromSection) {
+      // A tap inside the observed box proves it is on screen below the 50% threshold too,
+      // so leaving it entirely, or closing the page, still ends the session.
+      tapExposedRef.current = true;
     }
   }, [experienceType, markViewed, resumeActiveTimer]);
 
