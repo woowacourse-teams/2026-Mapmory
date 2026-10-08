@@ -20,7 +20,9 @@ python3 tools/map/generate_world_map.py /tmp/ne_110m_admin_0_countries.geojson
 
 대한민국 지도 생성기는 [geoBoundaries KOR ADM1](https://www.geoboundaries.org/api/current/gbOpen/KOR/ADM1/)의 2021년 간소화 경계를 기준 입력으로 사용합니다. 17개 시·도와 섬을 포함하며 원본 GeoJSON은 앱에 포함하지 않습니다. 시·도 코드는 ISO 3166-2(`KR-11` 등)를 사용하고, 시·군·구 코드는 행정표준코드(`11680` 등)를 사용합니다.
 
-현재 초기 시·도 개요는 [southkorea/southkorea-maps의 KOSTAT 2018 시·도 경계](https://github.com/southkorea/southkorea-maps/blob/fe65e05e549d04083e52f380a7e9166a8ea0a01e/kostat/2018/json/skorea-provinces-2018-geo.json)를 개발 시점에만 읽고, 17개 시·도 모두의 외곽 링을 RDP tolerance `0.002`도로 단순화해 사용합니다. 서로 맞닿는 시·도가 같은 원본 좌표를 공유해야 울산–경남이나 세종–충남 사이에 틈이 생기지 않으므로, 한 화면에서 geoBoundaries와 KOSTAT 경계를 섞지 않습니다. 이 보정은 초기 개요 geometry에만 적용하며 상세 지도와 서버 Location 코드는 변경하지 않습니다.
+초기 시·도 개요는 `bnd_sido_00_2025_2Q.shp`를 WGS84 GeoJSON으로 변환한 뒤, 17개 시·도 전체를 같은 원본과 RDP tolerance `0.001`로 단순화해 사용합니다. 이전의 2018년 개요 데이터보다 해안선과 섬 형태를 더 세밀하게 표현하면서도, 원본의 약 540만 좌표를 앱에 그대로 포함하지 않습니다. 독도는 전국 축척에서도 주요 두 섬의 윤곽을 구분할 수 있도록 인근 링에만 tolerance `0.00003`을 적용하며, 개요 표식은 그중 면적이 큰 두 섬의 형태를 실제 위치에 표시합니다. 생성된 개요 데이터는 약 3.8만 좌표, Kotlin 소스 약 1MB입니다. 서로 맞닿는 시·도가 같은 원본 좌표를 공유해야 경계 사이에 틈이 생기지 않으므로, 한 화면에서 서로 다른 경계 출처를 섞지 않습니다. 이 변경은 초기 개요 geometry에만 적용하며 상세 지도와 서버 Location 코드는 변경하지 않습니다.
+
+전국 개요에서는 화면에서 점처럼 보이는 작은 섬을 처음부터 모두 그려 해안선이 번져 보이지 않도록, 지도상 면적이 작은 섬은 확대 전까지 감춥니다. 원본 geometry와 지역 선택 판정에는 그대로 남아 있으며, 확대하면 화면에 다시 표시됩니다.
 
 ```bash
 curl -L --fail -o /tmp/geoBoundaries-KOR-ADM1_simplified.geojson \
@@ -31,15 +33,17 @@ python3 tools/map/generate_korea_map.py /tmp/geoBoundaries-KOR-ADM1_simplified.g
 앱에 포함되는 topology-compatible 시·도 개요를 재생성하려면 다음을 사용합니다.
 
 ```bash
-curl -L --fail -o /tmp/skorea-provinces-2018-geo.json \
-  https://raw.githubusercontent.com/southkorea/southkorea-maps/fe65e05e549d04083e52f380a7e9166a8ea0a01e/kostat/2018/json/skorea-provinces-2018-geo.json
+python3 tools/map/convert_korea_shapefile.py \
+  /tmp/bnd_sido_00_2025_2Q.shp \
+  --code-field SIDO_CD \
+  --name-field SIDO_NM \
+  --output /tmp/korea-provinces-2025-q2.geojson
 python3 tools/map/generate_korea_map.py \
-  /tmp/geoBoundaries-KOR-ADM1_simplified.geojson \
-  --province-override-source /tmp/skorea-provinces-2018-geo.json \
-  --province-override-tolerance 0.002
+  /tmp/korea-provinces-2025-q2.geojson \
+  --province-tolerance 0.001
 ```
 
-RDP tolerance는 경도·위도 단위이며, 낮출수록 형태는 정밀해지고 생성 데이터와 Canvas 렌더링 비용이 커집니다. 현재 값은 시·도 실루엣과 맞닿는 경계를 보존하면서 원본 전체 좌표를 그대로 포함하지 않기 위한 기준값입니다.
+RDP tolerance는 경도·위도 단위이며, 낮출수록 형태는 정밀해지고 생성 데이터와 Canvas 렌더링 비용이 커집니다. 현재 값은 전국 개요의 해안선·섬 윤곽을 살리면서 앱 용량과 렌더링 비용을 제한하기 위한 기준입니다.
 
 ## 대한민국 시·군·구 데이터
 

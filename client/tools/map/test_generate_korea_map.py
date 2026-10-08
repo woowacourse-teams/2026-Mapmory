@@ -75,6 +75,39 @@ class GenerateKoreaMapTest(unittest.TestCase):
         self.assertLess(len(simplified), len(ring))
         self.assertIn([2, 2], simplified)
 
+    def test_독도는_전국_개요에서도_주요_섬_윤곽을_유지한다(self):
+        ring = [
+            [131.86941, 37.2410],
+            [131.86991, 37.2407],
+            [131.8700, 37.2402],
+            [131.86991, 37.2397],
+            [131.86941, 37.2394],
+            [131.86891, 37.2397],
+            [131.86882, 37.2402],
+            [131.86891, 37.2407],
+            [131.86941, 37.2410],
+        ]
+        feature = {
+            "type": "Feature",
+            "properties": {"shapeISO": "KR-47"},
+            "geometry": {"type": "Polygon", "coordinates": [ring]},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "province.json"
+            source.write_text(json.dumps({"features": [feature]}))
+
+            provinces = MODULE.read_province_features(source, simplify_tolerance=0.001)
+
+        self.assertEqual(1, len(provinces))
+        self.assertGreater(len(provinces[0][2][0]), len(MODULE.simplify_ring(ring, 0.001)))
+
+    def test_광주는_다른_시도와_같은_단순화_정밀도를_사용한다(self):
+        ring = [[126.65, 35.05], [126.75, 35.051], [126.85, 35.05], [126.85, 35.15], [126.65, 35.15]]
+
+        self.assertEqual(0.001, MODULE.province_ring_tolerance("KR-29", ring, 0.001))
+        self.assertEqual(0.001, MODULE.province_ring_tolerance("KR-46", ring, 0.001))
+        self.assertEqual(0.0, MODULE.province_ring_tolerance("KR-29", ring, 0.0))
+
     def test_주요_시도_재정의는_대상_코드만_교체한다(self):
         base = [
             ("KR-11", "서울특별시", [[[0, 0], [1, 0], [0, 1]]]),
