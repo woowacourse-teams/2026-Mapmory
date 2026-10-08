@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
@@ -109,11 +108,12 @@ private fun SkeletonCardText(
     }
 }
 
-/** 목록에서 받은 제목은 즉시 표시하고, 개수를 모르는 사진은 가짜 격자로 만들지 않는다. */
+/** 목록에서 받은 제목과 날짜를 표시하고 사진 한 장만 로딩 영역으로 남긴다. */
 @Composable
 internal fun TripRecordDetailSkeleton(
     modifier: Modifier = Modifier,
     locationName: String? = null,
+    latestDate: String? = null,
     onBackClick: () -> Unit = {},
 ) {
     val visibleLocationName = locationName?.takeIf { it.isNotBlank() } ?: "여행"
@@ -129,21 +129,26 @@ internal fun TripRecordDetailSkeleton(
                 .padding(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
         ) {
             AlbumHeading(locationName = visibleLocationName)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    color = TripRecordPalette.current.muted,
-                    strokeWidth = 2.dp,
-                )
+            Spacer(Modifier.height(32.dp))
+            latestDate.toAlbumDate()?.let { date ->
                 Text(
-                    text = "사진을 불러오고 있어요.",
-                    color = TripRecordPalette.current.secondaryText,
-                    fontSize = 14.sp,
+                    text = date.toAlbumDisplayDate(),
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
                 )
+                Spacer(Modifier.height(14.dp))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SkeletonBox(
+                    Modifier.weight(1f).aspectRatio(1f),
+                    RoundedCornerShape(14.dp),
+                )
+                Spacer(Modifier.weight(1f).aspectRatio(1f))
             }
         }
     }

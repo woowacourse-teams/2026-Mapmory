@@ -78,6 +78,7 @@ fun TripRecordDetailScreen(
     onInternalBackHandlerChanged: ((() -> Boolean)?) -> Unit = {},
     modifier: Modifier = Modifier,
     initialLocationName: String? = null,
+    initialLatestDate: String? = null,
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var expandedPhotoIndex by remember { mutableStateOf<Int?>(null) }
@@ -101,6 +102,7 @@ fun TripRecordDetailScreen(
             -> TripRecordDetailSkeleton(
                 modifier = Modifier.fillMaxSize(),
                 locationName = initialLocationName,
+                latestDate = initialLatestDate,
                 onBackClick = onBackClick,
             )
 
@@ -538,7 +540,7 @@ internal fun groupTripRecordPhotosByDate(
         )
 }
 
-private fun String?.toAlbumDate(): String? {
+internal fun String?.toAlbumDate(): String? {
     val value = this?.trim().orEmpty()
     val match = AlbumDatePattern.find(value) ?: return null
     val year = match.groupValues[1]
@@ -547,7 +549,7 @@ private fun String?.toAlbumDate(): String? {
     return "$year-$month-$day"
 }
 
-private fun String.toAlbumDisplayDate(): String {
+internal fun String.toAlbumDisplayDate(): String {
     val (year, month, day) = split('-')
     val weekday = runCatching { LocalDate.parse(this).dayOfWeek.ordinal }
         .getOrNull()

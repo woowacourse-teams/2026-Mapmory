@@ -23,4 +23,5 @@ internal data object ProfileRoute
 internal data class DetailRoute(
     val recordId: Long,
     val locationName: String? = null,
+    val latestDate: String? = null,
 )

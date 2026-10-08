@@ -37,8 +37,8 @@ internal class MapmoryNavigator(
         navController.navigate(EditorRoute(recordId, selectedLocationId))
     }
 
-    fun navigateToDetail(recordId: Long, locationName: String? = null) {
-        navController.navigate(DetailRoute(recordId, locationName))
+    fun navigateToDetail(recordId: Long, locationName: String? = null, latestDate: String? = null) {
+        navController.navigate(DetailRoute(recordId, locationName, latestDate))
     }
 
     fun navigateAfterEdit(recordId: Long) {

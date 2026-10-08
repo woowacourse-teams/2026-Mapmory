@@ -470,14 +470,16 @@ private fun TripRecordCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 7.dp),
             )
-            Text(
-                text = record.content.ifBlank { "사진으로 남긴 여행" },
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 7.dp),
-            )
+            if (record.content.isNotBlank()) {
+                Text(
+                    text = record.content,
+                    color = TripRecordPalette.current.bodyText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+            }
         },
     )
 }

@@ -33,6 +33,7 @@ internal fun TripRecordDetailRoute(
     onOpenEditor: () -> Unit,
     onOpenProfile: () -> Unit,
     initialLocationName: String? = null,
+    initialLatestDate: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -68,6 +69,7 @@ internal fun TripRecordDetailRoute(
         modifier = modifier,
         uiState = viewModel.uiState,
         initialLocationName = initialLocationName,
+        initialLatestDate = initialLatestDate,
         onBackClick = onBack,
         onEditClick = { onEdit(recordId) },
         onDeleteClick = {
