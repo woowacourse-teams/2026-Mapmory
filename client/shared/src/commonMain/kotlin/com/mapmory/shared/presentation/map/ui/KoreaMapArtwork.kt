@@ -74,6 +74,21 @@ fun KoreaMapArtwork(
     val projection = remember(bounds, viewportSize) {
         KoreaProjection.from(bounds, viewportSize)
     }
+    val dokdoRegion = remember(regions) { regions.firstOrNull { it.code == DokdoDistrictCode } }
+    val dokdoBaseCenter = remember(dokdoRegion, projection) {
+        dokdoRegion?.let { projection.project(DokdoMapPoint) }
+    }
+    val dokdoLabelStyle = TextStyle(
+        color = if (isDark) Color(0xFFE9F4F2) else Color(0xFF2F7659),
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    val dokdoLabel = remember(dokdoRegion, dokdoLabelStyle, textMeasurer) {
+        dokdoRegion?.let { textMeasurer.measure("독도", dokdoLabelStyle) }
+    }
+    val dokdoTapTarget = with(LocalDensity.current) { 28.dp.toPx() }
+    val dokdoLabelGap = with(LocalDensity.current) { 6.dp.toPx() }
+    val dokdoLabelPadding = with(LocalDensity.current) { 5.dp.toPx() }
     val preparedRegions = remember(regions, projection) {
         if (!projection.isValid) {
             emptyList()
@@ -144,10 +159,25 @@ fun KoreaMapArtwork(
                     )
                 }
             }
-            .pointerInput(viewportSize, projection, regions, showRegionLabels, preparedLabels) {
+            .pointerInput(
+                viewportSize,
+                projection,
+                regions,
+                showRegionLabels,
+                preparedLabels,
+                dokdoBaseCenter,
+                dokdoTapTarget,
+            ) {
                 detectTapGestures { position ->
                     val transform = currentTransform.value
                     val mapPoint = projection.unproject(position, transform, viewportSize)
+                    val dokdoScreenCenter = dokdoBaseCenter?.let { baseCenter ->
+                        transformMapPoint(baseCenter, transform, viewportSize)
+                    }
+                    val tappedDokdo = dokdoScreenCenter?.let { center ->
+                        abs(position.x - center.x) <= dokdoTapTarget &&
+                            abs(position.y - center.y) <= dokdoTapTarget
+                    } == true
                     val labelRegion = if (showRegionLabels) {
                         preparedLabels.mapNotNull { label ->
                             val labelCenter = transformMapPoint(label.baseCenter, transform, viewportSize)
@@ -164,7 +194,10 @@ fun KoreaMapArtwork(
                     } else {
                         null
                     }
-                    val tappedRegion = labelRegion ?: regions.regionAt(mapPoint)
+                    val tappedRegion = when {
+                        tappedDokdo -> dokdoRegion
+                        else -> labelRegion ?: regions.regionAt(mapPoint)
+                    }
                     tappedRegion?.let { currentOnRegionClick(it.code) }
                 }
             },
@@ -201,6 +234,41 @@ fun KoreaMapArtwork(
                 topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
             )
         }
+
+        dokdoBaseCenter?.let { baseCenter ->
+            val markerCenter = transformMapPoint(baseCenter, transform, viewportSize)
+            val label = dokdoLabel ?: return@let
+            val labelWidth = label.size.width + dokdoLabelPadding * 2f
+            val labelHeight = label.size.height + dokdoLabelPadding * 2f
+            val placeOnRight = markerCenter.x + dokdoLabelGap + labelWidth <= size.width - dokdoLabelPadding
+            val labelLeft = if (placeOnRight) {
+                markerCenter.x + dokdoLabelGap
+            } else {
+                markerCenter.x - dokdoLabelGap - labelWidth
+            }
+            val labelTop = (markerCenter.y - labelHeight / 2f)
+                .coerceIn(dokdoLabelPadding, size.height - labelHeight - dokdoLabelPadding)
+            drawRoundRect(
+                color = if (isDark) Color(0xFF173B2D) else Color.White,
+                topLeft = Offset(labelLeft, labelTop),
+                size = androidx.compose.ui.geometry.Size(labelWidth, labelHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelHeight / 2f),
+            )
+            drawText(
+                textLayoutResult = label,
+                topLeft = Offset(labelLeft + dokdoLabelPadding, labelTop + dokdoLabelPadding),
+            )
+            drawCircle(
+                color = if (isDark) Color(0xFF071B12) else Color.White,
+                radius = 7.dp.toPx(),
+                center = markerCenter,
+            )
+            drawCircle(
+                color = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272),
+                radius = 4.dp.toPx(),
+                center = markerCenter,
+            )
+        }
     }
 }
 
@@ -225,6 +293,8 @@ private const val MinZoom = 1f
 private const val MaxZoom = 6f
 private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
+private const val DokdoDistrictCode = "47940"
+private val DokdoMapPoint = GeoPoint(longitude = 131.86941f, latitude = 37.24006f)
 
 @Composable
 fun KoreaMapStatusMessage(
