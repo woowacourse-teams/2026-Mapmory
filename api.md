@@ -25,6 +25,7 @@
 | 구현됨 | `POST` | `/auth/login/guest` | 게스트 로그인 |
 | 구현됨 | `POST` | `/auth/token/refresh` | Access·Refresh Token 회전 재발급 |
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
+| 구현됨 | `GET` | `/admin/dashboard` | 운영 현황 집계 조회 |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -803,7 +804,29 @@ Authorization: Bearer {accessToken}
 해외 행정구역 저장을 지원할 때 필드와 집계 단계, API 버전을 함께 재검토해야 한다. 자세한 결정과
 변경 조건은 [ADR 0016](backend/docs/adr/0016-travel-statistics-read-model.md)을 참고한다.
 
-## 8. 구현 전 확인 사항
+## 8. 관리자 대시보드 통계 API
+
+`GET /api/v1/admin/dashboard?from=2026-10-02&to=2026-10-08`
+
+`from`, `to`는 선택 사항이다. 둘 다 생략하면 한국 시간 기준 오늘을 포함한 최근 7일을 조회한다.
+`from`만 지정하면 `to`는 오늘, `to`만 지정하면 `from`은 `to`를 포함한 최근 7일로 계산한다.
+조회 기간은 양 끝 날짜를 포함한다. `from`이 `to`보다 늦으면 `400 INVALID_DASHBOARD_DATE_RANGE`를 반환한다.
+
+```json
+{
+  "data": {
+    "period": { "from": "2026-10-02", "to": "2026-10-08" },
+    "members": { "total": 1284, "guest": 812, "kakao": 472, "newInPeriod": 35 },
+    "travelRecords": { "total": 5492, "createdInPeriod": 286 }
+  }
+}
+```
+
+`total`은 전체 누적 수이며 `newInPeriod`, `createdInPeriod`은 선택한 기간에 생성된 수다.
+기간별 집계는 `member.created_at`, `travel_record.created_at`을 기준으로 한다.
+관리자 세션 인증이 필요하다.
+
+## 9. 구현 전 확인 사항
 
 - `tag`, `travel_record_tag` Flyway 마이그레이션과 JPA 모델 추가
 - 태그 이름 정규화 규칙을 서버와 클라이언트에서 동일하게 적용

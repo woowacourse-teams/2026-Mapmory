@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,9 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
      */
     @EntityGraph(attributePaths = {"region", "region.parent", "region.root"})
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
+
+    @Query("SELECT COUNT(tr) FROM TravelRecord tr WHERE tr.createdAt >= :from AND tr.createdAt < :to")
+    long countCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     /**
      * RecordMedia는 TravelRecord 애그리거트 내부 엔티티이므로 루트 리포지토리에서 조회한다.
