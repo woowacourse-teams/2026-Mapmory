@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import { ArrowCounterClockwise, ArrowRight, Check, MapPin } from "@phosphor-icons/react";
 import koreaProvinces from "./data/korea-provinces.json";
+import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import {
+  HOW_PLAY_EXPERIENCE_TYPE,
   HOW_PLAY_PLACES,
   HOW_PLAY_PROVINCE_TOTAL,
   HOW_PLAY_STEPS,
   howPlayReducer,
+  howPlaySaveParameters,
   initialHowPlayState,
 } from "./howPlay.js";
 import { withSubjectParticle } from "./koreanParticle.js";
+import { useExperienceAnalytics } from "./useExperienceAnalytics.js";
 
 const KOREA_BOUNDS = { minLng: 124.5, maxLng: 130.05, minLat: 33, maxLat: 38.75 };
 const KOREA_LONGITUDE_SCALE = 0.81;
@@ -48,6 +52,10 @@ function HowItWorksPlay() {
   const remaining = HOW_PLAY_PLACES.filter(({ key }) => !state.filled.includes(key));
   const promptRef = useRef(null);
   const hasInteractedRef = useRef(false);
+  // sectionRef goes on .how-play-phone: .how-play is display: contents and the keyed screen remounts every step.
+  const { sectionRef, startExperience, completeStep } = useExperienceAnalytics(HOW_PLAY_EXPERIENCE_TYPE);
+  // Outlives "reset", so replays never re-send a place and save_index stays 1-3.
+  const savedPlacesRef = useRef(new Set());
   const announcement = state.step === 0
     ? "어디 다녀왔어요?"
     : state.step === 1
@@ -60,8 +68,20 @@ function HowItWorksPlay() {
     promptRef.current?.focus({ preventScroll: true });
   }, [state.step, state.placeKey]);
 
+  // Record the save only after the filled province is committed to the screen.
+  useEffect(() => {
+    const params = howPlaySaveParameters(state, savedPlacesRef.current);
+    if (!params) return;
+    savedPlacesRef.current.add(state.placeKey);
+    completeStep("how_play_save");
+    trackEvent(ANALYTICS_EVENTS.HOW_PLAY_SAVE, params);
+  }, [state, completeStep]);
+
   const act = (action) => {
     hasInteractedRef.current = true;
+    // Step 0 shows only the place buttons, so the first tap is always a place pick.
+    if (action.type === "pick-place") startExperience("place_select");
+    else if ((action.type === "toggle-photo" || action.type === "pick-all") && savedPlacesRef.current.size === 0) completeStep("photo_pick");
     dispatch(action);
   };
 
@@ -76,7 +96,7 @@ function HowItWorksPlay() {
         ))}
       </ol>
 
-      <div className="how-play-phone">
+      <div className="how-play-phone" ref={sectionRef}>
         <p className="sr-only" aria-live="polite">{hasInteractedRef.current ? announcement : ""}</p>
         <div className="how-play-screen" key={`${state.step}-${state.placeKey}`}>
           {state.step === 0 && (

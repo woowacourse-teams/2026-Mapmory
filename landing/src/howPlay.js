@@ -45,6 +45,8 @@ export const HOW_PLAY_PLACES = Object.freeze([
 export const HOW_PLAY_STEPS = Object.freeze(["장소 고르기", "사진 고르기", "저장"]);
 export const HOW_PLAY_PROVINCE_TOTAL = 17;
 
+export const HOW_PLAY_EXPERIENCE_TYPE = "how_play";
+
 export const initialHowPlayState = Object.freeze({ step: 0, placeKey: null, picked: [], filled: [] });
 
 export function howPlayReducer(state, action) {
@@ -77,4 +79,15 @@ export function howPlayReducer(state, action) {
     default:
       return state;
   }
+}
+
+// The how_play_save payload for a place's first save on this page, or null. Pure: the caller owns the Set.
+export function howPlaySaveParameters(state, savedPlaceKeys) {
+  if (state.step !== 2 || !state.placeKey || savedPlaceKeys.has(state.placeKey)) return null;
+  return {
+    experience_type: HOW_PLAY_EXPERIENCE_TYPE,
+    demo_place: state.placeKey,
+    save_index: savedPlaceKeys.size + 1,
+    selected_photos: state.picked.length,
+  };
 }

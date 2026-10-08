@@ -47,6 +47,7 @@ test("declares the agreed landing funnel events", () => {
       "waitlist_submit_error",
       "download_click",
       "hero_demo_select",
+      "how_play_save",
     ]),
   );
 });
@@ -73,6 +74,11 @@ test("adds the landing version and removes direct personal information", () => {
 test("rejects event names outside the agreed taxonomy", () => {
   assert.equal(isSupportedEvent("waitlist_submit"), true);
   assert.equal(isSupportedEvent("button_click"), false);
+});
+
+test("keeps the retired Korea add and download CTA events dead", () => {
+  assert.equal(isSupportedEvent("korea_memory_add"), false);
+  assert.equal(isSupportedEvent("download_cta_click"), false);
 });
 
 test("keeps seconds-based experience duration and distinct-memory parameters", () => {
@@ -125,6 +131,32 @@ test("allows only the approved photo-sheet diagnostic properties", () => {
       max_photo_index: 4,
       photos_viewed: 3,
       time_since_memory_open_seconds: 6.8,
+    },
+  );
+});
+
+test("allows only the approved how-play save properties", () => {
+  assert.deepEqual(
+    buildEventParameters({
+      experience_type: "how_play",
+      demo_place: "busan",
+      save_index: 2,
+      selected_photos: 3,
+      src: "/assets/photos/busan-01.webp",
+      alt: "해변 열차",
+      picked: [0, 2],
+      label: "부산",
+      add_index: 1,
+    }),
+    {
+      surface: "landing",
+      analytics_schema_version: "2",
+      landing_version: "v4",
+      traffic_type: "external",
+      experience_type: "how_play",
+      demo_place: "busan",
+      save_index: 2,
+      selected_photos: 3,
     },
   );
 });
