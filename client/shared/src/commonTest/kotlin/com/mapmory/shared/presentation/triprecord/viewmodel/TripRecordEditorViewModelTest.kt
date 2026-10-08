@@ -2,15 +2,21 @@ package com.mapmory.shared.presentation.triprecord.viewmodel
 
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.model.ProblemFieldErrorDto
+import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRegionSuggestion
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
 import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
@@ -26,6 +32,130 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class TripRecordEditorViewModelTest {
+    @Test
+    fun `장소_검색_서비스를_사용할_수_없으면_내부_설정_오류_대신_안내를_표시한다`() = runSuspend {
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String) = Result.failure<List<PlaceCandidate>>(
+                MapmoryApiException(
+                    statusCode = 503,
+                    code = "PLACE_PROVIDER_UNAVAILABLE",
+                    title = "장소 검색을 사용할 수 없습니다.",
+                    detail = "GEOAPIFY_API_KEY가 설정되지 않았습니다.",
+                    instance = "/api/v1/places/search",
+                    errors = emptyList(),
+                ),
+            )
+
+            override suspend fun selectPlace(placeId: String) = Result.failure<PlaceSelection>(
+                IllegalStateException("장소를 선택하지 않았습니다."),
+            )
+        }
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            placeRepository = placeRepository,
+        )
+        viewModel.startCreating(location = null)
+
+        viewModel.searchPlaces("한강공원")
+
+        assertEquals(
+            "장소 검색을 지금 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+            viewModel.uiState.placeSearchErrorMessage,
+        )
+        assertTrue(viewModel.uiState.hasSearchedPlaces)
+        assertFalse(viewModel.uiState.isSearchingPlaces)
+    }
+
+    @Test
+    fun `장소를_선택하면_추천_행정구역과_장소_연결을_기록에_저장한다`() = runSuspend {
+        val recordRepository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val candidate = PlaceCandidate(
+            placeId = "geoapify-place-id",
+            name = "판교역",
+            address = "경기도 성남시 분당구",
+            attribution = "© OpenStreetMap contributors",
+            attributionUrl = "https://www.openstreetmap.org/copyright",
+        )
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String) = Result.success(listOf(candidate))
+
+            override suspend fun selectPlace(placeId: String) = Result.success(
+                PlaceSelection(
+                    place = PlaceReference(placeId, "판교역"),
+                    countryCode = "KR",
+                    suggestedRegion = PlaceRegionSuggestion("KR", "41", "41135"),
+                    manualRegionRequired = false,
+                ),
+            )
+        }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(recordRepository),
+            updateTripRecord = UpdateTripRecordUseCase(recordRepository),
+            regionCatalog = StaticRegionCatalog(),
+            placeRepository = placeRepository,
+        )
+        viewModel.startCreating(location = null)
+
+        val selectedLocation = viewModel.selectPlace(candidate)
+
+        assertEquals("41130", selectedLocation?.regionCode)
+        assertEquals(candidate.placeId, viewModel.uiState.selectedPlace?.placeId)
+        viewModel.addPhotos(listOf(selectedPhoto("content://photo/pangyo")))
+        viewModel.updateStartDate("2026-10-01")
+        assertTrue(viewModel.save())
+        assertEquals(
+            candidate.placeId,
+            recordRepository.getTripRecord(1).getOrThrow().place?.placeId,
+        )
+    }
+
+    @Test
+    fun `장소의_행정구역을_직접_선택해도_장소_연결을_기록에_저장한다`() = runSuspend {
+        val recordRepository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val candidate = PlaceCandidate(
+            placeId = "geoapify-place-id",
+            name = "판교역",
+            address = null,
+            attribution = null,
+            attributionUrl = null,
+        )
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String) = Result.success(listOf(candidate))
+
+            override suspend fun selectPlace(placeId: String) = Result.success(
+                PlaceSelection(
+                    place = PlaceReference(placeId, "판교역"),
+                    countryCode = "KR",
+                    suggestedRegion = null,
+                    manualRegionRequired = true,
+                ),
+            )
+        }
+        val regionCatalog = StaticRegionCatalog()
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(recordRepository),
+            updateTripRecord = UpdateTripRecordUseCase(recordRepository),
+            regionCatalog = regionCatalog,
+            placeRepository = placeRepository,
+        )
+        viewModel.startCreating(location = null)
+
+        assertNull(viewModel.selectPlace(candidate))
+        assertTrue(viewModel.uiState.manualRegionRequired)
+        val selectedRegion = requireNotNull(regionCatalog.findDistrict("KR-41", "41130"))
+        viewModel.selectLocation(selectedRegion)
+        viewModel.addPhotos(listOf(selectedPhoto("content://photo/pangyo")))
+        viewModel.updateStartDate("2026-10-01")
+
+        assertFalse(viewModel.uiState.manualRegionRequired)
+        assertTrue(viewModel.save())
+        val savedRecord = recordRepository.getTripRecord(1).getOrThrow()
+        assertEquals(selectedRegion.id, savedRecord.locationId)
+        assertEquals(candidate.placeId, savedRecord.place?.placeId)
+    }
+
     @Test
     fun `수정 저장은 해제한 기존 사진을 빼고 새 사진을 추가한다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-09-30T00:00:00Z" }

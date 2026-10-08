@@ -32,8 +32,12 @@ struct MapmoryApp: App {
     private let analyticsLogger: FirebaseAnalyticsLogger
 
     init() {
+#if INTERNAL
+        analyticsLogger = FirebaseAnalyticsLogger(isEnabled: false)
+#else
         FirebaseApp.configure()
         analyticsLogger = FirebaseAnalyticsLogger()
+#endif
     }
 
     var body: some Scene {
@@ -68,7 +72,7 @@ private struct ComposeView: UIViewControllerRepresentable {
                 coordinator.updateTheme(isDark.boolValue)
             },
             analytics: analyticsLogger,
-            tokenStore: KeychainAuthTokenStore(),
+            tokenStore: KeychainAuthTokenStore(apiBaseUrl: AppConfiguration.apiBaseUrl),
             navigation: navigation,
         )
         let viewController = SystemBackHandlingViewController(

@@ -81,6 +81,7 @@ class FakeTripRecordRepository(
             createdAt = timestamp,
             updatedAt = timestamp,
             tags = tagsFor(draft.tagIds),
+            place = draft.place,
         )
         records += record
         return Result.success(record)
@@ -102,6 +103,7 @@ class FakeTripRecordRepository(
             endDate = draft.endDate,
             media = createMedia(draft),
             tags = tagsFor(draft.tagIds),
+            place = draft.place,
             updatedAt = now(),
         )
         records[index] = updatedRecord

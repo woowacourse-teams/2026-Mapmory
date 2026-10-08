@@ -2,9 +2,11 @@ package com.mapmory.shared.data.auth
 
 import android.content.Context
 
-class AndroidAuthTokenStore(context: Context) : AuthTokenStore {
+class AndroidAuthTokenStore(context: Context, apiBaseUrl: String) : AuthTokenStore {
     private val preferences = context.applicationContext.getSharedPreferences(
-        PreferencesName,
+        authTokenStorageKey(apiBaseUrl).let { key ->
+            if (key == "production") PreferencesName else "${PreferencesName}_$key"
+        },
         Context.MODE_PRIVATE,
     )
 

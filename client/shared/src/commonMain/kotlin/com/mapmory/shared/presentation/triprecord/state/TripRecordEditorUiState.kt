@@ -1,11 +1,22 @@
 package com.mapmory.shared.presentation.triprecord.state
 
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.Tag
 
 data class TripRecordEditorUiState(
     val recordId: Long? = null,
     val selectedLocation: Location? = null,
+    val selectedPlace: PlaceReference? = null,
+    val isPlaceSearchAvailable: Boolean = false,
+    val placeSearchResults: List<PlaceCandidate> = emptyList(),
+    val isSearchingPlaces: Boolean = false,
+    val hasSearchedPlaces: Boolean = false,
+    val placeSearchErrorMessage: String? = null,
+    val isSelectingPlace: Boolean = false,
+    val placeSelectionErrorMessage: String? = null,
+    val manualRegionRequired: Boolean = false,
     val title: String = "",
     val content: String = "",
     val startDate: String = "",

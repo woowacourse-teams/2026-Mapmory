@@ -126,6 +126,31 @@ data class TripRecordDetailDto(
     val tags: List<TagDto> = emptyList(),
     val createdAt: String,
     val updatedAt: String,
+    val placeProvider: String? = null,
+    val placeId: String? = null,
+    val placeName: String? = null,
+    val placeAttribution: String? = null,
+    val placeAttributionUrl: String? = null,
+)
+
+@Serializable
+data class PlaceCandidateDto(
+    val placeId: String,
+    val name: String,
+    val address: String? = null,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
+)
+
+@Serializable
+data class PlaceSelectionDto(
+    val placeId: String,
+    val name: String,
+    val countryCode: String,
+    val suggestedRegion: TripRecordRegionDto? = null,
+    val manualRegionRequired: Boolean = false,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
 )
 
 @Serializable
@@ -148,6 +173,7 @@ data class TripRecordRequestDto(
     val endDate: String?,
     val objectKeys: List<String> = emptyList(),
     val tagIds: List<Long> = emptyList(),
+    val placeId: String? = null,
 )
 
 @Serializable

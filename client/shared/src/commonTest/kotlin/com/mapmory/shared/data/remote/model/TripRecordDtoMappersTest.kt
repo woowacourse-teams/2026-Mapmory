@@ -1,6 +1,7 @@
 package com.mapmory.shared.data.remote.model
 
 import com.mapmory.shared.data.local.StaticRegionCatalog
+import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
 import kotlin.test.Test
@@ -76,6 +77,38 @@ class ApiDtoMappersTest {
     }
 
     @Test
+    fun `상세_응답의_장소_연결을_기록_도메인에_보존한다`() {
+        val result = TripRecordDetailDto(
+            id = 101,
+            title = "판교 산책",
+            content = "",
+            region = TripRecordRegionDto(
+                country = RegionCodeDto("KR", "대한민국"),
+                province = RegionCodeDto("41", "경기도"),
+                district = RegionCodeDto("41130", "성남시"),
+            ),
+            startDate = "2026-10-01",
+            endDate = null,
+            createdAt = "2026-10-01T10:30:00",
+            updatedAt = "2026-10-01T10:30:00",
+            placeId = "geoapify-place-id",
+            placeName = "판교역",
+            placeAttribution = "© OpenStreetMap contributors",
+            placeAttributionUrl = "https://www.openstreetmap.org/copyright",
+        ).toDomain(catalog)
+
+        assertEquals(
+            PlaceReference(
+                placeId = "geoapify-place-id",
+                name = "판교역",
+                attribution = "© OpenStreetMap contributors",
+                attributionUrl = "https://www.openstreetmap.org/copyright",
+            ),
+            result.place,
+        )
+    }
+
+    @Test
     fun `조회용_URL이_포함된_미디어_응답을_Object_Key와_함께_매핑한다`() {
         val result = TripRecordDetailDto(
             id = 101,
@@ -122,12 +155,14 @@ class ApiDtoMappersTest {
             startDate = "2026-08-11",
             endDate = null,
             mediaObjectKeys = listOf("travel-records/guest/a.jpg"),
+            place = PlaceReference("geoapify-place-id", "판교역"),
         ).toRequestDto(catalog)
 
         assertEquals("KR", request.countryCode)
         assertEquals("49", request.provinceCode)
         assertEquals("50110", request.districtCode)
         assertEquals(listOf("travel-records/guest/a.jpg"), request.objectKeys)
+        assertEquals("geoapify-place-id", request.placeId)
     }
 
     @Test

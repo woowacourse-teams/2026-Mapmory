@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.presentation.theme.MapmoryTypography
 
 @Composable
 internal fun TripRecordTheme(content: @Composable () -> Unit) {
@@ -45,6 +46,7 @@ internal fun TripRecordTheme(content: @Composable () -> Unit) {
     }
     MaterialTheme(
         colorScheme = colors,
+        typography = MapmoryTypography(),
         content = content,
     )
 }

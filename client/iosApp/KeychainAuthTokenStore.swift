@@ -3,9 +3,16 @@ import Security
 import Shared
 
 final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
-    private let service = "com.mapmory.ios.auth"
+    private let service: String
     private let account = "guest_tokens"
-    private let legacyKey = "mapmory_auth_tokens"
+    private let legacyKey: String
+
+    init(apiBaseUrl: String) {
+        let key = AuthEnvironmentKt.authTokenStorageKey(apiBaseUrl: apiBaseUrl)
+        service = key == "production" ? "com.mapmory.ios.auth" : "com.mapmory.ios.auth.\(key)"
+        legacyKey = key == "production" ? "mapmory_auth_tokens" : "mapmory_auth_tokens_\(key)"
+        super.init()
+    }
 
     func load() -> AuthTokens? {
         if let tokens = loadFromKeychain() {

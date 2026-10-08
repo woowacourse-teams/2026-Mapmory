@@ -1,6 +1,7 @@
 package com.mapmory.shared
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -24,6 +25,7 @@ import com.mapmory.shared.navigation.MapmoryNavigator
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.presentation.splash.MapmorySplashScreen
 import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalettes
+import com.mapmory.shared.presentation.theme.MapmoryTypography
 import kotlinx.coroutines.delay
 
 @Composable
@@ -83,16 +85,18 @@ fun MapmoryApp(
         LocalMapmoryAnalytics provides analytics,
     ) {
         ProvideTripRecordPalettes(isDark = isDarkTheme) {
-            if (showSplash) {
-                MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
-            } else {
-                MapmoryNavHost(
-                    navController = navController,
-                    navigator = navigator,
-                    container = appContainer,
-                    backHandlerRegistry = backHandlerRegistry,
-                    contentWindowInsets = contentWindowInsets,
-                )
+            MaterialTheme(typography = MapmoryTypography()) {
+                if (showSplash) {
+                    MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
+                } else {
+                    MapmoryNavHost(
+                        navController = navController,
+                        navigator = navigator,
+                        container = appContainer,
+                        backHandlerRegistry = backHandlerRegistry,
+                        contentWindowInsets = contentWindowInsets,
+                    )
+                }
             }
         }
     }

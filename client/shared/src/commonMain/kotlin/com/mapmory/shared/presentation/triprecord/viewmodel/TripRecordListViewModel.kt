@@ -29,6 +29,7 @@ class TripRecordListViewModel(
 ) : ViewModel() {
     private var isRouteInitialized = false
     private var loadGeneration = 0L
+    private var loadedQuery: TripRecordQuery? = null
     private var loadedRevision: Long? = null
 
     var uiState by mutableStateOf<TripRecordListUiState>(TripRecordListUiState.Idle)
@@ -95,11 +96,18 @@ class TripRecordListViewModel(
 
     suspend fun load(query: TripRecordQuery = this.query) {
         val generation = ++loadGeneration
+        val previousSuccess = (uiState as? TripRecordListUiState.Success)
+            ?.takeIf { loadedQuery == query }
         this.query = query
-        uiState = TripRecordListUiState.Loading
+        uiState = previousSuccess
+            ?.copy(isRefreshing = true, refreshError = null)
+            ?: TripRecordListUiState.Loading
         val page = getTripRecords(query).getOrElse { error ->
             if (generation == loadGeneration) {
-                uiState = TripRecordListUiState.Error(
+                uiState = previousSuccess?.copy(
+                    isRefreshing = false,
+                    refreshError = error.message ?: "목록 갱신 실패",
+                ) ?: TripRecordListUiState.Error(
                     error.message ?: "여행 기록을 불러오지 못했습니다.",
                 )
             }
@@ -107,6 +115,7 @@ class TripRecordListViewModel(
         }
         if (generation != loadGeneration) return
 
+        loadedQuery = query
         uiState = TripRecordListUiState.Success(
             records = page.records.map(::toUiState),
             page = page.page,

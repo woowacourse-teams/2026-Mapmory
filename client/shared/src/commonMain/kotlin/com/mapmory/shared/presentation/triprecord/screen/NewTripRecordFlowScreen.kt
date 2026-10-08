@@ -3,13 +3,16 @@ package com.mapmory.shared.presentation.triprecord.screen
 import com.mapmory.shared.presentation.components.MapmoryPhotoExpansion
 import com.mapmory.shared.presentation.components.MapmoryPhotoViewer
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,10 +49,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
@@ -68,6 +74,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -75,6 +82,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionScope
@@ -83,6 +91,8 @@ import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
@@ -102,6 +112,7 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 internal enum class NewRecordFlowStep {
@@ -134,9 +145,39 @@ internal fun newRecordBackAction(
 }
 
 private const val KoreaCountryId = 1L
+private const val MinPlaceQueryLength = 2
+private const val MaxPlaceQueryLength = 100
+private const val PlaceSearchDebounceMillis = 350L
 private const val PhotoListPrefetchGroups = 2
 private const val PhotoLimitMessageDurationMillis = 3_000L
 private const val DragAutoScrollFrameMillis = 16L
+private const val DefaultPhotoGridColumns = 3
+private const val MinPhotoGridColumns = 1
+private const val MaxPhotoGridColumns = 4
+private const val PhotoGridZoomThreshold = 1.25f
+
+internal data class PhotoGridPinchResult(
+    val columnCount: Int,
+    val accumulatedZoom: Float,
+)
+
+internal fun photoGridPinchResultAfterZoom(current: Int, accumulatedZoom: Float): PhotoGridPinchResult? {
+    val nextColumns = when {
+        accumulatedZoom >= PhotoGridZoomThreshold -> (current - 1).coerceAtLeast(MinPhotoGridColumns)
+        accumulatedZoom <= 1f / PhotoGridZoomThreshold -> (current + 1).coerceAtMost(MaxPhotoGridColumns)
+        else -> return null
+    }
+    val columnsChanged = nextColumns != current
+
+    return PhotoGridPinchResult(
+        columnCount = nextColumns,
+        accumulatedZoom = when {
+            !columnsChanged -> 1f
+            accumulatedZoom >= PhotoGridZoomThreshold -> accumulatedZoom / PhotoGridZoomThreshold
+            else -> accumulatedZoom * PhotoGridZoomThreshold
+        },
+    )
+}
 
 internal data class PhotoPickerScrollBarMetrics(
     val thumbFraction: Float,
@@ -282,6 +323,10 @@ internal fun NewTripRecordFlowScreen(
     onLocationSelected: (Location) -> Unit,
     onLocationCleared: () -> Unit,
     onLocationTouched: () -> Unit,
+    onPlaceSearchQueryChanged: () -> Unit,
+    onSearchPlaces: suspend (String) -> Unit,
+    onPlaceCandidateSelected: suspend (PlaceCandidate) -> Location?,
+    onSelectedPlaceCleared: () -> Unit,
     onPhotosAdded: (List<SelectedPhoto>) -> Unit,
     onPhotoRemoved: (String) -> Unit,
     onPhotoLoadingChanged: (Boolean) -> Unit,
@@ -317,6 +362,7 @@ internal fun NewTripRecordFlowScreen(
 ) {
     val analytics = LocalMapmoryAnalytics.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val placeSelectionScope = rememberCoroutineScope()
     val selectableLocations = remember(locations) {
         locations.selectableTripRecordDestinations()
     }
@@ -556,10 +602,35 @@ internal fun NewTripRecordFlowScreen(
         }
     }
 
-    LaunchedEffect(uiState.selectedLocation?.id) {
-        uiState.selectedLocation?.let { selected ->
-            locationSearchQuery = selected.flowDisplayName(locations)
+    LaunchedEffect(uiState.selectedLocation?.id, uiState.selectedPlace?.placeId) {
+        val selectedValue = uiState.selectedPlace?.name
+            ?: uiState.selectedLocation?.flowDisplayName(locations)
+        if (locationSearchQuery.isBlank() && selectedValue != null) {
+            locationSearchQuery = selectedValue
         }
+    }
+
+    LaunchedEffect(
+        locationSearchQuery,
+        uiState.selectedLocation?.id,
+        uiState.selectedPlace?.placeId,
+        uiState.isSelectingPlace,
+        uiState.manualRegionRequired,
+    ) {
+        val query = locationSearchQuery.trim()
+        val selectedRegionName = uiState.selectedLocation?.flowDisplayName(locations)
+        if (
+            !uiState.isPlaceSearchAvailable ||
+            query.length < MinPlaceQueryLength ||
+            query.equals(uiState.selectedPlace?.name, ignoreCase = true) ||
+            query.equals(selectedRegionName, ignoreCase = true) ||
+            uiState.isSelectingPlace ||
+            uiState.manualRegionRequired
+        ) {
+            return@LaunchedEffect
+        }
+        delay(PlaceSearchDebounceMillis)
+        onSearchPlaces(query.take(MaxPlaceQueryLength))
     }
 
     LaunchedEffect(
@@ -816,7 +887,8 @@ internal fun NewTripRecordFlowScreen(
                             onSearchQueryChanged = {
                                 onLocationTouched()
                                 if (it.isNotBlank()) logFieldInteraction("location")
-                                locationSearchQuery = it
+                                locationSearchQuery = it.take(MaxPlaceQueryLength)
+                                onPlaceSearchQueryChanged()
                                 val selectedName = uiState.selectedLocation?.flowDisplayName(locations)
                                 if (selectedName != null && it != selectedName) onLocationCleared()
                                 detailsErrorMessage = null
@@ -832,9 +904,36 @@ internal fun NewTripRecordFlowScreen(
                                 )
                                 keyboard?.hide()
                                 onLocationSelected(location)
+                                onPlaceSearchQueryChanged()
                                 pendingLocation = location
                                 locationSearchQuery = location.flowDisplayName(locations)
                                 detailsErrorMessage = null
+                            },
+                            onPlaceCandidateSelected = { candidate ->
+                                if (!uiState.isSelectingPlace) {
+                                    logFieldInteraction("location")
+                                    keyboard?.hide()
+                                    onPlaceSearchQueryChanged()
+                                    locationSearchQuery = candidate.name
+                                    placeSelectionScope.launch {
+                                        onPlaceCandidateSelected(candidate)?.let { location ->
+                                            analytics.logEvent(
+                                                MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
+                                                mapOf(
+                                                    "source" to "place_search",
+                                                    "location_type" to location.type.name.lowercase(),
+                                                ),
+                                            )
+                                            pendingLocation = location
+                                        }
+                                    }
+                                }
+                            },
+                            onSelectedPlaceCleared = {
+                                onSelectedPlaceCleared()
+                                locationSearchQuery = uiState.selectedLocation
+                                    ?.flowDisplayName(locations)
+                                    .orEmpty()
                             },
                             onBackClick = ::returnToPreviousStep,
                             onCompleteClick = ::beginPhotoSearch,
@@ -1059,9 +1158,36 @@ private fun LocationStep(
     errorMessage: String?,
     onSearchQueryChanged: (String) -> Unit,
     onLocationSelected: (Location) -> Unit,
+    onPlaceCandidateSelected: (PlaceCandidate) -> Unit,
+    onSelectedPlaceCleared: () -> Unit,
     onBackClick: () -> Unit,
     onCompleteClick: () -> Unit,
 ) {
+    val locationScrollState = rememberScrollState()
+    val queryMatchesSelectedRegion = searchQuery.trim().equals(
+        uiState.selectedLocation?.flowDisplayName(locations),
+        ignoreCase = true,
+    )
+    LaunchedEffect(
+        searchQuery,
+        uiState.isSearchingPlaces,
+        uiState.hasSearchedPlaces,
+        uiState.placeSearchErrorMessage,
+        uiState.placeSearchResults.size,
+    ) {
+        if (
+            uiState.isPlaceSearchAvailable &&
+            uiState.hasSearchedPlaces &&
+            !uiState.isSearchingPlaces &&
+            searchQuery.trim().length >= MinPlaceQueryLength &&
+            !uiState.manualRegionRequired &&
+            !queryMatchesSelectedRegion &&
+            !searchQuery.trim().equals(uiState.selectedPlace?.name, ignoreCase = true)
+        ) {
+            withFrameNanos { }
+            locationScrollState.animateScrollTo(locationScrollState.maxValue)
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         FlowTopBar(
             title = "사진 불러오기",
@@ -1073,7 +1199,7 @@ private fun LocationStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(locationScrollState)
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 28.dp),
@@ -1093,30 +1219,93 @@ private fun LocationStep(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 14.dp),
             )
-            Text(
-                text = "해당 장소에서 찍은 사진을 불러와줘요.",
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 14.sp,
-                lineHeight = 21.sp,
-                modifier = Modifier.padding(top = 10.dp),
-            )
             FlowSectionTitle(
                 title = "장소",
                 badge = "필수",
-                helper = "한 글자부터 검색할 수 있어요.",
-                modifier = Modifier.padding(top = 30.dp),
+                helper = "지역은 한 글자부터, 장소는 두 글자부터 검색해요.",
+                modifier = Modifier.padding(top = 24.dp),
             )
             LocationSearchField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChanged,
                 modifier = Modifier.padding(top = 12.dp),
             )
+            uiState.selectedPlace?.let { place ->
+                SelectedPlaceCard(
+                    place = place,
+                    regionName = uiState.selectedLocation?.flowDisplayName(locations),
+                    manualRegionRequired = uiState.manualRegionRequired,
+                    onClear = onSelectedPlaceCleared,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
             if (searchQuery.isNotBlank()) {
-                LocationSearchResults(
-                    results = searchResults,
-                    locations = locations,
-                    selectedLocationId = uiState.selectedLocation?.id,
-                    onLocationSelected = onLocationSelected,
+                if (
+                    uiState.isPlaceSearchAvailable &&
+                    searchQuery.trim().length >= MinPlaceQueryLength &&
+                    !uiState.manualRegionRequired &&
+                    !queryMatchesSelectedRegion &&
+                    !searchQuery.trim().equals(uiState.selectedPlace?.name, ignoreCase = true)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "장소 검색 결과",
+                            color = TripRecordPalette.current.headingText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 18.dp),
+                        )
+                        PlaceSearchResults(
+                            results = uiState.placeSearchResults,
+                            isLoading = uiState.isSearchingPlaces,
+                            isSelecting = uiState.isSelectingPlace,
+                            hasSearched = uiState.hasSearchedPlaces,
+                            errorMessage = uiState.placeSearchErrorMessage,
+                            onPlaceSelected = onPlaceCandidateSelected,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        uiState.placeSearchResults.firstOrNull()?.let { candidate ->
+                            PlaceAttributionLinks(
+                                attribution = candidate.attribution,
+                                attributionUrl = candidate.attributionUrl,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                }
+                if (uiState.manualRegionRequired) {
+                    Text(
+                        text = "장소의 행정구역을 찾지 못했어요. 사진을 찾을 지역을 직접 선택해 주세요.",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                if (searchResults.isNotEmpty()) {
+                    Text(
+                        text = "행정구역 검색 결과",
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 18.dp),
+                    )
+                    LocationSearchResults(
+                        results = searchResults,
+                        locations = locations,
+                        selectedLocationId = uiState.selectedLocation?.id,
+                        onLocationSelected = onLocationSelected,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+            }
+            uiState.placeSelectionErrorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = TripRecordPalette.current.danger,
+                    fontSize = 12.sp,
                     modifier = Modifier.padding(top = 10.dp),
                 )
             }
@@ -1143,6 +1332,191 @@ private fun LocationStep(
         }
     }
 }
+
+@Composable
+private fun SelectedPlaceCard(
+    place: PlaceReference,
+    regionName: String?,
+    manualRegionRequired: Boolean,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(TripRecordPalette.current.surfaceElevated)
+            .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(18.dp))
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "선택한 장소",
+                    color = TripRecordPalette.current.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = place.name,
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            TextButton(onClick = onClear) {
+                Text("해제", color = TripRecordPalette.current.accent)
+            }
+        }
+        place.address?.let { address ->
+            Text(
+                text = address,
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Text(
+            text = when {
+                manualRegionRequired -> "사진을 찾을 행정구역을 아래에서 직접 선택해 주세요."
+                regionName != null -> "사진 검색 지역: $regionName"
+                else -> "장소의 행정구역을 확인하고 있어요."
+            },
+            color = TripRecordPalette.current.bodyText,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        PlaceAttributionLinks(
+            attribution = place.attribution,
+            attributionUrl = place.attributionUrl,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun PlaceSearchResults(
+    results: List<PlaceCandidate>,
+    isLoading: Boolean,
+    isSelecting: Boolean,
+    hasSearched: Boolean,
+    errorMessage: String?,
+    onPlaceSelected: (PlaceCandidate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        isLoading || isSelecting -> Row(
+            modifier = modifier.padding(horizontal = 4.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = TripRecordPalette.current.accent,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                text = if (isSelecting) "장소 정보를 확인하고 있어요." else "장소를 찾고 있어요.",
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+        errorMessage != null -> Text(
+            text = errorMessage,
+            color = TripRecordPalette.current.danger,
+            fontSize = 13.sp,
+            modifier = modifier.padding(horizontal = 4.dp, vertical = 14.dp),
+        )
+        results.isEmpty() && hasSearched -> Text(
+            text = "장소 검색 결과가 없습니다.",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 13.sp,
+            modifier = modifier.padding(horizontal = 4.dp, vertical = 14.dp),
+        )
+        results.isNotEmpty() -> LazyColumn(
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(max = 64.dp * 3)
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(18.dp)),
+        ) {
+            items(results, key = PlaceCandidate::placeId) { candidate ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            enabled = !isSelecting,
+                            role = Role.Button,
+                            onClick = { onPlaceSelected(candidate) },
+                        )
+                        .background(TripRecordPalette.current.surface)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = candidate.name,
+                        color = TripRecordPalette.current.text,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    candidate.address?.let { address ->
+                        Text(
+                            text = address,
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceAttributionLinks(
+    attribution: String?,
+    attributionUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = attribution ?: "© OpenStreetMap contributors",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 10.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (attributionUrl.isNullOrBlank()) Modifier else Modifier.clickable(
+                        onClick = { runCatching { uriHandler.openUri(attributionUrl) } },
+                    ),
+                ),
+        )
+        Text(
+            text = "Powered by Geoapify",
+            color = TripRecordPalette.current.accent,
+            fontSize = 10.sp,
+            maxLines = 1,
+            modifier = Modifier.clickable(
+                onClick = { runCatching { uriHandler.openUri(GeoapifyUrl) } },
+            ),
+        )
+    }
+}
+
+private const val GeoapifyUrl = "https://www.geoapify.com/"
 
 @Composable
 private fun FlowTopBar(
@@ -1193,30 +1567,27 @@ private fun FlowSectionTitle(
     helper: String,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Text(
-            text = title,
-            color = TripRecordPalette.current.headingText,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = badge,
-            color = TripRecordPalette.current.accent,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
-        )
-        Spacer(Modifier.weight(1f))
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = title,
+                color = TripRecordPalette.current.headingText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = badge,
+                color = TripRecordPalette.current.accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
+            )
+        }
         Text(
             text = helper,
             color = TripRecordPalette.current.secondaryText,
             fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
         )
     }
 }
@@ -1254,7 +1625,7 @@ private fun LocationSearchField(
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (value.isBlank()) {
                         Text(
-                            text = "도시 또는 국가 검색",
+                            text = "장소 또는 행정구역 검색",
                             color = TripRecordPalette.current.muted,
                             fontSize = 15.sp,
                         )
@@ -1547,6 +1918,36 @@ private fun PhotoPickerStep(
     onAllToggle: () -> Unit,
 ) {
     val groups = remember(pagingState.photos) { pagingState.photos.toPhotoDateGroups() }
+    var photoGridColumns by rememberSaveable { mutableStateOf(DefaultPhotoGridColumns) }
+    var accumulatedGridZoom by remember { mutableStateOf(1f) }
+    val previewButtonSize by animateDpAsState(
+        targetValue = when (photoGridColumns) {
+            1 -> 48.dp
+            2 -> 38.dp
+            3 -> 32.dp
+            else -> 27.dp
+        },
+        label = "photoPreviewButtonSize",
+    )
+    val previewIconSize by animateDpAsState(
+        targetValue = when (photoGridColumns) {
+            1 -> 24.dp
+            2 -> 19.dp
+            3 -> 16.dp
+            else -> 14.dp
+        },
+        label = "photoPreviewIconSize",
+    )
+    val gridTransformableState = rememberTransformableState { _, zoomChange, _, _ ->
+        accumulatedGridZoom *= zoomChange
+        photoGridPinchResultAfterZoom(photoGridColumns, accumulatedGridZoom)?.let { result ->
+            photoGridColumns = result.columnCount
+            accumulatedGridZoom = result.accumulatedZoom
+        }
+    }
+    LaunchedEffect(gridTransformableState.isTransformInProgress) {
+        if (!gridTransformableState.isTransformInProgress) accumulatedGridZoom = 1f
+    }
     val density = LocalDensity.current
     val autoScrollEdgeSize = with(density) { 104.dp.toPx() }
     val maximumAutoScrollStep = with(density) { 30.dp.toPx() }
@@ -1610,6 +2011,12 @@ private fun PhotoPickerStep(
                 modifier = Modifier
                     .fillMaxSize()
                     .navigationBarsPadding()
+                    .transformable(
+                        state = gridTransformableState,
+                        canPan = { false },
+                        lockRotationOnZoomPan = true,
+                        enabled = pagingState.photos.isNotEmpty(),
+                    )
                     .clipToBounds()
                     .onGloballyPositioned { coordinates -> listBounds = coordinates.boundsInRoot() }
                     .pointerInput(dragSelectionController) {
@@ -1690,12 +2097,16 @@ private fun PhotoPickerStep(
                         PhotoDateGroup(
                             date = date,
                             photos = photos,
+                            columnCount = photoGridColumns,
+                            previewButtonSize = previewButtonSize,
+                            previewIconSize = previewIconSize,
                             selectedIds = pagingState.selectedIds,
                             onGroupToggle = { onGroupToggle(photos.map(SelectedPhoto::id)) },
                             onPhotoPreview = onPhotoPreview,
                             onPhotoToggle = onPhotoToggle,
                             dragSelectionController = dragSelectionController,
                             recordedPhotoIds = recordedPhotoIds,
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -1933,15 +2344,19 @@ private fun EmptyPhotoPicker(onPickFromGallery: () -> Unit) {
 private fun PhotoDateGroup(
     date: String,
     photos: List<SelectedPhoto>,
+    columnCount: Int,
+    previewButtonSize: Dp,
+    previewIconSize: Dp,
     selectedIds: Set<String>,
     onGroupToggle: () -> Unit,
     onPhotoPreview: (SelectedPhoto) -> Unit,
     onPhotoToggle: (SelectedPhoto) -> Unit,
     dragSelectionController: PhotoDragSelectionController,
     recordedPhotoIds: Set<String>,
+    modifier: Modifier = Modifier,
 ) {
     val allSelected = photos.all { it.id in selectedIds }
-    Column {
+    Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1974,7 +2389,7 @@ private fun PhotoDateGroup(
             modifier = Modifier.padding(top = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            photos.chunked(2).forEach { rowPhotos ->
+            photos.chunked(columnCount).forEach { rowPhotos ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1987,10 +2402,14 @@ private fun PhotoDateGroup(
                             onToggle = { onPhotoToggle(photo) },
                             dragSelectionController = dragSelectionController,
                             recorded = photo.id in recordedPhotoIds,
+                            previewButtonSize = previewButtonSize,
+                            previewIconSize = previewIconSize,
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    if (rowPhotos.size == 1) Spacer(Modifier.weight(1f))
+                    repeat(columnCount - rowPhotos.size) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -2000,6 +2419,8 @@ private fun PhotoDateGroup(
 @Composable
 private fun PhotoSelectionCard(
     photo: SelectedPhoto,
+    previewButtonSize: Dp,
+    previewIconSize: Dp,
     selected: Boolean,
     onPreview: () -> Unit,
     onToggle: () -> Unit,
@@ -2066,7 +2487,7 @@ private fun PhotoSelectionCard(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
-                .size(38.dp)
+                .size(previewButtonSize)
                 .background(
                     if (selected) {
                         TripRecordPalette.current.accent
@@ -2081,7 +2502,7 @@ private fun PhotoSelectionCard(
         ) {
             SearchIcon(
                 color = TripRecordPalette.current.contentOnMedia,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier.size(previewIconSize),
             )
         }
     }

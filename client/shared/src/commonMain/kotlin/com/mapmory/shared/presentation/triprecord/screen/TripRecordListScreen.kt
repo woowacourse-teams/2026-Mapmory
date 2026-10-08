@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +118,12 @@ fun TripRecordListScreen(
                         }
 
                         is TripRecordListUiState.Success -> {
+                            if (uiState.isRefreshing || uiState.refreshError != null) {
+                                TripRecordRefreshStatus(
+                                    isRefreshing = uiState.isRefreshing,
+                                    onRetryClick = onRetryClick,
+                                )
+                            }
                             if (uiState.records.isEmpty() && pendingSaves.isEmpty()) {
                                 EmptyTripRecords(
                                     hasFilter = filter.locationId != null || filter.selectedTagId != null,
@@ -177,6 +184,43 @@ fun TripRecordListScreen(
                 selectedLabelColor = TripRecordPalette.current.navigationSelectedLabel,
                 unselectedColor = TripRecordPalette.current.navigationUnselected,
             )
+        }
+    }
+}
+
+@Composable
+private fun TripRecordRefreshStatus(
+    isRefreshing: Boolean,
+    onRetryClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = TripRecordPalette.current.primary,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                text = "여행 기록을 새로 고치고 있어요.",
+                color = TripRecordPalette.current.bodyText,
+                fontSize = 12.sp,
+            )
+        } else {
+            Text(
+                text = "새로 고치지 못했어요. 이전 목록을 보여드려요.",
+                color = TripRecordPalette.current.bodyText,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onRetryClick) {
+                Text("다시 시도", color = TripRecordPalette.current.primary)
+            }
         }
     }
 }

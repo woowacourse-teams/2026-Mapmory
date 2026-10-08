@@ -6,6 +6,7 @@ import com.mapmory.shared.data.auth.AuthTokens
 import com.mapmory.shared.data.remote.AccessTokenProvider
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
 import com.mapmory.shared.data.remote.configureCommonHttpClient
+import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
 import com.mapmory.shared.data.settings.MemoryOnboardingPreference
 import com.mapmory.shared.data.settings.MemoryThemePreference
@@ -32,6 +33,69 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class AppContainerTest {
+    @Test
+    fun `장소_검색과_선택은_초기_인증_실패_후_재시도하면_복구된다`() = runBlocking {
+        for (selectPlace in listOf(false, true)) {
+            var loginRequests = 0
+            var placeRequests = 0
+            val client = HttpClient(MockEngine) {
+                configureCommonHttpClient()
+                engine {
+                    addHandler { request ->
+                        if (request.url.encodedPath == "/api/v1/auth/login/guest") {
+                            loginRequests++
+                            if (loginRequests == 1) {
+                                throw IllegalStateException("네트워크 연결 실패")
+                            }
+                            respondJson(
+                                """{"data":{"accessToken":"guest-access","refreshToken":"guest-refresh","isNewMember":true}}""",
+                            )
+                        } else {
+                            placeRequests++
+                            assertEquals("Bearer guest-access", request.headers[HttpHeaders.Authorization])
+                            if (selectPlace) {
+                                assertEquals("/api/v1/places/test-place", request.url.encodedPath)
+                                respondJson(
+                                    """{"data":{"placeId":"test-place","name":"도쿄역","countryCode":"JP","manualRegionRequired":false}}""",
+                                )
+                            } else {
+                                assertEquals("/api/v1/places/search", request.url.encodedPath)
+                                respondJson("""{"data":[{"placeId":"test-place","name":"도쿄역"}]}""")
+                            }
+                        }
+                    }
+                }
+            }
+            val container = createGuestRemoteAppContainer(
+                client = client,
+                apiBaseUrl = "https://api.example.com/api/v1",
+                tokenStore = TestAuthTokenStore(),
+            )
+            try {
+                // 다른 API에서 인증에 실패한 뒤 장소 기능만으로 복구하는 상황이다.
+                assertTrue(container.tagRepository.getTags().isFailure)
+                assertEquals(1, loginRequests)
+                assertEquals(0, placeRequests)
+                val editor = container.viewModelFactory.createTripRecordEditorViewModel()
+                if (selectPlace) {
+                    editor.selectPlace(
+                        PlaceCandidate(
+                            "test-place", "도쿄역", null, null, null,
+                        ),
+                    )
+                    assertEquals("test-place", editor.uiState.selectedPlace?.placeId)
+                } else {
+                    editor.searchPlaces("도쿄역")
+                    assertEquals("test-place", editor.uiState.placeSearchResults.single().placeId)
+                }
+                assertEquals(2, loginRequests)
+                assertEquals(1, placeRequests)
+            } finally {
+                container.close()
+            }
+        }
+    }
+
     @Test
     fun `게스트_원격_컨테이너는_로그인하고_서버_기록을_저장한_뒤_조회한다`() = runBlocking {
         var requestCount = 0

@@ -22,6 +22,12 @@ val debugApiBaseUrl = localProperties
     ?.takeIf(String::isNotBlank)
     ?: "https://dev-api.map-mory.com/api/v1"
 val releaseApiBaseUrl = "https://api.map-mory.com/api/v1"
+val internalStoreFile = providers.environmentVariable("MAPMORY_INTERNAL_STORE_FILE").orNull
+val internalStorePassword = providers.environmentVariable("MAPMORY_INTERNAL_STORE_PASSWORD").orNull
+val internalKeyAlias = providers.environmentVariable("MAPMORY_INTERNAL_KEY_ALIAS").orNull
+val internalKeyPassword = providers.environmentVariable("MAPMORY_INTERNAL_KEY_PASSWORD").orNull
+val hasInternalSigning = listOf(internalStoreFile, internalStorePassword, internalKeyAlias, internalKeyPassword)
+    .all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.mapmory.android"
@@ -41,6 +47,17 @@ android {
         resValues = true
     }
 
+    signingConfigs {
+        if (hasInternalSigning) {
+            create("internal") {
+                storeFile = file(requireNotNull(internalStoreFile))
+                storePassword = internalStorePassword
+                keyAlias = internalKeyAlias
+                keyPassword = internalKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             resValue(
@@ -48,6 +65,14 @@ android {
                 name = "mapmory_api_base_url",
                 value = debugApiBaseUrl,
             )
+        }
+        create("internal") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".internal"
+            versionNameSuffix = "-internal"
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.findByName("internal")
+            resValue("string", "mapmory_api_base_url", debugApiBaseUrl)
         }
         release {
             isMinifyEnabled = false
@@ -58,6 +83,10 @@ android {
             )
         }
     }
+}
+
+tasks.matching { it.name == "processInternalGoogleServices" }.configureEach {
+    enabled = false
 }
 
 dependencies {

@@ -5,6 +5,10 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.MapRegionLevel
 import com.mapmory.shared.domain.model.MapRegionSummary
 import com.mapmory.shared.domain.model.MapRegionType
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRegionSuggestion
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
@@ -75,8 +79,42 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
         createdAt = createdAt,
         updatedAt = updatedAt,
         tags = tags.map(TagDto::toDomain),
+        place = placeId?.let { id ->
+            PlaceReference(
+                placeId = id,
+                name = placeName.orEmpty(),
+                attribution = placeAttribution,
+                attributionUrl = placeAttributionUrl,
+            )
+        },
     )
 }
+
+fun PlaceCandidateDto.toDomain(): PlaceCandidate = PlaceCandidate(
+    placeId = placeId,
+    name = name,
+    address = address,
+    attribution = attribution,
+    attributionUrl = attributionUrl,
+)
+
+fun PlaceSelectionDto.toDomain(): PlaceSelection = PlaceSelection(
+    place = PlaceReference(
+        placeId = placeId,
+        name = name,
+        attribution = attribution,
+        attributionUrl = attributionUrl,
+    ),
+    countryCode = countryCode,
+    suggestedRegion = suggestedRegion?.let { region ->
+        PlaceRegionSuggestion(
+            countryCode = region.country.code,
+            provinceCode = region.province?.code,
+            districtCode = region.district?.code,
+        )
+    },
+    manualRegionRequired = manualRegionRequired,
+)
 
 internal data class RegionQuery(
     val countryCode: String,
@@ -113,6 +151,7 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         endDate = endDate,
         objectKeys = mediaObjectKeys,
         tagIds = tagIds,
+        placeId = place?.placeId,
     )
 }
 

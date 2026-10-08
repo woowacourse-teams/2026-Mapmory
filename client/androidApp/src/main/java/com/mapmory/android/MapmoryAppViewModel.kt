@@ -17,7 +17,7 @@ class MapmoryAppViewModel(application: Application) : AndroidViewModel(applicati
 
     val container: AppContainer = createGuestRemoteAppContainer(
         apiBaseUrl = configuredApiBaseUrl,
-        tokenStore = AndroidAuthTokenStore(application),
+        tokenStore = AndroidAuthTokenStore(application, configuredApiBaseUrl),
         photoPreviewCache = AndroidPhotoPreviewCache(application),
         localPhotoDataSource = AndroidLocalPhotoDataSource(application),
         mapSummaryCache = AndroidMapSummaryCache(application),

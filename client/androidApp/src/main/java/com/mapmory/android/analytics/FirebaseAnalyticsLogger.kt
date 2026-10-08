@@ -7,11 +7,15 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
 
 class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
-    private val firebaseAnalytics = runCatching {
-        FirebaseApp.initializeApp(context.applicationContext)?.let {
-            FirebaseAnalytics.getInstance(context.applicationContext)
+    private val firebaseAnalytics = context.applicationContext
+        .takeUnless { it.packageName.endsWith(InternalPackageSuffix) }
+        ?.let { applicationContext ->
+            runCatching {
+                FirebaseApp.initializeApp(applicationContext)?.let {
+                    FirebaseAnalytics.getInstance(applicationContext)
+                }
+            }.getOrNull()
         }
-    }.getOrNull()
 
     override fun logEvent(name: String, parameters: Map<String, String>) {
         firebaseAnalytics?.logEvent(
@@ -22,3 +26,5 @@ class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
         )
     }
 }
+
+private const val InternalPackageSuffix = ".internal"

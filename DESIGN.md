@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Status: Active
-- Last refreshed: 2026-08-11
+- Last refreshed: 2026-10-07
 - Primary product surfaces: Android/iOS 모바일 온보딩, 여행 기록, 기록 상세·작성, 대한민국 지도
 - Decision order: Figma → this document → HTML design previews → Compose implementation
 - Evidence reviewed:
@@ -73,7 +73,7 @@
   - Muted text: `#B9CBBC`
   - Error: `#FF6264`
   - Accent is reserved for primary actions, selected tabs and filters, visited-map areas, and small markers.
-- Typography: Be Vietnam Pro 우선, Pretendard와 시스템 폰트를 대체로 사용한다. 제목은 굵고 짧게, 본문은 편안한 행간으로 쓴다.
+- Typography: 앱과 랜딩 페이지 모두 LINE Seed Sans KR을 기본 서체로 사용한다. Regular와 Bold를 공통 글꼴로 제공하고, Material 3의 `Typography` 역할(display, headline, title, body, label)을 우선 적용한다. 새 화면은 개별 폰트 패밀리를 지정하지 않고 공통 역할을 사용한다.
 - Spacing/layout rhythm: `4 / 8 / 12 / 16 / 20 / 24 / 32 px`
 - Shape/radius/elevation: 카드 20 px 이하, 입력·버튼 14 px, 칩·필 9999 px. 화면 캔버스 외곽은 각진 형태. 그림자는 최소화한다.
 - Motion: 현재 정적 시안만 정의한다. 실제 구현 시에는 전환과 선택 상태에 짧고 절제된 모션만 사용한다.
@@ -129,7 +129,7 @@
 ## Implementation constraints
 
 - Framework/styling system: Compose Multiplatform 공통 UI. HTML/CSS 파일은 Figma 반입과 화면 시안 검토용 산출물이다.
-- Design-token constraints: 새 화면과 시안은 이 문서의 색상 토큰을 사용한다. 현재 `TripRecordPalette`의 기존 초록색 `#19E5A2`는 `#21E69A`와 차이가 있어 동기화 검토가 필요하다.
+- Design-token constraints: 색상은 `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`를 기준으로 한다. 화면별 팔레트 값은 기존 앱 UI와의 호환을 위해 유지하며, 새 화면은 해당 토큰을 재사용한다.
 - Performance constraints: 지도는 외부 지도 SDK에 의존하지 않는 방향을 유지한다. 대용량 이미지는 시안 외 실제 앱 UI에 무분별하게 넣지 않는다.
 - Compatibility constraints: Android minSdk 28, iOS deployment target 16.0을 기준으로 한다.
 - Test/screenshot expectations: 기록·상세·작성·지도 화면의 다크 모드 대비와 선택 상태를 프리뷰 또는 에뮬레이터에서 확인한다.
@@ -140,6 +140,6 @@
 - [ ] `TripRecordPalette`의 `#19E5A2`를 디자인 기준 색상 `#21E69A`로 교체할지 결정
 - [ ] 지도에서 방문·선택·미방문 지역을 어떻게 구분할지와 접근성 라벨 결정
 - [ ] 지도 확대/축소, 지구본 전환, 필터의 실제 동작과 API 계약 결정
-- [ ] 최종 폰트 파일 및 CMP 적용 방식 결정
+- [x] LINE Seed Sans KR Regular/Bold를 Compose Multiplatform 공통 리소스로 적용하고 앱과 랜딩의 기본 서체를 통일
 - [ ] 소개형 온보딩과 지도 코치 마크의 완료 여부 저장 위치 및 다시 보기 제공 여부 결정
 - [ ] 앱의 4개 탭과 웹 프로토타입의 3개 탭 중 최종 정보 구조 확정

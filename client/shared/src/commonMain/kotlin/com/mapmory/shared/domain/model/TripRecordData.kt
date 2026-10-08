@@ -14,6 +14,7 @@ data class TripRecordData(
     val updatedAt: String,
     val thumbnailUrl: String? = null,
     val tags: List<Tag> = emptyList(),
+    val place: PlaceReference? = null,
 )
 
 /** 목록 API가 반환하는 얇은 모델이다. 본문과 전체 미디어는 상세 조회에서만 가져온다. */
@@ -45,6 +46,7 @@ data class TripRecordDraft(
     // API 요청에는 object key만 사용하고, 로컬 저장소에서는 선택한 사진 표시 데이터를 보존한다.
     val localMedia: List<TripRecordMediaDraft> = emptyList(),
     val tagIds: List<Long> = emptyList(),
+    val place: PlaceReference? = null,
 )
 
 object TripRecordPhotoRules {

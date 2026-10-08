@@ -9,6 +9,8 @@ sealed interface TripRecordListUiState {
         val records: List<TripRecordItemUiState>,
         val page: Int,
         val totalPages: Int,
+        val isRefreshing: Boolean = false,
+        val refreshError: String? = null,
     ) : TripRecordListUiState
 
     data class Error(

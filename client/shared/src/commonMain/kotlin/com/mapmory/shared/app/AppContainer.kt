@@ -12,6 +12,7 @@ import com.mapmory.shared.data.remote.AccessTokenProvider
 import com.mapmory.shared.data.remote.AuthRemoteRepository
 import com.mapmory.shared.data.remote.MapSummaryRemoteRepository
 import com.mapmory.shared.data.remote.PhotoUploadRemoteRepository
+import com.mapmory.shared.data.remote.PlaceRemoteRepository
 import com.mapmory.shared.data.remote.PresignedPhotoRemoteSource
 import com.mapmory.shared.data.remote.TagRemoteRepository
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
@@ -19,6 +20,7 @@ import com.mapmory.shared.data.remote.TripStatisticsRemoteRepository
 import com.mapmory.shared.data.remote.createHttpClient
 import com.mapmory.shared.data.remote.installMapmoryAuthRetry
 import com.mapmory.shared.data.repository.AuthenticatedMapSummaryRepository
+import com.mapmory.shared.data.repository.AuthenticatedPlaceRepository
 import com.mapmory.shared.data.repository.AuthenticatedTagRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripRecordRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripStatisticsRepository
@@ -37,6 +39,7 @@ import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.data.settings.ThemePreference
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.repository.TripStatisticsRepository
@@ -98,6 +101,7 @@ private class DefaultMapmoryViewModelFactory(
     private val mapSummaryRepository: MapSummaryRepository,
     private val tripStatisticsRepository: TripStatisticsRepository,
     private val tagRepository: TagRepository,
+    private val placeRepository: PlaceRepository?,
     private val regionCatalog: RegionCatalog,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val onTripRecordsChanged: () -> Unit,
@@ -139,6 +143,7 @@ private class DefaultMapmoryViewModelFactory(
             createTag = CreateTagUseCase(tagRepository),
             backgroundTripRecordSaver = backgroundTripRecordSaver,
             recordedPhotoIndex = recordedPhotoIndex,
+            placeRepository = placeRepository,
         )
 }
 
@@ -148,6 +153,7 @@ private class DefaultAppContainer(
     override val mapSummaryRepository: MapSummaryRepository,
     override val tripStatisticsRepository: TripStatisticsRepository,
     override val tagRepository: TagRepository,
+    private val placeRepository: PlaceRepository?,
     override val themePreference: ThemePreference,
     override val onboardingPreference: OnboardingPreference,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
@@ -180,6 +186,7 @@ private class DefaultAppContainer(
         mapSummaryRepository = mapSummaryRepository,
         tripStatisticsRepository = tripStatisticsRepository,
         tagRepository = tagRepository,
+        placeRepository = placeRepository,
         regionCatalog = regionCatalog,
         thumbnailLoader = thumbnailLoader,
         onTripRecordsChanged = notifyTripRecordsChanged,
@@ -211,6 +218,7 @@ fun createAppContainer(
     thumbnailLoader: TripRecordThumbnailLoader? = null,
     photoPreviewCache: PhotoPreviewCache? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    placeRepository: PlaceRepository? = null,
     onClose: () -> Unit = {},
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
@@ -227,6 +235,7 @@ fun createAppContainer(
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
         tagRepository = tagRepository,
+        placeRepository = placeRepository,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         thumbnailLoader = thumbnailLoader,
@@ -274,6 +283,11 @@ fun createRemoteAppContainer(
             accessTokenProvider = accessTokenProvider,
         ),
         tagRepository = TagRemoteRepository(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = accessTokenProvider,
+        ),
+        placeRepository = PlaceRemoteRepository(
             client = client,
             apiBaseUrl = apiBaseUrl,
             accessTokenProvider = accessTokenProvider,
@@ -364,6 +378,11 @@ internal fun createGuestRemoteAppContainer(
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
     )
+    val remotePlaces = PlaceRemoteRepository(
+        client = client,
+        apiBaseUrl = apiBaseUrl,
+        accessTokenProvider = session,
+    )
     val uploadingTripRecords = UploadingTripRecordRepository(
         uploader = PhotoUploadRemoteRepository(
             client = client,
@@ -389,6 +408,7 @@ internal fun createGuestRemoteAppContainer(
         tripStatisticsRepository = AuthenticatedTripStatisticsRepository(session, remoteTripStatistics),
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),
+        placeRepository = AuthenticatedPlaceRepository(session, remotePlaces),
         regionCatalog = regionCatalog,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,

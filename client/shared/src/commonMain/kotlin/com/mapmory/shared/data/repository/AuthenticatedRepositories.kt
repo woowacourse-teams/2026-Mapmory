@@ -2,6 +2,8 @@ package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.domain.model.MapRegionSummary
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -9,6 +11,7 @@ import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
@@ -94,6 +97,23 @@ internal class AuthenticatedTripStatisticsRepository(
     override suspend fun getStatistics(): Result<TripStatistics> =
         session.ensureAuthenticated().fold(
             onSuccess = { delegate.getStatistics() },
+            onFailure = Result.Companion::failure,
+        )
+}
+
+internal class AuthenticatedPlaceRepository(
+    private val session: GuestSessionManager,
+    private val delegate: PlaceRepository,
+) : PlaceRepository {
+    override suspend fun searchPlaces(query: String): Result<List<PlaceCandidate>> =
+        session.ensureAuthenticated().fold(
+            onSuccess = { delegate.searchPlaces(query) },
+            onFailure = Result.Companion::failure,
+        )
+
+    override suspend fun selectPlace(placeId: String): Result<PlaceSelection> =
+        session.ensureAuthenticated().fold(
+            onSuccess = { delegate.selectPlace(placeId) },
             onFailure = Result.Companion::failure,
         )
 }

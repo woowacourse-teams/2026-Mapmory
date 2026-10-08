@@ -21,6 +21,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
     @Test
@@ -171,6 +172,69 @@ class TripRecordListViewModelTest {
     }
 
     @Test
+    fun `같은_조건으로_새로고침하는_동안_기존_목록을_유지한다`() = runBlocking {
+        val source = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        source.createTripRecord(
+            TripRecordDraft(
+                locationId = 101,
+                title = "서울 여행",
+                content = "",
+                startDate = "2026-08-01",
+                endDate = null,
+                mediaObjectKeys = listOf("seoul.jpg"),
+            ),
+        ).getOrThrow()
+        val refreshGate = CompletableDeferred<Boolean>()
+        val repository = BlockingRefreshRepository(source, refreshGate)
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        viewModel.load()
+
+        val refreshJob = launch { viewModel.load() }
+        yield()
+
+        val refreshing = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(refreshing.isRefreshing)
+        assertEquals("서울 여행", refreshing.records.single().title)
+
+        refreshGate.complete(true)
+        refreshJob.join()
+
+        val refreshed = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(!refreshed.isRefreshing)
+        assertEquals(null, refreshed.refreshError)
+        assertEquals("서울 여행", refreshed.records.single().title)
+    }
+
+    @Test
+    fun `새로고침에_실패해도_기존_목록과_재시도_상태를_유지한다`() = runBlocking {
+        val source = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        source.createTripRecord(
+            TripRecordDraft(
+                locationId = 101,
+                title = "서울 여행",
+                content = "",
+                startDate = "2026-08-01",
+                endDate = null,
+                mediaObjectKeys = listOf("seoul.jpg"),
+            ),
+        ).getOrThrow()
+        val refreshGate = CompletableDeferred<Boolean>()
+        val repository = BlockingRefreshRepository(source, refreshGate)
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        viewModel.load()
+
+        val refreshJob = launch { viewModel.load() }
+        yield()
+        refreshGate.complete(false)
+        refreshJob.join()
+
+        val state = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(!state.isRefreshing)
+        assertEquals("목록 갱신 실패", state.refreshError)
+        assertEquals("서울 여행", state.records.single().title)
+    }
+
+    @Test
     fun `경로를_반복_초기화해도_현재_필터를_유지한다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
         val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
@@ -272,4 +336,19 @@ private class ThumbnailListRepository(
 
     override suspend fun deleteTripRecord(id: Long): Result<Unit> =
         Result.failure(UnsupportedOperationException())
+}
+
+private class BlockingRefreshRepository(
+    private val source: TripRecordRepository,
+    private val refreshGate: CompletableDeferred<Boolean>,
+) : TripRecordRepository by source {
+    private var requestCount = 0
+
+    override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+        requestCount += 1
+        if (requestCount == 2 && !refreshGate.await()) {
+            return Result.failure(IllegalStateException("목록 갱신 실패"))
+        }
+        return source.getTripRecords(query)
+    }
 }

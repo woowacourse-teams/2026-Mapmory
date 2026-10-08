@@ -7,6 +7,9 @@ import androidx.lifecycle.ViewModel
 import com.mapmory.shared.app.BackgroundTripRecordSaver
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
@@ -15,6 +18,7 @@ import com.mapmory.shared.domain.model.TripRecordMediaDraft
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
 import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
@@ -36,10 +40,13 @@ class TripRecordEditorViewModel(
     private val createTag: CreateTagUseCase? = null,
     private val backgroundTripRecordSaver: BackgroundTripRecordSaver? = null,
     private val recordedPhotoIndex: com.mapmory.shared.data.media.RecordedPhotoIndex? = null,
+    private val placeRepository: PlaceRepository? = null,
 ) : ViewModel() {
     val recordedPhotoIds = recordedPhotoIndex?.ids ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
     val pendingPhotoIds = backgroundTripRecordSaver?.pendingPhotoIds ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
     private var isRouteInitialized = false
+    private var placeSearchGeneration = 0
+    private var placeSelectionGeneration = 0
 
     var uiState by mutableStateOf(TripRecordEditorUiState())
         private set
@@ -48,6 +55,8 @@ class TripRecordEditorViewModel(
         private set
 
     fun reset() {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
         uiState = TripRecordEditorUiState()
         savedRecordId = null
         isRouteInitialized = false
@@ -69,8 +78,11 @@ class TripRecordEditorViewModel(
     }
 
     fun startCreating(location: Location?) {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
         uiState = TripRecordEditorUiState(
             selectedLocation = location?.takeIf(Location::isSelectableTripRecordDestination),
+            isPlaceSearchAvailable = placeRepository != null,
             availableTags = uiState.availableTags,
             tagErrorMessage = uiState.tagErrorMessage,
         )
@@ -95,10 +107,14 @@ class TripRecordEditorViewModel(
     }
 
     fun startEditing(record: TripRecordData, location: Location) {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
         val allTags = (uiState.availableTags + record.tags).distinctBy { it.id }
         uiState = TripRecordEditorUiState(
             recordId = record.id,
             selectedLocation = location,
+            selectedPlace = record.place,
+            isPlaceSearchAvailable = placeRepository != null,
             title = record.title,
             content = record.content,
             startDate = record.startDate,
@@ -271,7 +287,99 @@ class TripRecordEditorViewModel(
         if (!location.isSelectableTripRecordDestination()) return
         uiState = uiState.copy(
             selectedLocation = location,
+            manualRegionRequired = false,
         ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+    }
+
+    fun clearPlaceSearch() {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
+        uiState = uiState.copy(
+            placeSearchResults = emptyList(),
+            isSearchingPlaces = false,
+            hasSearchedPlaces = false,
+            placeSearchErrorMessage = null,
+            isSelectingPlace = false,
+        )
+    }
+
+    suspend fun searchPlaces(query: String) {
+        val normalizedQuery = query.trim()
+        val repository = placeRepository ?: return
+        if (normalizedQuery.length !in PlaceMinQueryLength..PlaceMaxQueryLength) return
+        val generation = placeSearchGeneration
+        uiState = uiState.copy(isSearchingPlaces = true, placeSearchErrorMessage = null)
+        repository.searchPlaces(normalizedQuery).fold(
+            onSuccess = { candidates ->
+                if (generation == placeSearchGeneration) {
+                    uiState = uiState.copy(
+                        placeSearchResults = candidates.take(MaxPlaceCandidates),
+                        isSearchingPlaces = false,
+                        hasSearchedPlaces = true,
+                    )
+                }
+            },
+            onFailure = { error ->
+                if (generation == placeSearchGeneration) {
+                    uiState = uiState.copy(
+                        placeSearchResults = emptyList(),
+                        isSearchingPlaces = false,
+                        hasSearchedPlaces = true,
+                        placeSearchErrorMessage = when {
+                            error is MapmoryApiException && error.code == "PLACE_PROVIDER_UNAVAILABLE" ->
+                                "장소 검색을 지금 사용할 수 없어요. 잠시 후 다시 시도해 주세요."
+                            else -> error.message ?: "장소를 검색하지 못했습니다."
+                        },
+                    )
+                }
+            },
+        )
+    }
+
+    suspend fun selectPlace(candidate: PlaceCandidate): Location? {
+        val repository = placeRepository ?: return null
+        val generation = ++placeSelectionGeneration
+        uiState = uiState.copy(
+            isSelectingPlace = true,
+            placeSelectionErrorMessage = null,
+            placeSearchResults = emptyList(),
+            isSearchingPlaces = false,
+            hasSearchedPlaces = false,
+        )
+        return repository.selectPlace(candidate.placeId).fold(
+            onSuccess = { selection ->
+                if (generation != placeSelectionGeneration) return@fold null
+                val place = selection.place.copy(address = candidate.address)
+                val location = selection.toSelectableLocation(regionCatalog)
+                uiState = uiState.copy(
+                    selectedPlace = place,
+                    selectedLocation = location,
+                    isSelectingPlace = false,
+                    placeSelectionErrorMessage = null,
+                    manualRegionRequired = selection.manualRegionRequired || location == null,
+                ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+                location
+            },
+            onFailure = { error ->
+                if (generation == placeSelectionGeneration) {
+                    uiState = uiState.copy(
+                        isSelectingPlace = false,
+                        placeSelectionErrorMessage = error.message ?: "장소 정보를 불러오지 못했습니다.",
+                    )
+                }
+                null
+            },
+        )
+    }
+
+    fun clearSelectedPlace() {
+        placeSelectionGeneration += 1
+        uiState = uiState.copy(
+            selectedPlace = null,
+            isSelectingPlace = false,
+            placeSelectionErrorMessage = null,
+            manualRegionRequired = false,
+        ).revalidatedAfterChange()
     }
 
     fun touchLocation() {
@@ -483,6 +591,7 @@ class TripRecordEditorViewModel(
         content = content.trim().takeIf(String::isNotEmpty),
         startDate = startDate,
         endDate = endDate.ifBlank { null },
+        place = uiState.selectedPlace,
         mediaObjectKeys = mediaObjectKeys,
         uploadedMediaObjectKeys = selectedPhotos
             .filter { photo -> photo.isUploaded }
@@ -531,6 +640,22 @@ class TripRecordEditorViewModel(
     }
 }
 
+private fun PlaceSelection.toSelectableLocation(regionCatalog: RegionCatalog?): Location? {
+    val catalog = regionCatalog ?: return null
+    val suggestion = suggestedRegion
+    val location = when {
+        countryCode == KoreaCountryCode && suggestion?.provinceCode != null &&
+            suggestion.districtCode != null -> {
+            val provinceCode = "$KoreanProvincePrefix${suggestion.provinceCode}"
+            catalog.findDistrict(provinceCode, suggestion.districtCode)
+                ?: catalog.findDistrict(provinceCode, suggestion.districtCode.collapseCityDistrictCode())
+        }
+        countryCode == KoreaCountryCode -> null
+        else -> catalog.findByCode(countryCode)
+    }
+    return location?.takeIf(Location::isSelectableTripRecordDestination)
+}
+
 private fun TripRecordEditorUiState.revalidatedAfterChange(
     dirtyTarget: TripRecordEditorErrorTarget? = null,
 ): TripRecordEditorUiState {
@@ -559,7 +684,17 @@ private fun TripRecordEditorUiState.revalidatedAfterChange(
             .filterKeys(updatedDirtyFields::contains),
         generalErrorMessage = null,
     )
+
 }
+
+private const val PlaceMinQueryLength = 2
+private const val PlaceMaxQueryLength = 100
+private const val MaxPlaceCandidates = 10
+private const val KoreaCountryCode = "KR"
+private const val KoreanProvincePrefix = "KR-"
+
+private fun String.collapseCityDistrictCode(): String =
+    if (lastOrNull()?.isDigit() == true) dropLast(1) + "0" else this
 
 private fun TripRecordEditorUiState.withPhotoLimitError(): TripRecordEditorUiState = copy(
     isDirty = true,

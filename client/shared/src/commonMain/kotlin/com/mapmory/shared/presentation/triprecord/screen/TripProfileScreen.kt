@@ -158,6 +158,21 @@ fun TripProfileScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                    Text(
+                        text = "불편한 점이나 의견이 있으면 알려주세요.",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 18.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            uriHandler.openUri(
+                                "https://docs.google.com/forms/d/e/1FAIpQLScToKllNctPYx5zSCp3kllrIUYcdwnasw1tczC3S-ZzULRxRw/viewform?usp=header",
+                            )
+                        },
+                    ) {
+                        Text("의견 보내기", color = TripRecordPalette.current.primary)
+                    }
                     if (PrivacyPolicy.URL.isNotBlank()) {
                         Text(
                             text = "서비스 정책은 아래 버튼에서 확인할 수 있어요.",

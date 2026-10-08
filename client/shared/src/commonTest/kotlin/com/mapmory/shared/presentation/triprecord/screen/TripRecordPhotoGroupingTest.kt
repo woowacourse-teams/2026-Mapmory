@@ -16,7 +16,7 @@ class TripRecordPhotoGroupingTest {
             fallbackDate = "2026-07-01",
         )
 
-        assertEquals(listOf("2026. 07. 08", "2026. 07. 05"), result.map { it.displayDate })
+        assertEquals(listOf("2026. 07. 08 (수)", "2026. 07. 05 (일)"), result.map { it.displayDate })
         assertEquals(listOf("older-first", "older-second"), result[1].photos.map { it.id })
     }
 
@@ -27,7 +27,7 @@ class TripRecordPhotoGroupingTest {
             fallbackDate = "2026-09-26",
         )
 
-        assertEquals("2026. 09. 26", result.single().displayDate)
+        assertEquals("2026. 09. 26 (토)", result.single().displayDate)
     }
 
     @Test
@@ -40,7 +40,17 @@ class TripRecordPhotoGroupingTest {
             fallbackDate = null,
         )
 
-        assertEquals(listOf("2026. 09. 26", "날짜 미상"), result.map { it.displayDate })
+        assertEquals(listOf("2026. 09. 26 (토)", "날짜 미상"), result.map { it.displayDate })
+    }
+
+    @Test
+    fun `유효하지 않은 촬영일은 요일 없이 표시한다`() {
+        val result = groupTripRecordPhotosByDate(
+            photos = listOf(photo(id = "invalid-date", capturedAt = "2026.13.40", sortOrder = 0)),
+            fallbackDate = null,
+        )
+
+        assertEquals("2026. 13. 40", result.single().displayDate)
     }
 
     private fun photo(
