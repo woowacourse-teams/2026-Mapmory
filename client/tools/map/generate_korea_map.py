@@ -54,6 +54,10 @@ METROPOLITAN_PROVINCES = {
 # between them after projection (for example Ulsan/Gyeongnam and Sejong/Chungnam).
 PROVINCE_OVERRIDE_CODES = frozenset(PROVINCE_NAMES)
 DEFAULT_PROVINCE_OVERRIDE_TOLERANCE = 0.002
+DOKDO_PROVINCE_CODE = "KR-47"
+DOKDO_REFERENCE_POINT = (131.86941, 37.24006)
+DOKDO_RING_RADIUS = 0.05
+DOKDO_OVERVIEW_TOLERANCE = 0.00003
 PROVINCE_PREFIXES = tuple(PROVINCE_NAMES.values()) + ("강원도", "전라북도")
 CITY_DISTRICT_PATTERN = re.compile(r"^(.+시).+구$")
 LOCATION_PATTERN = re.compile(
@@ -147,6 +151,20 @@ def simplify_ring(ring: list[list[float]], tolerance: float) -> list[list[float]
     return [[longitude, latitude] for longitude, latitude in simplified]
 
 
+def province_ring_tolerance(
+    code: str,
+    ring: list[list[float]],
+    tolerance: float,
+) -> float:
+    if code == DOKDO_PROVINCE_CODE and all(
+        abs(longitude - DOKDO_REFERENCE_POINT[0]) <= DOKDO_RING_RADIUS
+        and abs(latitude - DOKDO_REFERENCE_POINT[1]) <= DOKDO_RING_RADIUS
+        for longitude, latitude in ring
+    ):
+        return min(tolerance, DOKDO_OVERVIEW_TOLERANCE)
+    return tolerance
+
+
 def read_province_features(
     source: Path,
     simplify_tolerance: float = 0.0,
@@ -165,7 +183,10 @@ def read_province_features(
             continue
         rings = outer_rings(feature.get("geometry", {}))
         if simplify_tolerance > 0:
-            rings = [simplify_ring(ring, simplify_tolerance) for ring in rings]
+            rings = [
+                simplify_ring(ring, province_ring_tolerance(code, ring, simplify_tolerance))
+                for ring in rings
+            ]
             rings = [ring for ring in rings if len(ring) >= 4]
         if rings:
             features.append((code, PROVINCE_NAMES.get(code, properties.get("name", code)), rings))

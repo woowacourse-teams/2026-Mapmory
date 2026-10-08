@@ -15,6 +15,7 @@ fun MapArtwork(
     visitedRegionCodes: Set<String> = emptySet(),
     koreaRegions: List<ProvincePolygon>? = null,
     showRegionLabels: Boolean = false,
+    isProvinceOverview: Boolean = false,
     onCountryClick: (String) -> Unit = {},
     onRegionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -30,6 +31,7 @@ fun MapArtwork(
             regions = koreaRegions ?: com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData.provinces,
             visitedRegionCodes = visitedRegionCodes,
             showRegionLabels = showRegionLabels,
+            isProvinceOverview = isProvinceOverview,
             onRegionClick = onRegionClick,
             modifier = modifier,
         )
