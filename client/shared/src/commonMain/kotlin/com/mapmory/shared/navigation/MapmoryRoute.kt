@@ -22,4 +22,5 @@ internal data object ProfileRoute
 @Serializable
 internal data class DetailRoute(
     val recordId: Long,
+    val locationName: String? = null,
 )

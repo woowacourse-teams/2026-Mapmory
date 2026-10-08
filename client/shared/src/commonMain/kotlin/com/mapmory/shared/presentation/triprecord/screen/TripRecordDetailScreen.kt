@@ -77,6 +77,7 @@ fun TripRecordDetailScreen(
     onProfileClick: () -> Unit = {},
     onInternalBackHandlerChanged: ((() -> Boolean)?) -> Unit = {},
     modifier: Modifier = Modifier,
+    initialLocationName: String? = null,
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var expandedPhotoIndex by remember { mutableStateOf<Int?>(null) }
@@ -97,7 +98,11 @@ fun TripRecordDetailScreen(
         when (uiState) {
             TripRecordDetailUiState.Idle,
             TripRecordDetailUiState.Loading,
-            -> TripRecordDetailSkeleton(Modifier.fillMaxSize())
+            -> TripRecordDetailSkeleton(
+                modifier = Modifier.fillMaxSize(),
+                locationName = initialLocationName,
+                onBackClick = onBackClick,
+            )
 
             TripRecordDetailUiState.Deleting -> Box(
                 Modifier.fillMaxSize(),
@@ -240,7 +245,7 @@ private fun TripRecordPhotoAlbum(
 }
 
 @Composable
-private fun AlbumHeading(
+internal fun AlbumHeading(
     locationName: String,
 ) {
     Row(

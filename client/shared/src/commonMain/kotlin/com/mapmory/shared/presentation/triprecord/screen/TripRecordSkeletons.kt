@@ -17,19 +17,16 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
@@ -112,65 +109,41 @@ private fun SkeletonCardText(
     }
 }
 
+/** 목록에서 받은 제목은 즉시 표시하고, 개수를 모르는 사진은 가짜 격자로 만들지 않는다. */
 @Composable
 internal fun TripRecordDetailSkeleton(
     modifier: Modifier = Modifier,
+    locationName: String? = null,
+    onBackClick: () -> Unit = {},
 ) {
+    val visibleLocationName = locationName?.takeIf { it.isNotBlank() } ?: "여행"
     Column(modifier.fillMaxSize()) {
-        Box {
-            TripRecordTopBar(
-                title = "",
-                onBackClick = {},
-                trailing = {
-                    Text(
-                        text = "•••",
-                        color = TripRecordPalette.current.text,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Light,
-                        modifier = Modifier.size(48.dp).wrapContentSize(Alignment.Center),
-                    )
-                },
-                modifier = Modifier.clearAndSetSemantics {},
-            )
-            Box(Modifier.matchParentSize().statusBarsPadding(), contentAlignment = Alignment.Center) {
-                SkeletonCardText(19.sp, Modifier.width(100.dp), FontWeight.Bold)
-            }
-        }
+        TripRecordTopBar(
+            title = visibleLocationName,
+            onBackClick = onBackClick,
+        )
         Spacer(Modifier.fillMaxWidth().height(1.dp).background(TripRecordPalette.current.line))
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
+            Modifier.fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
         ) {
-            SkeletonCardText(28.sp, Modifier.fillMaxWidth(0.7f), FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = "날짜별로 모아둔 여행 사진이에요.",
-                color = TripRecordPalette.current.secondaryText,
-                fontSize = 14.sp,
-            )
-            repeat(2) { groupIndex ->
-                Spacer(Modifier.height(if (groupIndex == 0) 32.dp else 34.dp))
-                SkeletonCardText(18.sp, Modifier.width(132.dp), FontWeight.Bold)
-                Spacer(Modifier.height(14.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(2) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            repeat(2) {
-                                TripPhotoPlaceholder(
-                                    Modifier.weight(1f).aspectRatio(1f),
-                                    RoundedCornerShape(14.dp),
-                                )
-                            }
-                        }
-                    }
-                }
+            AlbumHeading(locationName = visibleLocationName)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = TripRecordPalette.current.muted,
+                    strokeWidth = 2.dp,
+                )
+                Text(
+                    text = "사진을 불러오고 있어요.",
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 14.sp,
+                )
             }
         }
     }
