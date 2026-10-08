@@ -118,9 +118,8 @@ fun TripRecordListScreen(
                         }
 
                         is TripRecordListUiState.Success -> {
-                            if (uiState.isRefreshing || uiState.refreshError != null) {
-                                TripRecordRefreshStatus(
-                                    isRefreshing = uiState.isRefreshing,
+                            if (!uiState.isRefreshing && uiState.refreshError != null) {
+                                TripRecordRefreshError(
                                     onRetryClick = onRetryClick,
                                 )
                             }
@@ -189,8 +188,7 @@ fun TripRecordListScreen(
 }
 
 @Composable
-private fun TripRecordRefreshStatus(
-    isRefreshing: Boolean,
+private fun TripRecordRefreshError(
     onRetryClick: () -> Unit,
 ) {
     Row(
@@ -200,27 +198,14 @@ private fun TripRecordRefreshStatus(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (isRefreshing) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = TripRecordPalette.current.primary,
-                strokeWidth = 2.dp,
-            )
-            Text(
-                text = "여행 기록을 새로 고치고 있어요.",
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 12.sp,
-            )
-        } else {
-            Text(
-                text = "새로 고치지 못했어요. 이전 목록을 보여드려요.",
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onRetryClick) {
-                Text("다시 시도", color = TripRecordPalette.current.primary)
-            }
+        Text(
+            text = "새로 고치지 못했어요. 이전 목록을 보여드려요.",
+            color = TripRecordPalette.current.bodyText,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetryClick) {
+            Text("다시 시도", color = TripRecordPalette.current.primary)
         }
     }
 }
