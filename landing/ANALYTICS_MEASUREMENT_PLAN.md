@@ -1,6 +1,6 @@
 # Mapmory 현재 랜딩·Recap 측정 계획
 
-갱신: 2026-09-03 · GA4 웹 스트림: `G-MC93CZWLZF`
+갱신: 2026-10-08 · GA4 웹 스트림: `G-MC93CZWLZF`
 
 ## 판단할 성과
 
@@ -12,7 +12,6 @@
 | --- | --- | --- |
 | `/` 첫 화면 | 모바일 사진→기록→지도 1회 모션 / 데스크톱 스크롤 연출 | 자동 모션·사진 등장·스크롤을 기록 생성이나 체험 시작으로 세지 않음 |
 | `/` 세계 지도 | 나라 선택 후 별도 기억 패널 조회 | 안내 닫기, 기본 사진, 단순 터치, 모바일 세로 스크롤 |
-| `/` 대한민국 지도 | 예시 사진 추가→지역 색칠→기억 조회 | 실제 사용자 기록 저장으로 해석하지 않음 |
 | `/recap/` | 내 사진/샘플로 경로 구성→영상 미리보기→공유/저장→앱 안내 | 샘플 성공을 내 사진 처리 성공에 포함하지 않음 |
 
 ## 공통 필터와 수치 정의
@@ -29,19 +28,17 @@
 
 | 이벤트 | 현재 발생 지점 | 속성 / 중복 정책 |
 | --- | --- | --- |
-| `experience_cta_click` | 헤더·각 히어로 체험 진입 링크 | `experience_type`, `cta_placement`; 클릭마다 |
+| `experience_cta_click` | 헤더 메뉴·사용법 섹션의 지구본 미리 보기 링크 | `experience_type`, `cta_placement`; 클릭마다 |
 | `experience_view` | 활성 탭에서 영역이 뷰포트 기준 50% 이상 1초 노출, 또는 명시적 첫 조작 | `experience_type`; 유형별 페이지당 1회 |
-| `experience_start` | 나라 선택·드래그 의도·확대·예시 사진 추가 | `interaction_type`; 유형별 페이지당 1회 |
+| `experience_start` | 나라 선택·드래그 의도·확대 | `interaction_type`; 유형별 페이지당 1회 |
 | `memory_open` | 패널이 React 화면에 반영된 뒤 | `memory_id`, `selection_source`, `open_index`, `time_since_start_seconds`; 첫 연속 체험에서 기억별 1회 |
 | `memory_photo_swiped` | 모바일 기억 바텀시트에서 첫 실제 사진 스와이프 | `memory_id`, `photo_index`, `photo_count`, `time_since_memory_open_seconds`; 패널을 열 때마다 1회 |
 | `memory_sheet_closed` | 닫기 버튼 또는 브라우저 뒤로가기로 기억 바텀시트 종료 | `memory_id`, `close_method`, `max_photo_index`, `photos_viewed`, `time_since_memory_open_seconds`; 패널을 열 때마다 1회 |
-| `korea_memory_add` | 대한민국 예시 사진 색칠 모션 완료 | `memory_id`, `add_index`, `time_since_start_seconds`; 기억별 1회 |
 | `experience_end` | 체험을 1.5초 벗어나거나 pagehide | `active_duration_seconds`, `unique_memories_opened`, `last_completed_step`, `exit_reason`; 유형별 첫 연속 체험 1회 |
-| `download_cta_click` | ‘내 기억 지도도 만들기’로 `#download`에 이동 | `cta_placement=korea_memory`; **전환 아님** |
 | `download_click` | 실제 App Store·Google Play 링크 클릭 | `store=app_store|google_play`, `cta_placement`; **설치 완료 아님** |
 | `hero_demo_select` | 히어로 사진 찾기 데모의 장소 칩(제주·일본·미국) 탭 | `experience_type=hero_demo`, `demo_place`; 탭마다. 자동 재생은 기록하지 않음 |
 
-체험 유형: `globe`, `korea_detail`.
+체험 유형: `globe`. (`korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)
 체험 진입 위치: `header_nav`, `how_section`(3단계 사용법 아래 지구본 미리 보기 링크). (`hero`, `hero_mobile`, `hero_handoff`, `hero_reduced_handoff`는 2026-10 사진 찾기 히어로 교체 전 데이터에만 있음)
 스토어 위치: `header`, `hero`, `final` (Recap은 `demand_primary`).
 `waitlist_*`는 비노출 폴백으로 보존하지만 현재 퍼널에서 제외한다.
@@ -81,7 +78,7 @@ Recap 내부 화면을 가짜 `page_view`로 보내지 않고 단계별 이벤�
 | 보고서 | 데이터/필터 | 판단 |
 | --- | --- | --- |
 | 01 랜딩 성과 | `surface=landing`; page_view/download_click 총 사용자; 기기·소스/매체·캠페인 | 체험 없이 스토어 이동한 사용자도 포함한 전체 KPI |
-| 02 랜딩 체험 | 유형별 `experience_view → experience_start → memory_open → download_click`; 기기 분리 | 세계/대한민국 조작·기억 조회 병목. 전체 필수 퍼널 아님 |
+| 02 랜딩 체험 | 유형별 `experience_view → experience_start → memory_open → download_click`; 기기 분리 | 지구본 조작·기억 조회 병목. 전체 필수 퍼널 아님 |
 | 03 스토어·CTA | `event_name=download_click`; surface/store/cta_placement; 총 사용자·이벤트 수 | 목적지·위치별 클릭 분포. 설치/CTR 아님 |
 | 04 Recap 내 사진 | surface=recap, journey_source=photos; photo_select→processing_complete→recap_view→demand_view→download_click | 샘플 제외 흐름. 공유 없이 앱 안내로 가도 정상 |
 | 05 Recap 품질 | surface=recap; journey_source/result/error_type/format별 처리·공유·내보내기 | GPS 부재·기술 실패·취소·다운로드 폴백 구분 |
@@ -90,7 +87,7 @@ Recap 내부 화면을 가짜 `page_view`로 보내지 않고 단계별 이벤�
 `analytics_schema_version`, `surface`, `traffic_type`, `experience_type`, `cta_placement`, `store`, `journey_source`, `result`, `error_type`, `format`, `last_completed_step`.
 세부 탐색용 추가 기준: `memory_id`, `selection_source`, `landing_version`, `campaign_version`, `interaction_type`, `exit_reason`, `close_method`.
 맞춤 측정항목: `active_duration_seconds`/`time_since_start_seconds`/`time_since_memory_open_seconds`(초), `unique_memories_opened`/`selected_photos`/`valid_gps_photos`/`photo_index`/`photo_count`/`max_photo_index`/`photos_viewed`(표준).
-`open_index`/`add_index`는 순서 필터용이며 합계를 KPI로 쓰지 않는다.
+`open_index`는 순서 필터용이며 합계를 KPI로 쓰지 않는다. (`add_index`는 2026-10-08 대한민국 체험 삭제 전 데이터에만 있음)
 
 주요 이벤트 `download_click`은 ‘앱 스토어 이동’으로 설명하며 세션당 한 번 집계를 권장한다.
 사용자 전환율은 주요 이벤트 횟수가 아니라 총 사용자 기준으로 별도 계산한다.

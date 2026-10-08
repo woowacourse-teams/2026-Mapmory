@@ -30,7 +30,6 @@ export function useExperienceAnalytics(experienceType) {
   const activeStartedAtRef = useRef(null);
   const activeDurationMsRef = useRef(0);
   const openedMemoryIdsRef = useRef(new Set());
-  const addedMemoryIdsRef = useRef(new Set());
   const lastCompletedStepRef = useRef("experience_start");
   const viewTimerRef = useRef(null);
   const exitTimerRef = useRef(null);
@@ -200,26 +199,11 @@ export function useExperienceAnalytics(experienceType) {
     });
   }, [experienceType, getActiveDurationSeconds, startExperience]);
 
-  const trackMemoryAdd = useCallback((memoryId) => {
-    startExperience("memory_add");
-    if (hasEndedRef.current || addedMemoryIdsRef.current.has(memoryId)) return;
-
-    addedMemoryIdsRef.current.add(memoryId);
-    lastCompletedStepRef.current = "korea_memory_add";
-    trackEvent(ANALYTICS_EVENTS.KOREA_MEMORY_ADD, {
-      experience_type: experienceType,
-      memory_id: memoryId,
-      add_index: addedMemoryIdsRef.current.size,
-      time_since_start_seconds: getActiveDurationSeconds(),
-    });
-  }, [experienceType, getActiveDurationSeconds, startExperience]);
-
   return {
     sectionRef,
     trackEntryClick,
     startExperience,
     trackMemoryOpen,
-    trackMemoryAdd,
     endExperience,
   };
 }

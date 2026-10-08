@@ -4,6 +4,7 @@ import { App } from "./App.jsx";
 import { initializeAnalytics } from "./analytics.js";
 import "./styles.css";
 import "./photo-finder-hero.css";
+import "./how-play.css";
 
 initializeAnalytics();
 

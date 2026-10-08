@@ -79,7 +79,6 @@ export const ANALYTICS_EVENTS = Object.freeze({
   MEMORY_OPEN: "memory_open",
   MEMORY_PHOTO_SWIPED: "memory_photo_swiped",
   MEMORY_SHEET_CLOSED: "memory_sheet_closed",
-  KOREA_MEMORY_ADD: "korea_memory_add",
   EXPERIENCE_END: "experience_end",
   WAITLIST_CTA_CLICK: "waitlist_cta_click",
   WAITLIST_FORM_VIEW: "waitlist_form_view",
@@ -88,7 +87,6 @@ export const ANALYTICS_EVENTS = Object.freeze({
   WAITLIST_SUBMIT: "waitlist_submit",
   WAITLIST_SUBMIT_ERROR: "waitlist_submit_error",
   DOWNLOAD_CLICK: "download_click",
-  DOWNLOAD_CTA_CLICK: "download_cta_click",
   HERO_DEMO_SELECT: "hero_demo_select",
 });
 
@@ -102,7 +100,6 @@ const supportedParameters = new Set([
   "cta_placement",
   "store",
   "open_index",
-  "add_index",
   "time_since_start_seconds",
   "active_duration_seconds",
   "time_since_memory_open_seconds",
