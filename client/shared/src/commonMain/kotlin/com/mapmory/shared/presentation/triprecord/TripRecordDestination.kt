@@ -15,6 +15,10 @@ internal fun Location.isSelectableTripRecordDestination(): Boolean = when (type)
             regionCode.length == CountryCodeLength
 }
 
+// 기록 지역의 국가 코드. 국내 시·군·구는 KR, 해외는 국가 코드 자체다.
+internal fun Location.tripRecordCountryCode(): String =
+    if (countryId == KoreaCountryId) KoreaCountryCode else regionCode
+
 internal fun List<Location>.selectableTripRecordDestinations(): List<Location> =
     filter(Location::isSelectableTripRecordDestination)
         .distinctBy(Location::regionCode)

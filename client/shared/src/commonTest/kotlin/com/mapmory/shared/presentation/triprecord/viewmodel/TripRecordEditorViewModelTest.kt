@@ -35,7 +35,7 @@ class TripRecordEditorViewModelTest {
     @Test
     fun `장소_검색_서비스를_사용할_수_없으면_내부_설정_오류_대신_안내를_표시한다`() = runSuspend {
         val placeRepository = object : PlaceRepository {
-            override suspend fun searchPlaces(query: String) = Result.failure<List<PlaceCandidate>>(
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.failure<List<PlaceCandidate>>(
                 MapmoryApiException(
                     statusCode = 503,
                     code = "PLACE_PROVIDER_UNAVAILABLE",
@@ -46,7 +46,7 @@ class TripRecordEditorViewModelTest {
                 ),
             )
 
-            override suspend fun selectPlace(placeId: String) = Result.failure<PlaceSelection>(
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.failure<PlaceSelection>(
                 IllegalStateException("장소를 선택하지 않았습니다."),
             )
         }
@@ -79,9 +79,9 @@ class TripRecordEditorViewModelTest {
             attributionUrl = "https://www.openstreetmap.org/copyright",
         )
         val placeRepository = object : PlaceRepository {
-            override suspend fun searchPlaces(query: String) = Result.success(listOf(candidate))
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.success(listOf(candidate))
 
-            override suspend fun selectPlace(placeId: String) = Result.success(
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.success(
                 PlaceSelection(
                     place = PlaceReference(placeId, "판교역"),
                     countryCode = "KR",
@@ -122,9 +122,9 @@ class TripRecordEditorViewModelTest {
             attributionUrl = null,
         )
         val placeRepository = object : PlaceRepository {
-            override suspend fun searchPlaces(query: String) = Result.success(listOf(candidate))
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.success(listOf(candidate))
 
-            override suspend fun selectPlace(placeId: String) = Result.success(
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.success(
                 PlaceSelection(
                     place = PlaceReference(placeId, "판교역"),
                     countryCode = "KR",
@@ -154,6 +154,184 @@ class TripRecordEditorViewModelTest {
         val savedRecord = recordRepository.getTripRecord(1).getOrThrow()
         assertEquals(selectedRegion.id, savedRecord.locationId)
         assertEquals(candidate.placeId, savedRecord.place?.placeId)
+    }
+
+    @Test
+    fun `장소_검색과_선택은_같은_세션_토큰을_보내고_선택한_뒤에는_새_토큰을_만든다`() = runSuspend {
+        val candidate = PlaceCandidate(
+            placeId = "ChIJ-gyeongbokgung",
+            name = "경복궁",
+            address = "대한민국 서울특별시 종로구 사직로",
+            attribution = "Google Maps",
+            attributionUrl = "https://www.google.com/maps",
+        )
+        val searchTokens = mutableListOf<String>()
+        val selectTokens = mutableListOf<String>()
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> {
+                searchTokens += sessionToken
+                return Result.success(listOf(candidate))
+            }
+
+            override suspend fun selectPlace(placeId: String, sessionToken: String): Result<PlaceSelection> {
+                selectTokens += sessionToken
+                return Result.failure(IllegalStateException("장소 정보를 불러오지 못했습니다."))
+            }
+        }
+        var issuedTokens = 0
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            placeRepository = placeRepository,
+            newPlaceSessionToken = { "token-${++issuedTokens}" },
+        )
+        viewModel.startCreating(location = null)
+
+        viewModel.searchPlaces("경")
+        viewModel.searchPlaces("경복")
+        viewModel.selectPlace(candidate)
+        viewModel.searchPlaces("광화문")
+
+        assertEquals(listOf("token-1", "token-1", "token-2"), searchTokens)
+        assertEquals(listOf("token-1"), selectTokens)
+    }
+
+    @Test
+    fun `선택한_장소는_검색창에_넣은_후보_이름으로_보여준다`() = runSuspend {
+        val google = googleCandidate("ChIJ-pangyo", "판교역")
+        val geoapify = PlaceCandidate(
+            placeId = "0a1b2c",
+            name = "판교역 1번 출구",
+            address = "경기도 성남시 분당구",
+            attribution = "© OpenStreetMap contributors",
+            attributionUrl = "https://www.openstreetmap.org/copyright",
+        )
+        val placeRepository = RecordingPlaceRepository { placeId ->
+            PlaceSelection(
+                place = PlaceReference(
+                    placeId = placeId,
+                    name = if (placeId == geoapify.placeId) "판교역" else null,
+                    countryCode = "KR",
+                ),
+                countryCode = "KR",
+                suggestedRegion = PlaceRegionSuggestion("KR", "41", "41135"),
+                manualRegionRequired = false,
+            )
+        }
+        val viewModel = placeEditorViewModel(placeRepository)
+
+        assertEquals("41130", viewModel.selectPlace(google)?.regionCode)
+        assertEquals("판교역", viewModel.uiState.selectedPlace?.name)
+        assertEquals(google.address, viewModel.uiState.selectedPlace?.address)
+
+        viewModel.selectPlace(geoapify)
+        assertEquals("판교역 1번 출구", viewModel.uiState.selectedPlace?.name)
+    }
+
+    @Test
+    fun `앱_지역_목록에_없는_국가의_장소는_이전_장소까지_빼고_지역을_직접_고르게_한다`() = runSuspend {
+        val pangyo = googleCandidate("ChIJ-pangyo", "판교역")
+        val guam = googleCandidate("ChIJ-guam", "괌")
+        val placeRepository = RecordingPlaceRepository { placeId ->
+            if (placeId == guam.placeId) {
+                PlaceSelection(
+                    place = PlaceReference(placeId, null, countryCode = "GU"),
+                    countryCode = "GU",
+                    suggestedRegion = PlaceRegionSuggestion("GU"),
+                    manualRegionRequired = false,
+                )
+            } else {
+                koreanSelection(placeId)
+            }
+        }
+        val viewModel = placeEditorViewModel(placeRepository)
+        viewModel.selectPlace(pangyo)
+        viewModel.clearLocation()
+
+        assertNull(viewModel.selectPlace(guam))
+
+        assertNull(viewModel.uiState.selectedPlace)
+        assertNull(viewModel.uiState.selectedLocation)
+        assertFalse(viewModel.uiState.isSelectingPlace)
+        assertFalse(viewModel.uiState.manualRegionRequired)
+        assertEquals(
+            "이 장소가 있는 지역은 아직 앱에서 고를 수 없어요. 지역을 직접 검색해 선택해 주세요.",
+            viewModel.uiState.placeSelectionErrorMessage,
+        )
+        viewModel.searchPlaces("괌")
+        assertEquals(emptyList(), placeRepository.searchQueries)
+    }
+
+    @Test
+    fun `지역을_직접_고르면_장소_선택_오류를_지우고_다음_검색은_새_세션_토큰을_쓴다`() = runSuspend {
+        val guam = googleCandidate("ChIJ-guam", "괌")
+        val placeRepository = RecordingPlaceRepository { placeId ->
+            PlaceSelection(
+                place = PlaceReference(placeId, null, countryCode = "GU"),
+                countryCode = "GU",
+                suggestedRegion = PlaceRegionSuggestion("GU"),
+                manualRegionRequired = false,
+            )
+        }
+        var issuedTokens = 0
+        val regionCatalog = StaticRegionCatalog()
+        val viewModel = placeEditorViewModel(placeRepository, regionCatalog) { "token-${++issuedTokens}" }
+
+        viewModel.selectPlace(guam)
+        viewModel.searchPlaces("미국")
+        viewModel.selectLocation(regionCatalog.requireByCode("US"))
+        viewModel.searchPlaces("하와이")
+
+        assertNull(viewModel.uiState.placeSelectionErrorMessage)
+        assertEquals("US", viewModel.uiState.selectedLocation?.regionCode)
+        assertEquals(listOf("token-1"), placeRepository.selectTokens)
+        assertEquals(listOf("token-2", "token-3"), placeRepository.searchTokens)
+    }
+
+    @Test
+    fun `다른_나라_지역을_고르면_장소_연결을_빼고_같은_나라면_유지한다`() = runSuspend {
+        val pangyo = googleCandidate("ChIJ-pangyo", "판교역")
+        val placeRepository = RecordingPlaceRepository(::koreanSelection)
+        val regionCatalog = StaticRegionCatalog()
+        val viewModel = placeEditorViewModel(placeRepository, regionCatalog)
+
+        viewModel.selectPlace(pangyo)
+        viewModel.selectLocation(requireNotNull(regionCatalog.findDistrict("KR-41", "41210")))
+        assertEquals(pangyo.placeId, viewModel.uiState.selectedPlace?.placeId)
+
+        viewModel.selectLocation(regionCatalog.requireByCode("JP"))
+        assertNull(viewModel.uiState.selectedPlace)
+        assertEquals("JP", viewModel.uiState.selectedLocation?.regionCode)
+    }
+
+    @Test
+    fun `한글을_조합하는_중에는_장소를_검색하지_않는다`() = runSuspend {
+        val placeRepository = RecordingPlaceRepository(::koreanSelection)
+        val viewModel = placeEditorViewModel(placeRepository)
+
+        viewModel.searchPlaces("ㄱ")
+        viewModel.searchPlaces("경보ㄱ")
+        viewModel.searchPlaces("괌")
+
+        assertEquals(listOf("괌"), placeRepository.searchQueries)
+    }
+
+    @Test
+    fun `장소와_지역의_국가가_다르다는_오류는_장소_필드의_오류로_분류한다`() {
+        val error = MapmoryApiException(
+            statusCode = 400,
+            code = "PLACE_COUNTRY_MISMATCH",
+            title = "장소와 지역이 일치하지 않습니다.",
+            detail = "선택한 장소의 국가와 여행 기록의 국가가 다릅니다.",
+            instance = "/api/v1/travel-records",
+            errors = emptyList(),
+        )
+
+        assertEquals(
+            mapOf(TripRecordEditorErrorTarget.LOCATION to "선택한 장소의 국가와 여행 기록의 국가가 다릅니다."),
+            error.toEditorFieldErrors(),
+        )
     }
 
     @Test
@@ -619,3 +797,52 @@ private fun selectedPhoto(id: String): SelectedPhoto = SelectedPhoto(
     previewBytes = null,
     originalBytes = byteArrayOf(0x01),
 )
+
+private fun googleCandidate(placeId: String, name: String) = PlaceCandidate(
+    placeId = placeId,
+    name = name,
+    address = "대한민국",
+    attribution = "Google Maps",
+    attributionUrl = "https://www.google.com/maps",
+)
+
+private fun koreanSelection(placeId: String) = PlaceSelection(
+    place = PlaceReference(placeId, null, countryCode = "KR"),
+    countryCode = "KR",
+    suggestedRegion = PlaceRegionSuggestion("KR", "41", "41135"),
+    manualRegionRequired = false,
+)
+
+private fun placeEditorViewModel(
+    placeRepository: PlaceRepository,
+    regionCatalog: StaticRegionCatalog = StaticRegionCatalog(),
+    newPlaceSessionToken: () -> String = { "session-token" },
+): TripRecordEditorViewModel {
+    val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+    return TripRecordEditorViewModel(
+        createTripRecord = CreateTripRecordUseCase(repository),
+        updateTripRecord = UpdateTripRecordUseCase(repository),
+        regionCatalog = regionCatalog,
+        placeRepository = placeRepository,
+        newPlaceSessionToken = newPlaceSessionToken,
+    ).also { it.startCreating(location = null) }
+}
+
+private class RecordingPlaceRepository(
+    private val selection: (String) -> PlaceSelection,
+) : PlaceRepository {
+    val searchQueries = mutableListOf<String>()
+    val searchTokens = mutableListOf<String>()
+    val selectTokens = mutableListOf<String>()
+
+    override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> {
+        searchQueries += query
+        searchTokens += sessionToken
+        return Result.success(emptyList())
+    }
+
+    override suspend fun selectPlace(placeId: String, sessionToken: String): Result<PlaceSelection> {
+        selectTokens += sessionToken
+        return Result.success(selection(placeId))
+    }
+}

@@ -79,6 +79,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,12 +88,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionScope
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
+import com.mapmory.shared.domain.model.PlaceAttribution
 import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRules
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
@@ -145,8 +149,6 @@ internal fun newRecordBackAction(
 }
 
 private const val KoreaCountryId = 1L
-private const val MinPlaceQueryLength = 2
-private const val MaxPlaceQueryLength = 100
 private const val PlaceSearchDebounceMillis = 350L
 private const val PhotoListPrefetchItems = 4
 private const val PhotoLimitMessageDurationMillis = 3_000L
@@ -603,7 +605,7 @@ internal fun NewTripRecordFlowScreen(
     }
 
     LaunchedEffect(uiState.selectedLocation?.id, uiState.selectedPlace?.placeId) {
-        val selectedValue = uiState.selectedPlace?.name
+        val selectedValue = uiState.selectedPlace?.name?.takeIf(String::isNotBlank)
             ?: uiState.selectedLocation?.flowDisplayName(locations)
         if (locationSearchQuery.isBlank() && selectedValue != null) {
             locationSearchQuery = selectedValue
@@ -621,7 +623,7 @@ internal fun NewTripRecordFlowScreen(
         val selectedRegionName = uiState.selectedLocation?.flowDisplayName(locations)
         if (
             !uiState.isPlaceSearchAvailable ||
-            query.length < MinPlaceQueryLength ||
+            !PlaceRules.isSearchableQuery(query) ||
             query.equals(uiState.selectedPlace?.name, ignoreCase = true) ||
             query.equals(selectedRegionName, ignoreCase = true) ||
             uiState.isSelectingPlace ||
@@ -630,7 +632,7 @@ internal fun NewTripRecordFlowScreen(
             return@LaunchedEffect
         }
         delay(PlaceSearchDebounceMillis)
-        onSearchPlaces(query.take(MaxPlaceQueryLength))
+        onSearchPlaces(query.take(PlaceRules.MaxQueryLength))
     }
 
     LaunchedEffect(
@@ -887,7 +889,7 @@ internal fun NewTripRecordFlowScreen(
                             onSearchQueryChanged = {
                                 onLocationTouched()
                                 if (it.isNotBlank()) logFieldInteraction("location")
-                                locationSearchQuery = it.take(MaxPlaceQueryLength)
+                                locationSearchQuery = it.take(PlaceRules.MaxQueryLength)
                                 onPlaceSearchQueryChanged()
                                 val selectedName = uiState.selectedLocation?.flowDisplayName(locations)
                                 if (selectedName != null && it != selectedName) onLocationCleared()
@@ -1179,7 +1181,7 @@ private fun LocationStep(
             uiState.isPlaceSearchAvailable &&
             uiState.hasSearchedPlaces &&
             !uiState.isSearchingPlaces &&
-            searchQuery.trim().length >= MinPlaceQueryLength &&
+            PlaceRules.isSearchableQuery(searchQuery) &&
             !uiState.manualRegionRequired &&
             !queryMatchesSelectedRegion &&
             !searchQuery.trim().equals(uiState.selectedPlace?.name, ignoreCase = true)
@@ -1222,8 +1224,8 @@ private fun LocationStep(
             FlowSectionTitle(
                 title = "장소",
                 badge = "필수",
-                helper = "지역은 한 글자부터, 장소는 두 글자부터 검색해요.",
-                modifier = Modifier.padding(top = 24.dp),
+                helper = "지역과 장소를 한 글자부터 검색해요.",
+                modifier = Modifier.padding(top = 30.dp),
             )
             LocationSearchField(
                 value = searchQuery,
@@ -1242,7 +1244,7 @@ private fun LocationStep(
             if (searchQuery.isNotBlank()) {
                 if (
                     uiState.isPlaceSearchAvailable &&
-                    searchQuery.trim().length >= MinPlaceQueryLength &&
+                    PlaceRules.isSearchableQuery(searchQuery) &&
                     !uiState.manualRegionRequired &&
                     !queryMatchesSelectedRegion &&
                     !searchQuery.trim().equals(uiState.selectedPlace?.name, ignoreCase = true)
@@ -1358,7 +1360,7 @@ private fun SelectedPlaceCard(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = place.name,
+                    text = place.name ?: place.address.orEmpty(),
                     color = TripRecordPalette.current.headingText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1484,6 +1486,10 @@ private fun PlaceAttributionLinks(
     attributionUrl: String?,
     modifier: Modifier = Modifier,
 ) {
+    if (PlaceAttribution.isGoogleMaps(attribution, attributionUrl)) {
+        GoogleMapsAttributionText(modifier)
+        return
+    }
     val uriHandler = LocalUriHandler.current
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -1516,7 +1522,25 @@ private fun PlaceAttributionLinks(
     }
 }
 
+// Google 지도 없이 Places 결과를 보여 줄 때의 출처 표기: 번역하지 않은 "Google Maps", 12~16sp, 줄바꿈 없음.
+// 색은 밝은 배경에서 #5E5E5E, 어두운 배경에서 흰색이다. Geoapify 표기와 함께 두지 않는다.
+// https://developers.google.com/maps/documentation/places/web-service/policies
+@Composable
+private fun GoogleMapsAttributionText(modifier: Modifier = Modifier) {
+    Text(
+        text = PlaceAttribution.GoogleMaps,
+        color = if (LocalMapmoryTheme.current.isDark) Color.White else GoogleMapsAttributionColor,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Normal,
+        fontFamily = FontFamily.SansSerif,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier,
+    )
+}
+
 private const val GeoapifyUrl = "https://www.geoapify.com/"
+private val GoogleMapsAttributionColor = Color(0xFF5E5E5E)
 
 @Composable
 private fun FlowTopBar(

@@ -105,15 +105,15 @@ internal class AuthenticatedPlaceRepository(
     private val session: GuestSessionManager,
     private val delegate: PlaceRepository,
 ) : PlaceRepository {
-    override suspend fun searchPlaces(query: String): Result<List<PlaceCandidate>> =
+    override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> =
         session.ensureAuthenticated().fold(
-            onSuccess = { delegate.searchPlaces(query) },
+            onSuccess = { delegate.searchPlaces(query, sessionToken) },
             onFailure = Result.Companion::failure,
         )
 
-    override suspend fun selectPlace(placeId: String): Result<PlaceSelection> =
+    override suspend fun selectPlace(placeId: String, sessionToken: String): Result<PlaceSelection> =
         session.ensureAuthenticated().fold(
-            onSuccess = { delegate.selectPlace(placeId) },
+            onSuccess = { delegate.selectPlace(placeId, sessionToken) },
             onFailure = Result.Companion::failure,
         )
 }

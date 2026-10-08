@@ -145,8 +145,8 @@ data class PlaceCandidateDto(
 @Serializable
 data class PlaceSelectionDto(
     val placeId: String,
-    val name: String,
-    val countryCode: String,
+    val name: String? = null,
+    val countryCode: String? = null,
     val suggestedRegion: TripRecordRegionDto? = null,
     val manualRegionRequired: Boolean = false,
     val attribution: String? = null,

@@ -82,7 +82,7 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
         place = placeId?.let { id ->
             PlaceReference(
                 placeId = id,
-                name = placeName.orEmpty(),
+                name = placeName,
                 attribution = placeAttribution,
                 attributionUrl = placeAttributionUrl,
             )
@@ -104,6 +104,7 @@ fun PlaceSelectionDto.toDomain(): PlaceSelection = PlaceSelection(
         name = name,
         attribution = attribution,
         attributionUrl = attributionUrl,
+        countryCode = countryCode,
     ),
     countryCode = countryCode,
     suggestedRegion = suggestedRegion?.let { region ->

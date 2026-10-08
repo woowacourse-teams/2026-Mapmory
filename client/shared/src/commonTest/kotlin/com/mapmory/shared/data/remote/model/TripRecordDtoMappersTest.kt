@@ -109,6 +109,39 @@ class ApiDtoMappersTest {
     }
 
     @Test
+    fun `Google_장소는_이름_없이_장소_연결만_보존한다`() {
+        val result = TripRecordDetailDto(
+            id = 102,
+            title = "경복궁 산책",
+            content = "",
+            region = TripRecordRegionDto(
+                country = RegionCodeDto("KR", "대한민국"),
+                province = RegionCodeDto("11", "서울특별시"),
+                district = RegionCodeDto("11110", "종로구"),
+            ),
+            startDate = "2026-10-08",
+            endDate = null,
+            createdAt = "2026-10-08T10:30:00",
+            updatedAt = "2026-10-08T10:30:00",
+            placeProvider = "GOOGLE",
+            placeId = "ChIJ-gyeongbokgung",
+            placeName = null,
+            placeAttribution = "Google Maps",
+            placeAttributionUrl = "https://www.google.com/maps",
+        ).toDomain(catalog)
+
+        assertEquals(
+            PlaceReference(
+                placeId = "ChIJ-gyeongbokgung",
+                name = null,
+                attribution = "Google Maps",
+                attributionUrl = "https://www.google.com/maps",
+            ),
+            result.place,
+        )
+    }
+
+    @Test
     fun `조회용_URL이_포함된_미디어_응답을_Object_Key와_함께_매핑한다`() {
         val result = TripRecordDetailDto(
             id = 101,
