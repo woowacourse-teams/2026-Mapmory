@@ -13,6 +13,7 @@ import {
   getPhotoFinderState,
 } from "./photoFinderDemo.js";
 import { loadWorldCountries, useWorldCountries } from "./worldCountries.js";
+import { withObjectParticle } from "./koreanParticle.js";
 
 const GRID_COLUMNS = 7;
 const GRID_ROWS = 16;
@@ -21,7 +22,8 @@ const FINAL_WINDOW_START = (GRID_ROWS - VISIBLE_ROWS) * GRID_COLUMNS;
 // Positions inside the final window where the searched place's photos sit: rows 2-3,
 // so the first row stays free for the result pill.
 const MATCH_SLOTS = [8, 11, 13, 16, 19];
-// [x%, y%, zoom] crops so the rest of the library never repeats a shot next to itself.
+// Found photos show the full frame; filler tiles get [x%, y%, zoom] crops so repeats further down the grid read as new shots.
+const FULL_FRAME = [50, 50, 1];
 const FILLER_CROPS = [[50, 50, 1], [30, 35, 1.35], [70, 65, 1.5], [50, 20, 1.25], [20, 80, 1.6], [80, 40, 1.4]];
 const AUTOPLAY_MIN_WAIT_MS = 400;
 const AUTOPLAY_MAX_WAIT_MS = 1800;
@@ -144,9 +146,9 @@ function PhotoFinderHero({ storeActions, onPlaySelect }) {
       const row = Math.floor(index / GRID_COLUMNS);
       const matchIndex = MATCH_SLOTS.indexOf(index - FINAL_WINDOW_START);
       if (matchIndex >= 0) {
-        return { index, matchIndex, photo: place.photos[matchIndex % place.photos.length], crop: place.crops[matchIndex] };
+        return { index, matchIndex, photo: place.photos[matchIndex % place.photos.length], crop: FULL_FRAME };
       }
-      // Steps of 1 across and 3 down keep neighbouring tiles on different photos for pools of 5 and 9.
+      // Steps of 1 across and 3 down keep neighbouring tiles on different photos.
       return { index, matchIndex: -1, photo: pool[(col + row * 3) % pool.length], crop: FILLER_CROPS[(col * 2 + row) % FILLER_CROPS.length] };
     });
   }, [place]);
@@ -268,7 +270,7 @@ function PhotoFinderHero({ storeActions, onPlaySelect }) {
       return {
         index,
         photo: place.photos[index % place.photos.length],
-        crop: place.crops[index],
+        crop: FULL_FRAME,
         size: rect.width,
         fromX: rect.left - card.left,
         fromY: rect.top - card.top,
@@ -318,7 +320,7 @@ function PhotoFinderHero({ storeActions, onPlaySelect }) {
           ref={cardRef}
           data-phase={demo.phase}
           data-place={place.key}
-          aria-label={`예시: 사진첩에서 ${place.label}을 검색하면 그곳에서 찍은 사진만 찾아 지도에 칠하는 모습`}
+          aria-label={`예시: 사진첩에서 ${withObjectParticle(place.label)} 검색하면 그곳에서 찍은 사진만 찾아 지도에 칠하는 모습`}
           role="img"
         >
           <div className="finder-demo-bar" aria-hidden="true">

@@ -38,7 +38,6 @@ test("declares the agreed landing funnel events", () => {
       "memory_open",
       "memory_photo_swiped",
       "memory_sheet_closed",
-      "korea_memory_add",
       "experience_end",
       "waitlist_cta_click",
       "waitlist_form_view",
@@ -47,7 +46,6 @@ test("declares the agreed landing funnel events", () => {
       "waitlist_submit",
       "waitlist_submit_error",
       "download_click",
-      "download_cta_click",
       "hero_demo_select",
     ]),
   );

@@ -1,0 +1,170 @@
+/* "3단계면 끝나요": three taps inside a phone instead of three paragraphs. */
+.how-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); grid-template-rows: 1fr auto auto auto 1fr; column-gap: 64px; }
+.how-section .section-heading { grid-column: 1; grid-row: 2; max-width: none; margin: 0; text-align: left; }
+.how-play { display: contents; }
+.how-play-steps { grid-column: 1; grid-row: 3; margin: 28px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.how-play-steps li { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 17px; font-weight: 700; transition: color 200ms ease; }
+.how-play-steps li span {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: var(--canvas);
+  font: 700 14px/1 "LINE Seed Sans KR", system-ui, sans-serif;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+.how-play-steps li.is-current { color: var(--text); }
+.how-play-steps li.is-current span { border-color: var(--accent-strong); color: var(--accent-ink); }
+.how-play-steps li.is-done span { border-color: var(--accent); background: var(--accent); color: #062b1c; }
+.how-section .how-experience-link { grid-column: 1; grid-row: 4; }
+
+.how-play-phone {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  width: 100%;
+  aspect-ratio: 9 / 15;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 36px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px -32px color-mix(in srgb, var(--text) 35%, transparent);
+}
+.how-play-screen {
+  height: 100%;
+  padding: 22px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 26px;
+  background: var(--surface-soft);
+  overflow: hidden;
+  animation: how-screen-in 260ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.how-play-prompt { margin: 0; outline: none; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font: 700 20px/1.35 "LINE Seed Sans KR", system-ui, sans-serif; letter-spacing: -0.02em; word-break: keep-all; }
+.how-play-hint { margin: -6px 0 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: color-mix(in srgb, var(--text) 80%, var(--surface-soft)); font-size: 14px; }
+.how-play-hint button { min-height: 32px; margin: -6px -6px -6px 0; padding: 0 6px; border: 0; background: none; color: var(--accent-ink); font: 700 14px/1 "LINE Seed Sans KR", system-ui, sans-serif; cursor: pointer; }
+.how-play-count { margin-left: auto; color: var(--accent-ink); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.how-play-places { flex: 1; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.how-play-places button {
+  position: relative;
+  min-height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--line);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+.how-play-places button:active { transform: scale(0.97); }
+.how-play-places img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1); }
+.how-play-places button:hover img { transform: scale(1.06); }
+.how-play-places button::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.05) 70%); }
+.how-play-places span { position: absolute; left: 18px; bottom: 14px; z-index: 1; font: 700 22px/1 "LINE Seed Sans KR", system-ui, sans-serif; }
+.how-play-place-done { position: absolute; top: 12px; right: 12px; z-index: 1; padding: 4px; border-radius: 50%; background: var(--accent); color: #062b1c; box-sizing: content-box; }
+
+.how-play-photos { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.how-play-photos button {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--line);
+  cursor: pointer;
+  animation: how-photo-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i) * 90ms);
+}
+.how-play-photos img { width: 100%; height: 100%; object-fit: cover; opacity: 0.45; filter: grayscale(0.7); transform: scale(0.94); border-radius: 14px; transition: opacity 180ms ease, filter 180ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.how-play-photos .is-picked img { opacity: 1; filter: none; transform: none; }
+.how-play-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.25);
+  color: transparent;
+  transition: background 160ms ease, color 160ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.how-play-photos .is-picked .how-play-check { background: var(--accent); color: #062b1c; transform: scale(1.08); }
+
+.how-play-save,
+.how-play-again {
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  font: 700 16px/1 "LINE Seed Sans KR", system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+.how-play-save { background: var(--accent); color: #062b1c; }
+.how-play-save:disabled { background: var(--surface); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: not-allowed; }
+.how-play-save:not(:disabled):active,
+.how-play-again:active { transform: scale(0.97); }
+.how-play-again { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+
+.how-play-map { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+.how-play-map svg { width: 100%; height: 100%; }
+.how-play-map path { fill: var(--surface); stroke: var(--line); stroke-width: 3; transition: fill 300ms ease; }
+.how-play-map path.is-filled { fill: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
+.how-play-map path.is-new { fill: var(--accent); animation: how-fill 700ms 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.how-play-pulse { fill: none; stroke: var(--accent-strong); stroke-width: 5; transform-box: fill-box; transform-origin: center; animation: how-pulse 1.4s 600ms ease-out 3 both; }
+.how-play-stamp {
+  position: absolute;
+  /* Bottom-left is open sea west of 제주, so the stamp never hides the province it celebrates. */
+  left: 6px;
+  bottom: 4px;
+  padding: 10px 14px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  border: 3px solid var(--accent-strong);
+  border-radius: 14px;
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  transform: rotate(-9deg);
+  animation: how-stamp 520ms 650ms cubic-bezier(0.22, 1.6, 0.36, 1) both;
+}
+.how-play-stamp strong { font: 700 20px/1 "LINE Seed Sans KR", system-ui, sans-serif; }
+.how-play-stamp small { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+
+@keyframes how-screen-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes how-photo-in { from { opacity: 0; transform: scale(0.6) translateY(16px); } }
+@keyframes how-pulse { from { opacity: 1; transform: scale(0.4); } to { opacity: 0; transform: scale(2.4); } }
+@keyframes how-fill { from { fill: var(--surface); } }
+@keyframes how-stamp { from { opacity: 0; transform: rotate(-9deg) scale(2.2); } 60% { opacity: 1; } }
+
+@media (max-width: 900px) {
+  .how-section { grid-template-columns: 1fr; grid-template-rows: none; }
+  .how-section .section-heading, .how-play-steps, .how-section .how-experience-link { grid-row: auto; }
+  .how-play-steps { margin: 18px 0 20px; display: flex; flex-wrap: wrap; gap: 8px 12px; }
+  .how-play-steps li { gap: 6px; font-size: 13px; }
+  .how-play-steps li span { width: 24px; height: 24px; font-size: 12px; }
+  .how-play-phone { grid-column: 1; grid-row: auto; max-width: 360px; justify-self: start; aspect-ratio: 9 / 14; }
+  .how-section .how-experience-link { justify-self: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .how-play-screen,
+  .how-play-photos button,
+  .how-play-map path.is-new,
+  .how-play-stamp { animation: none; }
+  .how-play-pulse { animation: none; opacity: 1; }
+}
+
+/* Footer photo credits stay out of the way until opened. */
+.footer-meta { display: grid; justify-items: end; gap: 0; }
+.photo-credits summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.photo-credits ul { max-width: 560px; max-height: 240px; margin: 0; padding: 0 0 0 18px; overflow: auto; line-height: 1.7; text-align: left; }
+.photo-credits a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 900px) { .footer-meta { justify-items: start; } }

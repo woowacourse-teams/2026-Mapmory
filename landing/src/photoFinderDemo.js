@@ -24,22 +24,14 @@ export const PHOTO_FINDER_REPLAY_TIMELINE = Object.freeze({
   matchHoldMs: 450,
 });
 
-// Small team-owned thumbnails (EXIF stripped) that fill the hero photo library.
-export const PHOTO_FINDER_LIBRARY_PHOTOS = Object.freeze([
-  "/assets/team-thumbs/team-hapjeong-huiok.webp",
-  "/assets/team-thumbs/team-jeju-coast.webp",
-  "/assets/team-thumbs/team-shanghai-bund.webp",
-  "/assets/team-thumbs/team-tokyo-street.webp",
-  "/assets/team-thumbs/team-usa-antelope-canyon.webp",
-  "/assets/team-thumbs/team-usa-bryce-canyon.webp",
-  "/assets/team-thumbs/team-usa-las-vegas-day.webp",
-  "/assets/team-thumbs/team-usa-las-vegas-fountain.webp",
-  "/assets/team-thumbs/team-usa-las-vegas-venetian.webp",
-  "/assets/team-thumbs/team-yeosu-mochi.webp",
-]);
+// Openly licensed thumbnails (CC0 / public domain / CC BY, EXIF stripped) that fill the hero photo library.
+// Credits live in data/photo-credits.json.
+const photo = (name) => `/assets/photos/${name}.webp`;
+const series = (group, count) => Array.from({ length: count }, (_, index) => photo(`${group}-${String(index + 1).padStart(2, "0")}`));
+
+export const PHOTO_FINDER_LIBRARY_PHOTOS = Object.freeze(series("library", 35));
 
 // Only places the shipping app can search today: Korean provinces and whole countries.
-// crops are [x%, y%, zoom] so one walk reads as several different shots.
 export const PHOTO_FINDER_PLACES = Object.freeze([
   {
     key: "japan",
@@ -50,9 +42,7 @@ export const PHOTO_FINDER_PLACES = Object.freeze([
     target: [138.6, 36.4],
     view: { minLng: 120, maxLng: 150, minLat: 26, maxLat: 46 },
     foundCount: 86,
-    photos: ["/assets/team-thumbs/team-tokyo-street.webp"],
-    // One Tokyo walk, five subjects: wide street (the only crop with the signal), pole and wires, shop signs, rooftop, storefront.
-    crops: [[50, 40, 1], [100, 18, 2.4], [82, 99, 2.86], [47, 0, 2.67], [15, 100, 2.18]],
+    photos: series("japan", 5),
   },
   {
     key: "jeju",
@@ -63,8 +53,7 @@ export const PHOTO_FINDER_PLACES = Object.freeze([
     target: [126.55, 33.38],
     view: { minLng: 124.6, maxLng: 129.6, minLat: 33.0, maxLat: 35.1 },
     foundCount: 31,
-    photos: ["/assets/team-thumbs/team-jeju-coast.webp"],
-    crops: [[50, 20, 1.3], [30, 55, 1.8], [75, 85, 1.7], [50, 50, 1], [15, 35, 2]],
+    photos: series("jeju", 5),
   },
   {
     key: "usa",
@@ -75,14 +64,7 @@ export const PHOTO_FINDER_PLACES = Object.freeze([
     target: [-112.5, 37.4],
     view: { minLng: -128, maxLng: -64, minLat: 22, maxLat: 52 },
     foundCount: 52,
-    photos: [
-      "/assets/team-thumbs/team-usa-bryce-canyon.webp",
-      "/assets/team-thumbs/team-usa-antelope-canyon.webp",
-      "/assets/team-thumbs/team-usa-las-vegas-day.webp",
-      "/assets/team-thumbs/team-usa-las-vegas-fountain.webp",
-      "/assets/team-thumbs/team-usa-las-vegas-venetian.webp",
-    ],
-    crops: [[50, 50, 1], [50, 50, 1], [50, 50, 1], [50, 50, 1], [50, 50, 1]],
+    photos: series("usa", 5),
   },
 ]);
 

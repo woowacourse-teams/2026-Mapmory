@@ -56,7 +56,7 @@ try {
     await menu.locator('[role="group"]').waitFor({ state: "visible" });
     await page.locator(".site-header .brand").click();
     await page.waitForFunction(() => !document.querySelector(".header-store-menu").open);
-    assert.equal((await events()).filter(([, name]) => ["experience_start", "memory_open", "korea_memory_add"].includes(name)).length, 0);
+    assert.equal((await events()).filter(([, name]) => ["experience_start", "memory_open"].includes(name)).length, 0);
     for (const [label, store] of [["App Store", "app_store"], ["Google Play", "google_play"]]) {
       await page.locator(".header-store-trigger").click();
       await page.locator(".header-store-popover").getByRole("link", { name: label, exact: true }).click();
@@ -69,24 +69,25 @@ try {
     }
     assert.equal((await events()).filter(([, name]) => name === "download_click").length, 2);
     console.log("Header stores passed", { mobile });
-    if (mobile) await page.locator(".hero-mobile-experience-cue").click();
+    // Mobile hides the header nav, so it enters the globe from the how-it-works link instead.
+    if (mobile) await page.locator(".how-experience-link").click();
     else await page.getByRole("link", { name: "지구본 체험", exact: true }).click();
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "experience_view"));
-    await page.getByRole("button", { name: "일본", exact: true }).click();
+    await page.getByLabel("기억이 있는 나라 바로 선택").getByRole("button", { name: "일본", exact: true }).click();
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "memory_open"));
     const globe = (await events()).filter(([, , props]) => props.experience_type === "globe").map(([, name]) => name);
     console.log("Globe events", { mobile, globe });
     assert.ok(globe.indexOf("experience_view") < globe.indexOf("experience_start"));
     assert.ok(globe.indexOf("experience_start") < globe.indexOf("memory_open"));
     if (mobile) await page.goBack();
-    if (mobile) await page.locator("#korea-detail").scrollIntoViewIfNeeded();
-    else await page.getByRole("link", { name: "대한민국 지도", exact: true }).click();
-    await page.getByRole("button", { name: "서울특별시 사진을 지도에 추가하기", exact: true }).click();
-    await page.getByRole("button", { name: "서울의 기억 보기", exact: false }).click();
-    await page.getByRole("link", { name: "내 기억 지도도 만들기" }).click();
-    assert.equal((await events()).filter(([, name]) => name === "download_click").length, 2);
-    assert.equal((await events()).filter(([, name]) => name === "download_cta_click").length, 1);
-    console.log("Korea internal CTA passed", { mobile });
+    if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.cta_placement === "how_section"));
+    await page.locator("#download").getByRole("link", { name: "App Store", exact: true }).click();
+    for (const popup of context.pages()) if (popup !== page) await popup.close();
+    await page.bringToFront();
+    const storeClicks = (await events()).filter(([, name]) => name === "download_click");
+    assert.equal(storeClicks.length, 3);
+    assert.equal(storeClicks.at(-1)[2].cta_placement, "final");
+    console.log("Final store passed", { mobile });
     await page.goto("https://map-mory.com/recap/?internal=1");
     await page.getByRole("button", { name: "사진 없이 샘플 결과 먼저 보기" }).click();
     await page.getByRole("button", { name: "내 여행 영상 보기" }).click();
@@ -120,7 +121,7 @@ try {
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
     assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, globe view/start/open, Korea add/internal CTA, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, globe view/start/open, how-section globe link, final store, recap download failure/retry, demo/store and photos/no-GPS" });
     await context.close();
   }
   console.log(JSON.stringify({ output, findings, productionAnalyticsRequests: 0 }, null, 2));

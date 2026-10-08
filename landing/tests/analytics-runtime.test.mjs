@@ -117,14 +117,6 @@ for (const surface of ["landing", "recap"]) {
   });
 }
 
-test("an internal download-section CTA never claims a store conversion", async () => {
-  const harness = await loadAnalytics("landing");
-  harness.api.initializeAnalytics();
-  harness.api.trackEvent("download_cta_click", { cta_placement: "korea_memory" });
-  const events = harness.calls().filter(([command]) => command === "event");
-  assert.deepEqual(events.map(([, event]) => event), ["download_cta_click"]);
-});
-
 test("recap outcome measurements separate demo, own photos, cancellation and failure", async () => {
   const harness = await loadAnalytics("recap");
   harness.api.initializeCampaignAnalytics();

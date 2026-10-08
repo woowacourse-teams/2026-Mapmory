@@ -38,7 +38,8 @@ test("demo places only use units the shipping app can search: Korean provinces o
     if (place.scope === "korea") assert.match(place.regionCode, /^KR-\d{2}$/);
     else assert.match(place.regionCode, /^\d{3}$/);
     assert.ok(place.photos.length > 0);
-    for (const photo of place.photos) assert.match(photo, /^\/assets\/team-/);
+    assert.equal(new Set(place.photos).size, place.photos.length);
+    for (const photo of place.photos) assert.match(photo, /^\/assets\/photos\//);
   }
   assert.doesNotMatch(heroSource + appSource, /오사카|도쿄를 검색|관광지/);
 });
