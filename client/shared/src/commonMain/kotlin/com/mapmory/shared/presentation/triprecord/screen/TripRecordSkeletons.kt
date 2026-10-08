@@ -14,10 +14,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -114,53 +117,44 @@ internal fun TripRecordDetailSkeleton(
 ) {
     Column(modifier.fillMaxSize()) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            Modifier.fillMaxWidth().statusBarsPadding().height(64.dp).padding(horizontal = 8.dp),
         ) {
-            SkeletonBox(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                SkeletonBox(Modifier.size(48.dp), CircleShape)
-                SkeletonBox(Modifier.size(48.dp), CircleShape)
-            }
+            SkeletonBox(Modifier.align(Alignment.CenterStart).size(40.dp), CircleShape)
+            SkeletonCardText(19.sp, Modifier.align(Alignment.Center).width(100.dp), FontWeight.Bold)
+            SkeletonBox(Modifier.align(Alignment.CenterEnd).size(40.dp), CircleShape)
         }
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(TripRecordPalette.current.line))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.4f)
-                .background(
-                    TripRecordPalette.current.surface,
-                    RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-                )
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SkeletonBox(Modifier.width(120.dp).height(28.dp), RoundedCornerShape(10.dp))
-                SkeletonBox(Modifier.width(100.dp).height(28.dp), RoundedCornerShape(10.dp))
+            SkeletonCardText(28.sp, Modifier.fillMaxWidth(0.7f), FontWeight.SemiBold)
+            Spacer(Modifier.height(10.dp))
+            SkeletonCardText(14.sp, Modifier.fillMaxWidth(0.8f))
+            repeat(2) { groupIndex ->
+                Spacer(Modifier.height(if (groupIndex == 0) 32.dp else 34.dp))
+                SkeletonCardText(18.sp, Modifier.width(132.dp), FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(2) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            repeat(2) {
+                                TripPhotoPlaceholder(
+                                    Modifier.weight(1f).aspectRatio(1f),
+                                    RoundedCornerShape(14.dp),
+                                )
+                            }
+                        }
+                    }
+                }
             }
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .height(29.dp)
-                    .padding(top = 17.dp),
-            )
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(14.dp)
-                    .padding(top = 12.dp),
-            )
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth(0.82f)
-                    .height(14.dp)
-                    .padding(top = 6.dp),
-            )
         }
     }
 }
