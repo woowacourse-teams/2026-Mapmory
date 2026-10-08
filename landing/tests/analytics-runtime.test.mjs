@@ -117,6 +117,27 @@ for (const surface of ["landing", "recap"]) {
   });
 }
 
+test("landing: how_play_save sends only its contract and rejects malformed or retired saves", async () => {
+  const harness = await loadAnalytics("landing");
+  harness.api.initializeAnalytics();
+  const save = { experience_type: "how_play", demo_place: "busan", save_index: 1, selected_photos: 4 };
+  assert.equal(harness.api.trackEvent("how_play_save", { ...save, src: "x" }), true);
+  for (const parameters of [{ ...save, save_index: undefined }, { ...save, save_index: 0 }, { ...save, experience_type: "globe" }]) {
+    assert.equal(harness.api.trackEvent("how_play_save", parameters), false);
+  }
+  assert.equal(harness.api.trackEvent("korea_memory_add", { add_index: 1 }), false);
+
+  const events = harness.calls().filter(([command]) => command === "event");
+  assert.equal(events.length, 1);
+  const [, name, params] = events[0];
+  assert.equal(name, "how_play_save");
+  assert.equal(params.surface, "landing");
+  assert.equal(params.analytics_schema_version, "2");
+  assert.equal(params.traffic_type, "internal");
+  for (const [key, value] of Object.entries(save)) assert.equal(params[key], value);
+  assert.equal(params.src, undefined);
+});
+
 test("recap outcome measurements separate demo, own photos, cancellation and failure", async () => {
   const harness = await loadAnalytics("recap");
   harness.api.initializeCampaignAnalytics();

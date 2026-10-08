@@ -122,13 +122,13 @@ memory_open(experience_type = globe, open_index = 1)을 한 고유 사용자 수
 
 ```text
 체험당 고유 기억 수 =
-experience_end.unique_memories_opened
+experience_end(experience_type = globe).unique_memories_opened
 
 정확한 활성 체험시간 =
-experience_end.active_duration_seconds
+experience_end(experience_type = globe).active_duration_seconds
 
 첫 가치 도달시간 =
-memory_open(open_index = 1).time_since_start_seconds
+memory_open(experience_type = globe, open_index = 1).time_since_start_seconds
 ```
 
 체험시간은 단독 성공 지표로 사용하지 않습니다. `기억 0개 + 긴 체험`은 혼란일
