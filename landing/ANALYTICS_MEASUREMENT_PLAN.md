@@ -87,12 +87,13 @@ Recap 내부 화면을 가짜 `page_view`로 보내지 않고 단계별 이벤�
 | 02-c 사용법 후 스토어 | 닫힌 퍼널 `how_play_save → download_click(cta_placement≠demand_primary)` | 저장 후 스토어 이동. 상관관계이며 체험의 인과 효과 아님. 전체 `download_click` 사용자로 대체하지 않음 |
 | 03 스토어·CTA | `event_name=download_click`; surface/store/cta_placement; 총 사용자·이벤트 수 | 목적지·위치별 클릭 분포. 설치/CTR 아님 |
 | 04 Recap 내 사진 | surface=recap, journey_source=photos; photo_select→processing_complete→recap_view→demand_view→download_click | 샘플 제외 흐름. 공유 없이 앱 안내로 가도 정상 |
-| 05 Recap 품질 | surface=recap; journey_source/result/error_type/format별 처리·공유·내보내기 | GPS 부재·기술 실패·취소·다운로드 폴백 구분 |
+| 05 Recap 품질 (등록 전 PostHog 전용) | surface=recap; journey_source/result/error_type/format별 처리·공유·내보내기 | GPS 부재·기술 실패·취소·다운로드 폴백 구분 |
 
 GA4 맞춤 정의 등록 상태(이벤트 범위, 속성 `551158914`):
 - 2026-10-08 등록: `store`, `cta_placement`, `experience_type`, `analytics_schema_version`, `landing_version`, `demo_place`, `journey_source`.
 - 2026-10-08 09:52 UTC 등록: `save_index`(how_play 코드 배포 전). 값은 문자열 `1`·`2`·`3`으로 들어오므로 문자열 일치로 거른다.
 - 미등록(현재 PostHog에서만 분석): `surface`, `traffic_type`, `result`, `error_type`, `format`, `last_completed_step`, `memory_id`, `selection_source`, `open_index`, `campaign_version`, `interaction_type`, `exit_reason`, `close_method`과 숫자 값 `active_duration_seconds`, `time_since_start_seconds`, `time_since_memory_open_seconds`, `unique_memories_opened`, `selected_photos`, `valid_gps_photos`, `photo_index`, `photo_count`, `max_photo_index`, `photos_viewed`. GA4 보고서에 필요해질 때 등록한다.
+- GA4 보고서는 미등록 `surface` 대신 페이지 경로로 거른다(랜딩 `/`, Recap `/recap/`로 시작). `traffic_type=external`은 GA4 탐색에서 `테스트 데이터 필터 이름`이 `Internal Traffic`인 행을 빼는 것으로 대신한다. 05는 `result`·`error_type`·`format`이 미등록이라 등록 전까지 PostHog에서만 본다.
 - GA4는 등록 전 데이터를 소급하지 않는다. `experience_type`은 2026-10-08 이전 행이 `(not set)`이며, 나중에 등록하는 항목도 등록 시점부터만 보인다.
 
 `open_index`는 순서 필터용이며 합계를 KPI로 쓰지 않는다. `save_index`도 순서 필터용, 합계 KPI 아님. `add_index`·`korea_memory_add`·`download_cta_click`·`cta_placement=korea_memory`는 재사용 금지. (`add_index`는 2026-10-08 대한민국 체험 삭제 전 데이터에만 있음)
