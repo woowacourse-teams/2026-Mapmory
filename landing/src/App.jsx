@@ -1,6 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import koreaProvinces from "./data/korea-provinces.json";
 import {
   AppleLogo,
   ArrowLeft,
@@ -9,20 +8,14 @@ import {
   CaretDown,
   CloudArrowUp,
   DeviceMobile,
-  Images,
-  MagnifyingGlass,
-  Trash,
-  CheckCircle,
   DownloadSimple,
   EnvelopeSimple,
   GlobeHemisphereEast,
   HandSwipeLeft,
   MapPin,
-  MapTrifold,
   Moon,
   NavigationArrow,
   Play,
-  Plus,
   ShieldCheck,
   Sun,
 } from "@phosphor-icons/react";
@@ -30,6 +23,8 @@ import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoFinderHero } from "./PhotoFinderHero.jsx";
+import { HowItWorksPlay } from "./HowItWorksPlay.jsx";
+import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
   createWorldMemoryHistoryState,
   isWorldMemoryHistoryEntry,
@@ -42,8 +37,6 @@ const GOOGLE_PLAY_URL = import.meta.env.VITE_GOOGLE_PLAY_URL?.trim()
 const APP_STORE_URL = "https://apps.apple.com/kr/app/mapmory-%EC%97%AC%ED%96%89-%EA%B8%B0%EB%A1%9D-%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/id6807056166";
 const Globe = lazy(() => import("react-globe.gl"));
 const WORLD_SELECTION_MOTION_MS = 720;
-const KOREA_FILL_MOTION_MS = 1500;
-const KOREA_DETAIL_HISTORY_KEY = "__mapmoryKoreaDetail";
 const GLOBE_RENDERER_CONFIG = Object.freeze({ antialias: true, alpha: true, powerPreference: "high-performance" });
 
 function currentTimeMs() {
@@ -52,20 +45,6 @@ function currentTimeMs() {
 
 function elapsedSeconds(startedAt) {
   return Math.max(0, Math.round((currentTimeMs() - startedAt) / 100) / 10);
-}
-
-function isKoreaDetailHistoryEntry(state) {
-  return Boolean(
-    state
-    && typeof state === "object"
-    && typeof state[KOREA_DETAIL_HISTORY_KEY] === "string"
-    && state[KOREA_DETAIL_HISTORY_KEY].length > 0,
-  );
-}
-
-function createKoreaDetailHistoryState(state, memoryKey) {
-  const currentState = state && typeof state === "object" ? state : {};
-  return { ...currentState, [KOREA_DETAIL_HISTORY_KEY]: memoryKey };
 }
 
 const memories = [
@@ -150,83 +129,25 @@ const memories = [
   },
 ];
 
-const koreaMemories = [
-  {
-    key: "hapjeong",
-    provinceCode: "KR-11",
-    districtCode: "11440",
-    province: "서울특별시",
-    provinceShort: "서울",
-    location: "합정 · 희옥",
-    category: "라멘",
-    title: "기다림 끝에 만난 희옥의 시오 라멘",
-    description: "감칠맛이 선명하고 산미를 아주 영리하게 살린 시오 라멘. 긴 웨이팅까지도 합정의 한 장면으로 남았어요.",
-    image: "/assets/team-hapjeong-huiok.jpg",
-    photoCredit: "Mapmory 개발팀 촬영",
-    lat: 37.549,
-    lng: 126.914,
-  },
-  {
-    key: "yeosu",
-    provinceCode: "KR-46",
-    districtCode: "46130",
-    province: "전라남도",
-    provinceShort: "전남",
-    location: "여수 · 딸기모찌",
-    category: "디저트",
-    title: "상자를 열자마자 웃음이 나던 딸기모찌",
-    description: "여수 바닷길을 걷다 고른 모찌 한 상자. 함께 나눠 먹던 달콤함이 여행 전체를 다시 불러와요.",
-    image: "/assets/team-yeosu-mochi.jpg",
-    photoCredit: "Mapmory 개발팀 촬영",
-    lat: 34.76,
-    lng: 127.662,
-  },
-  {
-    key: "jeju",
-    provinceCode: "KR-49",
-    districtCode: "50110",
-    province: "제주특별자치도",
-    provinceShort: "제주",
-    location: "제주 · 바닷가",
-    category: "여행",
-    title: "검은 바위 사이로 밀려오던 제주 바다",
-    description: "파도 소리와 해 질 무렵의 빛만으로도 그날의 제주가 선명하게 돌아와요.",
-    image: "/assets/team-jeju-coast.jpg",
-    photoCredit: "Mapmory 개발팀 촬영",
-    lat: 33.4996,
-    lng: 126.5312,
-  },
-];
-const koreaAddMemories = [koreaMemories[2], koreaMemories[1], koreaMemories[0]];
-
-const HOW_STEPS = [
-  { Icon: MagnifyingGlass, title: "다녀온 곳 검색", body: "제주, 일본처럼 다녀온 지역이나 나라를 검색해요." },
-  { Icon: Images, title: "사진은 폰이 찾아 줘요", body: "그곳에서 찍은 사진만 모아 보여 줘요. 위치 정보가 없는 사진은 사진첩에서 직접 고르면 돼요." },
-  { Icon: MapTrifold, title: "골라서 저장하면 끝", body: "마음에 드는 사진만 골라 저장하면 지도에 그 지역이 칠해져요." },
-];
-
 const TRUST_POINTS = [
   { Icon: DeviceMobile, title: "사진 찾기는 폰 안에서", body: "그 장소에서 찍은 사진인지 폰 안에서 위치·날짜 정보로만 확인해요. 사진첩을 서버로 보내지 않아요." },
   { Icon: CloudArrowUp, title: "고른 사진만 올라가요", body: "기록을 저장할 때 내가 직접 고른 사진만 업로드돼요." },
-  { Icon: Trash, title: "기록은 언제든 지울 수 있어요", body: "남긴 여행 기록은 앱에서 언제든 삭제할 수 있어요." },
 ];
 
-// On-device matching and on-save upload form one boundary; deleting a record stays a separate line.
-const [TRUST_ON_DEVICE, TRUST_ON_SAVE, TRUST_DELETE] = TRUST_POINTS;
+// The panel is only the on-device -> on-save boundary; deleting a record is answered in the FAQ.
+const [TRUST_ON_DEVICE, TRUST_ON_SAVE] = TRUST_POINTS;
 const { Icon: TrustOnDeviceIcon } = TRUST_ON_DEVICE;
 const { Icon: TrustOnSaveIcon } = TRUST_ON_SAVE;
-const { Icon: TrustDeleteIcon } = TRUST_DELETE;
 
 const FAQ_ITEMS = [
   { question: "사진첩 사진을 전부 가져가나요?", answer: "아니요. 사진을 찾는 일은 폰 안에서만 이뤄지고, 서버에는 기록을 저장할 때 직접 고른 사진만 올라가요." },
   { question: "위치 정보가 없는 사진은요?", answer: "자동으로 찾지는 못하지만, 사진첩에서 직접 골라 기록에 넣을 수 있어요." },
+  { question: "남긴 기록은 지울 수 있나요?", answer: "네. 여행 기록은 앱에서 언제든 삭제할 수 있어요." },
   { question: "무료인가요?", answer: "네. App Store와 Google Play에서 무료로 받아 바로 쓸 수 있어요." },
 ];
 
 const memoryByCountry = new Map(memories.map((memory) => [memory.id, memory]));
 const memoryByKey = new Map(memories.map((memory) => [memory.key, memory]));
-const koreaBounds = { minLng: 124.5, maxLng: 130.05, minLat: 33, maxLat: 38.75 };
-const districtMapCache = new Map();
 function getGlobePalette(theme) {
   return theme === "dark"
     ? {
@@ -766,562 +687,8 @@ function MemoryCard({ memory, onClose, onPhotoChange, openSequence = 0, priority
         <h2>{memory.title}</h2>
         <p>{memory.shortDescription}</p>
         <PhotoCredit label={memory.photoCredit} url={memory.photoCreditUrl} />
-        <a className="memory-next" href="#korea-map-demo"><span>대한민국 상세지도 체험하기</span><ArrowRight size={18} weight="bold" /></a>
       </div>
     </article>
-  );
-}
-
-function projectPoint(lng, lat, width, height) {
-  const padding = Math.min(width, height) * 0.08;
-  const longitudeScale = 0.81;
-  const projectedWidth = (koreaBounds.maxLng - koreaBounds.minLng) * longitudeScale;
-  const projectedHeight = koreaBounds.maxLat - koreaBounds.minLat;
-  const scale = Math.min(
-    (width - padding * 2) / projectedWidth,
-    (height - padding * 2) / projectedHeight,
-  );
-  const mapWidth = projectedWidth * scale;
-  const mapHeight = projectedHeight * scale;
-  const offsetX = (width - mapWidth) / 2;
-  const offsetY = (height - mapHeight) / 2;
-  const x = offsetX + (lng - koreaBounds.minLng) * longitudeScale * scale;
-  const y = offsetY + (koreaBounds.maxLat - lat) * scale;
-  return [x, y];
-}
-
-function pointInProjectedRing(x, y, ring, width, height) {
-  let inside = false;
-  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
-    const [currentX, currentY] = projectPoint(ring[index][0], ring[index][1], width, height);
-    const [previousX, previousY] = projectPoint(ring[previous][0], ring[previous][1], width, height);
-    const crosses = ((currentY > y) !== (previousY > y))
-      && x < ((previousX - currentX) * (y - currentY)) / ((previousY - currentY) || Number.EPSILON) + currentX;
-    if (crosses) inside = !inside;
-  }
-  return inside;
-}
-
-function pointInProvince(x, y, province, width, height) {
-  return province.rings.reduce(
-    (inside, ring) => (pointInProjectedRing(x, y, ring, width, height) ? !inside : inside),
-    false,
-  );
-}
-
-function KoreaMap({ memories: visibleMemories, selected, onSelect, theme, transitioningKey }) {
-  const shellRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 620, height: 650 });
-  const [hoveredCode, setHoveredCode] = useState(null);
-  const [revealProgress, setRevealProgress] = useState(1);
-  const visitedCodes = useMemo(
-    () => new Set(visibleMemories.map((memory) => memory.provinceCode)),
-    [visibleMemories],
-  );
-  const transitioningMemory = useMemo(
-    () => visibleMemories.find((memory) => memory.key === transitioningKey) ?? null,
-    [transitioningKey, visibleMemories],
-  );
-
-  useEffect(() => {
-    if (!shellRef.current) return undefined;
-    const updateDimensions = (measuredWidth) => {
-      const width = Math.max(300, Math.floor(measuredWidth));
-      const compactDesktop = window.innerWidth > 900 && window.innerHeight <= 800;
-      const height = width < 500
-        ? Math.round(width * 1.15)
-        : compactDesktop
-          ? Math.min(340, Math.round(width * 0.34))
-          : Math.min(460, Math.round(width * 0.46));
-      setDimensions((current) => (
-        current.width === width && current.height === height ? current : { width, height }
-      ));
-    };
-    const observer = new ResizeObserver(([entry]) => updateDimensions(entry.contentRect.width));
-    const handleViewportResize = () => updateDimensions(shellRef.current?.getBoundingClientRect().width ?? 620);
-    observer.observe(shellRef.current);
-    window.addEventListener("resize", handleViewportResize);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", handleViewportResize);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!transitioningKey || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setRevealProgress(1);
-      return undefined;
-    }
-    let frame;
-    const startedAt = performance.now();
-    const update = (now) => {
-      const progress = Math.max(0, Math.min(1, (now - startedAt) / KOREA_FILL_MOTION_MS));
-      setRevealProgress(1 - ((1 - progress) ** 3));
-      if (progress < 1) frame = requestAnimationFrame(update);
-    };
-    setRevealProgress(0);
-    frame = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frame);
-  }, [transitioningKey]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const { width, height } = dimensions;
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    const context = canvas.getContext("2d");
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
-    context.lineJoin = "round";
-
-    koreaProvinces.forEach((province) => {
-      context.beginPath();
-      province.rings.forEach((ring) => {
-        ring.forEach(([lng, lat], index) => {
-          const [x, y] = projectPoint(lng, lat, width, height);
-          if (index === 0) context.moveTo(x, y);
-          else context.lineTo(x, y);
-        });
-        context.closePath();
-      });
-      const visited = visitedCodes.has(province.code);
-      const active = selected?.provinceCode === province.code || hoveredCode === province.code;
-      context.fillStyle = theme === "dark" ? "#25343c" : "#f2f0ea";
-      context.strokeStyle = theme === "dark" ? "#53626a" : "#c2c9c4";
-      context.lineWidth = 1;
-      context.fill("evenodd");
-      context.stroke();
-
-      if (visited) {
-        context.save();
-        context.clip("evenodd");
-        if (transitioningMemory?.provinceCode === province.code && revealProgress < 1) {
-          const [centerX, centerY] = projectPoint(
-            transitioningMemory.lng,
-            transitioningMemory.lat,
-            width,
-            height,
-          );
-          context.beginPath();
-          context.arc(centerX, centerY, Math.hypot(width, height) * revealProgress, 0, Math.PI * 2);
-          context.clip();
-        }
-        context.fillStyle = active ? "#62d6ac" : "#79dcb8";
-        context.fillRect(0, 0, width, height);
-        context.restore();
-
-        context.beginPath();
-        province.rings.forEach((ring) => {
-          ring.forEach(([lng, lat], index) => {
-            const [x, y] = projectPoint(lng, lat, width, height);
-            if (index === 0) context.moveTo(x, y);
-            else context.lineTo(x, y);
-          });
-          context.closePath();
-        });
-        context.strokeStyle = active ? "#116f4e" : "#278b67";
-        context.lineWidth = active ? 2.4 : 1.8;
-        context.stroke();
-      }
-    });
-  }, [dimensions, hoveredCode, revealProgress, selected, theme, transitioningMemory, visitedCodes]);
-
-  const findMemoryAtPointer = (event) => {
-    const bounds = canvasRef.current?.getBoundingClientRect();
-    if (!bounds) return null;
-    const x = (event.clientX - bounds.left) * (dimensions.width / bounds.width);
-    const y = (event.clientY - bounds.top) * (dimensions.height / bounds.height);
-    const province = koreaProvinces.find(
-      (candidate) => visitedCodes.has(candidate.code)
-        && pointInProvince(x, y, candidate, dimensions.width, dimensions.height),
-    );
-    return province
-      ? visibleMemories.find((memory) => memory.provinceCode === province.code) ?? null
-      : null;
-  };
-
-  return (
-    <div className="korea-map-shell" ref={shellRef}>
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={`대한민국 17개 시도 상세 지도. 현재 ${visibleMemories.length}개 지역에 기억이 표시되어 있습니다.`}
-        onClick={(event) => {
-          const memory = findMemoryAtPointer(event);
-          if (memory) onSelect(memory, "map");
-        }}
-        onPointerMove={(event) => {
-          const memory = findMemoryAtPointer(event);
-          setHoveredCode(memory?.provinceCode ?? null);
-          event.currentTarget.style.cursor = memory ? "pointer" : "default";
-        }}
-        onPointerLeave={() => setHoveredCode(null)}
-      />
-    </div>
-  );
-}
-
-function calculateDistrictBounds(districts) {
-  const bounds = { minLng: Infinity, maxLng: -Infinity, minLat: Infinity, maxLat: -Infinity };
-  for (const district of districts) {
-    for (const ring of district.rings) {
-      for (const [lng, lat] of ring) {
-        bounds.minLng = Math.min(bounds.minLng, lng);
-        bounds.maxLng = Math.max(bounds.maxLng, lng);
-        bounds.minLat = Math.min(bounds.minLat, lat);
-        bounds.maxLat = Math.max(bounds.maxLat, lat);
-      }
-    }
-  }
-  return bounds;
-}
-
-function createDistrictProjection(width, height, bounds) {
-  const padding = Math.min(width, height) * 0.08;
-  const availableWidth = width - padding * 2;
-  const availableHeight = height - padding * 2;
-  const scale = Math.min(
-    availableWidth / Math.max(bounds.maxLng - bounds.minLng, 0.001),
-    availableHeight / Math.max(bounds.maxLat - bounds.minLat, 0.001),
-  );
-  const mapWidth = (bounds.maxLng - bounds.minLng) * scale;
-  const mapHeight = (bounds.maxLat - bounds.minLat) * scale;
-  const offsetX = (width - mapWidth) / 2;
-  const offsetY = (height - mapHeight) / 2;
-  return { scale, offsetX, offsetY, minLng: bounds.minLng, maxLat: bounds.maxLat };
-}
-
-function districtLabelPoint(district) {
-  let largestRing = district.rings[0] ?? [];
-  for (const ring of district.rings) {
-    if (ring.length > largestRing.length) largestRing = ring;
-  }
-  const bounds = { minLng: Infinity, maxLng: -Infinity, minLat: Infinity, maxLat: -Infinity };
-  for (const [lng, lat] of largestRing) {
-    bounds.minLng = Math.min(bounds.minLng, lng);
-    bounds.maxLng = Math.max(bounds.maxLng, lng);
-    bounds.minLat = Math.min(bounds.minLat, lat);
-    bounds.maxLat = Math.max(bounds.maxLat, lat);
-  }
-  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2];
-}
-
-async function loadDistrictMap(provinceCode) {
-  if (districtMapCache.has(provinceCode)) return districtMapCache.get(provinceCode);
-
-  const suffix = provinceCode.replace("KR-", "");
-  const request = fetch(`/assets/maps/korea-districts-${suffix}.json`)
-    .then((response) => {
-      if (!response.ok) throw new Error(`district map ${response.status}`);
-      return response.json();
-    })
-    .then((data) => {
-      if (!Array.isArray(data?.districts) || data.districts.length === 0) {
-        throw new Error("invalid district map data");
-      }
-      return data.districts;
-    })
-    .catch((error) => {
-      districtMapCache.delete(provinceCode);
-      throw error;
-    });
-
-  districtMapCache.set(provinceCode, request);
-  return request;
-}
-
-function DistrictMap({ memory, theme }) {
-  const shellRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 620, height: 540 });
-  const [mapState, setMapState] = useState({ status: "loading", districts: [] });
-
-  useEffect(() => {
-    let active = true;
-    setMapState({ status: "loading", districts: [] });
-    loadDistrictMap(memory.provinceCode)
-      .then((districts) => {
-        if (active) setMapState({ status: "ready", districts });
-      })
-      .catch((error) => {
-        if (active && error.name !== "AbortError") setMapState({ status: "error", districts: [] });
-      });
-    return () => { active = false; };
-  }, [memory.provinceCode]);
-
-  useEffect(() => {
-    if (!shellRef.current) return undefined;
-    const updateDimensions = (measuredWidth) => {
-      const width = Math.max(300, Math.floor(measuredWidth));
-      const compactDesktop = window.innerWidth > 900 && window.innerHeight <= 800;
-      const height = compactDesktop ? 370 : Math.max(390, Math.round(width * 0.84));
-      setDimensions((current) => (
-        current.width === width && current.height === height ? current : { width, height }
-      ));
-    };
-    const observer = new ResizeObserver(([entry]) => updateDimensions(entry.contentRect.width));
-    const handleViewportResize = () => updateDimensions(shellRef.current?.getBoundingClientRect().width ?? 620);
-    observer.observe(shellRef.current);
-    window.addEventListener("resize", handleViewportResize);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", handleViewportResize);
-    };
-  }, []);
-
-  const bounds = useMemo(
-    () => (mapState.districts.length ? calculateDistrictBounds(mapState.districts) : null),
-    [mapState.districts],
-  );
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !bounds || mapState.status !== "ready") return;
-    const { width, height } = dimensions;
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    const context = canvas.getContext("2d");
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
-    context.lineJoin = "round";
-    const projection = createDistrictProjection(width, height, bounds);
-
-    for (const district of mapState.districts) {
-      const active = district.code === memory.districtCode;
-      context.beginPath();
-      for (const ring of district.rings) {
-        for (let index = 0; index < ring.length; index += 1) {
-          const [lng, lat] = ring[index];
-          const x = projection.offsetX + (lng - projection.minLng) * projection.scale;
-          const y = projection.offsetY + (projection.maxLat - lat) * projection.scale;
-          if (index === 0) context.moveTo(x, y);
-          else context.lineTo(x, y);
-        }
-        context.closePath();
-      }
-      context.fillStyle = active ? "#72e5b7" : theme === "dark" ? "#172334" : "#e1e9e4";
-      context.strokeStyle = active ? (theme === "dark" ? "#a8f3d5" : "#21845f") : theme === "dark" ? "#45546a" : "#a8b7ae";
-      context.lineWidth = active ? 2 : 1;
-      context.fill("evenodd");
-      context.stroke();
-    }
-
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    for (const district of mapState.districts) {
-      const active = district.code === memory.districtCode;
-      const [lng, lat] = districtLabelPoint(district);
-      const x = projection.offsetX + (lng - projection.minLng) * projection.scale;
-      const y = projection.offsetY + (projection.maxLat - lat) * projection.scale;
-      const fontSize = width < 420 ? (active ? 10 : 8) : (active ? 12 : 10);
-      context.font = `${active ? 700 : 400} ${fontSize}px "LINE Seed Sans KR", sans-serif`;
-      context.fillStyle = active ? "#073521" : theme === "dark" ? "#95a5b8" : "#53645a";
-      context.fillText(district.name, x, y);
-    }
-  }, [bounds, dimensions, mapState, memory.districtCode, theme]);
-
-  return (
-    <div className="district-map-shell" ref={shellRef}>
-      <div className="district-map-caption"><span><b>3단계</b>{memory.provinceShort} 상세지역</span><small>민트색 = 기억이 있는 지역</small></div>
-      {mapState.status === "loading" && <div className="district-map-status"><MapTrifold size={26} weight="duotone" />상세지도를 불러오고 있어요</div>}
-      {mapState.status === "error" && <div className="district-map-status">상세지도를 불러오지 못했어요.</div>}
-      <canvas ref={canvasRef} role="img" aria-label={`${memory.province} 시·군·구 상세 지도. ${memory.location}이 민트색으로 표시되어 있습니다.`} />
-    </div>
-  );
-}
-
-function KoreaDetailExperience({ theme }) {
-  const [selected, setSelected] = useState(null);
-  const [addedMemoryKeys, setAddedMemoryKeys] = useState(() => new Set());
-  const [isAddPanelOpen, setIsAddPanelOpen] = useState(true);
-  const [addFeedback, setAddFeedback] = useState("사진을 고르면 그 장소의 지역이 지도에 채워져요.");
-  const [detailLevel, setDetailLevel] = useState(2);
-  const [transitioningKey, setTransitioningKey] = useState(null);
-  const detailDemoRef = useRef(null);
-  const pendingMemorySourceRef = useRef(null);
-  const transitionTimerRef = useRef(null);
-  const detailLevelRef = useRef(2);
-  const analytics = useExperienceAnalytics("korea_detail");
-  const addedMemories = useMemo(
-    () => koreaMemories.filter((memory) => addedMemoryKeys.has(memory.key)),
-    [addedMemoryKeys],
-  );
-  const activeAddedMemory = selected && addedMemoryKeys.has(selected.key)
-    ? selected
-    : addedMemories.at(-1) ?? null;
-
-  useEffect(() => {
-    void Promise.allSettled(
-      koreaMemories.map((memory) => loadDistrictMap(memory.provinceCode)),
-    );
-    return () => clearTimeout(transitionTimerRef.current);
-  }, []);
-
-  const showKoreaOverview = useCallback(({ consumeHistory = true } = {}) => {
-    const shouldConsumeHistory = consumeHistory && isKoreaDetailHistoryEntry(window.history.state);
-    clearTimeout(transitionTimerRef.current);
-    detailLevelRef.current = 2;
-    setTransitioningKey(null);
-    setIsAddPanelOpen(false);
-    setDetailLevel(2);
-    if (shouldConsumeHistory) window.history.back();
-  }, []);
-
-  useEffect(() => {
-    const handleKoreaHistoryBack = () => {
-      if (detailLevelRef.current !== 3) return;
-      showKoreaOverview({ consumeHistory: false });
-    };
-    window.addEventListener("popstate", handleKoreaHistoryBack);
-    return () => window.removeEventListener("popstate", handleKoreaHistoryBack);
-  }, [showKoreaOverview]);
-
-  const openDetail = (memory, selectionSource) => {
-    if (selected?.key !== memory.key || detailLevel !== 3) {
-      pendingMemorySourceRef.current = selectionSource;
-    }
-    setSelected(memory);
-    setIsAddPanelOpen(false);
-    setTransitioningKey(null);
-    if (window.matchMedia("(max-width: 900px)").matches && detailLevelRef.current !== 3 && !isKoreaDetailHistoryEntry(window.history.state)) {
-      window.history.pushState(
-        createKoreaDetailHistoryState(window.history.state, memory.key),
-        "",
-        window.location.href,
-      );
-    }
-    detailLevelRef.current = 3;
-    setDetailLevel(3);
-  };
-
-  useEffect(() => {
-    if (detailLevel !== 3 || !selected || !pendingMemorySourceRef.current) return;
-    analytics.trackMemoryOpen(selected.key, pendingMemorySourceRef.current);
-    pendingMemorySourceRef.current = null;
-  }, [detailLevel, selected, analytics.trackMemoryOpen]);
-
-  const handleSelect = (memory, selectionSource) => {
-    if (!addedMemoryKeys.has(memory.key) || transitioningKey) return;
-    clearTimeout(transitionTimerRef.current);
-    openDetail(memory, selectionSource);
-  };
-
-  const handleAdd = (memory) => {
-    if (addedMemoryKeys.has(memory.key)) {
-      if (transitioningKey) return;
-      handleSelect(memory, "photo_tray");
-      return;
-    }
-    clearTimeout(transitionTimerRef.current);
-    analytics.startExperience("memory_add");
-    setAddedMemoryKeys((current) => new Set([...current, memory.key]));
-    setSelected(memory);
-    setIsAddPanelOpen(false);
-    setTransitioningKey(memory.key);
-    setAddFeedback(`${memory.province}에 기억을 남기고 있어요.`);
-    transitionTimerRef.current = setTimeout(() => {
-      analytics.trackMemoryAdd(memory.key);
-      setTransitioningKey(null);
-      setAddFeedback(`${memory.province}에 기억이 남았어요. 색칠된 지역이나 기억 보기를 눌러 열어보세요.`);
-    }, KOREA_FILL_MOTION_MS);
-  };
-
-  return (
-    <section className="detail-section" id="korea-detail" ref={analytics.sectionRef}>
-      <div className="detail-heading">
-        <div><h2>사진을 기록하면<br /><em>지도가 채워져요.</em></h2></div>
-      </div>
-
-      <div className={`detail-demo detail-level-${detailLevel}`} id="korea-map-demo" ref={detailDemoRef}>
-        <header className="map-app-header">
-          <h3>{detailLevel === 2 ? "나의 대한민국 지도" : `${selected?.provinceShort}의 기억`}</h3>
-          <div className="map-progress" aria-label={`17개 시도 중 ${addedMemories.length}개 채움`}><strong>{addedMemories.length}</strong><span>/ 17</span></div>
-        </header>
-        {detailLevel === 2 ? (
-          <div className="detail-level-content">
-            <div className="detail-stage detail-stage-map">
-              <div className={`map-interaction-panel ${transitioningKey ? "is-transitioning" : ""}`} aria-busy={Boolean(transitioningKey)}>
-                <KoreaMap memories={addedMemories} selected={selected} onSelect={handleSelect} theme={theme} transitioningKey={transitioningKey} />
-                {activeAddedMemory && !transitioningKey && !isAddPanelOpen ? (
-                  <div className="region-reveal-tray" aria-live="polite">
-                    <div className="region-reveal-copy">
-                      <span><CheckCircle size={17} weight="fill" />{activeAddedMemory.provinceShort} · 기억 1개</span>
-                      <strong>{activeAddedMemory.provinceShort}에 기억이 남았어요</strong>
-                    </div>
-                    <div className="region-reveal-actions">
-                      <button className="region-reveal-add" type="button" onClick={() => setIsAddPanelOpen(true)}>
-                        {addedMemories.length < koreaAddMemories.length ? "다른 지역 추가" : "기록 목록 보기"}
-                      </button>
-                      <button className="region-reveal-open" type="button" onClick={() => handleSelect(activeAddedMemory, "reveal_tray")}>
-                        {activeAddedMemory.provinceShort} 기억 열기<ArrowRight size={18} weight="bold" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="memory-add-panel">
-                    <div className="memory-add-heading">
-                      <span><b>2단계</b> 사진 한 장을 골라 지도에 기록해보세요</span>
-                      <p aria-live="polite">{addFeedback}</p>
-                    </div>
-                    <div className="memory-add-list" role="list" aria-label="지도에 추가할 예시 사진">
-                      {koreaAddMemories.map((memory) => {
-                        const isAdded = addedMemoryKeys.has(memory.key);
-                        const isTransitioning = transitioningKey === memory.key;
-                        return (
-                          <article className={`memory-add-card ${isAdded ? "is-added" : ""}`} key={memory.key} role="listitem">
-                            <img src={memory.image} alt={`${memory.location}의 실제 사진`} loading="lazy" decoding="async" />
-                            <div><span>{memory.location}</span><small>{memory.photoCredit}</small></div>
-                            <button type="button" disabled={Boolean(transitioningKey)} onClick={() => handleAdd(memory)} aria-label={isTransitioning ? `${memory.province} 지도 색칠 중` : isAdded ? `${memory.province} 기억 보기` : `${memory.province} 사진을 지도에 추가하기`}>
-                              {isTransitioning ? <>색칠 중</> : isAdded ? <><CheckCircle size={15} weight="fill" />기억 보기</> : <><Plus size={15} weight="bold" />추가하기</>}
-                            </button>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="region-detail-stage detail-level-content" aria-live="polite">
-            <div className="region-detail-toolbar">
-              <button type="button" onClick={() => showKoreaOverview()}><ArrowLeft size={18} weight="bold" />대한민국 지도로 돌아가기</button>
-            </div>
-            <div className="district-detail-grid">
-              <DistrictMap memory={selected} theme={theme} />
-              <article className="region-memory-card is-detail">
-                <div className="region-photo"><img key={selected.image} src={selected.image} alt={`${selected.location}의 실제 사진`} loading="lazy" decoding="async" /><span>{selected.category}</span></div>
-                <div className="region-memory-body">
-                  <p className="region-location"><NavigationArrow size={17} weight="fill" />{selected.location}<small>{selected.provinceShort}</small></p>
-                  <h3>{selected.title}</h3>
-                  <p>{selected.description}</p>
-                  <PhotoCredit label={selected.photoCredit} url={selected.photoCreditUrl} />
-                  <a
-                    className="button button-primary region-cta"
-                    href="#download"
-                    onClick={() => trackEvent(
-                      ANALYTICS_EVENTS.DOWNLOAD_CTA_CLICK,
-                      { cta_placement: "korea_memory" },
-                    )}
-                  >
-                    내 기억 지도도 만들기<ArrowRight size={18} weight="bold" />
-                  </a>
-                </div>
-              </article>
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
   );
 }
 
@@ -1544,7 +911,6 @@ function App() {
         <nav aria-label="주요 메뉴">
           <a href="#how">사용 방법</a>
           <a href="#experience" onClick={() => globeAnalytics.trackEntryClick("header_nav")}>지구본 체험</a>
-          <a href="#korea-detail" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "korea_detail", cta_placement: "header_nav" })}>대한민국 지도</a>
           <a href="#privacy">안심하고 쓰기</a>
         </nav>
         <div className="header-actions"><ThemeToggle theme={theme} onChange={setTheme} /><HeaderStoreMenu /></div>
@@ -1563,17 +929,7 @@ function App() {
         <div className="section-heading">
           <h2 id="how-title">3단계면 끝나요.</h2>
         </div>
-        <ol className="how-steps">
-          {HOW_STEPS.map(({ title, body }, index) => (
-            <li key={title}>
-              <span className="how-step-number" aria-hidden="true">{index + 1}</span>
-              <div>
-                <h3>{title}</h3>
-                <p>{body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <HowItWorksPlay />
         <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
@@ -1619,9 +975,6 @@ function App() {
         document.body,
       )}
 
-
-      <KoreaDetailExperience theme={theme} />
-
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
           <h2 id="privacy-title">사진첩은 폰 안에서만 살펴봐요.</h2>
@@ -1637,13 +990,6 @@ function App() {
             <span className="trust-zone-label"><TrustOnSaveIcon size={18} weight="duotone" />저장할 때</span>
             <h3>{TRUST_ON_SAVE.title}</h3>
             <p>{TRUST_ON_SAVE.body}</p>
-          </div>
-        </div>
-        <div className="trust-delete">
-          <TrustDeleteIcon size={22} weight="duotone" />
-          <div>
-            <h3>{TRUST_DELETE.title}</h3>
-            <p>{TRUST_DELETE.body}</p>
           </div>
         </div>
         <div className="faq-list">
@@ -1667,7 +1013,7 @@ function App() {
         <p className="finder-trust-note download-trust"><ShieldCheck size={18} weight="fill" />사진은 폰 안에서 찾고, 고른 사진만 올라가요.</p>
       </section>
 
-      <footer><div><Brand /><p>기억은 흩어져도, 지도는 남아요.</p></div><p>© 2026 Mapmory. All rights reserved.</p></footer>
+      <footer><div><Brand /><p>기억은 흩어져도, 지도는 남아요.</p></div><div className="footer-meta"><PhotoCredits /><p>© 2026 Mapmory. All rights reserved.</p></div></footer>
     </main>
   );
 }

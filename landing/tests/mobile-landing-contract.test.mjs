@@ -43,11 +43,3 @@ test("globe guidance reacts to the first real gesture and keeps the current zoom
   assert.match(appSource, /altitude: currentViewpoint\?\.altitude/);
   assert.match(stylesSource, /\.globe-onboarding-overlay \{[^}]*pointer-events: none;/s);
 });
-
-test("Korea detail keeps an overview route after every sample is recorded", () => {
-  assert.match(appSource, /기록 목록 보기/);
-  assert.match(appSource, /createKoreaDetailHistoryState\(window\.history\.state, memory\.key\)/);
-  assert.match(appSource, /window\.addEventListener\("popstate", handleKoreaHistoryBack\)/);
-  assert.match(appSource, /showKoreaOverview\(\{ consumeHistory: false \}\)/);
-  assert.match(appSource, /대한민국 지도로 돌아가기/);
-});
