@@ -60,11 +60,12 @@ async function loadHook() {
   return {
     hook,
     // Reports `visible` px of a 600 px box, the way IntersectionObserver does on a threshold crossing.
-    show: (visible) => observerCallback([{
-      isIntersecting: visible > 0,
+    // Several values model crossings queued between two callbacks, delivered oldest first.
+    show: (...visible) => observerCallback(visible.map((px) => ({
+      isIntersecting: px > 0,
       boundingClientRect: { height },
-      intersectionRect: { height: visible },
-    }]),
+      intersectionRect: { height: px },
+    }))),
     advance: (milliseconds) => {
       now += milliseconds;
       for (const [id, timer] of [...timers].sort((a, b) => a[1].at - b[1].at)) {
@@ -168,4 +169,23 @@ test("a start from outside the box below the threshold still needs real exposure
   harness.advance(5000);
   harness.pagehide();
   assert.deepEqual(harness.ends(), []);
+});
+
+test("crossings batched into one callback are judged by the newest entry", async () => {
+  const harness = await loadHook();
+  harness.show(400);
+  harness.hook.startExperience("place_select", { fromSection: true });
+  harness.advance(2000);
+  harness.show(200, 0);
+  harness.advance(1500);
+  const [end] = harness.ends();
+  assert.equal(end.exit_reason, "section_exit");
+  assert.equal(end.active_duration_seconds, 2);
+
+  const tapOnly = await loadHook();
+  tapOnly.show(240);
+  tapOnly.hook.startExperience("place_select", { fromSection: true });
+  tapOnly.show(100, 0);
+  tapOnly.advance(1500);
+  assert.equal(tapOnly.ends()[0]?.exit_reason, "section_exit");
 });

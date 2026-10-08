@@ -119,7 +119,9 @@ export function useExperienceAnalytics(experienceType) {
     const section = sectionRef.current;
     if (!section) return undefined;
 
-    const observer = new IntersectionObserver(([entry]) => {
+    const observer = new IntersectionObserver((entries) => {
+      // Crossings queued between callbacks arrive together, oldest first; only the newest is the current state.
+      const entry = entries[entries.length - 1];
       isVisibleRef.current = occupiesEnoughOfViewport(entry);
       isIntersectingRef.current = entry.isIntersecting;
       if (!isVisibleRef.current) {
