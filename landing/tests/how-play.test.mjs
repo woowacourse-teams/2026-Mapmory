@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFinderDemo.js";
-import { HOW_PLAY_PLACES, howPlayReducer, initialHowPlayState } from "../src/howPlay.js";
+import { HOW_PLAY_PLACES, howPlayReducer, howPlaySaveParameters, initialHowPlayState } from "../src/howPlay.js";
 import { withObjectParticle, withSubjectParticle } from "../src/koreanParticle.js";
 
 const credits = JSON.parse(await readFile(new URL("../src/data/photo-credits.json", import.meta.url), "utf8"));
 const provinces = JSON.parse(await readFile(new URL("../src/data/korea-provinces.json", import.meta.url), "utf8"));
+const componentSource = await readFile(new URL("../src/HowItWorksPlay.jsx", import.meta.url), "utf8");
+const reducerSource = await readFile(new URL("../src/howPlay.js", import.meta.url), "utf8");
 
 test("three taps: pick a place, keep photos, save fills the province and keeps it", () => {
   let state = howPlayReducer(initialHowPlayState, { type: "pick-place", placeKey: "busan" });
@@ -32,6 +34,53 @@ test("saving needs at least one photo, and pick-all selects every found photo", 
   assert.deepEqual(state.picked, [0, 1, 2, 3]);
   for (const index of [0, 1, 2, 3]) state = howPlayReducer(state, { type: "toggle-photo", index });
   assert.equal(howPlayReducer(state, { type: "save" }), state);
+});
+
+test("each place sends one save per page, numbered in fill order, never again after a reset", () => {
+  const actions = [
+    { type: "pick-place", placeKey: "busan" }, { type: "toggle-photo", index: 0 }, { type: "save" },
+    { type: "pick-place", placeKey: "gangwon" }, { type: "pick-all" }, { type: "save" },
+    { type: "pick-place", placeKey: "gyeongbuk" }, { type: "toggle-photo", index: 1 }, { type: "save" },
+    { type: "reset" },
+    { type: "pick-place", placeKey: "busan" }, { type: "toggle-photo", index: 0 }, { type: "save" },
+  ];
+  const saved = new Set();
+  const payloads = [];
+  let state = initialHowPlayState;
+  for (const action of actions) {
+    state = howPlayReducer(state, action);
+    const params = howPlaySaveParameters(state, saved);
+    if (state.step !== 2) assert.equal(params, null);
+    if (!params) continue;
+    saved.add(state.placeKey);
+    payloads.push(params);
+    // A StrictMode or HMR re-run of the same committed state must not send it twice.
+    assert.equal(howPlaySaveParameters(state, saved), null);
+  }
+  // The replayed 부산 save is on screen but sends nothing.
+  assert.deepEqual([state.step, state.placeKey], [2, "busan"]);
+  assert.equal(howPlaySaveParameters(state, saved), null);
+  assert.deepEqual(payloads, [
+    { experience_type: "how_play", demo_place: "busan", save_index: 1, selected_photos: 1 },
+    { experience_type: "how_play", demo_place: "gangwon", save_index: 2, selected_photos: 4 },
+    { experience_type: "how_play", demo_place: "gyeongbuk", save_index: 3, selected_photos: 1 },
+  ]);
+});
+
+test("the first possible tap is a place pick, and demo places never mix with the hero's", () => {
+  for (const action of [{ type: "toggle-photo", index: 0 }, { type: "pick-all" }, { type: "save" }]) {
+    assert.equal(howPlayReducer(initialHowPlayState, action), initialHowPlayState);
+  }
+  const keys = HOW_PLAY_PLACES.map(({ key }) => key);
+  assert.deepEqual(keys, ["busan", "gangwon", "gyeongbuk"]);
+  for (const { key } of PHOTO_FINDER_PLACES) assert.ok(!keys.includes(key), key);
+});
+
+test("the demo is observed on the phone box and tracking stays out of the reducer", () => {
+  assert.match(componentSource, /className="how-play-phone" ref=\{sectionRef\}/);
+  assert.doesNotMatch(componentSource, /className="how-play" ref=/);
+  assert.doesNotMatch(componentSource, /how-play-screen"[^>]*ref=\{sectionRef\}/);
+  assert.doesNotMatch(reducerSource, /from "\.\/analytics|trackEvent\(/);
 });
 
 test("how-play places are real provinces and never reuse the hero's photos", () => {

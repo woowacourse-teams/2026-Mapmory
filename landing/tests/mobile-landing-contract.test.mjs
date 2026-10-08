@@ -43,3 +43,8 @@ test("globe guidance reacts to the first real gesture and keeps the current zoom
   assert.match(appSource, /altitude: currentViewpoint\?\.altitude/);
   assert.match(stylesSource, /\.globe-onboarding-overlay \{[^}]*pointer-events: none;/s);
 });
+
+test("header 사용 방법 link is measured as a how_play entry while the how-section link stays a globe entry", () => {
+  assert.match(appSource, /<a href="#how" onClick=\{\(\) => trackEvent\(ANALYTICS_EVENTS\.EXPERIENCE_CTA_CLICK, \{ experience_type: "how_play", cta_placement: "header_nav" \}\)\}>사용 방법<\/a>/);
+  assert.match(appSource, /className="how-experience-link" href="#experience" onClick=\{\(\) => globeAnalytics\.trackEntryClick\("how_section"\)\}/);
+});

@@ -199,11 +199,18 @@ export function useExperienceAnalytics(experienceType) {
     });
   }, [experienceType, getActiveDurationSeconds, startExperience]);
 
+  // experience_end reports the first continuous session only, so steps outside it are ignored.
+  const completeStep = useCallback((step) => {
+    if (!hasStartedRef.current || hasEndedRef.current) return;
+    lastCompletedStepRef.current = step;
+  }, []);
+
   return {
     sectionRef,
     trackEntryClick,
     startExperience,
     trackMemoryOpen,
+    completeStep,
     endExperience,
   };
 }

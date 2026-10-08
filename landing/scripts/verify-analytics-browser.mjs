@@ -43,17 +43,29 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const events = () => page.evaluate(() => (window.dataLayer ?? []).map((args) => [...args]).filter(([command]) => command === "event"));
+    const waitForEvent = (eventName, experienceType, count = 1) => page.waitForFunction(([name, type, minimum]) => [...(window.dataLayer ?? [])]
+      .filter((args) => args[0] === "event" && args[1] === name && args[2]?.experience_type === type).length >= minimum, [eventName, experienceType, count]);
+    const howPlayEvents = async (eventName) => (await events()).filter(([, name, props]) => name === eventName && props.experience_type === "how_play");
     await page.goto("https://map-mory.com/?internal=1");
     await page.locator(".site-header").waitFor();
     const menu = page.locator(".header-store-menu");
     const trigger = page.locator(".header-store-trigger");
-    await trigger.click();
-    await menu.locator('[role="group"]').waitFor({ state: "visible" });
+    // React attaches the Escape and outside-click listeners only after the async toggle event.
+    // The flag is polled with waitForFunction so a menu that never opens fails on the default timeout instead of hanging.
+    const openStoreMenu = async () => {
+      await menu.evaluate((node) => {
+        delete node.dataset.qaToggled;
+        node.addEventListener("toggle", () => setTimeout(() => { node.dataset.qaToggled = "1"; }), { once: true });
+      });
+      await trigger.click();
+      await page.waitForFunction(() => document.querySelector(".header-store-menu").dataset.qaToggled === "1");
+      await menu.locator('[role="group"]').waitFor({ state: "visible" });
+    };
+    await openStoreMenu();
     await page.keyboard.press("Escape");
     await page.waitForFunction(() => !document.querySelector(".header-store-menu").open);
     assert.equal(await trigger.evaluate((element) => element === document.activeElement), true);
-    await trigger.click();
-    await menu.locator('[role="group"]').waitFor({ state: "visible" });
+    await openStoreMenu();
     await page.locator(".site-header .brand").click();
     await page.waitForFunction(() => !document.querySelector(".header-store-menu").open);
     assert.equal((await events()).filter(([, name]) => ["experience_start", "memory_open"].includes(name)).length, 0);
@@ -69,16 +81,53 @@ try {
     }
     assert.equal((await events()).filter(([, name]) => name === "download_click").length, 2);
     console.log("Header stores passed", { mobile });
+    // View before any tap proves the observer sits on a real box, not the display: contents wrapper.
+    const howPlay = page.locator(".how-play-phone");
+    await howPlay.evaluate((node) => node.scrollIntoView({ block: "center" }));
+    await waitForEvent("experience_view", "how_play");
+    assert.equal((await howPlayEvents("experience_start")).length, 0);
+    for (const [index, [placeButton, pickAll, demoPlace]] of [["부산", true, "busan"], ["강원도 칠해 보기", false, "gangwon"], ["경주도 칠해 보기", true, "gyeongbuk"]].entries()) {
+      await howPlay.getByRole("button", { name: placeButton, exact: true }).click();
+      const starts = await howPlayEvents("experience_start");
+      assert.equal(starts.length, 1);
+      assert.equal(starts[0][2].interaction_type, "place_select");
+      if (pickAll) await howPlay.getByRole("button", { name: "모두 선택", exact: true }).click();
+      else await howPlay.locator(".how-play-photos button").first().click();
+      await howPlay.getByRole("button", { name: pickAll ? "4장 저장하기" : "1장 저장하기", exact: true }).click();
+      await waitForEvent("how_play_save", "how_play", index + 1);
+      const { demo_place, save_index, selected_photos } = (await howPlayEvents("how_play_save")).at(-1)[2];
+      assert.deepEqual({ demo_place, save_index, selected_photos }, { demo_place: demoPlace, save_index: index + 1, selected_photos: pickAll ? 4 : 1 });
+    }
+    // A replay after 처음부터 다시 must not re-send a place already saved on this page.
+    await howPlay.getByRole("button", { name: "처음부터 다시", exact: true }).click();
+    await howPlay.getByRole("button", { name: "부산", exact: true }).click();
+    await howPlay.getByRole("button", { name: "모두 선택", exact: true }).click();
+    await howPlay.getByRole("button", { name: "4장 저장하기", exact: true }).click();
+    await howPlay.getByRole("button", { name: "강원도 칠해 보기", exact: true }).waitFor();
+    assert.equal((await howPlayEvents("how_play_save")).length, 3);
+    assert.equal((await howPlayEvents("experience_start")).length, 1);
+    console.log("How play passed", { mobile });
     // Mobile hides the header nav, so it enters the globe from the how-it-works link instead.
     if (mobile) await page.locator(".how-experience-link").click();
     else await page.getByRole("link", { name: "지구본 체험", exact: true }).click();
-    await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "experience_view"));
+    await waitForEvent("experience_view", "globe");
     await page.getByLabel("기억이 있는 나라 바로 선택").getByRole("button", { name: "일본", exact: true }).click();
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "memory_open"));
     const globe = (await events()).filter(([, , props]) => props.experience_type === "globe").map(([, name]) => name);
     console.log("Globe events", { mobile, globe });
+    assert.equal(globe.filter((name) => name === "experience_view").length, 1);
+    assert.equal(globe.filter((name) => name === "experience_start").length, 1);
     assert.ok(globe.indexOf("experience_view") < globe.indexOf("experience_start"));
     assert.ok(globe.indexOf("experience_start") < globe.indexOf("memory_open"));
+    // Leaving the phone for the globe ends how_play after the 1.5 s grace.
+    await waitForEvent("experience_end", "how_play");
+    const howPlayEnds = await howPlayEvents("experience_end");
+    assert.equal(howPlayEnds.length, 1);
+    assert.equal(howPlayEnds[0][2].exit_reason, "section_exit");
+    assert.equal(howPlayEnds[0][2].last_completed_step, "how_play_save");
+    assert.equal(howPlayEnds[0][2].unique_memories_opened, 0);
+    if (!mobile) await page.locator(".site-header nav").getByRole("link", { name: "사용 방법", exact: true }).click();
+    assert.deepEqual((await howPlayEvents("experience_cta_click")).map(([, , props]) => props.cta_placement), mobile ? [] : ["header_nav"]);
     if (mobile) await page.goBack();
     if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.cta_placement === "how_section"));
     await page.locator("#download").getByRole("link", { name: "App Store", exact: true }).click();
@@ -87,7 +136,11 @@ try {
     const storeClicks = (await events()).filter(([, name]) => name === "download_click");
     assert.equal(storeClicks.length, 3);
     assert.equal(storeClicks.at(-1)[2].cta_placement, "final");
+    assert.ok(storeClicks.every(([, , props]) => props.experience_type === undefined));
     console.log("Final store passed", { mobile });
+    const landingEvents = await events();
+    assert.equal(landingEvents.some(([, name, props]) => name === "memory_open" && props.experience_type === "how_play"), false);
+    assert.equal(JSON.stringify(landingEvents).includes("/assets/photos"), false);
     await page.goto("https://map-mory.com/recap/?internal=1");
     await page.getByRole("button", { name: "사진 없이 샘플 결과 먼저 보기" }).click();
     await page.getByRole("button", { name: "내 여행 영상 보기" }).click();
@@ -121,7 +174,7 @@ try {
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
     assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, globe view/start/open, how-section globe link, final store, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, how_play view before tap/start/save_index 1-3/reset replay not re-sent/section_exit end, globe-only view/start/open, how-section globe link, header how_play link (desktop), final store without experience context, no photo paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
     await context.close();
   }
   console.log(JSON.stringify({ output, findings, productionAnalyticsRequests: 0 }, null, 2));
