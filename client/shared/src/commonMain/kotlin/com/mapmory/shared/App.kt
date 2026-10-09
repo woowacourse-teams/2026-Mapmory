@@ -16,6 +16,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
 import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
@@ -35,6 +36,7 @@ fun MapmoryApp(
     contentWindowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
 ) {
     val ownedContainer = remember(container) {
         if (container == null) createInMemoryAppContainer() else null
@@ -95,6 +97,7 @@ fun MapmoryApp(
                         container = appContainer,
                         backHandlerRegistry = backHandlerRegistry,
                         contentWindowInsets = contentWindowInsets,
+                        developerToolsInfo = developerToolsInfo,
                     )
                 }
             }

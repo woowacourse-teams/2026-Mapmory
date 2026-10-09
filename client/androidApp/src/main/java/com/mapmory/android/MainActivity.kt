@@ -1,6 +1,8 @@
 package com.mapmory.android
 
 import android.os.Bundle
+import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -28,10 +30,12 @@ import androidx.compose.ui.res.colorResource
 import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 
 class MainActivity : ComponentActivity() {
     private val appViewModel: MapmoryAppViewModel by viewModels()
     private val analyticsLogger by lazy { FirebaseAnalyticsLogger(applicationContext) }
+    private val developerToolsInfo by lazy { loadDeveloperToolsInfo() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +75,7 @@ class MainActivity : ComponentActivity() {
                         analytics = analyticsLogger,
                         contentWindowInsets = WindowInsets.safeDrawing,
                         onThemeChanged = { isDarkTheme = it },
+                        developerToolsInfo = developerToolsInfo,
                     )
                     BackHandler {
                         if (navigation.popBackStack()) {
@@ -93,6 +98,22 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@Suppress("DEPRECATION")
+private fun MainActivity.loadDeveloperToolsInfo(): MapmoryDeveloperToolsInfo? {
+    val isDebuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    if (!isDebuggable) return null
+
+    val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+    return MapmoryDeveloperToolsInfo(
+        appVersion = appVersion,
+        applicationId = packageName,
+        buildType = "debug",
+        apiBaseUrl = getString(R.string.mapmory_api_base_url),
+        deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
+        androidVersion = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+    )
 }
 
 private const val ExitBackPressIntervalMs = 2_000L

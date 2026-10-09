@@ -20,6 +20,9 @@ internal data class EditorRoute(
 internal data object ProfileRoute
 
 @Serializable
+internal data object DeveloperToolsRoute
+
+@Serializable
 internal data class DetailRoute(
     val recordId: Long,
 )

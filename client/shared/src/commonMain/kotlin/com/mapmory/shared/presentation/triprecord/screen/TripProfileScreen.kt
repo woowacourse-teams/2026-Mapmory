@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.PrivacyPolicy
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
@@ -61,6 +62,8 @@ fun TripProfileScreen(
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
     onRetryClick: () -> Unit = {},
+    developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
+    onOpenDeveloperTools: () -> Unit = {},
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
@@ -172,6 +175,16 @@ fun TripProfileScreen(
                         },
                     ) {
                         Text("의견 보내기", color = TripRecordPalette.current.primary)
+                    }
+                    if (developerToolsInfo != null) {
+                        TextButton(
+                            onClick = {
+                                showSettings = false
+                                onOpenDeveloperTools()
+                            },
+                        ) {
+                            Text("개발자 도구", color = TripRecordPalette.current.primary)
+                        }
                     }
                     if (PrivacyPolicy.URL.isNotBlank()) {
                         Text(

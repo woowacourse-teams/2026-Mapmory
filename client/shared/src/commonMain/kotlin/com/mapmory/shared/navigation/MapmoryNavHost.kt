@@ -19,7 +19,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.logging.mapmoryDebugLog
+import com.mapmory.shared.presentation.developer.DeveloperToolsScreen
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
@@ -33,6 +35,7 @@ internal fun MapmoryNavHost(
     container: AppContainer,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
+    developerToolsInfo: MapmoryDeveloperToolsInfo?,
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
@@ -149,7 +152,21 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                developerToolsInfo = developerToolsInfo,
+                onOpenDeveloperTools = navigator::navigateToDeveloperTools,
             )
+        }
+
+        composable<DeveloperToolsRoute> {
+            if (developerToolsInfo != null) {
+                DeveloperToolsScreen(
+                    info = developerToolsInfo,
+                    onBack = { navigator.navigateBack() },
+                    modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                )
+            } else {
+                LaunchedEffect(Unit) { navigator.navigateBack() }
+            }
         }
 
         composable<DetailRoute> { backStackEntry ->
