@@ -22,7 +22,7 @@ internal fun TripRecordListRoute(
     onDismissPendingSave: (Long) -> Unit,
     onOpenMap: () -> Unit,
     onOpenEditor: () -> Unit,
-    onOpenDetail: (Long) -> Unit,
+    onOpenDetail: (Long, String?, String?) -> Unit,
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -59,7 +59,15 @@ internal fun TripRecordListRoute(
         },
         onCreateClick = onOpenEditor,
         onMapClick = onOpenMap,
-        onRecordClick = onOpenDetail,
+        onRecordClick = { recordId ->
+            val records = (viewModel.uiState as? com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState.Success)?.records
+            val record = records?.firstOrNull { it.id == recordId }
+            onOpenDetail(
+                recordId,
+                record?.locationName,
+                record?.endDate?.takeIf { it.isNotBlank() } ?: record?.startDate,
+            )
+        },
         onRetryClick = {
             analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RETRY_CLICKED)
             scope.launch { viewModel.refresh(initialLocationId) }

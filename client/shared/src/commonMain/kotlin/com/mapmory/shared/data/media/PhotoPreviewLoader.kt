@@ -13,6 +13,24 @@ internal class PhotoPreviewLoader(
     private val cache: PhotoPreviewCache,
     private val remoteSource: PhotoRemoteSource,
 ) {
+    suspend fun capturedAt(objectKey: String): String? = try {
+        cache.capturedAt(objectKey)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        try {
+            cache.rememberCapturedAt(objectKey, capturedAt)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // 메타데이터 캐시 실패가 서버 저장 성공을 실패로 바꾸지 않는다.
+        }
+    }
+
     suspend fun cachedUri(objectKey: String): String? = cache.uri(objectKey)
 
     suspend fun cachedForDisplay(objectKey: String): PhotoPreviewDisplay? =

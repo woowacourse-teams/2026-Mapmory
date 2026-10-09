@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,12 +26,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.Text
 import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -56,7 +62,7 @@ internal fun SkeletonBox(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(TripRecordPalette.current.softSurface.copy(alpha = alpha)),
+            .background(TripRecordPalette.current.imagePlaceholder.copy(alpha = alpha)),
     )
 }
 
@@ -77,104 +83,71 @@ internal fun TripRecordListSkeleton(
 
 @Composable
 private fun SkeletonTripRecordCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
-        border = BorderStroke(1.dp, TripRecordPalette.current.border),
-    ) {
-        Column {
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(190.dp),
-                shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
-            )
-            Column(Modifier.padding(18.dp)) {
-                SkeletonBox(Modifier.width(84.dp).height(11.dp))
-                SkeletonBox(
-                    modifier = Modifier
-                        .fillMaxWidth(0.72f)
-                        .height(22.dp)
-                        .padding(top = 8.dp),
-                )
-                SkeletonBox(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(13.dp)
-                        .padding(top = 8.dp),
-                )
-                SkeletonBox(
-                    modifier = Modifier
-                        .fillMaxWidth(0.82f)
-                        .height(13.dp)
-                        .padding(top = 5.dp),
-                )
-                Row(
-                    modifier = Modifier.padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    SkeletonBox(Modifier.width(48.dp).height(23.dp), RoundedCornerShape(50.dp))
-                    SkeletonBox(Modifier.width(62.dp).height(23.dp), RoundedCornerShape(50.dp))
-                }
-            }
-        }
+    TripRecordCardLayout(
+        photo = { TripPhotoPlaceholder(Modifier.fillMaxSize(), RoundedCornerShape(12.dp)) },
+        details = {
+            SkeletonCardText(11.sp, Modifier.fillMaxWidth(0.65f))
+            Spacer(Modifier.height(7.dp))
+            SkeletonCardText(19.sp, Modifier.fillMaxWidth(0.5f), FontWeight.Bold)
+        },
+    )
+}
+
+/** 실제 Text와 같은 줄 높이를 측정해 글꼴 배율이 달라도 카드 높이를 맞춘다. */
+@Composable
+private fun SkeletonCardText(
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+) {
+    Box(modifier.clearAndSetSemantics {}) {
+        Text(" ", fontSize = fontSize, fontWeight = fontWeight, color = Color.Transparent, maxLines = 1)
+        SkeletonBox(Modifier.matchParentSize().padding(vertical = 4.dp))
     }
 }
 
+/** 목록에서 받은 제목과 날짜를 표시하고 사진 한 장만 로딩 영역으로 남긴다. */
 @Composable
 internal fun TripRecordDetailSkeleton(
     modifier: Modifier = Modifier,
+    locationName: String? = null,
+    latestDate: String? = null,
+    onBackClick: () -> Unit = {},
 ) {
+    val visibleLocationName = locationName?.takeIf { it.isNotBlank() } ?: "여행"
     Column(modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-        ) {
-            SkeletonBox(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                SkeletonBox(Modifier.size(48.dp), CircleShape)
-                SkeletonBox(Modifier.size(48.dp), CircleShape)
-            }
-        }
+        TripRecordTopBar(
+            title = visibleLocationName,
+            onBackClick = onBackClick,
+        )
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(TripRecordPalette.current.line))
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.4f)
-                .background(
-                    TripRecordPalette.current.surface,
-                    RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-                )
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+            Modifier.fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SkeletonBox(Modifier.width(120.dp).height(28.dp), RoundedCornerShape(10.dp))
-                SkeletonBox(Modifier.width(100.dp).height(28.dp), RoundedCornerShape(10.dp))
+            AlbumHeading(locationName = visibleLocationName)
+            Spacer(Modifier.height(32.dp))
+            latestDate.toAlbumDate()?.let { date ->
+                Text(
+                    text = date.toAlbumDisplayDate(),
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(14.dp))
             }
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .height(29.dp)
-                    .padding(top = 17.dp),
-            )
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(14.dp)
-                    .padding(top = 12.dp),
-            )
-            SkeletonBox(
-                modifier = Modifier
-                    .fillMaxWidth(0.82f)
-                    .height(14.dp)
-                    .padding(top = 6.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SkeletonBox(
+                    Modifier.weight(1f).aspectRatio(1f),
+                    RoundedCornerShape(14.dp),
+                )
+                Spacer(Modifier.weight(1f).aspectRatio(1f))
+            }
         }
     }
 }

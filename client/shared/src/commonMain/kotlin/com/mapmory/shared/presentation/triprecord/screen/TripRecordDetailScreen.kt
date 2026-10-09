@@ -77,6 +77,8 @@ fun TripRecordDetailScreen(
     onProfileClick: () -> Unit = {},
     onInternalBackHandlerChanged: ((() -> Boolean)?) -> Unit = {},
     modifier: Modifier = Modifier,
+    initialLocationName: String? = null,
+    initialLatestDate: String? = null,
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var expandedPhotoIndex by remember { mutableStateOf<Int?>(null) }
@@ -97,7 +99,12 @@ fun TripRecordDetailScreen(
         when (uiState) {
             TripRecordDetailUiState.Idle,
             TripRecordDetailUiState.Loading,
-            -> TripRecordDetailSkeleton(Modifier.fillMaxSize())
+            -> TripRecordDetailSkeleton(
+                modifier = Modifier.fillMaxSize(),
+                locationName = initialLocationName,
+                latestDate = initialLatestDate,
+                onBackClick = onBackClick,
+            )
 
             TripRecordDetailUiState.Deleting -> Box(
                 Modifier.fillMaxSize(),
@@ -120,7 +127,7 @@ fun TripRecordDetailScreen(
             is TripRecordDetailUiState.Success -> {
                 val record = uiState.record
                 val groups = remember(record.id, record.photos, record.startDate) {
-                    groupTripRecordPhotosByDate(record.photos, record.startDate)
+                    groupTripRecordPhotosByDate(record.photos)
                 }
                 val orderedPhotos = remember(groups) { groups.flatMap(TripRecordPhotoGroup::photos) }
                 val selectedIndex = expandedPhotoIndex
@@ -240,7 +247,7 @@ private fun TripRecordPhotoAlbum(
 }
 
 @Composable
-private fun AlbumHeading(
+internal fun AlbumHeading(
     locationName: String,
 ) {
     Row(
@@ -329,7 +336,6 @@ private fun PhotoDateGroup(
                                     contentDescription = "${group.displayDate} 여행 사진 확대"
                                 }
                                 .clickable(role = Role.Button) { onPhotoClick(photo) },
-                            placeholderVariant = photo.id.hashCode(),
                             shape = RoundedCornerShape(14.dp),
                         )
                     }
@@ -461,7 +467,6 @@ private fun ExpandedTripPhotoViewer(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(vertical = 104.dp),
-                    placeholderVariant = photo.id.hashCode(),
                     shape = RectangleShape,
                     contentScale = ContentScale.Fit,
                 )
@@ -517,11 +522,9 @@ internal data class TripRecordPhotoGroup(
 
 internal fun groupTripRecordPhotosByDate(
     photos: List<TripRecordPhotoUiState>,
-    fallbackDate: String?,
 ): List<TripRecordPhotoGroup> {
-    val normalizedFallback = fallbackDate.toAlbumDate()
     return photos
-        .groupBy { photo -> photo.capturedAt.toAlbumDate() ?: normalizedFallback }
+        .groupBy { photo -> photo.capturedAt.toAlbumDate() }
         .map { (date, groupedPhotos) ->
             TripRecordPhotoGroup(
                 sortDate = date,
@@ -535,16 +538,16 @@ internal fun groupTripRecordPhotosByDate(
         )
 }
 
-private fun String?.toAlbumDate(): String? {
+internal fun String?.toAlbumDate(): String? {
     val value = this?.trim().orEmpty()
     val match = AlbumDatePattern.find(value) ?: return null
     val year = match.groupValues[1]
     val month = match.groupValues[2].padStart(2, '0')
     val day = match.groupValues[3].padStart(2, '0')
-    return "$year-$month-$day"
+    return "$year-$month-$day".takeIf { runCatching { LocalDate.parse(it) }.isSuccess }
 }
 
-private fun String.toAlbumDisplayDate(): String {
+internal fun String.toAlbumDisplayDate(): String {
     val (year, month, day) = split('-')
     val weekday = runCatching { LocalDate.parse(this).dayOfWeek.ordinal }
         .getOrNull()

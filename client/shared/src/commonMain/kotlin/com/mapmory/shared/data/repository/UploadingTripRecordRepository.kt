@@ -195,7 +195,7 @@ internal class UploadingTripRecordRepository(
                         originalBytes = null,
                         latitude = local?.latitude ?: cached?.latitude,
                         longitude = local?.longitude ?: cached?.longitude,
-                        capturedAt = local?.capturedAt ?: cached?.capturedAt,
+                        capturedAt = media.capturedAt ?: local?.capturedAt ?: cached?.capturedAt,
                     )
                 },
             )

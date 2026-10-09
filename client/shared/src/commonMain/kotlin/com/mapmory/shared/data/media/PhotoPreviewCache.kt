@@ -5,6 +5,9 @@ import kotlinx.coroutines.sync.withLock
 
 /** Presigned URL이 바뀌어도 같은 사진을 재사용하도록 Object Key를 키로 삼는 캐시 경계다. */
 interface PhotoPreviewCache {
+    suspend fun capturedAt(objectKey: String): String? = null
+    suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) = Unit
+
     suspend fun readRecordedPhotoIndex(): String? = null
     suspend fun writeRecordedPhotoIndex(value: String) = Unit
     suspend fun read(objectKey: String): ByteArray?
@@ -36,6 +39,11 @@ class MemoryPhotoPreviewCache(
     }
     private val mutex = Mutex()
     private val values = linkedMapOf<String, ByteArray>()
+    private val capturedDates = mutableMapOf<String, String>()
+    override suspend fun capturedAt(objectKey: String): String? = mutex.withLock { capturedDates[objectKey] }
+    override suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        mutex.withLock { capturedDates[objectKey] = capturedAt }
+    }
     private val localSourceKeys = linkedMapOf<String, String>()
     private var currentBytes = 0L
 

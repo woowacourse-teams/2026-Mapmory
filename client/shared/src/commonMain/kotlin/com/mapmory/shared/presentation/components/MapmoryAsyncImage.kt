@@ -55,7 +55,6 @@ internal fun MapmoryAsyncImage(
     blackLoadingBackground: Boolean = false,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    placeholderVariant: Int = 0,
     shape: Shape = RoundedCornerShape(18.dp),
     contentScale: ContentScale = ContentScale.Crop,
     sharedImageKey: String? = null,
@@ -107,7 +106,7 @@ internal fun MapmoryAsyncImage(
             if (blackLoadingBackground) {
                 Box(imageModifier.clip(shape).background(Color.Black))
             } else {
-                TripPhotoPlaceholder(imageModifier, placeholderVariant, shape)
+                TripPhotoPlaceholder(imageModifier, shape)
             }
         } else {
             Box(modifier = imageModifier.clip(shape).then(
@@ -124,7 +123,6 @@ internal fun MapmoryAsyncImage(
                 } else if (showPlaceholder && !blackLoadingBackground) {
                     TripPhotoPlaceholder(
                         modifier = Modifier.fillMaxSize(),
-                        variant = placeholderVariant,
                         shape = shape,
                     )
                 }

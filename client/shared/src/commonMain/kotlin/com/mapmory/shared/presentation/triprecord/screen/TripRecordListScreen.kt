@@ -118,9 +118,8 @@ fun TripRecordListScreen(
                         }
 
                         is TripRecordListUiState.Success -> {
-                            if (uiState.isRefreshing || uiState.refreshError != null) {
-                                TripRecordRefreshStatus(
-                                    isRefreshing = uiState.isRefreshing,
+                            if (!uiState.isRefreshing && uiState.refreshError != null) {
+                                TripRecordRefreshError(
                                     onRetryClick = onRetryClick,
                                 )
                             }
@@ -189,8 +188,7 @@ fun TripRecordListScreen(
 }
 
 @Composable
-private fun TripRecordRefreshStatus(
-    isRefreshing: Boolean,
+private fun TripRecordRefreshError(
     onRetryClick: () -> Unit,
 ) {
     Row(
@@ -200,27 +198,14 @@ private fun TripRecordRefreshStatus(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (isRefreshing) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = TripRecordPalette.current.primary,
-                strokeWidth = 2.dp,
-            )
-            Text(
-                text = "여행 기록을 새로 고치고 있어요.",
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 12.sp,
-            )
-        } else {
-            Text(
-                text = "새로 고치지 못했어요. 이전 목록을 보여드려요.",
-                color = TripRecordPalette.current.bodyText,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onRetryClick) {
-                Text("다시 시도", color = TripRecordPalette.current.primary)
-            }
+        Text(
+            text = "새로 고치지 못했어요. 이전 목록을 보여드려요.",
+            color = TripRecordPalette.current.bodyText,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetryClick) {
+            Text("다시 시도", color = TripRecordPalette.current.primary)
         }
     }
 }
@@ -456,10 +441,58 @@ private fun TripRecordCard(
     record: TripRecordItemUiState,
     onClick: () -> Unit,
 ) {
+    TripRecordCardLayout(
+        modifier = Modifier.clickable(onClick = onClick),
+        photo = {
+            MapmoryAsyncImage(
+                imageBytes = record.photos.minByOrNull { it.sortOrder }?.previewBytes?.bytesForDecoding(),
+                imageUri = record.photos.minByOrNull { it.sortOrder }?.previewUri,
+                contentDescription = record.locationName,
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(12.dp),
+            )
+        },
+        details = {
+            val latestDate = record.endDate?.takeIf { it.isNotBlank() } ?: record.startDate
+            latestDate?.takeIf { it.isNotBlank() }?.let { date ->
+                Text(
+                    text = "${date.replace("-", ". ")} 최근 방문",
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 11.sp,
+                )
+            }
+            Text(
+                text = record.locationName,
+                color = TripRecordPalette.current.headingText,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 7.dp),
+            )
+            if (record.content.isNotBlank()) {
+                Text(
+                    text = record.content,
+                    color = TripRecordPalette.current.bodyText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+            }
+        },
+    )
+}
+
+/** 실제 목록과 스켈레톤이 같은 카드 크기와 정렬을 사용한다. */
+@Composable
+internal fun TripRecordCardLayout(
+    photo: @Composable () -> Unit,
+    details: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
         border = BorderStroke(1.dp, TripRecordPalette.current.border),
@@ -469,41 +502,13 @@ private fun TripRecordCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            MapmoryAsyncImage(
-                imageBytes = record.photos.minByOrNull { it.sortOrder }?.previewBytes?.bytesForDecoding(),
-                imageUri = record.photos.minByOrNull { it.sortOrder }?.previewUri,
-                contentDescription = record.locationName,
-                modifier = Modifier.size(76.dp),
-                placeholderVariant = record.id.toInt(),
-                shape = RoundedCornerShape(12.dp),
-            )
-            Column(Modifier.weight(1f)) {
-                val latestDate = record.endDate?.takeIf { it.isNotBlank() } ?: record.startDate
-                latestDate?.takeIf { it.isNotBlank() }?.let { date ->
-                    Text(
-                        text = "${date.replace("-", ". ")} 최근 방문",
-                        color = TripRecordPalette.current.secondaryText,
-                        fontSize = 11.sp,
-                    )
-                }
-                Text(
-                    text = record.locationName,
-                    color = TripRecordPalette.current.headingText,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 7.dp),
-                )
-                Text(
-                    text = record.content.ifBlank { "사진으로 남긴 여행" },
-                    color = TripRecordPalette.current.bodyText,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 7.dp),
-                )
+            Box(
+                modifier = Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                photo()
             }
+            Column(Modifier.weight(1f)) { details() }
             Text("›", color = TripRecordPalette.current.muted, fontSize = 25.sp)
         }
     }

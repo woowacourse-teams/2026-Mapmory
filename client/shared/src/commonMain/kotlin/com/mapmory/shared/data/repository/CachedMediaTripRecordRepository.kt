@@ -1,6 +1,8 @@
 package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.media.PhotoPreviewLoader
+import com.mapmory.shared.data.media.LocalPhotoDataSource
+import kotlinx.coroutines.CancellationException
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMedia
@@ -16,6 +18,7 @@ import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepositor
 internal class CachedMediaTripRecordRepository(
     private val delegate: TripRecordRepository,
     private val loader: PhotoPreviewLoader,
+    private val localPhotoDataSource: LocalPhotoDataSource? = null,
 ) : ProgressReportingTripRecordRepository {
     // 목록 데이터는 사진 다운로드를 기다리지 않고 즉시 반환한다.
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
@@ -75,11 +78,22 @@ internal class CachedMediaTripRecordRepository(
         if (loader.cachedUri(objectKey) == null) {
             resolvedLocalPreviewKey?.let { key -> loader.copyCached(key, objectKey) }
         }
-        val resolvedMedia = if (resolvedLocalPreviewKey == localPreviewKey) {
-            this
-        } else {
-            copy(localPreviewKey = resolvedLocalPreviewKey)
+        val cachedDate = loader.capturedAt(objectKey)
+        val resolvedDate = capturedAt?.takeIf(String::isNotBlank)
+            ?: cachedDate
+            ?: resolvedLocalPreviewKey?.let { key ->
+                try {
+                    localPhotoDataSource?.capturedAt(key)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        if (resolvedDate != null && resolvedDate != cachedDate) {
+            loader.rememberCapturedAt(objectKey, resolvedDate)
         }
+        val resolvedMedia = copy(localPreviewKey = resolvedLocalPreviewKey, capturedAt = resolvedDate)
         val preview = loader.cachedForDisplay(objectKey) ?: return resolvedMedia.withoutInMemoryPhoto()
         return resolvedMedia.copy(
             previewUri = preview.uri,
