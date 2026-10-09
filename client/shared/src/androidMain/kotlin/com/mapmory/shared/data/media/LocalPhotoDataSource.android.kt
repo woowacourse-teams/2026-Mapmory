@@ -33,8 +33,9 @@ class AndroidLocalPhotoDataSource(
                 SimpleDateFormat("yyyy.MM.dd", Locale.KOREA).format(Date(taken))
             } else {
                 applicationContext.contentResolver.openInputStream(uri)?.use { input ->
-                    ExifInterface(input).getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
-                        ?.take(10)?.replace(':', '-')
+                    normalizeExifCapturedAt(
+                        ExifInterface(input).getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL),
+                    )
                 }
             }
         } catch (error: CancellationException) {

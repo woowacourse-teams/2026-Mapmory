@@ -25,6 +25,9 @@ interface TripRecordPageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun write(page: TripRecordPageEntity)
 
+    @Query("DELETE FROM trip_record_pages WHERE queryKey = :queryKey AND payload = :payload")
+    suspend fun deleteIfMatches(queryKey: String, payload: String)
+
     @Query("DELETE FROM trip_record_pages")
     suspend fun clear()
 }
