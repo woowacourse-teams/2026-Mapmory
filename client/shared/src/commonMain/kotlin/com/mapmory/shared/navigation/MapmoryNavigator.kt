@@ -30,6 +30,10 @@ internal class MapmoryNavigator(
         navigateToTab(ProfileRoute)
     }
 
+    fun navigateToDeveloperTools() {
+        navController.navigate(DeveloperToolsRoute)
+    }
+
     fun navigateToEditor(
         recordId: Long? = null,
         selectedLocationId: Long? = null,

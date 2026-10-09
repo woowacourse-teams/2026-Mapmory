@@ -19,6 +19,7 @@ import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.MapmoryViewModelFactory
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import org.junit.Assert.assertEquals
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import java.io.ByteArrayOutputStream
@@ -49,6 +50,45 @@ class MapmoryAppNavigationTest {
             )
             ParcelFileDescriptor.AutoCloseInputStream(result).use { it.readBytes() }
         }
+    }
+
+    @Test
+    fun `개발자_도구는_디버그_정보가_제공될_때만_설정에서_열린다`() {
+        val container = createInMemoryAppContainer()
+        composeRule.setContent {
+            MapmoryApp(
+                container = container,
+                developerToolsInfo = MapmoryDeveloperToolsInfo(
+                    appVersion = "0.1.7",
+                    applicationId = "com.mapmory.android",
+                    buildType = "debug",
+                    apiBaseUrl = "https://dev-api.map-mory.com/api/v1",
+                    deviceName = "Test device",
+                    androidVersion = "16 (API 36)",
+                ),
+            )
+        }
+
+        openSettings()
+        composeRule.onNodeWithText("개발자 도구").performClick()
+        composeRule.onNodeWithText("0.1.7").assertIsDisplayed()
+        composeRule.onNodeWithText("com.mapmory.android").assertIsDisplayed()
+        composeRule.onNodeWithText("개발 서버").assertIsDisplayed()
+        composeRule.onNodeWithText("https://dev-api.map-mory.com/api/v1").assertIsDisplayed()
+        composeRule.onNodeWithText("Test device").assertIsDisplayed()
+    }
+
+    @Test
+    fun `개발자_도구_진입은_정보가_없으면_설정에_노출되지_않는다`() {
+        val container = createInMemoryAppContainer()
+        composeRule.setContent { MapmoryApp(container = container) }
+
+        openSettings()
+
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithText("개발자 도구").fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -189,5 +229,13 @@ class MapmoryAppNavigationTest {
             bitmap.recycle()
             output.toByteArray()
         }
+    }
+
+    private fun openSettings() {
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("통계").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("통계").performClick()
+        composeRule.onNodeWithText("⚙").performClick()
     }
 }
