@@ -2,20 +2,26 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFinderDemo.js";
-import { HOW_STORY_TILES } from "../src/howStory.js";
+import { HOW_STORY_MATCHES } from "../src/howStory.js";
 
 const credits = JSON.parse(await readFile(new URL("../src/data/photo-credits.json", import.meta.url), "utf8"));
+const mosaic = JSON.parse(await readFile(new URL("../src/data/how-mosaic.json", import.meta.url), "utf8"));
 
-// The hero library, each hero place and the #how story each use their own files.
+// The hero library, each hero place and the #how story's found photos each use their own files.
 const sets = [
   PHOTO_FINDER_LIBRARY_PHOTOS,
   ...PHOTO_FINDER_PLACES.map(({ photos }) => photos),
-  HOW_STORY_TILES.map(({ src }) => src),
+  HOW_STORY_MATCHES.map(({ src }) => src),
 ];
-const used = sets.flat();
+const distinct = sets.flat();
+// The #how library mosaic is one sprite of small crops of the other open-licence photos (never a 경주 photo);
+// those photos are shown there too, so they keep their credits.
+const mosaicFiles = [...new Set(mosaic.sources)].map((file) => `/assets/photos/${file}`);
+const used = [...distinct, ...mosaicFiles];
 
-test("no photo file is shared between the hero library, the hero places and the #how story", () => {
-  assert.equal(new Set(used).size, used.length);
+test("no photo file is shared between the hero library, the hero places and the #how story's found photos", () => {
+  assert.equal(new Set(distinct).size, distinct.length);
+  for (const file of mosaicFiles) assert.doesNotMatch(file, /gyeongbuk-/);
 });
 
 test("every demo photo exists and has an open license credit", async () => {
