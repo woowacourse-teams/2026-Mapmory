@@ -31,6 +31,7 @@ import {
   getHowStoryTapRange,
   isHowStoryHold,
   isInsideRings,
+  linearProgressPlacement,
   loadingStep,
   mapPercent,
   resolveHowStoryMetrics,
@@ -39,6 +40,7 @@ import {
   waveEdge,
 } from "../src/howStory.js";
 import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "../src/howStoryAnalytics.js";
+import { HOW_STORY_APP_PROGRESS, HOW_STORY_GEOMETRY, createHowStoryLayout } from "../src/howStoryLayout.js";
 
 const read = (file) => readFile(new URL(file, import.meta.url), "utf8");
 const gyeongju = JSON.parse(await read("../src/data/gyeongju-boundary.json"));
@@ -198,7 +200,7 @@ test("no illustrative number in the copy column, and the required lines are ther
   for (const required of ["고른 사진만 올라가요", "폰 안에서", "예시 화면"]) assert.ok(surface.includes(required), required);
   assert.equal(HOW_STORY_BEATS[1].sub, "사진 확인은 폰 안에서 해요");
   // The heading in App.jsx renders the eyebrow and the two lines.
-  assert.match(appSource, /<p className="how-eyebrow">\{HOW_STORY_EYEBROW\}<\/p>/);
+  assert.match(appSource, /<p className="eyebrow how-eyebrow">\{HOW_STORY_EYEBROW\}<\/p>/);
   assert.match(appSource, /<h2 id="how-title">\{HOW_STORY_TITLE_LINES\.map\(/);
 });
 
@@ -229,10 +231,30 @@ test("the counter takes the app's 1% steps, front-loaded, and the hold reads the
   assert.equal(loadingStep(0.48).k, 100);
   assert.equal(loadingStep(0.9).k, 100);
   for (const [name, layout] of LAYOUTS) {
-    const { texts } = getHowStoryFrame(beatP(1, 0.75), layout);
-    assert.equal(texts.loadingCount, "21474 / 21474장", name);
-    assert.equal(texts.loadingPct, "100%", name);
-    assert.equal(texts.overlayValue, "21,474장", name);
+    // The hold reads the whole library on the overlay; the in-phone counter left with the screen.
+    const hold = getHowStoryFrame(beatP(1, 0.75), layout);
+    assert.equal(hold.texts.overlayValue, "21,474장", name);
+    assert.equal(hold.texts.loadingCount, undefined, name);
+    assert.equal(hold.nodes.loadingFill, undefined, name);
+    // While the screen shows, its counter, percent and bar run on the same step; once it has gone, nothing is
+    // written to it. The count starts before the screen goes.
+    let counted = 0;
+    for (let index = 0; index <= 2000; index += 1) {
+      const t = index / 2000;
+      const frame = getHowStoryFrame(beatP(1, t), layout);
+      const { k, processed } = loadingStep(t);
+      if (frame.nodes.screenFade.o > 0) {
+        assert.equal(frame.texts.loadingCount, `${processed} / 21474장`, `${name} t=${t}`);
+        assert.equal(frame.texts.loadingPct, `${k}%`, `${name} t=${t}`);
+        assert.ok(frame.nodes.loadingFill && frame.nodes.loadingTrack, `${name} t=${t}`);
+        if (k > 0) counted += 1;
+      } else if (t > 0.2) {
+        for (const key of ["loadingCount", "loadingPct"]) assert.equal(frame.texts[key], undefined, `${name} t=${t}`);
+        for (const key of ["loadingFill", "loadingTrack"]) assert.equal(frame.nodes[key], undefined, `${name} t=${t}`);
+      }
+      if (frame.texts.overlayValue !== undefined) assert.equal(frame.texts.overlayValue, `${processed.toLocaleString("en-US")}장`, `${name} t=${t}`);
+    }
+    assert.ok(counted > 0, name);
   }
 });
 
@@ -332,7 +354,7 @@ test("measured numbers reach only the band; the stage keeps the example library"
     const { texts } = getHowStoryFrame(p, HOW_STORY_TEST_LAYOUT.mobile, { metrics: SAMPLE_METRICS });
     for (const value of Object.values(texts)) assert.doesNotMatch(value, /14,?213/, value);
   }
-  assert.equal(getHowStoryFrame(1, HOW_STORY_TEST_LAYOUT.mobile, { metrics: SAMPLE_METRICS }).texts.overlayValue, "21,474장");
+  assert.equal(getHowStoryFrame(beatP(1, 0.75), HOW_STORY_TEST_LAYOUT.mobile, { metrics: SAMPLE_METRICS }).texts.overlayValue, "21,474장");
   assert.deepEqual(getHowStoryPlan({ metrics: SAMPLE_METRICS }).beats.map(({ id }) => id), ["row", "pick-0", "pick-1", "pick-2", "save"]);
   assert.deepEqual(getHowStoryTapPlan(6).map(({ id }) => id), ["field", "row", "pick-0", "pick-1", "pick-2", "save"]);
   assert.deepEqual(getHowStoryTapRange(), { min: 5, max: 6 });
@@ -369,6 +391,85 @@ test("the library mosaic is open-licence crops only, with no photo beside itself
   }
 });
 
+test("the mosaic panels break the 16-cell repeat, and no photo meets itself across a panel seam", () => {
+  const { cols, rows, across, down, offsets } = mosaic.panels;
+  assert.equal(offsets.length, across * down);
+  const width = across * cols;
+  const height = down * rows;
+  const source = (col, row) => {
+    const [ox, oy] = offsets[Math.floor(row / rows) * across + Math.floor(col / cols)];
+    return mosaic.sources[((oy + (row % rows)) % mosaic.rows) * mosaic.cols + ((ox + (col % cols)) % mosaic.cols)];
+  };
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      for (const [dc, dr] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+        const c = col + dc;
+        const r = row + dr;
+        if (c >= 0 && r >= 0 && c < width && r < height) assert.notEqual(source(c, r), source(col, row), `cell ${col},${row}`);
+      }
+    }
+  }
+  // The block's own period (16 across, 20 down) and the panel size no longer line the photos up.
+  for (const [dx, dy] of [[mosaic.cols, 0], [0, mosaic.rows], [cols, 0], [0, rows]]) {
+    let same = 0;
+    let total = 0;
+    for (let row = 0; row + dy < height; row += 1) {
+      for (let col = 0; col + dx < width; col += 1) {
+        total += 1;
+        if (source(col, row) === source(col + dx, row + dy)) same += 1;
+      }
+    }
+    assert.ok(same / total < 0.1, `shift ${dx},${dy}: ${same}/${total}`);
+  }
+  // The panels cover the largest library window; the pins follow the same panels.
+  for (const [name, layout] of LAYOUTS) {
+    assert.ok(Math.ceil(layout.window.w / layout.tile) <= width && Math.ceil(layout.window.h / layout.tile) <= height, name);
+  }
+  assert.match(howSources["LibraryMosaic.jsx"], /mosaic\.panels/);
+});
+
+test("the loading bar follows Material3 1.4: indicator, a 4dp gap, the track, and the stop dot", () => {
+  // The CSS tokens mirror the layout's numbers.
+  assert.match(screensCss, new RegExp(`--app-progress-gap: ${HOW_STORY_APP_PROGRESS.gapDp};`));
+  assert.match(screensCss, new RegExp(`--app-progress-stop: ${HOW_STORY_APP_PROGRESS.stopDp};`));
+  for (const [name, layout] of LAYOUTS) {
+    const bar = layout.loadingBar;
+    const gap = HOW_STORY_APP_PROGRESS.gapDp * layout.dp;
+    assert.ok(Math.abs(bar.h - 8 * layout.dp) < 0.01, name);
+    assert.deepEqual(linearProgressPlacement(0, bar, gap), { fill: -bar.w, track: 0 }, name);
+    assert.equal(linearProgressPlacement(100, bar, gap).fill, 0, name);
+    assert.ok(linearProgressPlacement(100, bar, gap).track >= bar.w - 0.01, `${name}: the track has gone at 100%`);
+    let previous = null;
+    for (let k = 1; k <= 100; k += 1) {
+      const { fill, track } = linearProgressPlacement(k, bar, gap);
+      if (previous) assert.ok(fill >= previous.fill && track >= previous.track, `${name} k=${k}`);
+      // Between the indicator's round end and the track's, the visible gap is the M3 gap.
+      if (k >= 5 && k <= 90) assert.ok(Math.abs(track - (fill + bar.w) - gap) < 0.02, `${name} k=${k}`);
+      previous = { fill, track };
+    }
+  }
+});
+
+test("the desktop phone keeps its shadow room, lifted photos clear the overlay, and the cluster lands below it", () => {
+  const { desktopMargin, overlayLabel, overlayValue, overlayBarSpace, clusterGap, matchLift, matchHalo, matchClear } = HOW_STORY_GEOMETRY;
+  for (const stageHeight of [640, 680, 720, 800]) {
+    const layout = createHowStoryLayout({ mode: "desktop", stageWidth: 600, stageHeight, viewportWidth: 1280 });
+    assert.equal(layout.phone.y, desktopMargin.top, `${stageHeight}`);
+    assert.ok(stageHeight - layout.phone.y - layout.phone.h >= desktopMargin.bottom, `${stageHeight}`);
+  }
+  const shapes = [["mobile", 390, 593, 390], ["mobile", 360, 400, 360], ["mobile", 360, 460, 360], ["tablet", 600, 700, 768], ["desktop", 600, 680, 1280]];
+  for (const [mode, stageWidth, stageHeight, viewportWidth] of shapes) {
+    const layout = createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWidth });
+    const top = Math.min(...layout.cluster.map(({ y }) => y));
+    assert.ok(top >= layout.overlayTop + overlayLabel[mode] + overlayValue[mode] + clusterGap - 0.01, `${mode} ${stageWidth}x${stageHeight}`);
+    const overlayBottom = layout.overlayTop + overlayLabel[mode] + overlayValue[mode] + overlayBarSpace;
+    for (const cell of layout.cells) {
+      assert.ok(Math.abs(cell.lift.size - cell.size * matchLift) < 0.01, mode);
+      assert.ok(cell.lift.y - matchHalo >= overlayBottom + matchClear - 0.01, `${mode} ${stageWidth}x${stageHeight}: ${cell.lift.y}`);
+    }
+  }
+});
+
 test("the component, hook and styles keep to the scroll rules", () => {
   for (const [file, source] of [["HowStory.jsx", componentSource], ...Object.entries(howSources)]) assert.doesNotMatch(source, /[가-힣]/, file);
   assert.match(componentSource, /prefers-reduced-motion: reduce/);
@@ -382,8 +483,17 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.match(storyCss, /\.how-story-track\[data-mode="static"\] \{ height: auto; \}/);
   assert.match(storyCss, /\.how-story-track\.is-live [^{]*\{ will-change: transform, opacity; \}/);
   for (const css of [storyCss.replace(/\.how-story-track\.is-live[^{]*\{ will-change[^}]*\}/g, ""), screensCss]) assert.doesNotMatch(css, /will-change/);
-  // The fixed-width counter boxes never relayout on a text write.
+  // The fixed-width counter boxes never relayout on a text write: the text sits in a strictly contained box that
+  // is neither a flex nor a grid item (those cannot be relayout boundaries).
   assert.match(screensCss, /\.how-loading-count \{[^}]*contain: strict;/);
+  assert.match(screensCss, /:is\(\.how-loading-count, \.how-loading-percent\) > span \{ display: block; height: 100%; contain: strict; \}/);
+  assert.match(storyCss, /\.how-overlay-live \{ position: absolute; inset: 0; contain: strict;/);
+  // Per-frame paint and layout traps found in traces: a rounded overflow clip inside the sliding import screen,
+  // the map's SVG labels relaying out under the camera's scale, and the spinner promoting what paints after it.
+  assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
+  assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-app-map \{ content-visibility: hidden; \}/);
+  assert.match(screensCss, /\.how-loading-spin \{ position: relative; z-index: 1;/);
+  assert.match(storyCss, /:is\([^)]*\.how-mosaic-sprite, \.how-pins-layer\) \{ will-change: opacity; \}/);
 });
 
 test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {
@@ -541,7 +651,7 @@ async function loadRenderer() {
   };
   const result = await build({
     stdin: {
-      contents: `export { HowStory, HowStoryStage } from "./src/HowStory.jsx";
+      contents: `export { HowStory, HowStoryScrollFrame, HowStoryStage } from "./src/HowStory.jsx";
         export { createElement } from "react";
         export { renderToStaticMarkup } from "react-dom/server";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
@@ -584,14 +694,23 @@ const descendants = (node) => node.children.flatMap((child) => [child, ...descen
 const hasClass = (node, name) => (node.attrs.class ?? "").split(/\s+/).includes(name);
 const textOf = (node) => node.text + node.children.map(textOf).join("");
 
-test("the stage carries every node the frame writes, one 예시 화면 pill, and the static list one pill per figure", async () => {
-  const { HowStory, HowStoryStage, createElement, renderToStaticMarkup } = await loadRenderer();
-  const stage = parseMarkup(renderToStaticMarkup(createElement(HowStoryStage, { stageRef: { current: null } }))).children[0];
-  assert.ok(hasClass(stage, "how-stage"));
+test("the frame carries every node the frame writes, one 예시 화면 pill, and the static list one pill per figure", async () => {
+  const { HowStory, HowStoryScrollFrame, createElement, renderToStaticMarkup } = await loadRenderer();
+  const props = {
+    frameRef: { current: null },
+    copyRef: { current: null },
+    stageRef: { current: null },
+    scene: { index: 0, previous: null, direction: "down" },
+    descriptions: HOW_STORY_BEATS.map((_, index) => getHowStorySceneDescription(index)),
+  };
+  const frameNode = parseMarkup(renderToStaticMarkup(createElement(HowStoryScrollFrame, props))).children[0];
+  assert.ok(hasClass(frameNode, "how-story-frame"));
+  const stage = descendants(frameNode).find((node) => hasClass(node, "how-stage"));
   assert.equal(stage.attrs["aria-hidden"], "true");
-  const all = descendants(stage);
+  // The hook finds nodes on the whole frame (the pill sits beside the stage) and texts inside the stage.
+  const all = descendants(frameNode);
   const nodes = new Set(all.map((node) => node.attrs["data-node"]).filter(Boolean));
-  const texts = new Set(all.map((node) => node.attrs["data-text"]).filter(Boolean));
+  const texts = new Set(descendants(stage).map((node) => node.attrs["data-text"]).filter(Boolean));
   for (const [name, layout] of LAYOUTS) {
     for (const p of [0, 0.2, 0.5, 0.7, 1]) {
       const frame = getHowStoryFrame(p, layout);
@@ -603,6 +722,11 @@ test("the stage carries every node the frame writes, one 예시 화면 pill, and
   const pills = all.filter((node) => hasClass(node, "how-pill"));
   assert.equal(pills.length, 1);
   assert.equal(textOf(pills[0]), HOW_STORY_TEXT.pill);
+  assert.equal(pills[0].attrs["data-node"], "pill");
+  assert.equal(pills[0].attrs["aria-hidden"], "true");
+  assert.ok(!descendants(stage).includes(pills[0]), "the pill sits on the frame, outside the stage");
+  // No swap delay on the first copy; the copy column has one article per beat.
+  assert.equal(descendants(frameNode).find((node) => hasClass(node, "how-copy")).attrs["data-swap"], undefined);
   assert.equal(all.filter((node) => hasClass(node, "how-match")).length, 4);
   // No React render outside the static list: the server renders the static list (no window).
   const page = parseMarkup(renderToStaticMarkup(createElement(HowStory)));
