@@ -14,6 +14,33 @@ export type AdminAccount = {
   username: string;
 };
 
+export type AdminMember = {
+  id: number;
+  displayName: string;
+  provider: "GUEST" | "KAKAO" | "GOOGLE" | null;
+  joinedAt: string;
+  travelRecordCount: number;
+};
+
+export type AdminMemberList = {
+  members: AdminMember[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type AdminMemberDetail = {
+  member: Omit<AdminMember, "travelRecordCount">;
+  totalTravelRecords: number;
+  totalPhotos: number;
+  travelRecords: { id: number; createdAt: string; photoCount: number }[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
 const apiBaseUrl = "https://api.map-mory.com/api/v1";
 let csrfToken: CsrfToken | null = null;
 
@@ -75,6 +102,18 @@ export async function adminApiRequest<T>(path: string, options: RequestInit = {}
 
 export function getCurrentAdmin() {
   return adminApiRequest<AdminAccount>("/admin/auth/me");
+}
+
+export function getAdminMembers(keyword: string, provider: string, page: number, size = 20) {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  if (keyword.trim()) query.set("keyword", keyword.trim());
+  if (provider) query.set("provider", provider);
+  return adminApiRequest<AdminMemberList>(`/admin/members?${query.toString()}`);
+}
+
+export function getAdminMemberDetail(memberId: number, page = 0, size = 20) {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  return adminApiRequest<AdminMemberDetail>(`/admin/members/${memberId}?${query.toString()}`);
 }
 
 export function loginAdmin(username: string, password: string) {
