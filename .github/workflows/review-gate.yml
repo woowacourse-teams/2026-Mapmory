@@ -1,0 +1,41 @@
+name: Review Gate
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review-gate:
+    name: review-gate
+    if: github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pass hotfix branches, otherwise require an approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REQUIRED_APPROVALS: 1
+        run: |
+          if [[ "$HEAD_REF" == hotfix/* && "$HEAD_REPO" == "$REPO" ]]; then
+            echo "Hotfix branch ($HEAD_REF): review not required."
+            exit 0
+          fi
+
+          approvals=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json latestReviews \
+            --jq '[.latestReviews[] | select(.state == "APPROVED")] | length')
+          echo "Approvals: $approvals / $REQUIRED_APPROVALS"
+          if (( approvals < REQUIRED_APPROVALS )); then
+            echo "::error::Approval required (hotfix/* branches are exempt)."
+            exit 1
+          fi
