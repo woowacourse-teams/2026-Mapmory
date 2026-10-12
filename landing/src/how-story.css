@@ -162,9 +162,12 @@
 .how-pins-layer,
 .how-pins-reveal,
 .how-pins-inner { position: absolute; inset: 0; }
-/* The sprite loads only once the track is near (has-library comes with the attach observer). */
-.has-library .how-mosaic-sprite,
-.how-mosaic-still {
+/* The library: 8 x 10-cell panels of the sprite, each from its own offset into the 16 x 20 block (placed inline
+   from how-mosaic.json), so nothing repeats as a lattice. The sprite loads only once the track is near
+   (has-library comes with the attach observer). */
+.how-mosaic-panel { position: absolute; }
+.has-library .how-mosaic-panel,
+.how-mosaic-still .how-mosaic-panel {
   background-image: url("/assets/how/library-mosaic.webp");
   background-size: calc(16 * var(--tile, 16px)) calc(20 * var(--tile, 16px));
   background-repeat: repeat;

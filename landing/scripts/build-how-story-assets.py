@@ -7,12 +7,16 @@ Run from landing/ (needs Python 3 with Pillow and WebP support, nothing from npm
 
 Outputs (both committed):
   public/assets/how/library-mosaic.webp  16 x 20 cells of 32px (a 30px tile and a 2px gutter), 512 x 640
-  src/data/how-mosaic.json               { cols, rows, cell, sources, noLocation }
+  src/data/how-mosaic.json               { cols, rows, cell, sources, noLocation, panels }
 
 Every open-licence photo in public/assets/photos/ except gyeongbuk-01..04 (the four 경주 matches, which the
 page draws as their own tiles) is cut into 4 crops, so the library reads as many different shots. The block
 repeats across the window, so no photo may touch itself in any of the 8 neighbours, wrap-around included.
 The output is deterministic: mulberry32 seeded 21474.
+
+The page never tiles the block as one repeating wallpaper (that reads as a lattice). It lays panels of
+8 x 10 cells over the library window, each showing a different part of the block (`panels.offsets`, in cells),
+chosen so that no photo touches itself across a panel seam either and nearby panels share few cells.
 """
 from __future__ import annotations
 
@@ -37,6 +41,12 @@ MAX_BYTES = 100 * 1024
 CROPS = [(50, 50, 1.15), (28, 34, 1.5), (72, 66, 1.6), (40, 70, 1.45)]
 # About 1 in 9 cells has no stored location (no pin). They are not dimmed or labelled on the page.
 NO_LOCATION_COUNT = 36
+# Panels of the block laid over the library window: 8 x 10 cells each, 5 across and 8 down, which covers the
+# widest window (600px at 18px cells, 1300px tall) with room to spare.
+PANEL_COLS, PANEL_ROWS = 8, 10
+PANELS_ACROSS, PANELS_DOWN = 5, 8
+# Neighbouring panels (8 around) may share at most 30% of their cells; panels two apart at most 60%.
+PANEL_MAX_SHARED = {1: 0.3, 2: 0.6}
 
 
 def mulberry32(seed: int):
@@ -90,6 +100,65 @@ def place(tiles, rng, attempts=200):
     raise SystemExit("could not place the mosaic without touching repeats")
 
 
+def panel_source(grid, offsets, col: int, row: int):
+    """The source photo shown at a window cell, given each panel's offset into the block."""
+    panel = (row // PANEL_ROWS) * PANELS_ACROSS + col // PANEL_COLS
+    ox, oy = offsets[panel]
+    block_col = (ox + col % PANEL_COLS) % COLS
+    block_row = (oy + row % PANEL_ROWS) % ROWS
+    return grid[block_row * COLS + block_col][0]
+
+
+def shared_share(a, b) -> float:
+    """Share of cells two panels have in common (both are windows into the same toroidal block)."""
+    def overlap(delta: int, size: int, period: int) -> int:
+        d = delta % period
+        return max(0, size - d) + max(0, size - (period - d))
+    return overlap(a[0] - b[0], PANEL_COLS, COLS) * overlap(a[1] - b[1], PANEL_ROWS, ROWS) / (PANEL_COLS * PANEL_ROWS)
+
+
+def place_panels(grid, rng, attempts=400):
+    """Picks every panel's offset: no photo beside itself across a seam, nearby panels mostly different."""
+    count = PANELS_ACROSS * PANELS_DOWN
+    width, height = PANELS_ACROSS * PANEL_COLS, PANELS_DOWN * PANEL_ROWS
+    for _ in range(attempts):
+        offsets = []
+        for panel in range(count):
+            prow, pcol = divmod(panel, PANELS_ACROSS)
+            candidates = shuffled([(x, y) for x in range(COLS) for y in range(ROWS)], rng)
+            chosen = None
+            for candidate in candidates:
+                trial = offsets + [candidate] + [(0, 0)] * (count - panel - 1)
+                apart = lambda q: max(abs(q // PANELS_ACROSS - prow), abs(q % PANELS_ACROSS - pcol))
+                if any(shared_share(candidate, offsets[q]) > PANEL_MAX_SHARED[apart(q)]
+                       for q in range(panel) if apart(q) in PANEL_MAX_SHARED):
+                    continue
+                # Seams with the panels already placed (left, above, both diagonals above).
+                ok = True
+                x0, y0 = pcol * PANEL_COLS, prow * PANEL_ROWS
+                for row in range(y0, y0 + PANEL_ROWS):
+                    for col in range(x0, x0 + PANEL_COLS):
+                        if row not in (y0, y0 + PANEL_ROWS - 1) and col not in (x0, x0 + PANEL_COLS - 1):
+                            continue
+                        here = panel_source(grid, trial, col, row)
+                        for dr in (-1, 0, 1):
+                            for dc in (-1, 0, 1):
+                                r, c = row + dr, col + dc
+                                if (dr or dc) and 0 <= r < height and 0 <= c < width:
+                                    q = (r // PANEL_ROWS) * PANELS_ACROSS + c // PANEL_COLS
+                                    if q < panel and panel_source(grid, trial, c, r) == here:
+                                        ok = False
+                if ok:
+                    chosen = candidate
+                    break
+            if chosen is None:
+                break
+            offsets.append(chosen)
+        if len(offsets) == count:
+            return offsets
+    raise SystemExit("could not place the mosaic panels")
+
+
 def crop_tile(image: Image.Image, crop) -> Image.Image:
     x_pct, y_pct, zoom = crop
     width, height = image.size
@@ -116,6 +185,8 @@ def main() -> None:
         sprite.paste(crop_tile(sources[name], CROPS[crop_index]), (col * CELL + offset, row * CELL + offset))
 
     no_location = sorted(shuffled(range(COLS * ROWS), rng)[:NO_LOCATION_COUNT])
+    # A separate stream, so the panels never change the sprite or the no-location cells.
+    offsets = place_panels(grid, mulberry32(SEED + 1))
 
     SPRITE.parent.mkdir(parents=True, exist_ok=True)
     sprite.save(SPRITE, "WEBP", quality=QUALITY, method=6)
@@ -131,6 +202,13 @@ def main() -> None:
         "sources": [name for name, _ in grid],
         "crops": [crop_index for _, crop_index in grid],
         "noLocation": no_location,
+        "panels": {
+            "cols": PANEL_COLS,
+            "rows": PANEL_ROWS,
+            "across": PANELS_ACROSS,
+            "down": PANELS_DOWN,
+            "offsets": [list(offset) for offset in offsets],
+        },
     }
     MANIFEST.write_text(json.dumps(manifest, separators=(",", ":")) + "\n", encoding="utf8")
     print(f"{SPRITE.relative_to(ROOT)}: {size} bytes, {len(files)} photos, {len(no_location)} no-location cells")

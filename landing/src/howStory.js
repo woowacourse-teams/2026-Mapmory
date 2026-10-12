@@ -474,10 +474,13 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   nodes.pinsReveal = move(0, -reveal);
   nodes.pinsInner = move(0, reveal);
 
-  // Beat 03: the other photos dim (set aside, not removed); the pins and the overlay bar go.
+  // Once the wave has crossed the library, the white pins step back and the library settles a little, so the
+  // four green matches and the number carry the hold. Beat 03 then dims the other photos (set aside, not
+  // removed) and the pins and overlay bar go.
+  const settle = EASE_OUT(seg(t2, 0.4, 0.48));
   const dim = EASE_OUT(seg(t3, 0, 0.2));
-  nodes.mosaicSprite = fade(1 - 0.84 * dim);
-  nodes.pinsLayer = fade(1 - dim);
+  nodes.mosaicSprite = fade(lerp(lerp(1, 0.65, EASE_OUT(seg(t2, 0.44, 0.5))), 0.16, dim));
+  nodes.pinsLayer = fade(lerp(1, 0.55, settle) * (1 - dim));
   nodes.overlayBar = fade(1 - dim);
   const overlayIn = EASE_OUT(seg(t2, 0.16, 0.24));
   nodes.overlay = outward ? move(0, 0, 1, 1 - seg(outE, 0, 0.3)) : move(0, 12 * (1 - overlayIn), 1, overlayIn);
