@@ -385,9 +385,9 @@ test("the library mosaic is open-licence crops only, with no photo beside itself
   }
   const sprite = await stat(new URL("../public/assets/how/library-mosaic.webp", import.meta.url));
   assert.ok(sprite.size <= 100 * 1024, `${sprite.size} bytes`);
-  for (const file of ["gyeongbuk-districts.json", "east-asia.json"]) {
+  for (const [file, kb] of [["gyeongbuk-districts.json", 30], ["world-globe.json", 25]]) {
     const { size } = await stat(new URL(`../src/data/${file}`, import.meta.url));
-    assert.ok(size <= (file === "east-asia.json" ? 25 : 30) * 1024, `${file} ${size}`);
+    assert.ok(size <= kb * 1024, `${file} ${size}`);
   }
 });
 

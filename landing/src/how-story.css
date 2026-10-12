@@ -286,12 +286,21 @@
 .how-overlay-value .how-overlay-b { transform: translateY(16px); }
 :is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-value .how-overlay-b { opacity: 1; transform: none; transition: opacity 240ms var(--ease-out) 80ms, transform 500ms var(--spring) 80ms; }
 
-/* The four 경주 photos: drawn at --node-base (120px) and only ever scaled down, so they stay crisp. */
-.how-match { width: var(--node-base, 120px); height: var(--node-base, 120px); transform-origin: 0 0; opacity: 0; }
+/* The four 경주 photos: drawn at --node-base (the largest size they take) and only ever scaled down, so they stay
+   crisp. Inside, --dp is the picker card's dp (a card is 153dp), so the border, preview button and tap ring they
+   carry are the card's own once they land on it. */
+.how-match,
+.how-copy-node { --dp: calc(var(--node-base, 120px) / 153); width: var(--node-base, 120px); height: var(--node-base, 120px); transform-origin: 0 0; opacity: 0; }
 .how-match img,
-.how-match-shadow { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 12px; }
-.how-match img { object-fit: cover; }
+.how-match-shadow,
+.how-match-chrome { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: calc(16 * var(--dp)); }
+.how-match img,
+.how-copy-node img { object-fit: cover; }
 .how-match-shadow { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); opacity: 0; }
+.how-match-chrome { opacity: 0; }
+/* The saved copies: the photo alone, lifted (a soft shadow), over the card it came from. */
+.how-copy-node { border-radius: calc(16 * var(--dp)); box-shadow: 0 18px 34px rgba(10, 30, 20, 0.34), 0 2px 6px rgba(10, 30, 20, 0.12); }
+.how-copy-node img { width: 100%; height: 100%; border-radius: inherit; }
 
 .how-bottom-fade { top: auto; bottom: 0; width: 100%; height: 48px; background: linear-gradient(to bottom, transparent, var(--canvas)); pointer-events: none; }
 .how-pill {
@@ -314,7 +323,7 @@
 .how-story-track.is-entered .how-frame-pill { animation: how-copy-in 420ms var(--ease-out) backwards; }
 
 /* Only the moving layers are promoted, and only while the track is near. */
-.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-screen-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
+.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-screen-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-copy-node, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
 /* Scrubbed opacity on a large layer: promoted too, so a change is a compositor update, not a repaint. */
 .how-story-track.is-live :is(.how-ground, .how-bottom-fade, .how-mosaic-sprite, .how-pins-layer) { will-change: opacity; }
 .how-story-track.is-live .how-overlay-bar i { will-change: transform; }

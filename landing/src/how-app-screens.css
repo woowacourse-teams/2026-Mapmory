@@ -49,6 +49,17 @@
   --app-map-visited: #4d9272;
   --app-map-visited-outline: rgba(47, 118, 89, 0.72);
   --app-map-label: #6b786f;
+  /* WorldGlobe (TripRecordColors globe tones): glow, sphere, land and the light over them. */
+  --app-globe-glow: rgba(120, 149, 135, 0.08);
+  --app-globe-centre: #f8faf8;
+  --app-globe-middle: #f0f4f1;
+  --app-globe-edge: #e7ede9;
+  --app-globe-land: #dce4df;
+  --app-globe-outline: rgba(184, 198, 189, 0.72);
+  --app-globe-visited: #4d9272;
+  --app-globe-visited-outline: rgba(47, 118, 89, 0.72);
+  --app-globe-light-centre: rgba(255, 255, 255, 0.34);
+  --app-globe-light-middle: rgba(255, 255, 255, 0.12);
 }
 :root[data-theme="dark"] .how-story-track,
 :root[data-theme="dark"] .how-static-figure {
@@ -84,6 +95,16 @@
   --app-map-visited: #35c987;
   --app-map-visited-outline: rgba(138, 235, 193, 0.82);
   --app-map-label: #7085a8;
+  --app-globe-glow: rgba(127, 154, 186, 0.055);
+  --app-globe-centre: #2a3747;
+  --app-globe-middle: #1b2533;
+  --app-globe-edge: #111923;
+  --app-globe-land: #2b3546;
+  --app-globe-outline: rgba(124, 143, 170, 0.54);
+  --app-globe-visited: #35c987;
+  --app-globe-visited-outline: rgba(138, 235, 193, 0.82);
+  --app-globe-light-centre: rgba(255, 255, 255, 0.09);
+  --app-globe-light-middle: rgba(255, 255, 255, 0.025);
 }
 
 /* Each screen is one 360 x 780 dp layer inside the phone screen. */
@@ -133,6 +154,7 @@
   white-space: nowrap;
 }
 .how-app-action {
+  position: relative;
   margin-left: auto;
   padding: 0 calc(10 * var(--dp));
   display: flex;
@@ -142,7 +164,9 @@
   font-size: calc(14 * var(--dp));
   font-weight: 700;
 }
-.how-app-action-status { width: calc(14 * var(--dp)); height: calc(14 * var(--dp)); display: grid; place-items: center; }
+/* The 14dp status slot holds only a spinner, while saving. It paints last (z-index), so nothing after it in the
+   DOM is promoted for overlapping its running animation. */
+.how-app-action-status { position: relative; z-index: 1; width: calc(14 * var(--dp)); height: calc(14 * var(--dp)); display: grid; place-items: center; }
 .how-app-spinner {
   width: 100%;
   height: 100%;
@@ -265,8 +289,14 @@
   pointer-events: none;
 }
 .how-import-row .how-tap { left: 46%; }
+/* On a photo the ring is light, with a soft dark edge, so it reads over any picture. */
+.how-match-chrome .how-tap { background: rgba(255, 255, 255, 0.3); box-shadow: 0 0 0 calc(2 * var(--dp)) rgba(255, 255, 255, 0.92), 0 0 calc(12 * var(--dp)) rgba(0, 0, 0, 0.28); }
 [data-tap-field="1"] .how-tap[data-tap="field"],
-[data-row="1"] .how-tap[data-tap="row"] { animation: how-tap 360ms var(--ease-out) backwards; }
+[data-row="1"] .how-tap[data-tap="row"],
+:is([data-sel="1"], [data-sel="2"], [data-sel="3"]) .how-tap[data-tap="pick-0"],
+:is([data-sel="2"], [data-sel="3"]) .how-tap[data-tap="pick-1"],
+[data-sel="3"] .how-tap[data-tap="pick-2"],
+[data-save="1"] .how-tap[data-tap="save"] { animation: how-tap 360ms var(--ease-out) backwards; }
 .how-tap[data-tap][data-skip="1"],
 [data-instant="1"] .how-tap[data-tap],
 .how-static-figure .how-tap[data-tap] { animation: none; opacity: 0; }
@@ -401,14 +431,23 @@
 [data-sel="3"] [data-card="2"] .how-picker-card-border { box-shadow: inset 0 0 0 calc(3 * var(--dp)) var(--app-accent); transition: box-shadow 120ms ease; }
 :is([data-sel="1"], [data-sel="2"], [data-sel="3"]) [data-card="0"] .how-picker-preview,
 :is([data-sel="2"], [data-sel="3"]) [data-card="1"] .how-picker-preview,
-[data-sel="3"] [data-card="2"] .how-picker-preview { background: var(--app-accent); }
+[data-sel="3"] [data-card="2"] .how-picker-preview { background: var(--app-accent); transition: background-color 120ms ease; }
+/* In the story the selected card's preview button pulses 1 -> 1.12 -> 1 on the spring as it turns accent; a fast
+   flick past the tap (its ring skipped) shows the end state without it. */
+.how-stage:is([data-sel="1"], [data-sel="2"], [data-sel="3"]) [data-card="0"] .how-picker-preview,
+.how-stage:is([data-sel="2"], [data-sel="3"]) [data-card="1"] .how-picker-preview,
+.how-stage[data-sel="3"] [data-card="2"] .how-picker-preview { animation: how-pulse 260ms var(--spring); }
+.how-stage[data-instant="1"] .how-picker-preview,
+.how-match-chrome:has(> .how-tap[data-skip="1"]) .how-picker-preview { animation: none; }
+@keyframes how-pulse { 50% { transform: scale(1.12); } }
 /* 기록하기 turns accent once something is picked. */
 .how-app-picker .how-app-action { color: var(--app-muted); }
 :is([data-sel="1"], [data-sel="2"], [data-sel="3"]) .how-app-picker .how-app-action { color: var(--app-accent); }
 
-/* TripMapScreen with MapRoute's content. */
-.how-app-map { display: flex; flex-direction: column; }
-.how-map-header { flex: 0 0 auto; padding-top: calc(var(--app-map-status-dp) * var(--dp)); }
+/* TripMapScreen with MapRoute's content. The header, then the summary card laid over the top of the map area, which
+   runs down to the 64dp bottom bar. --map-card-top and --map-area-top (dp) come from createAppMapView()
+   (howStoryLayout.js) on the screen root, so the map the frame function frames is the map drawn here. */
+.how-map-header { position: absolute; left: 0; right: 0; top: 0; padding-top: calc(var(--app-map-status-dp) * var(--dp)); }
 .how-map-logo-row { padding: 0 calc(18 * var(--dp)); display: flex; align-items: center; justify-content: space-between; }
 .how-map-logo { color: var(--app-logo); font-size: calc(18 * var(--dp)); font-weight: 700; }
 .how-map-logo-accent { color: var(--app-logo-accent); }
@@ -421,6 +460,7 @@
   border-radius: calc(12 * var(--dp));
   background: var(--app-scope-bg);
 }
+/* The selected chip's background: one thumb that slides to the world chip (data-map="world"). */
 .how-map-scope-thumb {
   position: absolute;
   left: calc(3 * var(--dp));
@@ -429,24 +469,67 @@
   width: calc(50% - 3 * var(--dp));
   border-radius: calc(8 * var(--dp));
   background: var(--app-scope-sel-bg);
+  transition: transform 300ms var(--ease-out);
 }
-.how-map-scope[data-scope="world"] .how-map-scope-thumb { transform: translateX(100%); }
-.how-map-scope-chip { position: relative; flex: 1 1 0; padding: calc(6 * var(--dp)) 0; color: var(--app-scope-text); font-size: calc(11 * var(--dp)); font-weight: 700; text-align: center; white-space: nowrap; }
-.how-map-scope[data-scope="korea"] [data-chip="korea"],
-.how-map-scope[data-scope="world"] [data-chip="world"] { color: var(--app-scope-sel-text); }
-.how-map-card { margin: calc(14 * var(--dp)) calc(12 * var(--dp)) 0; padding: calc(15 * var(--dp)) calc(18 * var(--dp)) calc(14 * var(--dp)); border: calc(1 * var(--dp)) solid var(--app-border); border-radius: calc(20 * var(--dp)); background: var(--app-bg); }
-.how-map-back { width: fit-content; margin-bottom: calc(10 * var(--dp)); padding: calc(7 * var(--dp)) calc(10 * var(--dp)); border-radius: calc(10 * var(--dp)); color: var(--app-accent); background: var(--app-accent-soft); font-size: calc(11 * var(--dp)); font-weight: 700; }
-.how-map-card-row { display: flex; align-items: center; justify-content: space-between; }
+.how-map-scope-chip { position: relative; flex: 1 1 0; padding: calc(6 * var(--dp)) 0; color: var(--app-scope-text); font-size: calc(11 * var(--dp)); font-weight: 700; text-align: center; white-space: nowrap; transition: color 300ms var(--ease-out); }
+.how-map-scope-chip[data-chip="korea"],
+.how-stage[data-map="world"] .how-map-scope-chip[data-chip="world"] { color: var(--app-scope-sel-text); }
+.how-stage[data-map="world"] .how-map-scope-chip[data-chip="korea"] { color: var(--app-scope-text); }
+.how-stage[data-map="world"] .how-map-scope-thumb { transform: translateX(100%); }
+
+/* Summary cards: the drill, Korea and world variants are separate cards stacked in one place that crossfade. */
+.how-map-cards { position: absolute; left: calc(12 * var(--dp)); right: calc(12 * var(--dp)); top: calc(var(--map-card-top) * var(--dp)); display: grid; align-items: start; }
+.how-map-cards > *,
+.how-map-cards-korea > * { grid-area: 1 / 1; }
+.how-map-cards-korea { display: grid; align-items: start; }
+.how-map-card { padding: calc(15 * var(--dp)) calc(18 * var(--dp)) calc(14 * var(--dp)); border: calc(1 * var(--dp)) solid var(--app-border); border-radius: calc(20 * var(--dp)); background: var(--app-bg); }
+.how-map-back { margin-bottom: calc(10 * var(--dp)); padding: calc(7 * var(--dp)) calc(10 * var(--dp)); border-radius: calc(10 * var(--dp)); color: var(--app-accent); background: var(--app-accent-soft); font-size: calc(11 * var(--dp)); font-weight: 700; }
+.how-map-card-row { display: flex; align-items: flex-end; justify-content: space-between; }
 .how-map-card-title { color: var(--app-secondary); font-size: calc(11 * var(--dp)); font-weight: 700; }
-.how-map-card-count { margin-top: calc(3 * var(--dp)); display: flex; align-items: baseline; font-weight: 700; }
-.how-map-card-n { color: var(--app-primary); font-size: calc(25 * var(--dp)); line-height: 1.2; }
+.how-map-card-count { margin-top: calc(3 * var(--dp)); display: flex; align-items: flex-end; font-weight: 700; }
+.how-map-card-n { display: grid; color: var(--app-primary); font-size: calc(25 * var(--dp)); }
 .how-map-card-total { color: var(--app-heading); font-size: calc(13 * var(--dp)); white-space: pre; }
-.how-map-card-badge { padding: calc(7 * var(--dp)) calc(10 * var(--dp)); border-radius: calc(10 * var(--dp)); color: var(--app-badge-text); background: var(--app-primary-soft); font-size: calc(10 * var(--dp)); }
-.how-map-viewport { position: relative; flex: 1 1 auto; min-height: 0; margin-top: calc(6 * var(--dp)); background: var(--app-bg); }
-.how-map-svg { width: 100%; height: 100%; }
-.how-map-svg path { fill: var(--app-map-land); stroke: var(--app-map-outline); stroke-width: 1; stroke-linejoin: round; }
-.how-map-svg path.is-visited { fill: var(--app-map-visited); stroke: var(--app-map-visited-outline); }
-.how-map-svg text { fill: var(--app-map-label); font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.how-map-card-badge { display: grid; padding: calc(7 * var(--dp)) calc(10 * var(--dp)); border-radius: calc(10 * var(--dp)); color: var(--app-badge-text); background: var(--app-primary-soft); font-size: calc(10 * var(--dp)); white-space: nowrap; }
+/* The drill card's before and after of saving the record: 0 -> 1 and 0% -> 5%, a 200ms crossfade. */
+:is(.how-map-card-n, .how-map-card-badge) > * { grid-area: 1 / 1; text-align: right; transition: opacity 200ms ease; }
+.how-map-card [data-v="1"],
+.how-stage:is([data-map="drill1"], [data-map="world"]) .how-map-card [data-v="0"] { opacity: 0; }
+.how-stage:is([data-map="drill1"], [data-map="world"]) .how-map-card [data-v="1"] { opacity: 1; }
+
+/* The map area: the drill and Korea views share one SVG (the frame moves its viewBox); the world globe is its own
+   layer. */
+.how-map-area { position: absolute; left: 0; right: 0; top: calc(var(--map-area-top) * var(--dp)); bottom: calc(64 * var(--dp)); }
+.how-map-korea,
+.how-map-world { position: absolute; inset: 0; }
+.how-map-svg,
+.how-map-globe { width: 100%; height: 100%; }
+/* KoreaMapArtwork: land fill, then a 1dp outline that keeps its width at every zoom. */
+.how-map-svg path { fill: var(--app-map-land); stroke: var(--app-map-outline); stroke-width: calc(1 * var(--dp)); stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.how-map-land path { stroke: none; }
+.how-map-lines path { fill: none; }
+.how-map-svg path.how-map-visited { fill: var(--app-map-visited); stroke: var(--app-map-visited-outline); }
+/* District names (KoreaMapArtwork showRegionLabels: 10sp bold under 25 regions), centred on each label point. HTML, so
+   the camera can scale their layer without laying the text out again. */
+.how-map-labels { position: absolute; inset: 0; transform-origin: 0 0; pointer-events: none; }
+.how-map-labels span { position: absolute; color: var(--app-map-label); font-size: calc(10 * var(--dp)); font-weight: 700; line-height: var(--app-line-height); white-space: nowrap; transform: translate(-50%, -50%); }
+/* 경주시 fills when the record saves: from its label point, scale .96 -> 1 on the spring. */
+.how-map-fill-district { opacity: 0; transform: scale(0.96); transform-box: fill-box; transition: opacity 160ms ease, transform 0s linear 160ms; }
+.how-stage:is([data-map="drill1"], [data-map="world"]) .how-map-fill-district { opacity: 1; transform: none; transition: opacity 240ms var(--ease-out), transform 500ms var(--spring); }
+/* Story start: the drill view (district lines, drill card); the frame fades the Korea parts in. */
+.how-app-map[data-variant="story"] :is(.how-map-provinces, .how-map-fill-province, .how-map-card-korea) { opacity: 0; }
+/* The world view: the scope thumb slides and the map and card crossfade (300ms). */
+.how-map-korea,
+.how-map-world,
+.how-map-cards-korea,
+.how-map-card-world { transition: opacity 300ms var(--ease-out); }
+.how-map-world,
+.how-map-card-world,
+.how-stage[data-map="world"] :is(.how-map-korea, .how-map-cards-korea) { opacity: 0; }
+.how-stage[data-map="world"] :is(.how-map-world, .how-map-card-world) { opacity: 1; }
+/* WorldGlobe: land 0.85dp outlines, the visited country 1.25dp (the globe's viewBox is the area in dp). */
+.how-globe-land { fill: var(--app-globe-land); stroke: var(--app-globe-outline); stroke-width: 0.85; stroke-linejoin: round; }
+.how-globe-visited { fill: var(--app-globe-visited); stroke: var(--app-globe-visited-outline); stroke-width: 1.25; stroke-linejoin: round; }
+
 .how-map-fab {
   position: absolute;
   right: calc(28 * var(--dp));
@@ -458,8 +541,8 @@
   border-radius: 50%;
   background: var(--app-primary);
 }
-.how-map-fab svg { width: calc(24 * var(--dp)); height: calc(24 * var(--dp)); fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; }
-.how-map-tabs { flex: 0 0 auto; height: calc(64 * var(--dp)); display: flex; border-top: calc(1 * var(--dp)) solid var(--app-nav-divider); background: var(--app-bg); }
+.how-map-fab svg { width: calc(24 * var(--dp)); height: calc(24 * var(--dp)); fill: none; stroke: var(--app-on-primary); stroke-width: 2; stroke-linecap: round; }
+.how-map-tabs { position: absolute; left: 0; right: 0; bottom: 0; height: calc(64 * var(--dp)); display: flex; border-top: calc(1 * var(--dp)) solid var(--app-nav-divider); background: var(--app-bg); }
 .how-map-tab { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(4 * var(--dp)); color: var(--app-nav-unselected); font-size: calc(11 * var(--dp)); font-weight: 700; line-height: 1.2; }
 .how-map-tab svg { width: calc(25 * var(--dp)); height: calc(25 * var(--dp)); fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .how-map-tab rect { fill: currentColor; stroke: none; }

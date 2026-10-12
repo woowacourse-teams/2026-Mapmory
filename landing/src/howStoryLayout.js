@@ -39,7 +39,7 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
   // A found photo grows to this scale when its pin pops, so the four stand out in the library.
   matchLift: 1.8,
   stageRadius: Object.freeze({ mobile: 24, tablet: 24, desktop: 32 }),
-  // The flying match tiles are drawn at this size and only ever scaled down, so they stay crisp at rest.
+  // The smallest size the flying photos are drawn at (see nodeBase in the layout).
   nodeBase: 120,
   pinOffset: 2,
   pinHeight: 8,
@@ -49,6 +49,114 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
 // between indicator and track, and the stop dot at the linear track's end, in dp. Unverified fidelity (no
 // device capture yet); how-app-screens.css mirrors them as --app-progress-gap and --app-progress-stop.
 export const HOW_STORY_APP_PROGRESS = Object.freeze({ gapDp: 4, stopDp: 4 });
+
+// Line box of the app's text as a multiple of its size: Compose's default for LINE Seed Sans KR. Unverified
+// fidelity (no device capture); how-app-screens.css mirrors it as --app-line-height, and the picker card and map
+// rects below are derived from it, so the stage tiles land exactly on the DOM's cards.
+export const HOW_STORY_APP_LINE_HEIGHT = 1.35;
+// The picker list is shown scrolled by this much so both card rows sit high on the screen.
+export const PICKER_SCROLL_DP = 48;
+
+// PhotoPickerStep (NewTripRecordFlowScreen.kt on develop), in dp: the top bar (24 status + 64 bar + 1 divider), the
+// list's content padding, the header item (PHOTO LIBRARY, title row, two FlowSmallButtons of min 44dp, the
+// two-line note, the 48dp recorded-photo filter row), the date header (24dp above a 44dp row) and the 2-column grid.
+export const HOW_STORY_PICKER = Object.freeze({
+  listTop: 89,
+  padStart: 20,
+  padTop: 24,
+  padEnd: 24,
+  card: 153,
+  gap: 10,
+  firstRowGap: 12,
+  smallButton: 44,
+  filterRow: 48,
+  dateGap: 24,
+  // A picked card's copy at save: lifted this far and scaled about its centre.
+  copyLift: 24,
+  copyScale: 0.72,
+});
+
+export function pickerCardRectsDp(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
+  const k = HOW_STORY_PICKER;
+  const header = 12 * lineHeight + 14 + 25 * lineHeight + 20 + k.smallButton + 8 + 2 * 16 + k.filterRow;
+  const dateHeader = k.dateGap + k.smallButton;
+  const row1 = k.listTop + k.padTop - PICKER_SCROLL_DP + header + dateHeader + k.firstRowGap;
+  return [0, 1, 2, 3].map((index) => ({
+    x: k.padStart + (index % 2) * (k.card + k.gap),
+    y: row1 + Math.floor(index / 2) * (k.card + k.gap),
+    size: k.card,
+  }));
+}
+
+// TripMapScreen (develop), in dp: the header (status inset, logo row with the scope toggle, 14dp, the summary card,
+// 6dp) and the 64dp bottom bar. The map area is the space between. The drill card carries the back row
+// (7 + 11sp line + 7, then 10dp), so the drill map starts that much lower than the Korea and world maps.
+export const HOW_STORY_MAP = Object.freeze({
+  statusDp: 38,
+  bottomBar: 64,
+  cardMargin: 12,
+  // Bounds develop fits each view to (KoreaBounds.from: every ring of the regions drawn). Checked against the
+  // data files by the tests: the drill view is 경상북도's 22 districts (울릉도 and 독도 included), the Korea view
+  // the 17 provinces.
+  drillBounds: Object.freeze({ minLng: 127.79615, maxLng: 131.87147, minLat: 35.56689, maxLat: 37.54914 }),
+  koreaBounds: Object.freeze({ minLng: 124.61362, maxLng: 130.92066, minLat: 33.19758, maxLat: 38.62434 }),
+  // 경주시's label point (KoreaMapArtwork labelPoint()), where the saved copies land.
+  gyeongjuLabel: Object.freeze([129.236, 35.8266]),
+  // WorldGlobe: radius share of the viewport's shorter side.
+  globeRadius: 0.42,
+});
+
+export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
+  const m = HOW_STORY_MAP;
+  const toggle = 1 + 3 + 6 + 11 * lineHeight + 6 + 3 + 1;
+  const logoRow = Math.max(18 * lineHeight, toggle);
+  const cardTop = m.statusDp + logoRow + 14;
+  const koreaCard = 1 + 15 + 11 * lineHeight + 3 + 25 * lineHeight + 14 + 1;
+  const backRow = 7 + 11 * lineHeight + 7 + 10;
+  const top = cardTop + koreaCard + 6;
+  const width = HOW_STORY_SCREEN.widthDp;
+  const height = HOW_STORY_SCREEN.heightDp - m.bottomBar - top;
+  // One coordinate space for the drill and Korea views: develop's Korea projection of the full map area.
+  const korea = createAppMapProjection(m.koreaBounds, width, height);
+  // develop's drill projection fills the area below the taller drill card. The drill viewBox is that framing seen
+  // in the Korea space: same scale, the bounds' centre and top edge where develop puts them (the drill's own
+  // longitude factor differs from Korea's by under 1%).
+  const drill = createAppMapProjection(m.drillBounds, width, height - backRow);
+  const zoom = drill.scale / korea.scale;
+  const [centreX, topY] = korea.project((m.drillBounds.minLng + m.drillBounds.maxLng) / 2, m.drillBounds.maxLat);
+  const drillBox = [centreX - width / 2 / zoom, topY - (drill.top + backRow) / zoom, width / zoom, height / zoom];
+  const koreaBox = [0, 0, width, height];
+  const [labelX, labelY] = korea.project(...m.gyeongjuLabel);
+  return {
+    cardTop,
+    koreaCard,
+    drillCard: koreaCard + backRow,
+    backRow,
+    area: { top, width, height },
+    project: korea.project,
+    drillBox,
+    koreaBox,
+    // 경주시's label point in area dp at the drill view.
+    gyeongju: { x: (labelX - drillBox[0]) * zoom, y: (labelY - drillBox[1]) * zoom },
+    globe: { cx: width / 2, cy: height / 2, r: m.globeRadius * Math.min(width, height) },
+  };
+}
+
+// The map camera between two viewBoxes: a zoom about their common fixed point, the scale moving
+// geometrically so the pull-back reads at an even pace.
+export function mapCameraBox(from, to, u) {
+  if (u <= 0) return from;
+  if (u >= 1) return to;
+  const w = from[2] * (to[2] / from[2]) ** u;
+  const ratio = w / from[2];
+  const span = to[2] - from[2];
+  if (Math.abs(span) < 1e-9) return from.map((value, index) => value + (to[index] - value) * u);
+  const fx = (from[0] * to[2] - to[0] * from[2]) / span;
+  const fy = (from[1] * to[2] - to[1] * from[2]) / span;
+  return [fx - (fx - from[0]) * ratio, fy - (fy - from[1]) * ratio, w, from[3] * ratio];
+}
+
+export const APP_MAP_VIEW = Object.freeze(createAppMapView());
 
 // Where each found photo sits in the library window, as fractions of the window [fx, fy] (top-left of its cell
 // before snapping to the tile grid). All four sit inside the visible band on every target viewport.
@@ -142,6 +250,22 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     size: clusterTile,
   }));
 
+  // Beat 04: the picker's cards at rest (the stage tiles land on them), and the hover rects of the three copies
+  // lifted at save. Beat 05: 경주시's label point on the drill map, where the copies land.
+  const dp = screenWidth / HOW_STORY_SCREEN.widthDp;
+  const cards = pickerCardRectsDp().map(({ x, y, size }) => Object.freeze({
+    x: round(screen.x + x * dp),
+    y: round(screen.y + y * dp),
+    size: round(size * dp),
+  }));
+  const { copyLift, copyScale } = HOW_STORY_PICKER;
+  const hover = cards.map(({ x, y, size }) => {
+    const lifted = size * copyScale;
+    return Object.freeze({ x: round(x + (size - lifted) / 2), y: round(y - copyLift + (size - lifted) / 2), size: round(lifted) });
+  });
+  const map = APP_MAP_VIEW;
+  const mapTarget = { x: round(screen.x + map.gyeongju.x * dp), y: round(screen.y + (map.area.top + map.gyeongju.y) * dp) };
+
   return Object.freeze({
     mode,
     stageWidth,
@@ -150,14 +274,19 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     phone: Object.freeze({ x: phoneX, y: phoneY, w: phoneWidth, h: round(phoneHeight) }),
     screen: Object.freeze({ x: screen.x, y: screen.y, w: screen.w, h: round(screen.h) }),
     screenRadius: round(phoneWidth * 0.127),
-    dp: screenWidth / HOW_STORY_SCREEN.widthDp,
+    dp,
     kIn: round(kIn, 5),
     d: Object.freeze({ x: round(d.x), y: round(d.y) }),
     window: Object.freeze({ x: 0, y: round(windowY), w: stageWidth, h: round(windowHeight), vTop: round(vTop, 5), vBottom: round(1 - vTop, 5) }),
     tile,
     cells: Object.freeze(cells.map(Object.freeze)),
     cluster: Object.freeze(cluster.map(Object.freeze)),
-    nodeBase: g.nodeBase,
+    // The flying photos are drawn at the largest size they take (a cluster tile or a picker card) and only ever
+    // scaled down, so they stay crisp at rest.
+    nodeBase: Math.ceil(Math.max(g.nodeBase, clusterTile, cards[0].size)),
+    cards: Object.freeze(cards),
+    hover: Object.freeze(hover),
+    mapTarget: Object.freeze(mapTarget),
     overlayTop: round(overlayTop),
     overlayBar: g.overlayBar[mode],
     // The loading screen's progress bar: full width inside 34dp side padding, 8dp tall (PhotoLoadingBar).
@@ -182,7 +311,13 @@ export function createAppMapProjection(bounds, width, height) {
   const scale = Math.min((width - width * 0.16) / spanX, (height - height * 0.12) / spanY);
   const left = (width - spanX * scale) / 2;
   const top = Math.max((height - spanY * scale) / 2 - height * 0.07, height * 0.06);
-  return (lng, lat) => [left + (lng - bounds.minLng) * longitudeFactor * scale, top + (bounds.maxLat - lat) * scale];
+  return {
+    scale,
+    left,
+    top,
+    longitudeFactor,
+    project: (lng, lat) => [left + (lng - bounds.minLng) * longitudeFactor * scale, top + (bounds.maxLat - lat) * scale],
+  };
 }
 
 export function boundsOfRings(regions) {

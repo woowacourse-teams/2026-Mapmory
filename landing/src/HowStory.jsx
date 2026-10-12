@@ -4,7 +4,7 @@ import { occupiesEnoughOfViewport } from "./useExperienceAnalytics.js";
 import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "./howStoryAnalytics.js";
 import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { PhoneFrame } from "./how/PhoneFrame.jsx";
-import { ImportScreen, LOADING_DONE, LOADING_START, LoadingScreen, MapScreen, PickerScreen } from "./how/AppScreens.jsx";
+import { ImportScreen, LOADING_DONE, LOADING_START, LoadingScreen, MapScreen, PickerCardChrome, PickerScreen } from "./how/AppScreens.jsx";
 import { LibraryMosaic, LibraryStill } from "./how/LibraryMosaic.jsx";
 import {
   HOW_STORY_BEATS,
@@ -27,6 +27,7 @@ const OVERLAY_START = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: 0 });
 const OVERLAY_TOTAL = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
 const OVERLAY_FOUND = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: HOW_STORY_MATCHES.length });
 const OVERLAY_SCOPE = fillHowStoryText(HOW_STORY_TEXT.overlayScope, { total: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
+const PICKED = HOW_STORY_MATCHES.filter((match) => match.picked);
 
 function detectMode() {
   if (typeof window === "undefined") return "static";
@@ -88,8 +89,8 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
                 <div className="how-screen-fade" data-node="screenFade">
                   <ImportScreen node="screenImport" />
                   <LoadingScreen node="screenLoading" {...LOADING_START} />
-                  <PickerScreen node="screenPicker" />
-                  <MapScreen node="screenMap" variant="drill" />
+                  <PickerScreen node="screenPicker" cardsOnStage />
+                  <MapScreen node="screenMap" variant="story" />
                 </div>
               </PhoneFrame>
             </div>
@@ -97,9 +98,21 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
         </div>
       </div>
       <Overlay node="overlay" value={OVERLAY_START} />
+      {/* The four Gyeongju photos: library -> cluster (beat 03) -> the picker's cards (beat 04), whose border, preview
+          button and tap rings they carry. */}
       {HOW_STORY_MATCHES.map((match, index) => (
         <div className="how-match" data-node={`match${index}`} key={match.id}>
           <span className="how-match-shadow" data-node={`matchShadow${index}`} />
+          <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />
+          <span className="how-match-chrome" data-node={`matchChrome${index}`} data-card={index}>
+            <PickerCardChrome />
+            {match.picked && <span className="how-tap" data-tap={`pick-${PICKED.indexOf(match)}`} />}
+          </span>
+        </div>
+      ))}
+      {/* Saving: a copy of each picked photo lifts off its card, then lands on Gyeongju on the map (beat 05). */}
+      {PICKED.map((match, index) => (
+        <div className="how-copy-node" data-node={`copy${index}`} key={match.id}>
           <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />
         </div>
       ))}

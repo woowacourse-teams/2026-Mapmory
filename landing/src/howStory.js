@@ -2,9 +2,9 @@
 // 01 장소 검색 -> 02 사진첩 확인(the camera pushes into the phone) -> 03 경주 사진 4장 -> 04 고르기 -> 05 지도.
 // Pure: no React, no analytics, no DOM. Every frame is a function of scroll progress p (0..1) and the measured
 // layout, so scrolling back up replays the same frames. All visible text lives here.
-import { HOW_STORY_APP_PROGRESS, HOW_STORY_TEST_LAYOUT } from "./howStoryLayout.js";
+import { APP_MAP_VIEW, HOW_STORY_APP_PROGRESS, HOW_STORY_TEST_LAYOUT, PICKER_SCROLL_DP, mapCameraBox } from "./howStoryLayout.js";
 
-export { HOW_STORY_TEST_LAYOUT };
+export { HOW_STORY_TEST_LAYOUT, PICKER_SCROLL_DP };
 
 export const HOW_STORY_EXPERIENCE_TYPE = "how_story";
 export const HOW_STORY_SCENE_COUNT = 5;
@@ -52,8 +52,6 @@ export const HOW_STORY_TRACK = Object.freeze({
 
 // "zoom" pushes the camera into the phone; "fade" (the perf fallback) crossfades the library in at full size.
 export const HOW_STORY_INWARD = "zoom";
-// The picker list is shown scrolled by this much so both card rows sit high on the screen.
-export const PICKER_SCROLL_DP = 48;
 
 const photo = (name) => `/assets/photos/${name}.webp`;
 
@@ -520,28 +518,80 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     nodes.overlayBarFill = move(L.overlayBar * (k / 100 - 1), 0);
   }
 
-  // The four 경주 photos: in the library (lifted once their pin pops) until their flight starts, then the stage
-  // tiles take over at the lifted rect and fly (spring, staggered) to a 2x2 cluster. The beat 04 picker
-  // (static for now) brings its own cards.
+  // The four 경주 photos. Beat 03: in the library (lifted once their pin pops) until their flight starts, then the
+  // stage tiles take over at the lifted rect and fly (spring, staggered) to a 2x2 cluster. Beat 04: they fly on to
+  // the picker's cards and become them (the card border and preview button fade in as they land), so the photos
+  // found are the photos offered. Beat 05: they go with the picker. The originals never leave during beat 04.
   const pins = L.cells.filter(({ popAt }) => k > 0 && edge >= popAt).length;
-  const leave = outward ? 1 - seg(t4, 0, 0.1) : 1;
+  const landing = progress >= HOW_STORY_WINDOWS[4][0];
+  const chrome = seg(t4, 0.26, 0.3);
   L.cells.forEach((cell, i) => {
-    const start = 0.06 + 0.04 * i;
-    const started = progress >= HOW_STORY_WINDOWS[2][0] && t3 >= start;
-    const flight = seg(t3, start, start + 0.18);
-    const u = spring(flight);
-    const from = cell.lift;
-    const target = L.cluster[i];
-    const size = lerp(from.size, target.size, u);
+    const start3 = 0.06 + 0.04 * i;
+    const started = progress >= HOW_STORY_WINDOWS[2][0] && t3 >= start3;
+    const flight3 = seg(t3, start3, start3 + 0.18);
+    const start4 = 0.04 + 0.03 * i;
+    const flight4 = seg(t4, start4, start4 + 0.17);
+    const [from, to, u] = outward ? [L.cluster[i], L.cards[i], spring(flight4)] : [cell.lift, L.cluster[i], spring(flight3)];
+    const size = lerp(from.size, to.size, u);
     nodes[`matchCell${i}`] = fade(started ? 0 : 1);
-    nodes[`matchMark${i}`] = fade(1 - seg(t3, start, start + 0.05));
-    nodes[`match${i}`] = move(lerp(from.x, target.x, u), lerp(from.y, target.y, u), size / L.nodeBase, started ? leave : 0);
-    nodes[`matchShadow${i}`] = fade(flight);
+    nodes[`matchMark${i}`] = fade(1 - seg(t3, start3, start3 + 0.05));
+    nodes[`match${i}`] = move(lerp(from.x, to.x, u), lerp(from.y, to.y, u), size / L.nodeBase, started ? (landing ? 1 - mapIn : 1) : 0);
+    nodes[`matchShadow${i}`] = fade(outward ? 1 - flight4 : flight3);
+    nodes[`matchChrome${i}`] = fade(outward ? chrome : 0);
   });
+
+  // Saving: copies of the three picked photos appear over their cards and lift (the originals stay selected in
+  // the grid; card D has no copy). Beat 05: they fly to 경주시 on the drill map and fade as they arrive.
+  const picked = HOW_STORY_MATCHES.filter((match) => match.picked).length;
+  for (let i = 0; i < picked; i += 1) {
+    const card = L.cards[i];
+    const hover = L.hover[i];
+    const lift = EASE_OUT(seg(t4, 0.66 + 0.03 * i, 0.74 + 0.03 * i));
+    const flightRaw = seg(t5, 0.04 + 0.03 * i, 0.2 + 0.03 * i);
+    const flight = EASE_IN_OUT(flightRaw);
+    let rect;
+    let o;
+    if (!landing) {
+      rect = { x: lerp(card.x, hover.x, lift), y: lerp(card.y, hover.y, lift), size: lerp(card.size, hover.size, lift) };
+      o = outward ? 0.92 * lift : 0;
+    } else {
+      const endSize = card.size * 0.12;
+      const end = { x: L.mapTarget.x - endSize / 2, y: L.mapTarget.y - endSize / 2, size: endSize };
+      rect = { x: lerp(hover.x, end.x, flight), y: lerp(hover.y, end.y, flight), size: lerp(hover.size, end.size, flight) };
+      o = 0.92 * (1 - seg(flightRaw, 0.75, 1));
+    }
+    nodes[`copy${i}`] = move(rect.x, rect.y, rect.size / L.nodeBase, o);
+  }
+
+  // Beat 05's map: a tab switch (crossfade) to develop's 경상북도 drill map, then the map camera pulls back to the
+  // Korea map by interpolating the SVG viewBox (crisp at every scale): district lines and labels go, province
+  // outlines come, 경주시's fill hands over to 경상북도's, and the summary card crossfades to the Korea variant.
+  const mapE = EASE_IN_OUT(seg(t5, 0.4, 0.6));
+  const view = APP_MAP_VIEW;
+  const box = mapCameraBox(view.drillBox, view.koreaBox, mapE);
+  const attrs = { mapSvg: { viewBox: box.map((value) => round(value, 2)).join(" ") } };
+  // The district labels are HTML (SVG text would lay out again on every viewBox write), so their layer follows
+  // the camera with a transform from the drill framing.
+  const areaScale = view.area.width / box[2];
+  nodes.mapLabels = move(
+    (view.drillBox[0] - box[0]) * areaScale * L.dp,
+    (view.drillBox[1] - box[1]) * areaScale * L.dp,
+    view.drillBox[2] / box[2],
+    1 - seg(mapE, 0, 0.5),
+  );
+  nodes.mapDistrictLines = fade(1 - seg(mapE, 0, 0.5));
+  nodes.mapProvinces = fade(seg(mapE, 0.3, 1));
+  nodes.mapFillDistrict = fade(1 - seg(mapE, 0.3, 0.8));
+  nodes.mapFillProvince = fade(seg(mapE, 0.3, 0.8));
+  // The two cards differ in height, so the drill card leaves a little ahead of the Korea card's arrival.
+  nodes.mapCardDrill = fade(1 - seg(mapE, 0.4, 0.58));
+  nodes.mapCardKorea = fade(seg(mapE, 0.48, 0.7));
 
   nodes.pill = fade(1);
 
   const taps = plan.taps?.count ?? null;
+  const pickTaps = plan.beats.filter(({ id }) => id.startsWith("pick-"));
+  const saveTap = plan.beats.find(({ id }) => id === "save");
   const state = {
     scene: sceneIndex + 1,
     tapField: taps === getHowStoryTapRange().max && t1 >= 0.04 ? 1 : 0,
@@ -550,13 +600,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     row: t1 >= 0.42 ? 1 : 0,
     pins,
     found: t3 >= 0.14 ? 1 : 0,
-    // Beats 04-05 are static end states in this build step: three photos picked, 경주시 filled.
-    sel: outward ? 3 : 0,
-    save: 0,
-    map: "drill1",
+    sel: pickTaps.filter((tap) => progress >= tap.p).length,
+    save: progress >= saveTap.p ? 1 : 0,
+    map: !landing || t5 < 0.24 ? "drill0" : t5 < 0.66 ? "drill1" : "world",
   };
 
-  return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs: {}, state };
+  return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs, state };
 }
 
 // Inline style for one frame node; the scroll hook writes the same strings straight to the DOM.
