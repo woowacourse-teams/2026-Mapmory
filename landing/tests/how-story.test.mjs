@@ -688,6 +688,14 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.match(storyCss, /:is\([^)]*\.how-mosaic-sprite\) \{ will-change: opacity; \}/);
 });
 
+test("every endless animation in the story runs only on the live stage, in its own scene", () => {
+  // A spinner left running after the reader moves on keeps restyling the page forever (round-1 F2).
+  const endless = [...`${storyCss}\n${screensCss}`.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*animation:[^;}]*infinite/g)].map(([, selector]) => selector.trim());
+  assert.ok(endless.length >= 2, endless.join(" | "));
+  for (const selector of endless) assert.match(selector, /^\.how-story-track\.is-live \.how-stage\[data-scene="\d"\]/, selector);
+  assert.match(screensCss, /\[data-save="1"\] \.how-app-spinner \{ display: block; \}/);
+});
+
 test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {
   assert.match(storyCss, /\.how-story-end \{ display: flex; scroll-margin-top: 100px; \}/);
   assert.match(storyCss, /@media \(min-width: 561px\) \{[\s\S]*?\.how-story-end \{ justify-content: center; \}\s*\}/);

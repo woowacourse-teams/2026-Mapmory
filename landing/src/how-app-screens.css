@@ -175,7 +175,10 @@
   border-right-color: transparent;
   border-radius: 50%;
 }
-[data-save="1"] .how-app-spinner { display: block; animation: how-spin 900ms linear infinite; }
+[data-save="1"] .how-app-spinner { display: block; }
+/* It spins only while the picker is on screen in the live story; anywhere else (beat 05, the static list, the page
+   below the track) it stays a still arc, so nothing animates once the reader has moved on. */
+.how-story-track.is-live .how-stage[data-scene="4"][data-save="1"] .how-app-spinner { animation: how-spin 900ms linear infinite; }
 
 .how-app-eyebrow { color: var(--app-accent); font-size: calc(12 * var(--dp)); font-weight: 700; letter-spacing: calc(2 * var(--dp)); line-height: var(--app-line-height); }
 
