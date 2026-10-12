@@ -640,6 +640,10 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.match(componentSource, /innerHeight < MIN_VIEWPORT_HEIGHT/);
   assert.match(hookSource, /addEventListener\("scroll", schedule, \{ passive: true \}\)/);
   assert.match(hookSource, /rootMargin: ATTACH_MARGIN/);
+  // The large-text check reads layout heights: a copy line animating in from 20px below is not overflow (a reload
+  // straight into the story measures during that swap).
+  assert.doesNotMatch(hookSource, /copy\.scrollHeight/);
+  assert.match(hookSource, /copyBeats\.map\(\(beat\) => beat\.offsetHeight\)/);
   assert.match(hookSource, /classList\.add\("is-live"/);
   for (const source of [componentSource, hookSource, storyCss, screensCss, ...Object.values(howSources)]) {
     assert.doesNotMatch(source, /addEventListener\("(wheel|touch|key)|preventDefault|scrollIntoView|scrollTo\(|setInterval|scroll-snap/);

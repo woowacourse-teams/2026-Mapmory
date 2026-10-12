@@ -73,8 +73,15 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
 
     // The copy slot holds the tallest beat; past its cap (large text) the story falls back to the static list.
     // Fallback fonts are wider than LINE Seed, so the check waits for the web fonts (fonts.ready remeasures).
+    // It compares layout heights, not scrollHeight: the copy swap animates its lines in from 20px below, and a
+    // measure during that (a reload straight into the story) would count the transform as overflow.
     const fontsLoaded = () => !document.fonts || document.fonts.status === "loaded";
-    const copyOverflows = () => fontsLoaded() && copy.scrollHeight > copy.clientHeight + 1;
+    const copyBeats = [...copy.querySelectorAll(".how-copy-beat")];
+    const copyOverflows = () => {
+      if (!fontsLoaded()) return false;
+      const padding = parseFloat(getComputedStyle(copy).paddingTop) || 0;
+      return padding + Math.max(0, ...copyBeats.map((beat) => beat.offsetHeight)) > copy.clientHeight + 1;
+    };
 
     const measure = () => {
       const frameStyle = getComputedStyle(frame);
