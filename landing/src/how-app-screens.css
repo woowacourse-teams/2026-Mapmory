@@ -3,6 +3,14 @@
    Colours are develop's TripRecordColors / TripMapPalette / KoreaMapArtwork; they follow the landing theme. */
 .how-story-track,
 .how-static-figure {
+  /* Unverified fidelity: read from develop's source but not yet checked against a device capture
+     (toss-spec 15.1). Change these, not the rules below, once the captures exist. */
+  --app-line-height: 1.35; /* Compose default line height for LINE Seed text */
+  --app-back-weight: 400; /* back arrow glyph is FontWeight.Light; LINE Seed has no 300 */
+  --app-checkbox-fill: var(--app-primary); /* M3 Checkbox checked colours under the app theme */
+  --app-checkbox-mark: var(--app-on-primary);
+  --app-ring-cap: round; /* CircularProgressIndicator stroke cap */
+  --app-map-status-dp: 38; /* status bar inset (24) + header top padding (14) on the map, in dp */
   --app-bg: #fafcfb;
   --app-surface: #ffffff;
   --app-surface-elev: #f7faf8;
@@ -85,7 +93,7 @@
   color: var(--app-text);
   background: var(--app-bg);
   font-size: calc(14 * var(--dp));
-  line-height: 1.35;
+  line-height: var(--app-line-height);
   letter-spacing: 0;
   text-align: left;
   word-break: keep-all;
@@ -107,7 +115,7 @@
   color: var(--app-text);
   background: var(--app-surface);
   font-size: calc(28 * var(--dp));
-  font-weight: 400;
+  font-weight: var(--app-back-weight);
   line-height: 1;
 }
 .how-app-title {
@@ -141,7 +149,7 @@
 }
 [data-save="1"] .how-app-spinner { display: block; animation: how-spin 900ms linear infinite; }
 
-.how-app-eyebrow { color: var(--app-accent); font-size: calc(12 * var(--dp)); font-weight: 700; letter-spacing: calc(2 * var(--dp)); line-height: 1.35; }
+.how-app-eyebrow { color: var(--app-accent); font-size: calc(12 * var(--dp)); font-weight: 700; letter-spacing: calc(2 * var(--dp)); line-height: var(--app-line-height); }
 
 /* 사진 불러오기 (LocationStep). */
 .how-import-body { padding: calc(28 * var(--dp)) calc(24 * var(--dp)) 0; }
@@ -277,7 +285,7 @@
 .how-loading-ring { width: calc(64 * var(--dp)); height: calc(64 * var(--dp)); fill: none; stroke-width: 5; }
 .how-loading-ring-track { stroke: var(--app-primary-soft); }
 /* A 270-degree arc (0.75 of 2 * pi * 29.5). */
-.how-loading-ring-arc { stroke: var(--app-accent); stroke-linecap: round; stroke-dasharray: 139 186; transform: rotate(-90deg); transform-origin: 32px 32px; }
+.how-loading-ring-arc { stroke: var(--app-accent); stroke-linecap: var(--app-ring-cap); stroke-dasharray: 139 186; transform: rotate(-90deg); transform-origin: 32px 32px; }
 .how-story-track.is-live .how-stage[data-scene="2"] .how-loading-ring { animation: how-spin 900ms linear infinite; }
 @keyframes how-spin { to { transform: rotate(360deg); } }
 .how-loading-eyebrow { margin-top: calc(28 * var(--dp)); }
@@ -333,7 +341,7 @@
 .how-picker-filter { height: calc(48 * var(--dp)); display: flex; align-items: center; }
 /* Material 3 checkbox in its 48dp touch row: an 18dp box, checked by default for a new record. */
 .how-picker-checkbox { width: calc(48 * var(--dp)); height: calc(48 * var(--dp)); display: grid; place-items: center; }
-.how-picker-checkbox svg { width: calc(18 * var(--dp)); height: calc(18 * var(--dp)); border-radius: calc(2 * var(--dp)); background: var(--app-primary); fill: none; stroke: var(--app-on-primary); stroke-width: 2; stroke-linecap: square; }
+.how-picker-checkbox svg { width: calc(18 * var(--dp)); height: calc(18 * var(--dp)); border-radius: calc(2 * var(--dp)); background: var(--app-checkbox-fill); fill: none; stroke: var(--app-checkbox-mark); stroke-width: 2; stroke-linecap: square; }
 .how-picker-filter-label { margin-left: calc(4 * var(--dp)); color: var(--app-body); font-size: calc(14 * var(--dp)); }
 .how-picker-date { margin-top: calc(24 * var(--dp)); display: flex; align-items: center; }
 .how-picker-date-label { color: var(--app-text); font-size: calc(17 * var(--dp)); font-weight: 700; }
@@ -369,7 +377,7 @@
 
 /* TripMapScreen with MapRoute's content. */
 .how-app-map { display: flex; flex-direction: column; }
-.how-map-header { flex: 0 0 auto; padding-top: calc((24 + 14) * var(--dp)); }
+.how-map-header { flex: 0 0 auto; padding-top: calc(var(--app-map-status-dp) * var(--dp)); }
 .how-map-logo-row { padding: 0 calc(18 * var(--dp)); display: flex; align-items: center; justify-content: space-between; }
 .how-map-logo { color: var(--app-logo); font-size: calc(18 * var(--dp)); font-weight: 700; }
 .how-map-logo-accent { color: var(--app-logo-accent); }
