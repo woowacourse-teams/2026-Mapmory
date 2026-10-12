@@ -211,7 +211,8 @@ export function mapCameraBox(from, to, u) {
 export const APP_MAP_VIEW = Object.freeze(createAppMapView());
 
 // Where each found photo sits in the library window, as fractions of the window [fx, fy] (top-left of its cell
-// before snapping to the tile grid). All four sit inside the visible band on every target viewport.
+// before snapping to the tile grid). createHowStoryLayout moves a cell a row or two on short stages, so all four
+// stay inside the visible band, clear of the overlay, on every stage that fits.
 export const HOW_STORY_MATCH_CELLS = Object.freeze([
   Object.freeze([0.22, 0.46]),
   Object.freeze([0.7, 0.52]),
@@ -285,12 +286,18 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
   const overlayTop = stageHeight * g.overlayTop;
   const overlayBottom = overlayTop + g.overlayLabel[mode] + g.overlayValue[mode] + g.overlayBarSpace;
   // lift: the cell once its pin has popped (scaled about its centre), where the flight to the cluster starts. On
-  // short stages a cell moves down a row or two so its lifted ring stays clear of the overlay's bar.
+  // short stages a cell moves down a row or two so its lifted ring stays clear of the overlay's bar, and up a row
+  // or two so its lifted ring stays inside the visible band (the stage's bottom edge): the pin wave stops at the
+  // band's bottom, so a cell below it would never pop (round-2 F1: 1366x657 and 768x700 showed three found
+  // photos). A band too short for both bounds does not fit (static list).
   const grow = (tile * (g.matchLift - 1)) / 2;
   const lowestClearRow = Math.ceil((overlayBottom + g.matchClear + g.matchHalo + grow - windowY) / tile);
+  const bandBottom = (1 - vTop) * windowHeight;
+  const highestClearRow = Math.floor((bandBottom - g.matchClear - g.matchHalo - grow - tile) / tile);
+  if (highestClearRow < lowestClearRow) return null;
   const cells = HOW_STORY_MATCH_CELLS.map(([fx, fy]) => {
     const x = Math.round((fx * stageWidth) / tile) * tile;
-    const y = Math.max(Math.round((fy * windowHeight) / tile), lowestClearRow) * tile;
+    const y = Math.min(Math.max(Math.round((fy * windowHeight) / tile), lowestClearRow), highestClearRow) * tile;
     // The wave edge reaches a cell's pin once it has passed the pin's bottom.
     return {
       x,

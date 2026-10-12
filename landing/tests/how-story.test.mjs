@@ -914,6 +914,36 @@ test("desktop windows down to about 630px tall keep the story, with the phone ne
   assert.equal(fitHowStoryPhone({ mode: "desktop", stageWidth: 600, stageHeight: 600, viewportWidth: 1280 }), 260);
 });
 
+test("on every stage that fits, the four found photos pop inside the visible band and stay on the stage", () => {
+  // Round-2 F1: with the 220px desktop floor, short laptop and tablet windows keep the story, and found photo D sat
+  // below the band the pin wave crosses, so it never popped (1366x657: three photos ringed under a 4장 story).
+  // Stages as the CSS builds them: desktop 600 x min(innerHeight - 120, 760); tablet min(width, 560) x
+  // (min(innerHeight - 104, 860) - the copy slot - 20); phones the full width x (innerHeight - 80 - the copy - 20).
+  // Each mode keeps the story from these window heights (below them the phone is under its 220px floor).
+  const fitsFrom = { desktop: 632, tablet: 654, mobile: 630 };
+  const stages = [];
+  for (let height = 600; height <= 1000; height += 2) stages.push({ height, mode: "desktop", stageWidth: 600, stageHeight: Math.min(height - 120, 760), viewportWidth: 1280 });
+  for (let height = 560; height <= 1366; height += 2) for (const width of [600, 768, 820, 900]) stages.push({ height, mode: "tablet", stageWidth: Math.min(width, 560), stageHeight: Math.min(height - 104, 860) - 147 - 20, viewportWidth: width });
+  for (let height = 560; height <= 932; height += 2) for (const width of [360, 375, 390, 414, 430]) {
+    const copy = 16 + 20 + 6 + 2.6 * Math.min(28, Math.max(26, 0.072 * width)) + 8 + 24;
+    stages.push({ height, mode: "mobile", stageWidth: width, stageHeight: height - 80 - copy - 20, viewportWidth: width });
+  }
+  const { matchHalo } = HOW_STORY_GEOMETRY;
+  for (const { height, ...stage } of stages) {
+    const layout = createHowStoryLayout(stage);
+    const label = `${stage.mode} ${stage.viewportWidth}x${height} (stage ${stage.stageWidth}x${stage.stageHeight})`;
+    if (height >= fitsFrom[stage.mode]) assert.notEqual(layout, null, label);
+    if (!layout) continue;
+    for (const [index, cell] of layout.cells.entries()) {
+      // The wave's edge ends at the band's bottom, so each pin must pop at or above it.
+      assert.ok(cell.popAt <= layout.window.vBottom, `${label}: cell ${index} pops at ${cell.popAt}, band ends at ${layout.window.vBottom}`);
+      // The lifted photo, its ring and its halo stay on the stage.
+      assert.ok(cell.lift.y - matchHalo >= 0 && cell.lift.y + cell.lift.size + matchHalo <= layout.stageHeight, `${label}: cell ${index} lifted at ${cell.lift.y}`);
+    }
+    assert.equal(getHowStoryFrame(holdBegin(1), layout).state.pins, 4, label);
+  }
+});
+
 test("the JS picks its layout mode with the same media queries as the CSS", () => {
   const css = storyCss.replace(/\/\*[\s\S]*?\*\//g, "");
   for (const width of Object.values(HOW_STORY_BREAKPOINTS)) assert.match(css, new RegExp(`@media \\(min-width: ${width}px\\)`));
