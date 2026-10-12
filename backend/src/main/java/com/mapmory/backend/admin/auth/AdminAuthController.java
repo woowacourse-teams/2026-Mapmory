@@ -4,9 +4,12 @@ import com.mapmory.backend.admin.account.AdminAccount;
 import com.mapmory.backend.admin.auth.dto.AdminLoginRequest;
 import com.mapmory.backend.admin.auth.dto.AdminLoginResponse;
 import com.mapmory.backend.common.dto.ApiResponse;
+import com.mapmory.backend.common.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,5 +37,34 @@ public class AdminAuthController {
         session.setAttribute(ADMIN_ID_SESSION_KEY, account.getId());
 
         return ApiResponse.from(new AdminLoginResponse(account.getUsername()));
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<AdminLoginResponse> me(HttpServletRequest httpRequest) {
+        HttpSession session = httpRequest.getSession(false);
+
+        if (session == null) {
+            throw new BusinessException(AdminAuthErrorCode.ADMIN_SESSION_REQUIRED);
+        }
+
+        Object value = session.getAttribute(ADMIN_ID_SESSION_KEY);
+        if (!(value instanceof Long adminId)) {
+            throw new BusinessException(AdminAuthErrorCode.ADMIN_SESSION_REQUIRED);
+        }
+
+        AdminAccount account = adminAuthService.findById(adminId);
+        return ApiResponse.from(new AdminLoginResponse(account.getUsername()));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
+        HttpSession session = httpRequest.getSession(false);
+
+        if (session != null) {
+            // 세션 만료 시키기
+            session.invalidate();
+        }
+
+        return ResponseEntity.noContent().build();
     }
 }

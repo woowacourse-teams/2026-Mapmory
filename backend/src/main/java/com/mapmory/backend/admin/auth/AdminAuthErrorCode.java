@@ -10,6 +10,13 @@ public enum AdminAuthErrorCode implements ErrorCode {
             "ADMIN_INVALID_CREDENTIALS",
             "로그인에 실패했습니다.",
             "아이디 또는 비밀번호를 확인해 주세요."
+    ),
+
+    ADMIN_SESSION_REQUIRED (
+            ErrorKind.AUTHENTICATION_REQUIRED,
+            "ADMIN_SESSION_REQUIRED",
+            "로그인이 필요합니다.",
+            "관리자 로그인 후 다시 요청해 주세요."
     );
 
     private final ErrorKind errorKind;

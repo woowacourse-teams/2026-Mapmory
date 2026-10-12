@@ -3,6 +3,7 @@ package com.mapmory.backend.admin.auth;
 import com.mapmory.backend.admin.account.AdminAccount;
 import com.mapmory.backend.admin.account.AdminAccountRepository;
 import com.mapmory.backend.admin.auth.dto.AdminLoginRequest;
+import com.mapmory.backend.admin.auth.dto.AdminLoginResponse;
 import com.mapmory.backend.common.exception.BusinessException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,5 +30,11 @@ public class AdminAuthService {
         }
 
         return account;
+    }
+
+    @Transactional(readOnly = true)
+    public AdminAccount findById(Long adminId) {
+        return adminAccountRepository.findById(adminId)
+                .orElseThrow(() -> new BusinessException(AdminAuthErrorCode.ADMIN_SESSION_REQUIRED));
     }
 }
