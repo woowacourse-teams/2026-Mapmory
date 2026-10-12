@@ -1,6 +1,7 @@
 package com.mapmory.backend.admin.auth;
 
 import com.mapmory.backend.admin.account.AdminAccount;
+import com.mapmory.backend.admin.auth.dto.AdminCsrfTokenResponse;
 import com.mapmory.backend.admin.auth.dto.AdminLoginRequest;
 import com.mapmory.backend.admin.auth.dto.AdminLoginResponse;
 import com.mapmory.backend.common.dto.ApiResponse;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -66,5 +68,13 @@ public class AdminAuthController {
         }
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/csrf")
+    public ApiResponse<AdminCsrfTokenResponse> csrf(CsrfToken csrfToken) {
+        return ApiResponse.from(new AdminCsrfTokenResponse(
+                csrfToken.getHeaderName(),
+                csrfToken.getToken()
+        ));
     }
 }
