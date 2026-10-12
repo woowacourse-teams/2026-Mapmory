@@ -124,17 +124,15 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
       <div className="how-phone-slot">
         <div className="how-phone-enter">
           <div className="how-phone-camera" data-node="phoneCamera">
-            <div className="how-phone-fade" data-node="phoneFade">
-              <PhoneFrame>
-                {/* The screen (content and background) goes clear before the bezel on the way in. */}
-                <div className="how-screen-fade" data-node="screenFade">
-                  <ImportScreen node="screenImport" />
-                  <LoadingScreen node="screenLoading" {...LOADING_START} />
-                  <PickerScreen node="screenPicker" cardsOnStage />
-                  <MapScreen node="screenMap" variant="story" />
-                </div>
-              </PhoneFrame>
-            </div>
+            <PhoneFrame>
+              {/* The screen (content and background) goes clear before the bezel on the way in. */}
+              <div className="how-screen-fade" data-node="screenFade">
+                <ImportScreen node="screenImport" />
+                <LoadingScreen node="screenLoading" {...LOADING_START} />
+                <PickerScreen node="screenPicker" cardsOnStage />
+                <MapScreen node="screenMap" variant="story" />
+              </div>
+            </PhoneFrame>
           </div>
         </div>
       </div>

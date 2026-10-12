@@ -227,9 +227,9 @@
 [data-typed="1"] .how-import-ime[data-step="1"] { animation-delay: 110ms; }
 [data-typed="1"] .how-import-ime[data-step="2"] { animation-delay: 220ms; }
 [data-typed="1"] .how-import-ime[data-step="3"] { animation-delay: 330ms; }
-[data-typed="1"] .how-import-ime[data-step="4"] { animation: how-ime-last 1ms linear 440ms forwards; }
+/* The last step stays: a delayed switch, not a filled animation, which would keep the step on a layer of its own. */
+[data-typed="1"] .how-import-ime[data-step="4"] { opacity: 1; animation: none; transition: opacity 0s linear 440ms; }
 @keyframes how-ime-step { from, to { opacity: 1; } }
-@keyframes how-ime-last { to { opacity: 1; } }
 /* Picking the row: at +120ms the field reads 경상북도 경주시 with the caret gone. */
 [data-row="1"] .how-import-typing { visibility: hidden; transition: visibility 0s linear 120ms; }
 [data-row="1"] .how-import-value { visibility: visible; transition: visibility 0s linear 120ms; }

@@ -127,7 +127,7 @@
 @keyframes how-copy-in { from { opacity: 0; transform: translateY(20px); } }
 @keyframes how-copy-in-up { from { opacity: 0; transform: translateY(-20px); } }
 
-/* Stage: everything the hook moves sits at the stage origin and is placed by translate3d from the frame. The
+/* Stage: everything the hook moves sits at the stage origin and is placed by a translate from the frame. The
    stage clips it; --phone-*, --tile, --win-*, --node-base and --overlay-top come from the measured layout. */
 .how-stage {
   position: relative;
@@ -167,8 +167,14 @@
   opacity: 0;
 }
 .how-mosaic-sprite,
+.how-mosaic-dim,
+.how-mosaic-matches,
 .how-pins-reveal,
 .how-pins-inner { position: absolute; inset: 0; }
+/* The inner box sits exactly on the window (the two moves cancel); clipping the panels to it keeps them on one
+   layer (unclipped, the panels past the window's edge split it into several). */
+.how-pins-inner { overflow: hidden; }
+.how-mosaic-dim { background: var(--how-ground); opacity: 0; }
 /* The library: 8 x 10-cell panels of the sprite, each from its own offset into the 16 x 20 block (placed inline
    from how-mosaic.json), so nothing repeats as a lattice. The sprite loads only once the track is near
    (has-library comes with the attach observer). */
@@ -212,6 +218,10 @@
 .how-story-track:not(.is-entered) .how-phone-enter { opacity: 0; transform: translateY(40px); transition: none; }
 .how-phone-camera { transform-origin: 50% 50%; }
 .how-stage[data-scene="3"] .how-phone-slot { visibility: hidden; }
+/* Past beat 03 the pins are at opacity 0 for good; once the picker has gone (data-picker 0), so are its photos and
+   the prints. Hidden, they leave the layers around them unchanged when their own layers go. */
+.how-stage:is([data-scene="4"], [data-scene="5"]) .how-pins-reveal,
+.how-stage[data-picker="0"] :is(.how-match, .how-copy-node) { visibility: hidden; }
 
 /* PhoneFrame: a clay bezel (9px) around a 360 x 780 dp screen, no clock, icons or buttons. */
 .how-phone {
@@ -333,11 +343,26 @@
 .how-story-track:not(.is-entered) .how-frame-pill { visibility: hidden; }
 .how-story-track.is-entered .how-frame-pill { animation: how-copy-in 420ms var(--ease-out) backwards; }
 
-/* Only the moving layers are promoted, and only while the track is near. */
-.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-screen-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-copy-node, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
-/* Scrubbed opacity on a large layer: promoted too, so a change is a compositor update, not a repaint. */
-.how-story-track.is-live :is(.how-ground, .how-bottom-fade, .how-mosaic-sprite) { will-change: opacity; }
-.how-story-track.is-live .how-overlay-bar i { will-change: transform; }
+/* Layers. The hook writes 2D transforms, so its writes promote nothing; a node gets a layer only while the track
+   is near and the stage state says it moves or fades, so a scrubbed change is a compositor update, not a repaint.
+   Otherwise it is at rest, or at opacity 0 (painting nothing). Small parts that move inside a layer that repaints
+   anyway (the loading bar, the overlay's bar, the map labels) get none. Measured budget: AGENTS.md.
+   The camera moves, and the library, its ground and the overlay show, only inside the phone (data-inside: beat 02
+   to beat 04 t .30); beat 01 promotes the camera ahead of the push. */
+.how-story-track.is-live .how-stage:is([data-scene="1"], [data-inside="1"]) .how-phone-camera { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage:is([data-scene="1"], [data-inside="1"]) .how-screen-fade { will-change: opacity; }
+.how-story-track.is-live .how-stage:is([data-scene="1"], [data-scene="2"]) :is(.how-app-import, .how-app-loading) { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage[data-inside="1"] :is(.how-ground, .how-mosaic-dim, .how-bottom-fade) { will-change: opacity; }
+.how-story-track.is-live .how-stage[data-inside="1"] :is(.how-mosaic-window, .how-overlay) { will-change: transform, opacity; }
+/* The pins only until beat 03 has faded them; the found cells (one layer) while their pins pop and they hand over. */
+.how-story-track.is-live .how-stage:is([data-scene="2"], [data-scene="3"]) :is(.how-pins-reveal, .how-pins-inner) { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage:is([data-scene="2"], [data-scene="3"]) .how-mosaic-matches { will-change: opacity; }
+/* The found photos fly in beats 03 and 04 and leave with the picker; the prints exist from the save until they
+   have risen away. */
+.how-story-track.is-live .how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"][data-picker="1"]) .how-match { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage:is([data-scene="4"], [data-scene="5"][data-picker="1"]) .how-app-picker { will-change: opacity; }
+.how-story-track.is-live .how-stage[data-save="1"][data-picker="1"] .how-copy-node { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage[data-scene="5"] .how-app-map { will-change: opacity; }
 
 /* The measured stats band (after the pin, before #how-end). It renders only when HOW_STORY_METRICS resolves a stat;
    with every metric null there is no band, heading or gap at all. */

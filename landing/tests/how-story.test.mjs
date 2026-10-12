@@ -27,6 +27,7 @@ import {
   formatHowStoryBandValue,
   getHowStoryBand,
   getHowStoryFrame,
+  getHowStoryNodeStyle,
   getHowStoryPlan,
   getHowStoryProgress,
   getHowStoryScene,
@@ -342,7 +343,8 @@ test("the number lands as a new number at beat 03, over a dimmed (not removed) l
     const landed = getHowStoryFrame(beatP(2, 0.14), layout);
     assert.equal(landed.state.found, 1, name);
     const hold = getHowStoryFrame(holdBegin(2), layout);
-    assert.ok(hold.nodes.mosaicSprite.o > 0.1 && hold.nodes.mosaicSprite.o < 0.2, name);
+    // The library stays at 10-20% brightness: a ground-coloured cover at 80-90% over it.
+    assert.ok(hold.nodes.mosaicDim.o > 0.8 && hold.nodes.mosaicDim.o < 0.9, name);
     assert.equal(hold.nodes.pinsReveal.o, 0, name);
     // The four tiles sit in the 2x2 cluster at full opacity.
     layout.cluster.forEach((rect, index) => {
@@ -776,7 +778,66 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
   assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-app-map \{ content-visibility: hidden; \}/);
   assert.match(screensCss, /\.how-loading-spin \{ position: relative; z-index: 1;/);
-  assert.match(storyCss, /:is\([^)]*\.how-mosaic-sprite\) \{ will-change: opacity; \}/);
+});
+
+test("layers come from CSS per scene, never from the hook's writes (round-1 P3)", () => {
+  // A 3D translate in an inline write would promote every moved node, small ones included.
+  for (const node of [{ tx: 1, ty: 2, s: 1 }, { tx: 1, ty: 2, s: 0.5 }, { tx: 1, ty: 2, s: 0.5, r: -8 }]) {
+    assert.doesNotMatch(getHowStoryNodeStyle(node).transform, /3d|translateZ/);
+  }
+  assert.equal(getHowStoryNodeStyle({ tx: 1, ty: 2, s: 1 }).transform, "translate(1px, 2px)");
+  assert.equal(getHowStoryNodeStyle({ tx: 1, ty: 2, s: 0.5, r: -8 }).transform, "translate(1px, 2px) rotate(-8deg) scale(0.5)");
+  // Every will-change is gated by the stage's state on the live stage.
+  const rules = [...storyCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*will-change/g)].map(([, selector]) => selector.trim());
+  assert.ok(rules.length >= 8, rules.join(" | "));
+  for (const selector of rules) assert.match(selector, /^\.how-story-track\.is-live \.how-stage(:is\()?\[data-(scene|inside|save)="\d"\]/, selector);
+  // The bezel's fade is the camera's own opacity; the library's dimming is a flat cover, not the sprite's opacity
+  // (which split its panels into several large layers).
+  assert.doesNotMatch(componentSource, /how-phone-fade|phoneFade/);
+  for (const [name, layout] of LAYOUTS) {
+    for (const p of [0, beatP(1, 0.3), holdBegin(2), beatP(3, 0.2), 1]) {
+      const frame = getHowStoryFrame(p, layout);
+      assert.equal(frame.nodes.phoneFade, undefined, name);
+      assert.ok(frame.nodes.phoneCamera.o >= 0 && frame.nodes.phoneCamera.o <= 1, name);
+      assert.equal(frame.nodes.mosaicSprite, undefined, name);
+    }
+    assert.equal(getHowStoryFrame(0, layout).nodes.phoneCamera.o, 1, name);
+    assert.equal(getHowStoryFrame(holdBegin(2), layout).nodes.phoneCamera.o, 0, name);
+    assert.equal(getHowStoryFrame(1, layout).nodes.phoneCamera.o, 1, name);
+  }
+  assert.match(howSources["LibraryMosaic.jsx"], /className="how-mosaic-dim" data-node="mosaicDim"/);
+  assert.match(storyCss, /\.how-mosaic-dim \{ background: var\(--how-ground\); opacity: 0; \}/);
+  assert.match(storyCss, /\.how-mosaic-window \{[^}]*background: var\(--how-ground\);/);
+  // data-inside 0 drops the camera's, the library's and the overlay's layers: only while all of them are at rest.
+  for (const [name, layout] of LAYOUTS) {
+    const insides = new Set();
+    for (let p = 0; p <= 1; p += 0.002) {
+      const frame = getHowStoryFrame(p, layout);
+      insides.add(frame.state.inside);
+      if (frame.state.inside === 1) continue;
+      const { phoneCamera, screenFade, bottomFade, mosaicWindow, ground, overlay } = frame.nodes;
+      assert.deepEqual([phoneCamera.tx, phoneCamera.ty, phoneCamera.s, phoneCamera.o], [0, 0, 1, 1], `${name} p ${p}`);
+      assert.deepEqual([screenFade.o, bottomFade.o, mosaicWindow.o, ground.o, overlay.o], [1, 1, 0, 0, 0], `${name} p ${p}`);
+    }
+    assert.deepEqual([...insides].sort(), [0, 1], name);
+  }
+  // data-picker 0 hides the picker's photos and the prints (and drops their layers): only once all are at 0.
+  for (const [name, layout] of LAYOUTS) {
+    let seen = false;
+    for (let t = 0; t <= 1; t += 0.01) {
+      const frame = getHowStoryFrame(beatP(4, t), layout);
+      if (frame.state.picker === 1) continue;
+      seen = true;
+      for (let i = 0; i < 4; i += 1) assert.equal(frame.nodes[`match${i}`].o, 0, `${name} t ${t}`);
+      for (let i = 0; i < 3; i += 1) assert.equal(frame.nodes[`copy${i}`].o, 0, `${name} t ${t}`);
+      assert.equal(frame.nodes.screenPicker.o, 0, `${name} t ${t}`);
+    }
+    assert.ok(seen, name);
+    assert.equal(getHowStoryFrame(beatP(3, 0.9), layout).state.picker, 1, name);
+  }
+  assert.match(storyCss, /\.how-stage\[data-picker="0"\] :is\(\.how-match, \.how-copy-node\) \{ visibility: hidden; \}/);
+  // The IME's last step is a delayed switch: a filled animation would keep it composited for good.
+  assert.doesNotMatch(`${storyCss}\n${screensCss}`, /forwards/);
 });
 
 test("every endless animation in the story runs only on the live stage, in its own scene", () => {

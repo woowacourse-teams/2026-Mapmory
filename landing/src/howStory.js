@@ -492,7 +492,9 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const e = outward ? 1 - outE : inE;
   const zoom = inward === "zoom";
   const z = zoom ? lerp(1, L.kIn, e) : 1;
-  nodes.phoneCamera = zoom ? move(L.d.x * e, L.d.y * e, z) : move(0, 0, 1);
+  // The clay bezel's fade rides on the camera itself (one layer, not a wrapper of its own).
+  const phoneO = outward ? seg(outE, 0.3, 0.9) : 1 - seg(inE, 0.25, 0.7);
+  nodes.phoneCamera = zoom ? move(L.d.x * e, L.d.y * e, z, phoneO) : move(0, 0, 1, phoneO);
   // A stage rect inside the phone, where the camera shows it now (the camera scales about the phone's centre).
   const phoneCentre = { x: L.phone.x + L.phone.w / 2, y: L.phone.y + L.phone.h / 2 };
   const throughCamera = (rect) => (zoom
@@ -500,7 +502,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     : rect);
   // Inward, in order: the library and the dark ground come up under the phone, the screen (content and
   // background) goes clear so the library shows in the screen's place, then the clay bezel fades. Outward runs
-  // the other way. Each is one opacity on its own wrapper.
+  // the other way. Each is one opacity on its own layer (the bezel's is the camera's).
   const windowO = outward ? 1 - seg(outE, 0, 0.5) : seg(inE, 0.05, 0.3);
   nodes.mosaicWindow = zoom
     ? move((e - 1) * L.d.x, (e - 1) * L.d.y, z / L.kIn, windowO)
@@ -511,7 +513,6 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   nodes.bottomFade = fade(1 - ground);
   const screenO = outward ? seg(outE, 0.3, 0.75) : 1 - seg(inE, 0.1, 0.35);
   nodes.screenFade = fade(screenO);
-  nodes.phoneFade = fade(outward ? seg(outE, 0.3, 0.9) : 1 - seg(inE, 0.25, 0.7));
 
   // Screens inside the phone (screen px). Beat 02 pushes 사진 불러오기 out and the loading screen in. Beat 05 is
   // two moments, never a crossfade: the picker goes (t .08-.16), the screen stays empty a beat, then the map comes
@@ -542,7 +543,11 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   // removed) and the pins and overlay bar go.
   const settle = EASE_OUT(seg(t2, 0.4, 0.48));
   const dim = EASE_OUT(seg(t3, 0, 0.2));
-  nodes.mosaicSprite = fade(lerp(lerp(1, 0.65, EASE_OUT(seg(t2, 0.44, 0.5))), 0.16, dim));
+  // The library's brightness, drawn as a cover of the window's own ground colour over the photos (cover at 1 - b
+  // over the sprite is the same blend as the sprite at b over the ground): a flat layer, where an opacity on the
+  // sprite split its panels into several large layers.
+  const brightness = lerp(lerp(1, 0.65, EASE_OUT(seg(t2, 0.44, 0.5))), 0.16, dim);
+  nodes.mosaicDim = fade(1 - brightness);
   // The reveal carries the pins' opacity too (one layer fewer).
   nodes.pinsReveal = move(0, -reveal, 1, lerp(1, 0.55, settle) * (1 - dim));
   nodes.overlayBar = fade(1 - dim);
@@ -642,6 +647,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     sel: pickTaps.filter((tap) => progress >= tap.p).length,
     save: progress >= saveTap.p ? 1 : 0,
     map: !landing || t5 < 0.31 ? "drill0" : t5 < 0.71 ? "drill1" : "world",
+    // Inside the phone: from beat 02 until the camera is back out in beat 04 (t .30). Outside it the camera, the
+    // screen fade and the bottom fade are at rest and the library, its ground and the overlay are at opacity 0,
+    // so their layers drop (how-story.css).
+    inside: progress >= HOW_STORY_WINDOWS[1][0] && (!outward || t4 < 0.3) ? 1 : 0,
+    // The picker's photos and the prints are all at opacity 0 from beat 05 t .16 (their layers drop with this).
+    picker: landing && t5 >= 0.16 ? 0 : 1,
   };
 
   return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs, state };
@@ -652,7 +663,9 @@ export function getHowStoryNodeStyle(node) {
   const style = {};
   if (node.tx !== undefined) {
     const turn = node.r ? ` rotate(${node.r}deg)` : "";
-    style.transform = node.s === 1 && !turn ? `translate3d(${node.tx}px, ${node.ty}px, 0)` : `translate3d(${node.tx}px, ${node.ty}px, 0)${turn} scale(${node.s})`;
+    // 2D on purpose: a 3D translate would give every moved node a layer of its own. The layers are chosen in CSS,
+    // per scene (how-story.css).
+    style.transform = node.s === 1 && !turn ? `translate(${node.tx}px, ${node.ty}px)` : `translate(${node.tx}px, ${node.ty}px)${turn} scale(${node.s})`;
   }
   if (node.o !== undefined) style.opacity = String(node.o);
   return style;

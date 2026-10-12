@@ -44,25 +44,30 @@ export function MatchPin() {
 export function LibraryMosaic({ matches }) {
   return (
     <div className="how-mosaic-window" data-node="mosaicWindow">
-      <div className="how-mosaic-sprite" data-node="mosaicSprite"><Panels className="how-mosaic-panel" /></div>
+      <div className="how-mosaic-sprite"><Panels className="how-mosaic-panel" /></div>
+      {/* The library dims under a cover of the ground colour (settling in beat 02, set aside in beat 03). */}
+      <span className="how-mosaic-dim" data-node="mosaicDim" />
       {/* The pin wave: the reveal (which also carries the pins' opacity) and its counter-moving child. */}
       <div className="how-pins-reveal" data-node="pinsReveal">
         <div className="how-pins-inner" data-node="pinsInner"><Panels className="how-pins-panel" /></div>
       </div>
-      {matches.map((match, index) => (
-        <div className="how-mosaic-match" data-cell={index} key={match.id}>
-          {/* Grows about its centre once its pin pops (data-pins), so the four found photos stand out. */}
-          <span className="how-mosaic-lift" data-i={index}>
-            <img src={match.src} alt="" width="18" height="18" loading="lazy" decoding="async" data-node={`matchCell${index}`} />
-            <span className="how-mosaic-mark" data-node={`matchMark${index}`}>
-              <span className="how-mosaic-mark-pop" data-i={index}>
-                <span className="how-mosaic-ring" />
-                <MatchPin />
+      {/* One wrapper, so the four cells share one layer rather than taking one each where they overlap the pins. */}
+      <div className="how-mosaic-matches">
+        {matches.map((match, index) => (
+          <div className="how-mosaic-match" data-cell={index} key={match.id}>
+            {/* Grows about its centre once its pin pops (data-pins), so the four found photos stand out. */}
+            <span className="how-mosaic-lift" data-i={index}>
+              <img src={match.src} alt="" width="18" height="18" loading="lazy" decoding="async" data-node={`matchCell${index}`} />
+              <span className="how-mosaic-mark" data-node={`matchMark${index}`}>
+                <span className="how-mosaic-mark-pop" data-i={index}>
+                  <span className="how-mosaic-ring" />
+                  <MatchPin />
+                </span>
               </span>
             </span>
-          </span>
-        </div>
-      ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
