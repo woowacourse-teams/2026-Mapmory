@@ -213,6 +213,13 @@ test("no claim the client code does not back, on either app version, anywhere on
 
 test("no illustrative number in the copy column, and the required lines are there", () => {
   for (const value of [...HOW_STORY_TITLE_LINES, ...HOW_STORY_BEATS.flatMap((beat) => [...beat.headline, beat.sub])]) assert.doesNotMatch(value, /\d/, value);
+  // Screen readers hear the example's numbers only inside the example's frame (the visual pill is aria-hidden).
+  for (const value of descriptions) {
+    if (/\d/.test(value)) assert.match(value, /이 예시|예시 화면/, value);
+  }
+  // How the photos are chosen differs between the app versions (develop taps from none, main starts every found
+  // photo checked), so no description says how.
+  for (const value of descriptions) assert.doesNotMatch(value, /탭해서|탭하면|눌러서|체크/, value);
   const surface = [...copyColumn, ...collectStrings(HOW_STORY_TEXT)].join("\n");
   for (const required of ["고른 사진만 올라가요", "폰 안에서", "예시 화면"]) assert.ok(surface.includes(required), required);
   assert.equal(HOW_STORY_BEATS[1].sub, "사진 확인은 폰 안에서 해요");

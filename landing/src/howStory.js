@@ -179,7 +179,9 @@ export const HOW_STORY_BEATS = Object.freeze([
     eyebrow: "04",
     headline: ["마음에 드는 사진만", "기록에 담아요"],
     sub: "저장할 때 고른 사진만 올라가요",
-    description: "찾은 사진 4장 가운데 기록에 담고 싶은 3장을 탭해서 골라요. 기록을 저장하면 고른 3장만 Mapmory 서버로 올라가고, 고르지 않은 1장과 나머지 사진첩은 폰에 그대로 있어요.",
+    // The app versions differ in how the choice is made (develop: tap to pick from none; main: every found photo
+    // starts checked, untick the rest), so the sentence says only that three are chosen, in the example's frame.
+    description: "이 예시에서는 찾은 사진 4장 가운데 3장을 골라 기록에 담아요. 기록을 저장하면 고른 3장만 Mapmory 서버로 올라가고, 고르지 않은 1장과 나머지 사진첩은 폰에 그대로 있어요.",
   },
   {
     id: "map",
