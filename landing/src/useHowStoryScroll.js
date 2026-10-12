@@ -8,7 +8,7 @@ import {
   getHowStoryScene,
   isHowStoryHold,
 } from "./howStory.js";
-import { createHowStoryLayout, getHowStoryMode } from "./howStoryLayout.js";
+import { createHowStoryLayout, getHowStoryMediaMode, getHowStoryMode } from "./howStoryLayout.js";
 import { latestEntry } from "./howStoryAnalytics.js";
 
 // Below this the frame is the same to a hundredth of a pixel, so the frame is not recomputed.
@@ -85,7 +85,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       const frameStyle = getComputedStyle(frame);
       stickyTop = parseFloat(frameStyle.top) || 0;
       const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
-      const mode = getHowStoryMode(viewportWidth);
+      const mode = typeof window.matchMedia === "function" ? getHowStoryMediaMode((query) => window.matchMedia(query)) : getHowStoryMode(viewportWidth);
       const next = createHowStoryLayout({ mode, stageWidth: stage.clientWidth, stageHeight: stage.clientHeight, viewportWidth });
       if (!next || copyOverflows()) {
         callbackRef.current.onFitFail();

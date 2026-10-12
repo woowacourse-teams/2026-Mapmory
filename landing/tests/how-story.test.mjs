@@ -53,7 +53,11 @@ import {
   HOW_STORY_PICKER,
   PICKER_SCROLL_DP,
   boundsOfRings,
+  HOW_STORY_BREAKPOINTS,
   createHowStoryLayout,
+  fitHowStoryPhone,
+  getHowStoryMediaMode,
+  getHowStoryMode,
   mapCameraBox,
   pickerCardRectsDp,
 } from "../src/howStoryLayout.js";
@@ -713,8 +717,42 @@ test("the skip link target clears the sticky header and the story end is centred
 
 test("a static list re-checks scroll mode when the window grows taller, never on a phone's URL-bar flap", () => {
   assert.match(componentSource, /const STATIC_RECHECK_GROWTH = 100;/);
-  assert.match(componentSource, /if \(modeRef\.current === "static" && grew\) reevaluate\(\);/);
+  assert.match(componentSource, /const SMALL_VIEWPORT_RECHECK_GROWTH = 16;/);
   assert.match(componentSource, /lowestHeight < MIN_VIEWPORT_HEIGHT && height >= MIN_VIEWPORT_HEIGHT/);
+  // The small viewport height (svh) is what the frame is sized in; a collapsing URL bar does not change it. A fit
+  // failure records it, so a desktop window shrunk below the fit and restored re-checks (round-1 F6).
+  assert.match(componentSource, /height:100vh;height:100svh/);
+  assert.match(componentSource, /small - checkedSmallHeightRef\.current >= SMALL_VIEWPORT_RECHECK_GROWTH/);
+  assert.match(componentSource, /const handleFitFail = useCallback\(\(\) => \{\s*checkedSmallHeightRef\.current = smallViewportHeight\(\);/);
+});
+
+test("desktop windows down to about 630px tall keep the story, with the phone never taller than its stage", () => {
+  const { bezel, phoneMin, desktopPhone } = HOW_STORY_GEOMETRY;
+  // Stage height is the window's inner height - 120px on desktop (100svh - 120px, at most 760px).
+  for (const innerHeight of [632, 650, 657, 680, 700, 720, 760, 800, 880]) {
+    const stageHeight = Math.min(innerHeight - 120, 760);
+    const width = fitHowStoryPhone({ mode: "desktop", stageWidth: 600, stageHeight, viewportWidth: 1280 });
+    assert.notEqual(width, null, `${innerHeight}`);
+    assert.ok(width >= phoneMin.desktop && width <= desktopPhone[1], `${innerHeight}: ${width}`);
+    const phoneHeight = ((width - bezel * 2) * 780) / 360 + bezel * 2;
+    assert.ok(stageHeight - phoneHeight >= 56 - 1, `${innerHeight}: ${phoneHeight} in ${stageHeight}`);
+  }
+  assert.equal(fitHowStoryPhone({ mode: "desktop", stageWidth: 600, stageHeight: 500, viewportWidth: 1280 }), null);
+  // The preferred 260px phone stays while 28px margins allow it.
+  assert.equal(fitHowStoryPhone({ mode: "desktop", stageWidth: 600, stageHeight: 600, viewportWidth: 1280 }), 260);
+});
+
+test("the JS picks its layout mode with the same media queries as the CSS", () => {
+  const css = storyCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const width of Object.values(HOW_STORY_BREAKPOINTS)) assert.match(css, new RegExp(`@media \\(min-width: ${width}px\\)`));
+  assert.match(hookSource, /getHowStoryMediaMode\(\(query\) => window\.matchMedia\(query\)\)/);
+  // A 905px window with a 15px classic scrollbar: clientWidth is 890, but the CSS is in desktop columns.
+  const media = (viewport) => (query) => ({ matches: viewport >= Number(/min-width: (\d+)px/.exec(query)[1]) });
+  assert.equal(getHowStoryMediaMode(media(905)), "desktop");
+  assert.equal(getHowStoryMode(890), "tablet");
+  assert.equal(getHowStoryMediaMode(media(900)), "tablet");
+  assert.equal(getHowStoryMediaMode(media(561)), "tablet");
+  assert.equal(getHowStoryMediaMode(media(560)), "mobile");
 });
 
 test("the scene reach tracker needs 700 ms in a hold and fires each scene once", () => {

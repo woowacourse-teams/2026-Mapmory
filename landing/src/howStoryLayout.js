@@ -10,10 +10,12 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
   visibleShare: 0.84,
   phoneTopInset: 4,
   phoneMax: Object.freeze({ mobile: 300, tablet: 320 }),
-  phoneMin: Object.freeze({ mobile: 220, tablet: 220, desktop: 260 }),
+  // Desktop's 220px floor (spec 9.3 said 260) lets laptop windows about 630-720px tall (1366x768 and 1280x720
+  // with the browser's toolbars) keep the story instead of the static list; owner to confirm.
+  phoneMin: Object.freeze({ mobile: 220, tablet: 220, desktop: 220 }),
   // Desktop: the whole phone shows, with more room below it than above so its drop shadow (0 30px 60px -24px,
-  // about 66px deep) ends inside the stage box instead of on its clipped edge. On short windows the phone shrinks
-  // to the fit minimum before that room is given up.
+  // about 66px deep) ends inside the stage box instead of on its clipped edge. On short windows the phone keeps
+  // 260px while 28px margins allow, then shrinks toward the floor.
   desktopPhone: Object.freeze([260, 340]),
   desktopMargin: Object.freeze({ top: 20, bottom: 68 }),
   sideRoom: 40,
@@ -167,9 +169,21 @@ export const HOW_STORY_MATCH_CELLS = Object.freeze([
   Object.freeze([0.8, 0.7]),
 ]);
 
+// The widths how-story.css switches its layout at (min-width media queries).
+export const HOW_STORY_BREAKPOINTS = Object.freeze({ tablet: 561, desktop: 901 });
+
 export function getHowStoryMode(viewportWidth) {
-  if (viewportWidth >= 901) return "desktop";
-  if (viewportWidth >= 561) return "tablet";
+  if (viewportWidth >= HOW_STORY_BREAKPOINTS.desktop) return "desktop";
+  if (viewportWidth >= HOW_STORY_BREAKPOINTS.tablet) return "tablet";
+  return "mobile";
+}
+
+// The mode the CSS is in. Media queries measure the viewport including a classic scrollbar, which clientWidth
+// leaves out, so the JS asks the same queries rather than comparing a width (901-916px windows used to get the
+// desktop grid with tablet geometry).
+export function getHowStoryMediaMode(matchMedia) {
+  if (matchMedia(`(min-width: ${HOW_STORY_BREAKPOINTS.desktop}px)`).matches) return "desktop";
+  if (matchMedia(`(min-width: ${HOW_STORY_BREAKPOINTS.tablet}px)`).matches) return "tablet";
   return "mobile";
 }
 
@@ -181,11 +195,12 @@ export function fitHowStoryPhone({ mode, stageWidth, stageHeight, viewportWidth 
   const { bezel, visibleShare, phoneMax, phoneMin, desktopPhone, desktopMargin, sideRoom } = HOW_STORY_GEOMETRY;
   if (mode === "desktop") {
     const naturalFor = (margins) => ((stageHeight - margins - bezel * 2) * HOW_STORY_SCREEN.widthDp) / HOW_STORY_SCREEN.heightDp + bezel * 2;
-    // The fit test keeps the original 28px margins, so short windows keep scroll mode; the size leaves the
-    // shadow room below the phone (desktopMargin).
-    if (naturalFor(56) < phoneMin.desktop) return null;
-    const natural = naturalFor(desktopMargin.top + desktopMargin.bottom);
-    return Math.floor(Math.min(Math.max(natural, desktopPhone[0]), desktopPhone[1], stageWidth - sideRoom));
+    // The largest phone with 28px above and below decides the fit; the size prefers the one that leaves the
+    // shadow room (desktopMargin), and a short window may grow it toward the preferred minimum within the 28px.
+    const tight = naturalFor(56);
+    if (tight < phoneMin.desktop) return null;
+    const roomy = naturalFor(desktopMargin.top + desktopMargin.bottom);
+    return Math.floor(Math.min(Math.max(roomy, Math.min(tight, desktopPhone[0])), desktopPhone[1], stageWidth - sideRoom));
   }
   const height = stageHeight / visibleShare;
   const screenWidth = ((height - bezel * 2) * HOW_STORY_SCREEN.widthDp) / HOW_STORY_SCREEN.heightDp;

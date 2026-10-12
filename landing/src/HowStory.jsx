@@ -22,8 +22,11 @@ import {
 } from "./howStory.js";
 
 const MIN_VIEWPORT_HEIGHT = 560;
-// A static list re-checks scroll mode when a height-only resize grows the window by more than this.
+// A static list re-checks scroll mode when a height-only resize grows the window by more than this...
 const STATIC_RECHECK_GROWTH = 100;
+// ...or grows the small viewport height (what the story's frame is sized in) by this much since the last check or
+// fit failure: a desktop window made taller again. A phone's or tablet's collapsing URL bar never changes it.
+const SMALL_VIEWPORT_RECHECK_GROWTH = 16;
 const VIEW_OBSERVER_THRESHOLDS = Array.from({ length: 51 }, (_, index) => index / 50);
 
 const OVERLAY_START = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: 0 });
@@ -47,6 +50,16 @@ function detectMode() {
   if (!("IntersectionObserver" in window)) return "static";
   if (window.innerHeight < MIN_VIEWPORT_HEIGHT) return "static";
   return "scroll";
+}
+
+// 100svh in CSS px (100vh where svh is unsupported), read from a throwaway probe; only on resizes of a static list.
+function smallViewportHeight() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none";
+  document.body.append(probe);
+  const height = probe.offsetHeight;
+  probe.remove();
+  return height || window.innerHeight;
 }
 
 function BeatCopy({ beat, description }) {
@@ -254,14 +267,18 @@ export function HowStory() {
   // Reduced motion, missing IntersectionObserver and short windows get the static list. A width change
   // (rotation, a new window size) re-runs the check and gives scroll mode another chance to fit. A height-only
   // change never leaves scroll mode (a phone's collapsing URL bar would flap it), but a static list re-checks
-  // once the window grows past the minimum height or by more than 100px, so an enlarged short window recovers.
+  // once the window grows past the minimum height or by more than 100px, or once the small viewport height grows
+  // 16px past where the last check (or fit failure) left it, so a desktop window shrunk and restored recovers.
+  const checkedSmallHeightRef = useRef(0);
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let width = window.innerWidth;
     let lowestHeight = window.innerHeight;
+    checkedSmallHeightRef.current = smallViewportHeight();
     const reevaluate = () => {
       width = window.innerWidth;
       lowestHeight = window.innerHeight;
+      checkedSmallHeightRef.current = smallViewportHeight();
       setBaseMode(detectMode());
       setFitFailed(false);
     };
@@ -271,9 +288,19 @@ export function HowStory() {
         return;
       }
       const height = window.innerHeight;
-      const grew = height - lowestHeight > STATIC_RECHECK_GROWTH || (lowestHeight < MIN_VIEWPORT_HEIGHT && height >= MIN_VIEWPORT_HEIGHT);
-      if (modeRef.current === "static" && grew) reevaluate();
-      else lowestHeight = Math.min(lowestHeight, height);
+      if (modeRef.current !== "static") {
+        lowestHeight = Math.min(lowestHeight, height);
+        return;
+      }
+      const small = smallViewportHeight();
+      const grew = height - lowestHeight > STATIC_RECHECK_GROWTH
+        || (lowestHeight < MIN_VIEWPORT_HEIGHT && height >= MIN_VIEWPORT_HEIGHT)
+        || small - checkedSmallHeightRef.current >= SMALL_VIEWPORT_RECHECK_GROWTH;
+      if (grew) reevaluate();
+      else {
+        lowestHeight = Math.min(lowestHeight, height);
+        checkedSmallHeightRef.current = Math.min(checkedSmallHeightRef.current, small);
+      }
     };
     media?.addEventListener?.("change", reevaluate);
     window.addEventListener("resize", handleResize);
@@ -328,7 +355,10 @@ export function HowStory() {
   }
   useEffect(() => () => reachTrackerRef.current.stop(), []);
   const handleFrameState = useCallback((state) => reachTrackerRef.current.update(state), []);
-  const handleFitFail = useCallback(() => setFitFailed(true), []);
+  const handleFitFail = useCallback(() => {
+    checkedSmallHeightRef.current = smallViewportHeight();
+    setFitFailed(true);
+  }, []);
   const handleSceneChange = useCallback((index) => {
     setScene((current) => (current.index === index ? current : { index, previous: current.index, direction: index > current.index ? "down" : "up" }));
   }, []);
