@@ -858,6 +858,30 @@ test("a jump shows the end state per tap, without a stage-wide switch that would
   assert.match(screensCss, /\.how-match-chrome:has\(> \.how-tap\[data-skip="1"\]\) \.how-picker-preview \{ animation: none; \}/);
 });
 
+test("the pill, glow and static figures keep their round-1 visual fixes", () => {
+  // V7: the 예시 화면 pill is solid in both themes, and white 11-12px bold text on it is at least 4.5:1.
+  const luminance = (hex) => {
+    const channels = hex.match(/[0-9a-f]{2}/gi).map((part) => parseInt(part, 16) / 255);
+    const [r, g, b] = channels.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const pills = [...storyCss.matchAll(/--how-pill-bg: ([^;]+);/g)].map(([, value]) => value.trim());
+  assert.equal(pills.length, 2, pills.join(", "));
+  for (const value of pills) {
+    assert.match(value, /^#[0-9a-f]{6}$/i, value);
+    assert.ok(1.05 / (luminance(value) + 0.05) >= 4.5, value);
+  }
+  // V8: the glow arrives with the phone, never before the frame has entered.
+  assert.match(storyCss, /\.how-story-track:not\(\.is-entered\) \.how-glow \{ opacity: 0; transition: none; \}/);
+  // V9: on desktop the pill sits in the stage box's top-right corner, not beside the phone over the zoomed screen.
+  assert.match(storyCss, /\.how-frame-pill \{ grid-area: 1 \/ 2; top: 16px; right: 16px; \}/);
+  // V10: static figures are sized by the window height too, and short landscape windows set copy and figure side by side.
+  assert.match(storyCss, /\.how-static-figure \{ --phone-w: min\(260px, max\(120px, calc\(\(var\(--how-static-room\) - 18px\) \* 360 \/ 780 \+ 18px\)\)\);/);
+  assert.match(storyCss, /--phone-w: min\(300px, max\(120px, calc\(\(var\(--how-static-room\) - 18px\) \* 360 \/ 780 \+ 18px\)\)\);/);
+  assert.match(storyCss, /@supports \(height: 100svh\) \{\s*\.how-static \{ --how-static-room: calc\(100svh - 120px\); \}/);
+  assert.match(storyCss, /@media \(min-width: 640px\) and \(max-width: 900px\) and \(max-height: 560px\) \{[^@]*\.how-static-beat \{ display: grid; grid-template-columns: minmax\(0, 1fr\) auto;/);
+});
+
 test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {
   assert.match(storyCss, /\.how-story-end \{ display: flex; scroll-margin-top: 100px; \}/);
   assert.match(storyCss, /@media \(min-width: 561px\) \{[\s\S]*?\.how-story-end \{ justify-content: center; \}\s*\}/);

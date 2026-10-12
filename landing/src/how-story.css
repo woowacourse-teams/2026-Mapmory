@@ -395,20 +395,29 @@
 .how-static { margin: 0; padding: 0; display: grid; gap: 48px; list-style: none; }
 .how-static-beat { min-width: 0; }
 .how-static-copy { --how-hl-size: clamp(26px, 7.2vw, 32px); }
-.how-static-figure { --phone-w: 260px; --tile: 16px; position: relative; width: fit-content; margin: 20px auto 0; }
+/* Each figure fits whole below the sticky header (about 120px with its gap): on a short window the phone is sized by
+   the height, down to 120px wide. */
+.how-static { --how-static-room: calc(100vh - 120px); }
+@supports (height: 100svh) {
+  .how-static { --how-static-room: calc(100svh - 120px); }
+}
+.how-static-figure { --phone-w: min(260px, max(120px, calc((var(--how-static-room) - 18px) * 360 / 780 + 18px))); --tile: 16px; position: relative; width: fit-content; margin: 20px auto 0; }
 /* The pill sits on the phone's empty rounded corner, clear of the app's top-bar action. */
 .how-static-figure .how-pill { position: absolute; z-index: 3; top: -8px; right: -14px; left: auto; }
 .how-static-figure[data-figure="3"] .how-pill { top: 12px; right: 12px; }
 .how-static-figure .how-phone-screen { contain: paint; }
-.how-static-library { position: relative; width: min(100%, 320px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 24px; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); }
-.how-static-figure[data-figure="3"] { width: min(100%, 320px); }
+/* The library still: 320 x 400 at most, smaller on a short window; its contents scale with its width (cqw, with the
+   320px sizes as the fallback). */
+.how-static-library { position: relative; width: 100%; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 24px; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); container-type: inline-size; }
+/* A definite width (the still is a size container, so it has no width of its own to give an auto column). */
+.how-static-figure[data-figure="3"] { width: min(320px, max(200px, var(--how-static-room) * 4 / 5)); max-width: 100%; }
 .how-static-library .how-mosaic-still { position: absolute; inset: 0; opacity: 0.16; }
-.how-static-library .how-overlay { position: absolute; top: 12%; width: 240px; opacity: 1; }
-.how-static-library .how-overlay-label { font-size: 14px; line-height: 20px; }
-.how-static-library .how-overlay-value { font-size: 44px; }
+.how-static-library .how-overlay { position: absolute; top: 12%; width: 240px; width: 75cqw; opacity: 1; }
+.how-static-library .how-overlay-label { font-size: 14px; font-size: 4.375cqw; line-height: 1.43; }
+.how-static-library .how-overlay-value { font-size: 44px; font-size: 13.75cqw; }
 .how-static-library .how-overlay-bar { display: none; }
-.how-static-cluster { position: absolute; left: 50%; top: 62%; display: grid; grid-template-columns: repeat(2, 84px); gap: 10px; transform: translate(-50%, -50%); }
-.how-static-cluster img { width: 84px; height: 84px; border-radius: 10px; object-fit: cover; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); }
+.how-static-cluster { position: absolute; left: 50%; top: 62%; display: grid; grid-template-columns: repeat(2, 84px); grid-template-columns: repeat(2, 26.25cqw); gap: 10px; gap: 3.125cqw; transform: translate(-50%, -50%); }
+.how-static-cluster img { width: 84px; width: 26.25cqw; height: 84px; height: 26.25cqw; border-radius: 10px; object-fit: cover; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); }
 
 @media (min-width: 561px) {
   .how-story-track[data-mode="scroll"] {
@@ -476,5 +485,13 @@
   .how-static { width: auto; gap: 72px; }
   .how-static-beat { display: grid; grid-template-columns: 420px 360px; column-gap: 60px; align-items: center; justify-content: center; }
   .how-static-copy { --how-eb-size: 17px; --how-eb-lh: 24px; --how-eb-gap: 10px; --how-hl-size: clamp(36px, 3.6vw, 46px); --how-sub-gap: 14px; --how-sub-size: 20px; }
-  .how-static-figure { --phone-w: 300px; margin: 0 auto; }
+  .how-static-figure { --phone-w: min(300px, max(120px, calc((var(--how-static-room) - 18px) * 360 / 780 + 18px))); margin: 0 auto; }
+}
+
+/* A short landscape window (a phone on its side): copy and figure side by side, so a beat's words and its screen are
+   on screen together. */
+@media (min-width: 640px) and (max-width: 900px) and (max-height: 560px) {
+  .how-static { width: min(100%, 760px); gap: 40px; }
+  .how-static-beat { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 32px; align-items: center; }
+  .how-static-figure { margin: 0; }
 }
