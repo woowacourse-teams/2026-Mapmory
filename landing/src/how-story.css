@@ -69,37 +69,26 @@
 .how-story-stage-wrap { min-width: 0; margin-inline: -8px; }
 .how-story-note { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; word-break: keep-all; }
 
-/* Stage: HUD strip, the boundary line, then the phone zone holding the 320x280 logical canvas. */
+/* Stage: the server strip, the boundary line, then the phone zone holding the 320x280 logical canvas. */
 /* --how-k (canvas scale) is measured by script and set on the stage wrap or the static list; 19px is the zone's padding and border. */
-/* The stage is a size container so the HUD can wrap by the stage's own width, which depends on --how-k. */
+/* The stage is a size container so the zone's counter row can wrap by the stage's own width, which depends on --how-k. */
 .how-stage { width: calc(320px * var(--how-k, 1) + 19px); max-width: 100%; margin: 0 auto; container-type: inline-size; }
 
-.how-hud {
-  height: 44px;
+/* Above the line is the server side: it holds only what the Mapmory server has received, never a phone-side count. */
+.how-server {
+  height: 36px;
   padding: 0 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface-soft);
 }
-.how-hud.has-taps { grid-template-columns: minmax(0, 1fr) auto auto; }
-.how-hud-item { min-width: 0; display: grid; gap: 1px; }
-.how-hud-label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 14px; white-space: nowrap; }
-.how-hud-label svg { flex: 0 0 auto; color: var(--accent-ink); }
-.how-hud-value { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-/* The two values that change on every scrolled frame are fixed-size boxes, so their text never relayouts the page. */
-.how-hud-value[data-text="checked"] { height: 18px; contain: strict; }
-.how-hud-timer { width: 3.6em; height: 14px; margin-left: 2px; display: inline-block; color: var(--accent-ink); font-variant-numeric: tabular-nums; contain: strict; }
-.how-hud-item.is-taps { padding-left: 12px; border-left: 1px solid var(--line); }
-.how-hud-item.is-server { padding-left: 12px; border-left: 1px solid var(--line); justify-items: end; text-align: right; }
-/* With a measured tap counter on a narrow stage, the counter takes a second row instead of squeezing the others. */
-@container (max-width: 420px) {
-  .how-hud.has-taps { height: auto; min-height: 44px; padding-block: 6px; grid-template-columns: minmax(0, 1fr) auto; row-gap: 5px; }
-  .how-hud.has-taps .how-hud-item.is-taps { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: baseline; gap: 6px; padding: 5px 0 0; border-left: 0; border-top: 1px solid var(--line); }
-}
+.how-server-label { min-width: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.how-server-label svg { flex: 0 0 auto; color: var(--accent-ink); }
+.how-server-value { flex: 0 0 auto; color: var(--text); font-size: 13px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .how-line { position: relative; height: 24px; display: grid; place-items: center; }
 .how-line::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
@@ -114,6 +103,20 @@
 .how-zone-place { height: 24px; padding: 0 9px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 700; white-space: nowrap; transform-origin: 100% 50%; }
 .how-zone-place svg { flex: 0 0 auto; color: var(--accent-ink); }
 .how-zone-sample.finder-sample-badge { position: static; flex: 0 0 auto; }
+/* The phone's own counters sit inside the 내 폰 안 zone, under its head: the scan count (and a measured timer and taps). */
+.how-meter { height: 22px; margin: -2px 0 6px; padding: 0 2px; display: flex; align-items: center; gap: 10px; }
+.how-meter-scan { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.how-meter-label { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 14px; white-space: nowrap; }
+.how-meter-value { flex: 0 0 auto; color: var(--text); font-size: 14px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The two values that change on every scrolled frame are fixed-size boxes, so their text never relayouts the page. */
+.how-meter-value[data-text="checked"] { width: 8.6em; height: 20px; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; contain: strict; }
+.how-meter-timer { width: 3.6em; height: 16px; flex: 0 0 auto; color: var(--accent-ink); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; contain: strict; }
+.how-meter-taps { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+/* With a measured tap counter on a narrow stage, the counter takes a second row instead of squeezing the scan count. */
+@container (max-width: 340px) {
+  .how-meter.has-taps { height: auto; min-height: 22px; flex-wrap: wrap; row-gap: 2px; }
+  .how-meter.has-taps .how-meter-taps { margin-left: 0; }
+}
 
 .how-stage-box { position: relative; width: calc(320px * var(--how-k, 1)); height: calc(280px * var(--how-k, 1)); }
 .how-stage-canvas { position: absolute; left: 0; top: 0; width: 320px; height: 280px; transform: scale(var(--how-k, 1)); transform-origin: 0 0; }
@@ -242,11 +245,13 @@
   .how-story-support { margin-top: 12px; font-size: 17px; line-height: 1.6; }
   .how-story-progress { margin: 28px 0 0; gap: 6px; }
   .how-story-progress small { margin-top: 8px; display: block; overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-  .how-hud { height: 52px; padding: 0 16px; }
-  .how-hud-label { font-size: 12px; line-height: 15px; }
-  .how-hud-value { font-size: 15px; line-height: 20px; }
-  .how-hud-value[data-text="checked"] { height: 20px; }
-  .how-hud-timer { height: 15px; }
+  .how-server { height: 40px; padding: 0 16px; }
+  .how-server-label { font-size: 13px; }
+  .how-server-value { font-size: 15px; line-height: 20px; }
+  .how-meter { height: 24px; }
+  .how-meter-label { font-size: 12px; line-height: 16px; }
+  .how-meter-value { font-size: 16px; line-height: 22px; }
+  .how-meter-value[data-text="checked"] { height: 22px; }
 
   .how-story-track[data-mode="static"] .how-story-frame { display: block; }
   .how-story-track[data-mode="static"] .how-story-steps { width: auto; gap: 56px; }

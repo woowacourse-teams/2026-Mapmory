@@ -233,10 +233,11 @@ const MAP_CAPTION_CENTER = [178, 150];
 const KOREA_CENTER = [91, 140];
 const CHIP_XS = 250;
 const CHIP_YS = [86, 140, 194];
-export const HOW_STORY_DEFAULT_STRIP_TARGET = Object.freeze({ x: 260, y: -92 });
+// Where the server counter sits relative to the canvas at a scale of 1, until the scroll hook measures it.
+export const HOW_STORY_DEFAULT_STRIP_TARGET = Object.freeze({ x: 276, y: -111 });
 
 // Taps the choreography shows. Core taps always appear; optional ones are added in order only when a
-// measured tap count asks for them, so the HUD counter can end exactly on HOW_STORY_METRICS.taps.
+// measured tap count asks for them, so the tap counter can end exactly on HOW_STORY_METRICS.taps.
 // Only taps both app versions share are drawn: the scan starts once the place is picked (develop starts it
 // on the pick; main adds an 이 장소 사진 찾기 tap the story leaves out), and 저장 stands for saving the record.
 const TAP_BEATS = Object.freeze({
@@ -464,6 +465,8 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
   const zoneIn = seg(t2, 0.08, 0.16);
   nodes.zoneFrame = fade(zoneIn);
   nodes.zoneChip = fade(zoneIn);
+  // The 확인한 사진 counter lives inside the zone (the check runs on the phone) and arrives with it.
+  nodes.checkedMeter = fade(zoneIn);
   nodes.veil = fade(0.55 * (1 - cardOut));
   nodes.searchCard = placed(HOW_STORY_NODE_SIZE.searchCard, SEARCH_CARD_CENTER[0], SEARCH_CARD_CENTER[1] - 12 * cardOut, 1, 1 - cardOut);
   const typedLength = t1 < 0.1 ? 0 : t1 < 0.18 ? 1 : 2;

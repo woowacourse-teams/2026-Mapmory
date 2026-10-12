@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFinderDemo.js";
 import {
   HOW_STORY_COPY_SLOTS,
@@ -474,6 +479,11 @@ test("scene 1 makes no claim about where the place search runs: the 내 폰 안 
     assert.equal(frame.nodes.zoneFrame.o, 1);
     assert.equal(frame.nodes.zoneChip.o, 1);
   }
+  // The 확인한 사진 counter is part of the zone: it arrives with the frame, never before it.
+  for (const p of sweep(0.002)) {
+    const { nodes } = getHowStoryFrame(p);
+    assert.equal(nodes.checkedMeter.o, nodes.zoneFrame.o, `p ${p}`);
+  }
   // The search card is gone before the frame fades in around the library.
   const scan = HOW_STORY_SCENES[1];
   const firstZone = sweep(0.0005).find((p) => p >= scan.window[0] && getHowStoryFrame(p).nodes.zoneFrame.o > 0);
@@ -485,10 +495,110 @@ test("scene 1 makes no claim about where the place search runs: the 내 폰 안 
 
 test("a measured tap counter wraps to its own row on a narrow stage instead of cutting the numbers", () => {
   assert.match(storyCss, /\.how-stage \{[^}]*container-type: inline-size;/);
-  assert.match(storyCss, /@container \(max-width: 420px\) \{\s*\.how-hud\.has-taps \{ height: auto; min-height: 44px;[^}]*\}\s*\.how-hud\.has-taps \.how-hud-item\.is-taps \{ grid-column: 1 \/ -1; grid-row: 2;/);
-  // The timer sits beside its label, not inside the clipped counter value.
-  assert.match(componentSource, /<span className="how-hud-label">\s*\{HOW_STORY_TEXT\.hudChecked\}\s*\{plan\.scan && <span className="how-hud-timer"/);
-  assert.match(componentSource, /<span className="how-hud-value" data-text="checked">/);
+  assert.match(storyCss, /@container \(max-width: 340px\) \{\s*\.how-meter\.has-taps \{ height: auto; min-height: 22px; flex-wrap: wrap;[^}]*\}/);
+  // The values that change on every frame are fixed-size boxes; the timer sits beside the count, not inside it.
+  assert.match(storyCss, /\.how-meter-value\[data-text="checked"\] \{[^}]*contain: strict; \}/);
+  assert.match(storyCss, /\.how-meter-timer \{[^}]*contain: strict; \}/);
+});
+
+// Renders the real stage with React on the server (analytics stubbed) and parses the markup into a tree.
+async function loadStageRenderer() {
+  const stub = {
+    name: "analytics-stub",
+    setup(buildApi) {
+      buildApi.onResolve({ filter: /\/analytics\.js$/ }, () => ({ path: "analytics", namespace: "stub" }));
+      buildApi.onLoad({ filter: /^analytics$/, namespace: "stub" }, () => ({
+        contents: "export const ANALYTICS_EVENTS = new Proxy({}, { get: (_, key) => String(key) }); export const trackEvent = () => false;",
+      }));
+    },
+  };
+  const result = await build({
+    stdin: {
+      contents: `export { HowStory, HowStoryStage } from "./src/HowStory.jsx";
+        export { createElement } from "react";
+        export { renderToStaticMarkup } from "react-dom/server";`,
+      resolveDir: fileURLToPath(new URL("../", import.meta.url)),
+      sourcefile: "how-story-ssr.js",
+    },
+    bundle: true, write: false, format: "cjs", platform: "node", jsx: "automatic", logLevel: "silent",
+    define: { "process.env.NODE_ENV": JSON.stringify("production") }, plugins: [stub],
+  });
+  const dir = await mkdtemp(path.join(tmpdir(), "how-story-ssr-"));
+  try {
+    const file = path.join(dir, "how-story-ssr.cjs");
+    await writeFile(file, result.outputFiles[0].text);
+    return createRequire(import.meta.url)(file);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
+function parseMarkup(html) {
+  const root = { tag: "#root", attrs: {}, children: [], parent: null };
+  let current = root;
+  for (const [, closing, tag, rawAttrs, selfClosing] of html.matchAll(/<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>/g)) {
+    if (closing) {
+      assert.equal(current.tag, tag, "well-formed markup");
+      current = current.parent;
+      continue;
+    }
+    const attrs = Object.fromEntries([...rawAttrs.matchAll(/([\w:-]+)(?:="([^"]*)")?/g)].map(([, name, value = ""]) => [name, value]));
+    const node = { tag, attrs, children: [], parent: current };
+    current.children.push(node);
+    if (!selfClosing && !VOID_TAGS.has(tag)) current = node;
+  }
+  return root;
+}
+const descendants = (node) => node.children.flatMap((child) => [child, ...descendants(child)]);
+const ancestors = (node) => (node.parent ? [node.parent, ...ancestors(node.parent)] : []);
+const hasClass = (node, name) => (node.attrs.class ?? "").split(/\s+/).includes(name);
+
+test("phone-side counters sit inside the 내 폰 안 zone; above the line is only the server counter", async () => {
+  const { HowStory, HowStoryStage, createElement, renderToStaticMarkup } = await loadStageRenderer();
+  const checkStage = (stage, plan, label) => {
+    const all = descendants(stage);
+    const texts = (key) => all.filter((node) => node.attrs["data-text"] === key);
+    // Server box, then the line, then the zone, top to bottom.
+    assert.deepEqual(stage.children.map((child) => child.attrs.class), ["how-server", "how-line", "how-zone"], label);
+    const [server, , zone] = stage.children;
+    const targets = all.filter((node) => "data-strip-target" in node.attrs);
+    assert.equal(targets.length, 1, label);
+    // The element that holds the copies' target (the box above the line) holds the server count and nothing else.
+    assert.ok(ancestors(targets[0]).includes(server), label);
+    assert.deepEqual(descendants(server).filter((node) => node.attrs["data-text"]).map((node) => node.attrs["data-text"]), ["server"], label);
+    const phoneSide = ["checked", ...(plan.scan ? ["timer"] : []), ...(plan.taps ? ["taps"] : [])];
+    for (const key of phoneSide) {
+      const [element, ...extra] = texts(key);
+      assert.ok(element && extra.length === 0, `${label}: one ${key}`);
+      assert.ok(ancestors(element).includes(zone), `${label}: ${key} is inside the 내 폰 안 zone`);
+      assert.ok(!ancestors(element).includes(server), `${label}: ${key} is not in the server box`);
+    }
+    // A null metric has no UI at all.
+    assert.equal(texts("timer").length, plan.scan ? 1 : 0, label);
+    assert.equal(texts("taps").length, plan.taps ? 1 : 0, label);
+    // The scan count fades in with the zone (the checkedMeter node), so it never shows outside the dashed frame.
+    assert.equal(ancestors(texts("checked")[0]).find((node) => node.attrs["data-node"])?.attrs["data-node"], "checkedMeter", label);
+  };
+
+  // The page as shipped, rendered on the server: the static list, one stage per scene.
+  const page = parseMarkup(renderToStaticMarkup(createElement(HowStory)));
+  const stills = descendants(page).filter((node) => hasClass(node, "how-stage"));
+  assert.equal(stills.length, HOW_STORY_SCENE_COUNT);
+  stills.forEach((stage, index) => checkStage(stage, getHowStoryPlan(), `still ${index + 1}`));
+
+  // Every measured number filled in (test-only override), in both selection variants.
+  for (const selection of HOW_STORY_SELECTIONS) {
+    const options = { selection, metrics: { ...SAMPLE_METRICS, taps: getHowStoryTapRange(selection).max } };
+    const plan = getHowStoryPlan(options);
+    assert.deepEqual(plan.errors, []);
+    assert.ok(plan.scan && plan.taps);
+    for (let index = 0; index < HOW_STORY_SCENE_COUNT; index += 1) {
+      const frame = getHowStoryFrame(stillProgress(index), options);
+      const markup = renderToStaticMarkup(createElement(HowStoryStage, { frame, plan }));
+      const [stage] = parseMarkup(markup).children;
+      checkStage(stage, plan, `${selection} still ${index + 1}`);
+    }
+  }
 });
 
 test("how_story_view always reaches analytics before the first how_story_scene", () => {

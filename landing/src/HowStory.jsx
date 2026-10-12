@@ -70,28 +70,14 @@ function TileFlag({ hasLocation, ...props }) {
 
 // One stage serves both modes. It renders the frame it is given; in scroll mode the hook then writes
 // transforms, opacities and counter text straight to the [data-node]/[data-text] elements.
-const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
+export const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
   const { nodes, texts } = frame;
   return (
     <div className="how-stage" aria-hidden="true">
-      <div className={`how-hud ${plan.taps ? "has-taps" : ""}`}>
-        <div className="how-hud-item">
-          <span className="how-hud-label">
-            {HOW_STORY_TEXT.hudChecked}
-            {plan.scan && <span className="how-hud-timer" data-text="timer">{texts.timer}</span>}
-          </span>
-          <span className="how-hud-value" data-text="checked">{texts.checked}</span>
-        </div>
-        {plan.taps && (
-          <div className="how-hud-item is-taps">
-            <span className="how-hud-label">{HOW_STORY_TEXT.hudTaps}</span>
-            <span className="how-hud-value" data-text="taps">{texts.taps}</span>
-          </div>
-        )}
-        <div className="how-hud-item is-server">
-          <span className="how-hud-label"><CloudArrowUp size={14} weight="bold" />{HOW_STORY_TEXT.hudServer}</span>
-          <span className="how-hud-value" data-strip-target="" data-text="server">{texts.server}</span>
-        </div>
+      {/* Above the line is the server side, so it holds only what the Mapmory server has received. */}
+      <div className="how-server">
+        <span className="how-server-label"><CloudArrowUp size={15} weight="bold" />{HOW_STORY_TEXT.hudServer}</span>
+        <span className="how-server-value" data-strip-target="" data-text="server">{texts.server}</span>
       </div>
       <div className="how-line"><span>{HOW_STORY_TEXT.lineLabel}</span></div>
       <div className="how-zone">
@@ -100,6 +86,20 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
           <span className="how-zone-chip" data-node="zoneChip" style={style(nodes.zoneChip)}><DeviceMobile size={15} weight="duotone" />{HOW_STORY_TEXT.zone}</span>
           <span className="how-zone-place" data-node="placeChip" style={style(nodes.placeChip)}><MagnifyingGlass size={12} weight="bold" />{HOW_STORY_TEXT.place}</span>
           <span className="finder-sample-badge how-zone-sample">{HOW_STORY_TEXT.sample}</span>
+        </div>
+        {/* What the phone does stays inside the phone zone: the scan counter (with a measured timer) and taps. */}
+        <div className={`how-meter ${plan.taps ? "has-taps" : ""}`}>
+          <span className="how-meter-scan" data-node="checkedMeter" style={style(nodes.checkedMeter)}>
+            <span className="how-meter-label">{HOW_STORY_TEXT.hudChecked}</span>
+            <span className="how-meter-value" data-text="checked">{texts.checked}</span>
+            {plan.scan && <span className="how-meter-timer" data-text="timer">{texts.timer}</span>}
+          </span>
+          {plan.taps && (
+            <span className="how-meter-taps">
+              <span className="how-meter-label">{HOW_STORY_TEXT.hudTaps}</span>
+              <span className="how-meter-value" data-text="taps">{texts.taps}</span>
+            </span>
+          )}
         </div>
         <div className="how-stage-box">
           <div className="how-stage-canvas">
