@@ -301,7 +301,6 @@
 [data-sel="3"] .how-tap[data-tap="pick-2"],
 [data-save="1"] .how-tap[data-tap="save"] { animation: how-tap 360ms var(--ease-out) backwards; }
 .how-tap[data-tap][data-skip="1"],
-[data-instant="1"] .how-tap[data-tap],
 .how-static-figure .how-tap[data-tap] { animation: none; opacity: 0; }
 @keyframes how-tap {
   0% { opacity: 0; transform: scale(0.55); }
@@ -438,7 +437,6 @@
 .how-stage:is([data-sel="1"], [data-sel="2"], [data-sel="3"]) [data-card="0"] .how-picker-preview,
 .how-stage:is([data-sel="2"], [data-sel="3"]) [data-card="1"] .how-picker-preview,
 .how-stage[data-sel="3"] [data-card="2"] .how-picker-preview { animation: how-pulse 260ms var(--spring); }
-.how-stage[data-instant="1"] .how-picker-preview,
 .how-match-chrome:has(> .how-tap[data-skip="1"]) .how-picker-preview { animation: none; }
 @keyframes how-pulse { 50% { transform: scale(1.12); } }
 /* 기록하기 turns accent once something is picked. */

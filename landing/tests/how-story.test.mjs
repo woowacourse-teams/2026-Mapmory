@@ -696,6 +696,16 @@ test("every endless animation in the story runs only on the live stage, in its o
   assert.match(screensCss, /\[data-save="1"\] \.how-app-spinner \{ display: block; \}/);
 });
 
+test("a jump shows the end state per tap, without a stage-wide switch that would replay finished rings", () => {
+  // Toggling a stage-wide "instant" flag for one frame re-applied every ring's animation, so rings and pulses that
+  // had already played ran again after each flick (round-1 S1/F1). Skips are now per tap and sticky.
+  for (const source of [hookSource, storyCss, screensCss, componentSource]) assert.doesNotMatch(source, /instant/i);
+  assert.match(hookSource, /const jump = lastP < 0 \|\| countTapsCrossed\(lastP, p, plan\.beats\) >= 2;/);
+  assert.match(hookSource, /if \(p < beat\.p\) write\(tap, "data:skip", "0"\);\s*else if \(jump && !\(lastP >= beat\.p\)\) write\(tap, "data:skip", "1"\);/);
+  assert.match(screensCss, /\.how-tap\[data-tap\]\[data-skip="1"\],/);
+  assert.match(screensCss, /\.how-match-chrome:has\(> \.how-tap\[data-skip="1"\]\) \.how-picker-preview \{ animation: none; \}/);
+});
+
 test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {
   assert.match(storyCss, /\.how-story-end \{ display: flex; scroll-margin-top: 100px; \}/);
   assert.match(storyCss, /@media \(min-width: 561px\) \{[\s\S]*?\.how-story-end \{ justify-content: center; \}\s*\}/);

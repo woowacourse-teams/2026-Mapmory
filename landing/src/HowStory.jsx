@@ -196,7 +196,7 @@ function StaticFigure({ index }) {
     figure = <PhoneFrame><MapScreen variant="korea" /></PhoneFrame>;
   }
   return (
-    <figure className="how-static-figure" aria-hidden="true" data-figure={index + 1} data-typed="1" data-results="1" data-row="1" data-sel="3" data-instant="1">
+    <figure className="how-static-figure" aria-hidden="true" data-figure={index + 1} data-typed="1" data-results="1" data-row="1" data-sel="3">
       {figure}
       <p className="how-pill">{HOW_STORY_TEXT.pill}</p>
     </figure>

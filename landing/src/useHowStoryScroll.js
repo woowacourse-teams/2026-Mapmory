@@ -47,7 +47,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     let lastP = -1;
     let lastScene = -1;
     let rafId = 0;
-    let clearInstantId = 0;
     let listening = false;
     let entered = false;
     let disposed = false;
@@ -145,22 +144,15 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       const visibleHeight = Math.min(frameRect.bottom, viewportHeight) - Math.max(frameRect.top, 0);
       const eligible = visibleHeight / Math.max(1, frameRect.height) >= 0.5 && document.visibilityState !== "hidden";
       if (force || Math.abs(p - lastP) >= P_EPSILON) {
-        // A fast flick across two or more taps shows the end state without a burst of rings.
-        const flick = lastP >= 0 && countTapsCrossed(lastP, p, plan.beats) >= 2;
-        if (flick) {
-          write(stage, "data:instant", "1");
-          if (clearInstantId) window.cancelAnimationFrame(clearInstantId);
-          clearInstantId = window.requestAnimationFrame(() => {
-            clearInstantId = 0;
-            write(stage, "data:instant", "0");
-          });
-        }
+        // A jump across two or more taps (a fast flick, or the first frame after a reload into the story) shows
+        // the end state without a burst of rings: each tap it turns on is marked skipped, and stays so until the
+        // reader scrolls back above it. A tap that was already on is left alone, so its finished ring never replays.
+        const jump = lastP < 0 || countTapsCrossed(lastP, p, plan.beats) >= 2;
         for (const beat of plan.beats) {
           const tap = tapElements.get(beat.id);
           if (!tap) continue;
-          const on = p >= beat.p;
-          if (!on) write(tap, "data:skip", "0");
-          else if (flick && !(lastP >= beat.p)) write(tap, "data:skip", "1");
+          if (p < beat.p) write(tap, "data:skip", "0");
+          else if (jump && !(lastP >= beat.p)) write(tap, "data:skip", "1");
         }
         lastP = p;
         apply(getHowStoryFrame(p, layout));
@@ -225,7 +217,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       callbackRef.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
       intersection.disconnect();
       resize?.disconnect();
-      if (clearInstantId) window.cancelAnimationFrame(clearInstantId);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [enabled, trackRef, frameRef, stageRef, copyRef, callbackRef]);
