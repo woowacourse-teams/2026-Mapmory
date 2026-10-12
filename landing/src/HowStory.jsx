@@ -4,7 +4,7 @@ import { occupiesEnoughOfViewport } from "./useExperienceAnalytics.js";
 import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "./howStoryAnalytics.js";
 import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { PhoneFrame } from "./how/PhoneFrame.jsx";
-import { ImportScreen, LOADING_DONE, LOADING_START, LoadingScreen, MapScreen, PickerCardChrome, PickerScreen } from "./how/AppScreens.jsx";
+import { ImportScreen, LOADING_START, LOADING_STILL, LoadingScreen, MapScreen, PickerCardChrome, PickerScreen } from "./how/AppScreens.jsx";
 import { HowStoryBand } from "./how/HowStoryBand.jsx";
 import { LibraryMosaic, LibraryStill } from "./how/LibraryMosaic.jsx";
 import { HOW_STORY_SAMPLE_METRICS } from "./howStorySample.js";
@@ -179,7 +179,7 @@ function StaticFigure({ index }) {
   if (index === 0) {
     figure = <PhoneFrame><ImportScreen /></PhoneFrame>;
   } else if (index === 1) {
-    figure = <PhoneFrame><LoadingScreen {...LOADING_DONE} /></PhoneFrame>;
+    figure = <PhoneFrame><LoadingScreen {...LOADING_STILL} /></PhoneFrame>;
   } else if (index === 2) {
     figure = (
       <div className="how-static-library">

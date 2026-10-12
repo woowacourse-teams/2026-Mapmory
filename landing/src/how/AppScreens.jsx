@@ -12,7 +12,16 @@ import { useId } from "react";
 import gyeongbuk from "../data/gyeongbuk-districts.json";
 import koreaProvinces from "../data/korea-provinces.json";
 import worldGlobe from "../data/world-globe.json";
-import { APP_SCREEN_TEXT, HOW_STORY_LIBRARY_COUNT, HOW_STORY_MATCHES, fillHowStoryText, mapPercent } from "../howStory.js";
+import {
+  APP_SCREEN_TEXT,
+  HOW_STORY_LIBRARY_COUNT,
+  HOW_STORY_MATCHES,
+  appLoadingCount,
+  appLoadingPercent,
+  fillHowStoryText,
+  linearProgressPlacement,
+  mapPercent,
+} from "../howStory.js";
 import { APP_MAP_VIEW, HOW_STORY_APP_PROGRESS } from "../howStoryLayout.js";
 
 const T = APP_SCREEN_TEXT;
@@ -108,9 +117,9 @@ const RING = (() => {
   };
 })();
 
-// PhotoLoadingStep: ring, PHOTO LIBRARY, the app's own counter, bar, percent and message. done: the end state
-// (static list); in scroll mode the hook places the bar's indicator and track every frame.
-export function LoadingScreen({ node, count, percent, done = false }) {
+// PhotoLoadingStep: ring, PHOTO LIBRARY, the app's own counter, bar, percent and message. bar: where the indicator
+// and track sit, in dp (the static list's still); in scroll mode the hook places them every frame.
+export function LoadingScreen({ node, count, percent, bar }) {
   const t = T.loading;
   return (
     <div className="how-app-screen how-app-loading" data-node={node}>
@@ -126,9 +135,9 @@ export function LoadingScreen({ node, count, percent, done = false }) {
         <p className="how-app-eyebrow how-loading-eyebrow">{t.eyebrow}</p>
         <p className="how-loading-heading">{t.heading}</p>
         <p className="how-loading-count"><span data-text="loadingCount">{count}</span></p>
-        <span className="how-loading-bar" data-done={done ? "1" : undefined}>
-          <i className="how-loading-track" data-node="loadingTrack" />
-          <i className="how-loading-fill" data-node="loadingFill" />
+        <span className="how-loading-bar">
+          <i className="how-loading-track" data-node="loadingTrack" style={bar && { transform: `translateX(calc(${bar.track} * var(--dp)))` }} />
+          <i className="how-loading-fill" data-node="loadingFill" style={bar && { transform: `translateX(calc(${bar.fill} * var(--dp)))` }} />
           <i className="how-loading-stop" />
         </span>
         <p className="how-loading-percent"><span data-text="loadingPct">{percent}</span></p>
@@ -142,11 +151,20 @@ export const LOADING_START = Object.freeze({
   count: fillHowStoryText(T.loading.count, { processed: 0, total: HOW_STORY_LIBRARY_COUNT }),
   percent: fillHowStoryText(T.loading.percent, { p: 0 }),
 });
-export const LOADING_DONE = Object.freeze({
-  count: fillHowStoryText(T.loading.count, { processed: HOW_STORY_LIBRARY_COUNT, total: HOW_STORY_LIBRARY_COUNT }),
-  percent: fillHowStoryText(T.loading.percent, { p: 100 }),
-  done: true,
-});
+// The static list's still: a moment mid-run, as the app draws it (a count with the app's own percent for it). At
+// 100% develop no longer shows the count: it switches to preparing the previews, which the story does not draw.
+export const LOADING_STILL_PERCENT = 40;
+export const LOADING_STILL = (() => {
+  const processed = appLoadingCount(LOADING_STILL_PERCENT);
+  const k = appLoadingPercent(processed);
+  // The bar in dp: 292dp wide (34dp side padding), 8dp tall.
+  const bar = linearProgressPlacement(k, { w: 360 - 68, h: 8 }, HOW_STORY_APP_PROGRESS.gapDp);
+  return Object.freeze({
+    count: fillHowStoryText(T.loading.count, { processed, total: HOW_STORY_LIBRARY_COUNT }),
+    percent: fillHowStoryText(T.loading.percent, { p: k }),
+    bar: Object.freeze(bar),
+  });
+})();
 
 // A picker card's border (drawn over the photo, 1dp or 3dp when selected) and its preview button. The scroll
 // story's flying tiles carry the same chrome, so they become the cards when they land.

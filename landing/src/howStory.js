@@ -427,10 +427,15 @@ export function getHowStorySceneDescription(index) {
   return fillHowStoryText(HOW_STORY_BEATS[index].description, { total: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
 }
 
+// The app's percent for a count (PhotoLoadingProgress.percentage on develop: processed * 100 / total, floored).
+export const appLoadingPercent = (processed, total = HOW_STORY_LIBRARY_COUNT) => Math.min(100, Math.max(0, Math.floor((processed * 100) / total)));
+// The smallest count the app shows with k%, so every count and percent drawn together is a pair the app draws.
+export const appLoadingCount = (k, total = HOW_STORY_LIBRARY_COUNT) => Math.ceil((total * k) / 100);
+
 // Beat 02's counter: the app's real 1% steps (101 values), front-loaded with COUNT.
 export function loadingStep(t) {
   const k = Math.floor(100 * COUNT(seg(t, 0.12, 0.48)) + 1e-9);
-  return { k, processed: Math.floor((HOW_STORY_LIBRARY_COUNT * k) / 100) };
+  return { k, processed: appLoadingCount(k) };
 }
 
 // The pin wave's edge, as a fraction of the library window: it crosses exactly the visible band as k runs.

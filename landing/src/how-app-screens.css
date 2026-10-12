@@ -361,8 +361,6 @@
   border-radius: 50%;
   background: var(--app-primary);
 }
-.how-loading-bar[data-done] .how-loading-fill { transform: none; }
-.how-loading-bar[data-done] .how-loading-track { transform: translateX(100%); }
 .how-loading-percent { width: 100%; height: calc(19 * var(--dp)); margin-top: calc(10 * var(--dp)); contain: strict; color: var(--app-accent); font-size: calc(14 * var(--dp)); font-weight: 700; line-height: calc(19 * var(--dp)); font-variant-numeric: tabular-nums; }
 /* The counter and percent are flex items, which cannot be relayout boundaries; their text sits in a strictly
    contained block inside them, so each new value lays out only that block. */

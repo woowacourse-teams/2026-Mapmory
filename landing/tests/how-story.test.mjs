@@ -22,6 +22,7 @@ import {
   HOW_STORY_TRAVEL_UNITS,
   HOW_STORY_WINDOWS,
   HOW_STORY_BAND_COUNT_MS,
+  appLoadingPercent,
   bandCountAt,
   formatHowStoryBandValue,
   getHowStoryBand,
@@ -246,9 +247,12 @@ test("the counter takes the app's 1% steps, front-loaded, and the hold reads the
   assert.equal(new Set(ks).size, 101);
   ks.forEach((k, index) => { if (index) assert.ok(k >= ks[index - 1]); });
   for (let k = 0; k <= 100; k += 1) assert.ok(ks.includes(k));
-  for (const t of [0, 0.1, 0.2, 0.3, 0.4, 0.48]) {
-    const { k, processed } = loadingStep(t);
-    assert.equal(processed, Math.floor((HOW_STORY_LIBRARY_COUNT * k) / 100));
+  // Every count drawn with a percent is a pair the app draws: develop's percent is processed * 100 / total, floored.
+  for (let index = 0; index <= 2000; index += 1) {
+    const { k, processed } = loadingStep(index / 2000);
+    assert.equal(Math.floor((processed * 100) / HOW_STORY_LIBRARY_COUNT), k, `k=${k} processed=${processed}`);
+    assert.equal(appLoadingPercent(processed), k);
+    assert.ok(processed < HOW_STORY_LIBRARY_COUNT || k === 100);
   }
   assert.equal(loadingStep(0.12).k, 0);
   assert.ok(loadingStep(0.3).k >= 85);
@@ -279,6 +283,14 @@ test("the counter takes the app's 1% steps, front-loaded, and the hold reads the
       if (frame.texts.overlayValue !== undefined) assert.equal(frame.texts.overlayValue, `${processed.toLocaleString("en-US")}장`, `${name} t=${t}`);
     }
     assert.ok(counted > 0, name);
+  }
+  // At 100% develop stops showing the count (it prepares the previews instead), so the phone never draws
+  // "21474 / 21474장": the in-phone counter is written only while the screen shows, well before the count ends.
+  for (const [name, layout] of LAYOUTS) {
+    for (const p of sweep(0.0005)) {
+      const { texts } = getHowStoryFrame(p, layout);
+      if (texts.loadingCount !== undefined) assert.notEqual(texts.loadingCount, "21474 / 21474장", `${name} p=${p}`);
+    }
   }
 });
 
@@ -935,7 +947,12 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
     assert.equal(descendants(figures[0]).filter((node) => node.attrs["data-attr"]).length, 0);
   }
   // 04: A, B and C selected (3장 선택), 기록하기 enabled, no spinner (not saving), no copies; four photo cards.
-  const [, , , picker, map] = beats.map((beat) => descendants(beat).find((node) => node.tag === "figure"));
+  const [, loading, , picker, map] = beats.map((beat) => descendants(beat).find((node) => node.tag === "figure"));
+  // 02: a moment mid-run, a count with the app's own percent for it (develop never draws the count at 100%).
+  const loadingText = textOf(loading);
+  const [, processed] = loadingText.match(/(\d+) \/ 21474장/) ?? [];
+  assert.ok(processed && Number(processed) < HOW_STORY_LIBRARY_COUNT, loadingText);
+  assert.ok(loadingText.includes(`${appLoadingPercent(Number(processed))}%`), loadingText);
   assert.equal(picker.attrs["data-sel"], "3");
   assert.equal(picker.attrs["data-save"], undefined);
   assert.equal(descendants(picker).filter((node) => hasClass(node, "how-picker-card") && node.children.some((child) => child.tag === "img")).length, 4);
