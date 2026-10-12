@@ -12,13 +12,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final LoginMemberArgumentResolver loginMemberArgumentResolver;
     private final String[] waitlistAllowedOrigins;
+    private final String[] adminAllowedOrigins;
 
     public WebMvcConfig(
             LoginMemberArgumentResolver loginMemberArgumentResolver,
-            @Value("${waitlist.cors.allowed-origins}") String[] waitlistAllowedOrigins
+            @Value("${waitlist.cors.allowed-origins}") String[] waitlistAllowedOrigins,
+            @Value("${admin.cors.allowed-origins}") String[] adminAllowedOrigins
     ) {
         this.loginMemberArgumentResolver = loginMemberArgumentResolver;
         this.waitlistAllowedOrigins = waitlistAllowedOrigins;
+        this.adminAllowedOrigins = adminAllowedOrigins;
     }
 
     @Override
@@ -32,6 +35,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins(waitlistAllowedOrigins)
                 .allowedMethods("POST")
                 .allowedHeaders("Content-Type")
+                .maxAge(3600);
+
+        registry.addMapping("/api/v1/admin/**")
+                .allowedOrigins(adminAllowedOrigins)
+                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedHeaders("Content-Type", "X-CSRF-TOKEN")
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }
