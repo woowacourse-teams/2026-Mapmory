@@ -338,7 +338,7 @@ test("the number lands as a new number at beat 03, over a dimmed (not removed) l
     assert.equal(landed.state.found, 1, name);
     const hold = getHowStoryFrame(holdBegin(2), layout);
     assert.ok(hold.nodes.mosaicSprite.o > 0.1 && hold.nodes.mosaicSprite.o < 0.2, name);
-    assert.equal(hold.nodes.pinsLayer.o, 0, name);
+    assert.equal(hold.nodes.pinsReveal.o, 0, name);
     // The four tiles sit in the 2x2 cluster at full opacity.
     layout.cluster.forEach((rect, index) => {
       const node = hold.nodes[`match${index}`];
@@ -568,6 +568,11 @@ test("the library mosaic is open-licence crops only, with no photo beside itself
   }
   const sprite = await stat(new URL("../public/assets/how/library-mosaic.webp", import.meta.url));
   assert.ok(sprite.size <= 100 * 1024, `${sprite.size} bytes`);
+  // The white pins are a raster of the same block (an SVG pattern of every pin was a long GPU raster on first show).
+  const pins = await stat(new URL("../public/assets/how/library-pins.webp", import.meta.url));
+  assert.ok(pins.size <= 30 * 1024, `${pins.size} bytes`);
+  assert.doesNotMatch(howSources["LibraryMosaic.jsx"], /<pattern|<use |dangerouslySetInnerHTML/);
+  assert.match(storyCss, /\.has-library \.how-pins-panel \{ background-image: url\("\/assets\/how\/library-pins\.webp"\); \}/);
   for (const [file, kb] of [["gyeongbuk-districts.json", 30], ["world-globe.json", 25]]) {
     const { size } = await stat(new URL(`../src/data/${file}`, import.meta.url));
     assert.ok(size <= kb * 1024, `${file} ${size}`);
@@ -680,7 +685,7 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
   assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-app-map \{ content-visibility: hidden; \}/);
   assert.match(screensCss, /\.how-loading-spin \{ position: relative; z-index: 1;/);
-  assert.match(storyCss, /:is\([^)]*\.how-mosaic-sprite, \.how-pins-layer\) \{ will-change: opacity; \}/);
+  assert.match(storyCss, /:is\([^)]*\.how-mosaic-sprite\) \{ will-change: opacity; \}/);
 });
 
 test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {

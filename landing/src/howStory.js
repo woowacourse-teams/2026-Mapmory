@@ -525,7 +525,6 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   }
   const edge = waveEdge(k, L);
   const reveal = L.window.h * (1 - edge);
-  nodes.pinsReveal = move(0, -reveal);
   nodes.pinsInner = move(0, reveal);
 
   // Once the wave has crossed the library, the white pins step back and the library settles a little, so the
@@ -534,7 +533,8 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const settle = EASE_OUT(seg(t2, 0.4, 0.48));
   const dim = EASE_OUT(seg(t3, 0, 0.2));
   nodes.mosaicSprite = fade(lerp(lerp(1, 0.65, EASE_OUT(seg(t2, 0.44, 0.5))), 0.16, dim));
-  nodes.pinsLayer = fade(lerp(1, 0.55, settle) * (1 - dim));
+  // The reveal carries the pins' opacity too (one layer fewer).
+  nodes.pinsReveal = move(0, -reveal, 1, lerp(1, 0.55, settle) * (1 - dim));
   nodes.overlayBar = fade(1 - dim);
   const overlayIn = EASE_OUT(seg(t2, 0.16, 0.24));
   const overlayO = outward ? 1 - seg(outE, 0, 0.3) : overlayIn;

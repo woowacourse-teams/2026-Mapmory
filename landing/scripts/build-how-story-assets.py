@@ -5,14 +5,19 @@ Run from landing/ (needs Python 3 with Pillow and WebP support, nothing from npm
 
     python3 scripts/build-how-story-assets.py
 
-Outputs (both committed):
+Outputs (all committed):
   public/assets/how/library-mosaic.webp  16 x 20 cells of 32px (a 30px tile and a 2px gutter), 512 x 640
+  public/assets/how/library-pins.webp    the white location pins of the same block (transparent elsewhere)
   src/data/how-mosaic.json               { cols, rows, cell, sources, noLocation, panels }
 
 Every open-licence photo in public/assets/photos/ except gyeongbuk-01..04 (the four 경주 matches, which the
 page draws as their own tiles) is cut into 4 crops, so the library reads as many different shots. The block
 repeats across the window, so no photo may touch itself in any of the 8 neighbours, wrap-around included.
 The output is deterministic: mulberry32 seeded 21474.
+
+The pins are a raster of their own, laid out like the sprite (same cells, same panels), so the page shows them as
+one more background image instead of an SVG pattern of a few hundred pins, which cost Chromium a long GPU raster
+the first time the library came into view. A cell in noLocation gets no pin.
 
 The page never tiles the block as one repeating wallpaper (that reads as a lattice). It lays panels of
 8 x 10 cells over the library window, each showing a different part of the block (`panels.offsets`, in cells),
@@ -29,6 +34,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 PHOTOS = ROOT / "public" / "assets" / "photos"
 SPRITE = ROOT / "public" / "assets" / "how" / "library-mosaic.webp"
+PINS = ROOT / "public" / "assets" / "how" / "library-pins.webp"
 MANIFEST = ROOT / "src" / "data" / "how-mosaic.json"
 
 SEED = 21474
@@ -37,6 +43,14 @@ CELL, TILE = 32, 30
 GUTTER = (14, 18, 20)  # #0E1214, the inward ground
 QUALITY = 58
 MAX_BYTES = 100 * 1024
+PINS_MAX_BYTES = 30 * 1024
+# The white pin, in the page's 16px cell: a 6 x 8 teardrop 2px in from the cell's top-left, a 1px darker rim and a
+# 1px drop shadow. Drawn at 4x the sprite's scale and reduced, for smooth edges.
+PIN_INSET = 2
+PIN_FILL = (255, 255, 255, 0.92)
+PIN_RIM = (0, 0, 0, 0.25)
+PIN_SHADOW = (0, 0, 0, 0.28)
+SUPERSAMPLE = 4
 # x%, y% and zoom of each crop, so one photo yields 4 different-looking tiles.
 CROPS = [(50, 50, 1.15), (28, 34, 1.5), (72, 66, 1.6), (40, 70, 1.45)]
 # About 1 in 9 cells has no stored location (no pin). They are not dimmed or labelled on the page.
@@ -169,6 +183,58 @@ def crop_tile(image: Image.Image, crop) -> Image.Image:
     return image.crop(box).resize((TILE, TILE), Image.LANCZOS)
 
 
+def pin_outline(steps: int = 24):
+    """The pin path (M3 7.6 C2.2 6.7 0.5 4.8 0.5 3.1 a2.5 2.5 0 0 1 5 0 c0 1.7 -1.7 3.6 -2.5 4.5 z) as points."""
+    def cubic(p0, p1, p2, p3):
+        out = []
+        for i in range(1, steps + 1):
+            t = i / steps
+            mt = 1 - t
+            out.append(tuple(mt ** 3 * a + 3 * mt * mt * t * b + 3 * mt * t * t * c + t ** 3 * d for a, b, c, d in zip(p0, p1, p2, p3)))
+        return out
+    import math
+    points = [(3.0, 7.6)]
+    points += cubic((3.0, 7.6), (2.2, 6.7), (0.5, 4.8), (0.5, 3.1))
+    # The upper half circle around (3, 3.1), radius 2.5, from the left point over the top to the right.
+    for i in range(1, steps * 2 + 1):
+        angle = math.pi + math.pi * i / (steps * 2)
+        points.append((3 + 2.5 * math.cos(angle), 3.1 + 2.5 * math.sin(angle)))
+    points += cubic((5.5, 3.1), (5.5, 4.8), (3.8, 6.7), (3.0, 7.6))
+    return points
+
+
+def build_pins(no_location) -> Image.Image:
+    """Every located cell's white pin, at the sprite's scale (32px cells for the page's 16px)."""
+    from PIL import ImageDraw
+    scale = CELL / 16 * SUPERSAMPLE
+    size = (COLS * CELL * SUPERSAMPLE, ROWS * CELL * SUPERSAMPLE)
+    outline = pin_outline()
+    masks = {name: Image.new("L", size, 0) for name in ("shadow", "fill", "rim")}
+    draws = {name: ImageDraw.Draw(mask) for name, mask in masks.items()}
+    skip = set(no_location)
+    for cell in range(COLS * ROWS):
+        if cell in skip:
+            continue
+        row, col = divmod(cell, COLS)
+        x0, y0 = (col * 16 + PIN_INSET) * scale, (row * 16 + PIN_INSET) * scale
+        shape = [(x0 + x * scale, y0 + y * scale) for x, y in outline]
+        draws["shadow"].polygon([(x, y + scale) for x, y in shape], fill=255)
+        draws["fill"].polygon(shape, fill=255)
+        draws["rim"].line(shape + [shape[0]], fill=255, width=round(scale), joint="curve")
+
+    def layer(mask, rgba):
+        r, g, b, a = rgba
+        solid = Image.new("RGBA", size, (r, g, b, 0))
+        solid.putalpha(mask.point(lambda v: round(v * a)))
+        return solid
+
+    pins = layer(masks["shadow"], PIN_SHADOW)
+    pins = Image.alpha_composite(pins, layer(masks["fill"], PIN_FILL))
+    pins = Image.alpha_composite(pins, layer(masks["rim"], PIN_RIM))
+    # Reduce with premultiplied alpha, so the transparent white around each pin does not bleed into its edge.
+    return pins.convert("RGBa").resize((COLS * CELL, ROWS * CELL), Image.LANCZOS).convert("RGBA")
+
+
 def main() -> None:
     files = sorted(p.name for p in PHOTOS.glob("*.webp") if not p.name.startswith("gyeongbuk-"))
     if len(files) != 55:
@@ -194,6 +260,12 @@ def main() -> None:
     if size > MAX_BYTES:
         raise SystemExit(f"{SPRITE.name} is {size} bytes, over the {MAX_BYTES} budget")
 
+    pins = build_pins(no_location)
+    pins.save(PINS, "WEBP", lossless=True, method=6)
+    pins_size = PINS.stat().st_size
+    if pins_size > PINS_MAX_BYTES:
+        raise SystemExit(f"{PINS.name} is {pins_size} bytes, over the {PINS_MAX_BYTES} budget")
+
     manifest = {
         "cols": COLS,
         "rows": ROWS,
@@ -212,6 +284,7 @@ def main() -> None:
     }
     MANIFEST.write_text(json.dumps(manifest, separators=(",", ":")) + "\n", encoding="utf8")
     print(f"{SPRITE.relative_to(ROOT)}: {size} bytes, {len(files)} photos, {len(no_location)} no-location cells")
+    print(f"{PINS.relative_to(ROOT)}: {pins_size} bytes")
 
 
 if __name__ == "__main__":

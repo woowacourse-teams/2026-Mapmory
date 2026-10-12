@@ -38,7 +38,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     const attrElements = new Map([...stage.querySelectorAll("[data-attr]")].map((element) => [element.dataset.attr, element]));
     const tapElements = new Map([...stage.querySelectorAll("[data-tap]")].map((element) => [element.dataset.tap, element]));
     const cellElements = [...stage.querySelectorAll("[data-cell]")];
-    const pinsSvg = stage.querySelector(".how-pins");
     const written = new Map();
     const plan = getHowStoryPlan();
 
@@ -112,9 +111,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
         element.style.left = `${cell.x}px`;
         element.style.top = `${cell.y}px`;
       });
-      // The pins SVG is drawn in 16px cells; its viewBox scales it to the measured tile.
-      const pinScale = 16 / layout.tile;
-      pinsSvg?.setAttribute("viewBox", `0 0 ${(layout.window.w * pinScale).toFixed(2)} ${(layout.window.h * pinScale).toFixed(2)}`);
       frameHeight = frame.offsetHeight;
       return true;
     };
