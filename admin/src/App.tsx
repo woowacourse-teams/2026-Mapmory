@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { adminApiRequest, getCurrentAdmin, loginAdmin, logoutAdmin } from "./api/adminApi";
+import { useEffect, useState } from "react";
+import { adminApiRequest, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
 
 type Page = "dashboard" | "members" | "feedback";
 type FeedbackStatus = "미확인" | "반영 중" | "반영 완료" | "보류" | "미반영";
@@ -12,13 +12,11 @@ type Feedback = {
   status: FeedbackStatus;
 };
 type Member = {
-  id: string;
+  id: number;
   name: string;
-  provider: "KAKAO" | "GUEST";
+  provider: "KAKAO" | "GUEST" | "GOOGLE" | null;
   joinedAt: string;
   records: number;
-  refresh: "정상" | "갱신 실패";
-  lastActive: string;
 };
 type DashboardSummary = {
   period: { from: string; to: string };
@@ -37,16 +35,6 @@ const initialFeedback: Feedback[] = [
   { id: "FB-0245", category: "기능 제안", content: "기록에 같이 간 사람을 메모할 수 있으면 좋겠습니다.", platform: "Android", createdAt: "10.07 16:07", status: "보류" },
   { id: "FB-0244", category: "사용성·불편", content: "기록 목록에서 최신순과 오래된 순을 바꿀 수 있으면 좋겠어요.", platform: "iOS", createdAt: "10.07 09:26", status: "반영 완료" },
   { id: "FB-0243", category: "기타", content: "앱을 잘 사용하고 있어요. 지도 색감이 정말 예뻐요!", platform: "Android", createdAt: "10.06 21:43", status: "미확인" },
-];
-
-const members: Member[] = [
-  { id: "M-10842", name: "김지우", provider: "KAKAO", joinedAt: "2026.10.08", records: 12, refresh: "정상", lastActive: "방금 전" },
-  { id: "M-10841", name: "박서연", provider: "KAKAO", joinedAt: "2026.10.08", records: 4, refresh: "정상", lastActive: "12분 전" },
-  { id: "M-10840", name: "게스트 사용자", provider: "GUEST", joinedAt: "2026.10.07", records: 2, refresh: "갱신 실패", lastActive: "어제" },
-  { id: "M-10839", name: "이도윤", provider: "KAKAO", joinedAt: "2026.10.07", records: 28, refresh: "정상", lastActive: "어제" },
-  { id: "M-10838", name: "게스트 사용자", provider: "GUEST", joinedAt: "2026.10.06", records: 0, refresh: "정상", lastActive: "10.06" },
-  { id: "M-10837", name: "최유진", provider: "KAKAO", joinedAt: "2026.10.06", records: 7, refresh: "정상", lastActive: "10.06" },
-  { id: "M-10836", name: "정민준", provider: "KAKAO", joinedAt: "2026.10.05", records: 19, refresh: "정상", lastActive: "10.05" },
 ];
 
 function getDashboardRange(period: string) {
@@ -103,7 +91,6 @@ function App() {
   const [feedback, setFeedback] = useState(initialFeedback);
   const [feedbackFilter, setFeedbackFilter] = useState("전체");
   const [feedbackQuery, setFeedbackQuery] = useState("");
-  const [memberQuery, setMemberQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -124,9 +111,6 @@ function App() {
     };
   }, []);
 
-  const filteredMembers = useMemo(() => members.filter((member) =>
-    `${member.id} ${member.name} ${member.provider}`.toLowerCase().includes(memberQuery.toLowerCase()),
-  ), [memberQuery]);
   const filteredFeedback = feedback.filter((item) => {
     const matchesStatus = feedbackFilter === "전체" || item.status === feedbackFilter;
     const matchesQuery = `${item.id} ${item.category} ${item.content} ${item.platform}`.toLowerCase().includes(feedbackQuery.toLowerCase());
@@ -203,13 +187,13 @@ function App() {
         </header>
         <div className="content-area">
           {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} range={dashboardRange} setRange={setDashboardRange} onNavigate={setPage} onNotice={showNotice} />}
-          {page === "members" && <MembersPage query={memberQuery} setQuery={setMemberQuery} list={filteredMembers} onSelect={setSelectedMember} onNotice={showNotice} />}
+          {page === "members" && <MembersPage onSelect={setSelectedMember} onNotice={showNotice} />}
           {page === "feedback" && <FeedbackPage feedback={filteredFeedback} allFeedback={feedback} filter={feedbackFilter} setFilter={setFeedbackFilter} query={feedbackQuery} setQuery={setFeedbackQuery} onStatusChange={(id, status) => setFeedback((current) => current.map((item) => item.id === id ? { ...item, status } : item))} />}
         </div>
       </main>
       {selectedMember && <MemberDrawer member={selectedMember} onClose={() => setSelectedMember(null)} />}
       {notice && <div className="toast"><span className="toast-check">✓</span>{notice}</div>}
-      <div className="demo-ribbon">회원·의견은 시연 데이터</div>
+      <div className="demo-ribbon">서비스 의견은 시연 데이터</div>
     </div>
   );
 }
@@ -414,15 +398,47 @@ function MetricCard({ label, value, change, detail, icon, tint, trend, foot }: {
   return <article className="metric-card"><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tint}`}><Icon name={icon} size={18}/></div></div><div className="metric-value">{value}</div><div className="metric-change"><span className={trend === "up" ? "change-up" : "change-neutral"}>{trend === "up" && <Icon name="arrow" size={12}/>} {change}</span><span>{detail}</span></div><div className="metric-divider"/><div className="metric-foot"><span className="foot-dot"/>{foot}</div></article>;
 }
 
-function MembersPage({ query, setQuery, list, onSelect, onNotice }: { query: string; setQuery: (query: string) => void; list: Member[]; onSelect: (member: Member) => void; onNotice: (message: string) => void }) {
-  const [provider, setProvider] = useState("전체 유형");
-  const visible = provider === "전체 유형" ? list : list.filter((item) => item.provider === provider);
-  return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">MEMBERS</div><h1>회원 관리</h1><p>회원 가입과 계정 상태를 확인할 수 있어요.</p></div><button className="secondary-button" onClick={() => onNotice("회원 내보내기는 API 연결 후 제공됩니다.")}><Icon name="download" size={16}/> 내보내기</button></div>
-    <div className="member-summary-row"><div className="member-summary-card"><span>전체 회원</span><strong>1,284</strong><small>지난 기간보다 <b>+84명</b></small></div><div className="member-summary-card"><span>게스트</span><strong>812</strong><small>전체 회원의 63.2%</small></div><div className="member-summary-card"><span>OAuth</span><strong>472</strong><small>전체 회원의 36.8%</small></div><div className="member-summary-card"><span>최근 갱신 실패</span><strong className="alert-value">7</strong><small>최근 7일 기준</small></div></div>
-    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">1,284</span></h2><p>계정을 선택하면 상세 상태를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="이름 또는 회원 ID 검색" aria-label="회원 검색"/><kbd>⌘ K</kbd></div><select className="select-control" value={provider} onChange={(event) => setProvider(event.target.value)} aria-label="로그인 유형"><option>전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">OAuth</option></select><button className="filter-button" onClick={() => onNotice("가입일 필터는 API 연결 후 제공됩니다.")}><Icon name="filter" size={16}/> 필터</button></div></div>
-      <div className="table-scroll"><table><thead><tr><th>회원</th><th>가입일</th><th>로그인 방식</th><th>여행 기록</th><th>최근 토큰 갱신</th><th>최근 활동</th><th /></tr></thead><tbody>{visible.map((member) => <tr key={member.id} onClick={() => onSelect(member)}><td><div className="member-cell"><div className={`avatar ${member.provider === "GUEST" ? "guest-avatar" : "member-avatar"}`}>{member.provider === "GUEST" ? "G" : member.name.slice(0, 1)}</div><div><strong>{member.name}</strong><span>{member.id}</span></div></div></td><td>{member.joinedAt}</td><td><ProviderBadge provider={member.provider}/></td><td><strong className="record-number">{member.records}</strong><span className="table-suffix">개</span></td><td><span className={member.refresh === "정상" ? "refresh-state" : "refresh-state failed"}><i/>{member.refresh}</span></td><td className="muted-cell">{member.lastActive}</td><td><button className="row-arrow" aria-label={`${member.id} 상세 보기`}><Icon name="chevron" size={15}/></button></td></tr>)}</tbody></table>{visible.length === 0 && <div className="empty-state">검색 결과가 없습니다.</div>}</div>
-      <div className="table-footer"><span>총 <strong>1,284</strong>명 중 <strong>{visible.length}</strong>명 표시</span><div className="pagination"><button disabled>이전</button><button className="current-page">1</button><button onClick={() => onNotice("시연용 데이터는 1페이지입니다.")}>2</button><button onClick={() => onNotice("시연용 데이터는 1페이지입니다.")}>3</button><span>…</span><button onClick={() => onNotice("시연용 데이터는 1페이지입니다.")}>129</button><button onClick={() => onNotice("시연용 데이터는 1페이지입니다.")}>다음</button></div></div>
-    </div><footer className="page-footer"><span>회원 정보는 운영 지원 목적으로만 확인해 주세요.</span><span>최근 토큰 갱신 정보는 시연용입니다.</span></footer></div>;
+function MembersPage({ onSelect, onNotice }: { onSelect: (member: Member) => void; onNotice: (message: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [provider, setProvider] = useState("");
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<Awaited<ReturnType<typeof getAdminMembers>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setError("");
+      getAdminMembers(query, provider, page)
+        .then((result) => { if (active) setData(result); })
+        .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "회원 목록을 불러오지 못했습니다."); })
+        .finally(() => { if (active) setLoading(false); });
+    }, query ? 250 : 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query, provider, page]);
+
+  const members = data?.members ?? [];
+  return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">MEMBERS</div><h1>회원 관리</h1><p>운영환경 회원과 여행 기록 현황을 확인할 수 있어요.</p></div><button className="secondary-button" onClick={() => onNotice("회원 내보내기는 아직 제공되지 않습니다.")}><Icon name="download" size={16}/> 내보내기</button></div>
+    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</span></h2><p>계정을 선택하면 여행 기록과 사진 통계를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="닉네임 또는 회원 ID 검색" aria-label="회원 검색"/></div><select className="select-control" value={provider} onChange={(event) => { setProvider(event.target.value); setPage(0); }} aria-label="로그인 유형"><option value="">전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">카카오</option><option value="GOOGLE">Google</option></select></div></div>
+      {error && <div className="dashboard-error" role="alert">{error}</div>}
+      {loading && <div className="dashboard-loading" role="status">회원 목록을 불러오는 중입니다.</div>}
+      <div className="table-scroll"><table><thead><tr><th>회원</th><th>가입일</th><th>로그인 방식</th><th>여행 기록</th><th /></tr></thead><tbody>{members.map((item: AdminMember) => {
+        const member = toMember(item);
+        return <tr key={member.id} onClick={() => onSelect(member)}><td><div className="member-cell"><div className={`avatar ${member.provider === "GUEST" ? "guest-avatar" : "member-avatar"}`}>{member.provider === "GUEST" ? "G" : member.name.slice(0, 1)}</div><div><strong>{member.name}</strong><span>{member.id}</span></div></div></td><td>{formatAdminDate(member.joinedAt)}</td><td><ProviderBadge provider={member.provider}/></td><td><strong className="record-number">{member.records}</strong><span className="table-suffix">개</span></td><td><button className="row-arrow" aria-label={`${member.id} 상세 보기`}><Icon name="chevron" size={15}/></button></td></tr>;
+      })}</tbody></table>{!loading && !error && members.length === 0 && <div className="empty-state">검색 결과가 없습니다.</div>}</div>
+      <div className="table-footer"><span>총 <strong>{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</strong>명</span><div className="pagination"><button disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)}>이전</button><span className="current-page">{data ? `${data.page + 1} / ${Math.max(data.totalPages, 1)}` : "—"}</span><button disabled={!data || page + 1 >= data.totalPages || loading} onClick={() => setPage((value) => value + 1)}>다음</button></div></div>
+    </div><footer className="page-footer"><span>회원 정보는 운영 지원 목적으로만 확인해 주세요.</span><span>로그인 갱신 실패 이력은 서버에 저장되지 않아 표시하지 않습니다.</span></footer></div>;
+}
+
+function toMember(member: AdminMember): Member {
+  return { id: member.id, name: member.displayName, provider: member.provider, joinedAt: member.joinedAt, records: member.travelRecordCount };
+}
+
+function formatAdminDate(value: string) {
+  const date = value.split("T")[0];
+  return date ? date.replaceAll("-", ".") : "—";
 }
 
 function FeedbackPage({ feedback, allFeedback, filter, setFilter, query, setQuery, onStatusChange }: { feedback: Feedback[]; allFeedback: Feedback[]; filter: string; setFilter: (filter: string) => void; query: string; setQuery: (query: string) => void; onStatusChange: (id: string, status: FeedbackStatus) => void }) {
@@ -436,10 +452,34 @@ function FeedbackPage({ feedback, allFeedback, filter, setFilter, query, setQuer
 }
 
 function MemberDrawer({ member, onClose }: { member: Member; onClose: () => void }) {
-  return <><button className="drawer-backdrop" aria-label="상세 닫기" onClick={onClose}/><aside className="member-drawer"><div className="drawer-header"><div><span className="date-eyebrow">MEMBER DETAIL</span><h2>회원 상세</h2></div><button className="icon-button" onClick={onClose} aria-label="닫기"><Icon name="close"/></button></div><div className="drawer-member"><div className={`avatar drawer-avatar ${member.provider === "GUEST" ? "guest-avatar" : "member-avatar"}`}>{member.provider === "GUEST" ? "G" : member.name.slice(0, 1)}</div><div><h3>{member.name}</h3><span>{member.id}</span></div></div><div className="detail-section"><h3>계정 정보</h3><DetailRow label="가입일" value={member.joinedAt}/><DetailRow label="로그인 방식" value={member.provider === "GUEST" ? "게스트" : "OAuth · Kakao"}/><DetailRow label="여행 기록" value={`${member.records}개`}/></div><div className="detail-section"><h3>로그인 상태</h3><div className="session-card"><div className="session-heading"><span className={member.refresh === "정상" ? "refresh-state" : "refresh-state failed"}><i/>{member.refresh}</span><span className="session-pill">최근 확인</span></div><p>{member.refresh === "정상" ? "최근 토큰 갱신이 정상적으로 완료됐어요." : "토큰 갱신에 실패했어요. 사용자가 다시 로그인해야 할 수 있습니다."}</p><small>최근 활동 · {member.lastActive}</small></div><DetailRow label="활성 세션" value={member.refresh === "정상" ? "1개" : "확인 필요"}/></div><div className="drawer-note"><span>ⓘ</span> 로그인 상태는 시연용 데이터입니다. 실제 화면에서는 서버의 최근 리프레시 결과를 표시합니다.</div><button className="secondary-button drawer-close" onClick={onClose}>닫기</button></aside></>;
+  const [detail, setDetail] = useState<AdminMemberDetail | null>(null);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    getAdminMemberDetail(member.id, page)
+      .then((result) => { if (active) setDetail(result); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "회원 상세를 불러오지 못했습니다."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [member.id, page]);
+
+  const displayMember = detail?.member;
+  const name = displayMember?.displayName ?? member.name;
+  const provider = displayMember?.provider ?? member.provider;
+  return <><button className="drawer-backdrop" aria-label="상세 닫기" onClick={onClose}/><aside className="member-drawer"><div className="drawer-header"><div><span className="date-eyebrow">MEMBER DETAIL</span><h2>회원 상세</h2></div><button className="icon-button" onClick={onClose} aria-label="닫기"><Icon name="close"/></button></div><div className="drawer-member"><div className={`avatar drawer-avatar ${provider === "GUEST" ? "guest-avatar" : "member-avatar"}`}>{provider === "GUEST" ? "G" : name.slice(0, 1)}</div><div><h3>{name}</h3><span>{member.id}</span></div></div>
+    {error && <div className="dashboard-error" role="alert">{error}</div>}
+    {loading && <div className="dashboard-loading" role="status">회원 상세를 불러오는 중입니다.</div>}
+    {detail && <><div className="detail-section"><h3>계정 및 이용 통계</h3><DetailRow label="가입일" value={formatAdminDate(displayMember?.joinedAt ?? member.joinedAt)}/><DetailRow label="로그인 방식" value={providerLabel(provider)}/><DetailRow label="여행 기록" value={`${detail.totalTravelRecords.toLocaleString("ko-KR")}개`}/><DetailRow label="등록 사진" value={`${detail.totalPhotos.toLocaleString("ko-KR")}장`}/></div><div className="detail-section"><h3>여행 기록별 현황</h3>{detail.travelRecords.length === 0 ? <p className="muted-cell">등록된 여행 기록이 없습니다.</p> : <div className="member-record-list">{detail.travelRecords.map((record) => <div className="member-record-item" key={record.id}><div><strong>기록 #{record.id}</strong><span>{formatAdminDate(record.createdAt)}</span></div><small>사진 {record.photoCount}장</small></div>)}</div>}<div className="pagination member-record-pagination"><button disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)}>이전</button><span className="current-page">{detail.totalPages === 0 ? "0 / 0" : `${detail.page + 1} / ${detail.totalPages}`}</span><button disabled={page + 1 >= detail.totalPages || loading} onClick={() => setPage((value) => value + 1)}>다음</button></div></div></>}
+    <button className="secondary-button drawer-close" onClick={onClose}>닫기</button></aside></>;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) { return <div className="detail-row"><span>{label}</span><strong>{value}</strong></div>; }
-function ProviderBadge({ provider }: { provider: Member["provider"] }) { return <span className={`provider-badge ${provider === "GUEST" ? "provider-guest" : "provider-kakao"}`}><i/>{provider === "GUEST" ? "게스트" : "Kakao"}</span>; }
+function providerLabel(provider: Member["provider"]) { return provider === "GUEST" ? "게스트" : provider === "KAKAO" ? "카카오" : provider === "GOOGLE" ? "Google" : "유형 미지정"; }
+function ProviderBadge({ provider }: { provider: Member["provider"] }) { return <span className={`provider-badge ${provider === "GUEST" ? "provider-guest" : "provider-kakao"}`}><i/>{providerLabel(provider)}</span>; }
 
 export default App;
