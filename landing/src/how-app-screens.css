@@ -10,6 +10,10 @@
   --app-checkbox-fill: var(--app-primary); /* M3 Checkbox checked colours under the app theme */
   --app-checkbox-mark: var(--app-on-primary);
   --app-ring-cap: round; /* CircularProgressIndicator stroke cap */
+  /* Material3 1.4 progress indicators (library defaults in PhotoLoadingStep): the gap between indicator and
+     track, and the linear track's stop dot, in dp. Mirrored by HOW_STORY_APP_PROGRESS in howStoryLayout.js. */
+  --app-progress-gap: 4;
+  --app-progress-stop: 4;
   --app-map-status-dp: 38; /* status bar inset (24) + header top padding (14) on the map, in dp */
   --app-bg: #fafcfb;
   --app-surface: #ffffff;
@@ -154,9 +158,10 @@
 /* 사진 불러오기 (LocationStep). */
 .how-import-body { padding: calc(28 * var(--dp)) calc(24 * var(--dp)) 0; }
 .how-import-heading { margin-top: calc(14 * var(--dp)); color: var(--app-heading); font-size: calc(26 * var(--dp)); font-weight: 700; line-height: calc(34 * var(--dp)); }
-.how-import-section { margin-top: calc(30 * var(--dp)); display: flex; align-items: center; gap: calc(8 * var(--dp)); }
+/* FlowSectionTitle: a bottom-aligned row; the badge has 2dp of bottom padding, so it rests near the title's baseline. */
+.how-import-section { margin-top: calc(30 * var(--dp)); display: flex; align-items: flex-end; gap: calc(8 * var(--dp)); }
 .how-import-section-title { color: var(--app-heading); font-size: calc(18 * var(--dp)); font-weight: 700; }
-.how-import-section-badge { position: relative; top: calc(-2 * var(--dp)); color: var(--app-accent); font-size: calc(11 * var(--dp)); font-weight: 700; }
+.how-import-section-badge { margin-bottom: calc(2 * var(--dp)); color: var(--app-accent); font-size: calc(11 * var(--dp)); font-weight: 700; }
 .how-import-helper { margin-top: calc(6 * var(--dp)); color: var(--app-secondary); font-size: calc(11 * var(--dp)); }
 .how-import-field {
   position: relative;
@@ -285,11 +290,15 @@
   justify-content: center;
   text-align: center;
 }
-.how-loading-ring { width: calc(64 * var(--dp)); height: calc(64 * var(--dp)); fill: none; stroke-width: 5; }
+/* Indeterminate CircularProgressIndicator: a 270-degree arc and the track outside it with an M3 gap at each end
+   (dash lengths from AppScreens.jsx). The spin runs on the HTML wrapper, so the compositor can drive it. */
+/* Painted last (z-index), so the counter and bar after it in the DOM are not promoted for overlapping a running
+   animation. */
+.how-loading-spin { position: relative; z-index: 1; width: calc(64 * var(--dp)); height: calc(64 * var(--dp)); display: block; }
+.how-loading-ring { width: 100%; height: 100%; fill: none; stroke-width: 5; stroke-linecap: var(--app-ring-cap); transform: rotate(-90deg); }
 .how-loading-ring-track { stroke: var(--app-primary-soft); }
-/* A 270-degree arc (0.75 of 2 * pi * 29.5). */
-.how-loading-ring-arc { stroke: var(--app-accent); stroke-linecap: var(--app-ring-cap); stroke-dasharray: 139 186; transform: rotate(-90deg); transform-origin: 32px 32px; }
-.how-story-track.is-live .how-stage[data-scene="2"] .how-loading-ring { animation: how-spin 900ms linear infinite; }
+.how-loading-ring-arc { stroke: var(--app-accent); }
+.how-story-track.is-live .how-stage[data-scene="2"] .how-loading-spin { animation: how-spin 900ms linear infinite; }
 @keyframes how-spin { to { transform: rotate(360deg); } }
 .how-loading-eyebrow { margin-top: calc(28 * var(--dp)); }
 .how-loading-heading { margin-top: calc(18 * var(--dp)); color: var(--app-heading); font-size: calc(25 * var(--dp)); font-weight: 700; }
@@ -306,8 +315,24 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.how-loading-bar { width: 100%; height: calc(8 * var(--dp)); margin-top: calc(18 * var(--dp)); display: block; overflow: hidden; border-radius: calc(4 * var(--dp)); background: var(--app-primary-soft); }
-.how-loading-bar i { width: 100%; height: 100%; display: block; border-radius: inherit; background: var(--app-primary); transform: scaleX(0); transform-origin: 0 50%; }
+/* Determinate LinearProgressIndicator (8dp, round caps): the indicator, a gap, then the track, and a stop dot at
+   the track's end. Indicator and track are full-width pills placed by translateX (the hook writes the running
+   values; these are the 0% and 100% ends). */
+.how-loading-bar { position: relative; width: 100%; height: calc(8 * var(--dp)); margin-top: calc(18 * var(--dp)); display: block; overflow: hidden; border-radius: calc(4 * var(--dp)); }
+.how-loading-bar i { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; border-radius: calc(4 * var(--dp)); }
+.how-loading-track { background: var(--app-primary-soft); }
+.how-loading-fill { background: var(--app-primary); transform: translateX(-100%); }
+.how-loading-bar i.how-loading-stop {
+  left: auto;
+  right: calc((8 - var(--app-progress-stop)) / 2 * var(--dp));
+  top: calc((8 - var(--app-progress-stop)) / 2 * var(--dp));
+  width: calc(var(--app-progress-stop) * var(--dp));
+  height: calc(var(--app-progress-stop) * var(--dp));
+  border-radius: 50%;
+  background: var(--app-primary);
+}
+.how-loading-bar[data-done] .how-loading-fill { transform: none; }
+.how-loading-bar[data-done] .how-loading-track { transform: translateX(100%); }
 .how-loading-percent { width: 100%; height: calc(19 * var(--dp)); margin-top: calc(10 * var(--dp)); contain: strict; color: var(--app-accent); font-size: calc(14 * var(--dp)); font-weight: 700; line-height: calc(19 * var(--dp)); font-variant-numeric: tabular-nums; }
 /* The counter and percent are flex items, which cannot be relayout boundaries; their text sits in a strictly
    contained block inside them, so each new value lays out only that block. */

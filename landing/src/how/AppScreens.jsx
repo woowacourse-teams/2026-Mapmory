@@ -11,7 +11,7 @@
 import gyeongbuk from "../data/gyeongbuk-districts.json";
 import koreaProvinces from "../data/korea-provinces.json";
 import { APP_SCREEN_TEXT, HOW_STORY_LIBRARY_COUNT, HOW_STORY_MATCHES, fillHowStoryText, mapPercent } from "../howStory.js";
-import { boundsOfRings, createAppMapProjection } from "../howStoryLayout.js";
+import { HOW_STORY_APP_PROGRESS, boundsOfRings, createAppMapProjection } from "../howStoryLayout.js";
 
 const T = APP_SCREEN_TEXT;
 
@@ -90,22 +90,43 @@ export function ImportScreen({ node }) {
   );
 }
 
-// PhotoLoadingStep: ring, PHOTO LIBRARY, the app's own counter, bar, percent and message.
-export function LoadingScreen({ node, count, percent, progress }) {
+// Material3 1.4 indeterminate CircularProgressIndicator with a track (PhotoLoadingStep): a 270-degree arc with
+// round caps, and the track drawn only outside the arc, with a gap at each end. In the 64 viewBox (dp): radius
+// 29.5, stroke 5; with round caps the drawn gap is the M3 gap plus one stroke width.
+const RING = (() => {
+  const circumference = 2 * Math.PI * 29.5;
+  const arc = circumference * 0.75;
+  const gap = HOW_STORY_APP_PROGRESS.gapDp + 5;
+  const track = circumference - arc - gap * 2;
+  return {
+    arc: `${arc.toFixed(2)} ${(circumference - arc).toFixed(2)}`,
+    track: `${track.toFixed(2)} ${(circumference - track).toFixed(2)}`,
+    trackOffset: (-(arc + gap)).toFixed(2),
+  };
+})();
+
+// PhotoLoadingStep: ring, PHOTO LIBRARY, the app's own counter, bar, percent and message. done: the end state
+// (static list); in scroll mode the hook places the bar's indicator and track every frame.
+export function LoadingScreen({ node, count, percent, done = false }) {
   const t = T.loading;
   return (
     <div className="how-app-screen how-app-loading" data-node={node}>
       <AppTopBar title={t.title} />
       <div className="how-loading-body">
-        <svg className="how-loading-ring" viewBox="0 0 64 64" focusable="false">
-          <circle className="how-loading-ring-track" cx="32" cy="32" r="29.5" />
-          <circle className="how-loading-ring-arc" cx="32" cy="32" r="29.5" />
-        </svg>
+        {/* The ring turns on this HTML wrapper, which the compositor can animate (an SVG transform cannot). */}
+        <span className="how-loading-spin">
+          <svg className="how-loading-ring" viewBox="0 0 64 64" focusable="false">
+            <circle className="how-loading-ring-track" cx="32" cy="32" r="29.5" strokeDasharray={RING.track} strokeDashoffset={RING.trackOffset} />
+            <circle className="how-loading-ring-arc" cx="32" cy="32" r="29.5" strokeDasharray={RING.arc} />
+          </svg>
+        </span>
         <p className="how-app-eyebrow how-loading-eyebrow">{t.eyebrow}</p>
         <p className="how-loading-heading">{t.heading}</p>
         <p className="how-loading-count"><span data-text="loadingCount">{count}</span></p>
-        <span className="how-loading-bar">
-          <i data-node="loadingBar" style={{ transform: `scaleX(${progress})` }} />
+        <span className="how-loading-bar" data-done={done ? "1" : undefined}>
+          <i className="how-loading-track" data-node="loadingTrack" />
+          <i className="how-loading-fill" data-node="loadingFill" />
+          <i className="how-loading-stop" />
         </span>
         <p className="how-loading-percent"><span data-text="loadingPct">{percent}</span></p>
         <p className="how-loading-message">{fillHowStoryText(t.message, { place: t.place })}</p>
@@ -117,12 +138,11 @@ export function LoadingScreen({ node, count, percent, progress }) {
 export const LOADING_START = Object.freeze({
   count: fillHowStoryText(T.loading.count, { processed: 0, total: HOW_STORY_LIBRARY_COUNT }),
   percent: fillHowStoryText(T.loading.percent, { p: 0 }),
-  progress: 0,
 });
 export const LOADING_DONE = Object.freeze({
   count: fillHowStoryText(T.loading.count, { processed: HOW_STORY_LIBRARY_COUNT, total: HOW_STORY_LIBRARY_COUNT }),
   percent: fillHowStoryText(T.loading.percent, { p: 100 }),
-  progress: 1,
+  done: true,
 });
 
 // PhotoPickerStep: header, buttons, note, the recorded-photo filter, one date group and a 2-column grid.
