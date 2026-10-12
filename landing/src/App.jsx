@@ -22,7 +22,7 @@ import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoFinderHero } from "./PhotoFinderHero.jsx";
 import { HowStory } from "./HowStory.jsx";
-import { HOW_STORY_TITLE } from "./howStory.js";
+import { HOW_STORY_EYEBROW, HOW_STORY_TITLE_LINES } from "./howStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
   createWorldMemoryHistoryState,
@@ -134,7 +134,7 @@ const FAQ_ITEMS = [
   { question: "왜 사진 전체 접근이 필요해요?", answer: "그 장소에서 찍은 사진을 찾으려면 사진마다 촬영 위치를 폰 안에서 비교해야 해서요. 자동 찾기 없이 사진을 직접 골라 넣을 수도 있어요." },
   { question: "위치 정보가 없는 사진은요?", answer: "자동 찾기에서는 빠질 수 있지만, 사진첩에서 직접 골라 기록에 넣을 수 있어요." },
   { question: "남긴 기록은 지울 수 있나요?", answer: "네. 여행 기록은 앱에서 언제든 삭제할 수 있어요." },
-  { question: "무료인가요?", answer: "네. App Store와 Google Play에서 무료로 받아 바로 쓸 수 있어요." },
+  { question: "무료인가요?", answer: "네. App Store와 Google Play에서 무료로 받아 쓸 수 있어요." },
 ];
 
 const memoryByCountry = new Map(memories.map((memory) => [memory.id, memory]));
@@ -917,8 +917,9 @@ function App() {
       />
 
       <section className="how-section" id="how" aria-labelledby="how-title">
-        <div className="section-heading">
-          <h2 id="how-title">{HOW_STORY_TITLE}</h2>
+        <div className="section-heading how-heading">
+          <p className="how-eyebrow">{HOW_STORY_EYEBROW}</p>
+          <h2 id="how-title">{HOW_STORY_TITLE_LINES.map((line) => <span key={line}>{line}</span>)}</h2>
         </div>
         <HowStory />
         <div className="how-story-end" id="how-end">
