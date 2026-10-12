@@ -379,28 +379,46 @@ export function getHowStoryPlan({ metrics = HOW_STORY_METRICS } = {}) {
   return planCache.get(key);
 }
 
-// The measured stats band after the pin: null (nothing renders) unless at least one stat resolves.
+// The measured stats band after the pin: null (nothing renders) unless at least one stat resolves. Each stat's
+// count says how its value counts up (to, in steps of one decimal place when the value has one).
 export function getHowStoryBand(options = {}) {
   const { scan, taps } = getHowStoryPlan(options);
   const { band } = HOW_STORY_TEXT;
   const stats = [];
   if (scan) {
-    stats.push({
+    const count = Object.freeze({ to: scan.seconds, decimals: Number.isInteger(scan.seconds) ? 0 : 1, template: band.scanValue, slot: "s" });
+    stats.push(Object.freeze({
       id: "scan",
       label: fillHowStoryText(band.scanLabel, { count: formatHowStoryNumber(scan.libraryCount) }),
-      value: fillHowStoryText(band.scanValue, { s: Number.isInteger(scan.seconds) ? scan.seconds : scan.seconds.toFixed(1) }),
+      value: formatHowStoryBandValue(count, count.to),
       footnote: fillHowStoryText(band.footnote, { source: scan.source }),
-    });
+      count,
+    }));
   }
   if (taps) {
-    stats.push({
+    const count = Object.freeze({ to: taps.count, decimals: 0, template: band.tapsValue, slot: "n" });
+    stats.push(Object.freeze({
       id: "taps",
       label: band.tapsLabel,
-      value: fillHowStoryText(band.tapsValue, { n: taps.count }),
+      value: formatHowStoryBandValue(count, count.to),
       footnote: fillHowStoryText(band.footnote, { source: taps.source }),
-    });
+      count,
+    }));
   }
-  return stats.length ? { eyebrow: band.eyebrow, stats } : null;
+  return stats.length ? Object.freeze({ eyebrow: band.eyebrow, stats: Object.freeze(stats) }) : null;
+}
+
+// One band value at n (the count-up writes these; n = count.to is the final value).
+export function formatHowStoryBandValue(count, n) {
+  return fillHowStoryText(count.template, { [count.slot]: n.toFixed(count.decimals) });
+}
+
+// The band's count-up: 0 -> to over HOW_STORY_BAND_COUNT_MS with EASE_OUT, floored to the value's decimal place.
+export const HOW_STORY_BAND_COUNT_MS = 900;
+export function bandCountAt(count, u) {
+  if (u >= 1) return count.to;
+  const step = 10 ** count.decimals;
+  return Math.floor(EASE_OUT(clampUnit(u)) * count.to * step + 1e-9) / step;
 }
 
 export function getHowStorySceneDescription(index) {

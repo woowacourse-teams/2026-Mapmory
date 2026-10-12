@@ -21,6 +21,9 @@ import {
   HOW_STORY_TRACK,
   HOW_STORY_TRAVEL_UNITS,
   HOW_STORY_WINDOWS,
+  HOW_STORY_BAND_COUNT_MS,
+  bandCountAt,
+  formatHowStoryBandValue,
   getHowStoryBand,
   getHowStoryFrame,
   getHowStoryPlan,
@@ -343,13 +346,25 @@ test("with no measured numbers, no band, no time and no tap count appear anywher
 
 test("measured numbers reach only the band; the stage keeps the example library", () => {
   const band = getHowStoryBand({ metrics: SAMPLE_METRICS });
-  assert.deepEqual(band, {
-    eyebrow: "직접 재 봤어요",
-    stats: [
-      { id: "scan", label: "사진 14,213장을 확인하는 데 걸린 시간", value: "6.2초", footnote: "테스트 기기 · 처음 찾을 때 · 2026년 11월 내부 측정 기준" },
-      { id: "taps", label: "장소 검색부터 저장까지 누른 횟수", value: "5번", footnote: "테스트 빌드 · 2026년 11월 내부 측정 기준" },
-    ],
-  });
+  assert.deepEqual(band.eyebrow, "직접 재 봤어요");
+  assert.deepEqual(band.stats.map(({ id, label, value, footnote }) => ({ id, label, value, footnote })), [
+    { id: "scan", label: "사진 14,213장을 확인하는 데 걸린 시간", value: "6.2초", footnote: "테스트 기기 · 처음 찾을 때 · 2026년 11월 내부 측정 기준" },
+    { id: "taps", label: "장소 검색부터 저장까지 누른 횟수", value: "5번", footnote: "테스트 빌드 · 2026년 11월 내부 측정 기준" },
+  ]);
+  // The count-up runs 0 -> value in the value's own steps (0.1 s, whole taps), never past it, and ends on it.
+  for (const { count, value } of band.stats) {
+    const values = Array.from({ length: 101 }, (_, index) => bandCountAt(count, index / 100));
+    assert.equal(values[0], 0);
+    assert.equal(formatHowStoryBandValue(count, values.at(-1)), value);
+    values.forEach((n, index) => {
+      assert.ok(n <= count.to && (index === 0 || n >= values[index - 1]), `${count.slot} ${n}`);
+      assert.ok(Math.abs(n * 10 ** count.decimals - Math.round(n * 10 ** count.decimals)) < 1e-9, `${n} is one step of the value`);
+    });
+  }
+  assert.equal(formatHowStoryBandValue(band.stats[0].count, 4.3), "4.3초");
+  assert.equal(formatHowStoryBandValue(band.stats[1].count, 3), "3번");
+  assert.equal(HOW_STORY_BAND_COUNT_MS, 900);
+  assert.equal(getHowStoryBand({ metrics: { ...SAMPLE_METRICS, scanSeconds: 7 } }).stats[0].value, "7초");
   for (const p of sweep(0.01)) {
     const { texts } = getHowStoryFrame(p, HOW_STORY_TEST_LAYOUT.mobile, { metrics: SAMPLE_METRICS });
     for (const value of Object.values(texts)) assert.doesNotMatch(value, /14,?213/, value);
@@ -652,13 +667,14 @@ async function loadRenderer() {
   const result = await build({
     stdin: {
       contents: `export { HowStory, HowStoryScrollFrame, HowStoryStage } from "./src/HowStory.jsx";
+        export { HowStoryBand } from "./src/how/HowStoryBand.jsx";
         export { createElement } from "react";
         export { renderToStaticMarkup } from "react-dom/server";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
       sourcefile: "how-story-ssr.js",
     },
     bundle: true, write: false, format: "cjs", platform: "node", jsx: "automatic", logLevel: "silent",
-    define: { "process.env.NODE_ENV": JSON.stringify("production") }, plugins: [stub],
+    define: { "process.env.NODE_ENV": JSON.stringify("production"), "import.meta.env.DEV": "false" }, plugins: [stub],
   });
   const dir = await mkdtemp(path.join(tmpdir(), "how-story-ssr-"));
   try {
@@ -743,4 +759,68 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
   }
   const skip = descendants(page).find((node) => hasClass(node, "how-story-skip"));
   assert.equal(skip.attrs.href, "#how-end");
+  // With every metric null there is no band at all: no heading, no gap, no placeholder.
+  assert.equal(descendants(page).filter((node) => (node.attrs.class ?? "").includes("how-band")).length, 0);
+});
+
+test("screen readers get all five beats in scroll mode, with what each stage shows", async () => {
+  const { HowStoryScrollFrame, createElement, renderToStaticMarkup } = await loadRenderer();
+  const props = {
+    frameRef: { current: null },
+    copyRef: { current: null },
+    stageRef: { current: null },
+    scene: { index: 2, previous: 1, direction: "down" },
+    descriptions,
+  };
+  const frame = parseMarkup(renderToStaticMarkup(createElement(HowStoryScrollFrame, props))).children[0];
+  // Only one beat's copy shows at a time, so the visual column is hidden from them and a list carries every beat.
+  assert.equal(descendants(frame).find((node) => hasClass(node, "how-copy")).attrs["aria-hidden"], "true");
+  const list = descendants(frame).find((node) => node.tag === "ol" && hasClass(node, "sr-only"));
+  const items = list.children.filter((node) => node.tag === "li");
+  assert.equal(items.length, HOW_STORY_SCENE_COUNT);
+  items.forEach((item, index) => {
+    const beat = HOW_STORY_BEATS[index];
+    assert.equal(textOf(item.children.find((node) => node.tag === "h3")), beat.headline.join(" "));
+    const lines = item.children.filter((node) => node.tag === "p").map(textOf);
+    assert.deepEqual(lines, [beat.sub, descriptions[index]]);
+  });
+  assert.ok(!descendants(frame.children.find((node) => hasClass(node, "how-stage")) ?? { children: [] }).includes(list));
+});
+
+test("the band shows measured numbers only, final values for screen readers, and no sample in a production build", async () => {
+  const { HowStoryBand, createElement, renderToStaticMarkup } = await loadRenderer();
+  // The component renders the band only when it resolves.
+  assert.match(componentSource, /\{band && <HowStoryBand /);
+  const band = getHowStoryBand({ metrics: SAMPLE_METRICS });
+  const root = parseMarkup(renderToStaticMarkup(createElement(HowStoryBand, { band, animate: false }))).children[0];
+  assert.ok(hasClass(root, "how-band"));
+  assert.equal(textOf(descendants(root).find((node) => hasClass(node, "how-band-eyebrow"))), "직접 재 봤어요");
+  const stats = descendants(root).filter((node) => hasClass(node, "how-band-stat"));
+  assert.equal(stats.length, 2);
+  stats.forEach((stat, index) => {
+    const expected = band.stats[index];
+    const value = descendants(stat).find((node) => hasClass(node, "how-band-value"));
+    assert.equal(textOf(descendants(stat).find((node) => node.tag === "dt")), expected.label);
+    // The live and sizing copies are hidden from screen readers; they read the final value once.
+    assert.equal(textOf(value.children.find((node) => hasClass(node, "sr-only"))), expected.value);
+    for (const name of ["how-band-live", "how-band-sizer"]) assert.equal(value.children.find((node) => hasClass(node, name)).attrs["aria-hidden"], "true");
+    assert.equal(textOf(descendants(stat).find((node) => hasClass(node, "how-band-footnote"))), expected.footnote);
+  });
+  // The count-up is one-shot on an observer, in requestAnimationFrame steps; the static list shows final values.
+  assert.match(howSources["HowStoryBand.jsx"], /threshold: 0\.5/);
+  assert.match(howSources["HowStoryBand.jsx"], /requestAnimationFrame/);
+  assert.match(howSources["HowStoryBand.jsx"], /prefers-reduced-motion: reduce/);
+  assert.match(componentSource, /animate=\{mode === "scroll"\}/);
+  // ?how-sample is a development aid only: a production bundle carries none of the sample's strings.
+  assert.match(componentSource, /import\.meta\.env\.DEV && /);
+  const production = await build({
+    entryPoints: [fileURLToPath(new URL("../src/HowStory.jsx", import.meta.url))],
+    bundle: true, write: false, format: "esm", platform: "browser", jsx: "automatic", minify: true, charset: "utf8", logLevel: "silent",
+    external: ["react", "react/jsx-runtime", "react-dom", "posthog-js"],
+    define: { "process.env.NODE_ENV": JSON.stringify("production"), "import.meta.env.DEV": "false" },
+  });
+  const bundled = production.outputFiles.map(({ text }) => text).join("\n");
+  // Hangul stays readable in the bundle (charset utf8), so the band's own strings are there and the sample's are not.
+  assert.ok(bundled.includes(HOW_STORY_TEXT.band.eyebrow));
+  for (const sample of ["테스트 기기", "테스트 빌드", "14213", "how-sample"]) assert.ok(!bundled.includes(sample), sample);
 });

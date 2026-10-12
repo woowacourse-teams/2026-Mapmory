@@ -328,6 +328,21 @@
 .how-story-track.is-live :is(.how-ground, .how-bottom-fade, .how-mosaic-sprite, .how-pins-layer) { will-change: opacity; }
 .how-story-track.is-live .how-overlay-bar i { will-change: transform; }
 
+/* The measured stats band (after the pin, before #how-end). It renders only when HOW_STORY_METRICS resolves a stat;
+   with every metric null there is no band, heading or gap at all. */
+.how-band { padding: 56px 0 16px; text-align: center; }
+.how-band-eyebrow { margin: 0 0 24px; color: var(--accent-ink); font-size: 15px; font-weight: 700; line-height: 1.4; }
+.how-band-stats { margin: 0; display: grid; gap: 32px; justify-content: center; }
+.how-band-stat { min-width: 0; max-width: 320px; }
+.how-band-label { color: var(--muted); font-size: 17px; line-height: 1.5; word-break: keep-all; }
+/* The count-up box: an invisible copy of the final value sizes it; the live value sits over it, from its start. */
+.how-band-value { position: relative; width: fit-content; margin: 8px auto 0; display: grid; color: var(--text); font-size: 44px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.how-band-sizer,
+.how-band-live { grid-area: 1 / 1; white-space: nowrap; }
+.how-band-sizer { visibility: hidden; }
+.how-band-live { text-align: left; }
+.how-band-footnote { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
 /* The skip link lands here; the margin keeps the globe link below the sticky header. */
 .how-story-end { display: flex; scroll-margin-top: 100px; }
 
@@ -408,6 +423,10 @@
   .how-overlay-bar { width: 220px; }
   .how-bottom-fade { display: none; }
   .how-pill { font-size: 12px; }
+  .how-band { padding: 72px 0 24px; }
+  .how-band-eyebrow { font-size: 17px; }
+  .how-band-stats { grid-auto-flow: column; grid-auto-columns: 320px; gap: 64px; }
+  .how-band-value { font-size: 56px; }
   /* Desktop: beside the phone's top edge, in the stage's side room (the stage is grid column 2). */
   .how-frame-pill { grid-area: 1 / 2; top: calc(var(--phone-y) + 16px); right: auto; left: calc(var(--phone-x) + var(--phone-w) + 12px); }
   .how-static { width: auto; gap: 72px; }

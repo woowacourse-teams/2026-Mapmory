@@ -5,7 +5,9 @@ import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "
 import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { PhoneFrame } from "./how/PhoneFrame.jsx";
 import { ImportScreen, LOADING_DONE, LOADING_START, LoadingScreen, MapScreen, PickerCardChrome, PickerScreen } from "./how/AppScreens.jsx";
+import { HowStoryBand } from "./how/HowStoryBand.jsx";
 import { LibraryMosaic, LibraryStill } from "./how/LibraryMosaic.jsx";
+import { HOW_STORY_SAMPLE_METRICS } from "./howStorySample.js";
 import {
   HOW_STORY_BEATS,
   HOW_STORY_EXPERIENCE_TYPE,
@@ -15,6 +17,7 @@ import {
   HOW_STORY_TEXT,
   fillHowStoryText,
   formatHowStoryNumber,
+  getHowStoryBand,
   getHowStorySceneDescription,
 } from "./howStory.js";
 
@@ -28,6 +31,15 @@ const OVERLAY_TOTAL = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: formatH
 const OVERLAY_FOUND = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: HOW_STORY_MATCHES.length });
 const OVERLAY_SCOPE = fillHowStoryText(HOW_STORY_TEXT.overlayScope, { total: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
 const PICKED = HOW_STORY_MATCHES.filter((match) => match.picked);
+
+// The band shows measured numbers only (HOW_STORY_METRICS). In development, ?how-sample fills it with the test
+// sample so it can be looked at; a production build has no such path (import.meta.env.DEV is false there).
+function bandOptions() {
+  if (import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("how-sample")) {
+    return { metrics: HOW_STORY_SAMPLE_METRICS };
+  }
+  return {};
+}
 
 function detectMode() {
   if (typeof window === "undefined") return "static";
@@ -43,8 +55,24 @@ function BeatCopy({ beat, description }) {
       <p className="how-copy-eyebrow">{beat.eyebrow}</p>
       <h3 className="how-copy-headline">{beat.headline.map((line) => <span key={line}>{line}</span>)}</h3>
       <p className="how-copy-sub">{beat.sub}</p>
-      <p className="sr-only">{description}</p>
+      {description && <p className="sr-only">{description}</p>}
     </>
+  );
+}
+
+// Scroll mode shows one beat's copy at a time (the others are hidden), so screen readers get all five beats here,
+// each with what its stage shows, and the visual copy column is hidden from them.
+function BeatList({ descriptions }) {
+  return (
+    <ol className="sr-only">
+      {HOW_STORY_BEATS.map((beat, index) => (
+        <li key={beat.id}>
+          <h3>{beat.headline.join(" ")}</h3>
+          <p>{beat.sub}</p>
+          <p>{descriptions[index]}</p>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -127,14 +155,15 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
 function HowStoryScrollFrame({ frameRef, copyRef, stageRef, scene, descriptions }) {
   return (
     <div className="how-story-frame" ref={frameRef}>
-      <div className="how-copy" ref={copyRef} data-direction={scene.direction} data-swap={scene.previous === null ? undefined : "1"}>
+      <BeatList descriptions={descriptions} />
+      <div className="how-copy" ref={copyRef} aria-hidden="true" data-direction={scene.direction} data-swap={scene.previous === null ? undefined : "1"}>
         {HOW_STORY_BEATS.map((beat, index) => (
           <article
             className="how-copy-beat"
             key={beat.id}
             data-copy={index === scene.index ? "active" : index === scene.previous ? "leaving" : undefined}
           >
-            <BeatCopy beat={beat} description={descriptions[index]} />
+            <BeatCopy beat={beat} />
           </article>
         ))}
       </div>
@@ -220,6 +249,7 @@ export function HowStory() {
   modeRef.current = mode;
 
   const descriptions = useMemo(() => HOW_STORY_BEATS.map((_, index) => getHowStorySceneDescription(index)), []);
+  const band = useMemo(() => getHowStoryBand(bandOptions()), []);
 
   // Reduced motion, missing IntersectionObserver and short windows get the static list. A width change
   // (rotation, a new window size) re-runs the check and gives scroll mode another chance to fit. A height-only
@@ -332,6 +362,7 @@ export function HowStory() {
           </ol>
         )}
       </div>
+      {band && <HowStoryBand band={band} animate={mode === "scroll"} />}
     </>
   );
 }
