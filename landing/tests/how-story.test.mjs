@@ -43,11 +43,25 @@ import {
   waveEdge,
 } from "../src/howStory.js";
 import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "../src/howStoryAnalytics.js";
-import { HOW_STORY_APP_PROGRESS, HOW_STORY_GEOMETRY, createHowStoryLayout } from "../src/howStoryLayout.js";
+import {
+  APP_MAP_VIEW,
+  HOW_STORY_APP_LINE_HEIGHT,
+  HOW_STORY_APP_PROGRESS,
+  HOW_STORY_GEOMETRY,
+  HOW_STORY_MAP,
+  HOW_STORY_PICKER,
+  PICKER_SCROLL_DP,
+  boundsOfRings,
+  createHowStoryLayout,
+  mapCameraBox,
+  pickerCardRectsDp,
+} from "../src/howStoryLayout.js";
 
 const read = (file) => readFile(new URL(file, import.meta.url), "utf8");
 const gyeongju = JSON.parse(await read("../src/data/gyeongju-boundary.json"));
 const gyeongbuk = JSON.parse(await read("../src/data/gyeongbuk-districts.json"));
+const koreaProvinces = JSON.parse(await read("../src/data/korea-provinces.json"));
+const worldGlobe = JSON.parse(await read("../src/data/world-globe.json"));
 const mosaic = JSON.parse(await read("../src/data/how-mosaic.json"));
 const storyCss = await read("../src/how-story.css");
 const screensCss = await read("../src/how-app-screens.css");
@@ -330,6 +344,141 @@ test("map numbers follow the app's formula and the drill map has develop's 22 di
   assert.equal(mapPercent(1, 195), 1);
   assert.equal(gyeongbuk.districts.length, 22);
   assert.ok(gyeongbuk.districts.some(({ code }) => code === "47130"));
+});
+
+const near = (a, b, label, epsilon = 0.01) => assert.ok(Math.abs(a - b) < epsilon, `${label}: ${a} vs ${b}`);
+const rectOf = (node, layout) => ({ x: node.tx, y: node.ty, size: node.s * layout.nodeBase });
+const nearRect = (node, rect, layout, label) => {
+  const placed = rectOf(node, layout);
+  near(placed.x, rect.x, `${label} x`);
+  near(placed.y, rect.y, `${label} y`);
+  near(placed.size, rect.size, `${label} size`);
+};
+const beatSweep = (index, steps = 200) => Array.from({ length: steps + 1 }, (_, step) => beatP(index, step / steps) - (step === steps && index < 4 ? 1e-9 : 0));
+
+test("the picker's cards sit where develop's list puts them, from the app's line height, scrolled by 48dp", () => {
+  // The JS geometry and the CSS read the same tokens.
+  assert.match(screensCss, new RegExp(`--app-line-height: ${HOW_STORY_APP_LINE_HEIGHT};`));
+  assert.match(screensCss, new RegExp(`--app-map-status-dp: ${HOW_STORY_MAP.statusDp};`));
+  assert.equal(PICKER_SCROLL_DP, 48);
+  assert.match(screensCss, new RegExp(`\\.how-picker-list \\{[^}]*transform: translateY\\(calc\\(-${PICKER_SCROLL_DP} \\* var\\(--dp\\)\\)\\);`));
+  assert.match(screensCss, new RegExp(`grid-template-columns: repeat\\(2, calc\\(${HOW_STORY_PICKER.card} \\* var\\(--dp\\)\\)\\); gap: calc\\(${HOW_STORY_PICKER.gap} \\* var\\(--dp\\)\\);`));
+  const rects = pickerCardRectsDp();
+  // Two 153dp columns from the 20dp start padding, 10dp apart; row 2 is 10dp below row 1.
+  assert.equal(HOW_STORY_PICKER.card, (360 - HOW_STORY_PICKER.padStart - HOW_STORY_PICKER.padEnd - HOW_STORY_PICKER.gap) / 2);
+  assert.deepEqual(rects.map(({ x }) => x), [20, 183, 20, 183]);
+  near(rects[2].y - rects[0].y, 163, "row gap");
+  // Both rows sit in the top 87% of the screen, under the 89dp top bar.
+  assert.ok(rects[0].y > 89 && (rects[3].y + rects[3].size) / 780 <= 0.87, `${rects[3].y}`);
+  for (const [name, layout] of LAYOUTS) {
+    rects.forEach((rect, index) => {
+      const card = layout.cards[index];
+      near(card.x, layout.screen.x + rect.x * layout.dp, `${name} card ${index} x`);
+      near(card.y, layout.screen.y + rect.y * layout.dp, `${name} card ${index} y`);
+      near(card.size, rect.size * layout.dp, `${name} card ${index} size`);
+      // A copy lifts 24px and shrinks to 0.72 about the card's centre.
+      const hover = layout.hover[index];
+      near(hover.size, card.size * HOW_STORY_PICKER.copyScale, `${name} hover ${index} size`);
+      near(hover.x + hover.size / 2, card.x + card.size / 2, `${name} hover ${index} centre x`);
+      near(hover.y + hover.size / 2, card.y + card.size / 2 - HOW_STORY_PICKER.copyLift, `${name} hover ${index} centre y`);
+    });
+    // The flying photos are drawn at their largest size and only scaled down.
+    assert.ok(layout.nodeBase >= Math.max(layout.cards[0].size, ...layout.cluster.map(({ size }) => size)), name);
+  }
+});
+
+test("beat 04: the found photos become the picker's cards and never leave; only the three picked get a copy", () => {
+  for (const [name, layout] of LAYOUTS) {
+    for (const p of beatSweep(3)) {
+      const frame = getHowStoryFrame(p, layout);
+      // Exactly three copies (A, B, C); card D has none.
+      assert.deepEqual(Object.keys(frame.nodes).filter((key) => /^copy\d+$/.test(key)), ["copy0", "copy1", "copy2"], name);
+      // The originals stay on screen through the whole beat.
+      for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, 1, `${name} card ${index} at ${p}`);
+    }
+    // By t .30 the tiles are the cards: on the card rects, with the border and preview button on.
+    const landed = getHowStoryFrame(beatP(3, 0.3), layout);
+    layout.cards.forEach((rect, index) => {
+      nearRect(landed.nodes[`match${index}`], rect, layout, `${name} card ${index}`);
+      assert.equal(landed.nodes[`matchChrome${index}`].o, 1, name);
+      assert.equal(landed.nodes[`matchShadow${index}`].o, 0, name);
+    });
+    // Before the camera comes out, no card chrome and no copy shows.
+    const start = getHowStoryFrame(beatP(3, 0.2), layout);
+    for (let index = 0; index < 3; index += 1) assert.equal(start.nodes[`copy${index}`].o, 0, name);
+    for (let index = 0; index < 4; index += 1) assert.equal(start.nodes[`matchChrome${index}`].o, 0, name);
+    // Taps: A, B, C in turn, then 기록하기 (the spinner); the hold shows three copies over their cards.
+    const sel = (t) => getHowStoryFrame(beatP(3, t), layout).state;
+    assert.deepEqual([0.35, 0.37, 0.45, 0.53, 0.61, 0.63].map((t) => [sel(t).sel, sel(t).save]), [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0], [3, 1]], name);
+    const hold = getHowStoryFrame(holdBegin(3), layout);
+    layout.hover.slice(0, 3).forEach((rect, index) => {
+      nearRect(hold.nodes[`copy${index}`], rect, layout, `${name} copy ${index}`);
+      assert.equal(hold.nodes[`copy${index}`].o, 0.92, name);
+    });
+  }
+  // The rings drawn are the picks and the save in the tap plan: one per picked photo, none on D.
+  const picks = getHowStoryTapPlan().filter(({ id }) => id.startsWith("pick-"));
+  assert.equal(picks.length, HOW_STORY_MATCHES.filter(({ picked }) => picked).length);
+});
+
+test("beat 05: a tab switch to develop's drill map, the copies land on 경주시, then the camera pulls back to Korea and the world", () => {
+  // The constants are the data's: develop's drill bounds (울릉도 and 독도 included), the provinces' bounds and 경주시's
+  // label point.
+  assert.deepEqual(HOW_STORY_MAP.drillBounds, gyeongbuk.bounds);
+  assert.deepEqual(HOW_STORY_MAP.koreaBounds, boundsOfRings(koreaProvinces));
+  assert.deepEqual(HOW_STORY_MAP.gyeongjuLabel, gyeongbuk.districts.find(({ code }) => code === "47130").labelPoint);
+  assert.equal(koreaProvinces.length, 17);
+  assert.ok(worldGlobe.countries.some(({ code }) => code === "KR"));
+  const view = APP_MAP_VIEW;
+  // Both framings keep the map area's aspect, and the drill one is a zoom into the Korea one.
+  near(view.drillBox[2] / view.drillBox[3], view.area.width / view.area.height, "drill aspect", 1e-6);
+  assert.deepEqual(view.koreaBox, [0, 0, view.area.width, view.area.height]);
+  assert.ok(view.drillBox[2] < view.koreaBox[2]);
+  // The camera: a zoom about one fixed point, the width moving geometrically.
+  const half = mapCameraBox(view.drillBox, view.koreaBox, 0.5);
+  near(half[2], Math.sqrt(view.drillBox[2] * view.koreaBox[2]), "geometric width", 1e-6);
+  const [fx, fy] = [0, 1].map((axis) => (view.drillBox[axis] * view.koreaBox[2] - view.koreaBox[axis] * view.drillBox[2]) / (view.koreaBox[2] - view.drillBox[2]));
+  for (const u of [0.25, 0.5, 0.75]) {
+    const box = mapCameraBox(view.drillBox, view.koreaBox, u);
+    near((fx - box[0]) / box[2], (fx - view.drillBox[0]) / view.drillBox[2], `fixed x at ${u}`, 1e-9);
+    near((fy - box[1]) / box[3], (fy - view.drillBox[1]) / view.drillBox[3], `fixed y at ${u}`, 1e-9);
+  }
+  const toBox = (frame) => frame.attrs.mapSvg.viewBox.split(" ").map(Number);
+  for (const [name, layout] of LAYOUTS) {
+    let previousWidth = 0;
+    for (const p of beatSweep(4)) {
+      const frame = getHowStoryFrame(p, layout);
+      const { t } = getHowStoryScene(p);
+      const box = toBox(frame);
+      if (t < 0.4) box.forEach((value, index) => near(value, view.drillBox[index], `${name} drill box`));
+      if (t >= 0.6) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
+      assert.ok(box[2] >= previousWidth - 0.01, `${name} the camera only pulls back`);
+      previousWidth = box[2];
+      assert.equal(frame.state.map, t < 0.24 ? "drill0" : t < 0.66 ? "drill1" : "world", `${name} t ${t}`);
+    }
+    // The picker and its cards go with the tab switch.
+    const switched = getHowStoryFrame(beatP(4, 0.12), layout);
+    assert.equal(switched.nodes.screenMap.o, 1, name);
+    assert.equal(switched.nodes.screenPicker.o, 0, name);
+    for (let index = 0; index < 4; index += 1) assert.equal(switched.nodes[`match${index}`].o, 0, name);
+    // The copies land on 경주시's label point at the drill view and are gone when it fills.
+    const target = layout.mapTarget;
+    near(target.x, layout.screen.x + view.gyeongju.x * layout.dp, `${name} target x`);
+    near(target.y, layout.screen.y + (view.area.top + view.gyeongju.y) * layout.dp, `${name} target y`);
+    const filled = getHowStoryFrame(beatP(4, 0.24), layout);
+    for (let index = 0; index < 3; index += 1) {
+      const copy = filled.nodes[`copy${index}`];
+      assert.equal(copy.o, 0, `${name} copy ${index}`);
+      const { x, y, size } = rectOf(copy, layout);
+      near(x + size / 2, target.x, `${name} copy ${index} lands x`);
+      near(y + size / 2, target.y, `${name} copy ${index} lands y`);
+    }
+    // Drill, then Korea: district lines and the drill card hand over to the province outlines and the Korea card.
+    const before = getHowStoryFrame(beatP(4, 0.39), layout).nodes;
+    const after = getHowStoryFrame(beatP(4, 0.61), layout).nodes;
+    assert.deepEqual(["mapDistrictLines", "mapLabels", "mapFillDistrict", "mapCardDrill"].map((key) => [before[key].o, after[key].o]), [[1, 0], [1, 0], [1, 0], [1, 0]], name);
+    assert.deepEqual(["mapProvinces", "mapFillProvince", "mapCardKorea"].map((key) => [before[key].o, after[key].o]), [[0, 1], [0, 1], [0, 1]], name);
+  }
 });
 
 test("with no measured numbers, no band, no time and no tap count appear anywhere", () => {
@@ -727,14 +876,29 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
   const all = descendants(frameNode);
   const nodes = new Set(all.map((node) => node.attrs["data-node"]).filter(Boolean));
   const texts = new Set(descendants(stage).map((node) => node.attrs["data-text"]).filter(Boolean));
+  const attrs = new Set(descendants(stage).map((node) => node.attrs["data-attr"]).filter(Boolean));
+  const taps = new Set(descendants(stage).map((node) => node.attrs["data-tap"]).filter(Boolean));
   for (const [name, layout] of LAYOUTS) {
-    for (const p of [0, 0.2, 0.5, 0.7, 1]) {
+    for (const p of [0, 0.2, 0.5, 0.62, 0.7, 0.77, 0.82, 0.9, 1]) {
       const frame = getHowStoryFrame(p, layout);
       for (const key of Object.keys(frame.nodes)) assert.ok(nodes.has(key), `${name}: missing [data-node="${key}"]`);
       for (const key of Object.keys(frame.texts)) assert.ok(texts.has(key), `${name}: missing [data-text="${key}"]`);
+      for (const key of Object.keys(frame.attrs)) assert.ok(attrs.has(key), `${name}: missing [data-attr="${key}"]`);
       assert.equal(frame.nodes.pill.o, 1);
     }
   }
+  // Every tap the story can draw has its ring: the field (when counted), the row, the three picks and 기록하기.
+  for (const { id } of getHowStoryTapPlan(6)) assert.ok(taps.has(id), `missing [data-tap="${id}"]`);
+  // The stage's map carries the three summary cards with the app's own numbers.
+  const stageText = textOf(stage);
+  for (const value of ["0 / 22", "0% 채움", "1 / 22", "5% 채움", "1 / 17", "6% 채움", "1 / 195", "1% 채움"]) {
+    const [n, rest] = value.split(" / ");
+    assert.ok(rest === undefined ? stageText.includes(value) : stageText.includes(`${n}`) && stageText.includes(` / ${rest}`), value);
+  }
+  // In scroll mode the picker's grid holds empty places: the stage tiles are its cards.
+  const pickerCards = descendants(stage).filter((node) => hasClass(node, "how-picker-card"));
+  assert.equal(pickerCards.length, 4);
+  for (const card of pickerCards) assert.equal(card.children.length, 0);
   const pills = all.filter((node) => hasClass(node, "how-pill"));
   assert.equal(pills.length, 1);
   assert.equal(textOf(pills[0]), HOW_STORY_TEXT.pill);
@@ -756,7 +920,21 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
     assert.equal(figures[0].attrs["aria-hidden"], "true");
     assert.equal(descendants(figures[0]).filter((node) => hasClass(node, "how-pill")).length, 1);
     assert.equal(descendants(beat).filter((node) => node.tag === "h3").length, 1);
+    // End states only: nothing the scroll hook drives.
+    assert.equal(descendants(figures[0]).filter((node) => node.attrs["data-attr"]).length, 0);
   }
+  // 04: A, B and C selected (3장 선택), 기록하기 enabled, no spinner (not saving), no copies; four photo cards.
+  const [, , , picker, map] = beats.map((beat) => descendants(beat).find((node) => node.tag === "figure"));
+  assert.equal(picker.attrs["data-sel"], "3");
+  assert.equal(picker.attrs["data-save"], undefined);
+  assert.equal(descendants(picker).filter((node) => hasClass(node, "how-picker-card") && node.children.some((child) => child.tag === "img")).length, 4);
+  assert.equal(descendants(picker).filter((node) => hasClass(node, "how-copy-node")).length, 0);
+  // 05: the Korea map alone, 경상북도 filled: 나의 대한민국 지도, 1 / 17, 6% 채움.
+  const mapScreen = descendants(map).find((node) => hasClass(node, "how-app-map"));
+  assert.equal(mapScreen.attrs["data-variant"], "korea");
+  const mapText = textOf(map);
+  for (const value of ["나의 대한민국 지도", " / 17", "6% 채움"]) assert.ok(mapText.includes(value), value);
+  for (const value of ["나의 세계 지도", " / 22", "5% 채움", "1% 채움"]) assert.ok(!mapText.includes(value), value);
   const skip = descendants(page).find((node) => hasClass(node, "how-story-skip"));
   assert.equal(skip.attrs.href, "#how-end");
   // With every metric null there is no band at all: no heading, no gap, no placeholder.

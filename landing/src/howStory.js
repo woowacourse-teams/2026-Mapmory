@@ -565,7 +565,8 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     const card = L.cards[i];
     const hover = L.hover[i];
     const lift = EASE_OUT(seg(t4, 0.66 + 0.03 * i, 0.74 + 0.03 * i));
-    const flightRaw = seg(t5, 0.04 + 0.03 * i, 0.2 + 0.03 * i);
+    // The last copy lands at t .24, as 경주시 fills.
+    const flightRaw = seg(t5, 0.04 + 0.03 * i, 0.18 + 0.03 * i);
     const flight = EASE_IN_OUT(flightRaw);
     let rect;
     let o;
