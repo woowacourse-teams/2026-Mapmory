@@ -1,9 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { feature } from "topojson-client";
 
-// node scripts/generate-korea-map.mjs [provinces] [gyeongju] [gyeongbuk] [eastasia]; no argument runs every step.
+// node scripts/generate-korea-map.mjs [provinces] [gyeongju] [gyeongbuk] [globe]; no argument runs every step.
 const steps = new Set(process.argv.slice(2));
 const runStep = (name) => steps.size === 0 || steps.has(name);
 
@@ -198,48 +196,81 @@ if (runStep("gyeongbuk")) {
   console.log(`Generated ${districts.length} 경상북도 districts (${Buffer.byteLength(text)} bytes).`);
 }
 
-// Sutherland-Hodgman against one axis-aligned edge.
-function clipEdge(ring, inside, cut) {
-  const out = [];
-  ring.forEach((point, index) => {
-    const previous = ring[(index + ring.length - 1) % ring.length];
-    if (inside(point)) {
-      if (!inside(previous)) out.push(cut(previous, point));
-      out.push(point);
-    } else if (inside(previous)) out.push(cut(previous, point));
-  });
-  return out;
+// The #how map screen's world view. develop draws the world as a globe (MapArtwork -> WorldGlobe) from Natural
+// Earth 110m countries (GeneratedWorldMapData*.kt, the same files on main and develop). Its first frame never
+// changes: longitude -127 degrees about the polar axis, no tilt, so the globe is projected once here with
+// WorldGlobe's own math (toSphere, the quaternion turn, clipToFrontHemisphere, projectToScreen) and stored as
+// rings on a disc of radius 1000 (x right, y up), each ring a flat [x0, y0, x1, y1, ...] list of integers.
+const GLOBE_LONGITUDE = -127;
+function globePoint([lng, lat]) {
+  const lambda = (lng * Math.PI) / 180;
+  const phi = (lat * Math.PI) / 180;
+  const theta = (GLOBE_LONGITUDE * Math.PI) / 180;
+  const x = Math.cos(phi) * Math.sin(lambda);
+  const y = Math.sin(phi);
+  const z = Math.cos(phi) * Math.cos(lambda);
+  // A rotation by theta about the y axis (Quaternion.fromAxisAngle(Vec3(0, 1, 0), theta).rotate).
+  return [x * Math.cos(theta) + z * Math.sin(theta), y, -x * Math.sin(theta) + z * Math.cos(theta)];
 }
-function clipRing(ring, { minLng, maxLng, minLat, maxLat }) {
-  const atX = (x) => ([ax, ay], [bx, by]) => [x, ay + ((by - ay) * (x - ax)) / (bx - ax)];
-  const atY = (y) => ([ax, ay], [bx, by]) => [ax + ((bx - ax) * (y - ay)) / (by - ay), y];
-  let out = ring;
-  out = clipEdge(out, ([x]) => x >= minLng, atX(minLng));
-  if (out.length) out = clipEdge(out, ([x]) => x <= maxLng, atX(maxLng));
-  if (out.length) out = clipEdge(out, ([, y]) => y >= minLat, atY(minLat));
-  if (out.length) out = clipEdge(out, ([, y]) => y <= maxLat, atY(maxLat));
-  return out;
+function horizonIntersection(from, to) {
+  const denominator = from[2] - to[2];
+  if (Math.abs(denominator) <= 0.00001) return from;
+  const t = Math.min(1, Math.max(0, from[2] / denominator));
+  const point = from.map((value, index) => value + (to[index] - value) * t);
+  const length = Math.hypot(point[0], point[1]);
+  return length <= 0.00001 ? [0, 0, 0] : [point[0] / length, point[1] / length, 0];
+}
+function clipToFrontHemisphere(points) {
+  const result = [];
+  let previous = points.at(-1);
+  let previousVisible = previous[2] >= 0;
+  for (const current of points) {
+    const currentVisible = current[2] >= 0;
+    if (previousVisible && currentVisible) result.push(current);
+    else if (previousVisible && !currentVisible) result.push(horizonIntersection(previous, current));
+    else if (!previousVisible && currentVisible) result.push(horizonIntersection(previous, current), current);
+    previous = current;
+    previousVisible = currentVisible;
+  }
+  return result;
 }
 
-if (runStep("eastasia")) {
-  // The #how map screen's world view: world-atlas 110m countries around East Asia. The clip box is wider than
-  // the drawn view (lng 105-150, lat 20-50), so no clip edge shows on screen.
-  const CLIP = { minLng: 98, maxLng: 157, minLat: 14, maxLat: 56 };
+if (runStep("globe")) {
   const MAX_BYTES = 25 * 1024;
-  const require = createRequire(import.meta.url);
-  const topology = require("world-atlas/countries-110m.json");
-  const countries = feature(topology, topology.objects.countries).features.flatMap(({ id, properties, geometry }) => {
-    if (!geometry) return [];
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    const rings = polygons
-      .map((polygon) => clipRing(polygon[0].slice(0, -1), CLIP))
+  // In unit-disc units; the globe is drawn about 150dp across its radius, so this is under half a dp.
+  const TOLERANCE = 0.0025;
+  const sourceDir = resolve("../client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/map/data");
+  const sources = readdirSync(sourceDir)
+    .filter((file) => /^GeneratedWorldMapDataPart\d+\.kt$/.test(file))
+    .sort()
+    .map((file) => readFileSync(resolve(sourceDir, file), "utf8"))
+    .join("\n");
+  const pointPattern = /p\((-?\d+(?:\.\d+)?)f,\s*(-?\d+(?:\.\d+)?)f\)/g;
+  const parsed = [];
+  let current = null;
+  for (const line of sources.split(/\r?\n/)) {
+    const countryMatch = line.match(/country\("([^"]+)",\s*"([^"]+)"/);
+    if (countryMatch) {
+      current = { code: countryMatch[1], name: countryMatch[2], rings: [] };
+      parsed.push(current);
+    }
+    if (!current || !line.includes("listOf(p(")) continue;
+    const points = [...line.matchAll(pointPattern)].map((match) => [Number(match[1]), Number(match[2])]);
+    if (points.length > 2) current.rings.push(points);
+  }
+  if (parsed.length < 170) throw new Error(`Expected the 110m world, parsed ${parsed.length} countries.`);
+  const countries = parsed.flatMap(({ code, name, rings }) => {
+    const visible = rings
+      .map((ring) => clipToFrontHemisphere(ring.map(globePoint)))
       .filter((ring) => ring.length >= 3)
-      .map((ring) => ring.map(([lng, lat]) => [round(lng, 2), round(lat, 2)]));
-    return rings.length ? [{ id, name: properties.name, rings }] : [];
+      .map((ring) => simplifyClosedRing(ring.map(([x, y]) => [x, y]), TOLERANCE).map(([x, y]) => [Math.round(x * 1000), Math.round(y * 1000)]))
+      .filter((ring) => ring.length >= 3 && Math.abs(signedAreaTwice(ring)) > 4)
+      .map((ring) => ring.flat());
+    return visible.length ? [{ code, name, rings: visible }] : [];
   });
-  if (!countries.some(({ id }) => id === "410")) throw new Error("South Korea (410) is missing from the East Asia crop.");
-  const text = `${JSON.stringify({ source: "world-atlas countries-110m", view: { minLng: 105, maxLng: 150, minLat: 20, maxLat: 50 }, countries })}\n`;
-  if (Buffer.byteLength(text) > MAX_BYTES) throw new Error(`east-asia.json is ${Buffer.byteLength(text)} bytes, over ${MAX_BYTES}.`);
-  writeFileSync(resolve("src/data/east-asia.json"), text, "utf8");
-  console.log(`Generated ${countries.length} East Asia countries (${Buffer.byteLength(text)} bytes).`);
+  if (!countries.some(({ code }) => code === "KR")) throw new Error("South Korea (KR) is missing from the globe.");
+  const text = `${JSON.stringify({ source: "client GeneratedWorldMapData (Natural Earth 110m)", longitude: GLOBE_LONGITUDE, latitude: 0, tolerance: TOLERANCE, radius: 1000, countries })}\n`;
+  if (Buffer.byteLength(text) > MAX_BYTES) throw new Error(`world-globe.json is ${Buffer.byteLength(text)} bytes, over ${MAX_BYTES}.`);
+  writeFileSync(resolve("src/data/world-globe.json"), text, "utf8");
+  console.log(`Generated ${countries.length} countries on the globe's front (${Buffer.byteLength(text)} bytes).`);
 }
