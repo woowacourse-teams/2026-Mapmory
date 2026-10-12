@@ -44,6 +44,7 @@ import {
   waveEdge,
 } from "../src/howStory.js";
 import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "../src/howStoryAnalytics.js";
+import { buildHowMapData, decodeSteps } from "../src/how/mapData.js";
 import {
   APP_MAP_VIEW,
   HOW_STORY_APP_LINE_HEIGHT,
@@ -52,7 +53,6 @@ import {
   HOW_STORY_MAP,
   HOW_STORY_PICKER,
   PICKER_SCROLL_DP,
-  boundsOfRings,
   HOW_STORY_BREAKPOINTS,
   createHowStoryLayout,
   fitHowStoryPhone,
@@ -65,7 +65,7 @@ import {
 const read = (file) => readFile(new URL(file, import.meta.url), "utf8");
 const gyeongju = JSON.parse(await read("../src/data/gyeongju-boundary.json"));
 const gyeongbuk = JSON.parse(await read("../src/data/gyeongbuk-districts.json"));
-const koreaProvinces = JSON.parse(await read("../src/data/korea-provinces.json"));
+const howProvinces = JSON.parse(await read("../src/data/how-korea-provinces.json"));
 const worldGlobe = JSON.parse(await read("../src/data/world-globe.json"));
 const mosaic = JSON.parse(await read("../src/data/how-mosaic.json"));
 const storyCss = await read("../src/how-story.css");
@@ -445,12 +445,12 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
 });
 
 test("beat 05: a tab switch to develop's drill map, the copies land on 경주시, then the camera pulls back to Korea and the world", () => {
-  // The constants are the data's: develop's drill bounds (울릉도 and 독도 included), the provinces' bounds and 경주시's
-  // label point.
+  // The constants are the data's: develop's drill bounds (울릉도 and 독도 included), the bounds of develop's provinces
+  // (GeneratedKoreaMapData, also with 울릉도 and 독도) and 경주시's label point.
   assert.deepEqual(HOW_STORY_MAP.drillBounds, gyeongbuk.bounds);
-  assert.deepEqual(HOW_STORY_MAP.koreaBounds, boundsOfRings(koreaProvinces));
+  assert.deepEqual(HOW_STORY_MAP.koreaBounds, howProvinces.bounds);
   assert.deepEqual(HOW_STORY_MAP.gyeongjuLabel, gyeongbuk.districts.find(({ code }) => code === "47130").labelPoint);
-  assert.equal(koreaProvinces.length, 17);
+  assert.equal(howProvinces.provinces.length, 17);
   assert.ok(worldGlobe.countries.some(({ code }) => code === "KR"));
   const view = APP_MAP_VIEW;
   // Both framings keep the map area's aspect, and the drill one is a zoom into the Korea one.
@@ -577,7 +577,7 @@ test("the library mosaic is open-licence crops only, with no photo beside itself
   assert.ok(pins.size <= 30 * 1024, `${pins.size} bytes`);
   assert.doesNotMatch(howSources["LibraryMosaic.jsx"], /<pattern|<use |dangerouslySetInnerHTML/);
   assert.match(storyCss, /\.has-library \.how-pins-panel \{ background-image: url\("\/assets\/how\/library-pins\.webp"\); \}/);
-  for (const [file, kb] of [["gyeongbuk-districts.json", 30], ["world-globe.json", 25]]) {
+  for (const [file, kb] of [["gyeongbuk-districts.json", 30], ["how-korea-provinces.json", 30], ["world-globe.json", 25]]) {
     const { size } = await stat(new URL(`../src/data/${file}`, import.meta.url));
     assert.ok(size <= kb * 1024, `${file} ${size}`);
   }
@@ -900,6 +900,7 @@ async function loadRenderer() {
   const result = await build({
     stdin: {
       contents: `export { HowStory, HowStoryScrollFrame, HowStoryStage } from "./src/HowStory.jsx";
+        export { MapScreen } from "./src/how/AppScreens.jsx";
         export { HowStoryBand } from "./src/how/HowStoryBand.jsx";
         export { createElement } from "react";
         export { renderToStaticMarkup } from "react-dom/server";`,
@@ -1030,53 +1031,109 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
   assert.equal(descendants(page).filter((node) => (node.attrs.class ?? "").includes("how-band")).length, 0);
 });
 
-test("the drill land is the district rings themselves; only the province outlines are thinned, by at most 0.4dp", async () => {
-  const { HowStoryScrollFrame, createElement, renderToStaticMarkup } = await loadRenderer();
-  const props = {
-    frameRef: { current: null },
-    copyRef: { current: null },
-    stageRef: { current: null },
-    scene: { index: 0, previous: null, direction: "down" },
-    descriptions: HOW_STORY_BEATS.map((_, index) => getHowStorySceneDescription(index)),
+test("the map draws develop's own data: the drill land is the district rings, the provinces are develop's, thinned by at most 0.4dp", async () => {
+  const data = buildHowMapData({ gyeongbuk, provinces: howProvinces, globe: worldGlobe });
+  // The cards' totals are the data's.
+  assert.match(howSources["AppScreens.jsx"], new RegExp(`export const DRILL_TOTAL = ${gyeongbuk.districts.length};`));
+  assert.match(howSources["AppScreens.jsx"], new RegExp(`export const KOREA_TOTAL = ${howProvinces.provinces.length};`));
+  assert.equal(data.districts.length, 22);
+  assert.equal(data.districtLand, data.districts.map(({ d }) => d).join(""));
+  assert.equal(data.visitedDistrict, data.districts.find(({ code }) => code === "47130").d);
+  assert.equal(data.provinces.length, 17);
+  assert.equal(data.visitedProvince, data.provinces.find(({ code }) => code === gyeongbuk.provinceCode).d);
+  // develop's 강원 stops at 37.03 degrees, so no strip of it runs down 경상북도's coast (the landing's older
+  // province file reached 36.61).
+  const [originX, originY] = howProvinces.origin;
+  const latitudes = (code) => howProvinces.provinces.find((province) => province.code === code).rings.flatMap((ring) => decodeSteps(ring).map(([, y]) => (y + originY) / 1000));
+  assert.ok(Math.min(...latitudes("KR-42")) > 37, `${Math.min(...latitudes("KR-42"))}`);
+  // The thinning (in degrees) plus the 0.001-degree rounding stays inside 0.4dp at the Korea view.
+  const [, top] = APP_MAP_VIEW.project(127, howProvinces.bounds.maxLat);
+  const [, bottom] = APP_MAP_VIEW.project(127, howProvinces.bounds.minLat);
+  const dpPerDegree = (bottom - top) / (howProvinces.bounds.maxLat - howProvinces.bounds.minLat);
+  assert.ok((howProvinces.tolerance + 0.0005) * dpPerDegree <= 0.4, `${(howProvinces.tolerance + 0.0005) * dpPerDegree}dp`);
+  assert.equal(howProvinces.maxErrorDp, 0.4);
+  // decodeSteps undoes the step encoding.
+  assert.deepEqual(decodeSteps([10, 20, 1, -2, -3, 4]), [[10, 20], [11, 18], [8, 22]]);
+  void originX;
+
+  // Rendered with the data, the story's map has every group; without it (before the lazy load lands) the groups
+  // the hook drives are still there, empty.
+  const { MapScreen, createElement, renderToStaticMarkup } = await loadRenderer();
+  const withData = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { node: "screenMap", variant: "story", data })));
+  const group = (root, name) => descendants(root).find((node) => hasClass(node, name));
+  assert.equal(group(withData, "how-map-lines").children.length, 22);
+  assert.equal(group(withData, "how-map-provinces").children.length, 17);
+  assert.equal(group(withData, "how-map-labels").children.length, 22);
+  assert.equal(group(withData, "how-map-fill-province").children[0].attrs.d, data.visitedProvince);
+  const empty = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { node: "screenMap", variant: "story" })));
+  for (const key of ["mapDistrictLines", "mapProvinces", "mapFillDistrict", "mapFillProvince", "mapLabels"]) {
+    const node = descendants(empty).find((child) => child.attrs["data-node"] === key);
+    assert.ok(node, key);
+    assert.equal(node.children.length, 0, key);
+  }
+});
+
+test("the map data is not in the entry chunk: it loads once, when the track comes near or a static map mounts", () => {
+  for (const file of ["AppScreens.jsx", "mapData.js"]) assert.doesNotMatch(howSources[file], /^import [^;]*\.json";$/m, file);
+  assert.doesNotMatch(howSources["AppScreens.jsx"], /data\/(gyeongbuk-districts|how-korea-provinces|korea-provinces|world-globe)\.json/);
+  for (const file of ["gyeongbuk-districts", "how-korea-provinces", "world-globe"]) {
+    assert.match(howSources["mapData.js"], new RegExp(`import\\("\\.\\./data/${file}\\.json"\\)`));
+  }
+  assert.match(howSources["mapData.js"], /createCachedAsyncLoader\(/);
+  assert.match(hookSource, /track\.classList\.add\("is-live", "has-library"\);\s*\/\/[^\n]*\n\s*loadHowMapData\(\)\.catch\(\(\) => \{\}\);/);
+  assert.match(howSources["AppScreens.jsx"], /const loaded = useHowMapData\(!story && !given\);/);
+});
+
+test("beat 05's drill is a state develop's map allows: zoomed in on the mainland and panned within its clamp", () => {
+  const { viewport, projection, zoom, pan } = APP_MAP_VIEW.drillCamera;
+  // KoreaMapArtwork: MinZoom 1, MaxZoom 6.
+  assert.ok(zoom >= 1 && zoom <= 6, `${zoom}`);
+  // clampKoreaMapPan, written out again from develop's source (PanSlackFraction 0.1).
+  const clampAxis = (value, leading, trailing, size) => {
+    const slack = size * 0.1;
+    if (trailing - leading <= size) return Math.min(Math.max(value, -slack), slack);
+    return Math.min(Math.max(value, size - trailing - slack), -leading + slack);
   };
-  const stage = descendants(parseMarkup(renderToStaticMarkup(createElement(HowStoryScrollFrame, props))).children[0])
-    .find((node) => hasClass(node, "how-stage"));
-  const group = (name) => descendants(stage).find((node) => hasClass(node, name)).children.map((child) => child.attrs.d);
-  // The land under the district lines matches them exactly (one path, the same rings).
-  const lines = group("how-map-lines");
-  assert.equal(lines.length, 22);
-  assert.deepEqual(group("how-map-land"), [lines.join("")]);
-  // Each province: every source point stays within 0.4dp (plus the path's 0.1 rounding) of its thinned outline.
-  const provinces = group("how-map-provinces");
-  assert.equal(provinces.length, koreaProvinces.length);
-  const ringsOf = (d) => d.split("Z").filter(Boolean).map((ring) => [...ring.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(([, x, y]) => [Number(x), Number(y)]));
-  const toSegment = ([x, y], [ax, ay], [bx, by]) => {
-    const dx = bx - ax;
-    const dy = by - ay;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
-    return Math.hypot(x - ax - t * dx, y - ay - t * dy);
+  const [cx, cy] = [viewport.width / 2, viewport.height / 2];
+  const clamped = [
+    clampAxis(pan[0], cx + (projection.left - cx) * zoom, cx + (projection.left + projection.width - cx) * zoom, viewport.width),
+    clampAxis(pan[1], cy + (projection.top - cy) * zoom, cy + (projection.top + projection.height - cy) * zoom, viewport.height),
+  ];
+  pan.forEach((value, axis) => near(value, clamped[axis], `pan ${axis} is inside the clamp`, 1e-9));
+  // At the drill view every mainland district's label point is inside the map area, and 경주시's sits in its upper
+  // 62%, clear of a small phone's cropped bottom; 울릉군 is off to the east.
+  const scale = APP_MAP_VIEW.area.width / APP_MAP_VIEW.drillBox[2];
+  const atDrill = (lng, lat) => {
+    const [x, y] = APP_MAP_VIEW.project(lng, lat);
+    return [(x - APP_MAP_VIEW.drillBox[0]) * scale, (y - APP_MAP_VIEW.drillBox[1]) * scale];
   };
-  let before = 0;
-  let after = 0;
-  koreaProvinces.forEach(({ rings }, index) => {
-    const thinned = ringsOf(provinces[index]);
-    assert.equal(thinned.length, rings.length);
-    rings.forEach((ring, r) => {
-      const outline = thinned[r];
-      before += ring.length;
-      after += outline.length;
-      for (const [lng, lat] of ring) {
-        const point = APP_MAP_VIEW.project(lng, lat);
-        const distance = Math.min(...outline.map((a, i) => toSegment(point, a, outline[(i + 1) % outline.length])));
-        assert.ok(distance <= 0.4 + 0.08, `province ${index} ring ${r}: ${distance.toFixed(3)}dp`);
-      }
-    });
-  });
-  assert.ok(after < before * 0.6, `${after} of ${before} points`);
-  // The filled province is the same thinned outline.
-  const visited = koreaProvinces.findIndex(({ code }) => code === gyeongbuk.provinceCode);
-  assert.equal(group("how-map-fill-province").length, 1);
-  assert.equal(descendants(stage).find((node) => hasClass(node, "how-map-fill-province")).children[0].attrs.d, provinces[visited]);
+  for (const { code, name, labelPoint } of gyeongbuk.districts) {
+    const [x, y] = atDrill(...labelPoint);
+    if (code === "47940") assert.ok(x > APP_MAP_VIEW.area.width, name);
+    else assert.ok(x > 16 && x < APP_MAP_VIEW.area.width - 16 && y > APP_MAP_VIEW.backRow && y < APP_MAP_VIEW.area.height, `${name} ${x} ${y}`);
+  }
+  const [, gyeongjuY] = atDrill(...HOW_STORY_MAP.gyeongjuLabel);
+  assert.ok(gyeongjuY / APP_MAP_VIEW.area.height <= 0.62, `${gyeongjuY}`);
+  // About twice develop's first framing.
+  const firstFrame = (APP_MAP_VIEW.area.width / APP_MAP_VIEW.drillBox[2]) / zoom;
+  assert.ok(scale / firstFrame >= 2, `${scale / firstFrame}`);
+});
+
+test("the world view is develop's globe turned to 대한민국 and pinched in, so the filled country reads", () => {
+  assert.equal(worldGlobe.longitude, -127);
+  assert.equal(worldGlobe.latitude, HOW_STORY_MAP.globeTiltDeg);
+  assert.equal(worldGlobe.zoom, HOW_STORY_MAP.globeZoom);
+  // WorldGlobe: MaxTilt 1.3 rad, zoom 0.75-8.
+  assert.ok((HOW_STORY_MAP.globeTiltDeg * Math.PI) / 180 <= 1.3);
+  assert.ok(HOW_STORY_MAP.globeZoom >= 0.75 && HOW_STORY_MAP.globeZoom <= 8);
+  const { cx, cy, r } = APP_MAP_VIEW.globe;
+  near(r, HOW_STORY_MAP.globeRadius * Math.min(APP_MAP_VIEW.area.width, APP_MAP_VIEW.area.height) * HOW_STORY_MAP.globeZoom, "radius");
+  // 대한민국 sits near the middle of the area, at least 18dp tall (11dp on develop's first frame, at the top edge).
+  const korea = worldGlobe.countries.find(({ code }) => code === "KR").rings.flatMap((ring) => decodeSteps(ring)).map(([x, y]) => [cx + (x / worldGlobe.radius) * r, cy - (y / worldGlobe.radius) * r]);
+  const ys = korea.map(([, y]) => y);
+  const xs = korea.map(([x]) => x);
+  assert.ok(Math.max(...ys) - Math.min(...ys) >= 18, `${Math.max(...ys) - Math.min(...ys)}dp`);
+  assert.ok(Math.abs((Math.max(...xs) + Math.min(...xs)) / 2 - cx) < 30 && Math.abs((Math.max(...ys) + Math.min(...ys)) / 2 - cy) < 30);
 });
 
 test("screen readers get all five beats in scroll mode, with what each stage shows", async () => {

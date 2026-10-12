@@ -10,6 +10,7 @@ import {
 } from "./howStory.js";
 import { createHowStoryLayout, getHowStoryMediaMode, getHowStoryMode } from "./howStoryLayout.js";
 import { latestEntry } from "./howStoryAnalytics.js";
+import { loadHowMapData } from "./how/mapData.js";
 
 // Below this the frame is the same to a hundredth of a pixel, so the frame is not recomputed.
 const P_EPSILON = 0.00001;
@@ -178,6 +179,8 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       if (listening) return;
       listening = true;
       track.classList.add("is-live", "has-library");
+      // The map's data (beat 05) loads with the library sprite, as the track comes near; once, cached.
+      loadHowMapData().catch(() => {});
       window.addEventListener("scroll", schedule, { passive: true });
       window.addEventListener("resize", schedule, { passive: true });
       update(true);

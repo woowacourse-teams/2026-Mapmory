@@ -98,15 +98,44 @@ export const HOW_STORY_MAP = Object.freeze({
   bottomBar: 64,
   cardMargin: 12,
   // Bounds develop fits each view to (KoreaBounds.from: every ring of the regions drawn). Checked against the
-  // data files by the tests: the drill view is 경상북도's 22 districts (울릉도 and 독도 included), the Korea view
-  // the 17 provinces.
+  // data files by the tests: the drill view is 경상북도's 22 districts, the Korea view the 17 provinces of
+  // develop's GeneratedKoreaMapData (how-korea-provinces.json); both include 울릉도 and 독도.
   drillBounds: Object.freeze({ minLng: 127.79615, maxLng: 131.87147, minLat: 35.56689, maxLat: 37.54914 }),
-  koreaBounds: Object.freeze({ minLng: 124.61362, maxLng: 130.92066, minLat: 33.19758, maxLat: 38.62434 }),
+  koreaBounds: Object.freeze({ minLng: 124.60972, maxLng: 131.87023, minLat: 33.11236, maxLat: 38.61371 }),
+  // Unverified fidelity: the drill map as a reader leaves it after pinching in on the mainland. develop opens the
+  // drill at zoom 1, fitted to bounds that include 울릉도, so the mainland is small and low; its map takes pinch
+  // zoom (1-6x) and a pan held by clampKoreaMapPan (PanSlackFraction 0.1), and this is one such state: 2.2x,
+  // dragged toward the mainland's middle longitude and the south (경주) until the clamp stops the vertical pan,
+  // so the whole mainland shows with 경주 clear of a small phone's cropped bottom.
+  drillZoom: 2.2,
+  drillCentre: Object.freeze([128.69, 35.93]),
+  panSlack: 0.1,
   // 경주시's label point (KoreaMapArtwork labelPoint()), where the saved copies land.
   gyeongjuLabel: Object.freeze([129.236, 35.8266]),
   // WorldGlobe: radius share of the viewport's shorter side.
   globeRadius: 0.42,
+  // Unverified fidelity: the globe turned the way a reader drags it to see what was filled. develop's first frame
+  // is latitude 0 and zoom 1 (Australia fills it, 대한민국 is a speck at the top); its drag tilts the latitude up to
+  // 1.3 rad and its pinch zooms 0.75-8x. 36 degrees brings 대한민국's middle to the centre.
+  globeTiltDeg: 36,
+  globeZoom: 1.8,
 });
+
+// develop's clampKoreaMapPan: a map wider (taller) than the viewport may pan until its edge is 10% of the viewport
+// inside; a smaller one only by that 10% slack. map: the projected bounds in viewport units.
+export function clampAppMapPan([panX, panY], zoom, viewport, map, slackFraction = HOW_STORY_MAP.panSlack) {
+  const axis = (value, leading, trailing, size) => {
+    const slack = size * slackFraction;
+    if (trailing - leading <= size) return Math.min(slack, Math.max(-slack, value));
+    return Math.min(-leading + slack, Math.max(size - trailing - slack, value));
+  };
+  const cx = viewport.width / 2;
+  const cy = viewport.height / 2;
+  return [
+    axis(panX, cx + (map.left - cx) * zoom, cx + (map.left + map.width - cx) * zoom, viewport.width),
+    axis(panY, cy + (map.top - cy) * zoom, cy + (map.top + map.height - cy) * zoom, viewport.height),
+  ];
+}
 
 export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
   const m = HOW_STORY_MAP;
@@ -120,15 +149,30 @@ export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
   const height = HOW_STORY_SCREEN.heightDp - m.bottomBar - top;
   // One coordinate space for the drill and Korea views: develop's Korea projection of the full map area.
   const korea = createAppMapProjection(m.koreaBounds, width, height);
-  // develop's drill projection fills the area below the taller drill card. The drill viewBox is that framing seen
-  // in the Korea space: same scale, the bounds' centre and top edge where develop puts them (the drill's own
-  // longitude factor differs from Korea's by under 1%).
-  const drill = createAppMapProjection(m.drillBounds, width, height - backRow);
-  const zoom = drill.scale / korea.scale;
-  const [centreX, topY] = korea.project((m.drillBounds.minLng + m.drillBounds.maxLng) / 2, m.drillBounds.maxLat);
-  const drillBox = [centreX - width / 2 / zoom, topY - (drill.top + backRow) / zoom, width / zoom, height / zoom];
+  // develop's drill projection fills the area below the taller drill card; the reader's zoom and pan act on it
+  // about that viewport's centre (transformMapPoint). The drill viewBox is that view seen in the Korea space (the
+  // drill's own longitude factor differs from Korea's by under 1%).
+  const viewport = { width, height: height - backRow };
+  const drill = createAppMapProjection(m.drillBounds, viewport.width, viewport.height);
+  const ratio = drill.scale / korea.scale;
+  const zoom = m.drillZoom;
+  const centre = [viewport.width / 2, viewport.height / 2];
+  const [targetX, targetY] = drill.project(...m.drillCentre);
+  const pan = clampAppMapPan([(centre[0] - targetX) * zoom, (centre[1] - targetY) * zoom], zoom, viewport, drill);
+  // Drill viewport point -> drill base point -> Korea space.
+  const [refLng, refLat] = [(m.drillBounds.minLng + m.drillBounds.maxLng) / 2, m.drillBounds.maxLat];
+  const [refDrillX, refDrillY] = drill.project(refLng, refLat);
+  const [refKoreaX, refKoreaY] = korea.project(refLng, refLat);
+  const toKorea = ([x, y]) => {
+    const baseX = centre[0] + (x - centre[0] - pan[0]) / zoom;
+    const baseY = centre[1] + (y - centre[1] - pan[1]) / zoom;
+    return [refKoreaX + (baseX - refDrillX) / ratio, refKoreaY + (baseY - refDrillY) / ratio];
+  };
+  const [boxX, boxY] = toKorea([0, -backRow]);
+  const drillBox = [boxX, boxY, width / (zoom * ratio), height / (zoom * ratio)];
   const koreaBox = [0, 0, width, height];
   const [labelX, labelY] = korea.project(...m.gyeongjuLabel);
+  const drillScale = width / drillBox[2];
   return {
     cardTop,
     koreaCard,
@@ -138,9 +182,11 @@ export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
     project: korea.project,
     drillBox,
     koreaBox,
+    // The reader's drill camera, in develop's terms, for the tests.
+    drillCamera: { viewport, projection: drill, zoom, pan },
     // 경주시's label point in area dp at the drill view.
-    gyeongju: { x: (labelX - drillBox[0]) * zoom, y: (labelY - drillBox[1]) * zoom },
-    globe: { cx: width / 2, cy: height / 2, r: m.globeRadius * Math.min(width, height) },
+    gyeongju: { x: (labelX - drillBox[0]) * drillScale, y: (labelY - drillBox[1]) * drillScale },
+    globe: { cx: width / 2, cy: height / 2, r: m.globeRadius * Math.min(width, height) * m.globeZoom },
   };
 }
 
@@ -330,6 +376,8 @@ export function createAppMapProjection(bounds, width, height) {
     scale,
     left,
     top,
+    width: spanX * scale,
+    height: spanY * scale,
     longitudeFactor,
     project: (lng, lat) => [left + (lng - bounds.minLng) * longitudeFactor * scale, top + (bounds.maxLat - lat) * scale],
   };

@@ -498,8 +498,9 @@
 /* The map area: the drill and Korea views share one SVG (the frame moves its viewBox); the world globe is its own
    layer. */
 .how-map-area { position: absolute; left: 0; right: 0; top: calc(var(--map-area-top) * var(--dp)); bottom: calc(64 * var(--dp)); }
+/* Both clip: the zoomed drill's labels and the zoomed globe run past the area's edges. */
 .how-map-korea,
-.how-map-world { position: absolute; inset: 0; }
+.how-map-world { position: absolute; inset: 0; overflow: hidden; }
 .how-map-svg,
 .how-map-globe { width: 100%; height: 100%; }
 /* KoreaMapArtwork: land fill, then a 1dp outline that keeps its width at every zoom. */

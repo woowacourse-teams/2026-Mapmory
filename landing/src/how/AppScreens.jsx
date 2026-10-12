@@ -9,9 +9,6 @@
 // In scroll mode the screens' changing states come from data-* attributes on the stage and the hook writes
 // the [data-text] values; static figures pass end-state props instead.
 import { useId } from "react";
-import gyeongbuk from "../data/gyeongbuk-districts.json";
-import koreaProvinces from "../data/korea-provinces.json";
-import worldGlobe from "../data/world-globe.json";
 import {
   APP_SCREEN_TEXT,
   HOW_STORY_LIBRARY_COUNT,
@@ -23,6 +20,7 @@ import {
   mapPercent,
 } from "../howStory.js";
 import { APP_MAP_VIEW, HOW_STORY_APP_PROGRESS } from "../howStoryLayout.js";
+import { useHowMapData } from "./mapData.js";
 
 const T = APP_SCREEN_TEXT;
 
@@ -232,92 +230,16 @@ export function PickerScreen({ node, cardsOnStage = false }) {
 }
 
 // The map area in dp (between the header and the bottom bar) and one coordinate space for the drill and Korea
-// views: develop's Korea projection of that area (howStoryLayout.js). The drill view is a viewBox into it.
+// views: develop's Korea projection of that area (howStoryLayout.js). The drill view is a viewBox into it. The
+// paths themselves load lazily (mapData.js).
 const VIEW = APP_MAP_VIEW;
 const box = (values) => values.map((value) => Number(value.toFixed(2))).join(" ");
-// Douglas-Peucker on a polyline, in dp.
-function simplifyLine(points, tolerance) {
-  if (points.length < 3) return points;
-  const keep = new Uint8Array(points.length);
-  keep[0] = 1;
-  keep[points.length - 1] = 1;
-  const spans = [[0, points.length - 1]];
-  while (spans.length) {
-    const [a, b] = spans.pop();
-    const [ax, ay] = points[a];
-    const [bx, by] = points[b];
-    const length = Math.hypot(bx - ax, by - ay) || 1;
-    let far = -1;
-    let farthest = tolerance;
-    for (let index = a + 1; index < b; index += 1) {
-      const [x, y] = points[index];
-      const distance = Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / length;
-      if (distance > farthest) {
-        farthest = distance;
-        far = index;
-      }
-    }
-    if (far >= 0) {
-      keep[far] = 1;
-      spans.push([a, far], [far, b]);
-    }
-  }
-  return points.filter((_, index) => keep[index]);
-}
-// A ring as an SVG path in the map's dp space. tolerance (dp at the Korea view) thins rings that are only ever drawn
-// small: every point the map repaints costs time on each frame of the camera move.
-const toPath = (rings, tolerance = 0) => rings.map((ring) => {
-  let points = ring.map(([lng, lat]) => VIEW.project(lng, lat));
-  if (tolerance > 0 && points.length > 8) {
-    const half = Math.floor(points.length / 2);
-    points = [...simplifyLine(points.slice(0, half + 1), tolerance), ...simplifyLine(points.slice(half), tolerance).slice(1)];
-  }
-  return `${points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("")}Z`;
-}).join("");
-// The 17 provinces show from about 1.3x the Korea view down to it: 0.4dp there stays under a pixel.
-const PROVINCE_TOLERANCE = 0.4;
-const DRILL_ZOOM = VIEW.area.width / VIEW.drillBox[2];
-const DISTRICTS = gyeongbuk.districts.map(({ code, name, rings, labelPoint }) => {
-  const [x, y] = VIEW.project(labelPoint[0], labelPoint[1]);
-  return { code, name, d: toPath(rings), label: [(x - VIEW.drillBox[0]) * DRILL_ZOOM, (y - VIEW.drillBox[1]) * DRILL_ZOOM] };
-});
-const PROVINCES = koreaProvinces.map(({ code, rings }) => ({ code, d: toPath(rings, PROVINCE_TOLERANCE) }));
-const DISTRICT_LAND = DISTRICTS.map(({ d }) => d).join("");
-const VISITED_DISTRICT = DISTRICTS.find(({ code }) => code === "47130");
-const VISITED_PROVINCE = PROVINCES.find(({ code }) => code === gyeongbuk.provinceCode);
-// Gyeongju fills from its label point: the transform origin as a share of its own box (transform-box: fill-box).
-const FILL_ORIGIN = (() => {
-  const points = gyeongbuk.districts.find(({ code }) => code === "47130").rings.flat().map(([lng, lat]) => VIEW.project(lng, lat));
-  const [minX, maxX] = [Math.min(...points.map(([x]) => x)), Math.max(...points.map(([x]) => x))];
-  const [minY, maxY] = [Math.min(...points.map(([, y]) => y)), Math.max(...points.map(([, y]) => y))];
-  const [lx, ly] = VIEW.project(...gyeongbuk.districts.find(({ code }) => code === "47130").labelPoint);
-  return `${(((lx - minX) / (maxX - minX)) * 100).toFixed(1)}% ${(((ly - minY) / (maxY - minY)) * 100).toFixed(1)}%`;
-})();
 
-// WorldGlobe's first frame (longitude -127 degrees, no tilt), pre-projected by scripts/generate-korea-map.mjs on a
-// disc of radius 1000; drawn here at develop's radius, 0.42 of the area's shorter side.
-const GLOBE = (() => {
-  const { cx, cy, r } = VIEW.globe;
-  const scale = r / worldGlobe.radius;
-  const path = (rings) => rings.map((ring) => {
-    let d = "";
-    for (let index = 0; index < ring.length; index += 2) {
-      d += `${index ? "L" : "M"}${(cx + ring[index] * scale).toFixed(1)} ${(cy - ring[index + 1] * scale).toFixed(1)}`;
-    }
-    return `${d}Z`;
-  }).join("");
-  return {
-    cx,
-    cy,
-    r,
-    land: worldGlobe.countries.filter(({ code }) => code !== "KR").map(({ rings }) => path(rings)).join(""),
-    korea: path(worldGlobe.countries.find(({ code }) => code === "KR").rings),
-  };
-})();
-
-function MapGlobe() {
+// WorldGlobe at the story's turn and zoom (world-globe.json, pre-projected): the glow, the shaded sphere, the land,
+// Korea filled and the highlight, in the area's dp.
+function MapGlobe({ data }) {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const { cx, cy, r } = GLOBE;
+  const { cx, cy, r } = VIEW.globe;
   const stop = (offset, color) => <stop offset={offset} style={{ stopColor: color }} />;
   return (
     <svg className="how-map-globe" viewBox={box([0, 0, VIEW.area.width, VIEW.area.height])} focusable="false">
@@ -341,8 +263,8 @@ function MapGlobe() {
       </defs>
       <circle cx={cx} cy={cy} r={r * 1.12} fill={`url(#${id}-glow)`} />
       <circle cx={cx} cy={cy} r={r} fill={`url(#${id}-sphere)`} />
-      <path className="how-globe-land" d={GLOBE.land} />
-      <path className="how-globe-visited" d={GLOBE.korea} />
+      <path className="how-globe-land" d={data?.globeLand} />
+      <path className="how-globe-visited" d={data?.globeKorea} />
       <circle cx={cx} cy={cy} r={r} fill={`url(#${id}-light)`} />
     </svg>
   );
@@ -369,9 +291,10 @@ function MapCard({ kind, title, counts, back = false, node }) {
   );
 }
 
-const DRILL_TOTAL = gyeongbuk.districts.length;
-const KOREA_TOTAL = koreaProvinces.length;
-// MapSummaryCard's world total.
+// MapSummaryCard's totals: Gyeongsangbuk-do's 22 districts, the 17 provinces (both checked against the data by
+// the tests) and the world's 195.
+export const DRILL_TOTAL = 22;
+export const KOREA_TOTAL = 17;
 const WORLD_TOTAL = 195;
 
 function MapIcon({ tab }) {
@@ -409,9 +332,13 @@ const MAP_PLACEMENT = { "--map-card-top": VIEW.cardTop.toFixed(2), "--map-area-t
 // TripMapScreen with MapRoute's content. story (the scroll story): develop's Gyeongsangbuk-do drill map (Gyeongju fills when the
 // record saves), the camera's pull-back to the Korea map (the province filled) and the world globe (Korea filled),
 // driven by the stage's data-map state and the frame's nodes. korea: the Korea map alone (the static list).
-export function MapScreen({ node, variant = "story" }) {
+export function MapScreen({ node, variant = "story", data: given }) {
   const story = variant === "story";
   const n = (name) => (story ? name : undefined);
+  // The story's map shows only in beat 05; the hook starts its load as the track comes near. A static figure
+  // starts it at once. Until it lands the groups are empty (the hook's nodes are always there).
+  const loaded = useHowMapData(!story && !given);
+  const data = given ?? loaded;
   return (
     <div className="how-app-screen how-app-map" data-node={node} data-variant={variant} style={MAP_PLACEMENT}>
       <div className="how-map-header">
@@ -436,27 +363,27 @@ export function MapScreen({ node, variant = "story" }) {
             {story && (
               <>
                 {/* The land under the district lines: the same rings in one path, so it matches them exactly. */}
-                <g className="how-map-land"><path d={DISTRICT_LAND} /></g>
-                <g className="how-map-lines" data-node="mapDistrictLines">{DISTRICTS.map(({ code, d }) => <path key={code} d={d} />)}</g>
+                <g className="how-map-land">{data && <path d={data.districtLand} />}</g>
+                <g className="how-map-lines" data-node="mapDistrictLines">{data?.districts.map(({ code, d }) => <path key={code} d={d} />)}</g>
               </>
             )}
-            <g className="how-map-provinces" data-node={n("mapProvinces")}>{PROVINCES.map(({ code, d }) => <path key={code} d={d} />)}</g>
+            <g className="how-map-provinces" data-node={n("mapProvinces")}>{data?.provinces.map(({ code, d }) => <path key={code} d={d} />)}</g>
             {story && (
               <g data-node="mapFillDistrict">
-                <path className="how-map-visited how-map-fill-district" d={VISITED_DISTRICT.d} style={{ transformOrigin: FILL_ORIGIN }} />
+                {data && <path className="how-map-visited how-map-fill-district" d={data.visitedDistrict} style={{ transformOrigin: data.fillOrigin }} />}
               </g>
             )}
-            <g className="how-map-fill-province" data-node={n("mapFillProvince")}><path className="how-map-visited" d={VISITED_PROVINCE.d} /></g>
+            <g className="how-map-fill-province" data-node={n("mapFillProvince")}>{data && <path className="how-map-visited" d={data.visitedProvince} />}</g>
           </svg>
           {story && (
             <div className="how-map-labels" data-node="mapLabels">
-              {DISTRICTS.map(({ code, name, label }) => (
+              {data?.districts.map(({ code, name, label }) => (
                 <span key={code} style={{ left: `calc(${label[0].toFixed(1)} * var(--dp))`, top: `calc(${label[1].toFixed(1)} * var(--dp))` }}>{name}</span>
               ))}
             </div>
           )}
         </div>
-        {story && <div className="how-map-world"><MapGlobe /></div>}
+        {story && <div className="how-map-world"><MapGlobe data={data} /></div>}
         <span className="how-map-fab"><svg viewBox="0 0 24 24" focusable="false"><path d="M4.32 12H19.68 M12 4.32V19.68" /></svg></span>
       </div>
       <div className="how-map-cards">
