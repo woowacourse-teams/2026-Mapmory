@@ -206,7 +206,9 @@
 .how-import-results { opacity: 0; transform: translateY(calc(8 * var(--dp))); }
 [data-results="1"] .how-import-results { opacity: 1; transform: none; transition: opacity 320ms var(--ease-out), transform 320ms var(--ease-out); }
 .how-import-results-label { padding-top: calc(18 * var(--dp)); color: var(--app-heading); font-size: calc(14 * var(--dp)); font-weight: 700; line-height: calc(20 * var(--dp)); }
-.how-import-list { margin-top: calc(10 * var(--dp)); overflow: hidden; border: calc(1 * var(--dp)) solid var(--app-border); border-radius: calc(18 * var(--dp)); }
+/* No overflow clip here: a rounded clip inside the sliding import screen makes Chromium repaint the whole screen on
+   every frame of the push. The row carries the inner radius itself. */
+.how-import-list { margin-top: calc(10 * var(--dp)); border: calc(1 * var(--dp)) solid var(--app-border); border-radius: calc(18 * var(--dp)); }
 .how-import-row {
   position: relative;
   height: calc(64 * var(--dp));
@@ -214,10 +216,11 @@
   display: flex;
   align-items: center;
   gap: calc(14 * var(--dp));
+  border-radius: calc(17 * var(--dp));
   background: var(--app-surface);
 }
 .how-import-row > :not(.how-import-row-bg, .how-tap) { position: relative; }
-.how-import-row-bg { position: absolute; inset: 0; background: var(--app-primary-soft); opacity: 0; }
+.how-import-row-bg { position: absolute; inset: 0; border-radius: inherit; background: var(--app-primary-soft); opacity: 0; }
 .how-import-scope { color: var(--app-accent); font-size: calc(11 * var(--dp)); font-weight: 700; }
 .how-import-name { flex: 1 1 auto; min-width: 0; color: var(--app-text); font-size: calc(15 * var(--dp)); font-weight: 700; }
 .how-import-mark { display: grid; font-size: calc(18 * var(--dp)); font-weight: 700; line-height: 1; }
@@ -258,7 +261,7 @@
 }
 .how-import-row .how-tap { left: 46%; }
 [data-tap-field="1"] .how-tap[data-tap="field"],
-[data-row="1"] .how-tap[data-tap="row"] { animation: how-tap 360ms var(--ease-out) both; }
+[data-row="1"] .how-tap[data-tap="row"] { animation: how-tap 360ms var(--ease-out) backwards; }
 .how-tap[data-tap][data-skip="1"],
 [data-instant="1"] .how-tap[data-tap],
 .how-static-figure .how-tap[data-tap] { animation: none; opacity: 0; }
@@ -306,6 +309,9 @@
 .how-loading-bar { width: 100%; height: calc(8 * var(--dp)); margin-top: calc(18 * var(--dp)); display: block; overflow: hidden; border-radius: calc(4 * var(--dp)); background: var(--app-primary-soft); }
 .how-loading-bar i { width: 100%; height: 100%; display: block; border-radius: inherit; background: var(--app-primary); transform: scaleX(0); transform-origin: 0 50%; }
 .how-loading-percent { width: 100%; height: calc(19 * var(--dp)); margin-top: calc(10 * var(--dp)); contain: strict; color: var(--app-accent); font-size: calc(14 * var(--dp)); font-weight: 700; line-height: calc(19 * var(--dp)); font-variant-numeric: tabular-nums; }
+/* The counter and percent are flex items, which cannot be relayout boundaries; their text sits in a strictly
+   contained block inside them, so each new value lays out only that block. */
+:is(.how-loading-count, .how-loading-percent) > span { display: block; height: 100%; contain: strict; }
 .how-loading-message { margin-top: calc(18 * var(--dp)); color: var(--app-secondary); font-size: calc(14 * var(--dp)); }
 
 /* PhotoPickerStep. */

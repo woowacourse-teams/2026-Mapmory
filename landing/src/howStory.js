@@ -2,7 +2,7 @@
 // 01 장소 검색 -> 02 사진첩 확인(the camera pushes into the phone) -> 03 경주 사진 4장 -> 04 고르기 -> 05 지도.
 // Pure: no React, no analytics, no DOM. Every frame is a function of scroll progress p (0..1) and the measured
 // layout, so scrolling back up replays the same frames. All visible text lives here.
-import { HOW_STORY_TEST_LAYOUT } from "./howStoryLayout.js";
+import { HOW_STORY_APP_PROGRESS, HOW_STORY_TEST_LAYOUT } from "./howStoryLayout.js";
 
 export { HOW_STORY_TEST_LAYOUT };
 
@@ -430,7 +430,25 @@ const move = (tx, ty, s = 1, o) => {
   return node;
 };
 
+// develop's determinate LinearProgressIndicator (Material3 1.4, PhotoLoadingBar): a round-capped indicator, a
+// gap, then the track from the gap to the end, with a stop dot at the track's end. Both parts are full-width
+// elements placed by translateX (never by width or scaleX, which would squash the round ends): fill is where the
+// indicator's right end sits relative to the bar's right edge, track where the track's left end sits. px.
+export function linearProgressPlacement(k, bar, gap) {
+  const { w, h } = bar;
+  if (k <= 0) return { fill: -w, track: 0 };
+  const cap = h / 2;
+  const fraction = k / 100;
+  const fillEnd = Math.min(w, Math.max(fraction * w, cap) + cap);
+  const trackStart = fraction + Math.min(fraction, (gap + h) / w);
+  const track = trackStart >= 1 ? w : Math.min(w - cap, Math.max(trackStart * w, cap)) - cap;
+  return { fill: round(fillEnd - w), track: round(track) };
+}
+
 // One frame of the story. nodes are written as transform/opacity, texts as text, state as data-* on the stage.
+// A layer nobody can see gets no writes: the loading screen's counter, percent and bar stop once the screen has
+// gone clear, and the overlay's number and bar start only when the overlay shows (the hook keeps the last
+// value; the frame emits the right one again as soon as the layer is visible).
 export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, options = {}) {
   const { inward = HOW_STORY_INWARD } = options;
   const plan = getHowStoryPlan(options);
@@ -439,6 +457,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const [t1, t2, t3, t4, t5] = HOW_STORY_WINDOWS.map(([start, end]) => seg(progress, start, end));
   const L = layout;
   const nodes = {};
+  const texts = {};
 
   // Camera: in over beat 02 t .06-.24, out over beat 04 t 0-.28 (e = 1 means inside the phone).
   const outward = progress >= HOW_STORY_WINDOWS[3][0];
@@ -448,14 +467,20 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const zoom = inward === "zoom";
   const z = zoom ? lerp(1, L.kIn, e) : 1;
   nodes.phoneCamera = zoom ? move(L.d.x * e, L.d.y * e, z) : move(0, 0, 1);
-  nodes.phoneFade = fade(outward ? seg(outE, 0.3, 0.9) : 1 - seg(inE, 0.25, 0.7));
+  // Inward, in order: the library and the dark ground come up under the phone, the screen (content and
+  // background) goes clear so the library shows in the screen's place, then the clay bezel fades. Outward runs
+  // the other way. Each is one opacity on its own wrapper.
+  const windowO = outward ? 1 - seg(outE, 0, 0.5) : seg(inE, 0.05, 0.3);
   nodes.mosaicWindow = zoom
-    ? move((e - 1) * L.d.x, (e - 1) * L.d.y, z / L.kIn, outward ? 1 - seg(outE, 0, 0.5) : seg(inE, 0.15, 0.6))
-    : move(0, 0, 1, outward ? 1 - seg(outE, 0, 0.5) : seg(inE, 0.15, 0.6));
-  const ground = outward ? 1 - seg(outE, 0.1, 0.6) : seg(inE, 0.3, 0.8);
+    ? move((e - 1) * L.d.x, (e - 1) * L.d.y, z / L.kIn, windowO)
+    : move(0, 0, 1, windowO);
+  const ground = outward ? 1 - seg(outE, 0.1, 0.6) : seg(inE, 0.05, 0.35);
   nodes.ground = fade(ground);
   // The bottom fade blends the cropped phone into the canvas; it hides while the ground is up.
   nodes.bottomFade = fade(1 - ground);
+  const screenO = outward ? seg(outE, 0.3, 0.75) : 1 - seg(inE, 0.1, 0.35);
+  nodes.screenFade = fade(screenO);
+  nodes.phoneFade = fade(outward ? seg(outE, 0.3, 0.9) : 1 - seg(inE, 0.25, 0.7));
 
   // Screens inside the phone (screen px). Beat 02 pushes 사진 불러오기 out and the loading screen in.
   const push = EASE_IN_OUT(seg(t2, 0, 0.08));
@@ -467,8 +492,13 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
 
   // Counter and pin wave share one number, so they never disagree.
   const { k, processed } = loadingStep(t2);
-  nodes.loadingBar = { sx: round(k / 100, 2) };
-  nodes.overlayBarFill = { sx: round(k / 100, 2) };
+  if (!outward && screenO > 0) {
+    texts.loadingCount = fillHowStoryText(APP_SCREEN_TEXT.loading.count, { processed, total: HOW_STORY_LIBRARY_COUNT });
+    texts.loadingPct = fillHowStoryText(APP_SCREEN_TEXT.loading.percent, { p: k });
+    const bar = linearProgressPlacement(k, L.loadingBar, HOW_STORY_APP_PROGRESS.gapDp * L.dp);
+    nodes.loadingFill = move(bar.fill, 0);
+    nodes.loadingTrack = move(bar.track, 0);
+  }
   const edge = waveEdge(k, L);
   const reveal = L.window.h * (1 - edge);
   nodes.pinsReveal = move(0, -reveal);
@@ -483,7 +513,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   nodes.pinsLayer = fade(lerp(1, 0.55, settle) * (1 - dim));
   nodes.overlayBar = fade(1 - dim);
   const overlayIn = EASE_OUT(seg(t2, 0.16, 0.24));
-  nodes.overlay = outward ? move(0, 0, 1, 1 - seg(outE, 0, 0.3)) : move(0, 12 * (1 - overlayIn), 1, overlayIn);
+  const overlayO = outward ? 1 - seg(outE, 0, 0.3) : overlayIn;
+  nodes.overlay = outward ? move(0, 0, 1, overlayO) : move(0, 12 * (1 - overlayIn), 1, overlayIn);
+  if (overlayO > 0) {
+    texts.overlayValue = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: formatHowStoryNumber(processed) });
+    nodes.overlayBarFill = move(L.overlayBar * (k / 100 - 1), 0);
+  }
 
   // The four 경주 photos: in the library (lifted once their pin pops) until their flight starts, then the stage
   // tiles take over at the lifted rect and fly (spring, staggered) to a 2x2 cluster. The beat 04 picker
@@ -521,20 +556,13 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     map: "drill1",
   };
 
-  const texts = {
-    loadingCount: fillHowStoryText(APP_SCREEN_TEXT.loading.count, { processed, total: HOW_STORY_LIBRARY_COUNT }),
-    loadingPct: fillHowStoryText(APP_SCREEN_TEXT.loading.percent, { p: k }),
-    overlayValue: fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: formatHowStoryNumber(processed) }),
-  };
-
   return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs: {}, state };
 }
 
 // Inline style for one frame node; the scroll hook writes the same strings straight to the DOM.
 export function getHowStoryNodeStyle(node) {
   const style = {};
-  if (node.tx !== undefined) style.transform = `translate3d(${node.tx}px, ${node.ty}px, 0) scale(${node.s})`;
-  else if (node.sx !== undefined) style.transform = `scaleX(${node.sx})`;
+  if (node.tx !== undefined) style.transform = node.s === 1 ? `translate3d(${node.tx}px, ${node.ty}px, 0)` : `translate3d(${node.tx}px, ${node.ty}px, 0) scale(${node.s})`;
   if (node.o !== undefined) style.opacity = String(node.o);
   return style;
 }

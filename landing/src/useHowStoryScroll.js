@@ -10,7 +10,6 @@ import {
 } from "./howStory.js";
 import { createHowStoryLayout, getHowStoryMode } from "./howStoryLayout.js";
 import { latestEntry } from "./howStoryAnalytics.js";
-import { digitKind } from "./how/digits.js";
 
 // Below this the frame is the same to a hundredth of a pixel, so the frame is not recomputed.
 const P_EPSILON = 0.00001;
@@ -121,19 +120,8 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
         write(element, "transform", nodeStyle.transform);
         write(element, "opacity", nodeStyle.opacity);
       }
-      for (const [key, value] of Object.entries(storyFrame.texts)) {
-        const element = textElements.get(key);
-        if (element?.dataset.digits === undefined) {
-          write(element, "text", value);
-          continue;
-        }
-        // Fixed-width digit cells (no tabular digits in LINE Seed): one character per cell.
-        const chars = [...value];
-        [...element.children].forEach((cell, index) => {
-          write(cell, "data:c", digitKind(chars[index]));
-          write(cell, "text", chars[index] ?? "");
-        });
-      }
+      // One text node per value, rewritten only when it changes (101 values per counter at most).
+      for (const [key, value] of Object.entries(storyFrame.texts)) write(textElements.get(key), "text", value);
       for (const [key, attrs] of Object.entries(storyFrame.attrs)) {
         for (const [name, value] of Object.entries(attrs)) write(attrElements.get(key), `attr:${name}`, value);
       }

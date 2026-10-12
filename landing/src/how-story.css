@@ -150,7 +150,8 @@
   background: radial-gradient(closest-side, var(--how-glow), transparent);
   transform: translate(-50%, -50%);
 }
-/* Inside the phone: a dark ground fills the stage clip (with a 1px edge in dark mode). */
+/* Inside the phone: a dark ground fills the stage clip (with a 1px edge in dark mode). It comes up early in the
+   push, so the stage around the growing library is dark rather than a grey wash. */
 .how-ground { width: 100%; height: 100%; border-radius: inherit; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); opacity: 0; }
 
 /* The library window: full stage width at the screen's aspect, centred on the stage; the camera scales it down
@@ -232,6 +233,12 @@
   border-radius: calc(var(--phone-w) * 0.127);
   background: var(--app-bg);
 }
+/* In the scroll story the screen's background lives on its fade wrapper, so the whole screen can go clear. */
+.how-stage .how-phone-screen { background: transparent; }
+.how-screen-fade { position: absolute; inset: 0; background: var(--app-bg); }
+/* The map screen only shows in beat 05. Until then its contents skip layout: Chromium lays its SVG district labels
+   out again whenever an ancestor's scale changes, which would be every frame of the camera move. */
+.how-stage:not([data-scene="5"]) .how-app-map { content-visibility: hidden; }
 .how-phone-punch { position: absolute; z-index: 2; left: 50%; top: calc(8 * var(--dp)); width: calc(8 * var(--dp)); height: calc(8 * var(--dp)); margin-left: calc(-4 * var(--dp)); border-radius: 50%; background: #0e1113; }
 /* Screens that are not near the current scene cost no paint. */
 .how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"]) :is(.how-app-import, .how-app-loading),
@@ -260,16 +267,18 @@
 .how-overlay-value { position: relative; margin: 0; display: grid; justify-items: center; }
 .how-overlay-label > *,
 .how-overlay-value > * { grid-area: 1 / 1; white-space: nowrap; }
-.how-overlay-label { color: rgba(255, 255, 255, 0.72); font-size: 14px; font-weight: 700; line-height: 20px; }
-.how-overlay-value { margin-top: 4px; font-size: 44px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.how-overlay-label { color: rgba(255, 255, 255, 0.82); font-size: 14px; font-weight: 700; line-height: 20px; }
+.how-overlay-value { margin-top: 4px; font-size: 44px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+/* The running count: the box takes the final value's natural width (the invisible sizer), the live text sits
+   over it from its left edge. The live box is absolutely placed with strict containment, so a new number lays out
+   only that box (a grid or flex item cannot be a relayout boundary, and would relayout the page every frame). */
+.how-overlay-count { position: relative; display: block; }
+.how-overlay-sizer { display: block; visibility: hidden; }
+.how-overlay-live { position: absolute; inset: 0; contain: strict; text-align: left; }
 .how-overlay-bar { position: relative; width: 160px; height: 4px; margin-top: 12px; display: block; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, 0.16); }
-.how-overlay-bar i { width: 100%; height: 100%; display: block; background: var(--how-match); transform: scaleX(0); transform-origin: 0 50%; }
+/* The fill slides in from the left (translateX), so its round end keeps its shape. */
+.how-overlay-bar i { width: 100%; height: 100%; display: block; border-radius: inherit; background: var(--how-match); transform: translateX(-100%); }
 .how-overlay-b { opacity: 0; }
-.how-digits { display: inline-flex; justify-content: center; }
-.how-digits i { font-style: normal; text-align: center; }
-.how-digits i[data-c="d"] { width: 0.58em; }
-.how-digits i[data-c="p"] { width: 0.3em; }
-.how-digits i[data-c=""] { display: none; }
 /* The number lands: the label crossfades, 21,474장 leaves upward and 4장 arrives as a new number. */
 :is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-label .how-overlay-a { opacity: 0; transition: opacity 200ms ease; }
 :is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-label .how-overlay-b { opacity: 1; transition: opacity 200ms ease; }
@@ -305,7 +314,10 @@
 .how-story-track.is-entered .how-frame-pill { animation: how-copy-in 420ms var(--ease-out) backwards; }
 
 /* Only the moving layers are promoted, and only while the track is near. */
-.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
+.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-screen-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
+/* Scrubbed opacity on a large layer: promoted too, so a change is a compositor update, not a repaint. */
+.how-story-track.is-live :is(.how-ground, .how-bottom-fade, .how-mosaic-sprite, .how-pins-layer) { will-change: opacity; }
+.how-story-track.is-live .how-overlay-bar i { will-change: transform; }
 
 /* The skip link lands here; the margin keeps the globe link below the sticky header. */
 .how-story-end { display: flex; scroll-margin-top: 100px; }

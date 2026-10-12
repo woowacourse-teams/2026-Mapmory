@@ -45,6 +45,11 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
   pinHeight: 8,
 });
 
+// Material3 1.4 progress details in develop's PhotoLoadingStep (library defaults, not custom drawing): the gap
+// between indicator and track, and the stop dot at the linear track's end, in dp. Unverified fidelity (no
+// device capture yet); how-app-screens.css mirrors them as --app-progress-gap and --app-progress-stop.
+export const HOW_STORY_APP_PROGRESS = Object.freeze({ gapDp: 4, stopDp: 4 });
+
 // Where each found photo sits in the library window, as fractions of the window [fx, fy] (top-left of its cell
 // before snapping to the tile grid). All four sit inside the visible band on every target viewport.
 export const HOW_STORY_MATCH_CELLS = Object.freeze([

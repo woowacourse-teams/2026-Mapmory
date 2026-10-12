@@ -6,7 +6,6 @@ import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { PhoneFrame } from "./how/PhoneFrame.jsx";
 import { ImportScreen, LOADING_DONE, LOADING_START, LoadingScreen, MapScreen, PickerScreen } from "./how/AppScreens.jsx";
 import { LibraryMosaic, LibraryStill } from "./how/LibraryMosaic.jsx";
-import { DIGIT_CELLS, digitKind } from "./how/digits.js";
 import {
   HOW_STORY_BEATS,
   HOW_STORY_EXPERIENCE_TYPE,
@@ -25,6 +24,7 @@ const STATIC_RECHECK_GROWTH = 100;
 const VIEW_OBSERVER_THRESHOLDS = Array.from({ length: 51 }, (_, index) => index / 50);
 
 const OVERLAY_START = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: 0 });
+const OVERLAY_TOTAL = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
 const OVERLAY_FOUND = fillHowStoryText(HOW_STORY_TEXT.overlayValue, { n: HOW_STORY_MATCHES.length });
 const OVERLAY_SCOPE = fillHowStoryText(HOW_STORY_TEXT.overlayScope, { total: formatHowStoryNumber(HOW_STORY_LIBRARY_COUNT) });
 
@@ -47,18 +47,10 @@ function BeatCopy({ beat, description }) {
   );
 }
 
-// The running number sits in fixed-width cells, so its per-frame writes never shift the digits or relayout the
-// block. The hook rewrites the cells in place.
-function DigitCells({ value, textKey }) {
-  const chars = [...value];
-  return (
-    <span className="how-digits" data-text={textKey} data-digits="">
-      {Array.from({ length: DIGIT_CELLS }, (_, index) => <i data-c={digitKind(chars[index])} key={index}>{chars[index] ?? ""}</i>)}
-    </span>
-  );
-}
-
 // The big number over the library: the checked count while the phone checks, then the Gyeongju result lands.
+// The running count is one text node in a fixed box sized by an invisible copy of the final value, so a write
+// never relayouts anything outside it. It is set naturally (LINE Seed has no tabular digits) and anchored at
+// the start, so the leading digits stay put while the last ones run; at rest it is the final value, centred.
 function Overlay({ value, found = false, node }) {
   return (
     <div className="how-overlay" data-node={node} data-found={found ? "1" : undefined}>
@@ -68,7 +60,10 @@ function Overlay({ value, found = false, node }) {
         <span className="how-overlay-b">{OVERLAY_SCOPE}</span>
       </p>
       <p className="how-overlay-value">
-        <span className="how-overlay-a"><DigitCells value={value} textKey={node && "overlayValue"} /></span>
+        <span className="how-overlay-a how-overlay-count">
+          <span className="how-overlay-sizer">{OVERLAY_TOTAL}</span>
+          <span className="how-overlay-live" data-text={node && "overlayValue"}>{value}</span>
+        </span>
         <span className="how-overlay-b">{OVERLAY_FOUND}</span>
       </p>
       <span className="how-overlay-bar" data-node={node && "overlayBar"}><i data-node={node && "overlayBarFill"} /></span>
@@ -89,10 +84,13 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
           <div className="how-phone-camera" data-node="phoneCamera">
             <div className="how-phone-fade" data-node="phoneFade">
               <PhoneFrame>
-                <ImportScreen node="screenImport" />
-                <LoadingScreen node="screenLoading" {...LOADING_START} />
-                <PickerScreen node="screenPicker" />
-                <MapScreen node="screenMap" variant="drill" />
+                {/* The screen (content and background) goes clear before the bezel on the way in. */}
+                <div className="how-screen-fade" data-node="screenFade">
+                  <ImportScreen node="screenImport" />
+                  <LoadingScreen node="screenLoading" {...LOADING_START} />
+                  <PickerScreen node="screenPicker" />
+                  <MapScreen node="screenMap" variant="drill" />
+                </div>
               </PhoneFrame>
             </div>
           </div>
