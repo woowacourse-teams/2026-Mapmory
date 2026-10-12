@@ -31,3 +31,9 @@ test("every demo photo exists and has an open license credit", async () => {
     for (const field of ["creator", "title"]) assert.doesNotMatch(credit[field] ?? "", /%[0-9a-f]{2}|%u[0-9a-f]{4}/i, `${src} ${field}`);
   }
 });
+
+test("every credit belongs to a photo the page shows, so removed photos leave no orphan credits", () => {
+  const usedFiles = new Set(used);
+  assert.equal(new Set(credits.map(({ file }) => file)).size, credits.length);
+  for (const { file } of credits) assert.ok(usedFiles.has(file), `orphaned credit ${file}`);
+});
