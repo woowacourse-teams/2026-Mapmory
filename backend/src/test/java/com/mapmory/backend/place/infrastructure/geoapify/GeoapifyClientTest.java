@@ -27,7 +27,7 @@ class GeoapifyClientTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         GeoapifyClient client = new GeoapifyClient(
                 builder, "https://api.geoapify.test", "test-key", mock(GeoapifyRequestLimiter.class));
-        assertThat(client.providerCode()).isEqualTo("GEOAPIFY");
+        assertThat(client.providerCode("park-1")).isEqualTo("GEOAPIFY");
         server.expect(queryParam("text", URLEncoder.encode("한강공원", StandardCharsets.UTF_8)))
                 .andRespond(withSuccess("""
                         {"results":[

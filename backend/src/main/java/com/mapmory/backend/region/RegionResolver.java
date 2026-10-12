@@ -1,6 +1,7 @@
 package com.mapmory.backend.region;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,6 +27,10 @@ public class RegionResolver {
         }
 
         return findChild(province, RegionType.DISTRICT, districtCode);
+    }
+
+    public List<Region> children(Region parent, RegionType regionType) {
+        return regionRepository.findByParentIdAndRegionType(parent.getId(), regionType);
     }
 
     private Region findCountry(String countryCode) {

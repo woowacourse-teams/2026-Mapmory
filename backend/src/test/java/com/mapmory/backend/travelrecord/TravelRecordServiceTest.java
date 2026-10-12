@@ -141,7 +141,7 @@ class TravelRecordServiceTest {
         when(placeLookupPort.findById("park-1"))
                 .thenReturn(new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932,
                         "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"));
-        when(placeLookupPort.providerCode()).thenReturn("TEST_PROVIDER");
+        when(placeLookupPort.providerCode("park-1")).thenReturn("TEST_PROVIDER");
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -162,7 +162,7 @@ class TravelRecordServiceTest {
         );
         PlaceDetails place = new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932, null, null);
         when(placeLookupPort.findById("park-1")).thenReturn(place);
-        when(placeLookupPort.providerCode()).thenReturn("GEOAPIFY");
+        when(placeLookupPort.providerCode("park-1")).thenReturn("GEOAPIFY");
         when(placeSelectionService.suggestedRegion(place)).thenReturn(district);
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

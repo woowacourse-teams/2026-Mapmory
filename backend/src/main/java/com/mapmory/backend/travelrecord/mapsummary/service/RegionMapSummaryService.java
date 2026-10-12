@@ -4,7 +4,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.exception.RegionErrorCode;
+import com.mapmory.backend.region.RegionErrorCode;
 import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.region.RegionType;

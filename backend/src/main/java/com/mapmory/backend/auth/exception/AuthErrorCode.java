@@ -30,6 +30,16 @@ public enum AuthErrorCode implements ErrorCode {
             "카카오 로그인을 일시적으로 사용할 수 없습니다.",
             "카카오 인증 서버 오류로 로그인에 실패했습니다. 잠시 후 다시 시도하세요."
     ),
+    INVALID_GOOGLE_TOKEN(
+            ErrorKind.AUTHENTICATION_REQUIRED,
+            "구글 인증에 실패했습니다.",
+            "구글 ID token이 유효하지 않습니다."
+    ),
+    GOOGLE_UNAVAILABLE(
+            ErrorKind.SERVICE_UNAVAILABLE,
+            "구글 로그인을 일시적으로 사용할 수 없습니다.",
+            "구글 인증 서버 오류로 로그인에 실패했습니다. 잠시 후 다시 시도하세요."
+    ),
     INVALID_REFRESH_TOKEN(
             ErrorKind.AUTHENTICATION_REQUIRED,
             "유효하지 않은 refresh 토큰입니다.",

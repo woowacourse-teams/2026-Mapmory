@@ -1,5 +1,6 @@
 package com.mapmory.backend.common.handler;
 
+import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.exception.ErrorCode;
@@ -53,7 +54,11 @@ public class BusinessExceptionHandler {
         ErrorCode errorCode = exception.getErrorCode();
         // TODO: SERVICE_UNAVAILABLE 전체를 ERROR로 기록할지, KAKAO_UNAVAILABLE만 대상으로 할지 논의 필요
         boolean serviceUnavailable = errorCode.kind() == ErrorKind.SERVICE_UNAVAILABLE;
-        LoggingEventBuilder event = serviceUnavailable ? log.atError() : log.atDebug();
+        boolean refreshTokenFailure = errorCode == AuthErrorCode.EXPIRED_REFRESH_TOKEN
+                || errorCode == AuthErrorCode.INVALID_REFRESH_TOKEN;
+        LoggingEventBuilder event = serviceUnavailable
+                ? log.atError()
+                : refreshTokenFailure ? log.atInfo() : log.atDebug();
 
         event.addKeyValue("event", "BUSINESS_EXCEPTION")
                 .addKeyValue("errorCode", errorCode.code())

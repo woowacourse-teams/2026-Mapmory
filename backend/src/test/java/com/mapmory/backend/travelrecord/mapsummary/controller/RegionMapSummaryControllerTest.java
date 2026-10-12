@@ -10,14 +10,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.mapmory.backend.auth.jwt.JwtConfig;
-import com.mapmory.backend.auth.jwt.JwtProvider;
+import com.mapmory.backend.auth.token.jwt.JwtConfig;
+import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.region.RegionErrorCode;
 import com.mapmory.backend.region.RegionType;
-import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.service.RegionMapSummaryService;

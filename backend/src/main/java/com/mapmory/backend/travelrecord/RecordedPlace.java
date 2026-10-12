@@ -4,7 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import java.util.Objects;
 
-/** 여행 기록에 저장한 장소의 식별자와 표시 정보. */
+/** 여행 기록에 저장한 장소의 식별자와 표시 정보. Google 장소는 약관상 이름을 저장하지 않아 name이 null이다. */
 @Embeddable
 public record RecordedPlace(
         @Column(name = "place_provider", length = 20)
@@ -21,6 +21,5 @@ public record RecordedPlace(
     public RecordedPlace {
         Objects.requireNonNull(provider, "장소 제공자는 필수입니다.");
         Objects.requireNonNull(id, "장소 ID는 필수입니다.");
-        Objects.requireNonNull(name, "장소 이름은 필수입니다.");
     }
 }

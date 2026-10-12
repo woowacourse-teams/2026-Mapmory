@@ -42,6 +42,21 @@ guest-login:
 kakao:
   user-info-uri: https://kapi.kakao.com/v2/user/me
 
+google:
+  # ID token의 aud로 허용할 OAuth 클라이언트 ID 목록(쉼표 구분). Android Credential Manager는
+  # serverClientId로 지정한 웹 클라이언트 ID를, iOS SDK는 iOS 클라이언트 ID를 aud로 넣는다.
+  # 비어 있으면 모든 구글 로그인을 거부한다. (ADR 0019)
+  client-ids: ${GOOGLE_CLIENT_IDS:}
+  jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  places:
+    # Places API (New) 키. 비어 있으면 장소 검색은 Geoapify를 쓴다. (docs/place-search.md)
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    rate-limit:
+      # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 하루 한도를 둔다.
+      autocomplete-per-day: 300
+      details-per-day: 300
+      requests-per-second: 4
+
 geoapify:
   api-key: ${GEOAPIFY_API_KEY:}
   rate-limit:

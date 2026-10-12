@@ -1,3 +1,11 @@
+# Vercel 관리자 페이지에서 API 세션 쿠키를 보내려면 cross-site 쿠키가 필요하다.
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: none
+        secure: true
+
 spring:
   datasource:
     url: jdbc:mysql://${DB_HOST}:3306/mapmory?serverTimezone=UTC&characterEncoding=UTF-8
@@ -10,6 +18,10 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
+
+admin:
+  cors:
+    allowed-origins: ${ADMIN_ALLOWED_ORIGINS:http://localhost:4174,http://127.0.0.1:4174}
 
 logging:
   file:

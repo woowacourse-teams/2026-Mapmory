@@ -17,8 +17,8 @@ public class PlaceSearchService {
         this.rateLimitPort = rateLimitPort;
     }
 
-    public List<PlaceCandidate> search(Long memberId, String query) {
+    public List<PlaceCandidate> search(Long memberId, String query, String sessionToken) {
         rateLimitPort.checkSearch(memberId);
-        return placeLookupPort.search(query.strip());
+        return placeLookupPort.search(query.strip(), sessionToken);
     }
 }

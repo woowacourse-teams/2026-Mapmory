@@ -2,7 +2,7 @@ package com.mapmory.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,16 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.auth.kakao.KakaoApiClient;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount.Profile;
-import com.mapmory.backend.auth.refresh.RefreshTokenRepository;
+import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
+import com.mapmory.backend.auth.token.refresh.RefreshTokenRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -32,8 +30,8 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
-    @MockitoBean
-    private KakaoApiClient kakaoApiClient;
+    @MockitoSpyBean
+    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 로그인_시_refresh는_원문이_아닌_해시로_저장된다() throws Exception {
@@ -81,8 +79,8 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     private String login(long kakaoId) throws Exception {
-        given(kakaoApiClient.fetchUser(anyString()))
-                .willReturn(new KakaoUserResponse(kakaoId, new KakaoAccount(new Profile("소현"))));
+        willReturn(new SocialIdentity(String.valueOf(kakaoId), "소현"))
+                .given(kakaoIdentityAdapter).verify(anyString());
 
         String responseBody = mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)

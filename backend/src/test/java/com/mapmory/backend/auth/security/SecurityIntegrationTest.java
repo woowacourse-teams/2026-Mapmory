@@ -8,8 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.auth.jwt.JwtProperties;
-import com.mapmory.backend.auth.jwt.JwtProvider;
+import com.mapmory.backend.auth.token.jwt.JwtProperties;
+import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import java.time.Duration;

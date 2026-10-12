@@ -2,18 +2,17 @@ package com.mapmory.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
-import com.mapmory.backend.auth.kakao.KakaoApiClient;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount.Profile;
+import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
@@ -21,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @AutoConfigureMockMvc
@@ -35,13 +34,12 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
     @Autowired
     private MemberRepository memberRepository;
 
-    @MockitoBean
-    private KakaoApiClient kakaoApiClient;
+    @MockitoSpyBean
+    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 신규_카카오_사용자는_회원으로_생성되고_토큰을_받는다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString()))
-                .willReturn(kakaoUser(100_001L, "소현"));
+        willReturn(kakaoIdentity(100_001L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
 
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -56,8 +54,7 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
 
     @Test
     void 기존_회원은_재로그인시_동일_회원으로_매핑되고_isNewMember는_false다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString()))
-                .willReturn(kakaoUser(100_002L, "소현"));
+        willReturn(kakaoIdentity(100_002L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
 
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -74,8 +71,8 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
 
     @Test
     void 유효하지_않은_카카오_토큰은_401_ProblemDetails로_응답한다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString()))
-                .willThrow(new BusinessException(AuthErrorCode.INVALID_KAKAO_TOKEN));
+        willThrow(new BusinessException(AuthErrorCode.INVALID_KAKAO_TOKEN))
+                .given(kakaoIdentityAdapter).verify(anyString());
 
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,7 +82,7 @@ class KakaoLoginIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("INVALID_KAKAO_TOKEN"));
     }
 
-    private KakaoUserResponse kakaoUser(Long id, String nickname) {
-        return new KakaoUserResponse(id, new KakaoAccount(new Profile(nickname)));
+    private SocialIdentity kakaoIdentity(Long id, String nickname) {
+        return new SocialIdentity(String.valueOf(id), nickname);
     }
 }

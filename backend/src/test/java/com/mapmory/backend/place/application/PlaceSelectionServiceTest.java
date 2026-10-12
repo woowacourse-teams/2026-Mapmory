@@ -16,6 +16,7 @@ import com.mapmory.backend.place.application.port.PlaceRateLimitPort;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionType;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ class PlaceSelectionServiceTest {
     @Mock PlaceRateLimitPort rateLimitPort;
     @Mock DistrictLocator districtLocator;
     @Mock RegionResolver regionResolver;
+    @Mock KoreanAddressRegionMatcher addressRegionMatcher;
     @InjectMocks PlaceSelectionService service;
 
     @Test
@@ -37,36 +39,52 @@ class PlaceSelectionServiceTest {
         Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
         Region province = Region.of(country, country, "11", "서울특별시", RegionType.PROVINCE);
         Region district = Region.of(province, country, "11560", "영등포구", RegionType.DISTRICT);
-        when(placeLookupPort.findById("park-1"))
+        when(placeLookupPort.findForSelection("park-1", null))
                 .thenReturn(new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932, null, null));
         when(districtLocator.find(126.932, 37.528))
                 .thenReturn(Optional.of(new DistrictLocator.DistrictMatch("11", "11560")));
         when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
 
-        SelectedPlace result = service.select(1L, "park-1");
+        SelectedPlace result = service.select(1L, "park-1", null);
 
         assertThat(result.suggestedRegion()).isEqualTo(district);
     }
 
     @Test
     void 경계에서_지역을_찾지_못하면_직접_선택하도록_알린다() {
-        when(placeLookupPort.findById("park-1"))
+        when(placeLookupPort.findForSelection("park-1", null))
                 .thenReturn(new PlaceDetails("park-1", "한강공원", "KR", 37.5, 127.0, null, null));
         when(districtLocator.find(127.0, 37.5)).thenReturn(Optional.empty());
 
-        SelectedPlace result = service.select(1L, "park-1");
+        SelectedPlace result = service.select(1L, "park-1", null);
 
         assertThat(result.suggestedRegion()).isNull();
     }
 
     @Test
     void 제공자가_국가_코드를_주지_않으면_직접_선택하도록_알린다() {
-        when(placeLookupPort.findById("place-1"))
+        when(placeLookupPort.findForSelection("place-1", null))
                 .thenReturn(new PlaceDetails("place-1", "섬", null, 0.0, 0.0, null, null));
 
-        SelectedPlace result = service.select(1L, "place-1");
+        SelectedPlace result = service.select(1L, "place-1", null);
 
         assertThat(result.suggestedRegion()).isNull();
+    }
+
+    @Test
+    void 주소를_주는_제공자는_좌표_대신_주소_이름으로_지역을_추천한다() {
+        Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+        Region province = Region.of(country, country, "11", "서울특별시", RegionType.PROVINCE);
+        Region district = Region.of(province, country, "11110", "종로구", RegionType.DISTRICT);
+        when(placeLookupPort.findForSelection("ChIJ-gyeong", null))
+                .thenReturn(new PlaceDetails("ChIJ-gyeong", "경복궁", "KR", null, null, null, null,
+                        List.of("서울특별시", "종로구")));
+        when(addressRegionMatcher.match(List.of("서울특별시", "종로구"))).thenReturn(Optional.of(district));
+
+        SelectedPlace result = service.select(1L, "ChIJ-gyeong", null);
+
+        assertThat(result.suggestedRegion()).isEqualTo(district);
+        verifyNoInteractions(districtLocator);
     }
 
     @Test
@@ -74,7 +92,7 @@ class PlaceSelectionServiceTest {
         doThrow(new BusinessException(PlaceErrorCode.PLACE_RATE_LIMITED))
                 .when(rateLimitPort).checkSelection(1L);
 
-        assertThatThrownBy(() -> service.select(1L, "park-1"))
+        assertThatThrownBy(() -> service.select(1L, "park-1", null))
                 .isInstanceOf(BusinessException.class);
         verifyNoInteractions(placeLookupPort);
     }

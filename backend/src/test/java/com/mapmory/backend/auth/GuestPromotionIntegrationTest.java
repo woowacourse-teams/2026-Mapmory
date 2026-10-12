@@ -2,7 +2,7 @@ package com.mapmory.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,10 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.auth.kakao.KakaoApiClient;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount;
-import com.mapmory.backend.auth.kakao.KakaoUserResponse.KakaoAccount.Profile;
+import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
@@ -22,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -43,15 +41,15 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     @Autowired
     private MemberRepository memberRepository;
 
-    @MockitoBean
-    private KakaoApiClient kakaoApiClient;
+    @MockitoSpyBean
+    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 게스트가_카카오_로그인하면_남긴_기록이_그대로_유지된다() throws Exception {
         String guestAccessToken = guestLogin("accessToken");
         createTravelRecord(guestAccessToken, "제주도 여행");
         long memberCountBeforePromotion = memberRepository.count();
-        given(kakaoApiClient.fetchUser(anyString())).willReturn(kakaoUser(200_001L, "소현"));
+        willReturn(kakaoIdentity(200_001L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
 
         String promotedAccessToken = kakaoLogin(guestAccessToken, "accessToken");
 
@@ -70,7 +68,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     void 승격된_회원은_카카오_닉네임을_이름으로_갖는다() throws Exception {
         String guestAccessToken = guestLogin("accessToken");
         long memberCountBeforePromotion = memberRepository.count();
-        given(kakaoApiClient.fetchUser(anyString())).willReturn(kakaoUser(200_002L, "소현"));
+        willReturn(kakaoIdentity(200_002L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
 
         kakaoLogin(guestAccessToken, "accessToken");
 
@@ -84,7 +82,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Test
     void 이미_가입한_카카오_계정이면_기존_회원으로_로그인되고_게스트_기록은_이어지지_않는다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString())).willReturn(kakaoUser(200_003L, "소현"));
+        willReturn(kakaoIdentity(200_003L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
         kakaoLogin(null, "accessToken");
 
         String guestAccessToken = guestLogin("accessToken");
@@ -100,7 +98,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Test
     void 충돌로_버려진_게스트는_토큰을_재발급받을_수_없다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString())).willReturn(kakaoUser(200_004L, "소현"));
+        willReturn(kakaoIdentity(200_004L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
         kakaoLogin(null, "accessToken");
 
         // 같은 게스트의 access/refresh 여야 하므로 한 번만 로그인한다
@@ -118,7 +116,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Test
     void 게스트_토큰_없이_카카오_로그인하면_새_회원이_생성된다() throws Exception {
-        given(kakaoApiClient.fetchUser(anyString())).willReturn(kakaoUser(200_005L, "소현"));
+        willReturn(kakaoIdentity(200_005L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
         long before = memberRepository.count();
 
         mockMvc.perform(post("/api/v1/auth/login/kakao")
@@ -173,7 +171,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
                 .andExpect(status().isCreated());
     }
 
-    private KakaoUserResponse kakaoUser(Long id, String nickname) {
-        return new KakaoUserResponse(id, new KakaoAccount(new Profile(nickname)));
+    private SocialIdentity kakaoIdentity(Long id, String nickname) {
+        return new SocialIdentity(String.valueOf(id), nickname);
     }
 }

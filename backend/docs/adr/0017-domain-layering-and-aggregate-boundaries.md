@@ -329,3 +329,20 @@ delete from travel_record where id=?
 
 **측정에서 얻은 교훈:** 애그리거트 소유 관계를 바꿀 때는 조회뿐 아니라 **삭제 경로도 함께**
 측정한다. 조회는 LAZY로 막을 수 있지만 삭제는 cascade가 반드시 개입한다.
+
+---
+
+## 2026-10-07 보완: 외부 제공자를 감싸는 기능의 패키지
+
+결정 6은 애그리거트를 담는 기능(`travelrecord`, `tag`)에 적용한다. 외부 제공자를 감싸는 기능(`place`, `auth`)은
+`web` / `application` / `infrastructure`로 나눈다. 제공자 코드가 응용 계층으로 새지 않게 하는 것이
+이 기능들의 핵심 규칙이라, 이름 규칙보다 패키지 경계로 지키는 편이 확실하기 때문이다.
+
+- `application`은 포트(`application/port`)와 제공자 중립 모델(`application/model`)로 제공자를 다룬다.
+  `web`과 `infrastructure`는 import하지 않는다. 같은 기능의 다른 하위 패키지(`auth/token`)나 다른 도메인(`member`)은 쓸 수 있다.
+- `infrastructure/<제공자>`는 포트 구현체만 `public`으로 두고, 클라이언트·외부 응답 DTO는 package-private으로 숨긴다.
+  설정 클래스는 같은 패키지에 두면 package-private으로 숨길 수 있다(`place/infrastructure/geoapify`).
+  `config/`로 빼면 Properties와 설정 클래스가 `public`이 되지만, 제공자 하나에 설정이 여럿일 때 구현 코드와 섞이지 않는다(`auth/infrastructure/{kakao,google}/config`).
+- 계층 하나에 속하지 않는 하위 패키지는 기능 루트 바로 아래에 둔다. `auth`에서는 다른 도메인도 쓰는 `security`,
+  토큰 발급·회전을 맡는 `token`, 여러 하위 패키지가 함께 쓰는 에러 코드 `exception`이 그렇다.
+  에러 코드를 `application` 안에 두면 `application`이 쓰는 `token`도 그 에러 코드를 써서 패키지 순환이 생긴다.

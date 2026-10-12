@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.exception.ErrorCode;
@@ -84,6 +85,35 @@ class BusinessExceptionHandlerTest {
                 .containsEntry("uri", "/test/service-unavailable");
     }
 
+    @Test
+    void refresh_token_인증_실패는_INFO로_오류코드를_기록한다() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(BusinessExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            mockMvc.perform(get("/test/expired-refresh-token"))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(get("/test/invalid-refresh-token"))
+                    .andExpect(status().isUnauthorized());
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertThat(appender.list).hasSize(2);
+        assertThat(appender.list)
+                .allSatisfy(event -> assertThat(event.getLevel().toString()).isEqualTo("INFO"));
+        assertThat(appender.list)
+                .extracting(event -> event.getKeyValuePairs().stream()
+                        .filter(pair -> pair.key.equals("errorCode"))
+                        .findFirst()
+                        .orElseThrow()
+                        .value)
+                .containsExactly("EXPIRED_REFRESH_TOKEN", "INVALID_REFRESH_TOKEN");
+    }
+
     @RestController
     private static class BusinessExceptionController {
 
@@ -99,6 +129,16 @@ class BusinessExceptionHandlerTest {
                     TestErrorCode.SERVICE_UNAVAILABLE.detail(),
                     new IllegalStateException("upstream failure")
             );
+        }
+
+        @GetMapping("/test/expired-refresh-token")
+        void throwExpiredRefreshToken() {
+            throw new BusinessException(AuthErrorCode.EXPIRED_REFRESH_TOKEN);
+        }
+
+        @GetMapping("/test/invalid-refresh-token")
+        void throwInvalidRefreshToken() {
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
     }
 

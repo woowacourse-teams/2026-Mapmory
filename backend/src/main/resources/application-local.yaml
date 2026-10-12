@@ -15,6 +15,10 @@ jwt:
   # 로컬 개발 전용 키. 운영에는 절대 사용하지 말 것. (HS256: 최소 32바이트)
   secret: local-development-only-secret-key-change-me-0123456789
 
+admin:
+  cors:
+    allowed-origins: ${ADMIN_ALLOWED_ORIGINS:http://localhost:4174,http://127.0.0.1:4174}
+
 management:
   metrics:
     tags:

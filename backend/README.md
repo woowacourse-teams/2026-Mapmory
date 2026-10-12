@@ -47,3 +47,9 @@ sudo systemctl restart mapmory
 ```
 
 ⚠️ `export` 없이 `키=값` 형식으로 작성한다. 따옴표도 붙이지 않는다.
+
+### 최초 관리자 계정 등록
+
+`ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD`를 `/etc/mapmory.env`에 임시로 설정한 뒤
+백엔드를 재시작하면 계정이 한 번 생성된다. 두 값은 계정이 생성된 후 환경 파일에서 제거하고 다시 재시작한다.
+비밀번호는 BCrypt 해시로 저장되며, 이미 같은 아이디가 있으면 덮어쓰지 않는다.

@@ -17,22 +17,25 @@ public class PlaceSelectionService {
     private final PlaceRateLimitPort rateLimitPort;
     private final DistrictLocator districtLocator;
     private final RegionResolver regionResolver;
+    private final KoreanAddressRegionMatcher addressRegionMatcher;
 
     public PlaceSelectionService(
             PlaceLookupPort placeLookupPort,
             PlaceRateLimitPort rateLimitPort,
             DistrictLocator districtLocator,
-            RegionResolver regionResolver
+            RegionResolver regionResolver,
+            KoreanAddressRegionMatcher addressRegionMatcher
     ) {
         this.placeLookupPort = placeLookupPort;
         this.rateLimitPort = rateLimitPort;
         this.districtLocator = districtLocator;
         this.regionResolver = regionResolver;
+        this.addressRegionMatcher = addressRegionMatcher;
     }
 
-    public SelectedPlace select(Long memberId, String placeId) {
+    public SelectedPlace select(Long memberId, String placeId, String sessionToken) {
         rateLimitPort.checkSelection(memberId);
-        PlaceDetails place = placeLookupPort.findById(placeId);
+        PlaceDetails place = placeLookupPort.findForSelection(placeId, sessionToken);
         return new SelectedPlace(place, suggestedRegion(place));
     }
 
@@ -43,6 +46,12 @@ public class PlaceSelectionService {
         try {
             if (!"KR".equals(place.countryCode())) {
                 return regionResolver.resolve(place.countryCode(), null, null);
+            }
+            if (place.regionByAddress()) {
+                return addressRegionMatcher.match(place.addressAreas()).orElse(null);
+            }
+            if (place.latitude() == null || place.longitude() == null) {
+                return null;
             }
             return districtLocator.find(place.longitude(), place.latitude())
                     .map(match -> regionResolver.resolve("KR", match.provinceCode(), match.districtCode()))

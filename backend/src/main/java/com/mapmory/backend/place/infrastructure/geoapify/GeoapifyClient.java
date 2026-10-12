@@ -39,11 +39,15 @@ public class GeoapifyClient implements PlaceLookupPort {
     }
 
     @Override
-    public String providerCode() {
+    public String providerCode(String placeId) {
         return PROVIDER_CODE;
     }
 
     @Override
+    public List<PlaceCandidate> search(String query, String sessionToken) {
+        return search(query);
+    }
+
     public List<PlaceCandidate> search(String query) {
         requireConfigured();
         requestLimiter.reserveSearch();
@@ -56,6 +60,11 @@ public class GeoapifyClient implements PlaceLookupPort {
                 .build());
 
         return mapper.candidates(response);
+    }
+
+    @Override
+    public PlaceDetails findForSelection(String placeId, String sessionToken) {
+        return findById(placeId);
     }
 
     @Override

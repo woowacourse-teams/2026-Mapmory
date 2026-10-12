@@ -92,8 +92,7 @@ public class TravelRecordService {
 
     @Transactional(readOnly = true)
     public TravelRecordDetail findById(Member member, Long travelRecordId) {
-        TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
-                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
         return travelRecordAssembler.assembleDetail(travelRecord);
     }
 
@@ -104,8 +103,7 @@ public class TravelRecordService {
             TravelRecordCommand command
     ) {
         validateTravelDates(command.startDate(), command.endDate());
-        TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
-                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
 
@@ -138,8 +136,7 @@ public class TravelRecordService {
 
     @Transactional
     public void delete(Member member, Long travelRecordId) {
-        TravelRecord travelRecord = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
-                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
         travelRecordRepository.delete(travelRecord);
     }
@@ -194,6 +191,11 @@ public class TravelRecordService {
         }
 
         return travelRecordAssembler.assembleSummaries(travelRecords);
+    }
+
+    private TravelRecord findOwnedTravelRecord(Member member, Long travelRecordId) {
+        return travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
+                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
     }
 
     private void validateRegionFilterHierarchy(
@@ -279,7 +281,7 @@ public class TravelRecordService {
 
     private void setPlace(TravelRecord travelRecord, PlaceDetails place) {
         travelRecord.setPlace(place == null ? null : new RecordedPlace(
-                placeLookupPort.providerCode(), place.placeId(), place.name(),
+                placeLookupPort.providerCode(place.placeId()), place.placeId(), place.name(),
                 place.attribution(), place.attributionUrl()));
     }
 

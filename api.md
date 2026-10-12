@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-08-31 · 범위: 인증, 지역 선택, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그
+> 기준일: 2026-10-08 · 범위: 인증, 지역 선택, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -15,16 +15,24 @@
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 페이지네이션 | `page` 기본 0, `size` 기본 20·최대 100 |
 
-`/auth/**`와 `/health`를 제외한 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`는 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
+`/auth/**`, `/admin/**`, `/health`를 제외한 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`와 `/auth/login/google`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API는 현재 인증 없이 호출 가능하다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
 
 ### API 목록
 
 | 상태 | Method | Endpoint | 설명 |
 | --- | --- | --- | --- |
 | 구현됨 | `POST` | `/auth/login/kakao` | 카카오 로그인 |
+| 구현됨 | `POST` | `/auth/login/google` | 구글 로그인 |
 | 구현됨 | `POST` | `/auth/login/guest` | 게스트 로그인 |
 | 구현됨 | `POST` | `/auth/token/refresh` | Access·Refresh Token 회전 재발급 |
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
+| 구현됨 | `GET` | `/admin/dashboard` | 운영 현황 집계 조회 |
+| 구현 전 설계 | `GET` | `/admin/members` | 회원 목록 조회 |
+| 구현 전 설계 | `GET` | `/admin/members/{memberId}` | 회원 상세·세션 상태 조회 |
+| 구현 전 설계 | `POST` | `/service-feedback` | 앱 서비스 의견 제출 |
+| 구현 전 설계 | `GET` | `/admin/service-feedback` | 서비스 의견 목록 조회 |
+| 구현 전 설계 | `GET` | `/admin/service-feedback/{feedbackId}` | 서비스 의견 상세 조회 |
+| 구현 전 설계 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -81,14 +89,15 @@
 
 ## 2. Auth API
 
-로그인 방식은 두 가지다. 어느 쪽으로 로그인하든 **발급되는 토큰과 이후 사용 방법은 동일하다.**
+로그인 방식은 세 가지다. 어느 쪽으로 로그인하든 **발급되는 토큰과 이후 사용 방법은 동일하다.**
 
 | 방식 | 용도 | 요청 본문 |
 | --- | --- | --- |
 | 카카오 로그인 | 계정을 연결한 사용자 | 카카오 Access Token |
+| 구글 로그인 | 계정을 연결한 사용자 | 구글 ID Token |
 | 게스트 로그인 | 로그인 없이 먼저 사용해보는 사용자 | 없음 |
 
-게스트로 사용하다가 카카오 로그인을 하면 **같은 회원으로 승격**되어 그동안 남긴 기록이 그대로 이어진다.
+게스트로 사용하다가 카카오 또는 구글 로그인을 하면 **같은 회원으로 승격**되어 그동안 남긴 기록이 그대로 이어진다.
 자세한 조건은 아래 카카오 로그인을 참고한다.
 
 ### 토큰 정책
@@ -156,6 +165,25 @@ Authorization: Bearer {게스트 accessToken}
   }
 }
 ```
+
+### 구글 로그인
+
+`POST /api/v1/auth/login/google`
+
+앱이 구글 로그인(Android Credential Manager, iOS GoogleSignIn)으로 받은 **ID Token**을 전달하면,
+서버가 구글 공개키로 서명과 `iss`·`aud`·`exp`를 검증한 뒤 Mapmory 토큰을 발급한다.
+Access Token이 아니라 ID Token을 보낸다.
+
+```json
+{
+  "idToken": "google-id-token"
+}
+```
+
+게스트 승격 규칙, 결과 표, 응답 형식은 카카오 로그인과 같다. 게스트로 사용 중이었다면
+게스트 Access Token을 `Authorization` 헤더로 함께 보낸다.
+
+같은 사람이라도 카카오 회원과 구글 회원은 별개 회원이다. 계정 병합은 지원하지 않는다.
 
 ### 게스트 로그인
 
@@ -229,11 +257,13 @@ Authorization: Bearer {게스트 accessToken}
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
 | `401` | `INVALID_KAKAO_TOKEN` | 카카오 Access Token이 유효하지 않음 |
+| `401` | `INVALID_GOOGLE_TOKEN` | 구글 ID Token이 유효하지 않음 (서명·발급자·대상 앱·만료). Android가 웹 클라이언트 ID가 아닌 Android 클라이언트 ID로 토큰을 받은 경우도 대상 앱 불일치로 여기에 해당 |
 | `401` | `INVALID_REFRESH_TOKEN` | Refresh Token이 유효하지 않거나 폐기됨 |
 | `401` | `EXPIRED_REFRESH_TOKEN` | Refresh Token이 만료됨 |
 | `403` | `ACCESS_DENIED` | 리소스 접근 권한 없음 |
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
-| `503` | `KAKAO_UNAVAILABLE` | 카카오 인증 서버를 일시적으로 사용할 수 없음 |
+| `503` | `KAKAO_UNAVAILABLE` | 카카오 인증 서버를 일시적으로 사용할 수 없음. 카카오가 회원번호 없이 응답하거나 빈 본문을 준 경우도 해당 |
+| `503` | `GOOGLE_UNAVAILABLE` | 구글 공개키를 받아오지 못해 검증할 수 없음 |
 
 ## 3. Upload API
 
@@ -803,8 +833,167 @@ Authorization: Bearer {accessToken}
 해외 행정구역 저장을 지원할 때 필드와 집계 단계, API 버전을 함께 재검토해야 한다. 자세한 결정과
 변경 조건은 [ADR 0016](backend/docs/adr/0016-travel-statistics-read-model.md)을 참고한다.
 
-## 8. 구현 전 확인 사항
+## 8. 관리자 및 서비스 의견 API
 
+관리자 대시보드와 관리자 API는 현재 로그인 없이 접근할 수 있다. 따라서 배포 환경에 올리면 API 주소를
+아는 누구나 회원 정보와 서비스 의견을 조회할 수 있다. CORS Origin 설정은 브라우저의 교차 출처 호출만
+제어하며 API 자체의 접근 권한을 제한하지 않는다.
+
+목록 API는 기본 `page=0`, `size=20`, 최대 `size=100`을 사용한다. 페이지 응답은 기존 여행 기록 목록과
+같이 `items`, `page`, `size`, `totalElements`, `totalPages`, `hasNext`를 포함한다. 시각은 UTC ISO-8601로
+반환하며, 날짜 범위는 한국 시간 기준 양 끝을 포함한다.
+
+### 대시보드 집계
+
+`GET /api/v1/admin/dashboard?from=2026-10-02&to=2026-10-08`
+
+기간 파라미터는 선택 사항이다. 둘 다 생략하면 한국 시간 기준 오늘을 포함한 최근 7일을 사용한다.
+`from`만 지정하면 `to`는 오늘, `to`만 지정하면 `from`은 해당 날짜를 포함한 최근 7일로 보완한다.
+`from`과 `to`는 양 끝을 포함한다. `total`은 조회 시점 누적 수, `InPeriod`는 해당 기간에 생성된 수다.
+
+```json
+{
+  "data": {
+    "period": { "from": "2026-10-02", "to": "2026-10-08" },
+    "members": { "total": 1284, "guest": 812, "kakao": 472, "newInPeriod": 35 },
+    "travelRecords": { "total": 5492, "createdInPeriod": 286 }
+  }
+}
+```
+
+회원은 `member.provider`의 `GUEST`, `KAKAO` 값으로 집계한다. provider가 비어 있는 기존 회원은 `total`에만
+포함한다. 기간별 회원·기록 수는 각각 `member.created_at`, `travel_record.created_at` 기준으로 한국 시간
+날짜의 시작부터 종료일 다음 날 시작 전까지 집계한다. `from`이 `to`보다 늦으면 `400 INVALID_DASHBOARD_DATE_RANGE`.
+
+### 회원 목록 및 상세
+
+`GET /api/v1/admin/members?page=0&size=20&provider=KAKAO&keyword=M-10842&joinedFrom=2026-10-01&joinedTo=2026-10-08`
+
+모든 필터는 선택 사항이다. `provider`는 `GUEST`, `KAKAO`; `keyword`는 회원 ID, UUID 또는 이름 검색이다.
+가입일 양 끝을 포함하고 가입일 내림차순으로 정렬한다.
+
+```json
+{
+  "data": {
+    "items": [{
+      "memberId": 10842,
+      "uuid": "d4d7e1c4-0daf-4ed4-9dab-00a8acafc5da",
+      "name": "김지우",
+      "provider": "KAKAO",
+      "joinedAt": "2026-10-08T03:32:00Z",
+      "travelRecordCount": 12,
+      "sessionStatus": "ACTIVE",
+      "lastRefreshResult": "SUCCESS",
+      "lastRefreshAt": "2026-10-08T05:10:00Z"
+    }],
+    "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
+  }
+}
+```
+
+`GET /api/v1/admin/members/{memberId}`는 세션 상세를 반환한다. 활성·미만료 Refresh Token이 하나 이상이면
+`sessionStatus=ACTIVE`, 아니면 `INACTIVE`다. 이는 앱이 현재 실행 중인지 의미하지 않는다.
+
+```json
+{
+  "data": {
+    "memberId": 10842,
+    "uuid": "d4d7e1c4-0daf-4ed4-9dab-00a8acafc5da",
+    "name": "김지우",
+    "provider": "KAKAO",
+    "joinedAt": "2026-10-08T03:32:00Z",
+    "travelRecordCount": 12,
+    "sessionStatus": "ACTIVE",
+    "activeSessionCount": 1,
+    "lastRefresh": {
+      "result": "FAILURE",
+      "occurredAt": "2026-10-08T05:10:00Z",
+      "reasonCode": "EXPIRED_REFRESH_TOKEN"
+    }
+  }
+}
+```
+
+리프레시 실패 이력에는 원문 토큰을 저장하지 않는다. 회원을 식별할 수 있는 실패만 회원과 연결하고,
+알 수 없는 토큰 요청은 특정 회원의 실패 상태로 표시하지 않는다. 실패 이력이 없으면 `lastRefresh`는
+`null`이다. 관리자 응답에는 여행 기록 제목·내용·사진을 포함하지 않는다.
+
+### 앱 서비스 의견 제출 — 구현 전 설계
+
+`POST /api/v1/service-feedback` — 앱 회원 인증 필요
+
+```json
+{
+  "category": "FEATURE_REQUEST",
+  "content": "여행 기록을 여러 장 한 번에 등록하고 싶어요.",
+  "platform": "IOS"
+}
+```
+
+| 필드 | 규칙 |
+| --- | --- |
+| `category` | 필수: `BUG_REPORT`, `FEATURE_REQUEST`, `USABILITY`, `OTHER` |
+| `content` | 필수, 공백 제거 후 1~2,000자 |
+| `platform` | 필수: `IOS`, `ANDROID` |
+
+회원 ID와 접수 시각은 서버가 지정한다. 상태는 `UNCONFIRMED`로 시작하며 클라이언트가 상태를 지정할 수
+없다.
+
+`201 Created`:
+
+```json
+{
+  "data": { "feedbackId": 248, "createdAt": "2026-10-08T05:32:00Z" }
+}
+```
+
+사용자에게 접수 확인만 반환한다. 의견 답변·처리 상태 공개 API는 제공하지 않는다.
+
+### 관리자 서비스 의견 조회 및 상태 변경
+
+- `GET /api/v1/admin/service-feedback?page=0&size=20&status=UNCONFIRMED&category=BUG_REPORT&platform=IOS&from=2026-10-02&to=2026-10-08`
+- `GET /api/v1/admin/service-feedback/{feedbackId}`
+- `PATCH /api/v1/admin/service-feedback/{feedbackId}/status`
+
+목록 필터는 선택 사항이며 최신 접수순으로 반환한다. 목록·상세 항목:
+
+```json
+{
+  "feedbackId": 248,
+  "category": "FEATURE_REQUEST",
+  "content": "여행 기록을 여러 장 한 번에 등록하고 싶어요.",
+  "platform": "IOS",
+  "status": "UNCONFIRMED",
+  "createdAt": "2026-10-08T05:32:00Z"
+}
+```
+
+상세 응답에는 작성자 개인정보를 포함하지 않는다. 상태 변경 API도 현재 별도 인증 없이 호출할 수 있다.
+
+```json
+{ "status": "IN_PROGRESS" }
+```
+
+허용 상태는 `UNCONFIRMED`, `IN_PROGRESS`, `COMPLETED`, `ON_HOLD`, `NOT_IMPLEMENTED`다. 성공하면
+변경된 의견을 반환하고 변경 내용과 변경 시각을 감사 로그에 기록한다.
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | 날짜, 페이지, enum 또는 요청 필드가 올바르지 않음 |
+| `404` | `ADMIN_MEMBER_NOT_FOUND` | 회원 ID가 없음 |
+| `404` | `SERVICE_FEEDBACK_NOT_FOUND` | 의견 ID가 없음 |
+
+### 데이터 및 감사 로그
+
+- `member_auth_event`: Refresh 성공·실패, 사유 코드, 발생 시각. 토큰 원문은 저장하지 않음
+- `service_feedback`: 회원, 카테고리, 내용, OS, 내부 상태, 접수·수정 시각
+- `admin_audit_log`: 의견 상태 변경 대상·변경 내용·시각. 관리자별 행위자는 기록하지 않음
+
+## 9. 구현 전 확인 사항
+
+- 서비스 의견 테이블과 앱 제출 API 추가
+- 관리자 서비스 의견 조회·상태 변경 API 및 감사 로그 추가
+- 회원 인증 Refresh 성공·실패 이벤트 기록 및 관리자 집계 조회 추가
 - `tag`, `travel_record_tag` Flyway 마이그레이션과 JPA 모델 추가
 - 태그 이름 정규화 규칙을 서버와 클라이언트에서 동일하게 적용
 - 여행 기록 생성·수정 시 태그 소유권 검증과 연결 변경을 같은 트랜잭션에서 처리

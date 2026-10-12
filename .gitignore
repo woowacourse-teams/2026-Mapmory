@@ -24,6 +24,8 @@ keystore.properties
 .kotlin/
 **/.kotlin/
 **/build/
+**/node_modules/
+admin/dist/
 
 # Android build outputs
 *.apk

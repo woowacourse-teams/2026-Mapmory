@@ -1,16 +1,22 @@
 package com.mapmory.backend.auth;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.auth.exception.AuthErrorCode;
+import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
+import com.mapmory.backend.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -29,6 +35,9 @@ class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoSpyBean
+    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 한도까지는_게스트_로그인이_허용된다() throws Exception {
@@ -63,6 +72,8 @@ class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
         guestLogin("203.0.113.5").andExpect(status().isTooManyRequests());
 
         // 같은 출처라도 카카오 로그인 경로는 막히지 않는다. (토큰이 가짜라 401)
+        willThrow(new BusinessException(AuthErrorCode.INVALID_KAKAO_TOKEN))
+                .given(kakaoIdentityAdapter).verify(anyString());
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .header("X-Forwarded-For", "203.0.113.5")
                         .contentType(MediaType.APPLICATION_JSON)
