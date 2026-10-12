@@ -73,9 +73,19 @@ export const HOW_STORY_PICKER = Object.freeze({
   smallButton: 44,
   filterRow: 48,
   dateGap: 24,
-  // A picked card's copy at save: lifted this far and scaled about its centre.
-  copyLift: 24,
-  copyScale: 0.72,
+});
+
+// Saving: the copies of the three picked photos lift off their cards into a small fanned stack of prints over the
+// picker's header (the upload), clear of the 3장 선택 count, the date row and the cards. Screen dp; size is the
+// photo's share of a card, and the white print border (how-story.css) sits outside it.
+export const HOW_STORY_PRINTS = Object.freeze({
+  centre: Object.freeze([180, 186]),
+  size: 0.55,
+  slots: Object.freeze([
+    Object.freeze({ dx: -50, dy: 10, r: -8 }),
+    Object.freeze({ dx: 50, dy: 6, r: 6 }),
+    Object.freeze({ dx: 0, dy: -4, r: -1 }),
+  ]),
 });
 
 export function pickerCardRectsDp(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
@@ -110,8 +120,6 @@ export const HOW_STORY_MAP = Object.freeze({
   drillZoom: 2.2,
   drillCentre: Object.freeze([128.69, 35.93]),
   panSlack: 0.1,
-  // 경주시's label point (KoreaMapArtwork labelPoint()), where the saved copies land.
-  gyeongjuLabel: Object.freeze([129.236, 35.8266]),
   // WorldGlobe: radius share of the viewport's shorter side.
   globeRadius: 0.42,
   // Unverified fidelity: the globe turned the way a reader drags it to see what was filled. develop's first frame
@@ -171,8 +179,6 @@ export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
   const [boxX, boxY] = toKorea([0, -backRow]);
   const drillBox = [boxX, boxY, width / (zoom * ratio), height / (zoom * ratio)];
   const koreaBox = [0, 0, width, height];
-  const [labelX, labelY] = korea.project(...m.gyeongjuLabel);
-  const drillScale = width / drillBox[2];
   return {
     cardTop,
     koreaCard,
@@ -184,8 +190,6 @@ export function createAppMapView(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
     koreaBox,
     // The reader's drill camera, in develop's terms, for the tests.
     drillCamera: { viewport, projection: drill, zoom, pan },
-    // 경주시's label point in area dp at the drill view.
-    gyeongju: { x: (labelX - drillBox[0]) * drillScale, y: (labelY - drillBox[1]) * drillScale },
     globe: { cx: width / 2, cy: height / 2, r: m.globeRadius * Math.min(width, height) * m.globeZoom },
   };
 }
@@ -311,21 +315,21 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     size: clusterTile,
   }));
 
-  // Beat 04: the picker's cards at rest (the stage tiles land on them), and the hover rects of the three copies
-  // lifted at save. Beat 05: 경주시's label point on the drill map, where the copies land.
+  // Beat 04: the picker's cards at rest (the stage tiles land on them), and the print stack the three copies lift
+  // into at save (centre, size and turn of each print; the copies are placed about their centres).
   const dp = screenWidth / HOW_STORY_SCREEN.widthDp;
   const cards = pickerCardRectsDp().map(({ x, y, size }) => Object.freeze({
     x: round(screen.x + x * dp),
     y: round(screen.y + y * dp),
     size: round(size * dp),
   }));
-  const { copyLift, copyScale } = HOW_STORY_PICKER;
-  const hover = cards.map(({ x, y, size }) => {
-    const lifted = size * copyScale;
-    return Object.freeze({ x: round(x + (size - lifted) / 2), y: round(y - copyLift + (size - lifted) / 2), size: round(lifted) });
-  });
-  const map = APP_MAP_VIEW;
-  const mapTarget = { x: round(screen.x + map.gyeongju.x * dp), y: round(screen.y + (map.area.top + map.gyeongju.y) * dp) };
+  const prints = HOW_STORY_PRINTS.slots.map(({ dx, dy, r }) => Object.freeze({
+    cx: round(screen.x + (HOW_STORY_PRINTS.centre[0] + dx) * dp),
+    cy: round(screen.y + (HOW_STORY_PRINTS.centre[1] + dy) * dp),
+    size: round(HOW_STORY_PICKER.card * HOW_STORY_PRINTS.size * dp),
+    r,
+  }));
+  const nodeBase = Math.ceil(Math.max(g.nodeBase, clusterTile, cards[0].size));
 
   return Object.freeze({
     mode,
@@ -343,11 +347,12 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     cells: Object.freeze(cells.map(Object.freeze)),
     cluster: Object.freeze(cluster.map(Object.freeze)),
     // The flying photos are drawn at the largest size they take (a cluster tile or a picker card) and only ever
-    // scaled down, so they stay crisp at rest.
-    nodeBase: Math.ceil(Math.max(g.nodeBase, clusterTile, cards[0].size)),
+    // scaled down, so they stay crisp at rest. matchK: nodeBase over a lifted cell's size, so the ring and pin a
+    // photo carries out of the library (sized in the node) match the library's at the flight's start.
+    nodeBase,
+    matchK: round(nodeBase / (tile * g.matchLift), 4),
     cards: Object.freeze(cards),
-    hover: Object.freeze(hover),
-    mapTarget: Object.freeze(mapTarget),
+    prints: Object.freeze(prints),
     overlayTop: round(overlayTop),
     overlayBar: g.overlayBar[mode],
     // The loading screen's progress bar: full width inside 34dp side padding, 8dp tall (PhotoLoadingBar).

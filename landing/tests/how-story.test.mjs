@@ -52,6 +52,7 @@ import {
   HOW_STORY_GEOMETRY,
   HOW_STORY_MAP,
   HOW_STORY_PICKER,
+  HOW_STORY_PRINTS,
   PICKER_SCROLL_DP,
   HOW_STORY_BREAKPOINTS,
   createHowStoryLayout,
@@ -399,15 +400,84 @@ test("the picker's cards sit where develop's list puts them, from the app's line
       near(card.x, layout.screen.x + rect.x * layout.dp, `${name} card ${index} x`);
       near(card.y, layout.screen.y + rect.y * layout.dp, `${name} card ${index} y`);
       near(card.size, rect.size * layout.dp, `${name} card ${index} size`);
-      // A copy lifts 24px and shrinks to 0.72 about the card's centre.
-      const hover = layout.hover[index];
-      near(hover.size, card.size * HOW_STORY_PICKER.copyScale, `${name} hover ${index} size`);
-      near(hover.x + hover.size / 2, card.x + card.size / 2, `${name} hover ${index} centre x`);
-      near(hover.y + hover.size / 2, card.y + card.size / 2 - HOW_STORY_PICKER.copyLift, `${name} hover ${index} centre y`);
+    });
+    HOW_STORY_PRINTS.slots.forEach(({ dx, dy, r }, index) => {
+      const print = layout.prints[index];
+      near(print.cx, layout.screen.x + (HOW_STORY_PRINTS.centre[0] + dx) * layout.dp, `${name} print ${index} x`);
+      near(print.cy, layout.screen.y + (HOW_STORY_PRINTS.centre[1] + dy) * layout.dp, `${name} print ${index} y`);
+      near(print.size, HOW_STORY_PICKER.card * HOW_STORY_PRINTS.size * layout.dp, `${name} print ${index} size`);
+      assert.equal(print.r, r);
     });
     // The flying photos are drawn at their largest size and only scaled down.
     assert.ok(layout.nodeBase >= Math.max(layout.cards[0].size, ...layout.cluster.map(({ size }) => size)), name);
   }
+  // The print stack (each print's turned outer box, white border included: 12 card-dp at half a card) stays
+  // between the header's title row and the date row with its 이 날짜 사진 선택 button, left of the 3장 선택 count,
+  // so it never covers what the hold reads (round-1 V2: a copy touched the date button at 360x640).
+  const k = HOW_STORY_PICKER;
+  const titleBottom = k.listTop + k.padTop - PICKER_SCROLL_DP + 12 * HOW_STORY_APP_LINE_HEIGHT + 14 + 25 * HOW_STORY_APP_LINE_HEIGHT;
+  const dateTop = rects[0].y - k.firstRowGap - k.dateGap - k.smallButton;
+  const outer = k.card * HOW_STORY_PRINTS.size + 2 * 12 * HOW_STORY_PRINTS.size;
+  for (const { dx, dy, r } of HOW_STORY_PRINTS.slots) {
+    const turn = (Math.abs(r) * Math.PI) / 180;
+    const half = (outer * (Math.cos(turn) + Math.sin(turn))) / 2;
+    const [cx, cy] = [HOW_STORY_PRINTS.centre[0] + dx, HOW_STORY_PRINTS.centre[1] + dy];
+    assert.ok(cy - half > titleBottom && cy + half < dateTop, `print at ${cy}: ${cy - half}..${cy + half} between ${titleBottom} and ${dateTop}`);
+    assert.ok(cx - half > 0 && cx + half < 360 - k.padEnd - 50, `print at ${cx}`);
+  }
+});
+
+test("scrubbed moves are calm: each big move takes at least 100px of scroll from 10% to 90%, with no jump", () => {
+  // Travel in px: phones scroll 430svh (390x844: one unit = 844px), wheel devices clamp(3200px, 430svh, 3800px).
+  const sizes = [["mobile", 844], ["desktop", 800]];
+  for (const [name, unit] of sizes) {
+    const layout = HOW_STORY_TEST_LAYOUT[name];
+    const travel = unit * HOW_STORY_TRAVEL_UNITS;
+    const lift = layout.cells[3].lift;
+    const cluster = layout.cluster[3];
+    const view = APP_MAP_VIEW;
+    const moves = [
+      ["inward camera", 1, (f) => (f.nodes.phoneCamera.s - 1) / (layout.kIn - 1)],
+      ["outward camera", 3, (f) => 1 - (f.nodes.phoneCamera.s - 1) / (layout.kIn - 1)],
+      ["tile flight", 2, (f) => (f.nodes.match3.tx - lift.x) / (cluster.x - lift.x)],
+      ["map camera", 4, (f) => Math.log(Number(f.attrs.mapSvg.viewBox.split(" ")[2]) / view.drillBox[2]) / Math.log(view.koreaBox[2] / view.drillBox[2])],
+    ];
+    for (const [label, beat, measure] of moves) {
+      const [start, end] = HOW_STORY_WINDOWS[beat];
+      const samples = [];
+      for (let px = Math.floor(start * travel); px <= Math.ceil(end * travel); px += 1) {
+        const p = Math.min(end - 1e-9, Math.max(start, px / travel));
+        samples.push([px, measure(getHowStoryFrame(p, layout))]);
+      }
+      const at = (value) => samples.find(([, f]) => f >= value)[0];
+      const span = at(0.9) - at(0.1);
+      assert.ok(span >= 100, `${name} ${label}: 10-90% in ${span}px`);
+      // A 7px step (a fine trackpad tick) never moves it more than 7%.
+      for (let index = 7; index < samples.length; index += 1) {
+        const step = Math.abs(samples[index][1] - samples[index - 7][1]);
+        assert.ok(step <= 0.07, `${name} ${label}: ${(step * 100).toFixed(1)}% in 7px at ${samples[index][0]}px`);
+      }
+    }
+  }
+});
+
+test("a found photo leaves the library with its ring and pin, from exactly its lifted cell, in one frame", () => {
+  for (const [name, layout] of LAYOUTS) {
+    layout.cells.forEach((cell, index) => {
+      const start = 0.04 + 0.03 * index;
+      const before = getHowStoryFrame(beatP(2, start - 0.001), layout).nodes;
+      const after = getHowStoryFrame(beatP(2, start + 1e-6), layout).nodes;
+      assert.deepEqual([before[`matchCell${index}`].o, before[`matchMark${index}`].o, before[`match${index}`].o], [1, 1, 0], `${name} ${index} before`);
+      assert.deepEqual([after[`matchCell${index}`].o, after[`matchMark${index}`].o, after[`match${index}`].o, after[`matchRing${index}`].o], [0, 0, 1, 1], `${name} ${index} after`);
+      nearRect(after[`match${index}`], cell.lift, layout, `${name} ${index} starts on its lifted cell`);
+      // The ring fades mid flight and is gone well before the tile settles.
+      assert.equal(getHowStoryFrame(beatP(2, start + 0.28 * 0.7), layout).nodes[`matchRing${index}`].o, 0, `${name} ${index}`);
+    });
+    // Its ring and pin are drawn in the node at the cell's own sizes when the flight starts.
+    near(layout.matchK * layout.cells[0].lift.size, layout.nodeBase, `${name} match-k`, 0.05);
+  }
+  assert.match(storyCss, /\.how-match-mark \{[^}]*box-shadow: 0 0 0 calc\(3px \* var\(--match-k, 4\)\) var\(--how-match\), 0 0 0 calc\(7px \* var\(--match-k, 4\)\)/);
+  assert.match(hookSource, /set\("--match-k", String\(layout\.matchK\)\);/);
 });
 
 test("beat 04: the found photos become the picker's cards and never leave; only the three picked get a copy", () => {
@@ -419,8 +489,15 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
       // The originals stay on screen through the whole beat.
       for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, 1, `${name} card ${index} at ${p}`);
     }
-    // By t .30 the tiles are the cards: on the card rects, with the border and preview button on.
-    const landed = getHowStoryFrame(beatP(3, 0.3), layout);
+    // While the camera is still pulling out, each tile that has landed sits on its card where the camera shows it.
+    const moving = getHowStoryFrame(beatP(3, 0.27), layout);
+    const camera = moving.nodes.phoneCamera;
+    assert.ok(camera.s > 1.001, `${name} camera still moving: ${camera.s}`);
+    const centre = { x: layout.phone.x + layout.phone.w / 2, y: layout.phone.y + layout.phone.h / 2 };
+    const card0 = layout.cards[0];
+    nearRect(moving.nodes.match0, { x: centre.x + (card0.x - centre.x) * camera.s + camera.tx, y: centre.y + (card0.y - centre.y) * camera.s + camera.ty, size: card0.size * camera.s }, layout, `${name} tile 0 on its moving card`);
+    // By t .37 the tiles are the cards: on the card rects, with the border and preview button on.
+    const landed = getHowStoryFrame(beatP(3, 0.37), layout);
     layout.cards.forEach((rect, index) => {
       nearRect(landed.nodes[`match${index}`], rect, layout, `${name} card ${index}`);
       assert.equal(landed.nodes[`matchChrome${index}`].o, 1, name);
@@ -432,24 +509,36 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
     for (let index = 0; index < 4; index += 1) assert.equal(start.nodes[`matchChrome${index}`].o, 0, name);
     // Taps: A, B, C in turn, then 기록하기 (the spinner); the hold shows three copies over their cards.
     const sel = (t) => getHowStoryFrame(beatP(3, t), layout).state;
-    assert.deepEqual([0.35, 0.37, 0.45, 0.53, 0.61, 0.63].map((t) => [sel(t).sel, sel(t).save]), [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0], [3, 1]], name);
+    assert.deepEqual([0.4, 0.42, 0.49, 0.56, 0.61, 0.63].map((t) => [sel(t).sel, sel(t).save]), [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0], [3, 1]], name);
+    // The copies start exactly on their cards (turned 0) and end as the print stack, fully opaque, in the hold.
+    const saved = getHowStoryFrame(beatP(3, 0.64), layout);
     const hold = getHowStoryFrame(holdBegin(3), layout);
-    layout.hover.slice(0, 3).forEach((rect, index) => {
-      nearRect(hold.nodes[`copy${index}`], rect, layout, `${name} copy ${index}`);
-      assert.equal(hold.nodes[`copy${index}`].o, 0.92, name);
-    });
+    for (let index = 0; index < 3; index += 1) {
+      const card = layout.cards[index];
+      const at = saved.nodes[`copy${index}`];
+      near(at.tx + layout.nodeBase / 2, card.x + card.size / 2, `${name} copy ${index} starts on its card x`);
+      near(at.ty + layout.nodeBase / 2, card.y + card.size / 2, `${name} copy ${index} starts on its card y`);
+      near(at.s * layout.nodeBase, card.size, `${name} copy ${index} starts at the card's size`);
+      assert.equal(at.r, 0, name);
+      const print = layout.prints[index];
+      const copy = hold.nodes[`copy${index}`];
+      near(copy.tx + layout.nodeBase / 2, print.cx, `${name} print ${index} x`);
+      near(copy.ty + layout.nodeBase / 2, print.cy, `${name} print ${index} y`);
+      near(copy.s * layout.nodeBase, print.size, `${name} print ${index} size`, 0.05);
+      assert.equal(copy.r, print.r, name);
+      assert.equal(copy.o, 1, name);
+    }
   }
   // The rings drawn are the picks and the save in the tap plan: one per picked photo, none on D.
   const picks = getHowStoryTapPlan().filter(({ id }) => id.startsWith("pick-"));
   assert.equal(picks.length, HOW_STORY_MATCHES.filter(({ picked }) => picked).length);
 });
 
-test("beat 05: a tab switch to develop's drill map, the copies land on 경주시, then the camera pulls back to Korea and the world", () => {
-  // The constants are the data's: develop's drill bounds (울릉도 and 독도 included), the bounds of develop's provinces
-  // (GeneratedKoreaMapData, also with 울릉도 and 독도) and 경주시's label point.
+test("beat 05: the prints leave and the picker goes before develop's drill map comes; 경주시 fills, then the camera pulls back to Korea and the world", () => {
+  // The constants are the data's: develop's drill bounds (울릉도 and 독도 included) and the bounds of develop's
+  // provinces (GeneratedKoreaMapData, also with 울릉도 and 독도).
   assert.deepEqual(HOW_STORY_MAP.drillBounds, gyeongbuk.bounds);
   assert.deepEqual(HOW_STORY_MAP.koreaBounds, howProvinces.bounds);
-  assert.deepEqual(HOW_STORY_MAP.gyeongjuLabel, gyeongbuk.districts.find(({ code }) => code === "47130").labelPoint);
   assert.equal(howProvinces.provinces.length, 17);
   assert.ok(worldGlobe.countries.some(({ code }) => code === "KR"));
   const view = APP_MAP_VIEW;
@@ -473,32 +562,30 @@ test("beat 05: a tab switch to develop's drill map, the copies land on 경주시
       const frame = getHowStoryFrame(p, layout);
       const { t } = getHowStoryScene(p);
       const box = toBox(frame);
-      if (t < 0.4) box.forEach((value, index) => near(value, view.drillBox[index], `${name} drill box`));
-      if (t >= 0.6) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
+      if (t < 0.37) box.forEach((value, index) => near(value, view.drillBox[index], `${name} drill box`));
+      if (t >= 0.65) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
       assert.ok(box[2] >= previousWidth - 0.01, `${name} the camera only pulls back`);
       previousWidth = box[2];
-      assert.equal(frame.state.map, t < 0.24 ? "drill0" : t < 0.66 ? "drill1" : "world", `${name} t ${t}`);
+      assert.equal(frame.state.map, t < 0.31 ? "drill0" : t < 0.71 ? "drill1" : "world", `${name} t ${t}`);
+      // Saving and the map never share a frame: no crossfade from the picker to the map, and the prints are gone
+      // before the map shows (round-1 H3; after a save both app versions open the record list, not the map).
+      const { screenPicker, screenMap } = frame.nodes;
+      assert.ok(screenPicker.o === 0 || screenMap.o === 0, `${name} t ${t}: picker ${screenPicker.o}, map ${screenMap.o}`);
+      if (screenMap.o > 0) for (let index = 0; index < 3; index += 1) assert.equal(frame.nodes[`copy${index}`].o, 0, `${name} copy ${index} at t ${t}`);
+      // The fill is its own moment, after the map is fully in.
+      if (frame.state.map !== "drill0") assert.equal(screenMap.o, 1, `${name} t ${t}`);
     }
-    // The picker and its cards go with the tab switch.
-    const switched = getHowStoryFrame(beatP(4, 0.12), layout);
-    assert.equal(switched.nodes.screenMap.o, 1, name);
-    assert.equal(switched.nodes.screenPicker.o, 0, name);
-    for (let index = 0; index < 4; index += 1) assert.equal(switched.nodes[`match${index}`].o, 0, name);
-    // The copies land on 경주시's label point at the drill view and are gone when it fills.
-    const target = layout.mapTarget;
-    near(target.x, layout.screen.x + view.gyeongju.x * layout.dp, `${name} target x`);
-    near(target.y, layout.screen.y + (view.area.top + view.gyeongju.y) * layout.dp, `${name} target y`);
-    const filled = getHowStoryFrame(beatP(4, 0.24), layout);
-    for (let index = 0; index < 3; index += 1) {
-      const copy = filled.nodes[`copy${index}`];
-      assert.equal(copy.o, 0, `${name} copy ${index}`);
-      const { x, y, size } = rectOf(copy, layout);
-      near(x + size / 2, target.x, `${name} copy ${index} lands x`);
-      near(y + size / 2, target.y, `${name} copy ${index} lands y`);
-    }
+    // The prints rise off the top as the beat opens; the picker and its cards are gone by t .16.
+    const rising = getHowStoryFrame(beatP(4, 0.06), layout);
+    assert.ok(rising.nodes.copy0.ty < getHowStoryFrame(beatP(4, 0), layout).nodes.copy0.ty, name);
+    const gone = getHowStoryFrame(beatP(4, 0.16), layout);
+    assert.equal(gone.nodes.screenPicker.o, 0, name);
+    assert.equal(gone.nodes.screenMap.o, 0, name);
+    for (let index = 0; index < 4; index += 1) assert.equal(gone.nodes[`match${index}`].o, 0, name);
+    for (let index = 0; index < 3; index += 1) assert.equal(gone.nodes[`copy${index}`].o, 0, name);
     // Drill, then Korea: district lines and the drill card hand over to the province outlines and the Korea card.
-    const before = getHowStoryFrame(beatP(4, 0.39), layout).nodes;
-    const after = getHowStoryFrame(beatP(4, 0.61), layout).nodes;
+    const before = getHowStoryFrame(beatP(4, 0.36), layout).nodes;
+    const after = getHowStoryFrame(beatP(4, 0.66), layout).nodes;
     assert.deepEqual(["mapDistrictLines", "mapLabels", "mapFillDistrict", "mapCardDrill"].map((key) => [before[key].o, after[key].o]), [[1, 0], [1, 0], [1, 0], [1, 0]], name);
     assert.deepEqual(["mapProvinces", "mapFillProvince", "mapCardKorea"].map((key) => [before[key].o, after[key].o]), [[0, 1], [0, 1], [0, 1]], name);
   }
@@ -1112,7 +1199,7 @@ test("beat 05's drill is a state develop's map allows: zoomed in on the mainland
     if (code === "47940") assert.ok(x > APP_MAP_VIEW.area.width, name);
     else assert.ok(x > 16 && x < APP_MAP_VIEW.area.width - 16 && y > APP_MAP_VIEW.backRow && y < APP_MAP_VIEW.area.height, `${name} ${x} ${y}`);
   }
-  const [, gyeongjuY] = atDrill(...HOW_STORY_MAP.gyeongjuLabel);
+  const [, gyeongjuY] = atDrill(...gyeongbuk.districts.find(({ code }) => code === "47130").labelPoint);
   assert.ok(gyeongjuY / APP_MAP_VIEW.area.height <= 0.62, `${gyeongjuY}`);
   // About twice develop's first framing.
   const firstFrame = (APP_MAP_VIEW.area.width / APP_MAP_VIEW.drillBox[2]) / zoom;

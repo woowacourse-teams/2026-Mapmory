@@ -104,6 +104,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       set("--win-radius", `${(layout.screenRadius * layout.kIn).toFixed(1)}px`);
       set("--stage-radius", `${layout.stageRadius}px`);
       set("--node-base", `${layout.nodeBase}px`);
+      set("--match-k", String(layout.matchK));
       set("--overlay-top", `${layout.overlayTop}px`);
       cellElements.forEach((element, index) => {
         const cell = layout.cells[index];

@@ -6,7 +6,7 @@ import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { PhoneFrame } from "./how/PhoneFrame.jsx";
 import { ImportScreen, LOADING_START, LOADING_STILL, LoadingScreen, MapScreen, PickerCardChrome, PickerScreen } from "./how/AppScreens.jsx";
 import { HowStoryBand } from "./how/HowStoryBand.jsx";
-import { LibraryMosaic, LibraryStill } from "./how/LibraryMosaic.jsx";
+import { LibraryMosaic, LibraryStill, MatchPin } from "./how/LibraryMosaic.jsx";
 import { HOW_STORY_SAMPLE_METRICS } from "./howStorySample.js";
 import {
   HOW_STORY_BEATS,
@@ -140,18 +140,20 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
       </div>
       <Overlay node="overlay" value={OVERLAY_START} />
       {/* The four Gyeongju photos: library -> cluster (beat 03) -> the picker's cards (beat 04), whose border, preview
-          button and tap rings they carry. */}
+          button and tap rings they carry. They leave the library with its green ring and pin, which fade in flight. */}
       {HOW_STORY_MATCHES.map((match, index) => (
         <div className="how-match" data-node={`match${index}`} key={match.id}>
           <span className="how-match-shadow" data-node={`matchShadow${index}`} />
           <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />
+          <span className="how-match-mark" data-node={`matchRing${index}`}><MatchPin /></span>
           <span className="how-match-chrome" data-node={`matchChrome${index}`} data-card={index}>
             <PickerCardChrome />
             {match.picked && <span className="how-tap" data-tap={`pick-${PICKED.indexOf(match)}`} />}
           </span>
         </div>
       ))}
-      {/* Saving: a copy of each picked photo lifts off its card, then lands on Gyeongju on the map (beat 05). */}
+      {/* Saving: a copy of each picked photo lifts off its card into a stack of prints, which rises off the top
+          as beat 05 opens (the upload), before the map shows. */}
       {PICKED.map((match, index) => (
         <div className="how-copy-node" data-node={`copy${index}`} key={match.id}>
           <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />

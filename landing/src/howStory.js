@@ -245,10 +245,11 @@ export function cubicBezier(x1, y1, x2, y2) {
 }
 export const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 export const EASE_IN_OUT = cubicBezier(0.77, 0, 0.175, 1);
+// Scrubbed cameras and flights (ease-in-out-sine): no steep middle, so a single wheel notch or flick shows the
+// in-between frames instead of a jump. (EASE_IN_OUT's middle covers 80% of a move in a fifth of its window.)
+export const GLIDE = cubicBezier(0.37, 0, 0.63, 1);
 // Only for the beat 02 counter and pin wave (ease-out-cubic).
 export const COUNT = cubicBezier(0.33, 1, 0.68, 1);
-// Landings: a damped spring that overshoots a little and settles.
-export const spring = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : 1 - Math.exp(-8 * u) * Math.cos(7 * u));
 
 const numberFormat = new Intl.NumberFormat("ko-KR");
 export function formatHowStoryNumber(value) {
@@ -318,9 +319,9 @@ export function isInsideRings(lng, lat, rings) {
 const DRAWN_TAPS = Object.freeze([
   Object.freeze({ id: "field", scene: 0, t: 0.04, optional: true }),
   Object.freeze({ id: "row", scene: 0, t: 0.42 }),
-  Object.freeze({ id: "pick-0", scene: 3, t: 0.36 }),
-  Object.freeze({ id: "pick-1", scene: 3, t: 0.44 }),
-  Object.freeze({ id: "pick-2", scene: 3, t: 0.52 }),
+  Object.freeze({ id: "pick-0", scene: 3, t: 0.41 }),
+  Object.freeze({ id: "pick-1", scene: 3, t: 0.48 }),
+  Object.freeze({ id: "pick-2", scene: 3, t: 0.55 }),
   Object.freeze({ id: "save", scene: 3, t: 0.62 }),
 ]);
 
@@ -483,14 +484,20 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const nodes = {};
   const texts = {};
 
-  // Camera: in over beat 02 t .06-.24, out over beat 04 t 0-.28 (e = 1 means inside the phone).
+  // Camera: in over beat 02 t .06-.36, out over beat 04 t 0-.30 (e = 1 means inside the phone). Scrubbed moves
+  // ride GLIDE over about a third of a viewport each: the reader's scroll is the speed, so the curve stays gentle.
   const outward = progress >= HOW_STORY_WINDOWS[3][0];
-  const inE = EASE_IN_OUT(seg(t2, 0.06, 0.24));
-  const outE = EASE_IN_OUT(seg(t4, 0, 0.28));
+  const inE = GLIDE(seg(t2, 0.06, 0.36));
+  const outE = GLIDE(seg(t4, 0, 0.3));
   const e = outward ? 1 - outE : inE;
   const zoom = inward === "zoom";
   const z = zoom ? lerp(1, L.kIn, e) : 1;
   nodes.phoneCamera = zoom ? move(L.d.x * e, L.d.y * e, z) : move(0, 0, 1);
+  // A stage rect inside the phone, where the camera shows it now (the camera scales about the phone's centre).
+  const phoneCentre = { x: L.phone.x + L.phone.w / 2, y: L.phone.y + L.phone.h / 2 };
+  const throughCamera = (rect) => (zoom
+    ? { x: phoneCentre.x + (rect.x - phoneCentre.x) * z + L.d.x * e, y: phoneCentre.y + (rect.y - phoneCentre.y) * z + L.d.y * e, size: rect.size * z }
+    : rect);
   // Inward, in order: the library and the dark ground come up under the phone, the screen (content and
   // background) goes clear so the library shows in the screen's place, then the clay bezel fades. Outward runs
   // the other way. Each is one opacity on its own wrapper.
@@ -506,12 +513,15 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   nodes.screenFade = fade(screenO);
   nodes.phoneFade = fade(outward ? seg(outE, 0.3, 0.9) : 1 - seg(inE, 0.25, 0.7));
 
-  // Screens inside the phone (screen px). Beat 02 pushes 사진 불러오기 out and the loading screen in.
-  const push = EASE_IN_OUT(seg(t2, 0, 0.08));
-  const mapIn = EASE_OUT(seg(t5, 0, 0.12));
+  // Screens inside the phone (screen px). Beat 02 pushes 사진 불러오기 out and the loading screen in. Beat 05 is
+  // two moments, never a crossfade: the picker goes (t .08-.16), the screen stays empty a beat, then the map comes
+  // (t .19-.27), so saving never reads as "and then the app opens the map".
+  const push = GLIDE(seg(t2, 0, 0.1));
+  const pickerOut = seg(t5, 0.08, 0.16);
+  const mapIn = GLIDE(seg(t5, 0.19, 0.27));
   nodes.screenImport = move(-0.3 * L.screen.w * push, 0, 1, outward ? 0 : 1 - push);
   nodes.screenLoading = move(L.screen.w * (1 - push), 0, 1, outward ? 0 : 1);
-  nodes.screenPicker = fade(outward ? 1 - mapIn : 0);
+  nodes.screenPicker = fade(outward ? 1 - pickerOut : 0);
   nodes.screenMap = fade(mapIn);
 
   // Counter and pin wave share one number, so they never disagree.
@@ -536,7 +546,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   // The reveal carries the pins' opacity too (one layer fewer).
   nodes.pinsReveal = move(0, -reveal, 1, lerp(1, 0.55, settle) * (1 - dim));
   nodes.overlayBar = fade(1 - dim);
-  const overlayIn = EASE_OUT(seg(t2, 0.16, 0.24));
+  const overlayIn = EASE_OUT(seg(t2, 0.2, 0.3));
   const overlayO = outward ? 1 - seg(outE, 0, 0.3) : overlayIn;
   nodes.overlay = outward ? move(0, 0, 1, overlayO) : move(0, 12 * (1 - overlayIn), 1, overlayIn);
   if (overlayO > 0) {
@@ -544,56 +554,58 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     nodes.overlayBarFill = move(L.overlayBar * (k / 100 - 1), 0);
   }
 
-  // The four 경주 photos. Beat 03: in the library (lifted once their pin pops) until their flight starts, then the
-  // stage tiles take over at the lifted rect and fly (spring, staggered) to a 2x2 cluster. Beat 04: they fly on to
-  // the picker's cards and become them (the card border and preview button fade in as they land), so the photos
-  // found are the photos offered. Beat 05: they go with the picker. The originals never leave during beat 04.
+  // The four 경주 photos. Beat 03: in the library (lifted once their pin pops) until their flight starts; then the
+  // stage tile takes over at exactly the lifted rect, carrying the cell's green ring and pin (they fade out mid
+  // flight), and glides (staggered) to a 2x2 cluster. Beat 04: they glide on to the picker's cards, landing where
+  // the camera shows each card at that moment, and become them (the card border and preview button fade in once
+  // all four have landed), so the photos found are the photos offered. Beat 05: they go with the picker.
   const pins = L.cells.filter(({ popAt }) => k > 0 && edge >= popAt).length;
   const landing = progress >= HOW_STORY_WINDOWS[4][0];
-  const chrome = seg(t4, 0.26, 0.3);
+  const chrome = seg(t4, 0.32, 0.37);
   L.cells.forEach((cell, i) => {
-    const start3 = 0.06 + 0.04 * i;
+    const start3 = 0.04 + 0.03 * i;
     const started = progress >= HOW_STORY_WINDOWS[2][0] && t3 >= start3;
-    const flight3 = seg(t3, start3, start3 + 0.18);
-    const start4 = 0.04 + 0.03 * i;
-    const flight4 = seg(t4, start4, start4 + 0.17);
-    const [from, to, u] = outward ? [L.cluster[i], L.cards[i], spring(flight4)] : [cell.lift, L.cluster[i], spring(flight3)];
+    const flight3 = seg(t3, start3, start3 + 0.28);
+    const start4 = 0.02 + 0.03 * i;
+    const flight4 = seg(t4, start4, start4 + 0.24);
+    const [from, to, u] = outward ? [L.cluster[i], throughCamera(L.cards[i]), GLIDE(flight4)] : [cell.lift, L.cluster[i], GLIDE(flight3)];
     const size = lerp(from.size, to.size, u);
+    // The cell and its ring hand over to the tile in the same frame.
     nodes[`matchCell${i}`] = fade(started ? 0 : 1);
-    nodes[`matchMark${i}`] = fade(1 - seg(t3, start3, start3 + 0.05));
-    nodes[`match${i}`] = move(lerp(from.x, to.x, u), lerp(from.y, to.y, u), size / L.nodeBase, started ? (landing ? 1 - mapIn : 1) : 0);
+    nodes[`matchMark${i}`] = fade(started ? 0 : 1);
+    nodes[`match${i}`] = move(lerp(from.x, to.x, u), lerp(from.y, to.y, u), size / L.nodeBase, started ? (landing ? 1 - pickerOut : 1) : 0);
+    nodes[`matchRing${i}`] = fade(outward ? 0 : 1 - seg(flight3, 0.3, 0.7));
     nodes[`matchShadow${i}`] = fade(outward ? 1 - flight4 : flight3);
     nodes[`matchChrome${i}`] = fade(outward ? chrome : 0);
   });
 
-  // Saving: copies of the three picked photos appear over their cards and lift (the originals stay selected in
-  // the grid; card D has no copy). Beat 05: they fly to 경주시 on the drill map and fade as they arrive.
+  // Saving: copies of the three picked photos peel off their cards and lift into a fanned stack of prints over the
+  // header (the upload; the originals stay selected in the grid, card D has no copy). Beat 05 opens with the
+  // prints rising off the top and fading: the upload ends there, before the map, which never receives them.
   const picked = HOW_STORY_MATCHES.filter((match) => match.picked).length;
   for (let i = 0; i < picked; i += 1) {
     const card = L.cards[i];
-    const hover = L.hover[i];
-    const lift = EASE_OUT(seg(t4, 0.66 + 0.03 * i, 0.74 + 0.03 * i));
-    // The last copy lands at t .24, as 경주시 fills.
-    const flightRaw = seg(t5, 0.04 + 0.03 * i, 0.18 + 0.03 * i);
-    const flight = EASE_IN_OUT(flightRaw);
+    const print = L.prints[i];
+    const lift = GLIDE(seg(t4, 0.64 + 0.02 * i, 0.74 + 0.02 * i));
+    const leave = GLIDE(seg(t5, 0.02 * i, 0.1 + 0.02 * i));
+    const from = { cx: card.x + card.size / 2, cy: card.y + card.size / 2, size: card.size, r: 0 };
     let rect;
     let o;
     if (!landing) {
-      rect = { x: lerp(card.x, hover.x, lift), y: lerp(card.y, hover.y, lift), size: lerp(card.size, hover.size, lift) };
-      o = outward ? 0.92 * lift : 0;
+      rect = { cx: lerp(from.cx, print.cx, lift), cy: lerp(from.cy, print.cy, lift), size: lerp(from.size, print.size, lift), r: lerp(0, print.r, lift) };
+      o = outward ? seg(lift, 0, 0.35) : 0;
     } else {
-      const endSize = card.size * 0.12;
-      const end = { x: L.mapTarget.x - endSize / 2, y: L.mapTarget.y - endSize / 2, size: endSize };
-      rect = { x: lerp(hover.x, end.x, flight), y: lerp(hover.y, end.y, flight), size: lerp(hover.size, end.size, flight) };
-      o = 0.92 * (1 - seg(flightRaw, 0.75, 1));
+      rect = { ...print, cy: lerp(print.cy, -print.size, leave) };
+      o = 1 - seg(leave, 0.3, 1);
     }
-    nodes[`copy${i}`] = move(rect.x, rect.y, rect.size / L.nodeBase, o);
+    nodes[`copy${i}`] = { ...move(rect.cx - L.nodeBase / 2, rect.cy - L.nodeBase / 2, rect.size / L.nodeBase, o), r: round(rect.r, 2) + 0 };
   }
 
-  // Beat 05's map: a tab switch (crossfade) to develop's 경상북도 drill map, then the map camera pulls back to the
-  // Korea map by interpolating the SVG viewBox (crisp at every scale): district lines and labels go, province
-  // outlines come, 경주시's fill hands over to 경상북도's, and the summary card crossfades to the Korea variant.
-  const mapE = EASE_IN_OUT(seg(t5, 0.4, 0.6));
+  // Beat 05's map, its own moment after the picker has gone: develop's 경상북도 drill map (zoomed in on the
+  // mainland), 경주시 fills, then the map camera pulls back to the Korea map by interpolating the SVG viewBox (crisp
+  // at every scale): district lines and labels go, province outlines come, 경주시's fill hands over to 경상북도's,
+  // and the summary card crossfades to the Korea variant.
+  const mapE = GLIDE(seg(t5, 0.37, 0.65));
   const view = APP_MAP_VIEW;
   const box = mapCameraBox(view.drillBox, view.koreaBox, mapE);
   const attrs = { mapSvg: { viewBox: box.map((value) => round(value, 2)).join(" ") } };
@@ -629,7 +641,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     found: t3 >= 0.14 ? 1 : 0,
     sel: pickTaps.filter((tap) => progress >= tap.p).length,
     save: progress >= saveTap.p ? 1 : 0,
-    map: !landing || t5 < 0.24 ? "drill0" : t5 < 0.66 ? "drill1" : "world",
+    map: !landing || t5 < 0.31 ? "drill0" : t5 < 0.71 ? "drill1" : "world",
   };
 
   return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs, state };
@@ -638,7 +650,10 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
 // Inline style for one frame node; the scroll hook writes the same strings straight to the DOM.
 export function getHowStoryNodeStyle(node) {
   const style = {};
-  if (node.tx !== undefined) style.transform = node.s === 1 ? `translate3d(${node.tx}px, ${node.ty}px, 0)` : `translate3d(${node.tx}px, ${node.ty}px, 0) scale(${node.s})`;
+  if (node.tx !== undefined) {
+    const turn = node.r ? ` rotate(${node.r}deg)` : "";
+    style.transform = node.s === 1 && !turn ? `translate3d(${node.tx}px, ${node.ty}px, 0)` : `translate3d(${node.tx}px, ${node.ty}px, 0)${turn} scale(${node.s})`;
+  }
   if (node.o !== undefined) style.opacity = String(node.o);
   return style;
 }

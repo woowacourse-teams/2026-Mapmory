@@ -31,8 +31,8 @@ function Panels({ className }) {
   return PANELS.map((panel) => <span className={className} key={panel.index} style={panelStyle(panel)} />);
 }
 
-// The green match pin (9x12), a little larger than the white ones.
-function MatchPin() {
+// The green match pin (9x12), a little larger than the white ones. The flying photos carry it too (HowStory.jsx).
+export function MatchPin() {
   return (
     <svg className="how-match-pin" viewBox="0 0 9 12" focusable="false">
       <path d="M4.5 11.4C3.3 10.1 0.6 7.3 0.6 4.6a3.9 3.9 0 0 1 7.8 0c0 2.7-2.7 5.5-3.9 6.8z" />
