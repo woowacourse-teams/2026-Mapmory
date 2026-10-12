@@ -5,6 +5,7 @@ import { initializeAnalytics } from "./analytics.js";
 import "./styles.css";
 import "./photo-finder-hero.css";
 import "./how-story.css";
+import "./how-app-screens.css";
 
 initializeAnalytics();
 

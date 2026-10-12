@@ -1,5 +1,40 @@
-/* #how: a scroll-driven story. A tall track holds one sticky frame; scroll progress scrubs the stage. */
-.how-section .section-heading { margin-bottom: 28px; }
+/* #how: a Toss-style tour of the app. A tall track holds one sticky frame: the beat copy, and a stage where a
+   clay phone shows develop's record flow and the camera pushes into it to show the photo library being checked.
+   Scrubbed motion is written by useHowStoryScroll (transform/opacity/text only); triggered states are data-*
+   attributes on .how-stage that play time-based here. */
+.how-story-track,
+.how-static-figure {
+  --how-glow: rgba(23, 201, 133, 0.1);
+  --how-ground: #0e1214;
+  --how-ground-edge: transparent;
+  --phone-clay: #eef1ef;
+  --phone-edge: #dce3df;
+  --phone-shadow: 0 30px 60px -24px rgba(20, 40, 30, 0.28), 0 2px 6px rgba(20, 40, 30, 0.06);
+  --how-pill-bg: rgba(20, 32, 25, 0.55);
+  --how-match: #35c987;
+  /* Landings: a damped spring (overshoots a little, then settles). */
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  .how-story-track,
+  .how-static-figure { --spring: linear(0, 0.42 6%, 0.79 14%, 0.97 22%, 1.025 30%, 1.028 38%, 1.01 50%, 0.998 66%, 1); }
+}
+:root[data-theme="dark"] .how-story-track,
+:root[data-theme="dark"] .how-static-figure {
+  --how-glow: rgba(33, 230, 154, 0.1);
+  --how-ground-edge: rgba(255, 255, 255, 0.06);
+  --phone-clay: #2a3034;
+  --phone-edge: rgba(255, 255, 255, 0.06);
+  --phone-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Section heading: an eyebrow and a two-line h2, centred; it fades up once on first view. */
+.section-heading.how-heading { margin: 0 auto 40px; text-align: center; }
+.how-eyebrow { margin: 0 0 12px; color: var(--accent-ink); font-size: 15px; font-weight: 700; line-height: 1.4; }
+.section-heading.how-heading h2 { font-size: clamp(30px, 8.4vw, 34px); line-height: 1.25; letter-spacing: -0.03em; }
+.how-heading h2 span { display: block; }
+.how-heading.is-waiting { opacity: 0; transform: translateY(20px); }
+.how-heading.is-shown { transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); }
 
 .how-story-skip {
   position: absolute;
@@ -31,233 +66,302 @@
   font-weight: 700;
 }
 
-/* Track and frame sizes per breakpoint (mobile first). */
-.how-story-track { position: relative; height: 320vh; height: 320svh; }
-/* Stacked layouts: the frame is as tall as its content, so the story starts right under the heading and the
-   globe link follows right after it; max-height is the viewport room the script fits the stage into. The script
-   sets --how-sticky-extra to half the room the frame leaves, so it sticks centred in the viewport. */
+/* Track and frame. Phones: travel is exactly 430svh (one viewport per unit) under a frame of 100svh - 80px. */
+.how-story-track { position: relative; }
+.how-story-track[data-mode="scroll"] {
+  height: calc(530vh - 80px);
+  height: calc(530svh - 80px);
+  /* Full bleed: the stage spans the viewport, past the section's 24px gutters. */
+  margin-inline: calc(50% - 50vw);
+}
 .how-story-frame {
   position: sticky;
-  top: calc(80px + var(--how-sticky-extra, 0px));
-  max-height: calc(100vh - 96px);
-  max-height: calc(100svh - 96px);
+  top: 80px;
+  height: calc(100vh - 80px);
+  height: calc(100svh - 80px);
   display: flex;
   flex-direction: column;
 }
 
-.how-story-steps { margin: 0; padding: 0; list-style: none; display: grid; }
-.how-story-step { min-width: 0; }
-/* Captions sit on the progress bar; the auto margin (not justify-content) keeps any overflow at the bottom, where the fit check sees it. */
-.how-story-track[data-mode="scroll"] .how-story-step { display: flex; flex-direction: column; }
-.how-story-track[data-mode="scroll"] .how-story-step-no { margin-top: auto; }
-.how-story-step-no { display: block; color: var(--accent-ink); font-size: 13px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
-.how-story-step h3 { margin: 4px 0 0; font-size: 20px; line-height: 1.35; letter-spacing: -0.02em; word-break: keep-all; }
-.how-story-support { margin: 4px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; word-break: keep-all; }
-
-/* Scroll mode: the five captions share one slot and swap by scene index; they are never scrubbed. */
-/* The slot is as tall as the longest caption at this width, up to two lines each (124px); longer text overflows
-   the cap, and the script then falls back to the static list. */
-.how-story-track[data-mode="scroll"] .how-story-steps { max-height: 124px; overflow: hidden; }
-.how-story-track[data-mode="scroll"] .how-story-step { grid-area: 1 / 1; opacity: 0; transition: opacity 160ms ease; }
-.how-story-track[data-mode="scroll"] .how-story-step[data-active="true"] { opacity: 1; }
-
-.how-story-progress { margin: 10px 0 12px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; pointer-events: none; }
-.how-story-progress-track { height: 3px; display: block; overflow: hidden; border-radius: 2px; background: var(--line); }
-.how-story-progress-track i { width: 100%; height: 100%; display: block; background: var(--accent-ink); transform: scaleX(0); transform-origin: 0 50%; }
-.how-story-progress small { display: none; }
-
-.how-story-stage-wrap { min-width: 0; margin-inline: -8px; }
-.how-story-note { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; word-break: keep-all; }
-
-/* Stage: the server strip, the boundary line, then the phone zone holding the 320x280 logical canvas. */
-/* --how-k (canvas scale) is measured by script and set on the stage wrap or the static list; 19px is the zone's padding and border. */
-/* The stage is a size container so the zone's counter row can wrap by the stage's own width, which depends on --how-k. */
-.how-stage { width: calc(320px * var(--how-k, 1) + 19px); max-width: 100%; margin: 0 auto; container-type: inline-size; }
-
-/* Above the line is the server side: it holds only what the Mapmory server has received, never a phone-side count. */
-.how-server {
-  height: 36px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface-soft);
+/* Copy: five beats stacked in one cell; only the active one shows, and it swaps by scene index (never scrubbed).
+   The slot is capped at eyebrow + two headline lines + one sub line; text that overflows it (large text) sends
+   the story to the static list. */
+.how-copy {
+  --how-eb-size: 15px;
+  --how-eb-lh: 20px;
+  --how-eb-gap: 6px;
+  --how-hl-size: clamp(28px, 7.6vw, 34px);
+  --how-sub-gap: 8px;
+  --how-sub-size: 16px;
+  flex: 0 0 auto;
+  max-height: calc(16px + var(--how-eb-lh) + var(--how-eb-gap) + 2.6 * var(--how-hl-size) + var(--how-sub-gap) + 1.5 * var(--how-sub-size) + 2px);
+  padding: 16px 20px 0;
+  display: grid;
+  overflow: hidden;
 }
-.how-server-label { min-width: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; }
-.how-server-label svg { flex: 0 0 auto; color: var(--accent-ink); }
-.how-server-value { flex: 0 0 auto; color: var(--text); font-size: 13px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.how-copy-beat { grid-area: 1 / 1; min-width: 0; visibility: hidden; }
+.how-copy-beat[data-copy] { visibility: visible; }
+.how-copy-eyebrow,
+.how-static-copy .how-copy-eyebrow { margin: 0 0 var(--how-eb-gap, 6px); color: var(--accent-ink); font-size: var(--how-eb-size, 15px); font-weight: 700; line-height: var(--how-eb-lh, 20px); font-variant-numeric: tabular-nums; }
+.how-copy-headline { min-height: calc(2.6 * var(--how-hl-size, 28px)); margin: 0; font-size: var(--how-hl-size, 28px); font-weight: 700; line-height: 1.3; letter-spacing: -0.025em; word-break: keep-all; text-wrap: initial; }
+.how-copy-headline span { display: block; }
+.how-copy-sub { margin: var(--how-sub-gap, 8px) 0 0; color: var(--muted); font-size: var(--how-sub-size, 16px); line-height: 1.5; word-break: keep-all; }
 
-.how-line { position: relative; height: 24px; display: grid; place-items: center; }
-.how-line::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
-.how-line span { position: relative; padding: 0 10px; background: var(--canvas); color: var(--muted); font-size: 12px; font-weight: 700; line-height: 20px; white-space: nowrap; }
+/* Copy swap: the outgoing beat fades and rises 8px (200ms); the incoming eyebrow, lines and sub rise 20px
+   (from above when scrolling up), 420ms, 60ms apart. Nothing plays until the track is entered. */
+.how-story-track:not(.is-entered) .how-copy-beat { opacity: 0; }
+.how-story-track.is-entered .how-copy-beat[data-copy="leaving"] { animation: how-copy-out 200ms var(--ease-out) both; }
+.how-story-track.is-entered .how-copy-beat[data-copy="active"] :is(.how-copy-eyebrow, .how-copy-headline span, .how-copy-sub) { animation: how-copy-in 420ms var(--ease-out) both; }
+.how-story-track.is-entered .how-copy[data-direction="up"] .how-copy-beat[data-copy="active"] :is(.how-copy-eyebrow, .how-copy-headline span, .how-copy-sub) { animation-name: how-copy-in-up; }
+.how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-headline span:first-child { animation-delay: 60ms; }
+.how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-headline span:last-child { animation-delay: 120ms; }
+.how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-sub { animation-delay: 180ms; }
+@keyframes how-copy-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes how-copy-in { from { opacity: 0; transform: translateY(20px); } }
+@keyframes how-copy-in-up { from { opacity: 0; transform: translateY(-20px); } }
 
-.how-zone { position: relative; padding: 8px; border: 1.5px solid transparent; border-radius: 20px; background: var(--canvas); }
-/* The dashed 내 폰 안 frame is its own node: it fades in when the photo scan starts, never around the place search. */
-.how-zone-frame { position: absolute; inset: -1.5px; border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); border-radius: 20px; pointer-events: none; }
-.how-zone-head { height: 28px; margin-bottom: 6px; padding: 0 2px; display: flex; align-items: center; gap: 6px; }
-.how-zone-chip { margin-right: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
-.how-zone-chip svg { flex: 0 0 auto; color: var(--accent-strong); }
-.how-zone-place { height: 24px; padding: 0 9px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 700; white-space: nowrap; transform-origin: 100% 50%; }
-.how-zone-place svg { flex: 0 0 auto; color: var(--accent-ink); }
-.how-zone-sample.finder-sample-badge { position: static; flex: 0 0 auto; }
-/* The phone's own counters sit inside the 내 폰 안 zone, under its head: the scan count (and a measured timer and taps). */
-.how-meter { height: 22px; margin: -2px 0 6px; padding: 0 2px; display: flex; align-items: center; gap: 10px; }
-.how-meter-scan { min-width: 0; display: flex; align-items: center; gap: 6px; }
-.how-meter-label { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 14px; white-space: nowrap; }
-.how-meter-value { flex: 0 0 auto; color: var(--text); font-size: 14px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* The two values that change on every scrolled frame are fixed-size boxes, so their text never relayouts the page. */
-.how-meter-value[data-text="checked"] { width: 8.6em; height: 20px; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; contain: strict; }
-.how-meter-timer { width: 3.6em; height: 16px; flex: 0 0 auto; color: var(--accent-ink); font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; contain: strict; }
-.how-meter-taps { margin-left: auto; display: flex; align-items: center; gap: 5px; }
-/* With a measured tap counter on a narrow stage, the counter takes a second row instead of squeezing the scan count. */
-@container (max-width: 340px) {
-  .how-meter.has-taps { height: auto; min-height: 22px; flex-wrap: wrap; row-gap: 2px; }
-  .how-meter.has-taps .how-meter-taps { margin-left: 0; }
+/* Stage: everything the hook moves sits at the stage origin and is placed by translate3d from the frame. The
+   stage clips it; --phone-*, --tile, --win-*, --node-base and --overlay-top come from the measured layout. */
+.how-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 20px;
+  overflow: hidden;
+  border-radius: var(--stage-radius, 24px);
+  contain: layout paint;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.how-stage > * { position: absolute; left: 0; top: 0; margin: 0; }
+.how-glow {
+  left: calc(var(--phone-x) + var(--phone-w) / 2);
+  top: calc(var(--phone-y) + ((var(--phone-w) - 18px) * 780 / 360 + 18px) / 2);
+  width: calc(var(--phone-w) * 1.5);
+  height: calc(var(--phone-w) * 1.5);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--how-glow), transparent);
+  transform: translate(-50%, -50%);
+}
+/* Inside the phone: a dark ground fills the stage clip (with a 1px edge in dark mode). */
+.how-ground { width: 100%; height: 100%; border-radius: inherit; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); opacity: 0; }
+
+/* The library window: full stage width at the screen's aspect, centred on the stage; the camera scales it down
+   to the phone screen (its radius then matches the screen's). */
+.how-mosaic-window {
+  top: var(--win-y);
+  width: 100%;
+  height: var(--win-h);
+  overflow: hidden;
+  border-radius: var(--win-radius);
+  background: var(--how-ground);
+  transform-origin: 50% 50%;
+  opacity: 0;
+}
+.how-mosaic-sprite,
+.how-pins-layer,
+.how-pins-reveal,
+.how-pins-inner { position: absolute; inset: 0; }
+/* The sprite loads only once the track is near (has-library comes with the attach observer). */
+.has-library .how-mosaic-sprite,
+.how-mosaic-still {
+  background-image: url("/assets/how/library-mosaic.webp");
+  background-size: calc(16 * var(--tile, 16px)) calc(20 * var(--tile, 16px));
+  background-repeat: repeat;
+}
+.how-pins-reveal { overflow: hidden; }
+.how-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
+.how-mosaic-match { position: absolute; width: var(--tile); height: var(--tile); }
+.how-mosaic-match img { width: 100%; height: 100%; padding: 0.5px; object-fit: cover; }
+.how-mosaic-mark,
+.how-mosaic-mark-pop { position: absolute; inset: 0; }
+/* A found photo's green pin and 2px ring pop once the wave passes it (data-pins counts them, in cell order). */
+.how-mosaic-mark-pop { opacity: 0; transform: scale(0.6); }
+.how-mosaic-ring { position: absolute; inset: 0; border-radius: 2px; box-shadow: 0 0 0 2px var(--how-match); }
+.how-match-pin { position: absolute; left: 2px; top: 1px; width: 9px; height: 12px; fill: var(--how-match); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.3)); }
+.how-match-pin circle { fill: #ffffff; }
+.how-stage:is([data-pins="1"], [data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="0"],
+.how-stage:is([data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="1"],
+.how-stage:is([data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="2"],
+.how-stage[data-pins="4"] .how-mosaic-mark-pop[data-i="3"] { opacity: 1; transform: none; transition: opacity 160ms var(--ease-out), transform 260ms var(--spring); }
+
+/* The phone: an untransformed slot (the rest rect), the entrance wrapper, the camera and the fade. */
+.how-phone-slot { left: var(--phone-x); top: var(--phone-y); width: var(--phone-w); height: calc((var(--phone-w) - 18px) * 780 / 360 + 18px); }
+.how-phone-enter { transition: opacity 420ms var(--ease-out) 240ms, transform 420ms var(--ease-out) 240ms; }
+.how-story-track:not(.is-entered) .how-phone-enter { opacity: 0; transform: translateY(40px); transition: none; }
+.how-phone-camera { transform-origin: 50% 50%; }
+.how-stage[data-scene="3"] .how-phone-slot { visibility: hidden; }
+
+/* PhoneFrame: a clay bezel (9px) around a 360 x 780 dp screen, no clock, icons or buttons. */
+.how-phone {
+  --dp: calc((var(--phone-w) - 18px) / 360);
+  width: var(--phone-w);
+  padding: 9px;
+  border-radius: calc(var(--phone-w) * 0.153);
+  background: var(--phone-clay);
+  box-shadow: var(--phone-shadow), inset 0 0 0 1px var(--phone-edge);
+}
+.how-phone-screen {
+  position: relative;
+  width: calc(360 * var(--dp));
+  height: calc(780 * var(--dp));
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: calc(var(--phone-w) * 0.127);
+  background: var(--app-bg);
+}
+.how-phone-punch { position: absolute; z-index: 2; left: 50%; top: calc(8 * var(--dp)); width: calc(8 * var(--dp)); height: calc(8 * var(--dp)); margin-left: calc(-4 * var(--dp)); border-radius: 50%; background: #0e1113; }
+/* Screens that are not near the current scene cost no paint. */
+.how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"]) :is(.how-app-import, .how-app-loading),
+.how-stage:is([data-scene="1"], [data-scene="2"], [data-scene="3"]) .how-app-picker,
+.how-stage:not([data-scene="5"]) .how-app-map { visibility: hidden; }
+.how-stage .how-app-picker,
+.how-stage .how-app-map { opacity: 0; }
+
+/* The big number over the library: a fixed-width block, so the per-frame value writes never relayout. */
+.how-overlay {
+  top: var(--overlay-top);
+  left: 0;
+  right: 0;
+  width: 240px;
+  margin-inline: auto;
+  display: grid;
+  justify-items: center;
+  color: #ffffff;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+}
+/* A static scrim behind the block; it holds its full strength over the text before it falls off. */
+.how-overlay-scrim { position: absolute; left: 50%; top: 50%; width: 170%; height: 220%; background: radial-gradient(closest-side, rgba(14, 18, 20, 0.84) 40%, rgba(14, 18, 20, 0)); transform: translate(-50%, -50%); }
+.how-overlay-label,
+.how-overlay-value { position: relative; margin: 0; display: grid; justify-items: center; }
+.how-overlay-label > *,
+.how-overlay-value > * { grid-area: 1 / 1; white-space: nowrap; }
+.how-overlay-label { color: rgba(255, 255, 255, 0.72); font-size: 14px; font-weight: 700; line-height: 20px; }
+.how-overlay-value { margin-top: 4px; font-size: 44px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.how-overlay-bar { position: relative; width: 160px; height: 4px; margin-top: 12px; display: block; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, 0.16); }
+.how-overlay-bar i { width: 100%; height: 100%; display: block; background: var(--how-match); transform: scaleX(0); transform-origin: 0 50%; }
+.how-overlay-b { opacity: 0; }
+.how-digits { display: inline-flex; justify-content: center; }
+.how-digits i { font-style: normal; text-align: center; }
+.how-digits i[data-c="d"] { width: 0.58em; }
+.how-digits i[data-c="p"] { width: 0.3em; }
+.how-digits i[data-c=""] { display: none; }
+/* The number lands: the label crossfades, 21,474장 leaves upward and 4장 arrives as a new number. */
+:is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-label .how-overlay-a { opacity: 0; transition: opacity 200ms ease; }
+:is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-label .how-overlay-b { opacity: 1; transition: opacity 200ms ease; }
+:is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-value .how-overlay-a { opacity: 0; transform: translateY(-12px); transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+.how-overlay-value .how-overlay-b { transform: translateY(16px); }
+:is(.how-stage[data-found="1"] .how-overlay, .how-overlay[data-found="1"]) .how-overlay-value .how-overlay-b { opacity: 1; transform: none; transition: opacity 240ms var(--ease-out) 80ms, transform 500ms var(--spring) 80ms; }
+
+/* The four 경주 photos: drawn at --node-base (120px) and only ever scaled down, so they stay crisp. */
+.how-match { width: var(--node-base, 120px); height: var(--node-base, 120px); transform-origin: 0 0; opacity: 0; }
+.how-match img,
+.how-match-shadow { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 12px; }
+.how-match img { object-fit: cover; }
+.how-match-shadow { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); opacity: 0; }
+
+.how-bottom-fade { top: auto; bottom: 0; width: 100%; height: 48px; background: linear-gradient(to bottom, transparent, var(--canvas)); pointer-events: none; }
+.how-pill,
+.how-static-figure .how-pill {
+  top: 12px;
+  right: 12px;
+  left: auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--how-pill-bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
 }
 
-.how-stage-box { position: relative; width: calc(320px * var(--how-k, 1)); height: calc(280px * var(--how-k, 1)); }
-.how-stage-canvas { position: absolute; left: 0; top: 0; width: 320px; height: 280px; transform: scale(var(--how-k, 1)); transform-origin: 0 0; }
-.how-stage-clip { position: absolute; inset: 0; overflow: hidden; border-radius: 14px; }
-
-/* Every animated node sits at the canvas origin; the frame's translate3d places it. */
-.how-stage-clip > *,
-.how-copy { position: absolute; left: 0; top: 0; margin: 0; }
-
-/* Library grid. */
-.how-strip { width: 320px; height: 1084px; }
-.how-tile { position: absolute; width: 56px; height: 56px; }
-.how-tile-photo { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; background: var(--surface-soft); }
-.how-tile-photo img,
-.how-copy img { width: 100%; height: 100%; object-fit: cover; }
-.how-flag { position: absolute; pointer-events: none; }
-/* Filler flags: one layer moved with the strip and clipped at the scan line (the line sits at y 236). */
-.how-pins-clip { width: 320px; height: 236px; overflow: hidden; }
-.how-pins { width: 320px; height: 1084px; }
-.how-flag.is-pin { top: 4px; left: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--accent-ink); box-shadow: 0 1px 4px rgba(10, 30, 20, 0.22); }
-.how-flag.is-none { inset: 0; padding-bottom: 5px; display: flex; align-items: flex-end; justify-content: center; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 64%, transparent); }
-.how-flag.is-none span { padding: 1px 5px; border: 1px dashed color-mix(in srgb, var(--text) 32%, transparent); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 9.5px; font-weight: 700; line-height: 13px; white-space: nowrap; }
-.how-tile-dot { position: absolute; inset: 0; border-radius: 50%; }
-.how-tile-dot.is-grey { background: color-mix(in srgb, var(--muted) 72%, var(--canvas)); }
-.how-tile-dot.is-mint { background: var(--accent); }
-.how-tile-badge { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; display: grid; place-items: center; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); color: #062b1c; }
-
-.how-veil { right: 0; bottom: 0; background: var(--canvas); }
-.how-scan-line { width: 320px; height: 2px; top: 235px; background: var(--accent-ink); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent); }
-.how-scan-line::before { content: ""; position: absolute; left: 0; right: 0; bottom: 2px; height: 36px; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 16%, transparent)); }
-
-/* Scene 3: the bundled 경주시 boundary. */
-.how-map { width: 320px; height: 280px; overflow: hidden; }
-.how-map-land { fill: var(--surface); stroke: var(--line); stroke-width: 1; stroke-linejoin: round; }
-.how-map-fill { fill: var(--accent-soft); stroke: none; }
-.how-map-boundary { fill: none; stroke: var(--accent-ink); stroke-width: 2; stroke-linejoin: round; }
-.how-map-caption { width: 200px; height: 16px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; white-space: nowrap; }
-.how-pill { width: 260px; height: 32px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 6px 18px rgba(16, 40, 28, 0.12); color: var(--text); font-size: 13px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.how-pill svg { flex: 0 0 auto; color: var(--accent-ink); }
-
-/* Scene 1: the search card. */
-.how-search { width: 288px; height: 116px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 14px 34px rgba(16, 40, 28, 0.16); }
-.how-search-field { position: absolute; top: 12px; left: 12px; right: 12px; height: 40px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 15px; }
-.how-search-field svg { flex: 0 0 auto; }
-.how-search-text { position: relative; min-width: 0; flex: 1; display: flex; align-items: center; color: var(--text); font-weight: 700; white-space: nowrap; }
-.how-search-caret { width: 1.5px; height: 18px; margin-left: 1px; display: block; background: var(--accent-ink); }
-.how-search-placeholder { position: absolute; left: 4px; top: 50%; margin-top: -10px; color: var(--muted); font-weight: 400; line-height: 20px; }
-.how-search-result { position: absolute; top: 60px; left: 12px; right: 12px; height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px; font-weight: 700; }
-.how-search-result > svg { flex: 0 0 auto; color: var(--accent-ink); }
-.how-search-mark { width: 20px; height: 20px; margin-left: auto; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #062b1c; }
-
-/* Scene 4: the sheet, the selection and the copies rising across the line. */
-.how-sheet { width: 304px; height: 196px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 -10px 30px rgba(16, 40, 28, 0.12); }
-.how-sheet-head { position: absolute; top: 14px; left: 16px; right: 12px; height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.how-sheet-head strong { font-size: 15px; line-height: 1.2; white-space: nowrap; }
-.how-sheet-save { width: 48px; height: 28px; display: grid; place-items: center; color: var(--accent-ink); font-size: 14px; font-weight: 700; }
-.how-sheet-sub { position: absolute; top: 44px; left: 16px; right: 16px; display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; line-height: 16px; white-space: nowrap; }
-.how-sheet-count { color: var(--accent-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-.how-sheet-slots { position: absolute; top: 78px; left: 12px; display: grid; grid-template-columns: repeat(4, 64px); gap: 8px; }
-.how-sheet-slots span { height: 64px; border-radius: 11px; background: var(--surface-soft); }
-.how-keep-tag { width: 104px; height: 24px; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
-.how-copy { width: 56px; height: 56px; overflow: hidden; border-radius: 10px; box-shadow: 0 8px 18px rgba(16, 40, 28, 0.2); opacity: 0; }
-
-/* Scene 5: the map fills at three levels. */
-.how-korea { width: 150px; height: 190px; overflow: hidden; }
-.how-korea path { fill: var(--surface); stroke: var(--line); stroke-width: 0.75; stroke-linejoin: round; }
-.how-korea path.how-korea-fill { fill: var(--accent); stroke: color-mix(in srgb, var(--accent-ink) 60%, var(--accent)); }
-.how-level { width: 120px; height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.how-level i { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; background: var(--accent); }
-.how-level span { min-width: 0; display: grid; }
-.how-level small { color: var(--muted); font-size: 10px; font-weight: 700; line-height: 13px; }
-.how-level strong { font-size: 14px; line-height: 18px; white-space: nowrap; }
-
-.how-tap-ring { width: 40px; height: 40px; border: 2px solid var(--accent-ink); border-radius: 50%; background: color-mix(in srgb, var(--accent-ink) 14%, transparent); }
-
-/* Only while the story is near the viewport do the moving layers get their own compositor layers. */
-.how-story-track.is-live .how-strip,
-.how-story-track.is-live .how-pins,
-.how-story-track.is-live .how-search,
-.how-story-track.is-live .how-veil,
-.how-story-track.is-live .how-story-tile,
-.how-story-track.is-live .how-sheet,
-.how-story-track.is-live .how-copy { will-change: transform, opacity; }
-.how-story-track.is-live .how-story-progress-track i { will-change: transform; }
+/* Only the moving layers are promoted, and only while the track is near. */
+.how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
 
 /* The skip link lands here; the margin keeps the globe link below the sticky header. */
 .how-story-end { display: flex; scroll-margin-top: 100px; }
 
-/* Static mode (reduced motion, short or narrow windows, large text): a plain list of stills. */
+/* Static list (reduced motion, short windows, large text, a phone that does not fit): each beat's copy and its
+   end state, one 예시 화면 pill per figure, no motion. */
 .how-story-track[data-mode="static"] { height: auto; }
-.how-story-track[data-mode="static"] .how-story-frame { position: static; height: auto; max-height: none; display: block; }
-.how-story-track[data-mode="static"] .how-story-steps { gap: 40px; }
-.how-story-still { margin: 16px -8px 0; }
+.how-static { margin: 0; padding: 0; display: grid; gap: 48px; list-style: none; }
+.how-static-beat { min-width: 0; }
+.how-static-copy { --how-hl-size: clamp(26px, 7.2vw, 32px); }
+.how-static-figure { --phone-w: 260px; --tile: 16px; position: relative; width: fit-content; margin: 20px auto 0; }
+/* The pill sits on the phone's empty rounded corner, clear of the app's top-bar action. */
+.how-static-figure .how-pill { position: absolute; z-index: 3; top: -8px; right: -14px; }
+.how-static-figure[data-figure="3"] .how-pill { top: 12px; right: 12px; }
+.how-static-figure .how-phone-screen { contain: paint; }
+.how-static-library { position: relative; width: min(100%, 320px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 24px; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); }
+.how-static-figure[data-figure="3"] { width: min(100%, 320px); }
+.how-static-library .how-mosaic-still { position: absolute; inset: 0; opacity: 0.16; }
+.how-static-library .how-overlay { position: absolute; top: 12%; width: 240px; opacity: 1; }
+.how-static-library .how-overlay-label { font-size: 14px; line-height: 20px; }
+.how-static-library .how-overlay-value { font-size: 44px; }
+.how-static-library .how-overlay-bar { display: none; }
+.how-static-cluster { position: absolute; left: 50%; top: 62%; display: grid; grid-template-columns: repeat(2, 84px); gap: 10px; transform: translate(-50%, -50%); }
+.how-static-cluster img { width: 84px; height: 84px; border-radius: 10px; object-fit: cover; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); }
 
 @media (min-width: 561px) {
-  /* From tablet width up, a mouse wheel can scroll the page, so the track uses the desktop length: every hold
-     stays longer than one 120px wheel notch even in a half-screen laptop window. */
-  .how-story-track { height: 340vh; height: clamp(2300px, 340svh, 3000px); }
-  .how-story-frame { top: calc(88px + var(--how-sticky-extra, 0px)); max-height: min(calc(100vh - 104px), 860px); max-height: min(calc(100svh - 104px), 860px); width: min(100%, 500px); margin-inline: auto; }
-  .how-story-track[data-mode="scroll"] .how-story-steps { max-height: 132px; }
-  .how-story-step h3 { font-size: 22px; }
-  .how-story-support { font-size: 15px; }
-  .how-story-stage-wrap { margin-inline: 0; }
-  .how-story-still { margin-inline: 0; }
-  .how-story-track[data-mode="static"] .how-story-frame { width: auto; }
-  .how-story-track[data-mode="static"] .how-story-steps { width: min(100%, 500px); margin-inline: auto; }
+  .how-story-track[data-mode="scroll"] {
+    height: calc(clamp(3200px, 430vh, 3800px) + min(100vh - 104px, 860px));
+    height: calc(clamp(3200px, 430svh, 3800px) + min(100svh - 104px, 860px));
+    margin-inline: 0;
+  }
+  .how-story-frame {
+    top: 88px;
+    width: min(100%, 560px);
+    height: min(100vh - 104px, 860px);
+    height: min(100svh - 104px, 860px);
+    margin-inline: auto;
+  }
+  .how-copy { padding-inline: 0; }
+  .how-static { width: min(100%, 560px); margin-inline: auto; }
   .how-story-end { justify-content: center; }
 }
 
 @media (min-width: 901px) {
+  .section-heading.how-heading { margin-bottom: 64px; }
+  .how-eyebrow { font-size: 17px; }
+  .section-heading.how-heading h2 { font-size: clamp(44px, 4.4vw, 60px); }
+  .how-story-track[data-mode="scroll"] {
+    height: calc(clamp(3200px, 430vh, 3800px) + min(100vh - 120px, 760px));
+    height: calc(clamp(3200px, 430svh, 3800px) + min(100svh - 120px, 760px));
+  }
+  /* Two columns: copy left (vertically centred), the 600px stage box right. */
   .how-story-frame {
     top: 96px;
-    width: auto;
-    height: calc(100vh - 112px);
-    height: calc(100svh - 112px);
-    max-height: 760px;
+    width: 100%;
+    height: min(100vh - 120px, 760px);
+    height: min(100svh - 120px, 760px);
     display: grid;
-    grid-template-columns: 400px minmax(0, 500px);
-    column-gap: 64px;
+    grid-template-columns: minmax(300px, 420px) minmax(0, 600px);
+    column-gap: clamp(32px, 4.6vw, 60px);
     justify-content: center;
     align-items: center;
   }
-  .how-story-track[data-mode="scroll"] .how-story-steps { max-height: 184px; }
-  .how-story-step-no { font-size: 14px; line-height: 20px; }
-  .how-story-step h3 { margin-top: 10px; font-size: 30px; line-height: 1.3; }
-  .how-story-support { margin-top: 12px; font-size: 17px; line-height: 1.6; }
-  .how-story-progress { margin: 28px 0 0; gap: 6px; }
-  .how-story-progress small { margin-top: 8px; display: block; overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-  .how-server { height: 40px; padding: 0 16px; }
-  .how-server-label { font-size: 13px; }
-  .how-server-value { font-size: 15px; line-height: 20px; }
-  .how-meter { height: 24px; }
-  .how-meter-label { font-size: 12px; line-height: 16px; }
-  .how-meter-value { font-size: 16px; line-height: 22px; }
-  .how-meter-value[data-text="checked"] { height: 22px; }
-
-  .how-story-track[data-mode="static"] .how-story-frame { display: block; }
-  .how-story-track[data-mode="static"] .how-story-steps { width: auto; gap: 56px; }
-  .how-story-track[data-mode="static"] .how-story-step { display: grid; grid-template-columns: 400px minmax(0, 500px); grid-template-rows: 1fr auto auto auto 1fr; column-gap: 64px; justify-content: center; }
-  .how-story-track[data-mode="static"] .how-story-step-no { grid-column: 1; grid-row: 2; }
-  .how-story-track[data-mode="static"] .how-story-step h3 { grid-column: 1; grid-row: 3; }
-  .how-story-track[data-mode="static"] .how-story-support { grid-column: 1; grid-row: 4; }
-  .how-story-track[data-mode="static"] .how-story-still { margin: 0; grid-column: 2; grid-row: 1 / -1; }
+  .how-copy {
+    --how-eb-size: 17px;
+    --how-eb-lh: 24px;
+    --how-eb-gap: 10px;
+    --how-hl-size: clamp(40px, 4vw, 54px);
+    --how-sub-gap: 14px;
+    --how-sub-size: 20px;
+    padding: 0;
+    max-height: calc(var(--how-eb-lh) + var(--how-eb-gap) + 2.6 * var(--how-hl-size) + var(--how-sub-gap) + 1.5 * var(--how-sub-size) + 2px);
+  }
+  .how-stage { height: 100%; margin-top: 0; border-radius: var(--stage-radius, 32px); }
+  .how-overlay { width: 340px; }
+  .how-overlay-label { font-size: 16px; line-height: 22px; }
+  .how-overlay-value { font-size: 64px; }
+  .how-overlay-bar { width: 220px; }
+  .how-bottom-fade { display: none; }
+  .how-pill { top: 16px; right: 16px; font-size: 12px; }
+  .how-static { width: auto; gap: 72px; }
+  .how-static-beat { display: grid; grid-template-columns: 420px 360px; column-gap: 60px; align-items: center; justify-content: center; }
+  .how-static-copy { --how-eb-size: 17px; --how-eb-lh: 24px; --how-eb-gap: 10px; --how-hl-size: clamp(36px, 3.6vw, 46px); --how-sub-gap: 14px; --how-sub-size: 20px; }
+  .how-static-figure { --phone-w: 300px; margin: 0 auto; }
 }

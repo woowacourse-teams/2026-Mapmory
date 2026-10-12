@@ -1,56 +1,55 @@
 import { useLayoutEffect, useRef } from "react";
 import {
-  HOW_STORY_CANVAS,
-  HOW_STORY_DEFAULT_STRIP_TARGET,
+  countTapsCrossed,
   getHowStoryFrame,
   getHowStoryNodeStyle,
+  getHowStoryPlan,
   getHowStoryProgress,
   getHowStoryScene,
-  getHowStorySegmentTransform,
   isHowStoryHold,
 } from "./howStory.js";
+import { createHowStoryLayout, getHowStoryMode } from "./howStoryLayout.js";
 import { latestEntry } from "./howStoryAnalytics.js";
+import { digitKind } from "./how/digits.js";
 
-const MAX_K = 1.5;
-const MIN_K = 0.8;
 // Below this the frame is the same to a hundredth of a pixel, so the frame is not recomputed.
 const P_EPSILON = 0.00001;
 const ATTACH_MARGIN = "100% 0px";
-
-const floorK = (value) => Math.floor(value * 1000) / 1000;
+// The phone and the first copy enter once, when the frame's top first comes this far up the viewport.
+const ENTER_AT = 0.72;
 
 // Drives the #how stage from scroll progress. Reads one rect per animation frame, writes only changed
-// transform/opacity/text values straight to the DOM, and never touches wheel, touch or key input.
-export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, stepsRef, onSceneChange, onFrameState, onFitFail }) {
-  const callbacks = useRef({ onSceneChange, onFrameState, onFitFail });
-  callbacks.current = { onSceneChange, onFrameState, onFitFail };
+// transform/opacity/text values and data-* state straight to the DOM, and never touches wheel, touch or key input.
+export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyRef, onSceneChange, onFrameState, onFitFail }) {
+  const callbackRef = useRef(null);
+  callbackRef.current = { onSceneChange, onFrameState, onFitFail };
 
   useLayoutEffect(() => {
     if (!enabled) return undefined;
     const track = trackRef.current;
     const frame = frameRef.current;
-    const wrap = stageWrapRef.current;
-    const steps = stepsRef.current;
-    const stage = wrap?.querySelector(".how-stage");
-    if (!track || !frame || !wrap || !steps || !stage) return undefined;
+    const stage = stageRef.current;
+    const copy = copyRef.current;
+    if (!track || !frame || !stage || !copy) return undefined;
 
-    const zone = stage.querySelector(".how-zone");
-    const box = stage.querySelector(".how-stage-box");
-    const canvas = stage.querySelector(".how-stage-canvas");
-    const counter = stage.querySelector("[data-strip-target]");
-    const copy = frame.querySelector(".how-story-copy");
     const nodeElements = new Map([...stage.querySelectorAll("[data-node]")].map((element) => [element.dataset.node, element]));
     const textElements = new Map([...stage.querySelectorAll("[data-text]")].map((element) => [element.dataset.text, element]));
-    const segmentElements = [...frame.querySelectorAll("[data-seg]")];
+    const attrElements = new Map([...stage.querySelectorAll("[data-attr]")].map((element) => [element.dataset.attr, element]));
+    const tapElements = new Map([...stage.querySelectorAll("[data-tap]")].map((element) => [element.dataset.tap, element]));
+    const cellElements = [...stage.querySelectorAll("[data-cell]")];
+    const pinPattern = stage.querySelector("#how-pins-pattern");
     const written = new Map();
+    const plan = getHowStoryPlan();
 
+    let layout = null;
     let stickyTop = 0;
     let frameHeight = 1;
-    let stripTarget = HOW_STORY_DEFAULT_STRIP_TARGET;
     let lastP = -1;
     let lastScene = -1;
     let rafId = 0;
+    let clearInstantId = 0;
     let listening = false;
+    let entered = false;
     let disposed = false;
 
     const write = (element, property, value) => {
@@ -62,52 +61,50 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
       }
       if (previous[property] === value) return;
       previous[property] = value;
-      if (property !== "text") element.style[property] = value;
-      // Rewrite the existing text node in place rather than replacing it, which is cheaper on every frame.
-      else if (element.childNodes.length === 1 && element.firstChild.nodeType === Node.TEXT_NODE) element.firstChild.data = value;
-      else element.textContent = value;
+      if (property === "text") {
+        // Rewrite the existing text node in place rather than replacing it, which is cheaper on every frame.
+        if (element.childNodes.length === 1 && element.firstChild.nodeType === Node.TEXT_NODE) element.firstChild.data = value;
+        else element.textContent = value;
+      } else if (property.startsWith("attr:")) element.setAttribute(property.slice(5), value);
+      else if (property.startsWith("data:")) element.dataset[property.slice(5)] = value;
+      else element.style[property] = value;
     };
 
-    // The caption slot grows with its longest caption up to a cap; past the cap (large text) the story falls back.
-    const stepOverflows = () => steps.scrollHeight > steps.clientHeight + 1;
+    // The copy slot holds the tallest beat; past its cap (large text) the story falls back to the static list.
+    // Fallback fonts are wider than LINE Seed, so the check waits for the web fonts (fonts.ready remeasures).
+    const fontsLoaded = () => !document.fonts || document.fonts.status === "loaded";
+    const copyOverflows = () => fontsLoaded() && copy.scrollHeight > copy.clientHeight + 1;
 
-    // Sizes the canvas to the room the frame leaves for it; gives up (static list) when it would be too small.
     const measure = () => {
       const frameStyle = getComputedStyle(frame);
       stickyTop = parseFloat(frameStyle.top) || 0;
-      const stacked = frameStyle.display !== "grid";
-      // Stacked layouts size the frame to its content, so it sits right under the heading, and keep the
-      // viewport room in max-height; the side-by-side desktop frame is the room itself.
-      const maxRoom = parseFloat(frameStyle.maxHeight);
-      const room = stacked && Number.isFinite(maxRoom) ? maxRoom : frame.clientHeight;
-      const innerHeight = room - parseFloat(frameStyle.paddingTop) - parseFloat(frameStyle.paddingBottom);
-      const rowGap = parseFloat(frameStyle.rowGap) || 0;
-      const notesHeight = [...wrap.querySelectorAll(".how-story-note")].reduce((sum, note) => sum + note.offsetHeight, 0);
-      const roomHeight = (stacked ? innerHeight - copy.offsetHeight - rowGap : innerHeight) - notesHeight;
-      const chromeY = stage.offsetHeight - box.offsetHeight;
-      const zoneStyle = getComputedStyle(zone);
-      const chromeX = [zoneStyle.paddingLeft, zoneStyle.paddingRight, zoneStyle.borderLeftWidth, zoneStyle.borderRightWidth]
-        .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
-      const k = floorK(Math.min(
-        (wrap.clientWidth - chromeX) / HOW_STORY_CANVAS.width,
-        (roomHeight - chromeY) / HOW_STORY_CANVAS.height,
-        MAX_K,
-      ));
-      if (k < MIN_K || stepOverflows()) {
-        callbacks.current.onFitFail();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const mode = getHowStoryMode(viewportWidth);
+      const next = createHowStoryLayout({ mode, stageWidth: stage.clientWidth, stageHeight: stage.clientHeight, viewportWidth });
+      if (!next || copyOverflows()) {
+        callbackRef.current.onFitFail();
         return false;
       }
-      wrap.style.setProperty("--how-k", String(k));
+      layout = next;
+      const set = (name, value) => stage.style.setProperty(name, value);
+      set("--phone-w", `${layout.phone.w}px`);
+      set("--phone-x", `${layout.phone.x}px`);
+      set("--phone-y", `${layout.phone.y}px`);
+      set("--tile", `${layout.tile}px`);
+      set("--win-y", `${layout.window.y}px`);
+      set("--win-h", `${layout.window.h}px`);
+      set("--win-radius", `${(layout.screenRadius * layout.kIn).toFixed(1)}px`);
+      set("--stage-radius", `${layout.stageRadius}px`);
+      set("--node-base", `${layout.nodeBase}px`);
+      set("--overlay-top", `${layout.overlayTop}px`);
+      cellElements.forEach((element, index) => {
+        const cell = layout.cells[index];
+        if (!cell) return;
+        element.style.left = `${cell.x}px`;
+        element.style.top = `${cell.y}px`;
+      });
+      pinPattern?.setAttribute("patternTransform", `scale(${layout.tile / 16})`);
       frameHeight = frame.offsetHeight;
-      // A stacked frame shorter than its room sticks centred in it instead of hugging the header.
-      frame.style.setProperty("--how-sticky-extra", `${stacked ? Math.max(0, Math.floor((room - frameHeight) / 2)) : 0}px`);
-      stickyTop = parseFloat(getComputedStyle(frame).top) || 0;
-      const canvasRect = canvas.getBoundingClientRect();
-      const counterRect = counter.getBoundingClientRect();
-      stripTarget = {
-        x: (counterRect.left + counterRect.width / 2 - canvasRect.left) / k,
-        y: (counterRect.top + counterRect.height / 2 - canvasRect.top) / k,
-      };
       return true;
     };
 
@@ -119,31 +116,65 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
         write(element, "transform", nodeStyle.transform);
         write(element, "opacity", nodeStyle.opacity);
       }
-      storyFrame.segments.forEach((value, index) => write(segmentElements[index], "transform", getHowStorySegmentTransform(value)));
       for (const [key, value] of Object.entries(storyFrame.texts)) {
-        if (value !== null) write(textElements.get(key), "text", value);
+        const element = textElements.get(key);
+        if (element?.dataset.digits === undefined) {
+          write(element, "text", value);
+          continue;
+        }
+        // Fixed-width digit cells (no tabular digits in LINE Seed): one character per cell.
+        const chars = [...value];
+        [...element.children].forEach((cell, index) => {
+          write(cell, "data:c", digitKind(chars[index]));
+          write(cell, "text", chars[index] ?? "");
+        });
       }
+      for (const [key, attrs] of Object.entries(storyFrame.attrs)) {
+        for (const [name, value] of Object.entries(attrs)) write(attrElements.get(key), `attr:${name}`, value);
+      }
+      for (const [key, value] of Object.entries(storyFrame.state)) write(stage, `data:${key}`, String(value));
     };
 
     const update = (force = false) => {
       rafId = 0;
-      if (disposed) return;
+      if (disposed || !layout) return;
       const trackRect = track.getBoundingClientRect();
       const frameRect = frame.getBoundingClientRect();
       const p = getHowStoryProgress({ trackTop: trackRect.top, trackHeight: trackRect.height, frameHeight, stickyTop });
       const viewportHeight = window.innerHeight;
+      if (!entered && frameRect.top < viewportHeight * ENTER_AT) {
+        entered = true;
+        track.classList.add("is-entered");
+      }
       const visibleHeight = Math.min(frameRect.bottom, viewportHeight) - Math.max(frameRect.top, 0);
       const eligible = visibleHeight / Math.max(1, frameRect.height) >= 0.5 && document.visibilityState !== "hidden";
       if (force || Math.abs(p - lastP) >= P_EPSILON) {
+        // A fast flick across two or more taps shows the end state without a burst of rings.
+        const flick = lastP >= 0 && countTapsCrossed(lastP, p, plan.beats) >= 2;
+        if (flick) {
+          write(stage, "data:instant", "1");
+          if (clearInstantId) window.cancelAnimationFrame(clearInstantId);
+          clearInstantId = window.requestAnimationFrame(() => {
+            clearInstantId = 0;
+            write(stage, "data:instant", "0");
+          });
+        }
+        for (const beat of plan.beats) {
+          const tap = tapElements.get(beat.id);
+          if (!tap) continue;
+          const on = p >= beat.p;
+          if (!on) write(tap, "data:skip", "0");
+          else if (flick && !(lastP >= beat.p)) write(tap, "data:skip", "1");
+        }
         lastP = p;
-        apply(getHowStoryFrame(p, { stripTarget }));
+        apply(getHowStoryFrame(p, layout));
       }
       const { index } = getHowStoryScene(lastP);
       if (index !== lastScene) {
         lastScene = index;
-        callbacks.current.onSceneChange(index);
+        callbackRef.current.onSceneChange(index);
       }
-      callbacks.current.onFrameState({ sceneIndex: index, inHold: isHowStoryHold(lastP), eligible });
+      callbackRef.current.onFrameState({ sceneIndex: index, inHold: isHowStoryHold(lastP), eligible });
     };
 
     const schedule = () => {
@@ -158,7 +189,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
     const attach = () => {
       if (listening) return;
       listening = true;
-      track.classList.add("is-live");
+      track.classList.add("is-live", "has-library");
       window.addEventListener("scroll", schedule, { passive: true });
       window.addEventListener("resize", schedule, { passive: true });
       update(true);
@@ -171,7 +202,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
       window.removeEventListener("resize", schedule);
       if (rafId) window.cancelAnimationFrame(rafId);
       rafId = 0;
-      callbacks.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
+      callbackRef.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
     };
 
     if (!measure()) return undefined;
@@ -186,21 +217,20 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
 
     const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(remeasure);
     resize?.observe(frame);
-    resize?.observe(wrap);
-    // Captions change size with text zoom even when the frame does not; the fit check must see that.
-    for (const caption of steps.querySelectorAll("h3, .how-story-support")) resize?.observe(caption);
+    resize?.observe(stage);
+    // Copy changes size with text zoom even when the frame does not; the fit check must see that.
+    for (const line of copy.querySelectorAll("h3, .how-copy-sub")) resize?.observe(line);
     document.fonts?.ready.then(remeasure).catch(() => {});
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       disposed = true;
       detach();
-      callbacks.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
+      callbackRef.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
       intersection.disconnect();
       resize?.disconnect();
+      if (clearInstantId) window.cancelAnimationFrame(clearInstantId);
       document.removeEventListener("visibilitychange", handleVisibility);
-      wrap.style.removeProperty("--how-k");
-      frame.style.removeProperty("--how-sticky-extra");
     };
-  }, [enabled, trackRef, frameRef, stageWrapRef, stepsRef]);
+  }, [enabled, trackRef, frameRef, stageRef, copyRef, callbackRef]);
 }
