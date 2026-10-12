@@ -153,7 +153,10 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--how-glow), transparent);
   transform: translate(-50%, -50%);
+  transition: opacity 420ms var(--ease-out) 260ms;
 }
+/* The glow arrives with the phone (opacity only), never as a blob under the heading before it. */
+.how-story-track:not(.is-entered) .how-glow { opacity: 0; transition: none; }
 /* Inside the phone: a dark ground fills the stage clip (with a 1px edge in dark mode). It comes up early in the
    push, so the stage around the growing library is dark rather than a grey wash. */
 .how-ground { width: 100%; height: 100%; border-radius: inherit; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); opacity: 0; }
