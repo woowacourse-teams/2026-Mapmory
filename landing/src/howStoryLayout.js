@@ -22,6 +22,19 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
   }),
   clusterCentreY: 0.58,
   overlayTop: 0.16,
+  // The overlay's label and value line boxes (value: font size x 1.15 + its 4px top margin), and the gap the
+  // cluster keeps below the landed number on short stages.
+  overlayLabel: Object.freeze({ mobile: 20, tablet: 20, desktop: 22 }),
+  overlayValue: Object.freeze({ mobile: 54.6, tablet: 54.6, desktop: 77.6 }),
+  // The bar under the number: 12px margin and 4px tall.
+  overlayBarSpace: 16,
+  clusterGap: 24,
+  // A lifted photo's ring and halo reach 7px outside it; it keeps 8px more from the overlay's bar.
+  matchHalo: 7,
+  matchClear: 8,
+  overlayBar: Object.freeze({ mobile: 160, tablet: 160, desktop: 220 }),
+  // A found photo grows to this scale when its pin pops, so the four stand out in the library.
+  matchLift: 1.8,
   stageRadius: Object.freeze({ mobile: 24, tablet: 24, desktop: 32 }),
   // The flying match tiles are drawn at this size and only ever scaled down, so they stay crisp at rest.
   nodeBase: 120,
@@ -82,16 +95,33 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
   const windowY = (stageHeight - windowHeight) / 2;
   const vTop = Math.max(0, (windowHeight - stageHeight) / 2 / windowHeight);
   const tile = g.tile[mode];
+  const overlayTop = stageHeight * g.overlayTop;
+  const overlayBottom = overlayTop + g.overlayLabel[mode] + g.overlayValue[mode] + g.overlayBarSpace;
+  // lift: the cell once its pin has popped (scaled about its centre), where the flight to the cluster starts. On
+  // short stages a cell moves down a row or two so its lifted ring stays clear of the overlay's bar.
+  const grow = (tile * (g.matchLift - 1)) / 2;
+  const lowestClearRow = Math.ceil((overlayBottom + g.matchClear + g.matchHalo + grow - windowY) / tile);
   const cells = HOW_STORY_MATCH_CELLS.map(([fx, fy]) => {
     const x = Math.round((fx * stageWidth) / tile) * tile;
-    const y = Math.round((fy * windowHeight) / tile) * tile;
+    const y = Math.max(Math.round((fy * windowHeight) / tile), lowestClearRow) * tile;
     // The wave edge reaches a cell's pin once it has passed the pin's bottom.
-    return { x, y, stageY: round(y + windowY), size: tile, popAt: round((y + g.pinOffset + g.pinHeight) / windowHeight, 5) };
+    return {
+      x,
+      y,
+      stageY: round(y + windowY),
+      size: tile,
+      popAt: round((y + g.pinOffset + g.pinHeight) / windowHeight, 5),
+      lift: Object.freeze({ x: round(x - grow), y: round(y + windowY - grow), size: round(tile * g.matchLift) }),
+    };
   });
 
   const { tile: clusterTile, gap } = g.cluster[mode];
   const clusterLeft = stageWidth / 2 - clusterTile - gap / 2;
-  const clusterTop = stageHeight * g.clusterCentreY - clusterTile - gap / 2;
+  // Centred at 58% of the stage, but never closer than clusterGap below the landed number (short phones).
+  const clusterTop = Math.max(
+    stageHeight * g.clusterCentreY - clusterTile - gap / 2,
+    overlayTop + g.overlayLabel[mode] + g.overlayValue[mode] + g.clusterGap,
+  );
   const cluster = HOW_STORY_MATCH_CELLS.map((_, index) => ({
     x: round(clusterLeft + (index % 2) * (clusterTile + gap)),
     y: round(clusterTop + Math.floor(index / 2) * (clusterTile + gap)),
@@ -114,7 +144,10 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     cells: Object.freeze(cells.map(Object.freeze)),
     cluster: Object.freeze(cluster.map(Object.freeze)),
     nodeBase: g.nodeBase,
-    overlayTop: round(stageHeight * g.overlayTop),
+    overlayTop: round(overlayTop),
+    overlayBar: g.overlayBar[mode],
+    // The loading screen's progress bar: full width inside 34dp side padding, 8dp tall (PhotoLoadingBar).
+    loadingBar: Object.freeze({ w: round((HOW_STORY_SCREEN.widthDp - 68) * (screenWidth / HOW_STORY_SCREEN.widthDp)), h: round(8 * (screenWidth / HOW_STORY_SCREEN.widthDp)) }),
     stageRadius: g.stageRadius[mode],
   });
 }

@@ -69,11 +69,14 @@ export function LibraryMosaic({ matches }) {
       </div>
       {matches.map((match, index) => (
         <div className="how-mosaic-match" data-cell={index} key={match.id}>
-          <img src={match.src} alt="" width="18" height="18" loading="lazy" decoding="async" data-node={`matchCell${index}`} />
-          <span className="how-mosaic-mark" data-node={`matchMark${index}`}>
-            <span className="how-mosaic-mark-pop" data-i={index}>
-              <span className="how-mosaic-ring" />
-              <MatchPin />
+          {/* Grows about its centre once its pin pops (data-pins), so the four found photos stand out. */}
+          <span className="how-mosaic-lift" data-i={index}>
+            <img src={match.src} alt="" width="18" height="18" loading="lazy" decoding="async" data-node={`matchCell${index}`} />
+            <span className="how-mosaic-mark" data-node={`matchMark${index}`}>
+              <span className="how-mosaic-mark-pop" data-i={index}>
+                <span className="how-mosaic-ring" />
+                <MatchPin />
+              </span>
             </span>
           </span>
         </div>

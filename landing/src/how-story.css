@@ -174,19 +174,31 @@
 }
 .how-pins-reveal { overflow: hidden; }
 .how-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
-.how-mosaic-match { position: absolute; width: var(--tile); height: var(--tile); }
-.how-mosaic-match img { width: 100%; height: 100%; padding: 0.5px; object-fit: cover; }
+.how-mosaic-match { --lift: 1.8; position: absolute; width: var(--tile); height: var(--tile); }
+.how-mosaic-lift,
 .how-mosaic-mark,
 .how-mosaic-mark-pop { position: absolute; inset: 0; }
-/* A found photo's green pin and 2px ring pop once the wave passes it (data-pins counts them, in cell order). */
+.how-mosaic-match img { width: 100%; height: 100%; padding: 0.5px; object-fit: cover; }
+/* A found photo grows 1.8x about its centre, and its green pin and ring pop, once the wave passes it (data-pins
+   counts them, in cell order). Sizes inside the lift are divided by it, so on screen the ring is 3px with a 4px
+   dark halo that separates it from its neighbours, and the pin is 9 x 12px. */
 .how-mosaic-mark-pop { opacity: 0; transform: scale(0.6); }
-.how-mosaic-ring { position: absolute; inset: 0; border-radius: 2px; box-shadow: 0 0 0 2px var(--how-match); }
-.how-match-pin { position: absolute; left: 2px; top: 1px; width: 9px; height: 12px; fill: var(--how-match); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.3)); }
+.how-mosaic-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(2px / var(--lift));
+  box-shadow: 0 0 0 calc(3px / var(--lift)) var(--how-match), 0 0 0 calc(7px / var(--lift)) rgba(14, 18, 20, 0.7);
+}
+.how-match-pin { position: absolute; left: calc(2px / var(--lift)); top: calc(1px / var(--lift)); width: calc(9px / var(--lift)); height: calc(12px / var(--lift)); fill: var(--how-match); }
 .how-match-pin circle { fill: #ffffff; }
-.how-stage:is([data-pins="1"], [data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="0"],
-.how-stage:is([data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="1"],
-.how-stage:is([data-pins="3"], [data-pins="4"]) .how-mosaic-mark-pop[data-i="2"],
-.how-stage[data-pins="4"] .how-mosaic-mark-pop[data-i="3"] { opacity: 1; transform: none; transition: opacity 160ms var(--ease-out), transform 260ms var(--spring); }
+.how-stage:is([data-pins="1"], [data-pins="2"], [data-pins="3"], [data-pins="4"]) :is(.how-mosaic-lift, .how-mosaic-mark-pop)[data-i="0"],
+.how-stage:is([data-pins="2"], [data-pins="3"], [data-pins="4"]) :is(.how-mosaic-lift, .how-mosaic-mark-pop)[data-i="1"],
+.how-stage:is([data-pins="3"], [data-pins="4"]) :is(.how-mosaic-lift, .how-mosaic-mark-pop)[data-i="2"],
+.how-stage[data-pins="4"] :is(.how-mosaic-lift, .how-mosaic-mark-pop)[data-i="3"] { opacity: 1; transform: none; transition: opacity 160ms var(--ease-out), transform 260ms var(--spring); }
+.how-stage:is([data-pins="1"], [data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-lift[data-i="0"],
+.how-stage:is([data-pins="2"], [data-pins="3"], [data-pins="4"]) .how-mosaic-lift[data-i="1"],
+.how-stage:is([data-pins="3"], [data-pins="4"]) .how-mosaic-lift[data-i="2"],
+.how-stage[data-pins="4"] .how-mosaic-lift[data-i="3"] { transform: scale(var(--lift)); }
 
 /* The phone: an untransformed slot (the rest rect), the entrance wrapper, the camera and the fade. */
 .how-phone-slot { left: var(--phone-x); top: var(--phone-y); width: var(--phone-w); height: calc((var(--phone-w) - 18px) * 780 / 360 + 18px); }

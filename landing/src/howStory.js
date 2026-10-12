@@ -485,8 +485,9 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const overlayIn = EASE_OUT(seg(t2, 0.16, 0.24));
   nodes.overlay = outward ? move(0, 0, 1, 1 - seg(outE, 0, 0.3)) : move(0, 12 * (1 - overlayIn), 1, overlayIn);
 
-  // The four 경주 photos: in the library until their flight starts, then the stage tiles take over at the same
-  // rect and fly (spring, staggered) to a 2x2 cluster. The beat 04 picker (static for now) brings its own cards.
+  // The four 경주 photos: in the library (lifted once their pin pops) until their flight starts, then the stage
+  // tiles take over at the lifted rect and fly (spring, staggered) to a 2x2 cluster. The beat 04 picker
+  // (static for now) brings its own cards.
   const pins = L.cells.filter(({ popAt }) => k > 0 && edge >= popAt).length;
   const leave = outward ? 1 - seg(t4, 0, 0.1) : 1;
   L.cells.forEach((cell, i) => {
@@ -494,11 +495,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     const started = progress >= HOW_STORY_WINDOWS[2][0] && t3 >= start;
     const flight = seg(t3, start, start + 0.18);
     const u = spring(flight);
+    const from = cell.lift;
     const target = L.cluster[i];
-    const size = lerp(cell.size, target.size, u);
+    const size = lerp(from.size, target.size, u);
     nodes[`matchCell${i}`] = fade(started ? 0 : 1);
     nodes[`matchMark${i}`] = fade(1 - seg(t3, start, start + 0.05));
-    nodes[`match${i}`] = move(lerp(cell.x, target.x, u), lerp(cell.stageY, target.y, u), size / L.nodeBase, started ? leave : 0);
+    nodes[`match${i}`] = move(lerp(from.x, target.x, u), lerp(from.y, target.y, u), size / L.nodeBase, started ? leave : 0);
     nodes[`matchShadow${i}`] = fade(flight);
   });
 
