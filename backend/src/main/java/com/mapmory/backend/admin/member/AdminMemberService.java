@@ -1,8 +1,10 @@
 package com.mapmory.backend.admin.member;
 
+import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.exception.MemberErrorCode;
 import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,42 @@ public class AdminMemberService {
                 result.getSize(),
                 result.getTotalElements(),
                 result.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AdminMemberDetailResponse getMemberDetail(Long memberId, int page, int size) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+        Page<TravelRecordRepository.MemberRecordDetail> recordPage =
+                travelRecordRepository.findAdminRecordDetailsByMemberId(
+                        memberId,
+                        PageRequest.of(page, size)
+                );
+
+        List<AdminMemberDetailResponse.TravelRecordItem> records = recordPage.getContent().stream()
+                .map(record -> new AdminMemberDetailResponse.TravelRecordItem(
+                        record.getRecordId(),
+                        record.getCreatedAt(),
+                        record.getPhotoCount()
+                ))
+                .toList();
+
+        return new AdminMemberDetailResponse(
+                new AdminMemberDetailResponse.MemberSummary(
+                        member.getId(),
+                        displayName(member),
+                        member.getProvider(),
+                        member.getCreatedAt()
+                ),
+                recordPage.getTotalElements(),
+                travelRecordRepository.countMediaByMemberId(memberId),
+                records,
+                recordPage.getNumber(),
+                recordPage.getSize(),
+                recordPage.getTotalElements(),
+                recordPage.getTotalPages()
         );
     }
 

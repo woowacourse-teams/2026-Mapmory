@@ -19,6 +19,14 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         Long getRecordCount();
     }
 
+    interface MemberRecordDetail {
+        Long getRecordId();
+
+        LocalDateTime getCreatedAt();
+
+        Long getPhotoCount();
+    }
+
     /**
      * 상세 응답은 지역을 국가·시도·시군구로 펼쳐 보여주므로 Region의 parent·root까지 필요하다.
      * 둘 다 지연 로딩이고 open-in-view가 꺼져 있어, 여기서 함께 읽어두지 않으면
@@ -40,6 +48,26 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         GROUP BY tr.member.id
     """)
     List<MemberRecordCount> countByMemberIds(@Param("memberIds") Collection<Long> memberIds);
+
+    @Query(value = """
+        SELECT tr.id AS recordId, tr.createdAt AS createdAt, COUNT(rm.id) AS photoCount
+        FROM TravelRecord tr
+        LEFT JOIN tr.media rm
+        WHERE tr.member.id = :memberId
+        GROUP BY tr.id, tr.createdAt
+        ORDER BY tr.createdAt DESC, tr.id DESC
+    """, countQuery = """
+        SELECT COUNT(tr)
+        FROM TravelRecord tr
+        WHERE tr.member.id = :memberId
+    """)
+    Page<MemberRecordDetail> findAdminRecordDetailsByMemberId(
+            @Param("memberId") Long memberId,
+            Pageable pageable
+    );
+
+    @Query("SELECT COUNT(rm) FROM RecordMedia rm WHERE rm.travelRecord.member.id = :memberId")
+    long countMediaByMemberId(@Param("memberId") Long memberId);
 
     /**
      * RecordMedia는 TravelRecord 애그리거트 내부 엔티티이므로 루트 리포지토리에서 조회한다.
