@@ -10,7 +10,9 @@
   --phone-clay: #eef1ef;
   --phone-edge: #dce3df;
   --phone-shadow: 0 30px 60px -24px rgba(20, 40, 30, 0.28), 0 2px 6px rgba(20, 40, 30, 0.06);
-  --how-pill-bg: rgba(20, 32, 25, 0.55);
+  /* Solid, so the label reads the same wherever it sits: white on it is 9.3:1 (the old 55% tint gave about 4:1 on
+     the light canvas). */
+  --how-pill-bg: #3d4a43;
   --how-match: #35c987;
   /* Landings: a damped spring (overshoots a little, then settles). */
   --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
@@ -26,6 +28,8 @@
   --phone-clay: #2a3034;
   --phone-edge: rgba(255, 255, 255, 0.06);
   --phone-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* The old 55% tint over the dark canvas, made solid. */
+  --how-pill-bg: #101b19;
 }
 
 /* Section heading: an eyebrow and a two-line h2, centred; it fades up once on first view. The h2 gets its own
@@ -463,8 +467,9 @@
   .how-band-eyebrow { font-size: 17px; }
   .how-band-stats { grid-auto-flow: column; grid-auto-columns: 320px; gap: 64px; }
   .how-band-value { font-size: 56px; }
-  /* Desktop: beside the phone's top edge, in the stage's side room (the stage is grid column 2). */
-  .how-frame-pill { grid-area: 1 / 2; top: calc(var(--phone-y) + 16px); right: auto; left: calc(var(--phone-x) + var(--phone-w) + 12px); }
+  /* Desktop: the stage box's top-right corner, 16px in (the stage fills grid column 2). There the zoomed screen
+     shows only the dark library or nothing, and the solid pill never blends into an app row. */
+  .how-frame-pill { grid-area: 1 / 2; top: 16px; right: 16px; }
   .how-static { width: auto; gap: 72px; }
   .how-static-beat { display: grid; grid-template-columns: 420px 360px; column-gap: 60px; align-items: center; justify-content: center; }
   .how-static-copy { --how-eb-size: 17px; --how-eb-lh: 24px; --how-eb-gap: 10px; --how-hl-size: clamp(36px, 3.6vw, 46px); --how-sub-gap: 14px; --how-sub-size: 20px; }
