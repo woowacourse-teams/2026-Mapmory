@@ -26,6 +26,7 @@ type DashboardSummary = {
   travelRecords: { total: number; createdInPeriod: number };
   photos: { total: number };
 };
+type DateRange = { from: string; to: string };
 
 const feedbackStatuses: FeedbackStatus[] = ["미확인", "반영 중", "반영 완료", "보류", "미반영"];
 
@@ -66,6 +67,7 @@ function getDashboardRange(period: string) {
 }
 
 function formatPeriodDate(date: string) {
+  if (!date) return "날짜 선택";
   const [, month, day] = date.split("-");
   return `${month}.${day}`;
 }
@@ -97,6 +99,7 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [page, setPage] = useState<Page>("dashboard");
   const [period, setPeriod] = useState("최근 7일");
+  const [dashboardRange, setDashboardRange] = useState<DateRange>(() => getDashboardRange("최근 7일"));
   const [feedback, setFeedback] = useState(initialFeedback);
   const [feedbackFilter, setFeedbackFilter] = useState("전체");
   const [feedbackQuery, setFeedbackQuery] = useState("");
@@ -199,7 +202,7 @@ function App() {
           </div>
         </header>
         <div className="content-area">
-          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} onNavigate={setPage} onNotice={showNotice} />}
+          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} range={dashboardRange} setRange={setDashboardRange} onNavigate={setPage} onNotice={showNotice} />}
           {page === "members" && <MembersPage query={memberQuery} setQuery={setMemberQuery} list={filteredMembers} onSelect={setSelectedMember} onNotice={showNotice} />}
           {page === "feedback" && <FeedbackPage feedback={filteredFeedback} allFeedback={feedback} filter={feedbackFilter} setFilter={setFeedbackFilter} query={feedbackQuery} setQuery={setFeedbackQuery} onStatusChange={(id, status) => setFeedback((current) => current.map((item) => item.id === id ? { ...item, status } : item))} />}
         </div>
@@ -278,16 +281,22 @@ function AdminLoginPage({ error, onLogin }: { error: string; onLogin: (username:
   );
 }
 
-function Dashboard({ period, setPeriod, onNavigate, onNotice }: { period: string; setPeriod: (period: string) => void; onNavigate: (page: Page) => void; onNotice: (message: string) => void }) {
+function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }: { period: string; setPeriod: (period: string) => void; range: DateRange; setRange: (range: DateRange) => void; onNavigate: (page: Page) => void; onNotice: (message: string) => void }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const range = getDashboardRange(period);
+  const today = getDashboardRange("최근 7일").to;
 
   useEffect(() => {
     const controller = new AbortController();
+    if (!range.from || !range.to || range.from > range.to) {
+      setLoading(false);
+      setError("시작일과 종료일을 올바르게 선택해 주세요.");
+      setSummary(null);
+      return () => controller.abort();
+    }
     setLoading(true);
     setError("");
     setSummary(null);
@@ -347,8 +356,13 @@ function Dashboard({ period, setPeriod, onNavigate, onNotice }: { period: string
       <div className="period-row">
         <div className="period-tabs">
           {["최근 7일", "최근 30일"].map((item) => (
-            <button key={item} className={period === item ? "period-tab active" : "period-tab"} onClick={() => setPeriod(item)}>{item}</button>
+            <button key={item} className={period === item ? "period-tab active" : "period-tab"} onClick={() => { setPeriod(item); setRange(getDashboardRange(item)); }}>{item}</button>
           ))}
+        </div>
+        <div className="date-picker-group" aria-label="집계 기간 직접 선택">
+          <label>시작일<input type="date" value={range.from} max={range.to || today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, from: event.target.value }); }} /></label>
+          <span className="date-picker-separator">–</span>
+          <label>종료일<input type="date" value={range.to} min={range.from} max={today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, to: event.target.value }); }} /></label>
         </div>
         <div className="date-range"><Icon name="calendar" size={15}/>{dateLabel}<span>한국 시간</span></div>
       </div>
