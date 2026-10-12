@@ -945,6 +945,55 @@ test("the frame carries every node the frame writes, one 예시 화면 pill, and
   assert.equal(descendants(page).filter((node) => (node.attrs.class ?? "").includes("how-band")).length, 0);
 });
 
+test("the drill land is the district rings themselves; only the province outlines are thinned, by at most 0.4dp", async () => {
+  const { HowStoryScrollFrame, createElement, renderToStaticMarkup } = await loadRenderer();
+  const props = {
+    frameRef: { current: null },
+    copyRef: { current: null },
+    stageRef: { current: null },
+    scene: { index: 0, previous: null, direction: "down" },
+    descriptions: HOW_STORY_BEATS.map((_, index) => getHowStorySceneDescription(index)),
+  };
+  const stage = descendants(parseMarkup(renderToStaticMarkup(createElement(HowStoryScrollFrame, props))).children[0])
+    .find((node) => hasClass(node, "how-stage"));
+  const group = (name) => descendants(stage).find((node) => hasClass(node, name)).children.map((child) => child.attrs.d);
+  // The land under the district lines matches them exactly (one path, the same rings).
+  const lines = group("how-map-lines");
+  assert.equal(lines.length, 22);
+  assert.deepEqual(group("how-map-land"), [lines.join("")]);
+  // Each province: every source point stays within 0.4dp (plus the path's 0.1 rounding) of its thinned outline.
+  const provinces = group("how-map-provinces");
+  assert.equal(provinces.length, koreaProvinces.length);
+  const ringsOf = (d) => d.split("Z").filter(Boolean).map((ring) => [...ring.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(([, x, y]) => [Number(x), Number(y)]));
+  const toSegment = ([x, y], [ax, ay], [bx, by]) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - ax - t * dx, y - ay - t * dy);
+  };
+  let before = 0;
+  let after = 0;
+  koreaProvinces.forEach(({ rings }, index) => {
+    const thinned = ringsOf(provinces[index]);
+    assert.equal(thinned.length, rings.length);
+    rings.forEach((ring, r) => {
+      const outline = thinned[r];
+      before += ring.length;
+      after += outline.length;
+      for (const [lng, lat] of ring) {
+        const point = APP_MAP_VIEW.project(lng, lat);
+        const distance = Math.min(...outline.map((a, i) => toSegment(point, a, outline[(i + 1) % outline.length])));
+        assert.ok(distance <= 0.4 + 0.08, `province ${index} ring ${r}: ${distance.toFixed(3)}dp`);
+      }
+    });
+  });
+  assert.ok(after < before * 0.6, `${after} of ${before} points`);
+  // The filled province is the same thinned outline.
+  const visited = koreaProvinces.findIndex(({ code }) => code === gyeongbuk.provinceCode);
+  assert.equal(group("how-map-fill-province").length, 1);
+  assert.equal(descendants(stage).find((node) => hasClass(node, "how-map-fill-province")).children[0].attrs.d, provinces[visited]);
+});
+
 test("screen readers get all five beats in scroll mode, with what each stage shows", async () => {
   const { HowStoryScrollFrame, createElement, renderToStaticMarkup } = await loadRenderer();
   const props = {

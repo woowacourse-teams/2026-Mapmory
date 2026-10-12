@@ -217,16 +217,54 @@ export function PickerScreen({ node, cardsOnStage = false }) {
 // views: develop's Korea projection of that area (howStoryLayout.js). The drill view is a viewBox into it.
 const VIEW = APP_MAP_VIEW;
 const box = (values) => values.map((value) => Number(value.toFixed(2))).join(" ");
-const toPath = (rings) => rings.map((ring) => `${ring.map(([lng, lat], index) => {
-  const [x, y] = VIEW.project(lng, lat);
-  return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-}).join("")}Z`).join("");
+// Douglas-Peucker on a polyline, in dp.
+function simplifyLine(points, tolerance) {
+  if (points.length < 3) return points;
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1;
+  keep[points.length - 1] = 1;
+  const spans = [[0, points.length - 1]];
+  while (spans.length) {
+    const [a, b] = spans.pop();
+    const [ax, ay] = points[a];
+    const [bx, by] = points[b];
+    const length = Math.hypot(bx - ax, by - ay) || 1;
+    let far = -1;
+    let farthest = tolerance;
+    for (let index = a + 1; index < b; index += 1) {
+      const [x, y] = points[index];
+      const distance = Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / length;
+      if (distance > farthest) {
+        farthest = distance;
+        far = index;
+      }
+    }
+    if (far >= 0) {
+      keep[far] = 1;
+      spans.push([a, far], [far, b]);
+    }
+  }
+  return points.filter((_, index) => keep[index]);
+}
+// A ring as an SVG path in the map's dp space. tolerance (dp at the Korea view) thins rings that are only ever drawn
+// small: every point the map repaints costs time on each frame of the camera move.
+const toPath = (rings, tolerance = 0) => rings.map((ring) => {
+  let points = ring.map(([lng, lat]) => VIEW.project(lng, lat));
+  if (tolerance > 0 && points.length > 8) {
+    const half = Math.floor(points.length / 2);
+    points = [...simplifyLine(points.slice(0, half + 1), tolerance), ...simplifyLine(points.slice(half), tolerance).slice(1)];
+  }
+  return `${points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("")}Z`;
+}).join("");
+// The 17 provinces show from about 1.3x the Korea view down to it: 0.4dp there stays under a pixel.
+const PROVINCE_TOLERANCE = 0.4;
 const DRILL_ZOOM = VIEW.area.width / VIEW.drillBox[2];
 const DISTRICTS = gyeongbuk.districts.map(({ code, name, rings, labelPoint }) => {
   const [x, y] = VIEW.project(labelPoint[0], labelPoint[1]);
   return { code, name, d: toPath(rings), label: [(x - VIEW.drillBox[0]) * DRILL_ZOOM, (y - VIEW.drillBox[1]) * DRILL_ZOOM] };
 });
-const PROVINCES = koreaProvinces.map(({ code, rings }) => ({ code, d: toPath(rings) }));
+const PROVINCES = koreaProvinces.map(({ code, rings }) => ({ code, d: toPath(rings, PROVINCE_TOLERANCE) }));
+const DISTRICT_LAND = DISTRICTS.map(({ d }) => d).join("");
 const VISITED_DISTRICT = DISTRICTS.find(({ code }) => code === "47130");
 const VISITED_PROVINCE = PROVINCES.find(({ code }) => code === gyeongbuk.provinceCode);
 // Gyeongju fills from its label point: the transform origin as a share of its own box (transform-box: fill-box).
@@ -379,7 +417,8 @@ export function MapScreen({ node, variant = "story" }) {
           >
             {story && (
               <>
-                <g className="how-map-land">{DISTRICTS.map(({ code, d }) => <path key={code} d={d} />)}</g>
+                {/* The land under the district lines: the same rings in one path, so it matches them exactly. */}
+                <g className="how-map-land"><path d={DISTRICT_LAND} /></g>
                 <g className="how-map-lines" data-node="mapDistrictLines">{DISTRICTS.map(({ code, d }) => <path key={code} d={d} />)}</g>
               </>
             )}
