@@ -13,6 +13,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
 
+    interface MemberRecordCount {
+        Long getMemberId();
+
+        Long getRecordCount();
+    }
+
     /**
      * 상세 응답은 지역을 국가·시도·시군구로 펼쳐 보여주므로 Region의 parent·root까지 필요하다.
      * 둘 다 지연 로딩이고 open-in-view가 꺼져 있어, 여기서 함께 읽어두지 않으면
@@ -26,6 +32,14 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
 
     @Query("SELECT COUNT(rm) FROM RecordMedia rm")
     long countAllMedia();
+
+    @Query("""
+        SELECT tr.member.id AS memberId, COUNT(tr.id) AS recordCount
+        FROM TravelRecord tr
+        WHERE tr.member.id IN :memberIds
+        GROUP BY tr.member.id
+    """)
+    List<MemberRecordCount> countByMemberIds(@Param("memberIds") Collection<Long> memberIds);
 
     /**
      * RecordMedia는 TravelRecord 애그리거트 내부 엔티티이므로 루트 리포지토리에서 조회한다.
