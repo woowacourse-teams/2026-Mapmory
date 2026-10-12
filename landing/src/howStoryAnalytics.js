@@ -5,7 +5,14 @@ export const HOW_STORY_SCENE_DWELL_MS = 700;
 const defaultSchedule = (callback, delay) => setTimeout(callback, delay);
 const defaultCancel = (id) => clearTimeout(id);
 
+// An IntersectionObserver callback can carry several crossings that queued up between frames, oldest
+// first. Only the last entry describes where the target is now.
+export function latestEntry(entries) {
+  return entries[entries.length - 1];
+}
+
 // Fires onView once, after the story has been continuously eligible (in view, tab visible) for 1 s.
+// flush() sends it at once if it has not gone yet: a scene reach calls it so the view always comes first.
 export function createPassiveViewTracker({ onView, delayMs = HOW_STORY_VIEW_MS, schedule = defaultSchedule, cancel = defaultCancel }) {
   let timer = null;
   let done = false;
@@ -13,6 +20,11 @@ export function createPassiveViewTracker({ onView, delayMs = HOW_STORY_VIEW_MS, 
     if (timer === null) return;
     cancel(timer);
     timer = null;
+  };
+  const fire = () => {
+    clear();
+    done = true;
+    onView();
   };
   return {
     update(eligible) {
@@ -24,9 +36,11 @@ export function createPassiveViewTracker({ onView, delayMs = HOW_STORY_VIEW_MS, 
       if (timer !== null) return;
       timer = schedule(() => {
         timer = null;
-        done = true;
-        onView();
+        fire();
       }, delayMs);
+    },
+    flush() {
+      if (!done) fire();
     },
     stop: clear,
     get fired() { return done; },

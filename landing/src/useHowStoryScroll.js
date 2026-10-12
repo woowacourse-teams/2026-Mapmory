@@ -9,6 +9,7 @@ import {
   getHowStorySegmentTransform,
   isHowStoryHold,
 } from "./howStory.js";
+import { latestEntry } from "./howStoryAnalytics.js";
 
 const MAX_K = 1.5;
 const MIN_K = 0.8;
@@ -40,7 +41,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
     const copy = frame.querySelector(".how-story-copy");
     const nodeElements = new Map([...stage.querySelectorAll("[data-node]")].map((element) => [element.dataset.node, element]));
     const textElements = new Map([...stage.querySelectorAll("[data-text]")].map((element) => [element.dataset.text, element]));
-    const flagElements = [...stage.querySelectorAll("[data-flag]")];
     const segmentElements = [...frame.querySelectorAll("[data-seg]")];
     const written = new Map();
 
@@ -62,19 +62,25 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
       }
       if (previous[property] === value) return;
       previous[property] = value;
-      if (property === "text") element.textContent = value;
-      else element.style[property] = value;
+      if (property !== "text") element.style[property] = value;
+      // Rewrite the existing text node in place rather than replacing it, which is cheaper on every frame.
+      else if (element.childNodes.length === 1 && element.firstChild.nodeType === Node.TEXT_NODE) element.firstChild.data = value;
+      else element.textContent = value;
     };
 
-    const stepOverflows = () => [...steps.children].some((step) => step.scrollHeight > step.clientHeight + 1);
+    // The caption slot grows with its longest caption up to a cap; past the cap (large text) the story falls back.
+    const stepOverflows = () => steps.scrollHeight > steps.clientHeight + 1;
 
     // Sizes the canvas to the room the frame leaves for it; gives up (static list) when it would be too small.
     const measure = () => {
       const frameStyle = getComputedStyle(frame);
       stickyTop = parseFloat(frameStyle.top) || 0;
-      frameHeight = frame.offsetHeight;
-      const innerHeight = frame.clientHeight - parseFloat(frameStyle.paddingTop) - parseFloat(frameStyle.paddingBottom);
       const stacked = frameStyle.display !== "grid";
+      // Stacked layouts size the frame to its content, so it sits right under the heading, and keep the
+      // viewport room in max-height; the side-by-side desktop frame is the room itself.
+      const maxRoom = parseFloat(frameStyle.maxHeight);
+      const room = stacked && Number.isFinite(maxRoom) ? maxRoom : frame.clientHeight;
+      const innerHeight = room - parseFloat(frameStyle.paddingTop) - parseFloat(frameStyle.paddingBottom);
       const rowGap = parseFloat(frameStyle.rowGap) || 0;
       const notesHeight = [...wrap.querySelectorAll(".how-story-note")].reduce((sum, note) => sum + note.offsetHeight, 0);
       const roomHeight = (stacked ? innerHeight - copy.offsetHeight - rowGap : innerHeight) - notesHeight;
@@ -92,6 +98,10 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
         return false;
       }
       wrap.style.setProperty("--how-k", String(k));
+      frameHeight = frame.offsetHeight;
+      // A stacked frame shorter than its room sticks centred in it instead of hugging the header.
+      frame.style.setProperty("--how-sticky-extra", `${stacked ? Math.max(0, Math.floor((room - frameHeight) / 2)) : 0}px`);
+      stickyTop = parseFloat(getComputedStyle(frame).top) || 0;
       const canvasRect = canvas.getBoundingClientRect();
       const counterRect = counter.getBoundingClientRect();
       stripTarget = {
@@ -109,7 +119,6 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
         write(element, "transform", nodeStyle.transform);
         write(element, "opacity", nodeStyle.opacity);
       }
-      storyFrame.fillerFlags.forEach((value, index) => write(flagElements[index], "opacity", String(value)));
       storyFrame.segments.forEach((value, index) => write(segmentElements[index], "transform", getHowStorySegmentTransform(value)));
       for (const [key, value] of Object.entries(storyFrame.texts)) {
         if (value !== null) write(textElements.get(key), "text", value);
@@ -168,8 +177,9 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
     if (!measure()) return undefined;
     update(true);
 
-    const intersection = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) attach();
+    // Use the newest of any queued crossings, or a stale one could leave the listener on far away (or off nearby).
+    const intersection = new IntersectionObserver((entries) => {
+      if (latestEntry(entries).isIntersecting) attach();
       else detach();
     }, { rootMargin: ATTACH_MARGIN });
     intersection.observe(track);
@@ -190,6 +200,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageWrapRef, s
       resize?.disconnect();
       document.removeEventListener("visibilitychange", handleVisibility);
       wrap.style.removeProperty("--how-k");
+      frame.style.removeProperty("--how-sticky-extra");
     };
   }, [enabled, trackRef, frameRef, stageWrapRef, stepsRef]);
 }

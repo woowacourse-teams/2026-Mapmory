@@ -4,7 +4,7 @@ import koreaProvinces from "./data/korea-provinces.json";
 import gyeongjuBoundary from "./data/gyeongju-boundary.json";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { occupiesEnoughOfViewport } from "./useExperienceAnalytics.js";
-import { createPassiveViewTracker, createSceneReachTracker } from "./howStoryAnalytics.js";
+import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "./howStoryAnalytics.js";
 import { useHowStoryScroll } from "./useHowStoryScroll.js";
 import { KOREA_BOUNDS, createProjector, ringsToPath } from "./koreaMap.js";
 import {
@@ -29,6 +29,8 @@ import {
 } from "./howStory.js";
 
 const MIN_VIEWPORT_HEIGHT = 560;
+// A static list re-checks scroll mode when a height-only resize grows the window by more than this.
+const STATIC_RECHECK_GROWTH = 100;
 const STATIC_STILL_MAX_K = 1.25;
 const VIEW_OBSERVER_THRESHOLDS = Array.from({ length: 51 }, (_, index) => index / 50);
 const MAP_NEIGHBOURS = ["KR-48", "KR-27", "KR-31", "KR-26", "KR-47"];
@@ -74,11 +76,11 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
     <div className="how-stage" aria-hidden="true">
       <div className={`how-hud ${plan.taps ? "has-taps" : ""}`}>
         <div className="how-hud-item">
-          <span className="how-hud-label">{HOW_STORY_TEXT.hudChecked}</span>
-          <span className="how-hud-value">
-            <span data-text="checked">{texts.checked}</span>
+          <span className="how-hud-label">
+            {HOW_STORY_TEXT.hudChecked}
             {plan.scan && <span className="how-hud-timer" data-text="timer">{texts.timer}</span>}
           </span>
+          <span className="how-hud-value" data-text="checked">{texts.checked}</span>
         </div>
         {plan.taps && (
           <div className="how-hud-item is-taps">
@@ -93,8 +95,9 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
       </div>
       <div className="how-line"><span>{HOW_STORY_TEXT.lineLabel}</span></div>
       <div className="how-zone">
+        <span className="how-zone-frame" data-node="zoneFrame" style={style(nodes.zoneFrame)} />
         <div className="how-zone-head">
-          <span className="how-zone-chip"><DeviceMobile size={15} weight="duotone" />{HOW_STORY_TEXT.zone}</span>
+          <span className="how-zone-chip" data-node="zoneChip" style={style(nodes.zoneChip)}><DeviceMobile size={15} weight="duotone" />{HOW_STORY_TEXT.zone}</span>
           <span className="how-zone-place" data-node="placeChip" style={style(nodes.placeChip)}><MagnifyingGlass size={12} weight="bold" />{HOW_STORY_TEXT.place}</span>
           <span className="finder-sample-badge how-zone-sample">{HOW_STORY_TEXT.sample}</span>
         </div>
@@ -102,7 +105,7 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
           <div className="how-stage-canvas">
             <div className="how-stage-clip">
               <div className="how-strip" data-node="strip" style={style(nodes.strip)}>
-                {HOW_STORY_FILLERS.map((filler, index) => (
+                {HOW_STORY_FILLERS.map((filler) => (
                   <div className="how-tile how-filler" key={filler.cell.join(":")} style={cellStyle(filler.cell)}>
                     <span className="how-tile-photo">
                       <img
@@ -115,9 +118,18 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
                         style={{ objectPosition: `${filler.crop[0]}% ${filler.crop[1]}%`, transformOrigin: `${filler.crop[0]}% ${filler.crop[1]}%`, transform: `scale(${filler.crop[2]})` }}
                       />
                     </span>
-                    <TileFlag hasLocation={filler.hasLocation} data-flag={index} style={{ opacity: String(frame.fillerFlags[index]) }} />
                   </div>
                 ))}
+              </div>
+              {/* The fillers' flags move with the strip in their own layer, clipped at the scan line. */}
+              <div className="how-pins-clip" data-node="pins" style={style(nodes.pins)}>
+                <div className="how-pins" data-node="pinsStrip" style={style(nodes.pinsStrip)}>
+                  {HOW_STORY_FILLERS.map((filler) => (
+                    <div className="how-tile" key={filler.cell.join(":")} style={cellStyle(filler.cell)}>
+                      <TileFlag hasLocation={filler.hasLocation} />
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="how-veil" data-node="veil" style={style(nodes.veil)} />
               <div className="how-scan-line" data-node="scanLine" style={style(nodes.scanLine)} />
@@ -171,7 +183,6 @@ const HowStoryStage = memo(function HowStoryStage({ frame, plan }) {
                   <span>{HOW_STORY_TEXT.place}</span>
                   <span className="how-search-mark" data-node="resultMark" style={style(nodes.resultMark)}><Check size={11} weight="bold" /></span>
                 </div>
-                <div className="how-search-find" data-node="findButton" style={style(nodes.findButton)}>{HOW_STORY_TEXT.find}</div>
               </div>
               <svg className="how-korea" data-node="korea" style={style(nodes.korea)} viewBox={`0 0 ${KOREA_WIDTH} ${KOREA_HEIGHT}`} focusable="false">
                 {KOREA_PATHS.map(({ code, d }) => <path key={code} d={d} />)}
@@ -229,18 +240,28 @@ export function HowStory() {
   const notes = useMemo(() => getHowStoryNotes(), []);
 
   // Reduced motion, missing IntersectionObserver and short windows get the static list. A width change
-  // (rotation, a new window size) re-runs the check and gives scroll mode another chance to fit.
+  // (rotation, a new window size) re-runs the check and gives scroll mode another chance to fit. A height-only
+  // change never leaves scroll mode (a phone's collapsing URL bar would flap it), but a static list re-checks
+  // once the window grows past the minimum height or by more than 100px, so an enlarged short window recovers.
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let width = window.innerWidth;
+    let lowestHeight = window.innerHeight;
     const reevaluate = () => {
+      width = window.innerWidth;
+      lowestHeight = window.innerHeight;
       setBaseMode(detectMode());
       setFitFailed(false);
     };
     const handleResize = () => {
-      if (window.innerWidth === width) return;
-      width = window.innerWidth;
-      reevaluate();
+      if (window.innerWidth !== width) {
+        reevaluate();
+        return;
+      }
+      const height = window.innerHeight;
+      const grew = height - lowestHeight > STATIC_RECHECK_GROWTH || (lowestHeight < MIN_VIEWPORT_HEIGHT && height >= MIN_VIEWPORT_HEIGHT);
+      if (modeRef.current === "static" && grew) reevaluate();
+      else lowestHeight = Math.min(lowestHeight, height);
     };
     media?.addEventListener?.("change", reevaluate);
     window.addEventListener("resize", handleResize);
@@ -250,7 +271,9 @@ export function HowStory() {
     };
   }, []);
 
-  // how_story_view: once per page load, after the story fills enough of the viewport for 1 s in a visible tab.
+  // how_story_view: once per page load, after the story fills enough of the viewport for 1 s in a visible tab,
+  // or right before the first how_story_scene if a reader settles in a hold sooner (the funnel is ordered).
+  const viewTrackerRef = useRef(null);
   useEffect(() => {
     const track = trackRef.current;
     if (!track || typeof IntersectionObserver === "undefined") return undefined;
@@ -260,10 +283,12 @@ export function HowStory() {
         story_mode: modeRef.current,
       }),
     });
+    viewTrackerRef.current = tracker;
     let inView = false;
     const sync = () => tracker.update(inView && document.visibilityState !== "hidden");
-    const observer = new IntersectionObserver(([entry]) => {
-      inView = occupiesEnoughOfViewport(entry);
+    // Crossings queued between callbacks arrive oldest first; only the newest one says where the track is now.
+    const observer = new IntersectionObserver((entries) => {
+      inView = occupiesEnoughOfViewport(latestEntry(entries));
       sync();
     }, { threshold: VIEW_OBSERVER_THRESHOLDS });
     observer.observe(track);
@@ -272,6 +297,7 @@ export function HowStory() {
       observer.disconnect();
       document.removeEventListener("visibilitychange", sync);
       tracker.stop();
+      if (viewTrackerRef.current === tracker) viewTrackerRef.current = null;
     };
   }, []);
 
@@ -279,10 +305,13 @@ export function HowStory() {
   const reachTrackerRef = useRef(null);
   if (!reachTrackerRef.current) {
     reachTrackerRef.current = createSceneReachTracker({
-      onReach: (index) => trackEvent(ANALYTICS_EVENTS.HOW_STORY_SCENE, {
-        experience_type: HOW_STORY_EXPERIENCE_TYPE,
-        scene_index: index + 1,
-      }),
+      onReach: (index) => {
+        viewTrackerRef.current?.flush();
+        trackEvent(ANALYTICS_EVENTS.HOW_STORY_SCENE, {
+          experience_type: HOW_STORY_EXPERIENCE_TYPE,
+          scene_index: index + 1,
+        });
+      },
     });
   }
   useEffect(() => () => reachTrackerRef.current.stop(), []);

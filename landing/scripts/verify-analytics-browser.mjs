@@ -234,8 +234,37 @@ try {
       await page.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "experience_view" && args[2]?.experience_type === "globe"));
       assert.ok((await page.evaluate(() => (window.dataLayer ?? []).map((args) => [...args]))).some(([, name, props]) => name === "experience_cta_click" && props?.cta_placement === "how_section"));
     }
+    // A reload that lands straight in a hold (restored scroll) starts the 700 ms scene timer and the 1 s view
+    // timer together; the view must still reach the dataLayer before the scene.
+    await page.goto("https://map-mory.com/?internal=1");
+    await page.locator(".how-story-track").waitFor();
+    const holdY = (target) => page.evaluate((p) => {
+      const track = document.querySelector(".how-story-track");
+      const frame = document.querySelector(".how-story-frame");
+      const rect = track.getBoundingClientRect();
+      const stickyTop = parseFloat(getComputedStyle(frame).top) || 0;
+      return Math.round(window.scrollY + rect.top - stickyTop + p * (rect.height - frame.offsetHeight));
+    }, target);
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), await holdY(0.345));
+    await settle();
+    await page.reload();
+    await page.locator(".how-story-track").waitFor();
+    await settle();
+    if (!isHowStoryHold(getHowStoryProgress(await progress()))) {
+      // Restoration did not land in the hold: jump there in one step, which is the same race.
+      await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), await holdY(0.345));
+      await settle();
+    }
+    const landed = getHowStoryProgress(await progress());
+    assert.ok(isHowStoryHold(landed) && getHowStoryScene(landed).index === 1, `landed at p=${landed}`);
+    await page.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "how_story_scene"));
+    await page.waitForTimeout(600);
+    const order = await page.evaluate(() => (window.dataLayer ?? []).map((args) => [...args])
+      .filter(([command, name, props]) => command === "event" && /^how_story_(view|scene)$/.test(name) && props?.experience_type === "how_story")
+      .map(([, name, props]) => (name === "how_story_scene" ? `scene:${props.scene_index}` : `view:${props.story_mode}`)));
+    assert.deepEqual(order, ["view:scroll", "scene:2"]);
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "scroll mode: one how_story_view (scroll), how_story_scene 1-5 in order once each with a 900 ms stop per hold, no re-send after scrolling up and down again, no experience_* for how_story" + (mobile ? ", how-section link to the globe" : "") });
+    findings.push({ mobile, passed: true, covered: "scroll mode: one how_story_view (scroll), how_story_scene 1-5 in order once each with a 900 ms stop per hold, no re-send after scrolling up and down again, no experience_* for how_story, reload into the scene-2 hold sends the view before the scene" + (mobile ? ", how-section link to the globe" : "") });
     console.log("How story (scroll) passed", { mobile });
     await context.close();
   }

@@ -5,6 +5,9 @@ import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFi
 import {
   HOW_STORY_COPY_SLOTS,
   HOW_STORY_FILLERS,
+  HOW_STORY_FLAG_BOX,
+  HOW_STORY_GRID,
+  HOW_STORY_NODE_SIZE,
   HOW_STORY_LIBRARY_COUNT,
   HOW_STORY_METRICS,
   HOW_STORY_SCENE_COUNT,
@@ -28,7 +31,7 @@ import {
   resolveHowStoryMetrics,
   stillProgress,
 } from "../src/howStory.js";
-import { createPassiveViewTracker, createSceneReachTracker } from "../src/howStoryAnalytics.js";
+import { createPassiveViewTracker, createSceneReachTracker, latestEntry } from "../src/howStoryAnalytics.js";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 const gyeongju = JSON.parse(await read("../src/data/gyeongju-boundary.json"));
@@ -47,9 +50,10 @@ const SAMPLE_METRICS = Object.freeze({
   tapsSource: "테스트 빌드 실측",
 });
 
+// The travel with the frame at its largest (the viewport room); a frame sized to its content only adds travel.
 const travelAt = (width, height) => {
   const desktop = width > 900;
-  const trackHeight = desktop
+  const trackHeight = width >= HOW_STORY_TRACK.wheelTrackMinWidth
     ? Math.min(Math.max(HOW_STORY_TRACK.desktopMinPx, (HOW_STORY_TRACK.desktopSvh / 100) * height), HOW_STORY_TRACK.desktopMaxPx)
     : (HOW_STORY_TRACK.mobileSvh / 100) * height;
   const offset = desktop ? HOW_STORY_TRACK.frameOffset.desktop : width > 560 ? HOW_STORY_TRACK.frameOffset.tablet : HOW_STORY_TRACK.frameOffset.mobile;
@@ -96,21 +100,28 @@ test("frames are pure: sweeping down then up gives identical frames at equal p",
 });
 
 test("each hold is long enough for one wheel step and the CSS matches the track constants", () => {
-  for (const [width, height, minimum] of [[1280, 720, 120], [360, 640, 100]]) {
+  // Desktop and half-screen laptop windows (561-900px wide use the desktop track) need 120px for scenes 1-4;
+  // the last scene's state stays on screen while the frame scrolls away, so it cannot be skipped.
+  for (const [width, height, minimum, scenes] of [[1280, 720, 120, 5], [683, 657, 120, 4], [720, 680, 120, 4], [880, 700, 120, 4], [360, 640, 100, 5]]) {
     const travel = travelAt(width, height);
-    HOW_STORY_SCENES.forEach((scene, index) => {
+    HOW_STORY_SCENES.slice(0, scenes).forEach((scene, index) => {
       const hold = (scene.window[1] - holdBegin(scene)) * travel;
       assert.ok(hold >= minimum, `${width}x${height} scene ${index + 1} hold ${hold.toFixed(1)}px`);
     });
   }
   assert.equal(travelAt(1280, 720), 1840);
   assert.equal(travelAt(360, 640), 1504);
+  assert.equal(travelAt(683, 657), 1747);
   assert.match(storyCss, /height: 320svh;/);
-  assert.match(storyCss, /height: clamp\(2300px, 340svh, 3000px\);/);
-  for (const top of [80, 88, 96]) assert.match(storyCss, new RegExp(`top: ${top}px;`));
-  for (const offset of [96, 104, 112]) assert.match(storyCss, new RegExp(`height: calc\\(100svh - ${offset}px\\);`));
-  assert.match(storyCss, /max-height: 860px;/);
-  assert.match(storyCss, /max-height: 760px;/);
+  assert.match(storyCss, /@media \(min-width: 561px\) \{[^}]*\.how-story-track \{ height: 340vh; height: clamp\(2300px, 340svh, 3000px\); \}/);
+  for (const top of [80, 88]) assert.match(storyCss, new RegExp(`top: calc\\(${top}px \\+ var\\(--how-sticky-extra, 0px\\)\\);`));
+  assert.match(storyCss, /top: 96px;/);
+  assert.match(hookSource, /setProperty\("--how-sticky-extra"/);
+  assert.match(storyCss, /max-height: calc\(100svh - 96px\);/);
+  assert.match(storyCss, /max-height: min\(calc\(100svh - 104px\), 860px\);/);
+  assert.match(storyCss, /height: calc\(100svh - 112px\);\s*max-height: 760px;/);
+  assert.equal(HOW_STORY_TRACK.tabletMaxFrame, 860);
+  assert.equal(HOW_STORY_TRACK.desktopMaxFrame, 760);
 });
 
 test("nothing moves during a hold, and motion starts as soon as the frame sticks", () => {
@@ -153,6 +164,28 @@ test("matching mirrors the app: inside the bundled 경주시 boundary means a ma
     assert.ok(Math.abs(node.tx + 28 - x) <= 0.5 && Math.abs(node.ty + 28 - y) <= 0.5, tile.src);
     assert.equal(hold.nodes[`tileMint${index}`].o, 1);
   });
+});
+
+test("every dot clears the drawn 경주시 boundary, so inside and outside read clearly", () => {
+  // The match dot is 10px and bumps to x1.4; the boundary stroke is 2px. Story px, simplified ring as drawn.
+  const clearance = 1.4 * (HOW_STORY_NODE_SIZE.dot / 2) + 2;
+  assert.match(storyCss, /\.how-map-boundary \{[^}]*stroke-width: 2;/);
+  const ring = gyeongju.rings[0].map(([lng, lat]) => projectToStoryMap(lng, lat));
+  const segmentDistance = ([px, py], [ax, ay], [bx, by]) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(px - (ax + u * dx), py - (ay + u * dy));
+  };
+  const distance = (point) => Math.min(...ring.map((start, index) => segmentDistance(point, start, ring[(index + 1) % ring.length])));
+  for (const tile of HOW_STORY_TILES) {
+    if (tile.kind === "no-location") continue;
+    const point = projectToStoryMap(tile.lng, tile.lat);
+    assert.ok(distance(point) >= clearance, `${tile.src} sits ${distance(point).toFixed(1)}px from the boundary`);
+  }
+  // The four found photos stay apart, so each reads as its own dot.
+  const matches = HOW_STORY_TILES.filter(({ kind }) => kind === "match").map((tile) => projectToStoryMap(tile.lng, tile.lat));
+  for (const [i, a] of matches.entries()) for (const b of matches.slice(i + 1)) assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) >= 18);
 });
 
 test("both selection variants end with the same three photos checked and one left on the phone", () => {
@@ -244,13 +277,17 @@ test("measured numbers drive the timer, the library count, the tap counter and t
   const plan = getHowStoryPlan(options);
   assert.deepEqual(plan.errors, []);
   assert.equal(plan.libraryCount, 14213);
-  assert.equal(plan.beats.length, 6);
   assert.equal(getHowStoryFrame(0, options).texts.timer, "0.0초");
   assert.equal(getHowStoryFrame(0, options).texts.taps, "0번");
   const scanned = getHowStoryFrame(holdEnd(1), options);
   assert.equal(scanned.texts.timer, "6.2초");
   assert.equal(scanned.texts.checked, "14,213 / 14,213장");
-  assert.equal(getHowStoryFrame(holdEnd(2), options).texts.pill, "14,213장 중 경주시 사진 4장");
+  // The 4 found photos are made up, so a measured library size never shares their sentence.
+  assert.equal(getHowStoryFrame(holdEnd(2), options).texts.pill, "경주시 사진 4장");
+  assert.equal(getHowStoryFrame(holdEnd(2)).texts.pill, "21,474장 중 경주시 사진 4장");
+  for (const p of sweep(0.01)) assert.ok(!getHowStoryFrame(p, options).texts.pill.includes("14,213"));
+  assert.doesNotMatch(getHowStorySceneDescription(2, options), /14,213|21,474/);
+  assert.match(getHowStorySceneDescription(2), /21,474장 중 경주시에서 찍은 사진 4장/);
   assert.equal(getHowStoryFrame(1, options).texts.taps, "6번");
   // The counter moves by one per visible tap, and never during a hold.
   let previous = 0;
@@ -263,10 +300,13 @@ test("measured numbers drive the timer, the library count, the tap counter and t
   assert.deepEqual(getHowStoryNotes(options), [SAMPLE_METRICS.scanSource, SAMPLE_METRICS.tapsSource]);
   assert.match(getHowStorySceneDescription(1, options), /14,213장.*6\.2초/);
   assert.match(getHowStorySceneDescription(4, options), /탭 6번/);
-  // A seventh tap adds the search-field tap; the prechecked choreography has room for 4-5 taps only.
-  assert.equal(getHowStoryPlan({ metrics: { ...SAMPLE_METRICS, taps: 7 } }).beats[0].id, "search");
-  assert.deepEqual(getHowStoryTapRange("tap-to-check"), { min: 6, max: 7 });
-  assert.deepEqual(getHowStoryTapRange("prechecked"), { min: 4, max: 5 });
+  // Only taps both app versions share are drawn: the place, the photos and save, plus the search field when
+  // the measured count includes it. No 사진 찾기 tap (develop starts the scan on the pick).
+  assert.deepEqual(plan.beats.map(({ id }) => id), ["search", "place", "select-0", "select-1", "select-2", "save"]);
+  assert.deepEqual(getHowStoryPlan({ metrics: { ...SAMPLE_METRICS, taps: 5 } }).beats.map(({ id }) => id), ["place", "select-0", "select-1", "select-2", "save"]);
+  assert.deepEqual(getHowStoryTapRange("tap-to-check"), { min: 5, max: 6 });
+  assert.deepEqual(getHowStoryTapRange("prechecked"), { min: 3, max: 4 });
+  assert.match(resolveHowStoryMetrics({ ...SAMPLE_METRICS, taps: 7 }).errors.join(), /cannot be shown/);
   assert.match(resolveHowStoryMetrics(SAMPLE_METRICS, "prechecked").errors.join(), /cannot be shown/);
   assert.match(resolveHowStoryMetrics({ ...SAMPLE_METRICS, scanLibraryCount: null }).errors.join(), /scanLibraryCount/);
   assert.equal(resolveHowStoryMetrics({ ...SAMPLE_METRICS, scanSource: " " }).scan, null);
@@ -378,4 +418,139 @@ test("story photos are a separate, credited set and never reuse the hero's", asy
     await access(new URL(`../public${src}`, import.meta.url));
   }
   assert.equal(HOW_STORY_FILLERS.length + HOW_STORY_TILES.length, 90);
+});
+
+test("the library fillers never contradict the result: no found photo repeats, the no-location photo never gets a pin", () => {
+  const matchSources = new Set(HOW_STORY_TILES.filter(({ kind }) => kind === "match").map(({ src }) => src));
+  const noLocationSource = HOW_STORY_TILES.find(({ kind }) => kind === "no-location").src;
+  const locatedStorySources = new Set(HOW_STORY_TILES.filter(({ kind }) => kind === "elsewhere").map(({ src }) => src));
+  for (const filler of HOW_STORY_FILLERS) {
+    const where = filler.cell.join(":");
+    assert.ok(!matchSources.has(filler.src), `${where} repeats a found photo`);
+    if (filler.hasLocation) assert.notEqual(filler.src, noLocationSource, `${where} pins the no-location photo`);
+    else assert.ok(!locatedStorySources.has(filler.src), `${where} shows a located photo as 위치 없음`);
+  }
+  assert.ok(HOW_STORY_FILLERS.some(({ hasLocation }) => !hasLocation));
+  // No photo sits right beside a copy of itself.
+  const byCell = new Map([...HOW_STORY_FILLERS, ...HOW_STORY_TILES].map(({ cell, src }) => [cell.join(":"), src]));
+  for (const [key, src] of byCell) {
+    const [row, column] = key.split(":").map(Number);
+    for (const neighbour of [`${row + 1}:${column}`, `${row}:${column + 1}`]) assert.notEqual(byCell.get(neighbour), src, `${key} and ${neighbour}`);
+  }
+});
+
+test("every flag the scan passes is fully shown by the scene 2 hold, and none show before the scan", () => {
+  const holdFrame = getHowStoryFrame(holdEnd(1));
+  const before = getHowStoryFrame(holdEnd(0));
+  assert.equal(holdFrame.nodes.pins.o, 1);
+  assert.equal(before.nodes.pins.o, 0);
+  assert.equal(holdFrame.nodes.pinsStrip.ty, HOW_STORY_GRID.finalOffset);
+  // The flag layer moves exactly with the library strip at every p.
+  for (const p of sweep(0.005)) {
+    const { nodes } = getHowStoryFrame(p);
+    assert.equal(nodes.pinsStrip.ty, nodes.strip.ty, `p ${p}`);
+  }
+  // The filler flag layer is clipped at the scan line: every filler's flag ends above it at the hold.
+  assert.match(storyCss, new RegExp(`\\.how-pins-clip \\{ width: 320px; height: ${HOW_STORY_GRID.scanLineY}px; overflow: hidden; \\}`));
+  for (const filler of HOW_STORY_FILLERS) {
+    const [, bottom] = HOW_STORY_FLAG_BOX[filler.hasLocation ? "pin" : "none"];
+    const flagBottom = HOW_STORY_GRID.y0 + filler.cell[0] * HOW_STORY_GRID.pitch + bottom + HOW_STORY_GRID.finalOffset;
+    assert.ok(flagBottom <= HOW_STORY_GRID.scanLineY, `${filler.cell.join(":")} flag ends at ${flagBottom}`);
+  }
+  HOW_STORY_TILES.forEach((_, index) => {
+    assert.equal(holdFrame.nodes[`tileFlag${index}`].o, 1, `story flag ${index}`);
+    assert.equal(before.nodes[`tileFlag${index}`].o, 0, `story flag ${index} before the scan`);
+  });
+});
+
+test("scene 1 makes no claim about where the place search runs: the 내 폰 안 frame waits for the scan", () => {
+  for (const p of sweep(0.002).filter((value) => value < HOW_STORY_SCENES[1].window[0])) {
+    const frame = getHowStoryFrame(p);
+    assert.equal(frame.nodes.zoneFrame.o, 0, `p ${p}`);
+    assert.equal(frame.nodes.zoneChip.o, 0, `p ${p}`);
+  }
+  for (const index of [1, 2, 3, 4]) {
+    const frame = getHowStoryFrame(stillProgress(index));
+    assert.equal(frame.nodes.zoneFrame.o, 1);
+    assert.equal(frame.nodes.zoneChip.o, 1);
+  }
+  // The search card is gone before the frame fades in around the library.
+  const scan = HOW_STORY_SCENES[1];
+  const firstZone = sweep(0.0005).find((p) => p >= scan.window[0] && getHowStoryFrame(p).nodes.zoneFrame.o > 0);
+  assert.ok(getHowStoryFrame(firstZone).nodes.searchCard.o <= 0.25);
+  assert.match(componentSource, /className="how-zone-frame" data-node="zoneFrame"/);
+  assert.match(componentSource, /className="how-zone-chip" data-node="zoneChip"/);
+  assert.doesNotMatch(storyCss, /\.how-zone \{[^}]*dashed/);
+});
+
+test("a measured tap counter wraps to its own row on a narrow stage instead of cutting the numbers", () => {
+  assert.match(storyCss, /\.how-stage \{[^}]*container-type: inline-size;/);
+  assert.match(storyCss, /@container \(max-width: 420px\) \{\s*\.how-hud\.has-taps \{ height: auto; min-height: 44px;[^}]*\}\s*\.how-hud\.has-taps \.how-hud-item\.is-taps \{ grid-column: 1 \/ -1; grid-row: 2;/);
+  // The timer sits beside its label, not inside the clipped counter value.
+  assert.match(componentSource, /<span className="how-hud-label">\s*\{HOW_STORY_TEXT\.hudChecked\}\s*\{plan\.scan && <span className="how-hud-timer"/);
+  assert.match(componentSource, /<span className="how-hud-value" data-text="checked">/);
+});
+
+test("how_story_view always reaches analytics before the first how_story_scene", () => {
+  // A shared fake clock, wired the way HowStory.jsx wires the two trackers.
+  const timers = new Map();
+  let now = 0;
+  let nextId = 1;
+  const schedule = (callback, delay) => {
+    const id = nextId++;
+    timers.set(id, { callback, at: now + delay });
+    return id;
+  };
+  const cancel = (id) => timers.delete(id);
+  const advance = (ms) => {
+    const end = now + ms;
+    for (;;) {
+      const due = [...timers].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      timers.delete(due[0]);
+      now = due[1].at;
+      due[1].callback();
+    }
+    now = end;
+  };
+  const sent = [];
+  const view = createPassiveViewTracker({ onView: () => sent.push(["view", now]), schedule, cancel });
+  const reach = createSceneReachTracker({ onReach: (index) => { view.flush(); sent.push([`scene ${index + 1}`, now]); }, schedule, cancel });
+  // The story becomes eligible for a view, and 200 ms later the reader settles in the scene 1 hold.
+  view.update(true);
+  advance(200);
+  reach.update({ sceneIndex: 0, inHold: true, eligible: true });
+  advance(700);
+  assert.deepEqual(sent, [["view", 900], ["scene 1", 900]]);
+  // The view's own timer was cancelled: it never sends twice.
+  advance(2000);
+  view.update(true);
+  view.flush();
+  advance(2000);
+  assert.deepEqual(sent.map(([name]) => name), ["view", "scene 1"]);
+  assert.equal(view.fired, true);
+  assert.match(componentSource, /onReach: \(index\) => \{\s*viewTrackerRef\.current\?\.flush\(\);\s*trackEvent\(ANALYTICS_EVENTS\.HOW_STORY_SCENE/);
+});
+
+test("observers act on the newest of a batch of queued intersection entries", () => {
+  const visible = { isIntersecting: true, intersectionRect: { height: 600 }, rootBounds: { height: 844 } };
+  const hidden = { isIntersecting: false, intersectionRect: { height: 0 }, rootBounds: { height: 844 } };
+  assert.equal(latestEntry([visible, hidden]), hidden);
+  assert.equal(latestEntry([hidden, visible]), visible);
+  assert.equal(latestEntry([visible]), visible);
+  for (const source of [componentSource, hookSource]) {
+    assert.match(source, /latestEntry\(entries\)/);
+    assert.doesNotMatch(source, /new IntersectionObserver\(\(\[entry\]\)/);
+  }
+});
+
+test("the skip link target clears the sticky header and the story end is centred from tablet width", () => {
+  assert.match(storyCss, /\.how-story-end \{ display: flex; scroll-margin-top: 100px; \}/);
+  assert.match(storyCss, /@media \(min-width: 561px\) \{[\s\S]*?\.how-story-end \{ justify-content: center; \}\s*\}/);
+});
+
+test("a static list re-checks scroll mode when the window grows taller, never on a phone's URL-bar flap", () => {
+  assert.match(componentSource, /const STATIC_RECHECK_GROWTH = 100;/);
+  assert.match(componentSource, /if \(modeRef\.current === "static" && grew\) reevaluate\(\);/);
+  assert.match(componentSource, /lowestHeight < MIN_VIEWPORT_HEIGHT && height >= MIN_VIEWPORT_HEIGHT/);
 });

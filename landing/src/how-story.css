@@ -33,14 +33,16 @@
 
 /* Track and frame sizes per breakpoint (mobile first). */
 .how-story-track { position: relative; height: 320vh; height: 320svh; }
+/* Stacked layouts: the frame is as tall as its content, so the story starts right under the heading and the
+   globe link follows right after it; max-height is the viewport room the script fits the stage into. The script
+   sets --how-sticky-extra to half the room the frame leaves, so it sticks centred in the viewport. */
 .how-story-frame {
   position: sticky;
-  top: 80px;
-  height: calc(100vh - 96px);
-  height: calc(100svh - 96px);
+  top: calc(80px + var(--how-sticky-extra, 0px));
+  max-height: calc(100vh - 96px);
+  max-height: calc(100svh - 96px);
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
 
 .how-story-steps { margin: 0; padding: 0; list-style: none; display: grid; }
@@ -53,7 +55,10 @@
 .how-story-support { margin: 4px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; word-break: keep-all; }
 
 /* Scroll mode: the five captions share one slot and swap by scene index; they are never scrubbed. */
-.how-story-track[data-mode="scroll"] .how-story-step { grid-area: 1 / 1; height: 124px; overflow: hidden; opacity: 0; transition: opacity 160ms ease; }
+/* The slot is as tall as the longest caption at this width, up to two lines each (124px); longer text overflows
+   the cap, and the script then falls back to the static list. */
+.how-story-track[data-mode="scroll"] .how-story-steps { max-height: 124px; overflow: hidden; }
+.how-story-track[data-mode="scroll"] .how-story-step { grid-area: 1 / 1; opacity: 0; transition: opacity 160ms ease; }
 .how-story-track[data-mode="scroll"] .how-story-step[data-active="true"] { opacity: 1; }
 
 .how-story-progress { margin: 10px 0 12px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; pointer-events: none; }
@@ -66,7 +71,8 @@
 
 /* Stage: HUD strip, the boundary line, then the phone zone holding the 320x280 logical canvas. */
 /* --how-k (canvas scale) is measured by script and set on the stage wrap or the static list; 19px is the zone's padding and border. */
-.how-stage { width: calc(320px * var(--how-k, 1) + 19px); max-width: 100%; margin: 0 auto; }
+/* The stage is a size container so the HUD can wrap by the stage's own width, which depends on --how-k. */
+.how-stage { width: calc(320px * var(--how-k, 1) + 19px); max-width: 100%; margin: 0 auto; container-type: inline-size; }
 
 .how-hud {
   height: 44px;
@@ -84,15 +90,24 @@
 .how-hud-label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 14px; white-space: nowrap; }
 .how-hud-label svg { flex: 0 0 auto; color: var(--accent-ink); }
 .how-hud-value { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-.how-hud-timer { margin-left: 6px; color: var(--accent-ink); }
+/* The two values that change on every scrolled frame are fixed-size boxes, so their text never relayouts the page. */
+.how-hud-value[data-text="checked"] { height: 18px; contain: strict; }
+.how-hud-timer { width: 3.6em; height: 14px; margin-left: 2px; display: inline-block; color: var(--accent-ink); font-variant-numeric: tabular-nums; contain: strict; }
 .how-hud-item.is-taps { padding-left: 12px; border-left: 1px solid var(--line); }
 .how-hud-item.is-server { padding-left: 12px; border-left: 1px solid var(--line); justify-items: end; text-align: right; }
+/* With a measured tap counter on a narrow stage, the counter takes a second row instead of squeezing the others. */
+@container (max-width: 420px) {
+  .how-hud.has-taps { height: auto; min-height: 44px; padding-block: 6px; grid-template-columns: minmax(0, 1fr) auto; row-gap: 5px; }
+  .how-hud.has-taps .how-hud-item.is-taps { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: baseline; gap: 6px; padding: 5px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+}
 
 .how-line { position: relative; height: 24px; display: grid; place-items: center; }
 .how-line::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
 .how-line span { position: relative; padding: 0 10px; background: var(--canvas); color: var(--muted); font-size: 12px; font-weight: 700; line-height: 20px; white-space: nowrap; }
 
-.how-zone { padding: 8px; border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); border-radius: 20px; background: var(--canvas); }
+.how-zone { position: relative; padding: 8px; border: 1.5px solid transparent; border-radius: 20px; background: var(--canvas); }
+/* The dashed 내 폰 안 frame is its own node: it fades in when the photo scan starts, never around the place search. */
+.how-zone-frame { position: absolute; inset: -1.5px; border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); border-radius: 20px; pointer-events: none; }
 .how-zone-head { height: 28px; margin-bottom: 6px; padding: 0 2px; display: flex; align-items: center; gap: 6px; }
 .how-zone-chip { margin-right: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .how-zone-chip svg { flex: 0 0 auto; color: var(--accent-strong); }
@@ -115,6 +130,9 @@
 .how-tile-photo img,
 .how-copy img { width: 100%; height: 100%; object-fit: cover; }
 .how-flag { position: absolute; pointer-events: none; }
+/* Filler flags: one layer moved with the strip and clipped at the scan line (the line sits at y 236). */
+.how-pins-clip { width: 320px; height: 236px; overflow: hidden; }
+.how-pins { width: 320px; height: 1084px; }
 .how-flag.is-pin { top: 4px; left: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--accent-ink); box-shadow: 0 1px 4px rgba(10, 30, 20, 0.22); }
 .how-flag.is-none { inset: 0; padding-bottom: 5px; display: flex; align-items: flex-end; justify-content: center; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 64%, transparent); }
 .how-flag.is-none span { padding: 1px 5px; border: 1px dashed color-mix(in srgb, var(--text) 32%, transparent); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 9.5px; font-weight: 700; line-height: 13px; white-space: nowrap; }
@@ -137,7 +155,7 @@
 .how-pill svg { flex: 0 0 auto; color: var(--accent-ink); }
 
 /* Scene 1: the search card. */
-.how-search { width: 288px; height: 156px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 14px 34px rgba(16, 40, 28, 0.16); }
+.how-search { width: 288px; height: 116px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 14px 34px rgba(16, 40, 28, 0.16); }
 .how-search-field { position: absolute; top: 12px; left: 12px; right: 12px; height: 40px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 15px; }
 .how-search-field svg { flex: 0 0 auto; }
 .how-search-text { position: relative; min-width: 0; flex: 1; display: flex; align-items: center; color: var(--text); font-weight: 700; white-space: nowrap; }
@@ -146,7 +164,6 @@
 .how-search-result { position: absolute; top: 60px; left: 12px; right: 12px; height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px; font-weight: 700; }
 .how-search-result > svg { flex: 0 0 auto; color: var(--accent-ink); }
 .how-search-mark { width: 20px; height: 20px; margin-left: auto; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #062b1c; }
-.how-search-find { position: absolute; top: 112px; left: 12px; right: 12px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 700; }
 
 /* Scene 4: the sheet, the selection and the copies rising across the line. */
 .how-sheet { width: 304px; height: 196px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 -10px 30px rgba(16, 40, 28, 0.12); }
@@ -174,11 +191,16 @@
 
 /* Only while the story is near the viewport do the moving layers get their own compositor layers. */
 .how-story-track.is-live .how-strip,
+.how-story-track.is-live .how-pins,
+.how-story-track.is-live .how-search,
+.how-story-track.is-live .how-veil,
 .how-story-track.is-live .how-story-tile,
 .how-story-track.is-live .how-sheet,
 .how-story-track.is-live .how-copy { will-change: transform, opacity; }
+.how-story-track.is-live .how-story-progress-track i { will-change: transform; }
 
-.how-story-end { display: flex; }
+/* The skip link lands here; the margin keeps the globe link below the sticky header. */
+.how-story-end { display: flex; scroll-margin-top: 100px; }
 
 /* Static mode (reduced motion, short or narrow windows, large text): a plain list of stills. */
 .how-story-track[data-mode="static"] { height: auto; }
@@ -187,21 +209,25 @@
 .how-story-still { margin: 16px -8px 0; }
 
 @media (min-width: 561px) {
-  .how-story-frame { top: 88px; height: calc(100svh - 104px); max-height: 860px; width: min(100%, 500px); margin-inline: auto; }
-  .how-story-track[data-mode="scroll"] .how-story-step { height: 132px; }
+  /* From tablet width up, a mouse wheel can scroll the page, so the track uses the desktop length: every hold
+     stays longer than one 120px wheel notch even in a half-screen laptop window. */
+  .how-story-track { height: 340vh; height: clamp(2300px, 340svh, 3000px); }
+  .how-story-frame { top: calc(88px + var(--how-sticky-extra, 0px)); max-height: min(calc(100vh - 104px), 860px); max-height: min(calc(100svh - 104px), 860px); width: min(100%, 500px); margin-inline: auto; }
+  .how-story-track[data-mode="scroll"] .how-story-steps { max-height: 132px; }
   .how-story-step h3 { font-size: 22px; }
   .how-story-support { font-size: 15px; }
   .how-story-stage-wrap { margin-inline: 0; }
   .how-story-still { margin-inline: 0; }
   .how-story-track[data-mode="static"] .how-story-frame { width: auto; }
   .how-story-track[data-mode="static"] .how-story-steps { width: min(100%, 500px); margin-inline: auto; }
+  .how-story-end { justify-content: center; }
 }
 
 @media (min-width: 901px) {
-  .how-story-track { height: 340vh; height: clamp(2300px, 340svh, 3000px); }
   .how-story-frame {
     top: 96px;
     width: auto;
+    height: calc(100vh - 112px);
     height: calc(100svh - 112px);
     max-height: 760px;
     display: grid;
@@ -210,7 +236,7 @@
     justify-content: center;
     align-items: center;
   }
-  .how-story-track[data-mode="scroll"] .how-story-step { height: 184px; }
+  .how-story-track[data-mode="scroll"] .how-story-steps { max-height: 184px; }
   .how-story-step-no { font-size: 14px; line-height: 20px; }
   .how-story-step h3 { margin-top: 10px; font-size: 30px; line-height: 1.3; }
   .how-story-support { margin-top: 12px; font-size: 17px; line-height: 1.6; }
@@ -219,7 +245,8 @@
   .how-hud { height: 52px; padding: 0 16px; }
   .how-hud-label { font-size: 12px; line-height: 15px; }
   .how-hud-value { font-size: 15px; line-height: 20px; }
-  .how-story-end { justify-content: center; }
+  .how-hud-value[data-text="checked"] { height: 20px; }
+  .how-hud-timer { height: 15px; }
 
   .how-story-track[data-mode="static"] .how-story-frame { display: block; }
   .how-story-track[data-mode="static"] .how-story-steps { width: auto; gap: 56px; }

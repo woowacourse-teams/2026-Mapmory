@@ -12,10 +12,14 @@ export const HOW_STORY_TITLE = "사진첩이 커도, 장소만 고르면 돼요.
 export const HOW_STORY_LIBRARY_COUNT = 21474;
 // Only numbers the team measured on the shipping app. Each starts as null, and null means its UI is absent.
 export const HOW_STORY_METRICS = Object.freeze({
-  scanSeconds: null, // measured seconds for a first "사진 찾기" over a whole library; null = never show a time
+  scanSeconds: null, // measured seconds for a first photo search for a place over a whole library; null = never show a time
   scanLibraryCount: null, // the library size that measurement was taken on; required when scanSeconds is set
   scanSource: null, // e.g. "갤럭시 S23 · 사진 14,213장 · 첫 검색 실측"; shown as a small footnote when scanSeconds is set
-  taps: null, // measured taps from + to saved record on the shipping app; null = no tap counter
+  // Measured taps on the shipping app for exactly the taps this story shows: (the search field), the place
+  // result, each photo, then save. The + that opens a record is not shown, so it is not counted. Fill it
+  // only when the measured build needs those taps and no others (main also needs 이 장소 사진 찾기,
+  // 선택한 사진 추가, a title and a start date, so a count measured there must stay null). null = no counter.
+  taps: null,
   tapsSource: null,
 });
 // "tap-to-check": found photos start unchecked (develop). "prechecked": they start checked (main). One-constant switch.
@@ -23,7 +27,10 @@ export const HOW_STORY_SELECTION = "tap-to-check";
 export const HOW_STORY_SELECTIONS = Object.freeze(["tap-to-check", "prechecked"]);
 
 export const HOW_STORY_CANVAS = Object.freeze({ width: 320, height: 280 });
+// Phones use the 320svh track; from 561px wide (where a mouse wheel is likely) the track uses the desktop
+// clamp so every hold outlasts one 120px wheel notch, even in a half-screen laptop window.
 export const HOW_STORY_TRACK = Object.freeze({
+  wheelTrackMinWidth: 561,
   mobileSvh: 320,
   desktopSvh: 340,
   desktopMinPx: 2300,
@@ -52,10 +59,12 @@ export const HOW_STORY_TEXT = Object.freeze({
   sample: "예시",
   searchPlaceholder: "장소 검색",
   searchQuery: "경주",
-  find: "사진 찾기",
   noLocation: "위치 없음",
   mapCaption: "앱에 들어 있는 경주시 경계",
   foundPill: "{total}장 중 경주시 사진 {n}장",
+  // With a measured library on screen, the illustrative result drops the library size, so a measured number
+  // never shares a sentence with the made-up 4.
+  foundPillMeasured: "경주시 사진 {n}장",
   sheetTitle: "경주시에서 찾은 사진",
   sheetSubtitle: "촬영 위치로 찾았어요",
   sheetCount: "{n}장 선택",
@@ -67,7 +76,7 @@ export const HOW_STORY_TEXT = Object.freeze({
     Object.freeze({ level: "나라", name: "대한민국" }),
   ]),
   scanNote: " 실측: {source}, 사진 {count}장을 확인하는 데 {s}초 걸렸어요.",
-  tapsNote: " 실측: {source}, 저장까지 탭 {n}번.",
+  tapsNote: " 실측: {source}, 장소 검색부터 저장까지 탭 {n}번.",
 });
 
 // Each scene: [start, end] window of p, the local t where its still hold starts, one headline and one
@@ -87,7 +96,7 @@ export const HOW_STORY_SCENES = Object.freeze([
     holdStart: 0.68,
     headline: "폰이 사진첩을 전부 훑어요",
     support: "사진마다 촬영 위치를 확인해요. 장면은 보지 않아요.",
-    description: "사진 찾기를 누르면 폰이 사진마다 저장된 촬영 위치를 확인해요. 사진 속 장면은 보지 않아요. 이 예시에서는 사진첩 {total}장을 처음부터 끝까지 훑어요.{scanNote}",
+    description: "고른 장소의 사진을 찾을 때, 폰이 사진마다 저장된 촬영 위치를 확인해요. 사진 속 장면은 보지 않아요. 이 예시에서는 사진첩 {total}장을 처음부터 끝까지 훑어요.{scanNote}",
   }),
   Object.freeze({
     id: "match",
@@ -95,7 +104,7 @@ export const HOW_STORY_SCENES = Object.freeze([
     holdStart: 0.56,
     headline: "그곳에서 찍은 사진만 남아요",
     support: "찾는 동안 사진은 서버로 가지 않아요.",
-    description: "폰이 앱에 들어 있는 경주시 경계와 촬영 위치를 비교해서, {total}장 중 경주시에서 찍은 사진 4장만 남겨요. 이 예시에서 부산과 강원에서 찍은 사진, 위치 정보가 없는 사진은 빠졌어요. 찾는 동안 사진은 서버로 가지 않아요.",
+    description: "폰이 앱에 들어 있는 경주시 경계와 촬영 위치를 비교해서, {scope}경주시에서 찍은 사진 4장만 남겨요. 이 예시에서 부산과 강원에서 찍은 사진, 위치 정보가 없는 사진은 빠졌어요. 찾는 동안 사진은 서버로 가지 않아요.",
   }),
   Object.freeze({
     id: "save",
@@ -104,8 +113,8 @@ export const HOW_STORY_SCENES = Object.freeze([
     headline: "골라서 저장하면 고른 사진만 올라가요",
     support: "나머지 사진은 폰에 그대로 있어요.",
     descriptionByVariant: Object.freeze({
-      "tap-to-check": "찾은 사진 4장 가운데 올리고 싶은 3장을 탭해서 고르고 저장을 눌러요. 고른 3장만 Mapmory 서버로 올라가고, 고르지 않은 1장과 나머지 사진첩은 폰에 그대로 있어요.",
-      prechecked: "찾은 사진 4장이 체크된 채로 모여요. 올리고 싶지 않은 1장은 탭해서 빼고 저장을 눌러요. 체크한 3장만 Mapmory 서버로 올라가고, 뺀 1장과 나머지 사진첩은 폰에 그대로 있어요.",
+      "tap-to-check": "찾은 사진 4장 가운데 올리고 싶은 3장을 탭해서 골라요. 그 뒤 기록을 저장하면 그 3장만 Mapmory 서버로 올라가고, 고르지 않은 1장과 나머지 사진첩은 폰에 그대로 있어요.",
+      prechecked: "찾은 사진 4장이 체크된 채로 모여요. 올리고 싶지 않은 1장은 탭해서 빼요. 그 뒤 기록을 저장하면 체크한 3장만 Mapmory 서버로 올라가고, 뺀 1장과 나머지 사진첩은 폰에 그대로 있어요.",
     }),
   }),
   Object.freeze({
@@ -131,9 +140,9 @@ export const HOW_STORY_GRID = Object.freeze({
   scanLineY: 236,
 });
 
-// The 9 story photos. They sit in the last screen of the library; the rest of the grid is filler made of
-// the same files with different crops (never the hero's files). Coordinates were checked against the
-// app's own 경주시 boundary (47130): matches fall inside it, everything else outside.
+// The 9 story photos. They sit in the last screen of the library; the rest of the grid is filler (never the
+// hero's files). Coordinates were checked against the app's own 경주시 boundary (47130): matches fall inside
+// it, everything else outside, and every dot clears the drawn boundary line in scene 3.
 export const HOW_STORY_TILES = Object.freeze([
   { src: photo("gyeongbuk-02"), kind: "match", lat: 35.8347, lng: 129.219, cell: [14, 1], slot: 0 },
   { src: photo("busan-01"), kind: "elsewhere", lat: 35.185, lng: 129.205, cell: [14, 3] },
@@ -141,24 +150,50 @@ export const HOW_STORY_TILES = Object.freeze([
   { src: photo("gyeongbuk-01"), kind: "match", lat: 35.79, lng: 129.332, cell: [15, 2], slot: 1 },
   { src: photo("busan-03"), kind: "elsewhere", lat: 35.1587, lng: 129.1604, cell: [15, 4] },
   { src: photo("busan-02"), kind: "no-location", lat: null, lng: null, cell: [16, 1] },
-  { src: photo("gyeongbuk-04"), kind: "match", lat: 35.74, lng: 129.12, cell: [16, 3], slot: 3 },
-  { src: photo("gyeongbuk-03"), kind: "match", lat: 35.92, lng: 129.1, cell: [17, 0], slot: 2 },
+  { src: photo("gyeongbuk-04"), kind: "match", lat: 35.78, lng: 129.09, cell: [16, 3], slot: 3 },
+  { src: photo("gyeongbuk-03"), kind: "match", lat: 35.93, lng: 129.23, cell: [17, 0], slot: 2 },
   { src: photo("gangwon-03"), kind: "elsewhere", lat: 38.172, lng: 128.49, cell: [17, 2] },
 ].map((tile) => Object.freeze(tile)));
 
 // Filler crops [x%, y%, zoom], as in the hero, so repeats read as other shots.
 const FILLER_CROPS = [[50, 50, 1.15], [28, 34, 1.5], [72, 66, 1.6], [50, 22, 1.4], [22, 78, 1.7], [80, 40, 1.55], [40, 70, 1.45]];
-const storyCells = new Set(HOW_STORY_TILES.map(({ cell }) => cell.join(":")));
+// Fillers only reuse photos whose story role they can share: the found photos never repeat (a pinned 경주
+// filler would be a 경주 photo the find missed), and the no-location photo only repeats as 위치 없음.
+const LOCATED_FILLER_SOURCES = HOW_STORY_TILES.filter(({ kind }) => kind === "elsewhere").map(({ src }) => src);
+const NO_LOCATION_FILLER_SOURCE = HOW_STORY_TILES.find(({ kind }) => kind === "no-location").src;
+const storyByCell = new Map(HOW_STORY_TILES.map((tile) => [tile.cell.join(":"), tile.src]));
+const fillerByCell = new Map();
+// How strongly each photo already sits next to a cell: 2 for a side neighbour, 1 for a corner.
+const neighbourWeights = (row, column) => {
+  const weights = new Map();
+  for (let dr = -1; dr <= 1; dr += 1) {
+    for (let dc = -1; dc <= 1; dc += 1) {
+      const key = `${row + dr}:${column + dc}`;
+      const src = storyByCell.get(key) ?? fillerByCell.get(key);
+      if ((dr || dc) && src) weights.set(src, (weights.get(src) ?? 0) + (dr && dc ? 1 : 2));
+    }
+  }
+  return weights;
+};
 export const HOW_STORY_FILLERS = Object.freeze(Array.from({ length: HOW_STORY_GRID.rows * HOW_STORY_GRID.columns }, (_, index) => {
   const row = Math.floor(index / HOW_STORY_GRID.columns);
   const column = index % HOW_STORY_GRID.columns;
-  if (storyCells.has(`${row}:${column}`)) return null;
-  // Steps of 1 across and 3 down keep neighbouring tiles on different photos.
-  const source = HOW_STORY_TILES[(column + row * 3) % HOW_STORY_TILES.length].src;
+  if (storyByCell.has(`${row}:${column}`)) return null;
+  const hasLocation = index % 8 !== 5;
+  let src = NO_LOCATION_FILLER_SOURCE;
+  if (hasLocation) {
+    // Rotate through the located photos and take the first one not already next to this cell (or, when all
+    // are, the one that touches it least).
+    const weights = neighbourWeights(row, column);
+    const start = (column + row * 2) % LOCATED_FILLER_SOURCES.length;
+    const order = LOCATED_FILLER_SOURCES.map((_, step) => LOCATED_FILLER_SOURCES[(start + step) % LOCATED_FILLER_SOURCES.length]);
+    src = order.reduce((best, candidate) => ((weights.get(candidate) ?? 0) < (weights.get(best) ?? 0) ? candidate : best));
+  }
+  fillerByCell.set(`${row}:${column}`, src);
   return Object.freeze({
-    src: source,
+    src,
     crop: FILLER_CROPS[(column * 2 + row) % FILLER_CROPS.length],
-    hasLocation: (row * HOW_STORY_GRID.columns + column) % 7 !== 3,
+    hasLocation,
     cell: Object.freeze([row, column]),
   });
 }).filter(Boolean));
@@ -176,7 +211,7 @@ export const HOW_STORY_NODE_SIZE = Object.freeze({
   dot: 10,
   slot: 64,
   tapRing: 40,
-  searchCard: Object.freeze([288, 156]),
+  searchCard: Object.freeze([288, 116]),
   sheet: Object.freeze([304, 196]),
   pill: Object.freeze([260, 32]),
   keepTag: Object.freeze([104, 24]),
@@ -185,10 +220,9 @@ export const HOW_STORY_NODE_SIZE = Object.freeze({
   mapCaption: Object.freeze([200, 16]),
 });
 
-const SEARCH_CARD_CENTER = [160, 98];
-const SEARCH_PILL_CENTER = [160, 52];
-const RESULT_ROW_CENTER = [160, 102];
-const FIND_BUTTON_CENTER = [160, 148];
+const SEARCH_CARD_CENTER = [160, 82];
+const SEARCH_PILL_CENTER = [160, 56];
+const RESULT_ROW_CENTER = [160, 106];
 const SHEET_CENTER = [160, 140];
 const SAVE_CENTER = [276, 70];
 const SLOT_Y = 152;
@@ -203,10 +237,11 @@ export const HOW_STORY_DEFAULT_STRIP_TARGET = Object.freeze({ x: 260, y: -92 });
 
 // Taps the choreography shows. Core taps always appear; optional ones are added in order only when a
 // measured tap count asks for them, so the HUD counter can end exactly on HOW_STORY_METRICS.taps.
+// Only taps both app versions share are drawn: the scan starts once the place is picked (develop starts it
+// on the pick; main adds an 이 장소 사진 찾기 tap the story leaves out), and 저장 stands for saving the record.
 const TAP_BEATS = Object.freeze({
   search: { scene: 0, t: 0.06, target: SEARCH_PILL_CENTER, optional: true },
   place: { scene: 0, t: 0.36, target: RESULT_ROW_CENTER },
-  find: { scene: 1, t: 0.05, target: FIND_BUTTON_CENTER },
   save: { scene: 3, t: 0.44, target: SAVE_CENTER },
 });
 const OPTIONAL_TAP_ORDER = ["search"];
@@ -285,7 +320,7 @@ export function isInsideRings(lng, lat, rings) {
 }
 
 function coreTapIds(selection) {
-  return ["place", "find", ...SELECTION_TAPS[selection].map((_, index) => `select-${index}`), "save"];
+  return ["place", ...SELECTION_TAPS[selection].map((_, index) => `select-${index}`), "save"];
 }
 
 export function getHowStoryTapRange(selection = HOW_STORY_SELECTION) {
@@ -359,6 +394,8 @@ export function getHowStorySceneDescription(index, options = {}) {
   const template = scene.descriptionByVariant ? scene.descriptionByVariant[plan.selection] : scene.description;
   return fillHowStoryText(template, {
     total: formatHowStoryNumber(plan.libraryCount),
+    // The 4 found photos are made up; next to a measured library they lose the "N장 중" part.
+    scope: plan.scan ? "" : `${formatHowStoryNumber(plan.libraryCount)}장 중 `,
     scanNote: plan.scan ? fillHowStoryText(HOW_STORY_TEXT.scanNote, {
       source: plan.scan.source,
       count: formatHowStoryNumber(plan.scan.libraryCount),
@@ -389,10 +426,15 @@ function tileCenter([row, column], stripY) {
   return [x0 + column * pitch + tile / 2, y0 + row * pitch + tile / 2 + stripY];
 }
 
-// The strip fraction (0..1) at which a tile's centre reaches the scan line; tiles already above it start flagged.
-function crossingFraction(cell) {
-  const [, baseY] = tileCenter(cell, 0);
-  return clampUnit((baseY - HOW_STORY_GRID.scanLineY) / -HOW_STORY_GRID.finalOffset);
+// Filler flags sit in one layer that moves with the strip and is clipped at the scan line, so a flag shows
+// as it passes the line without any per-flag write. The 9 story tiles move on their own, so their flags get
+// the same reveal as an opacity: 0 while the flag is below the line, 1 once all of it is above.
+export const HOW_STORY_FLAG_BOX = Object.freeze({ pin: Object.freeze([4, 22]), none: Object.freeze([0, 56]) });
+function flagReveal([row], kind, scanned) {
+  const [top, bottom] = HOW_STORY_FLAG_BOX[kind === "no-location" ? "none" : "pin"];
+  const tileTop = HOW_STORY_GRID.y0 + row * HOW_STORY_GRID.pitch;
+  const travel = -HOW_STORY_GRID.finalOffset;
+  return seg(scanned, (tileTop + top - HOW_STORY_GRID.scanLineY) / travel, (tileTop + bottom - HOW_STORY_GRID.scanLineY) / travel);
 }
 
 const DOT_SCALE = HOW_STORY_NODE_SIZE.dot / HOW_STORY_NODE_SIZE.tile;
@@ -416,8 +458,12 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
   const [t1, t2, t3, t4, t5] = HOW_STORY_SCENES.map(({ window: [start, end] }) => seg(progress, start, end));
   const nodes = {};
 
-  // Scene 1: search card over the dimmed library.
-  const cardOut = seg(t2, 0.08, 0.18);
+  // Scene 1: search card over the dimmed library. The 내 폰 안 frame only appears once the photo scan starts,
+  // so the stage never says where the place search runs (develop sends the typed query to a place search).
+  const cardOut = seg(t2, 0.02, 0.1);
+  const zoneIn = seg(t2, 0.08, 0.16);
+  nodes.zoneFrame = fade(zoneIn);
+  nodes.zoneChip = fade(zoneIn);
   nodes.veil = fade(0.55 * (1 - cardOut));
   nodes.searchCard = placed(HOW_STORY_NODE_SIZE.searchCard, SEARCH_CARD_CENTER[0], SEARCH_CARD_CENTER[1] - 12 * cardOut, 1, 1 - cardOut);
   const typedLength = t1 < 0.1 ? 0 : t1 < 0.18 ? 1 : 2;
@@ -426,7 +472,6 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
   const resultIn = seg(t1, 0.2, 0.3);
   nodes.resultRow = offset(0, 6 * (1 - easeOutCubic(resultIn)), 1, resultIn);
   nodes.resultMark = fade(seg(t1, 0.37, 0.41));
-  nodes.findButton = offset(0, 0, 1 - 0.04 * bump(t2, 0.03, 0.08), 0.4 + 0.6 * seg(t1, 0.42, 0.5));
   const chipIn = easeOutCubic(seg(t1, 0.4, 0.5));
   nodes.placeChip = offset(0, 0, 0.9 + 0.1 * chipIn, chipIn);
 
@@ -435,20 +480,17 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
   const stripY = HOW_STORY_GRID.finalOffset * scanned;
   const scanActive = seg(t2, 0.1, 0.14);
   const flagsOut = 1 - seg(t3, 0.02, 0.12);
-  const flagOf = (cell) => {
-    const crossing = crossingFraction(cell);
-    return scanActive * seg(scanned, crossing, crossing + 0.012) * flagsOut;
-  };
   nodes.strip = offset(0, stripY, 1, 1 - seg(t3, 0.04, 0.2));
+  nodes.pins = fade(scanActive * flagsOut);
+  nodes.pinsStrip = offset(0, stripY);
   nodes.scanLine = fade(scanActive * (1 - seg(t2, 0.62, 0.66)));
-  const fillerFlags = HOW_STORY_FILLERS.map(({ cell }) => round(flagOf(cell), 3));
 
   // Scenes 2-5 for the 9 story photos: grid cell -> dot on the map -> sheet slot.
   const matchFlash = seg(t3, 0.4, 0.46);
   const elsewhereDim = 1 - 0.7 * seg(t3, 0.42, 0.5);
   const tiles = HOW_STORY_TILES.map((tile, index) => {
     const [cellX, cellY] = tileCenter(tile.cell, stripY);
-    const flag = flagOf(tile.cell);
+    const flag = scanActive * flagReveal(tile.cell, tile.kind, scanned) * flagsOut;
     const dot = tileDot(tile);
     if (!dot) {
       // No stored location: skipped by the find in this example, so it never becomes a dot.
@@ -547,7 +589,9 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
     checked: fillHowStoryText(HOW_STORY_TEXT.hudCheckedValue, { n: formatHowStoryNumber(checked), total: formatHowStoryNumber(plan.libraryCount) }),
     server: fillHowStoryText(HOW_STORY_TEXT.hudServerValue, { n: received }),
     sheetCount: fillHowStoryText(HOW_STORY_TEXT.sheetCount, { n: selectedCount(t4, plan.selection) }),
-    pill: fillHowStoryText(HOW_STORY_TEXT.foundPill, { total: formatHowStoryNumber(plan.libraryCount), n: matchesBySlot.length }),
+    pill: plan.scan
+      ? fillHowStoryText(HOW_STORY_TEXT.foundPillMeasured, { n: matchesBySlot.length })
+      : fillHowStoryText(HOW_STORY_TEXT.foundPill, { total: formatHowStoryNumber(plan.libraryCount), n: matchesBySlot.length }),
     timer: plan.scan ? fillHowStoryText(HOW_STORY_TEXT.hudTimer, { s: (plan.scan.seconds * seg(t2, 0.12, 0.62)).toFixed(1) }) : null,
     taps: plan.taps ? fillHowStoryText(HOW_STORY_TEXT.hudTapsValue, { n: tapsMade }) : null,
   };
@@ -558,7 +602,6 @@ export function getHowStoryFrame(p, { selection = HOW_STORY_SELECTION, stripTarg
     t,
     segments: [t1, t2, t3, t4, t5].map((value) => round(value, 4)),
     nodes,
-    fillerFlags,
     texts,
     counts: { checked, received, taps: plan.taps ? tapsMade : null },
   };
