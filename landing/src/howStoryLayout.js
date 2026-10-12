@@ -11,8 +11,11 @@ export const HOW_STORY_GEOMETRY = Object.freeze({
   phoneTopInset: 4,
   phoneMax: Object.freeze({ mobile: 300, tablet: 320 }),
   phoneMin: Object.freeze({ mobile: 220, tablet: 220, desktop: 260 }),
-  desktopPhone: Object.freeze([280, 340]),
-  desktopMargin: 28,
+  // Desktop: the whole phone shows, with more room below it than above so its drop shadow (0 30px 60px -24px,
+  // about 66px deep) ends inside the stage box instead of on its clipped edge. On short windows the phone shrinks
+  // to the fit minimum before that room is given up.
+  desktopPhone: Object.freeze([260, 340]),
+  desktopMargin: Object.freeze({ top: 20, bottom: 68 }),
   sideRoom: 40,
   tile: Object.freeze({ mobile: 16, tablet: 16, desktop: 18 }),
   cluster: Object.freeze({
@@ -64,10 +67,11 @@ const round = (value, digits = 2) => Number(value.toFixed(digits));
 export function fitHowStoryPhone({ mode, stageWidth, stageHeight, viewportWidth }) {
   const { bezel, visibleShare, phoneMax, phoneMin, desktopPhone, desktopMargin, sideRoom } = HOW_STORY_GEOMETRY;
   if (mode === "desktop") {
-    const height = stageHeight - desktopMargin * 2;
-    const screenWidth = ((height - bezel * 2) * HOW_STORY_SCREEN.widthDp) / HOW_STORY_SCREEN.heightDp;
-    const natural = screenWidth + bezel * 2;
-    if (natural < phoneMin.desktop) return null;
+    const naturalFor = (margins) => ((stageHeight - margins - bezel * 2) * HOW_STORY_SCREEN.widthDp) / HOW_STORY_SCREEN.heightDp + bezel * 2;
+    // The fit test keeps the original 28px margins, so short windows keep scroll mode; the size leaves the
+    // shadow room below the phone (desktopMargin).
+    if (naturalFor(56) < phoneMin.desktop) return null;
+    const natural = naturalFor(desktopMargin.top + desktopMargin.bottom);
     return Math.floor(Math.min(Math.max(natural, desktopPhone[0]), desktopPhone[1], stageWidth - sideRoom));
   }
   const height = stageHeight / visibleShare;
@@ -85,7 +89,12 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
   const screenHeight = screenHeightFor(screenWidth);
   const phoneHeight = screenHeight + g.bezel * 2;
   const phoneX = Math.round((stageWidth - phoneWidth) / 2);
-  const phoneY = mode === "desktop" ? Math.round((stageHeight - phoneHeight) / 2) : g.phoneTopInset;
+  // Desktop: 20px above and at least 68px below; a window too short for that splits what room there is.
+  const room = stageHeight - phoneHeight;
+  const { top: marginTop, bottom: marginBottom } = g.desktopMargin;
+  const phoneY = mode === "desktop"
+    ? Math.max(0, Math.round(room >= marginTop + marginBottom ? marginTop : (room * marginTop) / (marginTop + marginBottom)))
+    : g.phoneTopInset;
   const screen = { x: phoneX + g.bezel, y: phoneY + g.bezel, w: screenWidth, h: screenHeight };
   const kIn = stageWidth / screenWidth;
   const d = { x: stageWidth / 2 - (screen.x + screen.w / 2), y: stageHeight / 2 - (screen.y + screen.h / 2) };

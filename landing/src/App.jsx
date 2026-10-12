@@ -918,7 +918,7 @@ function App() {
 
       <section className="how-section" id="how" aria-labelledby="how-title">
         <div className="section-heading how-heading">
-          <p className="how-eyebrow">{HOW_STORY_EYEBROW}</p>
+          <p className="eyebrow how-eyebrow">{HOW_STORY_EYEBROW}</p>
           <h2 id="how-title">{HOW_STORY_TITLE_LINES.map((line) => <span key={line}>{line}</span>)}</h2>
         </div>
         <HowStory />

@@ -28,10 +28,11 @@
   --phone-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-/* Section heading: an eyebrow and a two-line h2, centred; it fades up once on first view. */
-.section-heading.how-heading { margin: 0 auto 40px; text-align: center; }
-.how-eyebrow { margin: 0 0 12px; color: var(--accent-ink); font-size: 15px; font-weight: 700; line-height: 1.4; }
-.section-heading.how-heading h2 { font-size: clamp(30px, 8.4vw, 34px); line-height: 1.25; letter-spacing: -0.03em; }
+/* Section heading: an eyebrow and a two-line h2, centred; it fades up once on first view. The h2 gets its own
+   screen: a wide gap to the track, and the beat copy enters only once the h2 has moved up (ENTER_AT). */
+.section-heading.how-heading { margin: 0 auto 96px; text-align: center; }
+.section-heading.how-heading > .how-eyebrow { margin: 0 0 12px; color: var(--accent-ink); font-size: 15px; font-weight: 700; line-height: 1.4; }
+.section-heading.how-heading h2 { font-size: clamp(30px, 8.8vw, 34px); line-height: 1.25; letter-spacing: -0.03em; }
 .how-heading h2 span { display: block; }
 .how-heading.is-waiting { opacity: 0; transform: translateY(20px); }
 .how-heading.is-shown { transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); }
@@ -90,7 +91,7 @@
   --how-eb-size: 15px;
   --how-eb-lh: 20px;
   --how-eb-gap: 6px;
-  --how-hl-size: clamp(28px, 7.6vw, 34px);
+  --how-hl-size: clamp(26px, 7.2vw, 28px);
   --how-sub-gap: 8px;
   --how-sub-size: 16px;
   flex: 0 0 auto;
@@ -107,16 +108,22 @@
 .how-copy-headline span { display: block; }
 .how-copy-sub { margin: var(--how-sub-gap, 8px) 0 0; color: var(--muted); font-size: var(--how-sub-size, 16px); line-height: 1.5; word-break: keep-all; }
 
-/* Copy swap: the outgoing beat fades and rises 8px (200ms); the incoming eyebrow, lines and sub rise 20px
-   (from above when scrolling up), 420ms, 60ms apart. Nothing plays until the track is entered. */
+/* Copy swap: the outgoing beat fades and rises 8px (160ms); the incoming eyebrow, lines and sub rise 20px
+   (from above when scrolling up), 420ms, 60ms apart, starting only once the outgoing copy has mostly gone
+   (data-swap), so two headlines never sit on top of each other. Nothing plays until the track is entered. Fill
+   mode is backwards only: once an animation ends the element rests on its own style and keeps no layer. */
 .how-story-track:not(.is-entered) .how-copy-beat { opacity: 0; }
-.how-story-track.is-entered .how-copy-beat[data-copy="leaving"] { animation: how-copy-out 200ms var(--ease-out) both; }
-.how-story-track.is-entered .how-copy-beat[data-copy="active"] :is(.how-copy-eyebrow, .how-copy-headline span, .how-copy-sub) { animation: how-copy-in 420ms var(--ease-out) both; }
+.how-story-track.is-entered .how-copy-beat[data-copy="leaving"] { opacity: 0; animation: how-copy-out 160ms var(--ease-out) backwards; }
+.how-story-track.is-entered .how-copy-beat[data-copy="active"] :is(.how-copy-eyebrow, .how-copy-headline span, .how-copy-sub) { animation: how-copy-in 420ms var(--ease-out) backwards; }
 .how-story-track.is-entered .how-copy[data-direction="up"] .how-copy-beat[data-copy="active"] :is(.how-copy-eyebrow, .how-copy-headline span, .how-copy-sub) { animation-name: how-copy-in-up; }
 .how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-headline span:first-child { animation-delay: 60ms; }
 .how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-headline span:last-child { animation-delay: 120ms; }
 .how-story-track.is-entered .how-copy-beat[data-copy="active"] .how-copy-sub { animation-delay: 180ms; }
-@keyframes how-copy-out { to { opacity: 0; transform: translateY(-8px); } }
+.how-story-track.is-entered .how-copy[data-swap] .how-copy-beat[data-copy="active"] .how-copy-eyebrow { animation-delay: 140ms; }
+.how-story-track.is-entered .how-copy[data-swap] .how-copy-beat[data-copy="active"] .how-copy-headline span:first-child { animation-delay: 200ms; }
+.how-story-track.is-entered .how-copy[data-swap] .how-copy-beat[data-copy="active"] .how-copy-headline span:last-child { animation-delay: 260ms; }
+.how-story-track.is-entered .how-copy[data-swap] .how-copy-beat[data-copy="active"] .how-copy-sub { animation-delay: 320ms; }
+@keyframes how-copy-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-8px); } }
 @keyframes how-copy-in { from { opacity: 0; transform: translateY(20px); } }
 @keyframes how-copy-in-up { from { opacity: 0; transform: translateY(-20px); } }
 
@@ -202,7 +209,7 @@
 
 /* The phone: an untransformed slot (the rest rect), the entrance wrapper, the camera and the fade. */
 .how-phone-slot { left: var(--phone-x); top: var(--phone-y); width: var(--phone-w); height: calc((var(--phone-w) - 18px) * 780 / 360 + 18px); }
-.how-phone-enter { transition: opacity 420ms var(--ease-out) 240ms, transform 420ms var(--ease-out) 240ms; }
+.how-phone-enter { transition: opacity 420ms var(--ease-out) 260ms, transform 420ms var(--ease-out) 260ms; }
 .how-story-track:not(.is-entered) .how-phone-enter { opacity: 0; transform: translateY(40px); transition: none; }
 .how-phone-camera { transform-origin: 50% 50%; }
 .how-stage[data-scene="3"] .how-phone-slot { visibility: hidden; }
@@ -278,11 +285,8 @@
 .how-match-shadow { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); opacity: 0; }
 
 .how-bottom-fade { top: auto; bottom: 0; width: 100%; height: 48px; background: linear-gradient(to bottom, transparent, var(--canvas)); pointer-events: none; }
-.how-pill,
-.how-static-figure .how-pill {
-  top: 12px;
-  right: 12px;
-  left: auto;
+.how-pill {
+  margin: 0;
   padding: 3px 9px;
   border-radius: 999px;
   color: #ffffff;
@@ -292,6 +296,13 @@
   line-height: 16px;
   white-space: nowrap;
 }
+
+/* One 예시 화면 pill for the whole pin, on the frame: on phones and tablets at the right end of the eyebrow row
+   (the copy never fades, so it shows at every p and never touches the phone). */
+.how-frame-pill { position: absolute; z-index: 2; top: calc(16px + (var(--how-eb-lh, 20px) - 22px) / 2); right: 20px; }
+/* It arrives with the first copy, not before (the copy is hidden until the frame has come up). */
+.how-story-track:not(.is-entered) .how-frame-pill { visibility: hidden; }
+.how-story-track.is-entered .how-frame-pill { animation: how-copy-in 420ms var(--ease-out) backwards; }
 
 /* Only the moving layers are promoted, and only while the track is near. */
 .how-story-track.is-live :is(.how-phone-camera, .how-phone-fade, .how-mosaic-window, .how-pins-reveal, .how-pins-inner, .how-match, .how-overlay, .how-app-screen) { will-change: transform, opacity; }
@@ -307,7 +318,7 @@
 .how-static-copy { --how-hl-size: clamp(26px, 7.2vw, 32px); }
 .how-static-figure { --phone-w: 260px; --tile: 16px; position: relative; width: fit-content; margin: 20px auto 0; }
 /* The pill sits on the phone's empty rounded corner, clear of the app's top-bar action. */
-.how-static-figure .how-pill { position: absolute; z-index: 3; top: -8px; right: -14px; }
+.how-static-figure .how-pill { position: absolute; z-index: 3; top: -8px; right: -14px; left: auto; }
 .how-static-figure[data-figure="3"] .how-pill { top: 12px; right: 12px; }
 .how-static-figure .how-phone-screen { contain: paint; }
 .how-static-library { position: relative; width: min(100%, 320px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 24px; background: var(--how-ground); box-shadow: inset 0 0 0 1px var(--how-ground-edge); }
@@ -334,6 +345,7 @@
     margin-inline: auto;
   }
   .how-copy { padding-inline: 0; }
+  .how-frame-pill { right: 0; }
   .how-static { width: min(100%, 560px); margin-inline: auto; }
   .how-story-end { justify-content: center; }
 }
@@ -362,7 +374,7 @@
     --how-eb-size: 17px;
     --how-eb-lh: 24px;
     --how-eb-gap: 10px;
-    --how-hl-size: clamp(40px, 4vw, 54px);
+    --how-hl-size: clamp(38px, 3.5vw, 48px);
     --how-sub-gap: 14px;
     --how-sub-size: 20px;
     padding: 0;
@@ -374,7 +386,9 @@
   .how-overlay-value { font-size: 64px; }
   .how-overlay-bar { width: 220px; }
   .how-bottom-fade { display: none; }
-  .how-pill { top: 16px; right: 16px; font-size: 12px; }
+  .how-pill { font-size: 12px; }
+  /* Desktop: beside the phone's top edge, in the stage's side room (the stage is grid column 2). */
+  .how-frame-pill { grid-area: 1 / 2; top: calc(var(--phone-y) + 16px); right: auto; left: calc(var(--phone-x) + var(--phone-w) + 12px); }
   .how-static { width: auto; gap: 72px; }
   .how-static-beat { display: grid; grid-template-columns: 420px 360px; column-gap: 60px; align-items: center; justify-content: center; }
   .how-static-copy { --how-eb-size: 17px; --how-eb-lh: 24px; --how-eb-gap: 10px; --how-hl-size: clamp(36px, 3.6vw, 46px); --how-sub-gap: 14px; --how-sub-size: 20px; }

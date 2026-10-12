@@ -106,10 +106,32 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
         </div>
       ))}
       <span className="how-bottom-fade" data-node="bottomFade" />
-      <p className="how-pill" data-node="pill">{HOW_STORY_TEXT.pill}</p>
     </div>
   );
 });
+
+// The sticky frame in scroll mode: the beat copy, the stage, and the one sample-screen pill for the whole pin. The pill
+// sits on the frame, not in the stage: beside the eyebrow on phones and tablets (the copy never fades, so it
+// shows at every p), and beside the phone's top on desktop.
+function HowStoryScrollFrame({ frameRef, copyRef, stageRef, scene, descriptions }) {
+  return (
+    <div className="how-story-frame" ref={frameRef}>
+      <div className="how-copy" ref={copyRef} data-direction={scene.direction} data-swap={scene.previous === null ? undefined : "1"}>
+        {HOW_STORY_BEATS.map((beat, index) => (
+          <article
+            className="how-copy-beat"
+            key={beat.id}
+            data-copy={index === scene.index ? "active" : index === scene.previous ? "leaving" : undefined}
+          >
+            <BeatCopy beat={beat} description={descriptions[index]} />
+          </article>
+        ))}
+      </div>
+      <HowStoryStage stageRef={stageRef} />
+      <p className="how-pill how-frame-pill" data-node="pill" aria-hidden="true">{HOW_STORY_TEXT.pill}</p>
+    </div>
+  );
+}
 
 // End-state figures for the static list (reduced motion, short windows, large text). No motion, one pill each.
 function StaticFigure({ index }) {
@@ -287,20 +309,7 @@ export function HowStory() {
       <a className="how-story-skip" href="#how-end">{HOW_STORY_TEXT.skip}</a>
       <div className="how-story-track" ref={trackRef} data-mode={mode}>
         {mode === "scroll" ? (
-          <div className="how-story-frame" ref={frameRef}>
-            <div className="how-copy" ref={copyRef} data-direction={scene.direction}>
-              {HOW_STORY_BEATS.map((beat, index) => (
-                <article
-                  className="how-copy-beat"
-                  key={beat.id}
-                  data-copy={index === scene.index ? "active" : index === scene.previous ? "leaving" : undefined}
-                >
-                  <BeatCopy beat={beat} description={descriptions[index]} />
-                </article>
-              ))}
-            </div>
-            <HowStoryStage stageRef={stageRef} />
-          </div>
+          <HowStoryScrollFrame frameRef={frameRef} copyRef={copyRef} stageRef={stageRef} scene={scene} descriptions={descriptions} />
         ) : (
           <ol className="how-static">
             {HOW_STORY_BEATS.map((beat, index) => (
@@ -316,4 +325,4 @@ export function HowStory() {
   );
 }
 
-export { HOW_STORY_SCENE_COUNT, HowStoryStage };
+export { HOW_STORY_SCENE_COUNT, HowStoryScrollFrame, HowStoryStage };

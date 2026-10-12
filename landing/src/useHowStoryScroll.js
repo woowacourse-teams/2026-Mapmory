@@ -15,8 +15,9 @@ import { digitKind } from "./how/digits.js";
 // Below this the frame is the same to a hundredth of a pixel, so the frame is not recomputed.
 const P_EPSILON = 0.00001;
 const ATTACH_MARGIN = "100% 0px";
-// The phone and the first copy enter once, when the frame's top first comes this far up the viewport.
-const ENTER_AT = 0.72;
+// The phone and the first copy enter once, when the frame's top first comes this far up the viewport: by then the
+// section heading has moved up toward the header and has had its own screen.
+const ENTER_AT = 0.4;
 
 // Drives the #how stage from scroll progress. Reads one rect per animation frame, writes only changed
 // transform/opacity/text values and data-* state straight to the DOM, and never touches wheel, touch or key input.
@@ -32,7 +33,8 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     const copy = copyRef.current;
     if (!track || !frame || !stage || !copy) return undefined;
 
-    const nodeElements = new Map([...stage.querySelectorAll("[data-node]")].map((element) => [element.dataset.node, element]));
+    // The stage holds almost everything; the 예시 화면 pill sits on the frame, beside the copy or the phone.
+    const nodeElements = new Map([...frame.querySelectorAll("[data-node]")].map((element) => [element.dataset.node, element]));
     const textElements = new Map([...stage.querySelectorAll("[data-text]")].map((element) => [element.dataset.text, element]));
     const attrElements = new Map([...stage.querySelectorAll("[data-attr]")].map((element) => [element.dataset.attr, element]));
     const tapElements = new Map([...stage.querySelectorAll("[data-tap]")].map((element) => [element.dataset.tap, element]));
@@ -86,7 +88,8 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
         return false;
       }
       layout = next;
-      const set = (name, value) => stage.style.setProperty(name, value);
+      // On the frame, so the pill (a sibling of the stage) can place itself beside the phone on desktop.
+      const set = (name, value) => frame.style.setProperty(name, value);
       set("--phone-w", `${layout.phone.w}px`);
       set("--phone-x", `${layout.phone.x}px`);
       set("--phone-y", `${layout.phone.y}px`);
