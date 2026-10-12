@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 type Page = "dashboard" | "members" | "feedback";
 type FeedbackStatus = "미확인" | "반영 중" | "반영 완료" | "보류" | "미반영";
@@ -19,12 +19,6 @@ type Member = {
   refresh: "정상" | "갱신 실패";
   lastActive: string;
 };
-type DashboardSummary = {
-  period: { from: string; to: string };
-  members: { total: number; guest: number; kakao: number; newInPeriod: number };
-  travelRecords: { total: number; createdInPeriod: number };
-};
-
 const feedbackStatuses: FeedbackStatus[] = ["미확인", "반영 중", "반영 완료", "보류", "미반영"];
 
 const initialFeedback: Feedback[] = [
@@ -46,30 +40,6 @@ const members: Member[] = [
   { id: "M-10836", name: "정민준", provider: "KAKAO", joinedAt: "2026.10.05", records: 19, refresh: "정상", lastActive: "10.05" },
 ];
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1").replace(/\/+$/, "");
-
-function getDashboardRange(period: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "0";
-  const year = Number(value("year"));
-  const month = Number(value("month"));
-  const day = Number(value("day"));
-  const to = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const fromDate = new Date(Date.UTC(year, month - 1, day));
-  fromDate.setUTCDate(fromDate.getUTCDate() - (period === "최근 30일" ? 29 : 6));
-  return { from: fromDate.toISOString().slice(0, 10), to };
-}
-
-function formatPeriodDate(date: string) {
-  const [, month, day] = date.split("-");
-  return `${month}.${day}`;
-}
-
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true as const };
   const paths: Record<string, React.ReactNode> = {
@@ -86,11 +56,13 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
     logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-6"/></>,
     close: <path d="m6 6 12 12M18 6 6 18"/>,
     filter: <><path d="M4 6h16M7 12h10m-7 6h4"/><circle cx="8" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/></>,
+    image: <><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 15-5-5L5 20"/></>,
   };
   return <svg {...common}>{paths[name] ?? paths.grid}</svg>;
 }
 
 function App() {
+  const [demoAuthenticated, setDemoAuthenticated] = useState(false);
   const [page, setPage] = useState<Page>("dashboard");
   const [period, setPeriod] = useState("최근 7일");
   const [feedback, setFeedback] = useState(initialFeedback);
@@ -116,6 +88,10 @@ function App() {
 
   const pageTitle = page === "dashboard" ? "대시보드" : page === "members" ? "회원 관리" : "서비스 의견";
 
+  if (!demoAuthenticated) {
+    return <LoginPage onLogin={() => setDemoAuthenticated(true)} />;
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -131,9 +107,9 @@ function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-help"><div className="help-icon">?</div><div><strong>운영 가이드</strong><span>어드민 사용 방법</span></div><Icon name="arrow" size={15}/></div>
-          <div className="profile-button">
+          <button className="profile-button" type="button" onClick={() => setDemoAuthenticated(false)} aria-label="로그아웃">
           <div className="avatar admin-avatar">M</div><div className="profile-copy"><strong>Mapmory 운영자</strong><span>운영자</span></div>
-          </div>
+          </button>
         </div>
       </aside>
 
@@ -141,145 +117,190 @@ function App() {
         <header className="topbar">
           <div className="breadcrumb"><span>Mapmory</span><Icon name="chevron" size={14}/><strong>{pageTitle}</strong></div>
           <div className="topbar-actions">
-            <span className="environment-pill"><i /> 운영 환경</span>
+            <span className="environment-pill preview-environment"><i /> 개발 미리보기</span>
             <button className="icon-button notification-button" aria-label="알림" onClick={() => showNotice("새로운 알림이 없습니다.")}><Icon name="bell"/><i /></button>
             <div className="avatar admin-avatar small-avatar">M</div>
           </div>
         </header>
         <div className="content-area">
-          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} onNavigate={setPage} onNotice={showNotice} />}
+          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} />}
           {page === "members" && <MembersPage query={memberQuery} setQuery={setMemberQuery} list={filteredMembers} onSelect={setSelectedMember} onNotice={showNotice} />}
           {page === "feedback" && <FeedbackPage feedback={filteredFeedback} allFeedback={feedback} filter={feedbackFilter} setFilter={setFeedbackFilter} query={feedbackQuery} setQuery={setFeedbackQuery} onStatusChange={(id, status) => setFeedback((current) => current.map((item) => item.id === id ? { ...item, status } : item))} />}
         </div>
       </main>
       {selectedMember && <MemberDrawer member={selectedMember} onClose={() => setSelectedMember(null)} />}
       {notice && <div className="toast"><span className="toast-check">✓</span>{notice}</div>}
-      <div className="demo-ribbon">회원·의견은 시연 데이터</div>
+      <div className="demo-ribbon">화면 검토용 임의 데이터</div>
     </div>
   );
 }
 
-function Dashboard({ period, setPeriod, onNavigate, onNotice }: { period: string; setPeriod: (period: string) => void; onNavigate: (page: Page) => void; onNotice: (message: string) => void }) {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-  const range = getDashboardRange(period);
+function LoginPage({ onLogin }: { onLogin: () => void }) {
+  return (
+    <main className="login-page">
+      <section className="login-panel">
+        <div className="login-brand"><div className="brand-mark"><span/><span/><span/></div><strong>mapmory</strong></div>
+        <div className="login-heading"><span className="eyebrow">ADMIN CONSOLE</span><h1>운영자 로그인</h1><p>Mapmory 관리자 계정으로 로그인해 주세요.</p></div>
+        <form className="login-form" onSubmit={(event) => { event.preventDefault(); onLogin(); }}>
+          <label htmlFor="admin-id">아이디</label>
+          <input id="admin-id" name="admin-id" autoComplete="username" placeholder="관리자 아이디" required />
+          <div className="password-label"><label htmlFor="admin-password">비밀번호</label></div>
+          <input id="admin-password" name="admin-password" type="password" autoComplete="current-password" placeholder="비밀번호" required />
+          <button className="primary-button login-submit" type="submit">미리보기로 로그인 <Icon name="arrow" size={15}/></button>
+        </form>
+        <div className="login-footnote"><span className="lock-mark">⌑</span> 관리자 전용 페이지</div>
+        <p className="login-demo-note">화면 검토용 로그인입니다. 입력 정보는 확인하거나 저장하지 않습니다.<br/>실제 로그인·권한 검사는 백엔드 연결 후 적용됩니다.</p>
+      </section>
+      <aside className="login-side">
+        <div className="login-decoration decoration-one"/><div className="login-decoration decoration-two"/>
+        <div className="login-side-copy"><span>MAPMORY ADMIN</span><h2>여행의 순간을<br/><em>더 좋은 경험</em>으로</h2><p>회원과 여행 기록의 흐름을 살펴보고, 서비스가 더 나아질 방향을 발견해 보세요.</p></div>
+        <div className="login-graphic"><div className="orbit orbit-outer"/><div className="orbit orbit-inner"/><div className="orbit-center"><div className="brand-mark large-mark"><span/><span/><span/></div></div><i className="orbit-dot dot-a"/><i className="orbit-dot dot-b"/><i className="orbit-dot dot-c"/><div className="graphic-card"><span className="graphic-card-label">이번 달 여행 기록</span><strong>+18.6%</strong><span className="graphic-spark">↗</span></div></div>
+        <span className="login-side-caption">A LITTLE MORE MAPMORY</span>
+      </aside>
+    </main>
+  );
+}
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    setSummary(null);
-    const query = new URLSearchParams(range);
+type DemoDiary = { title: string; createdAt: string; photos: number };
+type DemoDashboardMember = { id: string; nickname?: string; provider: string; records: number; photos: number; diaries: DemoDiary[] };
 
-    fetch(`${apiBaseUrl}/admin/dashboard?${query.toString()}`, { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json() as {
-          data?: DashboardSummary;
-          detail?: string;
-          title?: string;
-        };
-        if (!response.ok) {
-          throw new Error(body.detail || body.title || "대시보드 데이터를 불러오지 못했습니다.");
-        }
-        if (!body.data) {
-          throw new Error("서버 응답 형식이 올바르지 않습니다.");
-        }
-        setSummary(body.data);
-        setLastUpdated(new Date());
-      })
-      .catch((cause: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(cause instanceof Error ? cause.message : "대시보드 데이터를 불러오지 못했습니다.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+const demoMembers: DemoDashboardMember[] = [
+  { id: "usr_8f2a91", nickname: "김지우", provider: "카카오", records: 12, photos: 46, diaries: [
+    { title: "교토에서 보낸 봄날", createdAt: "2026.10.08 14:32", photos: 8 },
+    { title: "오사카 먹거리 여행", createdAt: "2026.10.04 19:08", photos: 5 },
+    { title: "제주도 가족 여행", createdAt: "2026.09.28 11:21", photos: 12 },
+  ] },
+  { id: "usr_71bc04", provider: "게스트", records: 4, photos: 18, diaries: [
+    { title: "부산 1박 2일", createdAt: "2026.10.07 10:17", photos: 6 },
+    { title: "강릉 바다 산책", createdAt: "2026.10.02 16:43", photos: 4 },
+  ] },
+  { id: "usr_52de81", nickname: "박서연", provider: "구글", records: 28, photos: 132, diaries: [
+    { title: "파리 일주일 기록", createdAt: "2026.10.06 21:05", photos: 24 },
+    { title: "런던의 작은 카페들", createdAt: "2026.10.01 09:42", photos: 11 },
+    { title: "스위스 기차 여행", createdAt: "2026.09.19 18:16", photos: 19 },
+  ] },
+  { id: "usr_09ac62", nickname: "이도윤", provider: "애플", records: 7, photos: 31, diaries: [
+    { title: "도쿄 골목 기록", createdAt: "2026.10.05 13:54", photos: 9 },
+    { title: "후쿠오카 2박 3일", createdAt: "2026.09.24 08:30", photos: 7 },
+  ] },
+  { id: "usr_3d88f0", provider: "게스트", records: 2, photos: 5, diaries: [
+    { title: "첫 여행 기록", createdAt: "2026.10.03 17:26", photos: 3 },
+  ] },
+];
 
-    return () => controller.abort();
-  }, [range.from, range.to, retryKey]);
+const demoNewMembers = {
+  "최근 7일": [18, 24, 16, 31, 22, 37, 29],
+  "최근 30일": [83, 96, 74, 112],
+  "최근 90일": [214, 248, 231, 279, 305, 287],
+};
 
-  const number = (value: number | undefined) => value === undefined ? "—" : new Intl.NumberFormat("ko-KR").format(value);
-  const total = summary?.members.total ?? 0;
-  const guest = summary?.members.guest ?? 0;
-  const kakao = summary?.members.kakao ?? 0;
-  const classifiedMembers = guest + kakao;
-  const guestPercent = classifiedMembers === 0 ? 0 : (guest / classifiedMembers) * 100;
-  const kakaoPercent = classifiedMembers === 0 ? 0 : (kakao / classifiedMembers) * 100;
-  const unknown = Math.max(0, total - classifiedMembers);
-  const donutBackground = total === 0
-    ? "#e7ece8"
-    : `conic-gradient(#64c1a0 0% ${guest / total * 100}%, #f0ba9c ${guest / total * 100}% ${(guest + kakao) / total * 100}%, #d9dfdb ${(guest + kakao) / total * 100}% 100%)`;
-  const dateLabel = summary
-    ? `${formatPeriodDate(summary.period.from)} – ${formatPeriodDate(summary.period.to)}`
-    : `${formatPeriodDate(range.from)} – ${formatPeriodDate(range.to)}`;
-  const todayLabel = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(new Date());
+function Dashboard({ period, setPeriod }: { period: string; setPeriod: (period: string) => void }) {
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(demoMembers[0].id);
+  const activePhotoTotal = 28416;
+  const dateLabel = period === "최근 7일" ? "10.06 – 10.12" : period === "최근 30일" ? "09.13 – 10.12" : "07.15 – 10.12";
+  const chartValues = demoNewMembers[period as keyof typeof demoNewMembers];
+  const chartLabels = period === "최근 7일" ? ["10.06", "10.07", "10.08", "10.09", "10.10", "10.11", "오늘"] : period === "최근 30일" ? ["1주", "2주", "3주", "4주"] : ["1개월", "2개월", "3개월", "4개월", "5개월", "6개월"];
+  const chartMax = Math.max(...chartValues);
+  const number = (value: number) => new Intl.NumberFormat("ko-KR").format(value);
+  const todayLabel = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(new Date());
 
   return (
     <div className="page-content dashboard-page">
       <div className="page-heading-row">
         <div>
           <div className="date-eyebrow"><span className="live-dot"/> {todayLabel}</div>
-          <h1>좋은 오후예요, 운영자님 <span className="wave">✳</span></h1>
-          <p>Mapmory의 최근 현황을 확인해 보세요.</p>
+          <h1>서비스 현황 <span className="wave">✳</span></h1>
+        <p>회원과 여행 기록, 등록된 사진 현황을 확인해 보세요.</p>
         </div>
-        <button className="secondary-button" onClick={() => onNotice("리포트 다운로드는 준비 중입니다.")}><Icon name="download" size={16}/> 리포트 내보내기</button>
+        <span className="demo-data-label">화면 검토용 임의 데이터</span>
       </div>
 
       <div className="period-row">
-        <div className="period-tabs">
-          {["최근 7일", "최근 30일"].map((item) => (
+        <div className="period-tabs" aria-label="신규 회원 집계 기간">
+          {["최근 7일", "최근 30일", "최근 90일"].map((item) => (
             <button key={item} className={period === item ? "period-tab active" : "period-tab"} onClick={() => setPeriod(item)}>{item}</button>
           ))}
         </div>
         <div className="date-range"><Icon name="calendar" size={15}/>{dateLabel}<span>한국 시간</span></div>
       </div>
 
-      {error && (
-        <div className="dashboard-error" role="alert">
-          <span>{error} 백엔드 실행 상태와 주소 설정을 확인해 주세요.</span>
-          <button type="button" onClick={() => setRetryKey((value) => value + 1)}>다시 시도</button>
-        </div>
-      )}
-      {loading && <div className="dashboard-loading" role="status">대시보드 데이터를 불러오는 중입니다.</div>}
-
-      <section className="metric-grid" aria-label="주요 지표">
-        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)}`} />
-        <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} change={summary ? `+${number(summary.travelRecords.createdInPeriod)}` : "—"} detail="선택 기간 생성" icon="grid" tint="peach" trend="neutral" foot="전체 누적 기록" />
-        <MetricCard label="기간 신규 회원" value={number(summary?.members.newInPeriod)} change={loading ? "—" : period} detail="가입 수" icon="users" tint="lavender" trend="neutral" foot={dateLabel} />
+      <section className="metric-grid admin-metric-grid" aria-label="전체 서비스 지표">
+        <MetricCard label="전체 회원" value="2,481" change="누적" detail="가입 회원" icon="users" tint="mint" trend="neutral" foot="게스트 · OAuth 회원 포함" />
+        <MetricCard label="전체 여행 기록" value="8,942" change="누적" detail="생성된 기록" icon="grid" tint="peach" trend="neutral" foot="전체 회원 기록" />
+        <MetricCard label="기간 신규 회원" value={number(chartValues.reduce((sum, value) => sum + value, 0))} change={period} detail="선택 기간 가입" icon="users" tint="lavender" trend="neutral" foot={dateLabel} />
+        <MetricCard label="전체 사진" value={number(activePhotoTotal)} change="누적" detail="등록 사진" icon="image" tint="mint" trend="neutral" foot="여행 기록에 등록된 사진" />
       </section>
 
-      <section className="dashboard-main-grid">
-        <div className="panel chart-panel period-summary-panel">
-          <div className="panel-heading"><div><h2>선택 기간 집계</h2><p>한국 시간 기준 기간별 생성 수</p></div></div>
-          <div className="period-summary-grid">
-            <div className="period-summary-item"><span>신규 회원</span><strong>{number(summary?.members.newInPeriod)}<small>명</small></strong></div>
-            <div className="period-summary-item"><span>여행 기록 생성</span><strong>{number(summary?.travelRecords.createdInPeriod)}<small>개</small></strong></div>
+      <section className="dashboard-main-grid revised-dashboard-grid">
+        <div className="panel chart-panel new-members-panel">
+          <div className="panel-heading">
+            <div><h2>기간별 신규 회원</h2><p>{dateLabel} · 가입일 기준</p></div>
+            <span className="chart-total"><strong>{number(chartValues.reduce((sum, value) => sum + value, 0))}명</strong><span>선택 기간 합계</span></span>
           </div>
-          {!loading && !error && <p className="period-summary-caption">집계 기간 · {dateLabel}</p>}
+          <div className="new-member-chart" role="img" aria-label={`${period} 신규 회원 수 막대 그래프`}>
+            {chartValues.map((value, index) => (
+              <div className="new-member-bar-column" key={`${period}-${chartLabels[index]}`}>
+                <strong>{value}</strong>
+                <div className="new-member-bar-track"><i style={{ height: `${Math.max(8, value / chartMax * 100)}%` }}/></div>
+                <span>{chartLabels[index]}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="panel distribution-panel">
-          <div className="panel-heading"><div><h2>회원 구성</h2><p>가입 방식별 누적 회원</p></div><button className="more-button" aria-label="회원 페이지로 이동" onClick={() => onNavigate("members")}><Icon name="arrow" size={16}/></button></div>
-          <div className="donut-area">
-            <div className="donut" style={{ background: donutBackground }}><div className="donut-center"><strong>{number(summary?.members.total)}</strong><span>전체 회원</span></div></div>
-            <div className="donut-caption">
-              <span><i className="legend-dot mint-dot"/>게스트<strong>{number(summary?.members.guest)}</strong><small>{guestPercent.toFixed(1)}%</small></span>
-              <span><i className="legend-dot peach-dot"/>카카오<strong>{number(summary?.members.kakao)}</strong><small>{kakaoPercent.toFixed(1)}%</small></span>
-              {unknown > 0 && <span><i className="legend-dot unknown-dot"/>유형 미지정<strong>{number(unknown)}</strong><small>기존 회원</small></span>}
-            </div>
+        <div className="panel provider-panel">
+          <div className="panel-heading"><div><h2>로그인 방식별 회원</h2><p>회원 목록에서 회원을 선택해 상세 기록을 확인하세요.</p></div></div>
+          <div className="provider-stat-list">
+            <div><span><i className="provider-dot kakao-dot"/>카카오</span><strong>1,024<small>명</small></strong><b>41.3%</b></div>
+            <div><span><i className="provider-dot google-dot"/>구글</span><strong>746<small>명</small></strong><b>30.1%</b></div>
+            <div><span><i className="provider-dot apple-dot"/>애플</span><strong>493<small>명</small></strong><b>19.9%</b></div>
+            <div><span><i className="provider-dot guest-dot"/>게스트</span><strong>218<small>명</small></strong><b>8.7%</b></div>
           </div>
-          <div className="distribution-footer"><span>유형별 비율은 확인 가능한 회원 기준입니다.</span></div>
+          <div className="provider-total"><span>전체 회원</span><strong>2,481명</strong></div>
         </div>
       </section>
-      <footer className="page-footer"><span>Mapmory Admin <b>·</b> 내부 운영 도구</span><span>마지막 데이터 업데이트 <strong>{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "—"}</strong></span></footer>
+
+      <section className="panel member-activity-panel">
+        <div className="panel-heading member-activity-heading">
+          <div><h2>회원별 활동</h2><p>행을 선택하면 회원 통계와 여행 기록별 사진 수를 볼 수 있습니다.</p></div>
+          <span className="muted-count">최근 활동 회원 {demoMembers.length}명</span>
+        </div>
+        <div className="member-activity-table-wrap">
+          <table className="member-activity-table">
+            <thead><tr><th>회원</th><th>로그인 방식</th><th>여행 기록</th><th>사진</th><th aria-label="상세 보기"/></tr></thead>
+            <tbody>
+              {demoMembers.map((member) => {
+                const expanded = expandedMemberId === member.id;
+                return <Fragment key={member.id}>
+                  <tr className={expanded ? "member-activity-row selected" : "member-activity-row"} onClick={() => setExpandedMemberId(expanded ? null : member.id)} aria-expanded={expanded}>
+                    <td><div className="activity-member-cell"><span className="activity-avatar">{member.nickname?.slice(0, 1) ?? "M"}</span><span><strong>{member.nickname || member.id}</strong><small>{member.nickname ? member.id : "닉네임 없음 · 유저 ID 표시"}</small></span></div></td>
+                    <td><span className={`activity-provider provider-${member.provider}`}>{member.provider}</span></td>
+                    <td>{number(member.records)}개</td>
+                    <td><strong className="active-photo-count">{number(member.photos)}</strong>장</td>
+                    <td><span className={expanded ? "expand-chevron expanded" : "expand-chevron"}><Icon name="chevron" size={15}/></span></td>
+                  </tr>
+                  {expanded && <tr className="member-detail-row"><td colSpan={5}>
+                    <div className="member-detail-content">
+                      <div className="member-detail-stats">
+                        <div><span>여행 기록</span><strong>{number(member.records)}<small>개</small></strong></div>
+                        <div><span>등록 사진</span><strong>{number(member.photos)}<small>장</small></strong></div>
+                      </div>
+                      <div className="diary-list-heading"><strong>최근 여행 기록 {member.diaries.length}건</strong><span>전체 {number(member.records)}개 중 최근 기록 · 생성 시간 · 사진 수</span></div>
+                      <div className="diary-list">
+                        {member.diaries.map((diary) => <div className="diary-row" key={`${member.id}-${diary.title}`}>
+                          <div className="diary-title"><span className="diary-icon"><Icon name="grid" size={15}/></span><span><strong>{diary.title}</strong><small>{diary.createdAt}</small></span></div>
+                          <span className="diary-photo-count"><Icon name="image" size={14}/>{diary.photos}장</span>
+                        </div>)}
+                      </div>
+                    </div>
+                  </td></tr>}
+                </Fragment>;
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer className="page-footer"><span>Mapmory Admin <b>·</b> 대시보드 화면 검토</span><span>표시된 수치는 모두 <strong>임의 데이터</strong>입니다.</span></footer>
     </div>
   );
 }
