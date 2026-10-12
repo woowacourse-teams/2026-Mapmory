@@ -8,6 +8,7 @@ import {
   getPhotoFinderDuration,
   getPhotoFinderState,
 } from "../src/photoFinderDemo.js";
+import { withObjectParticle } from "../src/koreanParticle.js";
 
 const heroSource = await readFile(new URL("../src/PhotoFinderHero.jsx", import.meta.url), "utf8");
 const heroStyles = await readFile(new URL("../src/photo-finder-hero.css", import.meta.url), "utf8");
@@ -51,6 +52,11 @@ test("the hero states the trust promise and keeps store conversions", () => {
   assert.match(appSource, /<StoreButton placement="hero" platform="ios" label="App Store" \/>/);
   assert.match(appSource, /<StoreButton placement="hero" platform="android" label="Google Play" \/>/);
   assert.doesNotMatch(appSource, /<LaunchWaitlistForm/);
+});
+
+test("place chips take the right object particle", () => {
+  assert.equal(withObjectParticle("제주"), "제주를");
+  assert.equal(withObjectParticle("일본"), "일본을");
 });
 
 test("the demo does not loop and reduced motion shows the finished state", () => {

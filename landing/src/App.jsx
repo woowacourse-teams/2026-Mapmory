@@ -23,7 +23,8 @@ import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoFinderHero } from "./PhotoFinderHero.jsx";
-import { HowItWorksPlay } from "./HowItWorksPlay.jsx";
+import { HowStory } from "./HowStory.jsx";
+import { HOW_STORY_TITLE } from "./howStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
   createWorldMemoryHistoryState,
@@ -909,7 +910,7 @@ function App() {
       <header className="site-header">
         <Brand />
         <nav aria-label="주요 메뉴">
-          <a href="#how" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "how_play", cta_placement: "header_nav" })}>사용 방법</a>
+          <a href="#how" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "how_story", cta_placement: "header_nav" })}>사용 방법</a>
           <a href="#experience" onClick={() => globeAnalytics.trackEntryClick("header_nav")}>지구본 체험</a>
           <a href="#privacy">안심하고 쓰기</a>
         </nav>
@@ -927,10 +928,12 @@ function App() {
 
       <section className="how-section" id="how" aria-labelledby="how-title">
         <div className="section-heading">
-          <h2 id="how-title">3단계면 끝나요.</h2>
+          <h2 id="how-title">{HOW_STORY_TITLE}</h2>
         </div>
-        <HowItWorksPlay />
-        <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
+        <HowStory />
+        <div className="how-story-end" id="how-end">
+          <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
+        </div>
       </section>
 
       <section className={`experience-section ${isGlobeFocused ? "is-focused" : ""}`} id="experience" ref={setExperienceSectionRef}>

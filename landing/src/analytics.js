@@ -88,7 +88,8 @@ export const ANALYTICS_EVENTS = Object.freeze({
   WAITLIST_SUBMIT_ERROR: "waitlist_submit_error",
   DOWNLOAD_CLICK: "download_click",
   HERO_DEMO_SELECT: "hero_demo_select",
-  HOW_PLAY_SAVE: "how_play_save",
+  HOW_STORY_VIEW: "how_story_view",
+  HOW_STORY_SCENE: "how_story_scene",
 });
 
 const supportedEvents = new Set(Object.values(ANALYTICS_EVENTS));
@@ -118,8 +119,8 @@ const supportedParameters = new Set([
   "max_photo_index",
   "photos_viewed",
   "demo_place",
-  "save_index",
-  "selected_photos",
+  "scene_index",
+  "story_mode",
 ]);
 
 let gaInitialized = false;
@@ -216,11 +217,15 @@ export function trackEvent(name, parameters = {}) {
   if (!isSupportedEvent(name)) return false;
   if (name === ANALYTICS_EVENTS.DOWNLOAD_CLICK
     && !["app_store", "google_play"].includes(parameters.store)) return false;
-  if (name === ANALYTICS_EVENTS.HOW_PLAY_SAVE
-    && !(parameters.experience_type === "how_play"
-      && typeof parameters.demo_place === "string"
-      && Number.isInteger(parameters.save_index)
-      && parameters.save_index >= 1)) return false;
+  // The #how story sends only these two passive reach events, never experience_* or memory_open.
+  if (name === ANALYTICS_EVENTS.HOW_STORY_VIEW
+    && !(parameters.experience_type === "how_story"
+      && ["scroll", "static"].includes(parameters.story_mode))) return false;
+  if (name === ANALYTICS_EVENTS.HOW_STORY_SCENE
+    && !(parameters.experience_type === "how_story"
+      && Number.isInteger(parameters.scene_index)
+      && parameters.scene_index >= 1
+      && parameters.scene_index <= 5)) return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;
 

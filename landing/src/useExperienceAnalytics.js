@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 
-const VIEW_THRESHOLD = 0.5;
-const VIEW_DURATION_MS = 1000;
+export const VIEW_THRESHOLD = 0.5;
+export const VIEW_DURATION_MS = 1000;
 const EXIT_GRACE_MS = 1500;
 const OBSERVER_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1];
 
-function occupiesEnoughOfViewport(entry) {
+export function occupiesEnoughOfViewport(entry) {
   const referenceHeight = Math.min(entry.boundingClientRect.height, window.innerHeight);
   return entry.isIntersecting
     && entry.intersectionRect.height >= referenceHeight * VIEW_THRESHOLD;
