@@ -38,7 +38,7 @@
 | `experience_end` | 체험을 1.5초 벗어나거나 pagehide | `active_duration_seconds`, `unique_memories_opened`, `last_completed_step`, `exit_reason`; 유형별 첫 연속 체험 1회. (how_story 배포 전 how_play: `last_completed_step=experience_start\|photo_pick\|how_play_save`, `unique_memories_opened` 항상 0) |
 | `download_click` | 실제 App Store·Google Play 링크 클릭 | `store=app_store|google_play`, `cta_placement`; **설치 완료 아님** |
 | `hero_demo_select` | 히어로 사진 찾기 데모의 장소 칩(제주·일본·미국) 탭 | `experience_type=hero_demo`, `demo_place`; 탭마다. 자동 재생은 기록하지 않음. `demo_place`는 how_story 배포 전 `how_play_save`와 공유했으며 값은 겹치지 않음 |
-| `how_story_view` | 사진 찾기 과정 트랙(`.how-story-track`)이 활성 탭에서 뷰포트 기준 50% 이상 1초 연속 노출 | `experience_type=how_story`, `story_mode=scroll\|static`(보낼 때의 방식); 페이지당 1회. 동작 줄이기·짧거나 좁은 화면·큰 글씨는 `static` |
+| `how_story_view` | 사진 찾기 과정 트랙(`.how-story-track`)이 활성 탭에서 뷰포트 기준 50% 이상 1초 연속 노출 | `experience_type=how_story`, `story_mode=scroll\|static`(보낼 때의 방식); 페이지당 1회. 첫 `how_story_scene`이 먼저 오게 되면(스크롤이 장면 정지 구간에 복원된 새로고침 등) 그 장면 바로 앞에 보내므로 늘 장면보다 먼저 온다. 동작 줄이기·짧거나 좁은 화면·큰 글씨는 `static` |
 | `how_story_scene` | 스크롤 방식에서 한 장면의 정지 구간에 0.7초 머묾(프레임 50% 이상 보이고 탭 활성) | `experience_type=how_story`, `scene_index=1-5`; 장면별 페이지당 1회. 빠르게 지나친 장면은 세지 않고, 위로 되감아 다시 봐도 재전송 안 함. `static`에서는 보내지 않음 |
 | `how_play_save` (how_story 배포 전) | 저장 후 칠해진 지도가 화면에 반영된 뒤 | `experience_type=how_play`, `demo_place=busan\|gangwon\|gyeongbuk`, `save_index=1-3`, `selected_photos`; 페이지당 장소별 1회. 2026-10-08부터 how_story 배포일까지의 데이터에만 있음 |
 
