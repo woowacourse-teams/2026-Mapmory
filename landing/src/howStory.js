@@ -56,13 +56,14 @@ export const HOW_STORY_INWARD = "zoom";
 const photo = (name) => `/assets/photos/${name}.webp`;
 
 // The four 경주 photos, in picker order (A, B on row 1; C, D on row 2). Coordinates were checked against the
-// app's 경주시 boundary (47130). The cell is where each sits in the library window (see howStoryLayout.js).
+// app's 경주시 boundary (47130). Where each sits in the library window is HOW_STORY_MATCH_CELLS (howStoryLayout.js);
+// all four share the picker's date header (APP_SCREEN_TEXT.picker.date).
 export const HOW_STORY_MATCHES = Object.freeze([
-  { id: "A", src: photo("gyeongbuk-02"), lat: 35.8347, lng: 129.219, cell: [0.22, 0.46], capturedAt: "2025-10-04", picked: true },
-  { id: "B", src: photo("gyeongbuk-01"), lat: 35.79, lng: 129.332, cell: [0.7, 0.52], capturedAt: "2025-10-04", picked: true },
-  { id: "C", src: photo("gyeongbuk-03"), lat: 35.93, lng: 129.23, cell: [0.38, 0.63], capturedAt: "2025-10-04", picked: true },
-  { id: "D", src: photo("gyeongbuk-04"), lat: 35.78, lng: 129.09, cell: [0.8, 0.7], capturedAt: "2025-10-04", picked: false },
-].map((match) => Object.freeze({ ...match, cell: Object.freeze(match.cell) })));
+  { id: "A", src: photo("gyeongbuk-02"), lat: 35.8347, lng: 129.219, picked: true },
+  { id: "B", src: photo("gyeongbuk-01"), lat: 35.79, lng: 129.332, picked: true },
+  { id: "C", src: photo("gyeongbuk-03"), lat: 35.93, lng: 129.23, picked: true },
+  { id: "D", src: photo("gyeongbuk-04"), lat: 35.78, lng: 129.09, picked: false },
+].map((match) => Object.freeze(match)));
 
 export const HOW_STORY_TEXT = Object.freeze({
   skip: "사진 찾는 과정 건너뛰기",
