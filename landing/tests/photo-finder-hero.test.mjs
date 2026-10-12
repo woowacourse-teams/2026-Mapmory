@@ -69,8 +69,11 @@ test("the demo does not loop and reduced motion shows the finished state", () =>
 test("trust copy and FAQ only claim what the client code does", () => {
   assert.match(appSource, /고른 사진만 올라가요/);
   assert.match(appSource, /사진첩 사진을 전부 가져가나요\?/);
+  assert.match(appSource, /왜 사진 전체 접근이 필요해요\?/);
   assert.match(appSource, /위치 정보가 없는 사진은요\?/);
   assert.match(appSource, /무료인가요\?/);
   // Deleting a record does not remove uploaded objects from storage yet, so never promise that.
   assert.doesNotMatch(appSource, /서버에서도 (사진이 )?(완전히 )?삭제/);
+  // Develop also uses capture time, and the boundary panel moved into the #how story.
+  assert.doesNotMatch(appSource, /위치·날짜|trust-flow/);
 });

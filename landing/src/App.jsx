@@ -6,8 +6,6 @@ import {
   ArrowRight,
   Bell,
   CaretDown,
-  CloudArrowUp,
-  DeviceMobile,
   DownloadSimple,
   EnvelopeSimple,
   GlobeHemisphereEast,
@@ -130,19 +128,11 @@ const memories = [
   },
 ];
 
-const TRUST_POINTS = [
-  { Icon: DeviceMobile, title: "사진 찾기는 폰 안에서", body: "그 장소에서 찍은 사진인지 폰 안에서 위치·날짜 정보로만 확인해요. 사진첩을 서버로 보내지 않아요." },
-  { Icon: CloudArrowUp, title: "고른 사진만 올라가요", body: "기록을 저장할 때 내가 직접 고른 사진만 업로드돼요." },
-];
-
-// The panel is only the on-device -> on-save boundary; deleting a record is answered in the FAQ.
-const [TRUST_ON_DEVICE, TRUST_ON_SAVE] = TRUST_POINTS;
-const { Icon: TrustOnDeviceIcon } = TRUST_ON_DEVICE;
-const { Icon: TrustOnSaveIcon } = TRUST_ON_SAVE;
-
+// Every answer must hold for both the current app (main) and the next version (develop).
 const FAQ_ITEMS = [
   { question: "사진첩 사진을 전부 가져가나요?", answer: "아니요. 사진을 찾는 일은 폰 안에서만 이뤄지고, 서버에는 기록을 저장할 때 직접 고른 사진만 올라가요." },
-  { question: "위치 정보가 없는 사진은요?", answer: "자동으로 찾지는 못하지만, 사진첩에서 직접 골라 기록에 넣을 수 있어요." },
+  { question: "왜 사진 전체 접근이 필요해요?", answer: "그 장소에서 찍은 사진을 찾으려면 사진마다 촬영 위치를 폰 안에서 비교해야 해서요. 자동 찾기 없이 사진을 직접 골라 넣을 수도 있어요." },
+  { question: "위치 정보가 없는 사진은요?", answer: "자동 찾기에서는 빠질 수 있지만, 사진첩에서 직접 골라 기록에 넣을 수 있어요." },
   { question: "남긴 기록은 지울 수 있나요?", answer: "네. 여행 기록은 앱에서 언제든 삭제할 수 있어요." },
   { question: "무료인가요?", answer: "네. App Store와 Google Play에서 무료로 받아 바로 쓸 수 있어요." },
 ];
@@ -981,19 +971,6 @@ function App() {
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
           <h2 id="privacy-title">사진첩은 폰 안에서만 살펴봐요.</h2>
-        </div>
-        <div className="trust-flow">
-          <div className="trust-zone is-device">
-            <span className="trust-zone-label"><TrustOnDeviceIcon size={18} weight="duotone" />내 폰 안</span>
-            <h3>{TRUST_ON_DEVICE.title}</h3>
-            <p>{TRUST_ON_DEVICE.body}</p>
-          </div>
-          <span className="trust-arrow" aria-hidden="true"><ArrowRight size={20} weight="bold" /></span>
-          <div className="trust-zone is-saved">
-            <span className="trust-zone-label"><TrustOnSaveIcon size={18} weight="duotone" />저장할 때</span>
-            <h3>{TRUST_ON_SAVE.title}</h3>
-            <p>{TRUST_ON_SAVE.body}</p>
-          </div>
         </div>
         <div className="faq-list">
           <h3 className="faq-title">자주 묻는 질문</h3>

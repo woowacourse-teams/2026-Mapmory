@@ -248,28 +248,10 @@
 .how-experience-link { width: fit-content; min-height: 44px; margin: 32px 0 0; padding: 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
 .how-experience-link:hover { color: var(--accent-ink); }
 
-/* Trust: one boundary panel, on the phone -> only picked photos on save. Deleting sits outside it. */
+/* Trust: the on-device -> on-save boundary now lives in the #how story; this section is the heading and the FAQ. */
 .trust-section .section-heading { max-width: 760px; margin: 0 auto 28px; text-align: left; }
-.trust-flow {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
-  align-items: stretch;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: var(--surface);
-}
-.trust-zone { padding: 22px 22px 24px; border-radius: 16px; }
-.trust-zone.is-device { background: var(--canvas); border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
-.trust-zone-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
-.trust-zone-label svg { flex: 0 0 auto; color: var(--accent-strong); }
-.trust-zone h3 { margin: 12px 0 6px; font-size: 18px; line-height: 1.4; word-break: keep-all; }
-.trust-zone p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; word-break: keep-all; }
-.trust-arrow { display: grid; place-items: center; color: var(--muted); }
 
-.faq-list { max-width: 760px; margin: 44px auto 0; }
+.faq-list { max-width: 760px; margin: 0 auto; }
 .faq-title { margin: 0 0 12px; font-size: 20px; }
 .faq-list details { border-bottom: 1px solid var(--line); }
 .faq-list summary { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; font-weight: 700; cursor: pointer; list-style: none; }
@@ -285,9 +267,6 @@
   .finder-hero-actions { display: flex; justify-content: center; }
   .finder-trust-note { justify-content: center; }
   .finder-demo-wrap { width: min(100%, 540px); margin: 0 auto; }
-  .trust-flow { grid-template-columns: 1fr; }
-  .trust-arrow { height: 36px; }
-  .trust-arrow svg { transform: rotate(90deg); }
   .how-section, .trust-section { width: min(100% - 30px, 720px); }
 }
 
@@ -311,8 +290,6 @@
   .finder-chips { margin-top: 8px; gap: 6px; }
   .finder-chips button { min-width: 68px; padding: 0 14px; }
   .how-section, .trust-section { width: min(100% - 48px, 520px); padding: 40px 0 64px; }
-  .trust-zone { padding: 18px; }
-  .faq-list { margin-top: 36px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

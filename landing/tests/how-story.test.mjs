@@ -195,7 +195,7 @@ test("copy stays short: headline <= 20 characters, support line <= 40", () => {
 test("no claim the client code does not back, on either app version", () => {
   const banned = /위치·날짜|날짜로|자동으로 (날짜|제목)|\bAI\b|인공지능|인식|위치.{0,6}(지워|삭제|제거)|서버에서도.*삭제|올리는 중|업로드 중|\d+%|모두 선택|오사카|명소|맛집|사진첩.*보지 않|사진을 (다|전부) 보지 않|선택한 사진만 (읽|확인)|일부 (허용|접근)으로도 찾|위치(만)? (봐요|읽어요)|폰에만|위치 정보는 폰|지도로 이동|권한 없이|10장까지|원본 그대로|\/10장|1분|3만|초 만에|탭이면|번 탭|저장 중/;
   const faqLiterals = [...appSource.matchAll(/\{ question: "([^"]+)", answer: "([^"]+)" \}/g)].flatMap(([, question, answer]) => [question, answer]);
-  assert.ok(faqLiterals.length >= 8);
+  assert.ok(faqLiterals.length >= 10);
   const trustLines = [...(appSource + heroSource).matchAll(/사진은 폰 안에서[^<"]*/g)].map(([line]) => line);
   assert.ok(trustLines.length >= 2);
   const strings = [
