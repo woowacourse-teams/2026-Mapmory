@@ -245,13 +245,17 @@ test("the section never steers the scroll: no wheel or touch handlers, no preven
     assert.doesNotMatch(source, /document\.body\.style\.overflow|overflow:\s*hidden\s*;?\s*\}?\s*$/m);
   }
   assert.doesNotMatch(storyCss, /(html|body)\s*\{/);
-  // The only programmatic scroll is the mode-switch restore, and every call of it is instant.
+  // The only programmatic scroll puts the reader back in place when the viewport changes under them (a switch
+  // between the film and the static version, or a rotation that keeps the film), and every call of it is instant.
   const code = stripComments(engineSource);
   const scrolls = [...code.matchAll(/(scrollTo|scrollIntoView)\(([^;]*)\);?/g)];
-  assert.equal(scrolls.length, 3);
+  assert.equal(scrolls.length, 4);
   for (const [call] of scrolls) assert.match(call, /behavior: "instant"/, call);
   const restore = code.slice(code.indexOf("function restore("), code.indexOf("function setMode("));
-  assert.equal([...restore.matchAll(/scrollTo\(|scrollIntoView\(/g)].length, 3);
+  assert.equal([...restore.matchAll(/scrollTo\(|scrollIntoView\(/g)].length, 4);
+  assert.equal([...code.matchAll(/restore\(/g)].length, 3); // its definition, setMode's switch, refresh()'s rotation
+  assert.match(code, /if \(built\) restore\(where\);/);
+  assert.match(code, /if \(keep && !isStatic && Math\.abs\(VH - prevVH\) > 1\) restore\(keep\);/);
   assert.doesNotMatch(stripComments(componentSource), /scrollTo|scrollIntoView/);
   // The listeners the engine does add are passive scroll and resize, and destroy() removes them.
   assert.match(engineSource, /window\.addEventListener\("scroll", req, \{ passive: true \}\);/);

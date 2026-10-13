@@ -549,7 +549,9 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     }, early);
   }
 
-  // where the reader is (beat 0-5), so a switch between the film and the static version (a rotation) keeps their place
+  // where the reader is (beat 0-5), so a switch between the film and the static version (a rotation) keeps their place.
+  // A change that keeps the film on both sides (a tablet rotated, a foldable unfolded, a desktop window made shorter)
+  // keeps the exact scroll position s instead: see refresh().
   function place() {
     if (!built) return null;
     if (!isStatic) return onScreen && curB >= 0 ? placeOf(curB, curK) : null;
@@ -560,13 +562,19 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     els.forEach((el, i) => { const q2 = el.getBoundingClientRect(), d = Math.abs((q2.top + q2.bottom) / 2 - mid); if (d < bd) { bd = d; best = i; } });
     return best;
   }
-  // The only programmatic scroll in this section: a mode switch puts the reader back where they were, instantly.
-  function restore(beat) {
-    if (beat == null) return;
+  // The only programmatic scroll in this section: when the viewport changes under the reader (a mode switch, or a
+  // rotation that keeps the film), it puts them back where they were, instantly. `where` is a place (beat 0-5) or,
+  // when the film stays, { s }: the same scroll position in the film's own units, so the same beat and step.
+  function restore(where) {
+    if (where == null) return;
     const hdr = parseFloat(getComputedStyle(root).getPropertyValue("--hw-hdr")) || 84;
-    if (beat === 0) root.scrollIntoView({ block: "start", behavior: "instant" }); // the section's own scroll-margin
-    else if (isStatic) window.scrollTo({ top: Math.max(0, scrollY + staticBox.children[beat - 1].getBoundingClientRect().top - hdr - 12), behavior: "instant" });
-    else window.scrollTo({ top: scrollY + track.getBoundingClientRect().top + restPosition(beat) * VH, behavior: "instant" });
+    if (typeof where === "object") window.scrollTo({ top: scrollY + track.getBoundingClientRect().top + where.s * VH, behavior: "instant" });
+    else if (where === 0) root.scrollIntoView({ block: "start", behavior: "instant" }); // the section's own scroll-margin
+    else if (isStatic) window.scrollTo({ top: Math.max(0, scrollY + staticBox.children[where - 1].getBoundingClientRect().top - hdr - 12), behavior: "instant" });
+    else window.scrollTo({ top: scrollY + track.getBoundingClientRect().top + restPosition(where) * VH, behavior: "instant" });
+    // the jump is not the reader's scroll: the next frame starts the velocity estimate afresh
+    lastY = scrollY;
+    lastT = 0;
   }
   function setMode(stat) {
     if (built && stat === isStatic) return;
@@ -582,6 +590,11 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   }
   function refresh() {
     if (destroyed) return;
+    // The track is (PIN_VH + 1) x VH tall, so when VH changes and the film stays (a tablet rotated, a foldable
+    // unfolded, a desktop window made shorter), the same scrollY would land in another beat. A reader inside the
+    // pinned film keeps their s. (On phones the address bar never changes VH: it is latched, so nothing moves.)
+    const prevVH = VH;
+    const keep = built && !isStatic && onScreen && sNow >= 0 && sNow <= PIN_VH ? { s: sNow } : null;
     measureVH();
     root.style.setProperty("--hw-vh", VH.toFixed(1) + "px");
     root.classList.toggle("hw-compact", VH < COMPACT_VH);
@@ -589,6 +602,8 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     // a viewport under 500px tall (a landscape phone) gets the static version; every portrait phone gets the film
     setMode(isStaticMode({ reducedMotion: mqReduce.matches, vh: VH, smallWidthLatched: smallW !== -1 }));
     if (!isStatic && layout() === "small") { smallW = innerWidth; setMode(true); }
+    // (a switch to the static version restored the place in setMode)
+    if (keep && !isStatic && Math.abs(VH - prevVH) > 1) restore(keep);
     req();
   }
 
