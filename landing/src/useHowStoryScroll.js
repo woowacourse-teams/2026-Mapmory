@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import {
   HOW_STORY_BEATS,
   HOW_STORY_WINDOWS,
-  countTapsCrossed,
+  createHowStoryJumpTracker,
   getHowStoryFrame,
   getHowStoryNodeStyle,
   getHowStoryPlan,
@@ -50,9 +50,10 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     const written = new Map();
     const plan = getHowStoryPlan();
     const moments = [
-      ...plan.beats.map((beat) => ({ element: tapElements.get(beat.id), p: beat.p })),
+      ...plan.beats.map((beat) => ({ element: tapElements.get(beat.id), p: beat.p, tap: true })),
       ...enterElements,
     ].filter(({ element }) => element);
+    const jumped = createHowStoryJumpTracker();
 
     let layout = null;
     let stickyTop = 0;
@@ -158,16 +159,25 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       }
       const visibleHeight = Math.min(frameRect.bottom, viewportHeight) - Math.max(frameRect.top, 0);
       const eligible = visibleHeight / Math.max(1, frameRect.height) >= 0.5 && document.visibilityState !== "hidden";
+      // Every update feeds the jump tracker, so a fast move is seen as one however its frames fall.
+      const fast = jumped(performance.now(), window.scrollY);
       if (force || Math.abs(p - lastP) >= P_EPSILON) {
-        // A jump across two or more taps (a fast flick, or the first frame after a reload into the story) shows
-        // the end state without a burst of rings: each tap it turns on is marked skipped, and stays so until the
-        // reader scrolls back above it. A tap that was already on is left alone, so its finished ring never replays.
-        // A beat's opening moment (data-enter) is skipped the same way: a jump into beat 05 shows the prints
-        // already gone and the map tab without its wait for them.
-        const jump = lastP < 0 || countTapsCrossed(lastP, p, plan.beats) >= 2;
+        // A jump (a fast flick, a spun wheel or a key press, or the first frame after a reload into the story; see
+        // HOW_STORY_JUMP) shows the end state without a burst of rings: each tap it turns on is marked skipped, and
+        // stays so until the reader scrolls back above it. A tap that was already on is left alone, so its finished
+        // ring never replays. A beat's opening moment (data-enter) is skipped the same way: a jump into beat 05 shows
+        // the prints already gone and the map tab without its wait for them. Taps that one ordinary update turns on
+        // together (one wheel notch crosses two or three) play one after another, in the order crossed (data-order).
+        const jump = lastP < 0 || fast;
+        let order = 0;
         for (const moment of moments) {
-          if (p < moment.p) write(moment.element, "data:skip", "0");
-          else if (jump && !(lastP >= moment.p)) write(moment.element, "data:skip", "1");
+          if (p < moment.p) {
+            write(moment.element, "data:skip", "0");
+            if (moment.tap) write(moment.element, "data:order", "0");
+          } else if (!(lastP >= moment.p)) {
+            if (jump) write(moment.element, "data:skip", "1");
+            else if (moment.tap) write(moment.element, "data:order", String(order++));
+          }
         }
         lastP = p;
         apply(getHowStoryFrame(p, layout));

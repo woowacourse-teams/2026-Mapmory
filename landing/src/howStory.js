@@ -338,11 +338,36 @@ export function getHowStoryTapPlan(tapCount = null) {
     .map(({ id, scene, t }) => ({ id, scene, t, p: beatP(scene, t) }));
 }
 
-// How many drawn taps lie between two progress values (the hook skips rings and pulses for a fast flick).
-export function countTapsCrossed(fromP, toP, beats = getHowStoryTapPlan()) {
-  const low = Math.min(fromP, toP);
-  const high = Math.max(fromP, toP);
-  return beats.filter(({ p }) => p > low && p <= high).length;
+// A jump shows the end state without tap rings: the story was entered by a reload (the hook's first frame), or the
+// reader moved more than px within the last ms (a spun wheel, a key press), or moved faster than speed px/s across
+// the updates inside that window (a flick, from its second frame). One wheel notch (100-120px) is not a jump, instant
+// (one update, no speed to measure) or smooth (about 1000px/s at most), even where it crosses all four of beat 04's
+// taps (about 35px apart, so a notch crosses two or three): its taps play, one after another
+// (HOW_STORY_TAP_STAGGER_MS apart, how-app-screens.css), in the order crossed (round-3 FE2: counting two taps crossed
+// in one update as a jump skipped nearly every ring for a wheel).
+export const HOW_STORY_JUMP = Object.freeze({ px: 180, ms: 120, speed: 2000 });
+export const HOW_STORY_TAP_STAGGER_MS = 100;
+
+// Feed it (time in ms, scroll position in px) on every update; it answers whether this update is part of a jump: the
+// distance from the position at the window's start (the newest sample at or before it, else the oldest kept), or the
+// speed from the first update inside the window to this one.
+export function createHowStoryJumpTracker(limits = HOW_STORY_JUMP) {
+  let samples = [];
+  return (time, position) => {
+    samples.push([time, position]);
+    let base = 0;
+    for (let index = samples.length - 1; index >= 0; index -= 1) {
+      if (samples[index][0] <= time - limits.ms) {
+        base = index;
+        break;
+      }
+    }
+    samples = samples.slice(base);
+    if (Math.abs(position - samples[0][1]) > limits.px) return true;
+    const inside = samples.find(([at]) => at > time - limits.ms);
+    const elapsed = time - inside[0];
+    return elapsed >= 8 && (Math.abs(position - inside[1]) / elapsed) * 1000 > limits.speed;
+  };
 }
 
 const isFilled = (value) => value !== null && value !== undefined;

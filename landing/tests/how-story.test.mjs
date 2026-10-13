@@ -23,8 +23,11 @@ import {
   HOW_STORY_TRAVEL_UNITS,
   HOW_STORY_WINDOWS,
   HOW_STORY_BAND_COUNT_MS,
+  HOW_STORY_JUMP,
+  HOW_STORY_TAP_STAGGER_MS,
   appLoadingPercent,
   bandCountAt,
+  createHowStoryJumpTracker,
   formatHowStoryBandValue,
   getHowStoryBand,
   getHowStoryFrame,
@@ -727,7 +730,7 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
   // The gate restarts on every visit: the skipped subtree is inside it (a skipped subtree keeps its old style).
   assert.match(css, /\.how-stage:not\(\[data-scene="5"\]\) \.how-map-gate \{ content-visibility: hidden; \}/);
   assert.doesNotMatch(css, /\.how-app-map \{ content-visibility/);
-  // A jump into the beat (a reload, or a flick across two taps) shows it settled: the hook marks both elements
+  // A jump into the beat (a reload, a flick or a key; HOW_STORY_JUMP) shows it settled: the hook marks both elements
   // data-skip, as it does a tap ring, and they play nothing.
   assert.match(componentSource, /className="how-copy-stack" data-enter="map"/);
   assert.match(howSources["AppScreens.jsx"], /className="how-map-gate" data-enter=\{n\("map"\)\}/);
@@ -1006,11 +1009,54 @@ test("a jump shows the end state per tap, without a stage-wide switch that would
   // Toggling a stage-wide "instant" flag for one frame re-applied every ring's animation, so rings and pulses that
   // had already played ran again after each flick (round-1 S1/F1). Skips are now per tap and sticky.
   for (const source of [hookSource, storyCss, screensCss, componentSource]) assert.doesNotMatch(source, /instant/i);
-  assert.match(hookSource, /const jump = lastP < 0 \|\| countTapsCrossed\(lastP, p, plan\.beats\) >= 2;/);
+  assert.match(hookSource, /const fast = jumped\(performance\.now\(\), window\.scrollY\);/);
+  assert.match(hookSource, /const jump = lastP < 0 \|\| fast;/);
   // Each tap, and each moment that plays as a beat opens (data-enter), is skipped when a jump turns it on, and
-  // un-skipped once the reader is back above it.
-  assert.match(hookSource, /plan\.beats\.map\(\(beat\) => \(\{ element: tapElements\.get\(beat\.id\), p: beat\.p \}\)\),\s*\.\.\.enterElements,/);
-  assert.match(hookSource, /if \(p < moment\.p\) write\(moment\.element, "data:skip", "0"\);\s*else if \(jump && !\(lastP >= moment\.p\)\) write\(moment\.element, "data:skip", "1"\);/);
+  // un-skipped once the reader is back above it; taps an ordinary update turns on together play in turn.
+  assert.match(hookSource, /plan\.beats\.map\(\(beat\) => \(\{ element: tapElements\.get\(beat\.id\), p: beat\.p, tap: true \}\)\),\s*\.\.\.enterElements,/);
+  assert.match(hookSource, /if \(p < moment\.p\) \{\s*write\(moment\.element, "data:skip", "0"\);\s*if \(moment\.tap\) write\(moment\.element, "data:order", "0"\);\s*\} else if \(!\(lastP >= moment\.p\)\) \{\s*if \(jump\) write\(moment\.element, "data:skip", "1"\);\s*else if \(moment\.tap\) write\(moment\.element, "data:order", String\(order\+\+\)\);/);
+  // The tap plan is in scroll order, so the order follows the crossing.
+  const plan = getHowStoryTapPlan(getHowStoryTapRange().max);
+  assert.deepEqual(plan.map(({ p }) => p), [...plan.map(({ p }) => p)].sort((a, b) => a - b));
+  // Each later tap waits one more stagger step: its ring, and on a card its pulse and its turn to selected.
+  for (const n of [1, 2, 3]) {
+    const ms = n * HOW_STORY_TAP_STAGGER_MS;
+    assert.match(screensCss, new RegExp(`\\.how-stage \\.how-tap\\[data-tap\\]\\[data-order="${n}"\\] \\{ animation-delay: ${ms}ms; \\}`));
+    assert.match(screensCss, new RegExp(`\\.how-stage \\.how-match-chrome:has\\(> \\.how-tap\\[data-order="${n}"\\]\\) :is\\(\\.how-picker-preview, \\.how-picker-card-border\\) \\{ animation-delay: ${ms}ms; transition-delay: ${ms}ms; \\}`));
+  }
+  // The four taps of beat 04 fit in one wheel notch on wheel devices (so a notch must not count as a jump), and the
+  // last of them starts its ring within the ring's own length.
+  for (const unit of [800, HOW_STORY_TRACK.desktopMinPx / HOW_STORY_TRAVEL_UNITS]) {
+    const picks = getHowStoryTapPlan().filter(({ scene }) => scene === 3);
+    const spanPx = (picks.at(-1).p - picks[0].p) * unit * HOW_STORY_TRAVEL_UNITS;
+    assert.ok(spanPx < 120 && spanPx + 1 < HOW_STORY_JUMP.px, `${unit}: ${spanPx}`);
+  }
+  assert.ok(3 * HOW_STORY_TAP_STAGGER_MS <= 360);
+});
+
+test("a jump is a fast move, never one wheel notch: rings play for a notch and are skipped for a flick, a spun wheel or a key", () => {
+  const run = (moves) => {
+    const jumped = createHowStoryJumpTracker();
+    return moves.map(([time, y]) => jumped(time, y));
+  };
+  // At rest, then one instant notch of 100 or 120px: not a jump. Notches 200ms apart: none is.
+  assert.deepEqual(run([[0, 1000], [2000, 1100]]), [false, false]);
+  assert.deepEqual(run([[0, 1000], [2000, 1120]]), [false, false]);
+  assert.deepEqual(run([[0, 1000], [2000, 1100], [2200, 1200], [2400, 1300]]), [false, false, false, false]);
+  // A smooth notch (120px over 150ms, a frame every 16ms) is not one either.
+  const smooth = Array.from({ length: 11 }, (_, i) => [2000 + i * 16, 1000 + Math.round(120 * Math.sin((Math.min(1, (i * 16) / 150) * Math.PI) / 2))]);
+  assert.ok(!run([[0, 1000], ...smooth]).some(Boolean));
+  // A slow drag (600px/s) never is.
+  assert.ok(!run(Array.from({ length: 60 }, (_, i) => [i * 16, 1000 + i * 9.6])).some(Boolean));
+  // Nor is a brisk drag at 1100px/s.
+  assert.ok(!run(Array.from({ length: 60 }, (_, i) => [i * 16, 1000 + i * 17.6])).some(Boolean));
+  // Two notches 50ms apart: the second is. A flick at 3000px/s from rest is from its second frame. A key press (Page
+  // Down, about 700px) is at once.
+  assert.deepEqual(run([[0, 1000], [2000, 1100], [2050, 1200]]), [false, false, true]);
+  const flick = run([[0, 1000], ...Array.from({ length: 8 }, (_, i) => [2000 + i * 16, 1048 + i * 48])]);
+  assert.equal(flick.map(Number).join(""), "001111111");
+  assert.deepEqual(run([[0, 1000], [3000, 1700]]), [false, true]);
+  assert.ok(HOW_STORY_JUMP.px >= 1.5 * 120 && HOW_STORY_JUMP.ms <= 150 && HOW_STORY_JUMP.speed >= 1500, JSON.stringify(HOW_STORY_JUMP));
   assert.match(screensCss, /\.how-tap\[data-tap\]\[data-skip="1"\],/);
   assert.match(screensCss, /\.how-match-chrome:has\(> \.how-tap\[data-skip="1"\]\) \.how-picker-preview \{ animation: none; \}/);
 });

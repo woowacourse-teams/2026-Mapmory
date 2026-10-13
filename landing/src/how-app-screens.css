@@ -302,6 +302,15 @@
 [data-save="1"] .how-tap[data-tap="save"] { animation: how-tap 360ms var(--ease-out) backwards; }
 .how-tap[data-tap][data-skip="1"],
 .how-static-figure .how-tap[data-tap] { animation: none; opacity: 0; }
+/* Taps that one ordinary update turns on together (one wheel notch can cross two or three of beat 04's) play one after
+   another in the order crossed, HOW_STORY_TAP_STAGGER_MS apart (data-order, set by the hook): the ring, and on a card
+   its pulse and its turn to selected. A jump skips them instead (data-skip). */
+.how-stage .how-tap[data-tap][data-order="1"] { animation-delay: 100ms; }
+.how-stage .how-tap[data-tap][data-order="2"] { animation-delay: 200ms; }
+.how-stage .how-tap[data-tap][data-order="3"] { animation-delay: 300ms; }
+.how-stage .how-match-chrome:has(> .how-tap[data-order="1"]) :is(.how-picker-preview, .how-picker-card-border) { animation-delay: 100ms; transition-delay: 100ms; }
+.how-stage .how-match-chrome:has(> .how-tap[data-order="2"]) :is(.how-picker-preview, .how-picker-card-border) { animation-delay: 200ms; transition-delay: 200ms; }
+.how-stage .how-match-chrome:has(> .how-tap[data-order="3"]) :is(.how-picker-preview, .how-picker-card-border) { animation-delay: 300ms; transition-delay: 300ms; }
 @keyframes how-tap {
   0% { opacity: 0; transform: scale(0.55); }
   30% { opacity: 1; }
