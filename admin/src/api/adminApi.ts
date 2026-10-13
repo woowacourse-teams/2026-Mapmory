@@ -41,6 +41,27 @@ export type AdminMemberDetail = {
   totalPages: number;
 };
 
+export type AdminFeedbackStatus = "UNCONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "ON_HOLD" | "NOT_IMPLEMENTED";
+export type AdminFeedbackCategory = "BUG_REPORT" | "FEATURE_REQUEST" | "USABILITY" | "OTHER";
+export type AdminFeedbackPlatform = "IOS" | "ANDROID";
+
+export type AdminFeedback = {
+  feedbackId: number;
+  category: AdminFeedbackCategory;
+  content: string;
+  platform: AdminFeedbackPlatform;
+  status: AdminFeedbackStatus;
+  createdAt: string;
+};
+
+export type AdminFeedbackList = {
+  feedback: AdminFeedback[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
 const apiBaseUrl = "https://api.map-mory.com/api/v1";
 let csrfToken: CsrfToken | null = null;
 
@@ -114,6 +135,19 @@ export function getAdminMembers(keyword: string, provider: string, page: number,
 export function getAdminMemberDetail(memberId: number, page = 0, size = 20) {
   const query = new URLSearchParams({ page: String(page), size: String(size) });
   return adminApiRequest<AdminMemberDetail>(`/admin/members/${memberId}?${query.toString()}`);
+}
+
+export function getAdminFeedback(status: AdminFeedbackStatus | "", page: number, size = 20) {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) query.set("status", status);
+  return adminApiRequest<AdminFeedbackList>(`/admin/service-feedback?${query.toString()}`);
+}
+
+export function updateAdminFeedbackStatus(feedbackId: number, status: AdminFeedbackStatus) {
+  return adminApiRequest<AdminFeedback>(`/admin/service-feedback/${feedbackId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
 }
 
 export function loginAdmin(username: string, password: string) {

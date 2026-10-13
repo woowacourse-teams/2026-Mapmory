@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
-import { adminApiRequest, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
+import { adminApiRequest, getAdminFeedback, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, updateAdminFeedbackStatus, type AdminFeedback, type AdminFeedbackStatus, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
 
 type Page = "dashboard" | "members" | "feedback";
-type FeedbackStatus = "미확인" | "반영 중" | "반영 완료" | "보류" | "미반영";
-type Feedback = {
-  id: string;
-  category: string;
-  content: string;
-  platform: "iOS" | "Android";
-  createdAt: string;
-  status: FeedbackStatus;
-};
 type Member = {
   id: number;
   name: string;
@@ -26,16 +17,24 @@ type DashboardSummary = {
 };
 type DateRange = { from: string; to: string };
 
-const feedbackStatuses: FeedbackStatus[] = ["미확인", "반영 중", "반영 완료", "보류", "미반영"];
-
-const initialFeedback: Feedback[] = [
-  { id: "FB-0248", category: "기능 제안", content: "여행 기록을 여러 장 한 번에 등록할 수 있으면 좋겠어요.", platform: "iOS", createdAt: "10.08 14:32", status: "미확인" },
-  { id: "FB-0247", category: "사용성·불편", content: "지도에서 지역을 확대할 때 어디까지 확대됐는지 알기 어려워요.", platform: "Android", createdAt: "10.08 12:18", status: "반영 중" },
-  { id: "FB-0246", category: "오류 제보", content: "사진 추천에서 날짜가 하루 전으로 표시되는 경우가 있어요.", platform: "iOS", createdAt: "10.07 18:51", status: "미확인" },
-  { id: "FB-0245", category: "기능 제안", content: "기록에 같이 간 사람을 메모할 수 있으면 좋겠습니다.", platform: "Android", createdAt: "10.07 16:07", status: "보류" },
-  { id: "FB-0244", category: "사용성·불편", content: "기록 목록에서 최신순과 오래된 순을 바꿀 수 있으면 좋겠어요.", platform: "iOS", createdAt: "10.07 09:26", status: "반영 완료" },
-  { id: "FB-0243", category: "기타", content: "앱을 잘 사용하고 있어요. 지도 색감이 정말 예뻐요!", platform: "Android", createdAt: "10.06 21:43", status: "미확인" },
-];
+const feedbackStatuses: AdminFeedbackStatus[] = ["UNCONFIRMED", "IN_PROGRESS", "COMPLETED", "ON_HOLD", "NOT_IMPLEMENTED"];
+const feedbackStatusLabels: Record<AdminFeedbackStatus, string> = {
+  UNCONFIRMED: "미확인",
+  IN_PROGRESS: "반영 중",
+  COMPLETED: "반영 완료",
+  ON_HOLD: "보류",
+  NOT_IMPLEMENTED: "미반영",
+};
+const feedbackStatusValues = Object.entries(feedbackStatusLabels).reduce<Record<string, AdminFeedbackStatus>>((acc, [value, label]) => {
+  acc[label] = value as AdminFeedbackStatus;
+  return acc;
+}, {});
+const feedbackCategoryLabels: Record<AdminFeedback["category"], string> = {
+  BUG_REPORT: "오류 제보",
+  FEATURE_REQUEST: "기능 제안",
+  USABILITY: "사용성, 불편",
+  OTHER: "기타",
+};
 
 function getDashboardRange(period: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -88,9 +87,6 @@ function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [period, setPeriod] = useState("최근 7일");
   const [dashboardRange, setDashboardRange] = useState<DateRange>(() => getDashboardRange("최근 7일"));
-  const [feedback, setFeedback] = useState(initialFeedback);
-  const [feedbackFilter, setFeedbackFilter] = useState("전체");
-  const [feedbackQuery, setFeedbackQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -110,12 +106,6 @@ function App() {
       active = false;
     };
   }, []);
-
-  const filteredFeedback = feedback.filter((item) => {
-    const matchesStatus = feedbackFilter === "전체" || item.status === feedbackFilter;
-    const matchesQuery = `${item.id} ${item.category} ${item.content} ${item.platform}`.toLowerCase().includes(feedbackQuery.toLowerCase());
-    return matchesStatus && matchesQuery;
-  });
 
   const showNotice = (message: string) => {
     setNotice(message);
@@ -188,12 +178,12 @@ function App() {
         <div className="content-area">
           {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} range={dashboardRange} setRange={setDashboardRange} onNavigate={setPage} onNotice={showNotice} />}
           {page === "members" && <MembersPage onSelect={setSelectedMember} onNotice={showNotice} />}
-          {page === "feedback" && <FeedbackPage feedback={filteredFeedback} allFeedback={feedback} filter={feedbackFilter} setFilter={setFeedbackFilter} query={feedbackQuery} setQuery={setFeedbackQuery} onStatusChange={(id, status) => setFeedback((current) => current.map((item) => item.id === id ? { ...item, status } : item))} />}
+          {page === "feedback" && <FeedbackPage onNotice={showNotice} />}
         </div>
       </main>
       {selectedMember && <MemberDrawer member={selectedMember} onClose={() => setSelectedMember(null)} />}
       {notice && <div className="toast"><span className="toast-check">✓</span>{notice}</div>}
-      <div className="demo-ribbon">서비스 의견은 시연 데이터</div>
+      <div className="demo-ribbon">운영 데이터 연결됨</div>
     </div>
   );
 }
@@ -441,13 +431,52 @@ function formatAdminDate(value: string) {
   return date ? date.replaceAll("-", ".") : "—";
 }
 
-function FeedbackPage({ feedback, allFeedback, filter, setFilter, query, setQuery, onStatusChange }: { feedback: Feedback[]; allFeedback: Feedback[]; filter: string; setFilter: (filter: string) => void; query: string; setQuery: (query: string) => void; onStatusChange: (id: string, status: FeedbackStatus) => void }) {
-  const counts = { "전체": allFeedback.length, "미확인": allFeedback.filter((item) => item.status === "미확인").length, "반영 중": allFeedback.filter((item) => item.status === "반영 중").length, "반영 완료": allFeedback.filter((item) => item.status === "반영 완료").length };
+function FeedbackPage({ onNotice }: { onNotice: (message: string) => void }) {
+  const [filter, setFilter] = useState("전체");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<Awaited<ReturnType<typeof getAdminFeedback>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+  const status = filter === "전체" ? "" : feedbackStatusValues[filter];
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    getAdminFeedback(status, page)
+      .then((result) => { if (active) setData(result); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "서비스 의견을 불러오지 못했습니다."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [status, page, retryKey]);
+
+  const feedback = (data?.feedback ?? []).filter((item) => {
+    const normalized = query.toLowerCase();
+    return `${item.feedbackId} ${feedbackCategoryLabels[item.category]} ${item.content} ${item.platform}`.toLowerCase().includes(normalized);
+  });
+  const changeStatus = async (feedbackId: number, nextStatus: AdminFeedbackStatus) => {
+    try {
+      await updateAdminFeedbackStatus(feedbackId, nextStatus);
+      setRetryKey((value) => value + 1);
+      onNotice("처리 상태를 변경했습니다.");
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : "처리 상태를 변경하지 못했습니다.");
+    }
+  };
+
   return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">VOICE OF MAPMORY</div><h1>서비스 의견</h1><p>사용자의 목소리를 모아 더 나은 경험을 만들어 보세요.</p></div><button className="secondary-button" onClick={() => window.print()}><Icon name="download" size={16}/> 목록 인쇄</button></div>
-    <div className="feedback-overview"><div className="feedback-overview-copy"><span className="overview-icon"><Icon name="chat" size={19}/></span><div><strong>이번 주 새로운 의견 <b>12건</b></strong><p>의견은 서비스 개선을 위해 내부에서만 관리됩니다.</p></div></div><span className="overview-date"><Icon name="calendar" size={15}/> 10.02 – 10.08</span></div>
-    <div className="panel table-panel feedback-table-panel"><div className="feedback-toolbar"><div className="feedback-tabs">{["전체", "미확인", "반영 중", "반영 완료"].map((item) => <button key={item} className={filter === item ? "feedback-tab active" : "feedback-tab"} onClick={() => setFilter(item)}>{item}<span>{counts[item as keyof typeof counts]}</span></button>)}</div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="의견 내용 검색" aria-label="의견 내용 검색"/></div><button className="filter-button"><Icon name="filter" size={16}/> 상세 필터</button></div></div>
-      <div className="table-scroll"><table className="feedback-table"><thead><tr><th>접수일</th><th>유형</th><th className="content-column">의견 내용</th><th>OS</th><th>처리 상태</th><th /></tr></thead><tbody>{feedback.map((item) => <tr key={item.id}><td><span className="feedback-date">2026.{item.createdAt}</span><small>{item.id}</small></td><td><span className={`category-tag ${item.category === "오류 제보" ? "bug-category" : item.category === "기능 제안" ? "feature-category" : "other-category"}`}>{item.category}</span></td><td className="feedback-content-cell">{item.content}</td><td><span className="os-label"><span className="os-symbol">{item.platform === "iOS" ? "●" : "◉"}</span>{item.platform}</span></td><td><select className={`status-select status-${item.status.replaceAll(" ", "")}`} value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value as FeedbackStatus)} aria-label={`${item.id} 처리 상태`}>{feedbackStatuses.map((status) => <option key={status}>{status}</option>)}</select></td><td><button className="row-arrow" aria-label={`${item.id} 의견 상세`}><Icon name="chevron" size={15}/></button></td></tr>)}</tbody></table>{feedback.length === 0 && <div className="empty-state">해당 상태의 의견이 없습니다.</div>}</div>
-      <div className="table-footer"><span>총 <strong>{feedback.length}</strong>건</span><div className="pagination"><button disabled>이전</button><button className="current-page">1</button><button>다음</button></div></div>
+    <div className="feedback-overview"><div className="feedback-overview-copy"><span className="overview-icon"><Icon name="chat" size={19}/></span><div><strong>조회된 의견 <b>{(data?.totalElements ?? 0).toLocaleString("ko-KR")}건</b></strong><p>의견은 서비스 개선을 위해 내부에서만 관리됩니다.</p></div></div><span className="overview-date"><Icon name="calendar" size={15}/> 서버 기준</span></div>
+    <div className="panel table-panel feedback-table-panel"><div className="feedback-toolbar"><div className="feedback-tabs">{["전체", "미확인", "반영 중", "반영 완료"].map((item) => <button key={item} className={filter === item ? "feedback-tab active" : "feedback-tab"} onClick={() => { setFilter(item); setPage(0); }}>{item}{filter === item && data && <span>{data.totalElements.toLocaleString("ko-KR")}</span>}</button>)}</div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="의견 내용 검색" aria-label="의견 내용 검색"/></div><button className="filter-button" onClick={() => onNotice("상세 필터는 API에 연결되어 있고 화면 컨트롤은 준비 중입니다.")}><Icon name="filter" size={16}/> 상세 필터</button></div></div>
+      {error && <div className="dashboard-error" role="alert">{error}</div>}
+      {loading && <div className="dashboard-loading" role="status">서비스 의견을 불러오는 중입니다.</div>}
+      <div className="table-scroll"><table className="feedback-table"><thead><tr><th>접수일</th><th>유형</th><th className="content-column">의견 내용</th><th>OS</th><th>처리 상태</th><th /></tr></thead><tbody>{feedback.map((item) => {
+        const statusLabel = feedbackStatusLabels[item.status];
+        const categoryLabel = feedbackCategoryLabels[item.category];
+        return <tr key={item.feedbackId}><td><span className="feedback-date">{formatAdminDate(item.createdAt)}</span><small>FB-{String(item.feedbackId).padStart(4, "0")}</small></td><td><span className={`category-tag ${item.category === "BUG_REPORT" ? "bug-category" : item.category === "FEATURE_REQUEST" ? "feature-category" : "other-category"}`}>{categoryLabel}</span></td><td className="feedback-content-cell">{item.content}</td><td><span className="os-label"><span className="os-symbol">{item.platform === "IOS" ? "●" : "◉"}</span>{item.platform === "IOS" ? "iOS" : "Android"}</span></td><td><select className={`status-select status-${statusLabel.replaceAll(" ", "")}`} value={item.status} onChange={(event) => changeStatus(item.feedbackId, event.target.value as AdminFeedbackStatus)} aria-label={`FB-${item.feedbackId} 처리 상태`}>{feedbackStatuses.map((status) => <option key={status} value={status}>{feedbackStatusLabels[status]}</option>)}</select></td><td><button className="row-arrow" aria-label={`FB-${item.feedbackId} 의견 상세`}><Icon name="chevron" size={15}/></button></td></tr>;
+      })}</tbody></table>{!loading && feedback.length === 0 && <div className="empty-state">해당 상태의 의견이 없습니다.</div>}</div>
+      <div className="table-footer"><span>총 <strong>{(data?.totalElements ?? 0).toLocaleString("ko-KR")}</strong>건</span><div className="pagination"><button disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)}>이전</button><span className="current-page">{data ? `${data.page + 1} / ${Math.max(data.totalPages, 1)}` : "—"}</span><button disabled={!data || page + 1 >= data.totalPages || loading} onClick={() => setPage((value) => value + 1)}>다음</button></div></div>
     </div><div className="feedback-privacy-note"><span>✳</span><p><strong>의견은 내부 개선 목적으로만 사용됩니다.</strong> 제출한 사용자에게 개별 답변은 제공하지 않습니다.</p></div><footer className="page-footer"><span>Mapmory Admin <b>·</b> 의견 관리</span><span>접수일은 서버 기준 시각으로 저장됩니다.</span></footer></div>;
 }
 
