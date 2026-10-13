@@ -300,8 +300,13 @@ try {
   }
 
   // 4. The reader keeps their place when the viewport changes: a phone rotated (film -> static -> film) and a tablet
-  //    rotated (the film on both sides).
-  for (const [label, options, other, s, beat] of [["phone", phone, { width: 750, height: 342 }, 2.27, 3], ["tablet", tablet, { width: 1024, height: 768 }, 3.1, 4]]) {
+  //    rotated (the film on both sides), also while the frame scrolls away after 05.
+  const tabletLandscape = { ...tablet, viewport: { width: 1024, height: 768 } };
+  for (const [label, options, other, s, beat] of [
+    ["phone", phone, { width: 750, height: 342 }, 2.27, 3],
+    ["tablet", tablet, { width: 1024, height: 768 }, 3.1, 4],
+    ["tablet leaving 05", tabletLandscape, { width: 768, height: 1024 }, 4.9, 5],
+  ]) {
     const { context, page, errors } = await open(options);
     await scrollToS(page, s);
     await page.waitForTimeout(400);

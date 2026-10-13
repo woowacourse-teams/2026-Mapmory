@@ -607,10 +607,11 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   function refresh() {
     if (destroyed) return;
     // The track is (PIN_VH + 1) x VH tall, so when VH changes and the film stays (a tablet rotated, a foldable
-    // unfolded, a desktop window made shorter), the same scrollY would land in another beat. A reader inside the
-    // pinned film keeps their s. (On phones the address bar never changes VH: it is latched, so nothing moves.)
+    // unfolded, a desktop window made shorter), the same scrollY would land in another beat. A reader with the
+    // film on screen keeps their s, from the frame coming up to it scrolling away after 05. (On phones the address
+    // bar never changes VH: it is latched, so nothing moves.)
     const prevVH = VH;
-    const keep = built && !isStatic && onScreen && sNow >= 0 && sNow <= PIN_VH ? { s: sNow } : null;
+    const keep = built && !isStatic && onScreen ? { s: sNow } : null;
     measureVH();
     root.style.setProperty("--hw-vh", VH.toFixed(1) + "px");
     root.classList.toggle("hw-compact", VH < COMPACT_VH);
