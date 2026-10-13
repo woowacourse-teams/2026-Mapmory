@@ -143,6 +143,10 @@
 .hw .map .in{width:560px;height:524px}
 /* one soft ground shadow (rasterised once) instead of a drop-shadow filter over the whole map */
 .hw .map .in::before{content:"";position:absolute;left:26%;right:30%;top:70%;height:12%;border-radius:50%;background:rgba(20,32,25,.13);filter:blur(18px)}
+.hw .map:not(.has-map) .in::before{display:none}
+/* until the lazy map arrives (a slow network) the stage shows a tiny blurred preview of the filled map, as the photos do
+   (20px wide, so it is softened further rather than shown as blocks) */
+.hw .map:not(.has-map) .in::after{content:"";position:absolute;inset:0;background:var(--lqm,none) center/100% 100% no-repeat;filter:blur(12px)}
 .hw .map .ml{position:absolute;inset:0}
 .hw .map .ml svg{display:block;width:100%;height:100%;overflow:visible}
 .hw .map .m-kr,.hw .map .m-gb{opacity:0;transition:opacity .25s ease}
@@ -276,6 +280,7 @@
 /* the lock keeps its mint; its shadow gains a faint mint glow so it does not sink into the dark glass */
 :root[data-theme="dark"] .hw .lock svg{filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)) drop-shadow(0 0 18px rgba(33,230,154,.18))}
 :root[data-theme="dark"] .hw .map .in::before{background:var(--hw-map-ground)}
+:root[data-theme="dark"] .hw .map:not(.has-map) .in::after{background-image:var(--lqmd,none)}
 :root[data-theme="dark"] .hw .m-base .out{stroke:var(--hw-map-coast)}
 :root[data-theme="dark"] .hw .m-base .big{fill:var(--hw-map-land);stroke:var(--hw-map-seam)}
 :root[data-theme="dark"] .hw .m-base .small{fill:var(--hw-map-land-isle)}

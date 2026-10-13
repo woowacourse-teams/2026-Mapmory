@@ -96,8 +96,12 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
       if (destroyed) return;
       const R = data.landBig.match(/M[^M]*/g);
       MAP = { ...data, out: data.outIdx.map((i) => R[i]).join("") };
+      // a mistake in building the layers is not swallowed: it surfaces as an unhandled rejection (console, QA)
       mapStages.forEach((fill) => fill());
-    }).catch(() => {});
+    }, () => {
+      // The chunk did not arrive (offline, or a page left open across a deploy): the 05 stages keep their blurred
+      // preview. There is no retry: the browser keeps a failed import() of a module for the life of the page.
+    });
   }
 
   // ---------- images: requested only when the section is near (2 viewports), one group after another in the order the
@@ -109,6 +113,8 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     [...scope.querySelectorAll("img[data-src]")].filter((im) => imageGroupOf(im.dataset.src) < released).forEach((im) => {
       if ("fetchPriority" in im) im.fetchPriority = "low";
       if (im.dataset.src.includes("heap")) im.addEventListener("load", () => { im.style.backgroundImage = "none"; }, { once: true });
+      // a picture that fails to load keeps its blurred preview: drop the failed src so no broken-image icon paints on it
+      im.addEventListener("error", () => im.removeAttribute("src"), { once: true });
       im.src = im.dataset.src;
       im.removeAttribute("data-src");
       if (im.decode) im.decode().catch(() => {}); // decode off the scroll path
@@ -143,6 +149,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
       const mx = (v) => (v * 560 / MAP.w).toFixed(1), my = (v) => (v * 524 / MAP.h).toFixed(1);
       map.firstElementChild.innerHTML = mapLayers(MAP) + `<div class="ring" style="left:${mx(MAP.gjc[0])}px;top:${my(MAP.gjc[1])}px"></div><div class="mtag" style="left:${mx(MAP.tip[0])}px;top:${my(MAP.tip[1])}px">${tagHTML()}<i></i></div>`;
       map.querySelector(".m-gj").style.transformOrigin = `${mx(MAP.gjc[0])}px ${my(MAP.gjc[1])}px`;
+      map.classList.add("has-map"); // its ground shadow shows only under a map
     };
     if (MAP) fillMap();
     else mapStages.push(fillMap);
@@ -354,6 +361,9 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     `<p class="eb rv" style="--d:100ms"${tag === "h3" ? ' aria-hidden="true"' : ""}>${eb}</p><${tag} class="hd"><span class="rv" style="--d:130ms">${l1}</span> <span class="rv" style="--d:170ms">${l2}</span></${tag}>` +
     (sub ? `<p class="sub rv" style="--d:250ms">${sub}</p>` : "");
   if (LQ.gallery) root.style.setProperty("--lqg", `url(${LQ.gallery})`);
+  // 05's map preview (each theme its own) until the lazy map arrives
+  if (LQ.map) root.style.setProperty("--lqm", `url(${LQ.map})`);
+  if (LQ["map-dark"]) root.style.setProperty("--lqmd", `url(${LQ["map-dark"]})`);
 
   // 100svh in px (100vh where svh is unknown). On touch devices it is latched per width: an address bar that hides or a
   // webview that resizes itself by a few percent changes nothing; a rotation or a big change re-measures.
@@ -651,6 +661,8 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     root.classList.remove("is-static", "hw-compact", "ld");
     root.style.removeProperty("--hw-vh");
     root.style.removeProperty("--lqg");
+    root.style.removeProperty("--lqm");
+    root.style.removeProperty("--lqmd");
     delete root.dataset.howMode;
     delete track.dataset.howBeat;
     delete track.dataset.howStep;

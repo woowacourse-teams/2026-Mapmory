@@ -291,6 +291,23 @@ test("the projected map is fetched lazily with the pictures, never in the first 
   assert.match(componentSource, /import lqip from "\.\/data\/how-photo-story-lqip\.json";/);
 });
 
+test("slow or failed loads degrade to the previews: no empty map, no stray shadow, no broken-image icon", () => {
+  // 05's map shows its blurred preview (each theme its own) until the lazy layers exist; its ground shadow waits for them
+  assert.match(engineSource, /if \(LQ\.map\) root\.style\.setProperty\("--lqm", `url\(\$\{LQ\.map\}\)`\);/);
+  assert.match(engineSource, /if \(LQ\["map-dark"\]\) root\.style\.setProperty\("--lqmd", `url\(\$\{LQ\["map-dark"\]\}\)`\);/);
+  assert.match(engineSource, /map\.classList\.add\("has-map"\);/);
+  assert.match(storyCss, /\.hw \.map:not\(\.has-map\) \.in::before\{display:none\}/);
+  assert.match(storyCss, /\.hw \.map:not\(\.has-map\) \.in::after\{content:"";position:absolute;inset:0;background:var\(--lqm,none\) center\/100% 100% no-repeat;filter:blur\(12px\)\}/);
+  assert.match(storyCss, /:root\[data-theme="dark"\] \.hw \.map:not\(\.has-map\) \.in::after\{background-image:var\(--lqmd,none\)\}/);
+  assert.match(lqip.map, /^data:image\/webp;base64,/);
+  assert.match(lqip["map-dark"], /^data:image\/webp;base64,/);
+  // a chunk that fails is handled on its own; a mistake while building the layers is not swallowed
+  assert.doesNotMatch(engineSource, /\.catch\(\(\) => \{\}\)\s*;?\s*\n\s*\}\n\n\s*\/\/ -+ images/);
+  assert.match(engineSource, /loadMap\(\)\.then\(\(data\) => \{[\s\S]*?mapStages\.forEach\(\(fill\) => fill\(\)\);\s*\}, \(\) => \{/);
+  // a picture that fails drops its src, so its preview stays without a broken-image icon
+  assert.match(engineSource, /im\.addEventListener\("error", \(\) => im\.removeAttribute\("src"\), \{ once: true \}\);/);
+});
+
 test("the section's CSS is scoped under .hw and collides with nothing on the landing", () => {
   const rules = [...storyCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}@]+)\{[^{}]*\}/g)].map(([, sel]) => sel.trim()).filter((sel) => sel && !/^(from|to|\d+%)/.test(sel));
   const allowed = /^(\.hw(?![\w-])|:root\[data-theme="dark"\] \.hw(?![\w-])|\.how-section(?![\w-])|\.how-experience-link(?![\w-]))/;

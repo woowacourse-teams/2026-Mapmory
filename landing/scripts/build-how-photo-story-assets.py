@@ -2,7 +2,8 @@
 
 public/assets/how/heap.webp       a wide, dense pile of photo prints (two layers: dim back, bright front)
 public/assets/how/gallery.webp    the same kind of prints scattered over a phone-shaped rectangle (the whole gallery)
-src/data/how-photo-story-lqip.json    tiny blurred data-URI placeholders for the 경주 photos, heap and gallery
+src/data/how-photo-story-lqip.json    tiny blurred data-URI placeholders for the 경주 photos, heap and gallery, and for
+                                      beat 05's filled map in both themes (the map itself is a lazy chunk)
 src/data/how-photo-story-sources.json the library photos each texture was made from (for the credits test)
 
 The prints are tiny crops of the credited open-licence photos in public/assets/photos (every one except the 경주
@@ -16,6 +17,7 @@ import json
 import math
 import os
 import random
+import re
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
@@ -165,6 +167,61 @@ heap = Image.open(OUT + '/heap.webp').convert('RGBA')
 lqip['heap'] = uri(heap.resize((48, 29), Image.LANCZOS), 45)
 gal = Image.open(OUT + '/gallery.webp').convert('RGB')
 lqip['gallery'] = uri(gal.resize((12, 24), Image.LANCZOS), 45)
+
+
+# 05's map arrives in its own chunk; until it does (a slow network, or a chunk that never comes) its stage shows a tiny
+# blurred preview of the filled map, as the photos do. The colours are read from where the map is drawn: the light
+# fills from the engine's layers, the dark ones from the section's dark tokens (both themes keep their own preview).
+def map_previews():
+    with open(DATA + '/how-photo-map.json', encoding='utf-8') as f:
+        m = json.load(f)
+    # polygons only (독도's two dots are arcs, far below one preview pixel)
+    rings = lambda d: [[tuple(map(float, p.split())) for p in r.strip('MZ').split('L')] for r in re.findall(r'M[^M]*', d) if not re.search(r'[a-df-zA-KN-Y]', r)]
+    big = re.findall(r'M[^M]*', m['landBig'])
+    paths = {**m, 'out': ''.join(big[i] for i in m['outIdx'])}
+    src = lambda *parts: open(os.path.join(LANDING, 'src', *parts), encoding='utf-8').read()
+    engine, story_css, landing_css = src('howPhotoStoryEngine.js'), src('how-photo-story.css'), src('styles.css')
+    # 05's end state: 대한민국 (its coast, land and islands) over the base land, then 경상북도, then 경주시
+    order = [('m-kr', 'out'), ('m-kr', 'big'), ('m-kr', 'small'), ('m-gb', 'big'), ('m-gb', 'small'), ('m-gj', 'big')]
+    light = {}
+    for layer in ('m-kr', 'm-gb', 'm-gj'):
+        body = re.search(r'class="ml %s"><svg [^>]*>(.*?)</svg>' % layer, engine).group(1)
+        for kind, key, attrs in re.findall(r'<path class="(\w+)" d="\$\{MAP\.(\w+)\}"([^>]*)/>', body):
+            a = dict(re.findall(r'([\w-]+)="([^"]*)"', attrs))
+            light[(layer, kind)] = (key, a['stroke'] if kind == 'out' else a['fill'], float(a.get('stroke-width', 0)))
+    block = lambda css, sel: dict(re.findall(r'(--[\w-]+)\s*:\s*([^;]+);', re.sub(r'/\*.*?\*/', '', css[css.index(sel + '{'):].split('}', 1)[0], flags=re.S)))
+    tokens = {**block(landing_css, ':root[data-theme="dark"] '), **block(story_css, ':root[data-theme="dark"] .hw')}
+    resolve = lambda v: resolve(tokens[v[4:-1]].strip()) if v.startswith('var(') else v
+    dark = {}
+    for (layer, kind), (key, colour, width) in light.items():
+        rule = re.search(r':root\[data-theme="dark"\] \.hw \.%s \.%s\{(\w+):(var\([\w-]+\))' % (layer, kind), story_css)
+        dark[(layer, kind)] = (key, resolve(rule.group(2)), width)
+
+    def draw(palette, size=(20, 19), k=16):
+        im = Image.new('RGBA', (size[0] * k, size[1] * k), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        sx, sy = im.width / m['w'], im.height / m['h']
+        for part in order:
+            key, colour, width = palette[part]
+            for ring in rings(paths[key]):
+                pts = [(x * sx, y * sy) for x, y in ring]
+                if part[1] == 'out':
+                    d.line(pts + pts[:1], fill=colour, width=max(1, round(width * sx)), joint='curve')
+                elif len(pts) >= 3:
+                    d.polygon(pts, fill=colour)
+        return im.resize(size, Image.LANCZOS)
+    return draw(light), draw(dark)
+
+
+def uri_alpha(im, q):  # with a soft alpha, so the preview never covers what fades out behind the map
+    b = io.BytesIO()
+    im.save(b, 'WEBP', quality=q, alpha_quality=50, method=6)
+    return 'data:image/webp;base64,' + base64.b64encode(b.getvalue()).decode()
+
+
+light_map, dark_map = map_previews()
+lqip['map'] = uri_alpha(light_map, 45)
+lqip['map-dark'] = uri_alpha(dark_map, 45)
 with open(DATA + '/how-photo-story-lqip.json', 'w', encoding='utf-8') as f:
     f.write(json.dumps(lqip, separators=(',', ':')) + '\n')
 print('lqip', os.path.getsize(DATA + '/how-photo-story-lqip.json'), 'bytes')

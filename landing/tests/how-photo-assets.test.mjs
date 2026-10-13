@@ -88,9 +88,9 @@ test("the map file is what its generator makes from the client's map data", asyn
   assert.deepEqual(buildHowPhotoMap(), await readJson(FILES.map.path));
 });
 
-test("the placeholders are tiny WebP data URIs for the 경주 photos, the heap and the gallery", async () => {
+test("the placeholders are tiny WebP data URIs for the 경주 photos, the heap, the gallery and 05's map", async () => {
   const lqip = await readJson(FILES.lqip.path);
-  assert.deepEqual(Object.keys(lqip), [...STORY_PHOTOS, "heap", "gallery"]);
+  assert.deepEqual(Object.keys(lqip), [...STORY_PHOTOS, "heap", "gallery", "map", "map-dark"]);
   for (const [name, uri] of Object.entries(lqip)) {
     const match = uri.match(/^data:image\/webp;base64,([A-Za-z0-9+/]+=*)$/);
     assert.ok(match, `${name} is a WebP data URI`);

@@ -8,9 +8,10 @@ const credits = await readJson("../src/data/photo-credits.json");
 const lqip = await readJson("../src/data/how-photo-story-lqip.json");
 const textureSources = await readJson("../src/data/how-photo-story-sources.json");
 
-// The #how photo story shows its 경주 photos as real prints (each has a placeholder in the LQIP data).
+// The #how photo story shows its 경주 photos as real prints (each has a placeholder in the LQIP data, beside the
+// placeholders of the textures and of 05's map, which are not photos).
 const HOW_STORY_PHOTOS = Object.keys(lqip)
-  .filter((name) => !["heap", "gallery"].includes(name))
+  .filter((name) => !["heap", "gallery", "map", "map-dark"].includes(name))
   .map((name) => `/assets/photos/${name}.webp`);
 // The heap and gallery textures are composites of tiny prints cropped from the other library photos: those photos
 // are shown there too (never readably), so they keep their credits.
