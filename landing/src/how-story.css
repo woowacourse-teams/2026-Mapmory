@@ -267,22 +267,23 @@
 .how-stage :is(.how-app-import, .how-app-loading) { transition: transform 480ms var(--ease-in-out), opacity 480ms var(--ease-in-out); }
 .how-stage:not([data-scene="1"]) .how-app-import { opacity: 0; transform: translateX(-30%); }
 .how-stage:not([data-scene="1"]) .how-app-loading { transform: none; }
-/* Beat 05 is two moments, never a crossfade: the picker tab goes with its photos (data-picker 0, 200ms), the screen
-   stays empty a beat, then the map tab comes (data-map past none), and only after the picker's fade has had its
-   time, so a flick never shows the two together. */
+/* Beat 05 is two moments, never a crossfade: on one threshold the picker tab goes with its photos (data-picker 0,
+   200ms) and the map tab comes (data-map past none), but only after the picker's fade has had its time, so the two
+   never show together and the empty screen between them is a pause in time, not a scroll band a reader can rest in
+   (round-3 V3). */
 .how-stage .how-app-picker,
 .how-stage .how-app-map { opacity: 0; }
 .how-stage:is([data-scene="4"], [data-scene="5"][data-picker="1"]) .how-app-picker { opacity: 1; }
 .how-stage[data-scene="5"] :is(.how-app-picker, .how-match) { transition: opacity 200ms var(--ease-out); }
-/* Scrolled back past both thresholds at once, the picker waits out the map's 160ms fade the same way. */
+/* Scrolled back across the threshold, the picker waits out the map's 160ms fade the same way. */
 .how-stage[data-scene="5"][data-picker="1"] :is(.how-app-picker, .how-match) { transition: opacity 200ms var(--ease-out) 160ms; }
 .how-stage[data-picker="0"] .how-match { visibility: hidden; transition: opacity 200ms var(--ease-out), visibility 0s linear 200ms; }
 .how-stage[data-scene="5"] .how-app-map { transition: opacity 160ms var(--ease-out); }
 .how-stage[data-scene="5"]:not([data-map="none"]) .how-app-map { opacity: 1; transition: opacity 320ms var(--ease-out) 200ms; }
 /* Nor does the map share a frame with the prints: the tab's content sits on a gate that the beat's start sets
    running, shut for the stack's 640ms and then opening over 320ms. Read at any pace that reaches the map's threshold
-   (t .18) after the prints have gone, the gate is long open and the tab's own fade is all there is; scrolled faster,
-   the map comes in as the gate opens. A jump into the beat (data-skip) has no prints to wait for. */
+   (HOW_STORY_TIMING.mapIn) after the prints have gone, the gate is long open and the tab's own fade is all there is;
+   scrolled faster, the map comes in as the gate opens. A jump into the beat (data-skip) has no prints to wait for. */
 .how-stage[data-scene="5"] .how-map-gate { animation: how-map-gate 960ms linear backwards; }
 .how-stage[data-scene="5"] .how-map-gate[data-skip="1"] { animation: none; }
 @keyframes how-map-gate {

@@ -633,12 +633,14 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
       if (t >= T.mapCamera[1]) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
       assert.ok(box[2] >= previousWidth - 0.01, `${name} the camera only pulls back`);
       previousWidth = box[2];
-      // The tabs: the picker goes, the screen stays empty a beat, the map comes; 경주시 fills only once it is in.
-      assert.equal(frame.state.picker, t < T.pickerOut ? 1 : 0, `${name} t ${t}`);
+      // The tabs: on one threshold the picker goes and the map comes (in time, the map after the picker's fade); 경주시
+      // fills only once it is in.
+      assert.equal(frame.state.picker, t < T.mapIn ? 1 : 0, `${name} t ${t}`);
       assert.equal(frame.state.map, t < T.mapIn ? "none" : t < T.fill ? "drill0" : t < T.world ? "drill1" : "world", `${name} t ${t}`);
       // Saving and the map never share a frame: the map tab comes only once the picker tab and its photos have gone
-      // (round-1 H3; after a save both app versions open the record list, not the map).
-      if (frame.state.map !== "none") assert.equal(frame.state.picker, 0, `${name} t ${t}`);
+      // (round-1 H3; after a save both app versions open the record list, not the map). And no scroll position rests on
+      // an empty phone: exactly one of the two tabs is on at every p (round-3 V3).
+      assert.notEqual(frame.state.picker === 1, frame.state.map !== "none", `${name} one tab at t ${t}`);
       for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, frame.state.picker, `${name} photo ${index} at t ${t}`);
       // The frame holds the prints in the stack; the stack itself rises away in time (below).
       for (let index = 0; index < 3; index += 1) {
@@ -654,9 +656,10 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
     assert.deepEqual(["mapProvinces", "mapFillProvince", "mapCardKorea"].map((key) => [before[key].o, after[key].o]), [[0, 1], [0, 1], [0, 1]], name);
   }
   // The moments are apart in scroll even on the shortest wheel track (one unit is 3200px / 4.3 = 744px there): the
-  // stack rises away as the beat opens, then the picker goes, the screen stays empty, the map comes, 경주시 fills.
+  // stack rises away as the beat opens, then the picker goes and the map comes (one threshold), then 경주시 fills.
   const beatPx = HOW_STORY_BEATS[4].units * (HOW_STORY_TRACK.desktopMinPx / HOW_STORY_TRAVEL_UNITS);
-  assert.ok(T.pickerOut * beatPx >= 60 && (T.mapIn - T.pickerOut) * beatPx >= 60 && (T.fill - T.mapIn) * beatPx >= 100, `${beatPx}`);
+  assert.ok(T.mapIn * beatPx >= 60 && (T.fill - T.mapIn) * beatPx >= 100, `${beatPx}`);
+  assert.equal(T.pickerOut, undefined, "one threshold for both tabs");
   assert.ok(T.fill < T.mapCamera[0] && T.mapCamera[1] < T.world, "fill, camera, world in turn");
   // In time: the print stack rises off the stage as beat 05 opens, fading over the rise's second half, and is hidden
   // only once both have ended, whatever the map tab does meanwhile (round-3 FE1: hidden on the map's threshold, a
@@ -688,8 +691,8 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
   assert.match(hookSource, /querySelectorAll\("\[data-enter\]"\)/);
   assert.match(css, /\.how-stage\[data-scene="5"\] \.how-copy-stack\[data-skip="1"\] \{ transition: none; \}/);
   assert.match(css, /\.how-stage\[data-scene="5"\] \.how-map-gate\[data-skip="1"\] \{ animation: none; \}/);
-  // The picker and its photos fade (200ms) and the map waits that long before it fades in; scrolled back across
-  // both thresholds, the picker waits out the map's fade. A flick never shows both, either way.
+  // The picker and its photos fade (200ms) and the map waits that long before it fades in; scrolled back across the
+  // threshold, the picker waits out the map's fade. Neither way shows both, at any pace.
   const [, pickerMs] = css.match(/\.how-stage\[data-scene="5"\] :is\(\.how-app-picker, \.how-match\) \{ transition: opacity (\d+)ms/);
   const [, mapMs, mapDelay] = css.match(/\.how-stage\[data-scene="5"\]:not\(\[data-map="none"\]\) \.how-app-map \{ opacity: 1; transition: opacity (\d+)ms var\(--ease-out\) (\d+)ms; \}/);
   assert.ok(Number(mapDelay) >= Number(pickerMs) && Number(mapMs) >= 300, `${pickerMs} ${mapMs} ${mapDelay}`);

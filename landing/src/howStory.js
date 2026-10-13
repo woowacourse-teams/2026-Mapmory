@@ -487,11 +487,12 @@ export const HOW_STORY_TIMING = Object.freeze({
   cards: Object.freeze({ start: 0, stagger: 0.015, length: 0.26 }),
   chrome: 0.315,
   lift: Object.freeze([0.525, 0.795]),
-  // Beat 05 (thresholds; the moves play in time): the print stack rises away on the scene change, the picker tab
-  // goes, the map tab comes, 경주시 fills, the map camera pulls back (scrubbed), and the world tab shows.
-  pickerOut: 0.09,
-  mapIn: 0.18,
-  fill: 0.34,
+  // Beat 05 (thresholds; the moves play in time): the print stack rises away on the scene change; the picker tab goes
+  // and the map tab comes on one threshold, the map waiting out the picker's fade in time (how-story.css), so no
+  // scroll position rests on an empty phone (round-3 V3: a scroll band between the two left it blank); 경주시 fills,
+  // the map camera pulls back (scrubbed), and the world tab shows.
+  mapIn: 0.09,
+  fill: 0.26,
   mapCamera: Object.freeze([0.38, 0.66]),
   world: 0.72,
 });
@@ -542,11 +543,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   nodes.screenFade = fade(screenO);
 
   // Screens inside the phone are switched by state and play in time (how-story.css): beat 02 opens with the push from
-  // 사진 불러오기 to the loading screen (data-scene); beat 05 is two moments, never a crossfade: the picker goes
-  // (data-picker 0), the screen stays empty a beat, then the map comes (data-map past "none"), so saving never reads
-  // as "and then the app opens the map".
+  // 사진 불러오기 to the loading screen (data-scene); in beat 05 the picker tab goes (data-picker 0) and the map tab
+  // comes (data-map past "none") on one threshold, T.mapIn, as two moments in time, never a crossfade: the map waits
+  // until the picker has faded, so saving never reads as "and then the app opens the map", and the empty screen
+  // between them is a pause in time that no scroll position can rest on.
   const landing = progress >= HOW_STORY_WINDOWS[4][0];
-  const pickerGone = landing && t5 >= T.pickerOut;
+  const pickerGone = landing && t5 >= T.mapIn;
 
   // Counter and pin wave share one number, so they never disagree.
   const { k, processed } = loadingStep(t2);
@@ -668,13 +670,15 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     found: t3 >= 0.14 ? 1 : 0,
     sel: pickTaps.filter((tap) => progress >= tap.p).length,
     save: progress >= saveTap.p ? 1 : 0,
-    // The map tab: none until it comes (beat 05 t .20), then 경상북도's drill view, 경주시 filled, and the world.
-    map: !landing || t5 < T.mapIn ? "none" : t5 < T.fill ? "drill0" : t5 < T.world ? "drill1" : "world",
-    // Inside the phone: from beat 02 until the camera is back out in beat 04 (t .28). Outside it the camera, the
-    // screen fade and the bottom fade are at rest and the library, its ground and the overlay are at opacity 0,
+    // The map tab: none until it comes (beat 05, T.mapIn), then 경상북도's drill view, 경주시 filled (T.fill), and the
+    // world (T.world).
+    map: !pickerGone ? "none" : t5 < T.fill ? "drill0" : t5 < T.world ? "drill1" : "world",
+    // Inside the phone: from beat 02 until the camera is back out in beat 04 (T.outward[1]). Outside it the camera,
+    // the screen fade and the bottom fade are at rest and the library, its ground and the overlay are at opacity 0,
     // so their layers drop (how-story.css).
     inside: progress >= HOW_STORY_WINDOWS[1][0] && (!outward || t4 < T.outward[1]) ? 1 : 0,
-    // The picker tab, with its four photos: it goes at beat 05 t .10 (a fade in time; their layers drop with it).
+    // The picker tab, with its four photos: it goes at beat 05 T.mapIn, as the map tab comes (a fade in time; their
+    // layers drop with it).
     picker: pickerGone ? 0 : 1,
   };
 
