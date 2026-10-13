@@ -117,25 +117,40 @@ for (const surface of ["landing", "recap"]) {
   });
 }
 
-test("landing: how_play_save sends only its contract and rejects malformed or retired saves", async () => {
+test("landing: how_story events send only their contract and reject malformed or retired events", async () => {
   const harness = await loadAnalytics("landing");
   harness.api.initializeAnalytics();
-  const save = { experience_type: "how_play", demo_place: "busan", save_index: 1, selected_photos: 4 };
-  assert.equal(harness.api.trackEvent("how_play_save", { ...save, src: "x" }), true);
-  for (const parameters of [{ ...save, save_index: undefined }, { ...save, save_index: 0 }, { ...save, experience_type: "globe" }]) {
-    assert.equal(harness.api.trackEvent("how_play_save", parameters), false);
+  const view = { experience_type: "how_story", story_mode: "scroll" };
+  assert.equal(harness.api.trackEvent("how_story_view", { ...view, src: "x" }), true);
+  assert.equal(harness.api.trackEvent("how_story_view", { experience_type: "how_story", story_mode: "static" }), true);
+  for (const parameters of [{ experience_type: "how_story" }, { ...view, story_mode: "auto" }, { ...view, experience_type: "globe" }]) {
+    assert.equal(harness.api.trackEvent("how_story_view", parameters), false);
   }
+  for (const scene_index of [1, 2, 3, 4, 5]) {
+    assert.equal(harness.api.trackEvent("how_story_scene", { experience_type: "how_story", scene_index }), true);
+  }
+  for (const parameters of [
+    { experience_type: "how_story", scene_index: 0 },
+    { experience_type: "how_story", scene_index: 6 },
+    { experience_type: "how_story", scene_index: 1.5 },
+    { experience_type: "how_story", scene_index: "2" },
+    { experience_type: "how_story" },
+    { experience_type: "globe", scene_index: 2 },
+  ]) {
+    assert.equal(harness.api.trackEvent("how_story_scene", parameters), false);
+  }
+  assert.equal(harness.api.trackEvent("how_play_save", { experience_type: "how_play", demo_place: "busan", save_index: 1 }), false);
   assert.equal(harness.api.trackEvent("korea_memory_add", { add_index: 1 }), false);
 
   const events = harness.calls().filter(([command]) => command === "event");
-  assert.equal(events.length, 1);
-  const [, name, params] = events[0];
-  assert.equal(name, "how_play_save");
+  assert.deepEqual(events.map(([, name]) => name), ["how_story_view", "how_story_view", ...Array(5).fill("how_story_scene")]);
+  const [, , params] = events[0];
   assert.equal(params.surface, "landing");
   assert.equal(params.analytics_schema_version, "2");
   assert.equal(params.traffic_type, "internal");
-  for (const [key, value] of Object.entries(save)) assert.equal(params[key], value);
+  for (const [key, value] of Object.entries(view)) assert.equal(params[key], value);
   assert.equal(params.src, undefined);
+  assert.deepEqual(events.slice(2).map(([, , { scene_index }]) => scene_index), [1, 2, 3, 4, 5]);
 });
 
 test("recap outcome measurements separate demo, own photos, cancellation and failure", async () => {

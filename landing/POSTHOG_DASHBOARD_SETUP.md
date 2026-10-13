@@ -1,6 +1,6 @@
 # Mapmory PostHog 운영 대시보드 설정
 
-갱신: 2026-10-08 · 현재 스키마: `analytics_schema_version=2`
+갱신: 2026-10-13 · 현재 스키마: `analytics_schema_version=2`
 
 기존 `Landing · Product Experience v2` 대시보드는 출시 전 기록으로 보존한다. 현재 랜딩 운영 타일은 `landing_version=v4`로 분리하고 최종 전환은 두 스토어의 `download_click`로 본다. 출시 알림 폼을 현재 퍼널에 다시 넣지 않는다.
 
@@ -64,35 +64,38 @@ $pageview → experience_view → experience_start
 
 `landing_version=v4`와 모바일 기기로 필터링해 `memory_open → memory_photo_swiped → memory_sheet_closed` 흐름을 본다. `close_method`, `photos_viewed`, `time_since_memory_open_seconds`로 사진을 넘겨본 뒤 닫았는지, 닫기 버튼과 브라우저 뒤로가기 중 어떤 경로가 쓰였는지 확인한다.
 
-### 02-b · 3단계 사용법 퍼널
+### 02-b · 사용 방법 도달 퍼널
 
 순서 고정 Funnel, 전환 창 1일, `landing_version=v4`:
 
 ```text
-$pageview → experience_view (experience_type = how_play)
-→ experience_start (experience_type = how_play)
-→ how_play_save (save_index = 1) → how_play_save (save_index = 2)
+$pageview → how_story_view
+→ how_story_scene (scene_index = 1) → how_story_scene (scene_index = 2)
+→ how_story_scene (scene_index = 3) → how_story_scene (scene_index = 4)
+→ how_story_scene (scene_index = 5)
 ```
 
-기기 유형으로 나눈다. view→start 이탈은 장소 고르기, start→첫 저장 이탈은 사진 고르기 단계다. 02와 합산하지 않는다. 한 방문자가 두 퍼널에 모두 들어갈 수 있다.
+기기 유형으로 나눈다. 스크롤 이야기와 정적 목록은 머묾의 기준이 다르므로(스크롤: 고정된 화면에 그 장면이 떠 있음, 정적: 그 장면 항목이 절반 이상 보임) `how_story_view` 단계에 `story_mode = scroll`을 건 사본과 `story_mode = static`을 건 사본을 따로 둔다. 장면 이벤트는 그 장면에 0.7초 머물렀을 때만 오므로, 단계 사이 이탈은 "그 장면에서 멈춰 보지 않았다"는 뜻이다. 빠르게 훑고 지나간 장면이나, 새로고침으로 중간 장면에서 다시 시작해 건너뛴 앞 장면은 순서 고정 퍼널에서 그 단계에 잡히지 않는다. `how_story_view`는 첫 장면 이벤트보다 늘 먼저 온다. 02와 합산하지 않는다.
 
-### 02-c · 사용법 저장 후 스토어 이동
+how_story 배포 전(2026-10-08부터)의 같은 자리는 3단계 사용법(how_play) 퍼널 `experience_view(how_play) → experience_start(how_play) → how_play_save(save_index = 1) → (save_index = 2)`였다. 그 타일은 기간을 고정해 기록용으로 남긴다.
+
+### 02-c · 사용 방법을 끝까지 본 뒤
 
 순서 고정 Funnel, 전환 창 1일:
 
 ```text
-how_play_save → download_click (cta_placement ≠ demand_primary)
+how_story_scene (scene_index = 5) → experience_view (experience_type = globe)
+→ download_click (cta_placement ≠ demand_primary)
 ```
 
-저장한 방문자의 스토어 이동이며 상관관계다. 저장한 방문자는 원래 의도가 높을 수 있으므로 체험의 효과로 해석하지 않는다.
+마지막 장면까지 멈춰 본 방문자의 지구본 진입과 스토어 이동이며 상관관계다. 끝까지 본 방문자는 원래 의도가 높을 수 있으므로 이야기의 효과로 해석하지 않는다. (배포 전에는 `how_play_save → download_click`이었다.)
 
-### 02-d · 사용법 체험 깊이
+### 02-d · 사용 방법 방식과 도달 깊이
 
-- `experience_end(experience_type = how_play)`: breakdown `last_completed_step` (`experience_start` 장소만 고름, `photo_pick` 사진을 골랐지만 저장 안 함, `how_play_save`)
-- `experience_end(experience_type = how_play).active_duration_seconds`: 중앙값과 25·75 백분위
-- `how_play_save(save_index = 1)`: breakdown `demo_place`, `selected_photos`(4 = 사진 전부)
+- `how_story_view`: breakdown `story_mode` (`scroll` 스크롤 이야기, `static` 동작 줄이기·높이 500px 미만 화면·큰 글씨의 정지 장면 목록)
+- 페이지 로드별 가장 큰 `scene_index`: HogQL로 distinct_id(=페이지 로드)별 `max(properties.scene_index)`를 구해 0(장면 없음)~5 분포로 보고, `story_mode`로 나눈다.
 
-`experience_end`는 첫 연속 체험만 반영하므로 저장 수는 02-b로 본다. 두·세 번째 저장, `selected_photos`, `photo_pick`은 표본이 작을 때 비율로 판단하지 않는다.
+표본이 작을 때는 장면별 비율로 판정하지 않는다. (배포 전 02-d는 how_play `experience_end`의 `last_completed_step`·`active_duration_seconds`와 `how_play_save`의 `demo_place`·`selected_photos`였다.)
 
 ### 03 · Recap 실제 사진 퍼널
 
@@ -143,7 +146,7 @@ travel_map_recap_view → travel_map_app_bridge_click
 - `experience_end(experience_type = globe).unique_memories_opened`: 0개, 1개, 2개 이상
 - `memory_open(experience_type = globe, open_index=1).time_since_start_seconds`: 중앙값
 
-how_play의 `experience_end`는 `unique_memories_opened`가 항상 0이라 거르지 않으면 0개 구간이 부풀려진다. 평균 체류시간 하나만으로 체험 성공을 판단하지 않는다.
+how_play의 `experience_end`(2026-10-08부터 how_story 배포일까지)는 `unique_memories_opened`가 항상 0이라 거르지 않으면 0개 구간이 부풀려진다. how_story는 `experience_end`를 보내지 않지만, 그 기간을 포함한 보고서에서는 계속 거른다. 평균 체류시간 하나만으로 체험 성공을 판단하지 않는다.
 
 ## 출시·운영 검증
 
@@ -154,8 +157,9 @@ how_play의 `experience_end`는 `unique_memories_opened`가 항상 0이라 거�
 - [ ] 공유 취소·다운로드 폴백·실패가 서로 다른 `result`로 보이는지 확인
 - [ ] `surface`, `analytics_schema_version`, `traffic_type` 공통 속성 확인
 - [ ] 파일명·좌표·촬영시각·이메일 등 개인정보 속성이 없는지 확인
-- [ ] how_play 이벤트에 `experience_type=how_play`가 있고 사진 src·alt가 없는지 확인
-- [ ] 02·07의 `experience_type = globe` 필터를 how_play 배포 전에 저장하고, 지구본 타일에 how_play가 나타나지 않는지 확인
+- [ ] `how_story_view`·`how_story_scene`에 `experience_type=how_story`가 있고 사진 경로·alt가 없는지 확인
+- [ ] 02·07 지구본 타일에 how_story가 나타나지 않는지 확인(how_story는 `experience_*`를 보내지 않음)
+- [ ] 02-b·02-c·02-d를 how_story 기준으로 바꾸고, how_play 타일은 2026-10-08 ~ how_story 배포일로 기간을 고정해 남겼는지 확인
 - [ ] `?internal=1` 이벤트가 운영 타일에서 제외되는지 확인
 - [ ] GA4 DebugView와 PostHog Live Events의 동일 동작 순서 비교
 
