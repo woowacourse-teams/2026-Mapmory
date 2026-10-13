@@ -19,6 +19,8 @@ function HowPhotoStoryInner() {
     // how_story_view: once, after the section has been at least half in view (tab visible) for 1 s.
     // how_story_scene: once per scene, after it has rested on screen for 700 ms; the view always goes first.
     let state = { mode: "scroll", inView: false, scene: 0, atRest: false };
+    let engine = null;
+    let confirmFrame = 0;
     const view = createPassiveViewTracker({
       onView: () => trackEvent(ANALYTICS_EVENTS.HOW_STORY_VIEW, { experience_type: EXPERIENCE_TYPE, story_mode: state.mode }),
     });
@@ -27,6 +29,16 @@ function HowPhotoStoryInner() {
         view.flush();
         trackEvent(ANALYTICS_EVENTS.HOW_STORY_SCENE, { experience_type: EXPERIENCE_TYPE, scene_index: index });
       },
+      // a scene counts only if it is still at rest on a fresh frame: a dwell timer that a long task held up can fire
+      // before the film has caught up with a fling that already left the scene (the frame has the real scroll position)
+      confirm: (check) => {
+        cancelAnimationFrame(confirmFrame);
+        confirmFrame = requestAnimationFrame(() => {
+          confirmFrame = 0;
+          engine?.sample();
+          check();
+        });
+      },
     });
     const sync = () => {
       const eligible = state.inView && document.visibilityState !== "hidden";
@@ -34,9 +46,11 @@ function HowPhotoStoryInner() {
       reach.update({ sceneIndex: state.scene, atRest: state.atRest, eligible });
     };
     const destroy = mountHowPhotoStory(root, { lqip, onState: (next) => { state = next; sync(); } });
+    engine = destroy;
     document.addEventListener("visibilitychange", sync);
     return () => {
       document.removeEventListener("visibilitychange", sync);
+      cancelAnimationFrame(confirmFrame);
       destroy();
       view.stop();
       reach.stop();

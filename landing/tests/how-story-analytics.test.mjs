@@ -154,6 +154,61 @@ test("how_story_view always reaches analytics before the first how_story_scene",
   assert.equal(view.fired, true);
 });
 
+// The section's confirm waits for the next frame, re-reads the scroll position (update() runs if the reader moved)
+// and then checks. Here the "frame" is held until the test releases it.
+function heldConfirm() {
+  const held = [];
+  return { confirm: (check) => held.push(check), release: () => held.splice(0).forEach((check) => check()), get waiting() { return held.length; } };
+}
+
+test("a late dwell timer counts its scene only if a fresh frame still shows it at rest", () => {
+  const clock = fakeClock();
+  const frame = heldConfirm();
+  const reached = [];
+  const tracker = createSceneReachTracker({ onReach: (index) => reached.push(index), schedule: clock.schedule, cancel: clock.cancel, confirm: frame.confirm });
+  // 01 at rest; a long task holds the main thread past the 700 ms, and the reader's fling (on the compositor)
+  // carries on to 05 meanwhile. The late timer fires first; the fresh frame then reports 05 on its way in.
+  tracker.update({ sceneIndex: 1, atRest: true, eligible: true });
+  clock.advance(1600);
+  assert.equal(frame.waiting, 1);
+  assert.deepEqual(reached, []);
+  tracker.update({ sceneIndex: 5, atRest: false, eligible: true });
+  frame.release();
+  assert.deepEqual(reached, [], "the fling past 01 does not count");
+  // 05 then rests: its timer fires and the next frame still shows it, so it counts.
+  tracker.update({ sceneIndex: 5, atRest: true, eligible: true });
+  clock.advance(700);
+  frame.release();
+  assert.deepEqual(reached, [5]);
+  // A reader who really rested on 03 through a stall still counts: the fresh frame shows the same scene.
+  tracker.update({ sceneIndex: 3, atRest: true, eligible: true });
+  clock.advance(2500);
+  tracker.update({ sceneIndex: 3, atRest: true, eligible: true }); // the frame re-reports the same state
+  frame.release();
+  assert.deepEqual(reached, [5, 3]);
+  // The tab hidden (or stop()) while the confirm waits drops it; it never counts twice either.
+  tracker.update({ sceneIndex: 4, atRest: true, eligible: true });
+  clock.advance(700);
+  tracker.update({ sceneIndex: 4, atRest: true, eligible: false });
+  frame.release();
+  tracker.update({ sceneIndex: 2, atRest: true, eligible: true });
+  clock.advance(700);
+  tracker.stop();
+  frame.release();
+  assert.deepEqual(reached, [5, 3]);
+  tracker.update({ sceneIndex: 5, atRest: true, eligible: true });
+  clock.advance(2000);
+  frame.release();
+  assert.deepEqual(reached, [5, 3]);
+  assert.equal(clock.pending, 0);
+});
+
+test("the section confirms each scene on a fresh frame through the engine before sending it", async () => {
+  const component = await readFile(new URL("../src/HowPhotoStory.jsx", import.meta.url), "utf8");
+  assert.match(component, /confirm: \(check\) => \{\s*cancelAnimationFrame\(confirmFrame\);\s*confirmFrame = requestAnimationFrame\(\(\) => \{\s*confirmFrame = 0;\s*engine\?\.sample\(\);\s*check\(\);/);
+  assert.match(component, /cancelAnimationFrame\(confirmFrame\);\s*destroy\(\);/);
+});
+
 test("analytics accept only the two how_story events and keep scene_index to 1..5", () => {
   assert.match(analyticsSource, /HOW_STORY_VIEW: "how_story_view",\s*HOW_STORY_SCENE: "how_story_scene",/);
   assert.match(analyticsSource, /\["scroll", "static"\]\.includes\(parameters\.story_mode\)/);

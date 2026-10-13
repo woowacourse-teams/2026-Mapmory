@@ -69,8 +69,9 @@ export async function checkStaticStory(page) {
   assert.equal(JSON.stringify(await dataLayerEvents(page)).includes("/assets/"), false);
 }
 
-// Scroll mode, on a freshly loaded page: a fling past 01-04 counts none of them and 05 at rest sends the view then
-// scene 5; stopping on every point sends 04-01 once each; a second read re-sends nothing. `reopen()` loads the page
+// Scroll mode, on a freshly loaded page: a fling past 01-04 (with a 900 ms main-thread stall while 01 is at rest)
+// counts none of them and 05 at rest sends the view then scene 5; stopping on every point sends 04-01 once each; a
+// second read re-sends nothing. `reopen()` loads the page
 // again; landing straight on 03 (a restored scroll or a deep link) must still send the view before the scene.
 export async function checkScrollStory(page, { mobile, reopen }) {
   const state = () => page.evaluate((selector) => {
@@ -124,21 +125,44 @@ export async function checkScrollStory(page, { mobile, reopen }) {
 
   await ready();
   await page.mouse.move(200, 300);
-  // Start with the track's top half way down the screen, then fling: 120 px a frame until 05 is pinned
-  // (scrollBy on both, so no smooth-scroll animation carries the page past 05 after the last step).
+  // Start with the track's top half way down the screen, then fling to rest on 05. The fling runs inside the page as
+  // a momentum coast on a fixed curve in time (like a thumb's fling), so a slow or busy machine skips frames instead of
+  // lingering on a beat: it crosses 01-04 in well under their 700 ms dwell however loaded the run is. While 01 is at
+  // rest the main thread stalls for 900 ms (a heavy section initialising mid-fling): 01's dwell timer then fires late,
+  // after the fling has left it, and must not count.
   await page.evaluate((selector) => {
     const track = document.querySelector(selector);
     window.scrollTo({ top: window.scrollY + track.getBoundingClientRect().top - window.innerHeight / 2, behavior: "instant" });
   }, TRACK);
   await settle(page);
-  let flung = null;
-  for (let step = 0; step < 400 && !flung; step += 1) {
-    await page.evaluate(() => window.scrollBy(0, 120));
-    await page.waitForTimeout(16);
-    const st = await state();
-    if (st.beat === 5 && st.pinned) flung = st;
-  }
-  assert.ok(flung, "the fling reached beat 05");
+  const fling = await page.evaluate(([selector, mode]) => new Promise((resolve) => {
+    const track = document.querySelector(selector);
+    const vh = parseFloat(getComputedStyle(document.querySelector(mode)).getPropertyValue("--hw-vh")) || window.innerHeight;
+    const base = window.scrollY + track.getBoundingClientRect().top;
+    const s0 = (window.scrollY - base) / vh;
+    const s1 = 4.0; // 05, pinned (05 starts at 3.56; the frame unpins at 4.46)
+    const tau = 350;
+    let stalledAt = null;
+    const observer = new MutationObserver(() => {
+      if (stalledAt === null && track.dataset.howBeat === "1" && track.dataset.howStep === "1") {
+        stalledAt = "01";
+        setTimeout(() => { const end = performance.now() + 900; while (performance.now() < end); }, 50);
+      }
+    });
+    observer.observe(track, { attributes: true, attributeFilter: ["data-how-beat", "data-how-step"] });
+    requestAnimationFrame(() => {
+      const start = performance.now();
+      const step = () => {
+        const t = performance.now() - start;
+        const s = t < tau * 7 ? s0 + (s1 - s0) * (1 - Math.exp(-t / tau)) : s1;
+        window.scrollTo({ top: base + s * vh, behavior: "instant" });
+        if (t < tau * 7) requestAnimationFrame(step);
+        else { observer.disconnect(); resolve({ stalledAt, s0 }); }
+      };
+      step();
+    });
+  }), [TRACK, MODE]);
+  assert.equal(fling.stalledAt, "01", JSON.stringify(fling));
   await settle(page);
   const landed = await state();
   assert.ok(landed.beat === 5 && landed.pinned, JSON.stringify(landed));

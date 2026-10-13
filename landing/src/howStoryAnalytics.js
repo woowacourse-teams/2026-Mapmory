@@ -46,14 +46,20 @@ export function createPassiveViewTracker({ onView, delayMs = HOW_STORY_VIEW_MS, 
 // Fires onReach(sceneIndex) at most once per scene, after that scene has stayed at rest on screen for 700 ms.
 // sceneIndex is the beat number, 1-5, passed through unchanged; 0 or null (the title, or no beat) is never a scene.
 // Any change of scene, rest or eligibility cancels the pending timer, so a fling past a scene never counts.
-export function createSceneReachTracker({ onReach, dwellMs = HOW_STORY_SCENE_DWELL_MS, schedule = defaultSchedule, cancel = defaultCancel }) {
+// When the dwell timer fires, the scene still has to be confirmed: confirm(check) re-reads where the reader is on a
+// fresh frame (calling update() if anything changed) and then calls check(), which counts the scene only if nothing
+// did. A timer held up by a long main-thread task fires before the page has caught up with a fling that already left
+// the scene; without the confirm that fling would count. The default confirm checks at once (tests, no DOM).
+export function createSceneReachTracker({ onReach, dwellMs = HOW_STORY_SCENE_DWELL_MS, schedule = defaultSchedule, cancel = defaultCancel, confirm = (check) => check() }) {
   const reached = new Set();
   let timer = null;
   let pendingScene = null;
+  let generation = 0;
   const clear = () => {
     if (timer !== null) cancel(timer);
     timer = null;
     pendingScene = null;
+    generation += 1;
   };
   return {
     update({ sceneIndex, atRest, eligible }) {
@@ -63,11 +69,16 @@ export function createSceneReachTracker({ onReach, dwellMs = HOW_STORY_SCENE_DWE
       clear();
       if (candidate === null) return;
       pendingScene = candidate;
+      const armed = generation;
       timer = schedule(() => {
         timer = null;
-        pendingScene = null;
-        reached.add(candidate);
-        onReach(candidate);
+        confirm(() => {
+          // anything that changed since the timer was armed (a fling, the tab hidden, stop()) cleared it
+          if (armed !== generation || pendingScene !== candidate) return;
+          pendingScene = null;
+          reached.add(candidate);
+          onReach(candidate);
+        });
       }, dwellMs);
     },
     stop: clear,

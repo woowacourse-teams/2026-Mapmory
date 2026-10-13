@@ -263,7 +263,7 @@ test("the section never steers the scroll: no wheel or touch handlers, no preven
 });
 
 test("destroy() undoes everything the engine made, so StrictMode's remount leaves one film", () => {
-  const destroy = engineSource.slice(engineSource.indexOf("return function destroy()"));
+  const destroy = engineSource.slice(engineSource.indexOf("function destroy()"));
   for (const part of [/cleanups\.forEach\(\(cleanup\) => cleanup\(\)\)/, /cancelAnimationFrame\(ticking\)/, /cancelAnimationFrame\(pendRaf\)/, /clearTimeout\(subTimer\)/,
     /created\.forEach\(\(node\) => node\.remove\(\)\)/, /root\.classList\.remove\("is-static", "hw-compact", "ld"\)/, /delete root\.dataset\.howMode/]) {
     assert.match(destroy, part);
@@ -277,6 +277,7 @@ test("destroy() undoes everything the engine made, so StrictMode's remount leave
     assert.match(engineSource, guard);
   }
   assert.doesNotMatch(engineSource, /document\.getElementById/);
+  assert.match(engineSource, /destroy\.sample = sample;\s*return destroy;\s*\}\s*$/);
   assert.match(componentSource, /const destroy = mountHowPhotoStory\(root, /);
   assert.match(componentSource, /destroy\(\);\s*view\.stop\(\);\s*reach\.stop\(\);/);
 });

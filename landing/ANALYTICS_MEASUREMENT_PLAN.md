@@ -39,7 +39,7 @@
 | `download_click` | 실제 App Store·Google Play 링크 클릭 | `store=app_store|google_play`, `cta_placement`; **설치 완료 아님** |
 | `hero_demo_select` | 히어로 사진 찾기 데모의 장소 칩(제주·일본·미국) 탭 | `experience_type=hero_demo`, `demo_place`; 탭마다. 자동 재생은 기록하지 않음. `demo_place`는 how_story 배포 전 `how_play_save`와 공유했으며 값은 겹치지 않음 |
 | `how_story_view` | 사용 방법 섹션(`#how`)이 활성 탭에서 화면에 보이는 상태로 1초 연속 | `experience_type=how_story`, `story_mode=scroll\|static`(보낼 때의 방식); 페이지당 1회. 첫 `how_story_scene`이 먼저 오게 되면(장면 한가운데로 복원된 새로고침 등) 그 장면 바로 앞에 보내므로 늘 장면보다 먼저 온다. `static`은 동작 줄이기, 높이 500px 미만 화면(가로로 든 폰), 그림이 너무 작아지는 큰 글씨 |
-| `how_story_scene` | 한 장면에 0.7초 머묾(탭 활성). 스크롤 방식: 그 장면이 고정된 화면에 떠 있을 때(02·04는 장면 안 두 번째 동작이 시작된 뒤부터). 정적 목록: 그 장면 항목이 절반 이상 보일 때 | `experience_type=how_story`, `scene_index=1-5`; 장면별 페이지당 1회. 제목 화면은 장면이 아님. 빠르게 지나친 장면은 세지 않고, 되감아 다시 봐도 재전송 안 함 |
+| `how_story_scene` | 한 장면에 0.7초 머묾(탭 활성). 스크롤 방식: 그 장면이 고정된 화면에 떠 있을 때(02·04는 장면 안 두 번째 동작이 시작된 뒤부터). 정적 목록: 그 장면 항목이 절반 이상 보일 때 | `experience_type=how_story`, `scene_index=1-5`; 장면별 페이지당 1회. 제목 화면은 장면이 아님. 빠르게 지나친 장면은 세지 않고(0.7초 타이머가 울리면 다음 프레임에서 그 장면이 아직 멈춰 있는지 다시 확인하므로, 메인 스레드가 잠시 멈춰 타이머가 늦게 울려도 이미 지나친 장면은 세지 않음), 되감아 다시 봐도 재전송 안 함 |
 | `how_play_save` (how_story 배포 전) | 저장 후 칠해진 지도가 화면에 반영된 뒤 | `experience_type=how_play`, `demo_place=busan\|gangwon\|gyeongbuk`, `save_index=1-3`, `selected_photos`; 페이지당 장소별 1회. 2026-10-08부터 how_story 배포일까지의 데이터에만 있음 |
 
 체험 유형: `globe`. (`how_play`는 2026-10-08부터 how_story 배포일까지. `how_story`는 `experience_*`를 보내지 않고 `experience_cta_click`·`how_story_*`에만 붙음. `korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)

@@ -606,6 +606,12 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     if (keep && !isStatic && Math.abs(VH - prevVH) > 1) restore(keep);
     req();
   }
+  // Re-reads where the reader is now and reports it (analytics confirm a scene on a fresh frame before counting it).
+  function sample() {
+    if (destroyed) return;
+    if (ticking) cancelAnimationFrame(ticking);
+    frame();
+  }
 
   // load the pictures (and the map) only when the section is near, group by group
   function release() {
@@ -634,7 +640,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   });
   refresh();
 
-  return function destroy() {
+  function destroy() {
     if (destroyed) return;
     destroyed = true;
     cleanups.forEach((cleanup) => cleanup());
@@ -651,5 +657,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     track.style.height = "";
     frameEl.style.height = "";
     copyEl.style.opacity = "";
-  };
+  }
+  destroy.sample = sample;
+  return destroy;
 }
