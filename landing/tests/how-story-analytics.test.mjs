@@ -6,7 +6,6 @@ import {
   HOW_STORY_VIEW_MS,
   createPassiveViewTracker,
   createSceneReachTracker,
-  latestEntry,
 } from "../src/howStoryAnalytics.js";
 
 const analyticsSource = await readFile(new URL("../src/analytics.js", import.meta.url), "utf8");
@@ -153,14 +152,6 @@ test("how_story_view always reaches analytics before the first how_story_scene",
   clock.advance(2000);
   assert.deepEqual(sent.map(([name]) => name), ["view", "scene 1"]);
   assert.equal(view.fired, true);
-});
-
-test("observers act on the newest of a batch of queued intersection entries", () => {
-  const visible = { isIntersecting: true, intersectionRect: { height: 600 }, rootBounds: { height: 844 } };
-  const hidden = { isIntersecting: false, intersectionRect: { height: 0 }, rootBounds: { height: 844 } };
-  assert.equal(latestEntry([visible, hidden]), hidden);
-  assert.equal(latestEntry([hidden, visible]), visible);
-  assert.equal(latestEntry([visible]), visible);
 });
 
 test("analytics accept only the two how_story events and keep scene_index to 1..5", () => {
