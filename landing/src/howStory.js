@@ -319,7 +319,8 @@ export function isInsideRings(lng, lat, rings) {
 const DRAWN_TAPS = Object.freeze([
   Object.freeze({ id: "field", scene: 0, t: 0.04, optional: true }),
   Object.freeze({ id: "row", scene: 0, t: 0.42 }),
-  // Beat 04: once the cards have landed (t .35), three picks and 기록하기, so the copies can lift over a wide window.
+  // Beat 04: once the card chrome is on (HOW_STORY_TIMING.chrome), three picks and 기록하기, so the copies can lift
+  // over a wide window (HOW_STORY_TIMING.lift).
   Object.freeze({ id: "pick-0", scene: 3, t: 0.37 }),
   Object.freeze({ id: "pick-1", scene: 3, t: 0.42 }),
   Object.freeze({ id: "pick-2", scene: 3, t: 0.47 }),
@@ -540,7 +541,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const nodes = {};
   const texts = {};
 
-  // Camera: in over beat 02 t .06-.36, out over beat 04 t 0-.28 (e = 1 means inside the phone). Scrubbed moves
+  // Camera: in over beat 02's T.inward, out over beat 04's T.outward (e = 1 means inside the phone). Scrubbed moves
   // ride GLIDE over about a third of a viewport each: the reader's scroll is the speed, so the curve stays gentle.
   const T = HOW_STORY_TIMING;
   const outward = progress >= HOW_STORY_WINDOWS[3][0];

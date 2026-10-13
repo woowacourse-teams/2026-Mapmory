@@ -167,7 +167,7 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
 
 // The sticky frame in scroll mode: the beat copy, the stage, and the one sample-screen pill for the whole pin. The pill
 // sits on the frame, not in the stage: beside the eyebrow on phones and tablets (the copy never fades, so it
-// shows at every p), and beside the phone's top on desktop.
+// shows at every p), and in the stage box's top-right corner, 16px in, on desktop.
 function HowStoryScrollFrame({ frameRef, copyRef, stageRef, scene, descriptions }) {
   return (
     <div className="how-story-frame" ref={frameRef}>

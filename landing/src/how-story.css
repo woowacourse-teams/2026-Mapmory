@@ -418,7 +418,7 @@
    Otherwise it is at rest, or at opacity 0 (painting nothing). Small parts that move inside a layer that repaints
    anyway (the loading bar, the overlay's bar, the map labels) get none. Measured budget: AGENTS.md.
    The camera moves, and the library, its ground and the overlay show, only inside the phone (data-inside: beat 02
-   to beat 04 t .30); beat 01 promotes the camera ahead of the push. */
+   to the end of beat 04's camera, HOW_STORY_TIMING.outward); beat 01 promotes the camera ahead of the push. */
 .how-story-track.is-live .how-stage:is([data-scene="1"], [data-inside="1"]) .how-phone-camera { will-change: transform, opacity; }
 .how-story-track.is-live .how-stage:is([data-scene="1"], [data-inside="1"]) .how-screen-fade { will-change: opacity; }
 .how-story-track.is-live .how-stage:is([data-scene="1"], [data-scene="2"]) :is(.how-app-import, .how-app-loading) { will-change: transform, opacity; }
