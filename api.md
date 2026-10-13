@@ -29,10 +29,10 @@
 | 구현됨 | `GET` | `/admin/dashboard` | 운영 현황 집계 조회 |
 | 구현 전 설계 | `GET` | `/admin/members` | 회원 목록 조회 |
 | 구현 전 설계 | `GET` | `/admin/members/{memberId}` | 회원 상세·세션 상태 조회 |
-| 구현 전 설계 | `POST` | `/service-feedback` | 앱 서비스 의견 제출 |
-| 구현 전 설계 | `GET` | `/admin/service-feedback` | 서비스 의견 목록 조회 |
-| 구현 전 설계 | `GET` | `/admin/service-feedback/{feedbackId}` | 서비스 의견 상세 조회 |
-| 구현 전 설계 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
+| 구현 완료 | `POST` | `/service-feedback` | 앱 서비스 의견 제출 |
+| 구현 완료 | `GET` | `/admin/service-feedback` | 서비스 의견 목록 조회 |
+| 구현 완료 | `GET` | `/admin/service-feedback/{feedbackId}` | 서비스 의견 상세 조회 |
+| 구현 완료 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -918,7 +918,7 @@ Authorization: Bearer {accessToken}
 알 수 없는 토큰 요청은 특정 회원의 실패 상태로 표시하지 않는다. 실패 이력이 없으면 `lastRefresh`는
 `null`이다. 관리자 응답에는 여행 기록 제목·내용·사진을 포함하지 않는다.
 
-### 앱 서비스 의견 제출 — 구현 전 설계
+### 앱 서비스 의견 제출
 
 `POST /api/v1/service-feedback` — 앱 회원 인증 필요
 
@@ -968,7 +968,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-상세 응답에는 작성자 개인정보를 포함하지 않는다. 상태 변경 API도 현재 별도 인증 없이 호출할 수 있다.
+상세 응답에는 작성자 개인정보를 포함하지 않는다. 상태 변경 API는 관리자 세션 인증이 필요하다.
 
 ```json
 { "status": "IN_PROGRESS" }
