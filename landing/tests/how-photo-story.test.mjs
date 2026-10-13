@@ -300,9 +300,53 @@ test("the section's CSS is scoped under .hw and collides with nothing on the lan
   assert.doesNotMatch(landingCss, /\.how-section/);
   assert.match(storyCss, /\.how-section\{position:relative;padding:0 0 72px;scroll-margin-top:0\}/);
   assert.match(storyCss, /\.hw\{\s*--hw-canvas:var\(--canvas\);--hw-ink:var\(--text\)/);
-  // Dark theme: its own tokens, the landing's AA sub text, every map layer restyled.
-  assert.match(storyCss, /:root\[data-theme="dark"\] \.hw\{--hw-ink-2:var\(--muted\)\}/);
-  for (const layer of ["m-base", "m-kr", "m-gb", "m-gj"]) assert.match(storyCss, new RegExp(`:root\\[data-theme="dark"\\] \\.hw \\.${layer} \\.big\\{fill:`));
+});
+
+// WCAG relative luminance and contrast of #rrggbb colours.
+const luminance = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test("dark theme: the landing's dark text tokens at AA, prints stay white, the map steps up to 경주시", () => {
+  const block = (css, selector) => {
+    const start = css.indexOf(`${selector}{`);
+    assert.ok(start >= 0, selector);
+    return css.slice(start + selector.length + 1, css.indexOf("}", start));
+  };
+  const tokens = (body) => Object.fromEntries([...body.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, k, v]) => [k, v.trim()]));
+  const landingDark = tokens(block(landingCss, ':root[data-theme="dark"] '));
+  const dark = tokens(block(storyCss, ':root[data-theme="dark"] .hw'));
+  const resolve = (value) => (value.startsWith("var(") ? resolve(dark[value.slice(4, -1)] ?? landingDark[value.slice(4, -1)]) : value);
+  const canvas = landingDark["--canvas"];
+
+  // The section's canvas and ink follow the landing's tokens; the sub line, eyebrow and headline pass AA on the canvas.
+  assert.equal(dark["--hw-ink-2"], "var(--muted)");
+  assert.ok(contrast(resolve(dark["--hw-ink-2"]), canvas) >= 4.5, "sub line");
+  assert.ok(contrast(landingDark["--accent-ink"], canvas) >= 4.5, "eyebrow");
+  assert.ok(contrast(landingDark["--text"], canvas) >= 7, "headline");
+  // Photo prints stay white: no dark rule touches their face colour.
+  assert.match(storyCss, /\.hw \.front\{background:#fff;/);
+  assert.doesNotMatch(storyCss, /:root\[data-theme="dark"\] \.hw \.front\{[^}]*background/);
+  // The 경주 tag keeps the brand mint with dark ink in both themes.
+  assert.doesNotMatch(storyCss, /:root\[data-theme="dark"\][^{]*\.tag/);
+
+  // The map: base land quiet, then 대한민국, 경상북도, 경주시, each step a bigger jump than the one before, so 경주시 has
+  // the strongest contrast against its surroundings.
+  const [land, kr, gb, gj] = ["--hw-map-land", "--hw-map-kr", "--hw-map-gb", "--hw-map-gj"].map((k) => resolve(dark[k]));
+  const steps = [contrast(land, canvas), contrast(kr, land), contrast(gb, kr), contrast(gj, gb)];
+  assert.ok(steps[0] < 1.5, `base land stays quiet (${steps[0].toFixed(2)})`);
+  for (let i = 1; i < steps.length; i += 1) assert.ok(steps[i] > steps[i - 1], `step ${i} (${steps.map((x) => x.toFixed(2)).join(" < ")})`);
+  assert.ok(steps[3] >= 3, `경주시 against 경상북도 (${steps[3].toFixed(2)})`);
+  assert.ok([land, kr, gb, gj].every((c) => luminance(c) > luminance(canvas)));
+  // Every map layer is restyled through the tokens.
+  for (const [layer, token] of [["m-base", "land"], ["m-kr", "kr"], ["m-gb", "gb"], ["m-gj", "gj"]]) {
+    assert.match(storyCss, new RegExp(`:root\\[data-theme="dark"\\] \\.hw \\.${layer} \\.big\\{fill:var\\(--hw-map-${token}\\)`));
+  }
 });
 
 test("analytics: one passive view and one reach per scene, the view flushed first, never experience_* or memory_open", () => {

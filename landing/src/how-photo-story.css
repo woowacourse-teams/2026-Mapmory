@@ -229,36 +229,60 @@
 .how-section>.how-experience-link{margin:8px max(24px,calc((100% - 1080px) / 2)) 0}
 @media (max-width:560px){.how-section{padding-bottom:48px}}
 
-/* ===== dark theme (the sketch had none): the same objects, lit for the landing's dark canvas ===== */
-:root[data-theme="dark"] .hw{--hw-ink-2:var(--muted)}
-/* white photo prints stay white (they are prints); their shadow deepens so they lift off the dark canvas */
-:root[data-theme="dark"] .hw .front{box-shadow:0 2px 0 rgba(0,0,0,.2),0 30px 50px -22px rgba(0,0,0,.75),0 10px 18px -12px rgba(0,0,0,.5)}
-:root[data-theme="dark"] .hw .front img{background-color:#2a3a35}
-/* the phone: dark glass with the mint rim and glow */
-:root[data-theme="dark"] .hw .phone .in{background:linear-gradient(165deg,#1b2a31 0%,#13222a 50%,#0f1d23 100%);border-color:rgba(33,230,154,.55);
-  box-shadow:0 0 0 9px rgba(33,230,154,.07),0 0 54px rgba(33,230,154,.22),0 50px 80px -36px rgba(0,0,0,.7),inset 0 2px 0 rgba(255,255,255,.08)}
-:root[data-theme="dark"] .hw .phone .in::before{background:#04080a;opacity:1}
-:root[data-theme="dark"] .hw .phone .gal{background-color:#1a262f}
+/* ===== dark theme (the sketch had none): the same objects, lit for the landing's dark canvas =====
+   Toggled by the landing's theme switch (:root[data-theme="dark"]); every rule is plain CSS on the engine's nodes, so a
+   switch in the middle of the film restyles it in place (no re-render, no restart). The tokens below are the whole
+   dark design; the rules after them only apply the tokens. */
+:root[data-theme="dark"] .hw{
+  /* text: the landing's dark tokens. headline --text 18.0:1, sub --muted 10.9:1, eyebrow --accent-ink 9.2:1 on --canvas (AA: 4.5:1) */
+  --hw-ink-2:var(--muted);
+  /* photo prints stay white (they are prints); only their shadow deepens so they lift off the dark canvas */
+  --hw-print-shadow:0 2px 0 rgba(0,0,0,.2),0 30px 50px -22px rgba(0,0,0,.75),0 10px 18px -12px rgba(0,0,0,.5);
+  --hw-print-wait:#2a3a35;
+  /* the 경주 tag, the check badges and the rings keep the brand mint with dark ink (#062b1c on the tag: 10.4:1) */
+  /* the phone: dark glass (the landing's surfaces) with the mint rim and glow */
+  --hw-phone-body:linear-gradient(165deg,#1b2a31 0%,#13222a 50%,#0f1d23 100%);
+  --hw-phone-rim:rgba(33,230,154,.55);
+  --hw-phone-shadow:0 0 0 9px rgba(33,230,154,.07),0 0 54px rgba(33,230,154,.22),0 50px 80px -36px rgba(0,0,0,.7),inset 0 2px 0 rgba(255,255,255,.08);
+  --hw-phone-notch:#04080a;
+  --hw-phone-screen:var(--surface-soft);
+  /* the cloud: a soft light cloud a step below the prints' white, so the copies going in still read; no heavy shadow */
+  --hw-cloud-0:#eef6f2;--hw-cloud-1:#e0ede6;--hw-cloud-2:#c8e0d3;--hw-cloud-edge:#9fd5bd;
+  /* the map: four stepped fills, each brighter step a bigger jump, so 경주시 has the strongest contrast against its
+     surroundings, 경상북도 next, 대한민국 next, base land quiet. Contrast of each step against the one below it:
+     land 1.28 (canvas) · 대한민국 1.60 · 경상북도 2.15 · 경주시 3.18 (light theme: 1.16 · 1.28 · 1.93 · 3.75).
+     경주시 is a light mint, not white, so it reads as the most filled region rather than a hole.
+     The seams between regions are the canvas, as the light map's seams are white. */
+  --hw-map-coast:#33454e;--hw-map-land:#1d2b33;--hw-map-land-isle:#24343d;
+  --hw-map-kr:#17523e;--hw-map-kr-isle:#1b5c46;--hw-map-kr-coast:var(--accent);
+  --hw-map-gb:#188c61;--hw-map-gb-isle:#1c986a;
+  --hw-map-gj:#8ef3c5;
+  --hw-map-seam:var(--canvas);
+  --hw-map-ground:rgba(0,0,0,.3);
+}
+:root[data-theme="dark"] .hw .front{box-shadow:var(--hw-print-shadow)}
+:root[data-theme="dark"] .hw .front img{background-color:var(--hw-print-wait)}
+:root[data-theme="dark"] .hw .phone .in{background:var(--hw-phone-body);border-color:var(--hw-phone-rim);box-shadow:var(--hw-phone-shadow)}
+:root[data-theme="dark"] .hw .phone .in::before{background:var(--hw-phone-notch);opacity:1}
+:root[data-theme="dark"] .hw .phone .gal{background-color:var(--hw-phone-screen)}
 :root[data-theme="dark"] .hw .glass .in{box-shadow:inset 0 0 0 2px rgba(255,255,255,.12),inset 0 0 30px rgba(33,230,154,.12)}
 :root[data-theme="dark"] .hw .glass .in::after{background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.10) 45%,rgba(255,255,255,0))}
-/* the cloud: a soft light cloud, no heavy shadow */
-:root[data-theme="dark"] .hw .cloud .c0{stop-color:#f2f8f5}
-:root[data-theme="dark"] .hw .cloud .c1{stop-color:#e5f0ea}
-:root[data-theme="dark"] .hw .cloud .c2{stop-color:#cfe5d9}
-:root[data-theme="dark"] .hw .cloud .edge{stroke:#a9dcc5}
+:root[data-theme="dark"] .hw .cloud .c0{stop-color:var(--hw-cloud-0)}
+:root[data-theme="dark"] .hw .cloud .c1{stop-color:var(--hw-cloud-1)}
+:root[data-theme="dark"] .hw .cloud .c2{stop-color:var(--hw-cloud-2)}
+:root[data-theme="dark"] .hw .cloud .edge{stroke:var(--hw-cloud-edge)}
 :root[data-theme="dark"] .hw .cloud.cb svg{filter:drop-shadow(0 12px 18px rgba(0,0,0,.22))}
 :root[data-theme="dark"] .hw .cloud.cf svg{filter:none}
-/* the lock keeps its mint; its shadow is a faint mint glow instead of a dark drop */
+/* the lock keeps its mint; its shadow gains a faint mint glow so it does not sink into the dark glass */
 :root[data-theme="dark"] .hw .lock svg{filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)) drop-shadow(0 0 18px rgba(33,230,154,.18))}
-/* the map: four clearly stepped fills. Base land quiet, 대한민국 next, 경상북도 brighter, 경주시 the strongest contrast */
-:root[data-theme="dark"] .hw .map .in::before{background:rgba(0,0,0,.45)}
-:root[data-theme="dark"] .hw .m-base .out{stroke:#33454e}
-:root[data-theme="dark"] .hw .m-base .big{fill:#1d2b33;stroke:#0b141a}
-:root[data-theme="dark"] .hw .m-base .small{fill:#24343d}
-:root[data-theme="dark"] .hw .m-kr .out{stroke:#21e69a}
-:root[data-theme="dark"] .hw .m-kr .big{fill:#1c5f48;stroke:#0b141a}
-:root[data-theme="dark"] .hw .m-kr .small{fill:#22684f}
-:root[data-theme="dark"] .hw .m-gb .big{fill:#1fb47c;stroke:#0b141a}
-:root[data-theme="dark"] .hw .m-gb .small{fill:#22c085}
-:root[data-theme="dark"] .hw .m-gj .big{fill:#d8fbea;stroke:#0b141a}
+:root[data-theme="dark"] .hw .map .in::before{background:var(--hw-map-ground)}
+:root[data-theme="dark"] .hw .m-base .out{stroke:var(--hw-map-coast)}
+:root[data-theme="dark"] .hw .m-base .big{fill:var(--hw-map-land);stroke:var(--hw-map-seam)}
+:root[data-theme="dark"] .hw .m-base .small{fill:var(--hw-map-land-isle)}
+:root[data-theme="dark"] .hw .m-kr .out{stroke:var(--hw-map-kr-coast)}
+:root[data-theme="dark"] .hw .m-kr .big{fill:var(--hw-map-kr);stroke:var(--hw-map-seam)}
+:root[data-theme="dark"] .hw .m-kr .small{fill:var(--hw-map-kr-isle)}
+:root[data-theme="dark"] .hw .m-gb .big{fill:var(--hw-map-gb);stroke:var(--hw-map-seam)}
+:root[data-theme="dark"] .hw .m-gb .small{fill:var(--hw-map-gb-isle)}
+:root[data-theme="dark"] .hw .m-gj .big{fill:var(--hw-map-gj);stroke:var(--hw-map-seam)}
 :root[data-theme="dark"] .hw .map .mtag i{background:rgba(0,0,0,.5)}
