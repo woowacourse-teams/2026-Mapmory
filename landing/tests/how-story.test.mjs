@@ -480,6 +480,10 @@ test("scrubbed moves are calm: each big move takes at least 100px of scroll from
       ["outward camera", 3, (f) => 1 - (f.nodes.phoneCamera.s - 1) / (layout.kIn - 1)],
       ["tile flight", 2, (f) => (f.nodes.match3.tx - lift.x) / (cluster.x - lift.x)],
       ["map camera", 4, (f) => Math.log(Number(f.attrs.mapSvg.viewBox.split(" ")[2]) / view.drillBox[2]) / Math.log(view.koreaBox[2] / view.drillBox[2])],
+      // The dark ground flips the whole stage between the canvas and near black: the largest change on the stage, so
+      // its fade is held to the same rule (round-3 V2: it crossed in about 45px, inside one wheel notch).
+      ["ground in", 1, (f) => f.nodes.ground.o],
+      ["ground out", 3, (f) => 1 - f.nodes.ground.o],
       // Saving: each copy lifts off its card into the print stack (print C travels about 330px at 390x844).
       ...[0, 1, 2].map((index) => {
         const card = layout.cards[index];

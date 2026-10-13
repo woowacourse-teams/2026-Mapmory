@@ -502,8 +502,12 @@ export function linearProgressPlacement(k, bar, gap) {
 // threshold (how-story.css), like the copy swap: a whole screen moved by scroll crossed the phone inside one wheel
 // notch (round-2 V1).
 export const HOW_STORY_TIMING = Object.freeze({
-  // Beat 02: the camera pushes into the phone (the push to the loading screen plays on the scene change).
+  // Beat 02: the camera pushes into the phone (the push to the loading screen plays on the scene change); the dark
+  // ground comes up under it over its own window, from the beat's start, so it still leads the library into the
+  // screen but takes over 100px of scroll (round-3 V2: riding the camera's first third, the whole stage went from the
+  // light canvas to near black inside one wheel notch). Outward it fades over the whole camera move.
   inward: Object.freeze([0.06, 0.36]),
+  ground: Object.freeze([0, 0.28]),
   // Beat 03: the found photos fly from the library to the cluster, one after another.
   cluster: Object.freeze({ start: 0.04, stagger: 0.02, length: 0.3 }),
   // Beat 04: the camera comes back out while the photos fly on to the picker's cards; the card chrome comes on once
@@ -553,14 +557,15 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const throughCamera = (rect) => (zoom
     ? { x: phoneCentre.x + (rect.x - phoneCentre.x) * z + L.d.x * e, y: phoneCentre.y + (rect.y - phoneCentre.y) * z + L.d.y * e, size: rect.size * z }
     : rect);
-  // Inward, in order: the library and the dark ground come up under the phone, the screen (content and
-  // background) goes clear so the library shows in the screen's place, then the clay bezel fades. Outward runs
-  // the other way. Each is one opacity on its own layer (the bezel's is the camera's).
+  // Inward, in order: the dark ground and the library come up under the phone, the screen (content and background)
+  // goes clear so the library shows in the screen's place, then the clay bezel fades. Outward runs the other way. Each
+  // is one opacity on its own layer (the bezel's is the camera's). The ground is the largest change on the stage, so
+  // it is scrubbed as calmly as the moves (T.ground inward, the whole camera move outward).
   const windowO = outward ? 1 - seg(outE, 0, 0.5) : seg(inE, 0.05, 0.3);
   nodes.mosaicWindow = zoom
     ? move((e - 1) * L.d.x, (e - 1) * L.d.y, z / L.kIn, windowO)
     : move(0, 0, 1, windowO);
-  const ground = outward ? 1 - seg(outE, 0.1, 0.6) : seg(inE, 0.05, 0.35);
+  const ground = outward ? 1 - outE : GLIDE(seg(t2, ...T.ground));
   nodes.ground = fade(ground);
   // The bottom fade blends the cropped phone into the canvas; it hides while the ground is up.
   nodes.bottomFade = fade(1 - ground);
