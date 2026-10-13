@@ -338,6 +338,12 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 
 footer { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 40px 0 50px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-end; color: var(--muted); font-size: 12px; }
 footer p { margin: 10px 0 0; }
+/* Footer photo credits stay out of the way until opened. */
+.footer-meta { display: grid; justify-items: end; gap: 0; }
+.photo-credits summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.photo-credits ul { max-width: 560px; max-height: 240px; margin: 0; padding: 0 0 0 18px; overflow: auto; line-height: 1.7; text-align: left; }
+.photo-credits a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 900px) { .footer-meta { justify-items: start; } }
 
 @media (min-width: 1200px) {
   .experience-stage { width: calc(100% + 100px); margin-inline: -50px; }
