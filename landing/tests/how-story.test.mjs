@@ -850,7 +850,10 @@ test("the component, hook and styles keep to the scroll rules", () => {
   // is neither a flex nor a grid item (those cannot be relayout boundaries).
   assert.match(screensCss, /\.how-loading-count \{[^}]*contain: strict;/);
   assert.match(screensCss, /:is\(\.how-loading-count, \.how-loading-percent\) > span \{ display: block; height: 100%; contain: strict; \}/);
-  assert.match(storyCss, /\.how-overlay-live \{ position: absolute; inset: 0; contain: strict;/);
+  // The overlay's live number is sized by the final value but runs wider on LINE Seed's wider digits, so it is
+  // contained for size and layout (the relayout boundary) and never for paint, which clipped 장 (round-3 V1).
+  assert.match(storyCss, /\.how-overlay-live \{ position: absolute; inset: 0; contain: size layout style;/);
+  assert.doesNotMatch(storyCss.match(/\.how-overlay-live \{[^}]*\}/)[0], /strict|paint|content|overflow/);
   // Per-frame paint and layout traps found in traces: a rounded overflow clip inside the sliding import screen,
   // the map's SVG labels relaying out under the camera's scale, and the spinner promoting what paints after it.
   assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
