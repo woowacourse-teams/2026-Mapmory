@@ -426,13 +426,3 @@ export function createAppMapProjection(bounds, width, height) {
     project: (lng, lat) => [left + (lng - bounds.minLng) * longitudeFactor * scale, top + (bounds.maxLat - lat) * scale],
   };
 }
-
-export function boundsOfRings(regions) {
-  const points = regions.flatMap(({ rings }) => rings.flat());
-  return {
-    minLng: Math.min(...points.map(([lng]) => lng)),
-    maxLng: Math.max(...points.map(([lng]) => lng)),
-    minLat: Math.min(...points.map(([, lat]) => lat)),
-    maxLat: Math.max(...points.map(([, lat]) => lat)),
-  };
-}

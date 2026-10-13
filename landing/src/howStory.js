@@ -244,9 +244,9 @@ export function cubicBezier(x1, y1, x2, y2) {
   };
 }
 export const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
-export const EASE_IN_OUT = cubicBezier(0.77, 0, 0.175, 1);
 // Scrubbed cameras and flights (ease-in-out-sine): no steep middle, so a single wheel notch or flick shows the
-// in-between frames instead of a jump. (EASE_IN_OUT's middle covers 80% of a move in a fifth of its window.)
+// in-between frames instead of a jump. (A steep ease-in-out such as cubic-bezier(.77, 0, .175, 1) covers 80% of a move
+// in a fifth of its window.)
 export const GLIDE = cubicBezier(0.37, 0, 0.63, 1);
 // Only for the beat 02 counter and pin wave (ease-out-cubic).
 export const COUNT = cubicBezier(0.33, 1, 0.68, 1);
