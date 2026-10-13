@@ -658,17 +658,44 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
   const beatPx = HOW_STORY_BEATS[4].units * (HOW_STORY_TRACK.desktopMinPx / HOW_STORY_TRAVEL_UNITS);
   assert.ok(T.pickerOut * beatPx >= 60 && (T.mapIn - T.pickerOut) * beatPx >= 60 && (T.fill - T.mapIn) * beatPx >= 100, `${beatPx}`);
   assert.ok(T.fill < T.mapCamera[0] && T.mapCamera[1] < T.world, "fill, camera, world in turn");
-  // In time: the print stack rises off the stage as beat 05 opens and is hidden once the map tab is in; the picker
-  // and its photos fade (200ms) and the map waits that long before it fades in, so a flick never shows both.
+  // In time: the print stack rises off the stage as beat 05 opens, fading over the rise's second half, and is hidden
+  // only once both have ended, whatever the map tab does meanwhile (round-3 FE1: hidden on the map's threshold, a
+  // quick scroll made the prints vanish mid-flight).
   const css = storyCss.replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.match(css, /\.how-stage\[data-scene="5"\] \.how-copy-stack \{ opacity: 0; transform: translateY\(calc\(-1 \* var\(--stack-rise, 100vh\)\)\); transition: transform 640ms var\(--ease-in-out\)/);
+  const stackRule = css.match(/\.how-stage\[data-scene="5"\] \.how-copy-stack \{ opacity: 0; transform: translateY\(calc\(-1 \* var\(--stack-rise, 100vh\)\)\); visibility: hidden; transition: transform (\d+)ms var\(--ease-in-out\), opacity (\d+)ms var\(--ease-out\) (\d+)ms, visibility 0s linear (\d+)ms; \}/);
+  assert.ok(stackRule, "the stack's beat-05 rule");
+  const [riseMs, fadeMs, fadeDelay, hideDelay] = stackRule.slice(1).map(Number);
+  const stackGone = Math.max(riseMs, fadeDelay + fadeMs);
+  assert.ok(riseMs >= 600 && hideDelay >= stackGone, `${riseMs} ${fadeDelay}+${fadeMs} ${hideDelay}`);
+  assert.doesNotMatch(css, /data-map[^{}]*\.how-copy-stack/, "no map state hides the stack");
   assert.match(hookSource, /set\("--stack-rise", `\$\{layout\.stackRise\}px`\);/);
   // The rise takes the lowest print (border, turn and shadow: under one print size below its centre) past the top.
   for (const [name, layout] of LAYOUTS) for (const { cy, size } of layout.prints) assert.ok(layout.stackRise >= cy + size, name);
-  assert.match(css, /\.how-stage\[data-scene="5"\]:not\(\[data-map="none"\]\) \.how-copy-stack \{ visibility: hidden; \}/);
+  // The map never shares a frame with the prints either: its content sits on a gate the beat's start sets running,
+  // shut until the stack has gone, then opening; read slowly, the gate is long open by the map's threshold.
+  const [, gateMs] = css.match(/\.how-stage\[data-scene="5"\] \.how-map-gate \{ animation: how-map-gate (\d+)ms linear backwards; \}/);
+  const [, shutPct] = css.match(/@keyframes how-map-gate \{\s*0%, ([\d.]+)% \{ opacity: 0;[^}]*\}\s*100% \{ opacity: 1; \}\s*\}/);
+  const shutMs = (Number(gateMs) * Number(shutPct)) / 100;
+  assert.ok(shutMs >= stackGone - 0.5 && Number(gateMs) - shutMs >= 300, `${gateMs} ${shutPct}`);
+  // The gate restarts on every visit: the skipped subtree is inside it (a skipped subtree keeps its old style).
+  assert.match(css, /\.how-stage:not\(\[data-scene="5"\]\) \.how-map-gate \{ content-visibility: hidden; \}/);
+  assert.doesNotMatch(css, /\.how-app-map \{ content-visibility/);
+  // A jump into the beat (a reload, or a flick across two taps) shows it settled: the hook marks both elements
+  // data-skip, as it does a tap ring, and they play nothing.
+  assert.match(componentSource, /className="how-copy-stack" data-enter="map"/);
+  assert.match(howSources["AppScreens.jsx"], /className="how-map-gate" data-enter=\{n\("map"\)\}/);
+  assert.ok(HOW_STORY_BEATS.some(({ id }) => id === "map"));
+  assert.match(hookSource, /querySelectorAll\("\[data-enter\]"\)/);
+  assert.match(css, /\.how-stage\[data-scene="5"\] \.how-copy-stack\[data-skip="1"\] \{ transition: none; \}/);
+  assert.match(css, /\.how-stage\[data-scene="5"\] \.how-map-gate\[data-skip="1"\] \{ animation: none; \}/);
+  // The picker and its photos fade (200ms) and the map waits that long before it fades in; scrolled back across
+  // both thresholds, the picker waits out the map's fade. A flick never shows both, either way.
   const [, pickerMs] = css.match(/\.how-stage\[data-scene="5"\] :is\(\.how-app-picker, \.how-match\) \{ transition: opacity (\d+)ms/);
   const [, mapMs, mapDelay] = css.match(/\.how-stage\[data-scene="5"\]:not\(\[data-map="none"\]\) \.how-app-map \{ opacity: 1; transition: opacity (\d+)ms var\(--ease-out\) (\d+)ms; \}/);
   assert.ok(Number(mapDelay) >= Number(pickerMs) && Number(mapMs) >= 300, `${pickerMs} ${mapMs} ${mapDelay}`);
+  const [, mapOutMs] = css.match(/\.how-stage\[data-scene="5"\] \.how-app-map \{ transition: opacity (\d+)ms/);
+  const [, backDelay] = css.match(/\.how-stage\[data-scene="5"\]\[data-picker="1"\] :is\(\.how-app-picker, \.how-match\) \{ transition: opacity \d+ms var\(--ease-out\) (\d+)ms; \}/);
+  assert.ok(Number(backDelay) >= Number(mapOutMs), `${backDelay} ${mapOutMs}`);
 });
 
 test("with no measured numbers, no band, no time and no tap count appear anywhere", () => {
@@ -857,7 +884,7 @@ test("the component, hook and styles keep to the scroll rules", () => {
   // Per-frame paint and layout traps found in traces: a rounded overflow clip inside the sliding import screen,
   // the map's SVG labels relaying out under the camera's scale, and the spinner promoting what paints after it.
   assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
-  assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-app-map \{ content-visibility: hidden; \}/);
+  assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-map-gate \{ content-visibility: hidden; \}/);
   assert.match(screensCss, /\.how-loading-spin \{ position: relative; z-index: 1;/);
 });
 
@@ -933,7 +960,10 @@ test("a jump shows the end state per tap, without a stage-wide switch that would
   // had already played ran again after each flick (round-1 S1/F1). Skips are now per tap and sticky.
   for (const source of [hookSource, storyCss, screensCss, componentSource]) assert.doesNotMatch(source, /instant/i);
   assert.match(hookSource, /const jump = lastP < 0 \|\| countTapsCrossed\(lastP, p, plan\.beats\) >= 2;/);
-  assert.match(hookSource, /if \(p < beat\.p\) write\(tap, "data:skip", "0"\);\s*else if \(jump && !\(lastP >= beat\.p\)\) write\(tap, "data:skip", "1"\);/);
+  // Each tap, and each moment that plays as a beat opens (data-enter), is skipped when a jump turns it on, and
+  // un-skipped once the reader is back above it.
+  assert.match(hookSource, /plan\.beats\.map\(\(beat\) => \(\{ element: tapElements\.get\(beat\.id\), p: beat\.p \}\)\),\s*\.\.\.enterElements,/);
+  assert.match(hookSource, /if \(p < moment\.p\) write\(moment\.element, "data:skip", "0"\);\s*else if \(jump && !\(lastP >= moment\.p\)\) write\(moment\.element, "data:skip", "1"\);/);
   assert.match(screensCss, /\.how-tap\[data-tap\]\[data-skip="1"\],/);
   assert.match(screensCss, /\.how-match-chrome:has\(> \.how-tap\[data-skip="1"\]\) \.how-picker-preview \{ animation: none; \}/);
 });

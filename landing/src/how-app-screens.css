@@ -446,6 +446,8 @@
 /* TripMapScreen with MapRoute's content. The header, then the summary card laid over the top of the map area, which
    runs down to the 64dp bottom bar. --map-card-top and --map-area-top (dp) come from createAppMapView()
    (howStoryLayout.js) on the screen root, so the map the frame function frames is the map drawn here. */
+/* All of the tab's content, on one box the size of the screen (the story holds it back while the prints leave). */
+.how-map-gate { position: absolute; inset: 0; }
 .how-map-header { position: absolute; left: 0; right: 0; top: 0; padding-top: calc(var(--app-map-status-dp) * var(--dp)); }
 .how-map-logo-row { padding: 0 calc(18 * var(--dp)); display: flex; align-items: center; justify-content: space-between; }
 .how-map-logo { color: var(--app-logo); font-size: calc(18 * var(--dp)); font-weight: 700; }

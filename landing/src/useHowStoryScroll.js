@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import {
+  HOW_STORY_BEATS,
+  HOW_STORY_WINDOWS,
   countTapsCrossed,
   getHowStoryFrame,
   getHowStoryNodeStyle,
@@ -38,9 +40,19 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     const textElements = new Map([...stage.querySelectorAll("[data-text]")].map((element) => [element.dataset.text, element]));
     const attrElements = new Map([...stage.querySelectorAll("[data-attr]")].map((element) => [element.dataset.attr, element]));
     const tapElements = new Map([...stage.querySelectorAll("[data-tap]")].map((element) => [element.dataset.tap, element]));
+    // What plays in time as a beat opens (data-enter names the beat): beat 05's print stack leaving and the map's
+    // wait for it. Each sits with the beat's start p, so a jump is handled like a tap.
+    const enterElements = [...stage.querySelectorAll("[data-enter]")].map((element) => {
+      const index = HOW_STORY_BEATS.findIndex(({ id }) => id === element.dataset.enter);
+      return { element, p: HOW_STORY_WINDOWS[index]?.[0] ?? Infinity };
+    });
     const cellElements = [...stage.querySelectorAll("[data-cell]")];
     const written = new Map();
     const plan = getHowStoryPlan();
+    const moments = [
+      ...plan.beats.map((beat) => ({ element: tapElements.get(beat.id), p: beat.p })),
+      ...enterElements,
+    ].filter(({ element }) => element);
 
     let layout = null;
     let stickyTop = 0;
@@ -150,12 +162,12 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
         // A jump across two or more taps (a fast flick, or the first frame after a reload into the story) shows
         // the end state without a burst of rings: each tap it turns on is marked skipped, and stays so until the
         // reader scrolls back above it. A tap that was already on is left alone, so its finished ring never replays.
+        // A beat's opening moment (data-enter) is skipped the same way: a jump into beat 05 shows the prints
+        // already gone and the map tab without its wait for them.
         const jump = lastP < 0 || countTapsCrossed(lastP, p, plan.beats) >= 2;
-        for (const beat of plan.beats) {
-          const tap = tapElements.get(beat.id);
-          if (!tap) continue;
-          if (p < beat.p) write(tap, "data:skip", "0");
-          else if (jump && !(lastP >= beat.p)) write(tap, "data:skip", "1");
+        for (const moment of moments) {
+          if (p < moment.p) write(moment.element, "data:skip", "0");
+          else if (jump && !(lastP >= moment.p)) write(moment.element, "data:skip", "1");
         }
         lastP = p;
         apply(getHowStoryFrame(p, layout));

@@ -153,7 +153,7 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
       ))}
       {/* Saving: a copy of each picked photo lifts off its card into a stack of prints, which rises off the top
           as beat 05 opens (the upload), before the map shows. */}
-      <div className="how-copy-stack">
+      <div className="how-copy-stack" data-enter="map">
         {PICKED.map((match, index) => (
           <div className="how-copy-node" data-node={`copy${index}`} key={match.id}>
             <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />

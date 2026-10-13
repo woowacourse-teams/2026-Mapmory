@@ -341,71 +341,74 @@ export function MapScreen({ variant = "story", data: given }) {
   const data = given ?? loaded;
   return (
     <div className="how-app-screen how-app-map" data-variant={variant} style={MAP_PLACEMENT}>
-      <div className="how-map-header">
-        <div className="how-map-logo-row">
-          <span className="how-map-logo"><span>{T.map.logo[0]}</span><span className="how-map-logo-accent">{T.map.logo[1]}</span></span>
-          <span className="how-map-scope">
-            <span className="how-map-scope-thumb" />
-            <span className="how-map-scope-chip" data-chip="korea">{T.map.scopeKorea}</span>
-            <span className="how-map-scope-chip" data-chip="world">{T.map.scopeWorld}</span>
-          </span>
+      {/* In the story the tab's content waits on this gate until the print stack has left (how-story.css). */}
+      <div className="how-map-gate" data-enter={n("map")}>
+        <div className="how-map-header">
+          <div className="how-map-logo-row">
+            <span className="how-map-logo"><span>{T.map.logo[0]}</span><span className="how-map-logo-accent">{T.map.logo[1]}</span></span>
+            <span className="how-map-scope">
+              <span className="how-map-scope-thumb" />
+              <span className="how-map-scope-chip" data-chip="korea">{T.map.scopeKorea}</span>
+              <span className="how-map-scope-chip" data-chip="world">{T.map.scopeWorld}</span>
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="how-map-area">
-        <div className="how-map-korea">
-          <svg
-            className="how-map-svg"
-            viewBox={box(story ? VIEW.drillBox : VIEW.koreaBox)}
-            preserveAspectRatio="xMidYMid meet"
-            data-attr={n("mapSvg")}
-            focusable="false"
-          >
+        <div className="how-map-area">
+          <div className="how-map-korea">
+            <svg
+              className="how-map-svg"
+              viewBox={box(story ? VIEW.drillBox : VIEW.koreaBox)}
+              preserveAspectRatio="xMidYMid meet"
+              data-attr={n("mapSvg")}
+              focusable="false"
+            >
+              {story && (
+                <>
+                  {/* The land under the district lines: the same rings in one path, so it matches them exactly. */}
+                  <g className="how-map-land">{data && <path d={data.districtLand} />}</g>
+                  <g className="how-map-lines" data-node="mapDistrictLines">{data?.districts.map(({ code, d }) => <path key={code} d={d} />)}</g>
+                </>
+              )}
+              <g className="how-map-provinces" data-node={n("mapProvinces")}>{data?.provinces.map(({ code, d }) => <path key={code} d={d} />)}</g>
+              {story && (
+                <g data-node="mapFillDistrict">
+                  {data && <path className="how-map-visited how-map-fill-district" d={data.visitedDistrict} style={{ transformOrigin: data.fillOrigin }} />}
+                </g>
+              )}
+              <g className="how-map-fill-province" data-node={n("mapFillProvince")}>{data && <path className="how-map-visited" d={data.visitedProvince} />}</g>
+            </svg>
             {story && (
-              <>
-                {/* The land under the district lines: the same rings in one path, so it matches them exactly. */}
-                <g className="how-map-land">{data && <path d={data.districtLand} />}</g>
-                <g className="how-map-lines" data-node="mapDistrictLines">{data?.districts.map(({ code, d }) => <path key={code} d={d} />)}</g>
-              </>
+              <div className="how-map-labels" data-node="mapLabels">
+                {data?.districts.map(({ code, name, label }) => (
+                  <span key={code} style={{ left: `calc(${label[0].toFixed(1)} * var(--dp))`, top: `calc(${label[1].toFixed(1)} * var(--dp))` }}>{name}</span>
+                ))}
+              </div>
             )}
-            <g className="how-map-provinces" data-node={n("mapProvinces")}>{data?.provinces.map(({ code, d }) => <path key={code} d={d} />)}</g>
-            {story && (
-              <g data-node="mapFillDistrict">
-                {data && <path className="how-map-visited how-map-fill-district" d={data.visitedDistrict} style={{ transformOrigin: data.fillOrigin }} />}
-              </g>
-            )}
-            <g className="how-map-fill-province" data-node={n("mapFillProvince")}>{data && <path className="how-map-visited" d={data.visitedProvince} />}</g>
-          </svg>
-          {story && (
-            <div className="how-map-labels" data-node="mapLabels">
-              {data?.districts.map(({ code, name, label }) => (
-                <span key={code} style={{ left: `calc(${label[0].toFixed(1)} * var(--dp))`, top: `calc(${label[1].toFixed(1)} * var(--dp))` }}>{name}</span>
-              ))}
-            </div>
+          </div>
+          {story && <div className="how-map-world"><MapGlobe data={data} /></div>}
+          <span className="how-map-fab"><svg viewBox="0 0 24 24" focusable="false"><path d="M4.32 12H19.68 M12 4.32V19.68" /></svg></span>
+        </div>
+        <div className="how-map-cards">
+          {story ? (
+            <>
+              <div className="how-map-cards-korea">
+                <MapCard kind="drill" node="mapCardDrill" title={T.map.titleKorea} counts={[[0, DRILL_TOTAL], [1, DRILL_TOTAL]]} back />
+                <MapCard kind="korea" node="mapCardKorea" title={T.map.titleKorea} counts={[[1, KOREA_TOTAL]]} />
+              </div>
+              <MapCard kind="world" title={T.map.titleWorld} counts={[[1, WORLD_TOTAL]]} />
+            </>
+          ) : (
+            <MapCard kind="korea" title={T.map.titleKorea} counts={[[1, KOREA_TOTAL]]} />
           )}
         </div>
-        {story && <div className="how-map-world"><MapGlobe data={data} /></div>}
-        <span className="how-map-fab"><svg viewBox="0 0 24 24" focusable="false"><path d="M4.32 12H19.68 M12 4.32V19.68" /></svg></span>
-      </div>
-      <div className="how-map-cards">
-        {story ? (
-          <>
-            <div className="how-map-cards-korea">
-              <MapCard kind="drill" node="mapCardDrill" title={T.map.titleKorea} counts={[[0, DRILL_TOTAL], [1, DRILL_TOTAL]]} back />
-              <MapCard kind="korea" node="mapCardKorea" title={T.map.titleKorea} counts={[[1, KOREA_TOTAL]]} />
-            </div>
-            <MapCard kind="world" title={T.map.titleWorld} counts={[[1, WORLD_TOTAL]]} />
-          </>
-        ) : (
-          <MapCard kind="korea" title={T.map.titleKorea} counts={[[1, KOREA_TOTAL]]} />
-        )}
-      </div>
-      <div className="how-map-tabs">
-        {T.map.tabs.map((label, index) => (
-          <span className="how-map-tab" data-selected={index === 0 ? "true" : undefined} key={label}>
-            <MapIcon tab={index} />
-            <span>{label}</span>
-          </span>
-        ))}
+        <div className="how-map-tabs">
+          {T.map.tabs.map((label, index) => (
+            <span className="how-map-tab" data-selected={index === 0 ? "true" : undefined} key={label}>
+              <MapIcon tab={index} />
+              <span>{label}</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
