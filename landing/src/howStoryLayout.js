@@ -76,10 +76,12 @@ export const HOW_STORY_PICKER = Object.freeze({
 });
 
 // Saving: the copies of the three picked photos lift off their cards into a small fanned stack of prints over the
-// picker's header (the upload), clear of the 3장 선택 count, the date row and the cards. Screen dp; size is the
-// photo's share of a card, and the white print border (how-story.css) sits outside it.
+// picker's header (the upload), centred between the title row and the date row, clear of both. Screen dp; size is
+// the photo's share of a card, and the white print border (how-story.css) sits outside it. While the prints are up,
+// the header rows under them are blanked by a band of the app's background (pickerPrintClearDp), so the hold reads as
+// one message rather than a stack over clipped button and note fragments (round-3 V4).
 export const HOW_STORY_PRINTS = Object.freeze({
-  centre: Object.freeze([180, 186]),
+  centre: Object.freeze([180, 211]),
   size: 0.55,
   slots: Object.freeze([
     Object.freeze({ dx: -50, dy: 10, r: -8 }),
@@ -88,11 +90,37 @@ export const HOW_STORY_PRINTS = Object.freeze({
   ]),
 });
 
+// The picker list's rows as shown on the screen, [top, bottom] in screen dp (the list scrolled by PICKER_SCROLL_DP):
+// PHOTO LIBRARY, the title row (경주시 사진 고르기, 3장 선택), the two small buttons, the two-line note, the
+// recorded-photo filter row, the date header's row, and the top of the first card row.
+export function pickerRowsDp(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
+  const k = HOW_STORY_PICKER;
+  let y = k.listTop + k.padTop - PICKER_SCROLL_DP;
+  const row = (gap, height) => {
+    const top = y + gap;
+    y = top + height;
+    return Object.freeze([top, y]);
+  };
+  const eyebrow = row(0, 12 * lineHeight);
+  const title = row(14, 25 * lineHeight);
+  const buttons = row(20, k.smallButton);
+  const note = row(8, 2 * 16);
+  const filter = row(0, k.filterRow);
+  const date = row(k.dateGap, k.smallButton);
+  return Object.freeze({ eyebrow, title, buttons, note, filter, date, cards: y + k.firstRowGap });
+}
+
+// The band the prints' clear ground covers, [top, bottom] in screen dp: the buttons, the note and the filter row,
+// with its edges halfway into the empty gaps above and below, so over the app's own background it never shows as a
+// shape. Its sides are 8dp in from the screen's edges, in the empty margins.
+export function pickerPrintClearDp(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
+  const { title, buttons, filter, date } = pickerRowsDp(lineHeight);
+  return Object.freeze([(title[1] + buttons[0]) / 2, (filter[1] + date[0]) / 2]);
+}
+
 export function pickerCardRectsDp(lineHeight = HOW_STORY_APP_LINE_HEIGHT) {
   const k = HOW_STORY_PICKER;
-  const header = 12 * lineHeight + 14 + 25 * lineHeight + 20 + k.smallButton + 8 + 2 * 16 + k.filterRow;
-  const dateHeader = k.dateGap + k.smallButton;
-  const row1 = k.listTop + k.padTop - PICKER_SCROLL_DP + header + dateHeader + k.firstRowGap;
+  const row1 = pickerRowsDp(lineHeight).cards;
   return [0, 1, 2, 3].map((index) => ({
     x: k.padStart + (index % 2) * (k.card + k.gap),
     y: row1 + Math.floor(index / 2) * (k.card + k.gap),

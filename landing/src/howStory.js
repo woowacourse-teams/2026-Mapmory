@@ -629,6 +629,10 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     const o = outward ? seg(u, 0, 0.35) : 0;
     nodes[`copy${i}`] = { ...move(rect.cx - L.nodeBase / 2, rect.cy - L.nodeBase / 2, rect.size / L.nodeBase, o), r: round(rect.r, 2) + 0 };
   }
+  // The header rows under the stack (the two buttons, the note, the filter row) clear as the prints lift into their
+  // place, so the hold is the stack alone between the title and the date row (round-3 V4). In beat 05 it goes with
+  // the stack, in time (how-story.css).
+  nodes.pickerClear = fade(outward && !landing ? lift : 0);
 
   // Beat 05's map, its own moment after the picker has gone: develop's 경상북도 drill map (zoomed in on the
   // mainland), 경주시 fills, then the map camera pulls back to the Korea map by interpolating the SVG viewBox (crisp

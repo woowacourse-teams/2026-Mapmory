@@ -373,6 +373,16 @@
   box-shadow: 0 calc(16 * var(--dp)) calc(30 * var(--dp)) rgba(8, 24, 16, 0.38), 0 calc(3 * var(--dp)) calc(8 * var(--dp)) rgba(8, 24, 16, 0.2);
 }
 .how-copy-node img { position: relative; width: 100%; height: 100%; border-radius: calc(8 * var(--dp)); }
+/* The stack's clear ground: while the prints are up, a flat band of the app's background over the picker's header
+   rows under them (the two buttons, the note and the filter row), so the hold is the stack alone between the title
+   and the date row, not a stack over clipped fragments of those rows (round-3 V4). Its edges sit halfway into the
+   empty gaps around those rows and 8dp in from the screen's sides, so over the screen's own background it never
+   shows as a shape. The frame fades it in with the lift; in beat 05 it fades with the stack's rise, in time, and a
+   jump into the beat (data-skip) drops it at once. */
+.how-picker-clear { position: absolute; left: calc(8 * var(--dp)); right: calc(8 * var(--dp)); top: calc(var(--clear-top) * var(--dp)); height: calc(var(--clear-h) * var(--dp)); background: var(--app-bg); opacity: 0; pointer-events: none; }
+.how-stage:not([data-save="1"]) .how-picker-clear { visibility: hidden; }
+.how-stage[data-scene="5"] .how-picker-clear { visibility: hidden; transition: opacity 280ms var(--ease-out) 360ms, visibility 0s linear 640ms; }
+.how-stage[data-scene="5"] .how-picker-clear[data-skip="1"] { transition: none; }
 
 .how-bottom-fade { top: auto; bottom: 0; width: 100%; height: 48px; background: linear-gradient(to bottom, transparent, var(--canvas)); pointer-events: none; }
 .how-pill {
@@ -413,6 +423,7 @@
 .how-story-track.is-live .how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"][data-picker="1"]) .how-match { will-change: transform, opacity; }
 .how-story-track.is-live .how-stage:is([data-scene="4"], [data-scene="5"][data-picker="1"]) .how-app-picker { will-change: opacity; }
 .how-story-track.is-live .how-stage[data-save="1"][data-picker="1"] .how-copy-node { will-change: transform, opacity; }
+.how-story-track.is-live .how-stage[data-save="1"][data-picker="1"] .how-picker-clear { will-change: opacity; }
 .how-story-track.is-live .how-stage[data-scene="5"] .how-app-map { will-change: opacity; }
 
 /* The measured stats band (after the pin, before #how-end). It renders only when HOW_STORY_METRICS resolves a stat;

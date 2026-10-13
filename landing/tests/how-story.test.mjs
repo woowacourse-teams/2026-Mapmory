@@ -63,6 +63,8 @@ import {
   getHowStoryMode,
   mapCameraBox,
   pickerCardRectsDp,
+  pickerPrintClearDp,
+  pickerRowsDp,
 } from "../src/howStoryLayout.js";
 
 const read = (file) => readFile(new URL(file, import.meta.url), "utf8");
@@ -414,20 +416,43 @@ test("the picker's cards sit where develop's list puts them, from the app's line
     // The flying photos are drawn at their largest size and only scaled down.
     assert.ok(layout.nodeBase >= Math.max(layout.cards[0].size, ...layout.cluster.map(({ size }) => size)), name);
   }
-  // The print stack (each print's turned outer box, white border included: 12 card-dp at half a card) stays
-  // between the header's title row and the date row with its 이 날짜 사진 선택 button, left of the 3장 선택 count,
-  // so it never covers what the hold reads (round-1 V2: a copy touched the date button at 360x640).
+  // The header rows come from the same layout as the cards.
   const k = HOW_STORY_PICKER;
+  const rows = pickerRowsDp();
   const titleBottom = k.listTop + k.padTop - PICKER_SCROLL_DP + 12 * HOW_STORY_APP_LINE_HEIGHT + 14 + 25 * HOW_STORY_APP_LINE_HEIGHT;
-  const dateTop = rects[0].y - k.firstRowGap - k.dateGap - k.smallButton;
+  const dateTop = rects[0].y - k.firstRowGap - k.smallButton;
+  near(rows.title[1], titleBottom, "title row");
+  near(rows.date[0], dateTop, "date row");
+  near(rows.cards, rects[0].y, "first card row");
+  near(rows.filter[1] - rows.buttons[0], k.smallButton + 8 + 2 * 16 + k.filterRow, "buttons, note and filter");
+  // The print stack (each print's turned outer box, white border included: 12 card-dp at half a card) stays
+  // between the header's title row and the date row with its 이 날짜 사진 선택 button, so it never covers what the
+  // hold reads (round-1 V2: a copy touched the date button at 360x640), and it rests inside the clear band, which
+  // blanks the rows under it whole: the two buttons, the note and the filter row (round-3 V4: the stack half-covered
+  // them, leaving clipped fragments, and its shadow fell on the filter label). The band's edges sit in the empty gaps
+  // (at least 8dp from the title and date rows) and its sides in the screen's empty margins, so it never shows as a
+  // shape over the app's background.
+  const [clearTop, clearBottom] = pickerPrintClearDp();
+  assert.ok(clearTop >= titleBottom + 8 && clearTop <= rows.buttons[0] - 8, `clear top ${clearTop}`);
+  assert.ok(clearBottom >= rows.filter[1] + 8 && clearBottom <= dateTop - 8, `clear bottom ${clearBottom}`);
+  assert.match(storyCss, /\.how-picker-clear \{ position: absolute; left: calc\(8 \* var\(--dp\)\); right: calc\(8 \* var\(--dp\)\);[^}]*background: var\(--app-bg\);/);
+  assert.ok(8 < k.padStart && 360 - 8 > 360 - k.padEnd);
   const outer = k.card * HOW_STORY_PRINTS.size + 2 * 12 * HOW_STORY_PRINTS.size;
+  let [stackTop, stackBottom] = [Infinity, -Infinity];
   for (const { dx, dy, r } of HOW_STORY_PRINTS.slots) {
     const turn = (Math.abs(r) * Math.PI) / 180;
     const half = (outer * (Math.cos(turn) + Math.sin(turn))) / 2;
     const [cx, cy] = [HOW_STORY_PRINTS.centre[0] + dx, HOW_STORY_PRINTS.centre[1] + dy];
-    assert.ok(cy - half > titleBottom && cy + half < dateTop, `print at ${cy}: ${cy - half}..${cy + half} between ${titleBottom} and ${dateTop}`);
-    assert.ok(cx - half > 0 && cx + half < 360 - k.padEnd - 50, `print at ${cx}`);
+    assert.ok(cy - half > clearTop + 8 && cy + half < clearBottom - 8, `print at ${cy}: ${cy - half}..${cy + half} inside ${clearTop}..${clearBottom}`);
+    assert.ok(cx - half > 20 && cx + half < 360 - k.padEnd, `print at ${cx}`);
+    stackTop = Math.min(stackTop, cy - half);
+    stackBottom = Math.max(stackBottom, cy + half);
   }
+  // Centred in the gap between the title and date rows (within 2dp), and its shadow (16 card-dp down with a 30
+  // card-dp blur, at the print's scale) ends before the date row.
+  near(stackTop - titleBottom, dateTop - stackBottom, "stack centred between the title and the date row", 2);
+  assert.ok(stackBottom + (16 + 30) * HOW_STORY_PRINTS.size <= dateTop, `shadow ${stackBottom}`);
+  assert.match(storyCss, /\.how-copy-node::before \{[^}]*box-shadow: 0 calc\(16 \* var\(--dp\)\) calc\(30 \* var\(--dp\)\)/);
 });
 
 test("scrubbed moves are calm: each big move takes at least 100px of scroll from 10% to 90%, with no jump", () => {
@@ -594,6 +619,16 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
       assert.equal(copy.r, print.r, name);
       assert.equal(copy.o, 1, name);
     }
+    // The clear band under the stack comes with the lift (never before it) and holds at full strength.
+    assert.equal(start.nodes.pickerClear.o, 0, name);
+    assert.equal(saved.nodes.pickerClear.o, 0, name);
+    assert.equal(hold.nodes.pickerClear.o, 1, name);
+    let previousClear = 0;
+    for (const p of beatSweep(3)) {
+      const clear = getHowStoryFrame(p, layout).nodes.pickerClear.o;
+      assert.ok(clear >= previousClear, `${name} the band only comes in at ${p}`);
+      previousClear = clear;
+    }
   }
   // The rings drawn are the picks and the save in the tap plan: one per picked photo, none on D.
   const picks = getHowStoryTapPlan().filter(({ id }) => id.startsWith("pick-"));
@@ -642,6 +677,8 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
       // an empty phone: exactly one of the two tabs is on at every p (round-3 V3).
       assert.notEqual(frame.state.picker === 1, frame.state.map !== "none", `${name} one tab at t ${t}`);
       for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, frame.state.picker, `${name} photo ${index} at t ${t}`);
+      // The frame drops the clear band at once; it fades with the stack's rise, in time (below).
+      assert.equal(frame.nodes.pickerClear.o, 0, `${name} t ${t}`);
       // The frame holds the prints in the stack; the stack itself rises away in time (below).
       for (let index = 0; index < 3; index += 1) {
         const copy = frame.nodes[`copy${index}`];
@@ -671,6 +708,13 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
   const stackGone = Math.max(riseMs, fadeDelay + fadeMs);
   assert.ok(riseMs >= 600 && hideDelay >= stackGone, `${riseMs} ${fadeDelay}+${fadeMs} ${hideDelay}`);
   assert.doesNotMatch(css, /data-map[^{}]*\.how-copy-stack/, "no map state hides the stack");
+  // The band the prints rested over fades with the stack (the same delay and length), is hidden only once that is
+  // over, and a jump into the beat drops it at once like the stack.
+  const clearRule = css.match(/\.how-stage\[data-scene="5"\] \.how-picker-clear \{ visibility: hidden; transition: opacity (\d+)ms var\(--ease-out\) (\d+)ms, visibility 0s linear (\d+)ms; \}/);
+  assert.ok(clearRule, "the band's beat-05 rule");
+  assert.deepEqual(clearRule.slice(1).map(Number), [fadeMs, fadeDelay, hideDelay]);
+  assert.match(howSources["AppScreens.jsx"], /className="how-picker-clear" data-node="pickerClear" data-enter="map"/);
+  assert.match(css, /\.how-stage\[data-scene="5"\] \.how-picker-clear\[data-skip="1"\] \{ transition: none; \}/);
   assert.match(hookSource, /set\("--stack-rise", `\$\{layout\.stackRise\}px`\);/);
   // The rise takes the lowest print (border, turn and shadow: under one print size below its centre) past the top.
   for (const [name, layout] of LAYOUTS) for (const { cy, size } of layout.prints) assert.ok(layout.stackRise >= cy + size, name);

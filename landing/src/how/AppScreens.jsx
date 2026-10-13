@@ -19,7 +19,7 @@ import {
   linearProgressPlacement,
   mapPercent,
 } from "../howStory.js";
-import { APP_MAP_VIEW, HOW_STORY_APP_PROGRESS } from "../howStoryLayout.js";
+import { APP_MAP_VIEW, HOW_STORY_APP_PROGRESS, pickerPrintClearDp } from "../howStoryLayout.js";
 import { useHowMapData } from "./mapData.js";
 
 const T = APP_SCREEN_TEXT;
@@ -175,9 +175,15 @@ export function PickerCardChrome() {
   );
 }
 
+// The story's clear band under the print stack, in the picker viewport's dp (it starts under the 89dp top bar).
+const PRINT_CLEAR = (() => {
+  const [top, bottom] = pickerPrintClearDp();
+  return { "--clear-top": (top - 89).toFixed(2), "--clear-h": (bottom - top).toFixed(2) };
+})();
+
 // PhotoPickerStep: header, buttons, note, the recorded-photo filter, one date group and a 2-column grid.
-// cardsOnStage: in scroll mode the flying stage tiles are the cards, so the grid holds empty placeholders, and the
-// save-action tap is drawn.
+// cardsOnStage: in scroll mode the flying stage tiles are the cards, so the grid holds empty placeholders, the
+// save-action tap is drawn, and the clear band the prints rest over at save is there (how-story.css).
 export function PickerScreen({ cardsOnStage = false }) {
   const t = T.picker;
   return (
@@ -224,6 +230,7 @@ export function PickerScreen({ cardsOnStage = false }) {
             ))}
           </div>
         </div>
+        {cardsOnStage && <span className="how-picker-clear" data-node="pickerClear" data-enter="map" style={PRINT_CLEAR} />}
       </div>
     </div>
   );
