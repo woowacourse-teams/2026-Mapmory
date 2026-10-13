@@ -337,6 +337,9 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     r,
   }));
   const nodeBase = Math.ceil(Math.max(g.nodeBase, clusterTile, cards[0].size));
+  // Beat 05 opens with the stack rising until its lowest print (white border, turn and shadow included: under one
+  // print size below its centre) is past the stage's top edge.
+  const stackRise = Math.ceil(Math.max(...prints.map(({ cy, size }) => cy + size)) + 8);
 
   return Object.freeze({
     mode,
@@ -360,6 +363,7 @@ export function createHowStoryLayout({ mode, stageWidth, stageHeight, viewportWi
     matchK: round(nodeBase / (tile * g.matchLift), 4),
     cards: Object.freeze(cards),
     prints: Object.freeze(prints),
+    stackRise,
     overlayTop: round(overlayTop),
     overlayBar: g.overlayBar[mode],
     // The loading screen's progress bar: full width inside 34dp side padding, 8dp tall (PhotoLoadingBar).

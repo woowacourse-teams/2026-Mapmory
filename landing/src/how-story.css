@@ -225,10 +225,9 @@
 .how-story-track:not(.is-entered) .how-phone-enter { opacity: 0; transform: translateY(40px); transition: none; }
 .how-phone-camera { transform-origin: 50% 50%; }
 .how-stage[data-scene="3"] .how-phone-slot { visibility: hidden; }
-/* Past beat 03 the pins are at opacity 0 for good; once the picker has gone (data-picker 0), so are its photos and
-   the prints. Hidden, they leave the layers around them unchanged when their own layers go. */
-.how-stage:is([data-scene="4"], [data-scene="5"]) .how-pins-reveal,
-.how-stage[data-picker="0"] :is(.how-match, .how-copy-node) { visibility: hidden; }
+/* Past beat 03 the pins are at opacity 0 for good. Hidden, they leave the layers around them unchanged when their
+   own layers go. */
+.how-stage:is([data-scene="4"], [data-scene="5"]) .how-pins-reveal { visibility: hidden; }
 
 /* PhoneFrame: a clay bezel (9px) around a 360 x 780 dp screen, no clock, icons or buttons. */
 .how-phone {
@@ -259,8 +258,23 @@
 .how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"]) :is(.how-app-import, .how-app-loading),
 .how-stage:is([data-scene="1"], [data-scene="2"], [data-scene="3"]) .how-app-picker,
 .how-stage:not([data-scene="5"]) .how-app-map { visibility: hidden; }
+/* Screen changes are app navigation, so they play in time on a state, like the copy swap, and undo the same way
+   when the reader scrolls back; scrubbed, a whole screen crossed the phone inside one wheel notch (round-2 V1).
+   Beat 02 opens with the push: 사진 불러오기 slides out and the loading screen slides in (480ms) as the copy swaps. */
+.how-stage .how-app-loading { transform: translateX(100%); }
+.how-stage :is(.how-app-import, .how-app-loading) { transition: transform 480ms var(--ease-in-out), opacity 480ms var(--ease-in-out); }
+.how-stage:not([data-scene="1"]) .how-app-import { opacity: 0; transform: translateX(-30%); }
+.how-stage:not([data-scene="1"]) .how-app-loading { transform: none; }
+/* Beat 05 is two moments, never a crossfade: the picker tab goes with its photos (data-picker 0, 200ms), the screen
+   stays empty a beat, then the map tab comes (data-map past none), and only after the picker's fade has had its
+   time, so a flick never shows the two together. */
 .how-stage .how-app-picker,
 .how-stage .how-app-map { opacity: 0; }
+.how-stage:is([data-scene="4"], [data-scene="5"][data-picker="1"]) .how-app-picker { opacity: 1; }
+.how-stage[data-scene="5"] :is(.how-app-picker, .how-match) { transition: opacity 200ms var(--ease-out); }
+.how-stage[data-picker="0"] .how-match { visibility: hidden; transition: opacity 200ms var(--ease-out), visibility 0s linear 200ms; }
+.how-stage[data-scene="5"] .how-app-map { transition: opacity 160ms var(--ease-out); }
+.how-stage[data-scene="5"]:not([data-map="none"]) .how-app-map { opacity: 1; transition: opacity 320ms var(--ease-out) 200ms; }
 
 /* The big number over the library: a fixed-width block, so the per-frame value writes never relayout. */
 .how-overlay {
@@ -312,7 +326,8 @@
 .how-match img,
 .how-copy-node img { object-fit: cover; }
 .how-match-shadow { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42); opacity: 0; }
-.how-match-chrome { opacity: 0; }
+/* The card chrome is a UI state: the frame switches it on once the photos have landed on the cards. */
+.how-match-chrome { opacity: 0; transition: opacity 200ms var(--ease-out); }
 /* The library's ring and pin on a photo leaving it: sized in the node by --match-k (nodeBase / the lifted cell), so
    at the flight's start they are the cell's 3px ring, 4px halo and 9 x 12px pin. */
 .how-match-mark { position: absolute; inset: 0; border-radius: calc(2px * var(--match-k, 4)); box-shadow: 0 0 0 calc(3px * var(--match-k, 4)) var(--how-match), 0 0 0 calc(7px * var(--match-k, 4)) rgba(14, 18, 20, 0.7); opacity: 0; }
@@ -320,6 +335,14 @@
 /* The saved copies: prints. The photo is the node (so it starts exactly on its card); the white border and a firm
    shadow sit outside it, and the node turns about its centre into the stack. */
 .how-copy-node { transform-origin: 50% 50%; }
+/* The stack: beat 05 opens with it rising off the top of the stage in time (the upload ends there, before the map
+   comes), just far enough to clear the stage (--stack-rise), so the whole rise is seen; scrolling back brings it
+   down into place. It is hidden once the map tab is in. A 0 x 0 box (the prints are absolute in it), so the stack's
+   bounds are its prints and it never widens the layer it shares with the photos to the whole stage. */
+.how-copy-stack { width: 0; height: 0; pointer-events: none; transition: transform 640ms var(--ease-in-out), opacity 200ms var(--ease-out); }
+.how-copy-stack > .how-copy-node { position: absolute; left: 0; top: 0; }
+.how-stage[data-scene="5"] .how-copy-stack { opacity: 0; transform: translateY(calc(-1 * var(--stack-rise, 100vh))); transition: transform 640ms var(--ease-in-out), opacity 280ms var(--ease-out) 360ms; }
+.how-stage[data-scene="5"]:not([data-map="none"]) .how-copy-stack { visibility: hidden; }
 .how-copy-node::before {
   content: "";
   position: absolute;

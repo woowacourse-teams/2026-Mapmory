@@ -319,10 +319,11 @@ export function isInsideRings(lng, lat, rings) {
 const DRAWN_TAPS = Object.freeze([
   Object.freeze({ id: "field", scene: 0, t: 0.04, optional: true }),
   Object.freeze({ id: "row", scene: 0, t: 0.42 }),
-  Object.freeze({ id: "pick-0", scene: 3, t: 0.41 }),
-  Object.freeze({ id: "pick-1", scene: 3, t: 0.48 }),
-  Object.freeze({ id: "pick-2", scene: 3, t: 0.55 }),
-  Object.freeze({ id: "save", scene: 3, t: 0.62 }),
+  // Beat 04: once the cards have landed (t .35), three picks and 기록하기, so the copies can lift over a wide window.
+  Object.freeze({ id: "pick-0", scene: 3, t: 0.37 }),
+  Object.freeze({ id: "pick-1", scene: 3, t: 0.42 }),
+  Object.freeze({ id: "pick-2", scene: 3, t: 0.47 }),
+  Object.freeze({ id: "save", scene: 3, t: 0.51 }),
 ]);
 
 export function getHowStoryTapRange() {
@@ -470,6 +471,31 @@ export function linearProgressPlacement(k, bar, gap) {
   return { fill: round(fillEnd - w), track: round(track) };
 }
 
+// Beat-local times (t) the frame and the CSS share. Scrubbed moves ride GLIDE over windows wide enough that each
+// takes at least 100px of scroll from 10% to 90% on every wheel device (one unit is at least 744px there) and at
+// 390x844 (a test sweeps them). Screen changes inside the phone are app navigation, so they play in time on a
+// threshold (how-story.css), like the copy swap: a whole screen moved by scroll crossed the phone inside one wheel
+// notch (round-2 V1).
+export const HOW_STORY_TIMING = Object.freeze({
+  // Beat 02: the camera pushes into the phone (the push to the loading screen plays on the scene change).
+  inward: Object.freeze([0.06, 0.36]),
+  // Beat 03: the found photos fly from the library to the cluster, one after another.
+  cluster: Object.freeze({ start: 0.04, stagger: 0.02, length: 0.3 }),
+  // Beat 04: the camera comes back out while the photos fly on to the picker's cards; the card chrome comes on once
+  // all four have landed; then the taps (DRAWN_TAPS) and the three copies lift into the print stack.
+  outward: Object.freeze([0, 0.28]),
+  cards: Object.freeze({ start: 0, stagger: 0.015, length: 0.26 }),
+  chrome: 0.315,
+  lift: Object.freeze([0.525, 0.795]),
+  // Beat 05 (thresholds; the moves play in time): the print stack rises away on the scene change, the picker tab
+  // goes, the map tab comes, 경주시 fills, the map camera pulls back (scrubbed), and the world tab shows.
+  pickerOut: 0.09,
+  mapIn: 0.18,
+  fill: 0.34,
+  mapCamera: Object.freeze([0.38, 0.66]),
+  world: 0.72,
+});
+
 // One frame of the story. nodes are written as transform/opacity, texts as text, state as data-* on the stage.
 // A layer nobody can see gets no writes: the loading screen's counter, percent and bar stop once the screen has
 // gone clear, and the overlay's number and bar start only when the overlay shows (the hook keeps the last
@@ -484,11 +510,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const nodes = {};
   const texts = {};
 
-  // Camera: in over beat 02 t .06-.36, out over beat 04 t 0-.30 (e = 1 means inside the phone). Scrubbed moves
+  // Camera: in over beat 02 t .06-.36, out over beat 04 t 0-.28 (e = 1 means inside the phone). Scrubbed moves
   // ride GLIDE over about a third of a viewport each: the reader's scroll is the speed, so the curve stays gentle.
+  const T = HOW_STORY_TIMING;
   const outward = progress >= HOW_STORY_WINDOWS[3][0];
-  const inE = GLIDE(seg(t2, 0.06, 0.36));
-  const outE = GLIDE(seg(t4, 0, 0.3));
+  const inE = GLIDE(seg(t2, ...T.inward));
+  const outE = GLIDE(seg(t4, ...T.outward));
   const e = outward ? 1 - outE : inE;
   const zoom = inward === "zoom";
   const z = zoom ? lerp(1, L.kIn, e) : 1;
@@ -514,16 +541,12 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   const screenO = outward ? seg(outE, 0.3, 0.75) : 1 - seg(inE, 0.1, 0.35);
   nodes.screenFade = fade(screenO);
 
-  // Screens inside the phone (screen px). Beat 02 pushes 사진 불러오기 out and the loading screen in. Beat 05 is
-  // two moments, never a crossfade: the picker goes (t .08-.16), the screen stays empty a beat, then the map comes
-  // (t .19-.27), so saving never reads as "and then the app opens the map".
-  const push = GLIDE(seg(t2, 0, 0.1));
-  const pickerOut = seg(t5, 0.08, 0.16);
-  const mapIn = GLIDE(seg(t5, 0.19, 0.27));
-  nodes.screenImport = move(-0.3 * L.screen.w * push, 0, 1, outward ? 0 : 1 - push);
-  nodes.screenLoading = move(L.screen.w * (1 - push), 0, 1, outward ? 0 : 1);
-  nodes.screenPicker = fade(outward ? 1 - pickerOut : 0);
-  nodes.screenMap = fade(mapIn);
+  // Screens inside the phone are switched by state and play in time (how-story.css): beat 02 opens with the push from
+  // 사진 불러오기 to the loading screen (data-scene); beat 05 is two moments, never a crossfade: the picker goes
+  // (data-picker 0), the screen stays empty a beat, then the map comes (data-map past "none"), so saving never reads
+  // as "and then the app opens the map".
+  const landing = progress >= HOW_STORY_WINDOWS[4][0];
+  const pickerGone = landing && t5 >= T.pickerOut;
 
   // Counter and pin wave share one number, so they never disagree.
   const { k, processed } = loadingStep(t2);
@@ -565,44 +588,43 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   // the camera shows each card at that moment, and become them (the card border and preview button fade in once
   // all four have landed), so the photos found are the photos offered. Beat 05: they go with the picker.
   const pins = L.cells.filter(({ popAt }) => k > 0 && edge >= popAt).length;
-  const landing = progress >= HOW_STORY_WINDOWS[4][0];
-  const chrome = seg(t4, 0.32, 0.37);
+  // The card chrome is a UI state: it comes on once all four have landed (a 200ms fade in how-story.css).
+  const chrome = t4 >= T.chrome ? 1 : 0;
   L.cells.forEach((cell, i) => {
-    const start3 = 0.04 + 0.03 * i;
+    const start3 = T.cluster.start + T.cluster.stagger * i;
     const started = progress >= HOW_STORY_WINDOWS[2][0] && t3 >= start3;
-    const flight3 = seg(t3, start3, start3 + 0.28);
-    const start4 = 0.02 + 0.03 * i;
-    const flight4 = seg(t4, start4, start4 + 0.24);
+    const flight3 = seg(t3, start3, start3 + T.cluster.length);
+    const start4 = T.cards.start + T.cards.stagger * i;
+    const flight4 = seg(t4, start4, start4 + T.cards.length);
     const [from, to, u] = outward ? [L.cluster[i], throughCamera(L.cards[i]), GLIDE(flight4)] : [cell.lift, L.cluster[i], GLIDE(flight3)];
     const size = lerp(from.size, to.size, u);
     // The cell and its ring hand over to the tile in the same frame.
     nodes[`matchCell${i}`] = fade(started ? 0 : 1);
     nodes[`matchMark${i}`] = fade(started ? 0 : 1);
-    nodes[`match${i}`] = move(lerp(from.x, to.x, u), lerp(from.y, to.y, u), size / L.nodeBase, started ? (landing ? 1 - pickerOut : 1) : 0);
+    // In beat 05 they go with the picker tab: a step here, a fade in time in how-story.css.
+    nodes[`match${i}`] = move(lerp(from.x, to.x, u), lerp(from.y, to.y, u), size / L.nodeBase, started && !pickerGone ? 1 : 0);
     nodes[`matchRing${i}`] = fade(outward ? 0 : 1 - seg(flight3, 0.3, 0.7));
     nodes[`matchShadow${i}`] = fade(outward ? 1 - flight4 : flight3);
     nodes[`matchChrome${i}`] = fade(outward ? chrome : 0);
   });
 
-  // Saving: copies of the three picked photos peel off their cards and lift into a fanned stack of prints over the
-  // header (the upload; the originals stay selected in the grid, card D has no copy). Beat 05 opens with the
-  // prints rising off the top and fading: the upload ends there, before the map, which never receives them.
+  // Saving: copies of the three picked photos peel off their cards and lift together into a fanned stack of prints
+  // over the header (the upload; the originals stay selected in the grid, card D has no copy). Beat 05 opens with
+  // the stack rising off the top in time (how-story.css): the upload ends there, before the map, which never
+  // receives them. The frame holds the prints in the stack.
   const picked = HOW_STORY_MATCHES.filter((match) => match.picked).length;
+  const lift = GLIDE(seg(t4, ...T.lift));
   for (let i = 0; i < picked; i += 1) {
     const card = L.cards[i];
     const print = L.prints[i];
-    const lift = GLIDE(seg(t4, 0.64 + 0.02 * i, 0.74 + 0.02 * i));
-    const leave = GLIDE(seg(t5, 0.02 * i, 0.1 + 0.02 * i));
-    const from = { cx: card.x + card.size / 2, cy: card.y + card.size / 2, size: card.size, r: 0 };
-    let rect;
-    let o;
-    if (!landing) {
-      rect = { cx: lerp(from.cx, print.cx, lift), cy: lerp(from.cy, print.cy, lift), size: lerp(from.size, print.size, lift), r: lerp(0, print.r, lift) };
-      o = outward ? seg(lift, 0, 0.35) : 0;
-    } else {
-      rect = { ...print, cy: lerp(print.cy, -print.size, leave) };
-      o = 1 - seg(leave, 0.3, 1);
-    }
+    const u = landing ? 1 : lift;
+    const rect = {
+      cx: lerp(card.x + card.size / 2, print.cx, u),
+      cy: lerp(card.y + card.size / 2, print.cy, u),
+      size: lerp(card.size, print.size, u),
+      r: lerp(0, print.r, u),
+    };
+    const o = outward ? seg(u, 0, 0.35) : 0;
     nodes[`copy${i}`] = { ...move(rect.cx - L.nodeBase / 2, rect.cy - L.nodeBase / 2, rect.size / L.nodeBase, o), r: round(rect.r, 2) + 0 };
   }
 
@@ -610,7 +632,7 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
   // mainland), 경주시 fills, then the map camera pulls back to the Korea map by interpolating the SVG viewBox (crisp
   // at every scale): district lines and labels go, province outlines come, 경주시's fill hands over to 경상북도's,
   // and the summary card crossfades to the Korea variant.
-  const mapE = GLIDE(seg(t5, 0.37, 0.65));
+  const mapE = GLIDE(seg(t5, ...T.mapCamera));
   const view = APP_MAP_VIEW;
   const box = mapCameraBox(view.drillBox, view.koreaBox, mapE);
   const attrs = { mapSvg: { viewBox: box.map((value) => round(value, 2)).join(" ") } };
@@ -646,13 +668,14 @@ export function getHowStoryFrame(p, layout = HOW_STORY_TEST_LAYOUT.mobile, optio
     found: t3 >= 0.14 ? 1 : 0,
     sel: pickTaps.filter((tap) => progress >= tap.p).length,
     save: progress >= saveTap.p ? 1 : 0,
-    map: !landing || t5 < 0.31 ? "drill0" : t5 < 0.71 ? "drill1" : "world",
-    // Inside the phone: from beat 02 until the camera is back out in beat 04 (t .30). Outside it the camera, the
+    // The map tab: none until it comes (beat 05 t .20), then 경상북도's drill view, 경주시 filled, and the world.
+    map: !landing || t5 < T.mapIn ? "none" : t5 < T.fill ? "drill0" : t5 < T.world ? "drill1" : "world",
+    // Inside the phone: from beat 02 until the camera is back out in beat 04 (t .28). Outside it the camera, the
     // screen fade and the bottom fade are at rest and the library, its ground and the overlay are at opacity 0,
     // so their layers drop (how-story.css).
-    inside: progress >= HOW_STORY_WINDOWS[1][0] && (!outward || t4 < 0.3) ? 1 : 0,
-    // The picker's photos and the prints are all at opacity 0 from beat 05 t .16 (their layers drop with this).
-    picker: landing && t5 >= 0.16 ? 0 : 1,
+    inside: progress >= HOW_STORY_WINDOWS[1][0] && (!outward || t4 < T.outward[1]) ? 1 : 0,
+    // The picker tab, with its four photos: it goes at beat 05 t .10 (a fade in time; their layers drop with it).
+    picker: pickerGone ? 0 : 1,
   };
 
   return { p: progress, sceneIndex, t, e: round(e, 4), nodes, texts, attrs, state };

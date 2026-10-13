@@ -16,6 +16,7 @@ import {
   HOW_STORY_SCENE_COUNT,
   HOW_STORY_TEST_LAYOUT,
   HOW_STORY_TEXT,
+  HOW_STORY_TIMING,
   HOW_STORY_TITLE,
   HOW_STORY_TITLE_LINES,
   HOW_STORY_TRACK,
@@ -430,50 +431,108 @@ test("the picker's cards sit where develop's list puts them, from the app's line
 });
 
 test("scrubbed moves are calm: each big move takes at least 100px of scroll from 10% to 90%, with no jump", () => {
-  // Travel in px: phones scroll 430svh (390x844: one unit = 844px), wheel devices clamp(3200px, 430svh, 3800px).
-  const sizes = [["mobile", 844], ["desktop", 800]];
+  // Travel in px: phones scroll 430svh (390x844: one unit = 844px); wheel devices clamp(3200px, 430svh, 3800px), so
+  // 1280x800 has 800px a unit and the shortest wheel track (any window up to 744px tall) 3200 / 4.3 = 744px.
+  const sizes = [["mobile", 844], ["desktop", 800], ["desktop", HOW_STORY_TRACK.desktopMinPx / HOW_STORY_TRAVEL_UNITS]];
+  const view = APP_MAP_VIEW;
+  // The progress bars and the pin wave's reveal follow the counter (front-loaded on purpose, spec beat 02, and the
+  // wave's first step only uncovers the window above the stage), so they are not moves.
+  const counterDriven = new Set(["loadingFill", "loadingTrack", "overlayBarFill", "pinsReveal", "pinsInner"]);
   for (const [name, unit] of sizes) {
     const layout = HOW_STORY_TEST_LAYOUT[name];
+    const label = `${name} (${Math.round(unit)}px a unit)`;
     const travel = unit * HOW_STORY_TRAVEL_UNITS;
+    const frames = [];
+    for (let px = 0; px <= Math.ceil(travel); px += 1) frames.push([px, getHowStoryFrame(Math.min(1, px / travel), layout)]);
+    const within = (beat) => frames.filter(([px]) => px >= HOW_STORY_WINDOWS[beat][0] * travel && px < HOW_STORY_WINDOWS[beat][1] * travel);
     const lift = layout.cells[3].lift;
     const cluster = layout.cluster[3];
-    const view = APP_MAP_VIEW;
     const moves = [
       ["inward camera", 1, (f) => (f.nodes.phoneCamera.s - 1) / (layout.kIn - 1)],
       ["outward camera", 3, (f) => 1 - (f.nodes.phoneCamera.s - 1) / (layout.kIn - 1)],
       ["tile flight", 2, (f) => (f.nodes.match3.tx - lift.x) / (cluster.x - lift.x)],
       ["map camera", 4, (f) => Math.log(Number(f.attrs.mapSvg.viewBox.split(" ")[2]) / view.drillBox[2]) / Math.log(view.koreaBox[2] / view.drillBox[2])],
+      // Saving: each copy lifts off its card into the print stack (print C travels about 330px at 390x844).
+      ...[0, 1, 2].map((index) => {
+        const card = layout.cards[index];
+        const from = card.y + card.size / 2;
+        return [`print ${"ABC"[index]} lift`, 3, (f) => (f.nodes[`copy${index}`].ty + layout.nodeBase / 2 - from) / (layout.prints[index].cy - from)];
+      }),
     ];
-    for (const [label, beat, measure] of moves) {
-      const [start, end] = HOW_STORY_WINDOWS[beat];
-      const samples = [];
-      for (let px = Math.floor(start * travel); px <= Math.ceil(end * travel); px += 1) {
-        const p = Math.min(end - 1e-9, Math.max(start, px / travel));
-        samples.push([px, measure(getHowStoryFrame(p, layout))]);
-      }
+    for (const [move, beat, measure] of moves) {
+      const samples = within(beat).map(([px, frame]) => [px, measure(frame)]);
       const at = (value) => samples.find(([, f]) => f >= value)[0];
       const span = at(0.9) - at(0.1);
-      assert.ok(span >= 100, `${name} ${label}: 10-90% in ${span}px`);
+      assert.ok(span >= 100, `${label} ${move}: 10-90% in ${span}px`);
       // A 7px step (a fine trackpad tick) never moves it more than 7%.
       for (let index = 7; index < samples.length; index += 1) {
         const step = Math.abs(samples[index][1] - samples[index - 7][1]);
-        assert.ok(step <= 0.07, `${name} ${label}: ${(step * 100).toFixed(1)}% in 7px at ${samples[index][0]}px`);
+        assert.ok(step <= 0.07, `${label} ${move}: ${(step * 100).toFixed(1)}% in 7px at ${samples[index][0]}px`);
+      }
+    }
+    // Any other scrubbed translation of 60px or more is held to the same rule, so a new big move cannot slip in.
+    const series = new Map();
+    for (const [px, frame] of frames) {
+      for (const [key, node] of Object.entries(frame.nodes)) {
+        if (counterDriven.has(key)) continue;
+        for (const prop of ["tx", "ty"]) {
+          if (node[prop] === undefined) continue;
+          const id = `${key}.${prop}`;
+          if (!series.has(id)) series.set(id, []);
+          series.get(id).push([px, node[prop]]);
+        }
+      }
+    }
+    for (const [id, values] of series) {
+      // Runs: stretches of change between rests of 3px or more.
+      let index = 0;
+      while (index < values.length - 1) {
+        if (values[index + 1][1] === values[index][1]) {
+          index += 1;
+          continue;
+        }
+        let next = index + 1;
+        let rest = 0;
+        while (next < values.length - 1 && rest < 3) {
+          rest = values[next + 1][1] === values[next][1] ? rest + 1 : 0;
+          next += 1;
+        }
+        const run = values.slice(index, next - rest + 1);
+        const [first, last] = [run[0][1], run.at(-1)[1]];
+        if (Math.abs(last - first) >= 60) {
+          const at = (value) => run.find(([, v]) => (v - first) / (last - first) >= value)[0];
+          assert.ok(at(0.9) - at(0.1) >= 100, `${label} ${id}: ${Math.abs(last - first).toFixed(0)}px of travel in ${at(0.9) - at(0.1)}px of scroll from ${run[0][0]}px`);
+        }
+        index = next;
       }
     }
   }
+  // Whole screens and the print stack are not scrubbed: the push to the loading screen, the picker and map tabs and the
+  // stack rising away play in time on a state (how-story.css), like the copy swap.
+  for (const [name, layout] of LAYOUTS) {
+    for (const p of sweep(0.01)) {
+      const { nodes } = getHowStoryFrame(p, layout);
+      for (const key of ["screenImport", "screenLoading", "screenPicker", "screenMap"]) assert.equal(nodes[key], undefined, `${name} ${key} at ${p}`);
+    }
+  }
+  const css = storyCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(css, /\.how-stage :is\(\.how-app-import, \.how-app-loading\) \{ transition: transform 480ms var\(--ease-in-out\), opacity 480ms var\(--ease-in-out\); \}/);
+  assert.match(css, /\.how-stage:not\(\[data-scene="1"\]\) \.how-app-import \{ opacity: 0; transform: translateX\(-30%\); \}/);
+  assert.match(css, /\.how-stage:not\(\[data-scene="1"\]\) \.how-app-loading \{ transform: none; \}/);
 });
 
 test("a found photo leaves the library with its ring and pin, from exactly its lifted cell, in one frame", () => {
   for (const [name, layout] of LAYOUTS) {
     layout.cells.forEach((cell, index) => {
-      const start = 0.04 + 0.03 * index;
+      const { start: first, stagger, length } = HOW_STORY_TIMING.cluster;
+      const start = first + stagger * index;
       const before = getHowStoryFrame(beatP(2, start - 0.001), layout).nodes;
       const after = getHowStoryFrame(beatP(2, start + 1e-6), layout).nodes;
       assert.deepEqual([before[`matchCell${index}`].o, before[`matchMark${index}`].o, before[`match${index}`].o], [1, 1, 0], `${name} ${index} before`);
       assert.deepEqual([after[`matchCell${index}`].o, after[`matchMark${index}`].o, after[`match${index}`].o, after[`matchRing${index}`].o], [0, 0, 1, 1], `${name} ${index} after`);
       nearRect(after[`match${index}`], cell.lift, layout, `${name} ${index} starts on its lifted cell`);
       // The ring fades mid flight and is gone well before the tile settles.
-      assert.equal(getHowStoryFrame(beatP(2, start + 0.28 * 0.7), layout).nodes[`matchRing${index}`].o, 0, `${name} ${index}`);
+      assert.equal(getHowStoryFrame(beatP(2, start + length * 0.7), layout).nodes[`matchRing${index}`].o, 0, `${name} ${index}`);
     });
     // Its ring and pin are drawn in the node at the cell's own sizes when the flight starts.
     near(layout.matchK * layout.cells[0].lift.size, layout.nodeBase, `${name} match-k`, 0.05);
@@ -492,14 +551,16 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
       for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, 1, `${name} card ${index} at ${p}`);
     }
     // While the camera is still pulling out, each tile that has landed sits on its card where the camera shows it.
-    const moving = getHowStoryFrame(beatP(3, 0.27), layout);
+    const tile0Lands = HOW_STORY_TIMING.cards.start + HOW_STORY_TIMING.cards.length;
+    assert.ok(tile0Lands < HOW_STORY_TIMING.outward[1], `${tile0Lands}`);
+    const moving = getHowStoryFrame(beatP(3, (tile0Lands + HOW_STORY_TIMING.outward[1]) / 2), layout);
     const camera = moving.nodes.phoneCamera;
     assert.ok(camera.s > 1.001, `${name} camera still moving: ${camera.s}`);
     const centre = { x: layout.phone.x + layout.phone.w / 2, y: layout.phone.y + layout.phone.h / 2 };
     const card0 = layout.cards[0];
     nearRect(moving.nodes.match0, { x: centre.x + (card0.x - centre.x) * camera.s + camera.tx, y: centre.y + (card0.y - centre.y) * camera.s + camera.ty, size: card0.size * camera.s }, layout, `${name} tile 0 on its moving card`);
-    // By t .37 the tiles are the cards: on the card rects, with the border and preview button on.
-    const landed = getHowStoryFrame(beatP(3, 0.37), layout);
+    // Once the chrome comes on (t .315) the tiles are the cards: on the card rects, with the border and preview button on.
+    const landed = getHowStoryFrame(beatP(3, HOW_STORY_TIMING.chrome), layout);
     layout.cards.forEach((rect, index) => {
       nearRect(landed.nodes[`match${index}`], rect, layout, `${name} card ${index}`);
       assert.equal(landed.nodes[`matchChrome${index}`].o, 1, name);
@@ -509,11 +570,14 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
     const start = getHowStoryFrame(beatP(3, 0.2), layout);
     for (let index = 0; index < 3; index += 1) assert.equal(start.nodes[`copy${index}`].o, 0, name);
     for (let index = 0; index < 4; index += 1) assert.equal(start.nodes[`matchChrome${index}`].o, 0, name);
-    // Taps: A, B, C in turn, then 기록하기 (the spinner); the hold shows three copies over their cards.
+    // Taps: A, B, C in turn once the cards are on, then 기록하기 (the spinner); then the copies lift, and the hold shows
+    // them as the print stack.
     const sel = (t) => getHowStoryFrame(beatP(3, t), layout).state;
-    assert.deepEqual([0.4, 0.42, 0.49, 0.56, 0.61, 0.63].map((t) => [sel(t).sel, sel(t).save]), [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0], [3, 1]], name);
+    assert.deepEqual([0.36, 0.38, 0.43, 0.48, 0.5, 0.52].map((t) => [sel(t).sel, sel(t).save]), [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0], [3, 1]], name);
+    const taps = getHowStoryTapPlan().filter(({ scene }) => scene === 3);
+    assert.ok(taps[0].t > HOW_STORY_TIMING.chrome && taps.at(-1).t < HOW_STORY_TIMING.lift[0], taps.map(({ t }) => t).join());
     // The copies start exactly on their cards (turned 0) and end as the print stack, fully opaque, in the hold.
-    const saved = getHowStoryFrame(beatP(3, 0.64), layout);
+    const saved = getHowStoryFrame(beatP(3, HOW_STORY_TIMING.lift[0]), layout);
     const hold = getHowStoryFrame(holdBegin(3), layout);
     for (let index = 0; index < 3; index += 1) {
       const card = layout.cards[index];
@@ -537,6 +601,7 @@ test("beat 04: the found photos become the picker's cards and never leave; only 
 });
 
 test("beat 05: the prints leave and the picker goes before develop's drill map comes; 경주시 fills, then the camera pulls back to Korea and the world", () => {
+  const T = HOW_STORY_TIMING;
   // The constants are the data's: develop's drill bounds (울릉도 and 독도 included) and the bounds of develop's
   // provinces (GeneratedKoreaMapData, also with 울릉도 and 독도).
   assert.deepEqual(HOW_STORY_MAP.drillBounds, gyeongbuk.bounds);
@@ -564,33 +629,46 @@ test("beat 05: the prints leave and the picker goes before develop's drill map c
       const frame = getHowStoryFrame(p, layout);
       const { t } = getHowStoryScene(p);
       const box = toBox(frame);
-      if (t < 0.37) box.forEach((value, index) => near(value, view.drillBox[index], `${name} drill box`));
-      if (t >= 0.65) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
+      if (t < T.mapCamera[0]) box.forEach((value, index) => near(value, view.drillBox[index], `${name} drill box`));
+      if (t >= T.mapCamera[1]) box.forEach((value, index) => near(value, view.koreaBox[index], `${name} korea box`));
       assert.ok(box[2] >= previousWidth - 0.01, `${name} the camera only pulls back`);
       previousWidth = box[2];
-      assert.equal(frame.state.map, t < 0.31 ? "drill0" : t < 0.71 ? "drill1" : "world", `${name} t ${t}`);
-      // Saving and the map never share a frame: no crossfade from the picker to the map, and the prints are gone
-      // before the map shows (round-1 H3; after a save both app versions open the record list, not the map).
-      const { screenPicker, screenMap } = frame.nodes;
-      assert.ok(screenPicker.o === 0 || screenMap.o === 0, `${name} t ${t}: picker ${screenPicker.o}, map ${screenMap.o}`);
-      if (screenMap.o > 0) for (let index = 0; index < 3; index += 1) assert.equal(frame.nodes[`copy${index}`].o, 0, `${name} copy ${index} at t ${t}`);
-      // The fill is its own moment, after the map is fully in.
-      if (frame.state.map !== "drill0") assert.equal(screenMap.o, 1, `${name} t ${t}`);
+      // The tabs: the picker goes, the screen stays empty a beat, the map comes; 경주시 fills only once it is in.
+      assert.equal(frame.state.picker, t < T.pickerOut ? 1 : 0, `${name} t ${t}`);
+      assert.equal(frame.state.map, t < T.mapIn ? "none" : t < T.fill ? "drill0" : t < T.world ? "drill1" : "world", `${name} t ${t}`);
+      // Saving and the map never share a frame: the map tab comes only once the picker tab and its photos have gone
+      // (round-1 H3; after a save both app versions open the record list, not the map).
+      if (frame.state.map !== "none") assert.equal(frame.state.picker, 0, `${name} t ${t}`);
+      for (let index = 0; index < 4; index += 1) assert.equal(frame.nodes[`match${index}`].o, frame.state.picker, `${name} photo ${index} at t ${t}`);
+      // The frame holds the prints in the stack; the stack itself rises away in time (below).
+      for (let index = 0; index < 3; index += 1) {
+        const copy = frame.nodes[`copy${index}`];
+        near(copy.ty + layout.nodeBase / 2, layout.prints[index].cy, `${name} print ${index} at t ${t}`);
+        assert.equal(copy.o, 1, name);
+      }
     }
-    // The prints rise off the top as the beat opens; the picker and its cards are gone by t .16.
-    const rising = getHowStoryFrame(beatP(4, 0.06), layout);
-    assert.ok(rising.nodes.copy0.ty < getHowStoryFrame(beatP(4, 0), layout).nodes.copy0.ty, name);
-    const gone = getHowStoryFrame(beatP(4, 0.16), layout);
-    assert.equal(gone.nodes.screenPicker.o, 0, name);
-    assert.equal(gone.nodes.screenMap.o, 0, name);
-    for (let index = 0; index < 4; index += 1) assert.equal(gone.nodes[`match${index}`].o, 0, name);
-    for (let index = 0; index < 3; index += 1) assert.equal(gone.nodes[`copy${index}`].o, 0, name);
     // Drill, then Korea: district lines and the drill card hand over to the province outlines and the Korea card.
-    const before = getHowStoryFrame(beatP(4, 0.36), layout).nodes;
-    const after = getHowStoryFrame(beatP(4, 0.66), layout).nodes;
+    const before = getHowStoryFrame(beatP(4, T.mapCamera[0] - 0.01), layout).nodes;
+    const after = getHowStoryFrame(beatP(4, T.mapCamera[1] + 0.01), layout).nodes;
     assert.deepEqual(["mapDistrictLines", "mapLabels", "mapFillDistrict", "mapCardDrill"].map((key) => [before[key].o, after[key].o]), [[1, 0], [1, 0], [1, 0], [1, 0]], name);
     assert.deepEqual(["mapProvinces", "mapFillProvince", "mapCardKorea"].map((key) => [before[key].o, after[key].o]), [[0, 1], [0, 1], [0, 1]], name);
   }
+  // The moments are apart in scroll even on the shortest wheel track (one unit is 3200px / 4.3 = 744px there): the
+  // stack rises away as the beat opens, then the picker goes, the screen stays empty, the map comes, 경주시 fills.
+  const beatPx = HOW_STORY_BEATS[4].units * (HOW_STORY_TRACK.desktopMinPx / HOW_STORY_TRAVEL_UNITS);
+  assert.ok(T.pickerOut * beatPx >= 60 && (T.mapIn - T.pickerOut) * beatPx >= 60 && (T.fill - T.mapIn) * beatPx >= 100, `${beatPx}`);
+  assert.ok(T.fill < T.mapCamera[0] && T.mapCamera[1] < T.world, "fill, camera, world in turn");
+  // In time: the print stack rises off the stage as beat 05 opens and is hidden once the map tab is in; the picker
+  // and its photos fade (200ms) and the map waits that long before it fades in, so a flick never shows both.
+  const css = storyCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(css, /\.how-stage\[data-scene="5"\] \.how-copy-stack \{ opacity: 0; transform: translateY\(calc\(-1 \* var\(--stack-rise, 100vh\)\)\); transition: transform 640ms var\(--ease-in-out\)/);
+  assert.match(hookSource, /set\("--stack-rise", `\$\{layout\.stackRise\}px`\);/);
+  // The rise takes the lowest print (border, turn and shadow: under one print size below its centre) past the top.
+  for (const [name, layout] of LAYOUTS) for (const { cy, size } of layout.prints) assert.ok(layout.stackRise >= cy + size, name);
+  assert.match(css, /\.how-stage\[data-scene="5"\]:not\(\[data-map="none"\]\) \.how-copy-stack \{ visibility: hidden; \}/);
+  const [, pickerMs] = css.match(/\.how-stage\[data-scene="5"\] :is\(\.how-app-picker, \.how-match\) \{ transition: opacity (\d+)ms/);
+  const [, mapMs, mapDelay] = css.match(/\.how-stage\[data-scene="5"\]:not\(\[data-map="none"\]\) \.how-app-map \{ opacity: 1; transition: opacity (\d+)ms var\(--ease-out\) (\d+)ms; \}/);
+  assert.ok(Number(mapDelay) >= Number(pickerMs) && Number(mapMs) >= 300, `${pickerMs} ${mapMs} ${mapDelay}`);
 });
 
 test("with no measured numbers, no band, no time and no tap count appear anywhere", () => {
@@ -821,7 +899,8 @@ test("layers come from CSS per scene, never from the hook's writes (round-1 P3)"
     }
     assert.deepEqual([...insides].sort(), [0, 1], name);
   }
-  // data-picker 0 hides the picker's photos and the prints (and drops their layers): only once all are at 0.
+  // data-picker 0 hides the picker's photos (once their 200ms fade is over) and drops their layers: only once all
+  // are at 0. The prints' stack is hidden once the map tab is in (beat 05 test).
   for (const [name, layout] of LAYOUTS) {
     let seen = false;
     for (let t = 0; t <= 1; t += 0.01) {
@@ -829,13 +908,11 @@ test("layers come from CSS per scene, never from the hook's writes (round-1 P3)"
       if (frame.state.picker === 1) continue;
       seen = true;
       for (let i = 0; i < 4; i += 1) assert.equal(frame.nodes[`match${i}`].o, 0, `${name} t ${t}`);
-      for (let i = 0; i < 3; i += 1) assert.equal(frame.nodes[`copy${i}`].o, 0, `${name} t ${t}`);
-      assert.equal(frame.nodes.screenPicker.o, 0, `${name} t ${t}`);
     }
     assert.ok(seen, name);
     assert.equal(getHowStoryFrame(beatP(3, 0.9), layout).state.picker, 1, name);
   }
-  assert.match(storyCss, /\.how-stage\[data-picker="0"\] :is\(\.how-match, \.how-copy-node\) \{ visibility: hidden; \}/);
+  assert.match(storyCss, /\.how-stage\[data-picker="0"\] \.how-match \{ visibility: hidden; transition: opacity 200ms var\(--ease-out\), visibility 0s linear 200ms; \}/);
   // The IME's last step is a delayed switch: a filled animation would keep it composited for good.
   assert.doesNotMatch(`${storyCss}\n${screensCss}`, /forwards/);
 });
@@ -1261,13 +1338,13 @@ test("the map draws develop's own data: the drill land is the district rings, th
   // Rendered with the data, the story's map has every group; without it (before the lazy load lands) the groups
   // the hook drives are still there, empty.
   const { MapScreen, createElement, renderToStaticMarkup } = await loadRenderer();
-  const withData = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { node: "screenMap", variant: "story", data })));
+  const withData = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { variant: "story", data })));
   const group = (root, name) => descendants(root).find((node) => hasClass(node, name));
   assert.equal(group(withData, "how-map-lines").children.length, 22);
   assert.equal(group(withData, "how-map-provinces").children.length, 17);
   assert.equal(group(withData, "how-map-labels").children.length, 22);
   assert.equal(group(withData, "how-map-fill-province").children[0].attrs.d, data.visitedProvince);
-  const empty = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { node: "screenMap", variant: "story" })));
+  const empty = parseMarkup(renderToStaticMarkup(createElement(MapScreen, { variant: "story" })));
   for (const key of ["mapDistrictLines", "mapProvinces", "mapFillDistrict", "mapFillProvince", "mapLabels"]) {
     const node = descendants(empty).find((child) => child.attrs["data-node"] === key);
     assert.ok(node, key);

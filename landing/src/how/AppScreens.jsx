@@ -53,10 +53,10 @@ function AppTopBar({ title, action, statusSlot = false, tap }) {
 }
 
 // Photo import (LocationStep). Field empty -> IME typing -> administrative-area result -> row selected.
-export function ImportScreen({ node }) {
+export function ImportScreen() {
   const t = T.import;
   return (
-    <div className="how-app-screen how-app-import" data-node={node}>
+    <div className="how-app-screen how-app-import">
       <AppTopBar title={t.title} action={t.action} />
       <div className="how-import-body">
         <p className="how-app-eyebrow">{t.eyebrow}</p>
@@ -117,10 +117,10 @@ const RING = (() => {
 
 // PhotoLoadingStep: ring, PHOTO LIBRARY, the app's own counter, bar, percent and message. bar: where the indicator
 // and track sit, in dp (the static list's still); in scroll mode the hook places them every frame.
-export function LoadingScreen({ node, count, percent, bar }) {
+export function LoadingScreen({ count, percent, bar }) {
   const t = T.loading;
   return (
-    <div className="how-app-screen how-app-loading" data-node={node}>
+    <div className="how-app-screen how-app-loading">
       <AppTopBar title={t.title} />
       <div className="how-loading-body">
         {/* The ring turns on this HTML wrapper, which the compositor can animate (an SVG transform cannot). */}
@@ -178,10 +178,10 @@ export function PickerCardChrome() {
 // PhotoPickerStep: header, buttons, note, the recorded-photo filter, one date group and a 2-column grid.
 // cardsOnStage: in scroll mode the flying stage tiles are the cards, so the grid holds empty placeholders, and the
 // save-action tap is drawn.
-export function PickerScreen({ node, cardsOnStage = false }) {
+export function PickerScreen({ cardsOnStage = false }) {
   const t = T.picker;
   return (
-    <div className="how-app-screen how-app-picker" data-node={node}>
+    <div className="how-app-screen how-app-picker">
       <AppTopBar title={t.title} action={t.action} statusSlot tap={cardsOnStage ? "save" : undefined} />
       <div className="how-picker-viewport">
         <div className="how-picker-list">
@@ -332,7 +332,7 @@ const MAP_PLACEMENT = { "--map-card-top": VIEW.cardTop.toFixed(2), "--map-area-t
 // TripMapScreen with MapRoute's content. story (the scroll story): develop's Gyeongsangbuk-do drill map (Gyeongju fills when the
 // record saves), the camera's pull-back to the Korea map (the province filled) and the world globe (Korea filled),
 // driven by the stage's data-map state and the frame's nodes. korea: the Korea map alone (the static list).
-export function MapScreen({ node, variant = "story", data: given }) {
+export function MapScreen({ variant = "story", data: given }) {
   const story = variant === "story";
   const n = (name) => (story ? name : undefined);
   // The story's map shows only in beat 05; the hook starts its load as the track comes near. A static figure
@@ -340,7 +340,7 @@ export function MapScreen({ node, variant = "story", data: given }) {
   const loaded = useHowMapData(!story && !given);
   const data = given ?? loaded;
   return (
-    <div className="how-app-screen how-app-map" data-node={node} data-variant={variant} style={MAP_PLACEMENT}>
+    <div className="how-app-screen how-app-map" data-variant={variant} style={MAP_PLACEMENT}>
       <div className="how-map-header">
         <div className="how-map-logo-row">
           <span className="how-map-logo"><span>{T.map.logo[0]}</span><span className="how-map-logo-accent">{T.map.logo[1]}</span></span>

@@ -125,12 +125,13 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
         <div className="how-phone-enter">
           <div className="how-phone-camera" data-node="phoneCamera">
             <PhoneFrame>
-              {/* The screen (content and background) goes clear before the bezel on the way in. */}
+              {/* The screen (content and background) goes clear before the bezel on the way in. The screens switch
+                  by the stage's state, in time (how-story.css). */}
               <div className="how-screen-fade" data-node="screenFade">
-                <ImportScreen node="screenImport" />
-                <LoadingScreen node="screenLoading" {...LOADING_START} />
-                <PickerScreen node="screenPicker" cardsOnStage />
-                <MapScreen node="screenMap" variant="story" />
+                <ImportScreen />
+                <LoadingScreen {...LOADING_START} />
+                <PickerScreen cardsOnStage />
+                <MapScreen variant="story" />
               </div>
             </PhoneFrame>
           </div>
@@ -152,11 +153,13 @@ const HowStoryStage = memo(function HowStoryStage({ stageRef }) {
       ))}
       {/* Saving: a copy of each picked photo lifts off its card into a stack of prints, which rises off the top
           as beat 05 opens (the upload), before the map shows. */}
-      {PICKED.map((match, index) => (
-        <div className="how-copy-node" data-node={`copy${index}`} key={match.id}>
-          <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />
-        </div>
-      ))}
+      <div className="how-copy-stack">
+        {PICKED.map((match, index) => (
+          <div className="how-copy-node" data-node={`copy${index}`} key={match.id}>
+            <img src={match.src} alt="" width="120" height="120" loading="lazy" decoding="async" />
+          </div>
+        ))}
+      </div>
       <span className="how-bottom-fade" data-node="bottomFade" />
     </div>
   );

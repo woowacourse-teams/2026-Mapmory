@@ -106,6 +106,7 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       set("--node-base", `${layout.nodeBase}px`);
       set("--match-k", String(layout.matchK));
       set("--overlay-top", `${layout.overlayTop}px`);
+      set("--stack-rise", `${layout.stackRise}px`);
       cellElements.forEach((element, index) => {
         const cell = layout.cells[index];
         if (!cell) return;
