@@ -221,7 +221,8 @@ try {
       assert.equal(at.rest, beat, `${label}: beat ${beat} at rest at its point`);
     }
     assert.equal(poses.size, 5, `${label}: every beat's point was seen`);
-    await page.waitForFunction(() => document.querySelectorAll(".hw .hw-stage .map.has-map .ml").length === 4);
+    await page.waitForFunction(() => document.querySelectorAll(".hw .hw-stage .map.has-map .ml").length === 4, null, { timeout: 15000 })
+      .catch(() => assert.fail(`${label}: the map's 4 layers never arrived on 05 (.map.has-map .ml)`));
     const runtime = await page.evaluate(() => window.__howRuntime());
     assert.deepEqual(runtime.listeners, PAGE_LISTENERS, label);
     assert.deepEqual(runtime.observers, ["ResizeObserver"], `${label}: the stage's ResizeObserver only (the loader's IntersectionObserver is done)`);
@@ -293,7 +294,8 @@ try {
       await frames(page, 3);
       assert.equal((await state(page)).rest, scene, `static item ${scene} at rest`);
     }
-    await page.waitForFunction(() => [...document.querySelectorAll(".hw [data-how-scene] .map")].every((m) => m.classList.contains("has-map") && m.querySelectorAll(".ml").length === 4));
+    await page.waitForFunction(() => [...document.querySelectorAll(".hw [data-how-scene] .map")].every((m) => m.classList.contains("has-map") && m.querySelectorAll(".ml").length === 4), null, { timeout: 15000 })
+      .catch(() => assert.fail("static: the map's 4 layers never arrived in every figure (.map.has-map .ml)"));
     assert.deepEqual(errors, []);
     passed.push("static: 5 figures aria-hidden at poses " + STATIC_POSES.join(" ") + ", each with its map; the item in view at rest");
     await context.close();
