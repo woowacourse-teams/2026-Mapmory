@@ -20,6 +20,10 @@ const ATTACH_MARGIN = "100% 0px";
 // The phone and the first copy enter once, when the frame's top first comes this far up the viewport: by then the
 // section heading has moved up toward the header and has had its own screen.
 const ENTER_AT = 0.4;
+// The map is laid out ahead of beat 05 only once the reader has not scrolled for this long.
+const WARM_QUIET_MS = 300;
+const requestIdle = (callback) => (typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(callback, { timeout: 2000 }) : window.setTimeout(callback, 0));
+const cancelIdle = (handle) => (typeof window.cancelIdleCallback === "function" ? window.cancelIdleCallback(handle) : window.clearTimeout(handle));
 
 // Drives the #how stage from scroll progress. Reads one rect per animation frame, writes only changed
 // transform/opacity/text values and data-* state straight to the DOM, and never touches wheel, touch or key input.
@@ -54,6 +58,43 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       ...enterElements,
     ].filter(({ element }) => element);
     const jumped = createHowStoryJumpTracker();
+
+    // The map tab skips style and layout until beat 05 (content-visibility on its gate), so the first entry laid out
+    // the whole map in that scroll frame: one long task on a mid-range phone (round-3 F3). Once its data has rendered,
+    // the map is laid out once at idle while the reader is not scrolling: data-warm lifts the skip for one forced
+    // layout (the tab stays hidden and paints nothing), and content-visibility: hidden keeps that layout for the entry.
+    // A resize lays it out again.
+    const gate = stage.querySelector(".how-map-gate");
+    let warmed = !gate;
+    let warmTimer = 0;
+    let warmIdle = 0;
+    let lastScrollAt = 0;
+    const warmLater = (delay) => {
+      if (warmed || disposed || warmTimer || warmIdle) return;
+      warmTimer = window.setTimeout(() => {
+        warmTimer = 0;
+        warmIdle = requestIdle(() => {
+          warmIdle = 0;
+          warmMap();
+        });
+      }, delay);
+    };
+    const warmMap = () => {
+      if (warmed || disposed) return;
+      // In beat 05 the map is laid out by the beat itself.
+      if (stage.dataset.scene === "5") {
+        warmed = true;
+        return;
+      }
+      if (!gate.querySelector(".how-map-lines path") || performance.now() - lastScrollAt < WARM_QUIET_MS) {
+        warmLater(WARM_QUIET_MS);
+        return;
+      }
+      warmed = true;
+      stage.dataset.warm = "1";
+      gate.lastElementChild?.getBoundingClientRect();
+      delete stage.dataset.warm;
+    };
 
     let layout = null;
     let stickyTop = 0;
@@ -191,11 +232,16 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
     };
 
     const schedule = () => {
+      lastScrollAt = performance.now();
       if (!rafId) rafId = window.requestAnimationFrame(() => update(false));
     };
     const remeasure = () => {
       if (disposed || !measure()) return;
       update(true);
+      if (warmed && gate && listening) {
+        warmed = false;
+        warmLater(WARM_QUIET_MS);
+      }
     };
     const handleVisibility = () => update(true);
 
@@ -203,8 +249,9 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
       if (listening) return;
       listening = true;
       track.classList.add("is-live", "has-library");
-      // The map's data (beat 05) loads with the library sprite, as the track comes near; once, cached.
-      loadHowMapData().catch(() => {});
+      // The map's data (beat 05) loads with the library sprite, as the track comes near; once, cached. Then its
+      // layout is warmed at idle (above).
+      loadHowMapData().then(() => warmLater(0)).catch(() => {});
       window.addEventListener("scroll", schedule, { passive: true });
       window.addEventListener("resize", schedule, { passive: true });
       update(true);
@@ -240,6 +287,8 @@ export function useHowStoryScroll({ enabled, trackRef, frameRef, stageRef, copyR
 
     return () => {
       disposed = true;
+      window.clearTimeout(warmTimer);
+      if (warmIdle) cancelIdle(warmIdle);
       detach();
       callbackRef.current.onFrameState({ sceneIndex: lastScene, inHold: false, eligible: false });
       intersection.disconnect();

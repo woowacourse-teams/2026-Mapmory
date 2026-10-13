@@ -255,6 +255,15 @@
    the screen: a skipped subtree keeps its old style, so the gate's animation (below) would not restart on the next
    visit to beat 05; the gate itself is styled as usual. */
 .how-stage:not([data-scene="5"]) .how-map-gate { content-visibility: hidden; }
+/* Once, before beat 05, the hook lifts the skip for one forced layout at idle (data-warm), off the scroll path: the
+   tab is hidden and paints nothing, and the skipped subtree keeps that layout, so the first entry to beat 05 does not
+   lay out the whole map in a scroll frame (round-3 F3). */
+.how-stage[data-warm] .how-map-gate { content-visibility: visible; }
+/* The map screen is hidden outside beat 05 (below), and visibility is inherited: flipped at the scene change, it
+   restyled the whole map in that frame however warm its layout was. The gate keeps visibility: visible, so the map's
+   style never changes there; outside beat 05 its contents are skipped (painted nowhere) and the screen is at opacity
+   0. */
+.how-stage .how-map-gate { visibility: visible; }
 .how-phone-punch { position: absolute; z-index: 2; left: 50%; top: calc(8 * var(--dp)); width: calc(8 * var(--dp)); height: calc(8 * var(--dp)); margin-left: calc(-4 * var(--dp)); border-radius: 50%; background: #0e1113; }
 /* Screens that are not near the current scene cost no paint. */
 .how-stage:is([data-scene="3"], [data-scene="4"], [data-scene="5"]) :is(.how-app-import, .how-app-loading),

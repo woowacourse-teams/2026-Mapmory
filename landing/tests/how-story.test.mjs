@@ -940,6 +940,23 @@ test("the component, hook and styles keep to the scroll rules", () => {
   assert.doesNotMatch(screensCss, /\.how-import-list \{[^}]*overflow/);
   assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-map-gate \{ content-visibility: hidden; \}/);
   assert.match(screensCss, /\.how-loading-spin \{ position: relative; z-index: 1;/);
+  // The first entry to beat 05 laid the whole map out in one scroll frame (round-3 F3). The hook lays it out once
+  // before, at idle and while the reader is not scrolling: data-warm lifts the skip for one forced layout and is
+  // removed in the same task (nothing paints), and the skipped subtree keeps that layout. The gate never changes
+  // visibility at the scene change (visibility inherits, and the flip restyled the whole map in that frame).
+  assert.match(storyCss, /\.how-stage\[data-warm\] \.how-map-gate \{ content-visibility: visible; \}/);
+  assert.match(storyCss, /\.how-stage \.how-map-gate \{ visibility: visible; \}/);
+  assert.match(storyCss, /\.how-stage:not\(\[data-scene="5"\]\) \.how-app-map \{ visibility: hidden; \}/);
+  assert.match(hookSource, /stage\.dataset\.warm = "1";\s*gate\.lastElementChild\?\.getBoundingClientRect\(\);\s*delete stage\.dataset\.warm;/);
+  assert.match(hookSource, /performance\.now\(\) - lastScrollAt < WARM_QUIET_MS/);
+  assert.match(hookSource, /requestIdleCallback\(callback, \{ timeout: 2000 \}\)/);
+  assert.match(hookSource, /const schedule = \(\) => \{\s*lastScrollAt = performance\.now\(\);/);
+  // Warmed in beat 05 itself is pointless (the beat lays it out); a resize lays it out again; unmount cancels it.
+  assert.match(hookSource, /if \(stage\.dataset\.scene === "5"\) \{\s*warmed = true;\s*return;\s*\}/);
+  assert.match(hookSource, /if \(warmed && gate && listening\) \{\s*warmed = false;\s*warmLater\(WARM_QUIET_MS\);\s*\}/);
+  assert.match(hookSource, /window\.clearTimeout\(warmTimer\);\s*if \(warmIdle\) cancelIdle\(warmIdle\);/);
+  // The warm-up writes no style a frame depends on: only the data-warm attribute, set and removed in one task.
+  assert.equal((hookSource.match(/dataset\.warm/g) ?? []).length, 2);
 });
 
 test("layers come from CSS per scene, never from the hook's writes (round-1 P3)", () => {
@@ -1489,7 +1506,7 @@ test("the map data is not in the entry chunk: it loads once, when the track come
     assert.match(howSources["mapData.js"], new RegExp(`import\\("\\.\\./data/${file}\\.json"\\)`));
   }
   assert.match(howSources["mapData.js"], /createCachedAsyncLoader\(/);
-  assert.match(hookSource, /track\.classList\.add\("is-live", "has-library"\);\s*\/\/[^\n]*\n\s*loadHowMapData\(\)\.catch\(\(\) => \{\}\);/);
+  assert.match(hookSource, /track\.classList\.add\("is-live", "has-library"\);\s*(\/\/[^\n]*\n\s*)+loadHowMapData\(\)\.then\(\(\) => warmLater\(0\)\)\.catch\(\(\) => \{\}\);/);
   assert.match(howSources["AppScreens.jsx"], /const loaded = useHowMapData\(!story && !given\);/);
 });
 
