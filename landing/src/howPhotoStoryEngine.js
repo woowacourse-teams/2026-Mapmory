@@ -2,6 +2,10 @@
 // skeleton HowPhotoStory.jsx renders, follows the page scroll (never steers it), and switches between the pinned film
 // and the static version. mountHowPhotoStory(root, options) returns destroy(), which removes every listener, observer,
 // timer, frame request and node it created, so a remount (React StrictMode in dev) leaves exactly one working film.
+// destroy.sample() re-reads the scroll position at once and reports it (the analytics confirm a scene on it).
+// QA hooks (read by scripts/how-story-browser-checks.mjs and scripts/verify-how-story-browser.mjs, not styling):
+// root[data-how-mode], root[data-how-rest] (the scene at rest, 0 = none), track[data-how-beat|step],
+// .world[data-how-pose] ("beat.step" a stage shows), [data-how-scene] static items, [data-how-probe].
 import {
   COPY,
   IMAGE_GROUPS,
@@ -341,6 +345,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
         if (!same(o, p) || !t) moveCard(c, p, t);
       });
       cur = { b, k };
+      world.dataset.howPose = `${b}.${k}`; // QA: the pose the stage shows
     }
     function relayout(tall) {
       configure(tall);
@@ -369,6 +374,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   // webview that resizes itself by a few percent changes nothing; a rotation or a big change re-measures.
   const probe = document.createElement("div");
   probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;width:0;top:0;left:0;height:${CSS.supports && CSS.supports("height", "100svh") ? "100svh" : "100vh"}`;
+  probe.dataset.howProbe = "";
   root.appendChild(probe);
   created.push(probe);
   const mqTouch = matchMedia("(pointer: coarse), (hover: none)");
@@ -393,14 +399,14 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   let reported = null;
   let staticScene = 0;
   function report(inView) {
-    if (!onState) return;
     const pinned = !isStatic && onScreen && sNow >= 0 && sNow <= PIN_VH;
     const next = isStatic
       ? { mode: "static", inView, scene: staticScene, atRest: staticScene > 0 }
       : { mode: "scroll", inView, scene: curB < 0 ? 0 : sceneOf(curB, curK), atRest: sceneAtRest({ b: curB, k: curK, pinned }) };
     if (reported && reported.mode === next.mode && reported.inView === next.inView && reported.scene === next.scene && reported.atRest === next.atRest) return;
     reported = next;
-    onState({ ...next });
+    root.dataset.howRest = next.atRest ? String(next.scene) : "0"; // QA: the scene at rest now (0 = none)
+    if (onState) onState({ ...next });
   }
   let sectionInView = false;
 
@@ -664,6 +670,7 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
     root.style.removeProperty("--lqm");
     root.style.removeProperty("--lqmd");
     delete root.dataset.howMode;
+    delete root.dataset.howRest;
     delete track.dataset.howBeat;
     delete track.dataset.howStep;
     track.style.height = "";

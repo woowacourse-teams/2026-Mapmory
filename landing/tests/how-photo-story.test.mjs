@@ -262,7 +262,8 @@ test("the section never steers the scroll: no wheel or touch handlers, no preven
   assert.match(engineSource, /window\.removeEventListener\("scroll", req\);\s*window\.removeEventListener\("resize", refresh\);/);
 });
 
-test("destroy() undoes everything the engine made, so StrictMode's remount leaves one film", () => {
+// Source-level only: scripts/verify-how-story-browser.mjs checks the same at runtime (StrictMode, remounts, counters).
+test("destroy() is written to undo everything the engine made (the runtime check is the browser script)", () => {
   const destroy = engineSource.slice(engineSource.indexOf("function destroy()"));
   for (const part of [/cleanups\.forEach\(\(cleanup\) => cleanup\(\)\)/, /cancelAnimationFrame\(ticking\)/, /cancelAnimationFrame\(pendRaf\)/, /clearTimeout\(subTimer\)/,
     /created\.forEach\(\(node\) => node\.remove\(\)\)/, /root\.classList\.remove\("is-static", "hw-compact", "ld"\)/, /delete root\.dataset\.howMode/]) {
@@ -280,6 +281,21 @@ test("destroy() undoes everything the engine made, so StrictMode's remount leave
   assert.match(engineSource, /destroy\.sample = sample;\s*return destroy;\s*\}\s*$/);
   assert.match(componentSource, /const destroy = mountHowPhotoStory\(root, /);
   assert.match(componentSource, /destroy\(\);\s*view\.stop\(\);\s*reach\.stop\(\);/);
+});
+
+test("every listener the section adds to the page has its removal (element listeners are { once: true })", () => {
+  for (const [file, source] of [["HowPhotoStory.jsx", componentSource], ["howPhotoStoryEngine.js", engineSource]]) {
+    const code = stripComments(source);
+    const adds = [...code.matchAll(/([\w.]+)\.addEventListener\("([\w-]+)", ([\w.]+|\([^)]*\) => [^,]+?)(, \{[^}]*\})?\);/g)];
+    assert.ok(adds.length >= 1, file);
+    assert.equal(adds.length, code.match(/addEventListener\(/g).length, `${file}: every addEventListener is in a form this test reads`);
+    for (const [call, target, type, handler, options] of adds) {
+      if (target === "im") { assert.match(options ?? "", /once: true/, call); continue; } // a picture the engine made
+      assert.match(handler, /^[\w.]+$/, `${file}: a page listener needs a named handler to be removable (${call})`);
+      const removal = new RegExp(`${target.replace(/\./g, "\\.")}\\.removeEventListener\\("${type}", ${handler.replace(/\./g, "\\.")}\\)`);
+      assert.match(code, removal, `${file}: ${call} has no removal`);
+    }
+  }
 });
 
 test("the projected map is fetched lazily with the pictures, never in the first chunk", () => {
