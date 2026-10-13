@@ -351,12 +351,13 @@ try {
     const { context, page, errors } = await open(phone, { routes: [[failed, (route) => route.abort("failed")]] });
     await scrollToS(page, 1.4);
     await page.waitForTimeout(1200);
-    const pictures = await page.evaluate(() => [...document.querySelectorAll(".hw img")].map((im) => ({ src: im.getAttribute("src"), broken: im.hasAttribute("src") && im.complete && im.naturalWidth === 0, preview: /data:image/.test(im.style.backgroundImage) })));
+    // a released picture with no decoded image (a failed src, or none at all) paints the broken-image icon
+    const pictures = await page.evaluate(() => [...document.querySelectorAll(".hw img:not([data-src])")].map((im) => ({ src: (im.getAttribute("src") || "").slice(0, 40), broken: !(im.complete && im.naturalWidth > 0), preview: /data:image/.test(im.style.backgroundImage) })));
     assert.ok(pictures.length >= 8);
-    assert.deepEqual(pictures.filter((p) => p.broken), [], "a failed picture keeps a broken src");
+    assert.deepEqual(pictures.filter((p) => p.broken), [], "a failed picture paints the broken-image icon");
     assert.ok(pictures.every((p) => p.preview), "every picture keeps its preview");
     assert.deepEqual(errors, []);
-    passed.push("failures: without its map chunk 05 shows the blurred map preview and no ground shadow; failed pictures keep their previews with no broken src");
+    passed.push("failures: without its map chunk 05 shows the blurred map preview and no ground shadow; failed pictures keep their previews under a transparent pixel, no broken-image icon");
     await context.close();
   }
   console.log(JSON.stringify({ url, passed }, null, 2));

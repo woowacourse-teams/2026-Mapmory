@@ -40,6 +40,8 @@ import {
 
 // The projected Korea map (~46 KB of path data) is its own chunk, fetched with the pictures when the section is near.
 const loadMapData = () => import("./data/how-photo-map.json").then((module) => module.default ?? module);
+// a 1x1 transparent GIF: what a picture that failed to load shows over its preview
+const BLANK_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 const PIN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#062b1c" d="M12 2.2c-4.1 0-7.4 3.2-7.4 7.3 0 5.2 6.1 11.3 6.6 11.8.4.4 1.1.4 1.5 0 .5-.5 6.7-6.6 6.7-11.8 0-4.1-3.3-7.3-7.4-7.3z"/><circle cx="12" cy="9.6" r="2.9" fill="#5cedb9"/></svg>';
 const CHK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 12.6l4.2 4.1 8.8-9.4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -116,9 +118,11 @@ export function mountHowPhotoStory(root, { lqip = {}, onState = null, loadMap = 
   function hydrate(scope) {
     [...scope.querySelectorAll("img[data-src]")].filter((im) => imageGroupOf(im.dataset.src) < released).forEach((im) => {
       if ("fetchPriority" in im) im.fetchPriority = "low";
-      if (im.dataset.src.includes("heap")) im.addEventListener("load", () => { im.style.backgroundImage = "none"; }, { once: true });
-      // a picture that fails to load keeps its blurred preview: drop the failed src so no broken-image icon paints on it
-      im.addEventListener("error", () => im.removeAttribute("src"), { once: true });
+      // the heap drops its preview once the real picture is in (not the blank pixel of a failed load)
+      if (im.dataset.src.includes("heap")) im.addEventListener("load", () => { if (im.src !== BLANK_PIXEL) im.style.backgroundImage = "none"; }, { once: true });
+      // a picture that fails to load keeps its blurred preview (its background): a transparent pixel replaces the failed
+      // src, since an <img> left failed or without a src still paints the broken-image icon over it
+      im.addEventListener("error", () => { im.src = BLANK_PIXEL; }, { once: true });
       im.src = im.dataset.src;
       im.removeAttribute("data-src");
       if (im.decode) im.decode().catch(() => {}); // decode off the scroll path

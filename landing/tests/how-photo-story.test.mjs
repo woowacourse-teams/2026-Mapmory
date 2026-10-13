@@ -320,8 +320,10 @@ test("slow or failed loads degrade to the previews: no empty map, no stray shado
   // a chunk that fails is handled on its own; a mistake while building the layers is not swallowed
   assert.doesNotMatch(engineSource, /\.catch\(\(\) => \{\}\)\s*;?\s*\n\s*\}\n\n\s*\/\/ -+ images/);
   assert.match(engineSource, /loadMap\(\)\.then\(\(data\) => \{[\s\S]*?mapStages\.forEach\(\(fill\) => fill\(\)\);\s*\}, \(\) => \{/);
-  // a picture that fails drops its src, so its preview stays without a broken-image icon
-  assert.match(engineSource, /im\.addEventListener\("error", \(\) => im\.removeAttribute\("src"\), \{ once: true \}\);/);
+  // a picture that fails shows a transparent pixel over its preview (a failed or empty src still paints the broken icon)
+  assert.match(engineSource, /im\.addEventListener\("error", \(\) => \{ im\.src = BLANK_PIXEL; \}, \{ once: true \}\);/);
+  assert.match(engineSource, /im\.addEventListener\("load", \(\) => \{ if \(im\.src !== BLANK_PIXEL\) im\.style\.backgroundImage = "none"; \}, \{ once: true \}\);/);
+  assert.match(engineSource, /const BLANK_PIXEL = "data:image\/gif;base64,R0lGODlhAQABAIAAAAAAAP\/\/\/yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";/);
 });
 
 test("the section's CSS is scoped under .hw and collides with nothing on the landing", () => {
