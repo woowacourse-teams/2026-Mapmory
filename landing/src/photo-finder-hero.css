@@ -241,12 +241,8 @@
 @keyframes finder-caret { 50% { opacity: 0; } }
 @keyframes finder-pin-in { from { opacity: 0; transform: translate(-50%, calc(-100% - 2px)) scale(0.9); } }
 
-/* How it works, trust and FAQ. */
-.how-section,
+/* Trust and FAQ (how it works lives in how-photo-story.css). */
 .trust-section { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 64px 0 96px; scroll-margin-top: 100px; }
-
-.how-experience-link { width: fit-content; min-height: 44px; margin: 32px 0 0; padding: 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
-.how-experience-link:hover { color: var(--accent-ink); }
 
 /* Trust: one boundary panel, on the phone -> only picked photos on save. Deleting sits outside it. */
 .trust-section .section-heading { max-width: 760px; margin: 0 auto 28px; text-align: left; }
@@ -288,7 +284,7 @@
   .trust-flow { grid-template-columns: 1fr; }
   .trust-arrow { height: 36px; }
   .trust-arrow svg { transform: rotate(90deg); }
-  .how-section, .trust-section { width: min(100% - 30px, 720px); }
+  .trust-section { width: min(100% - 30px, 720px); }
 }
 
 @media (max-width: 560px) {
@@ -310,7 +306,7 @@
   .finder-result { padding: 8px; font-size: 13px; }
   .finder-chips { margin-top: 8px; gap: 6px; }
   .finder-chips button { min-width: 68px; padding: 0 14px; }
-  .how-section, .trust-section { width: min(100% - 48px, 520px); padding: 40px 0 64px; }
+  .trust-section { width: min(100% - 48px, 520px); padding: 40px 0 64px; }
   .trust-zone { padding: 18px; }
   .faq-list { margin-top: 36px; }
 }

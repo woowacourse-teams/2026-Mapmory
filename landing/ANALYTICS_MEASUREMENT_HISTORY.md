@@ -184,3 +184,25 @@ GA4는 유입·캠페인·최종 전환을 판단하는 원천으로 유지하�
 5. 기준 미달 지표는 바로 UI를 바꾸기 전에 해당 단계의 유입 품질과 오류율을 함께 확인한다.
 
 첫 100세션 이전의 비율은 방향만 참고하고, 단일 날짜 변화로 결론 내리지 않는다.
+
+## 8. 3단계 사용법 how_play (2026-10-08 → how_story 배포일)
+
+2026-10-08부터 `#how`는 3번 탭하는 사용법 장난감(`experience_type=how_play`)이었다. 장소를 고르면 `experience_start(interaction_type=place_select)`, 저장하면 `how_play_save(demo_place, save_index, selected_photos)`를 보냈다. 2026-10-12 티온의 결정으로 스크롤 이야기로 바꾸기로 했고, 실제 앱 화면을 따라가는 첫 시안은 채택되지 않았다. 2026-10-13 시안 A(사진·폰·구름·지도 그림으로 보여 주는 5장면, `how_story`)로 확정했다. 새 섹션은 `experience_*` 없이 도달 이벤트 `how_story_view`·`how_story_scene`만 보내며, how_play 이벤트는 how_story 배포일에 멈춘다. 배포일이 정해지면 이 절 제목과 [측정 계획](ANALYTICS_MEASUREMENT_PLAN.md)에 적는다. `landing_version=v4`와 schema `2`는 그대로이므로 전후 비교는 배포일로 나눈다.
+
+교체 전 기준선 (2026-10-12 04:47Z에 읽기만 해서 뽑은 값, 표본이 작음):
+
+| 항목 | 값 |
+| --- | --- |
+| 기간·필터 | PostHog 프로젝트 580627, 2026-10-08 11:40Z ~ 2026-10-12 04:47Z, `surface=landing`, `traffic_type≠internal`, `landing_version=v4`. distinct_id 하나가 페이지 로드 하나 |
+| 페이지 로드 | 16 (데스크톱 10, 모바일 6) |
+| how_play view / start / end | 6 / 1 / 1 (데스크톱 1/0/0, 모바일 5/1/1) |
+| how_play_save | 1개 페이지 로드가 `save_index` 3까지 도달 (busan, gangwon, gyeongbuk, 각각 `selected_photos` 4) |
+| how_play experience_end | 1건, `last_completed_step=how_play_save`, `exit_reason=section_exit`, 활성 13.4초 |
+| globe view / start / end | 10 / 8 / 7 (데스크톱 4/2/2, 모바일 6/6/5) |
+| globe experience_end 활성 시간 | 7건, p25 3.5초, p50 4.8초, p75 11.8초 |
+| download_click | 이 기간 0 (모든 그룹) |
+| 도달 | hero_demo_select 3/16, how_play view 6/16, globe view 10/16 |
+| $pageview → how_play view | 중앙값 8초 |
+| GA4 (`HOW_PLAY_SINCE=2026-10-08`, 내부 제외) | how_play_flow 10/08~10/12 랜딩 사용자 22, experience_view 사용자 4, experience_start·how_play_save·save_index 행 없음. 출시 이후(10/07~10/12) 사용자 40, 세션 46, 스토어 클릭 사용자 6, 마지막 download_click은 10/08 |
+
+읽은 점: 장난감을 본 6명 중 1명만 시작했고, 지구본은 본 10명 중 8명이 시작했다. 표본이 작아 방향만 참고한다. how_story는 체험이 아니라 도달 이벤트만 보내므로 how_play의 view/start/save와 같은 줄에 놓고 비교하지 않는다. 배포 뒤에는 `how_story_view` 도달률(페이지 로드 대비)과 장면별 도달(`scene_index`)을 `story_mode`별로 따로 본다.
