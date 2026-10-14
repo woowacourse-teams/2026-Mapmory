@@ -52,7 +52,7 @@ async function loadHook() {
   };
   vm.runInContext(result.outputFiles[0].text, context);
 
-  const hook = context.hookModule.useExperienceAnalytics("how_play");
+  const hook = context.hookModule.useExperienceAnalytics("globe");
   hook.sectionRef.current = {};
   for (const effect of context.__effects) effect();
 

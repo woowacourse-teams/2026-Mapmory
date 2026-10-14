@@ -1,10 +1,12 @@
 // Isolated production bundles, a fake GA ID and intercepted requests: no production traffic.
 // node scripts/verify-analytics-browser.mjs <absolute path to playwright/index.mjs>
+// The #how photo story is read through the hooks listed in how-story-browser-checks.mjs.
 import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "vite";
+import { checkScrollStory, checkStaticStory, dataLayerEvents, storyEvents, storyExperienceEvents } from "./how-story-browser-checks.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = process.argv[3] ? path.resolve(process.argv[3]) : await mkdtemp(path.join(root, "../../landing-analytics-qa-"));
@@ -20,32 +22,32 @@ for (const surface of process.argv[3] ? [] : ["landing", "recap"]) {
   });
 }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL || undefined, headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
-const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".woff2": "font/woff2" };
+const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".woff2": "font/woff2" };
+const serve = async (route) => {
+  const url = new URL(route.request().url());
+  if (url.hostname === "www.googletagmanager.com") return route.fulfill({ contentType: "application/javascript", body: "/* GA network disabled for QA */" });
+  if (url.hostname !== "map-mory.com") return route.abort();
+  const recap = url.pathname.startsWith("/recap/");
+  const relative = decodeURIComponent(recap ? url.pathname.slice(7) : url.pathname.slice(1)) || "index.html";
+  const appDir = path.join(output, recap ? "recap" : "landing");
+  const file = path.resolve(appDir, relative);
+  if (!file.startsWith(appDir + path.sep)) return route.abort();
+  try { return route.fulfill({ contentType: mime[path.extname(file)] ?? "application/octet-stream", body: await readFile(file) }); }
+  catch { return route.fulfill({ status: 404, body: "Missing fixture asset" }); }
+};
 const findings = [];
 try {
   for (const mobile of [false, true]) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, isMobile: mobile, hasTouch: mobile, reducedMotion: "reduce", serviceWorkers: "block" });
-    await context.route("**/*", async (route) => {
-      const url = new URL(route.request().url());
-      if (url.hostname === "www.googletagmanager.com") return route.fulfill({ contentType: "application/javascript", body: "/* GA network disabled for QA */" });
-      if (url.hostname !== "map-mory.com") return route.abort();
-      const recap = url.pathname.startsWith("/recap/");
-      const relative = decodeURIComponent(recap ? url.pathname.slice(7) : url.pathname.slice(1)) || "index.html";
-      const appDir = path.join(output, recap ? "recap" : "landing");
-      const file = path.resolve(appDir, relative);
-      if (!file.startsWith(appDir + path.sep)) return route.abort();
-      try { return route.fulfill({ contentType: mime[path.extname(file)] ?? "application/octet-stream", body: await readFile(file) }); }
-      catch { return route.fulfill({ status: 404, body: "Missing fixture asset" }); }
-    });
+    await context.route("**/*", serve);
     const page = await context.newPage();
     page.setDefaultTimeout(20000);
     page.setDefaultNavigationTimeout(20000);
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const events = () => page.evaluate(() => (window.dataLayer ?? []).map((args) => [...args]).filter(([command]) => command === "event"));
+    const events = () => dataLayerEvents(page);
     const waitForEvent = (eventName, experienceType, count = 1) => page.waitForFunction(([name, type, minimum]) => [...(window.dataLayer ?? [])]
       .filter((args) => args[0] === "event" && args[1] === name && args[2]?.experience_type === type).length >= minimum, [eventName, experienceType, count]);
-    const howPlayEvents = async (eventName) => (await events()).filter(([, name, props]) => name === eventName && props.experience_type === "how_play");
     await page.goto("https://map-mory.com/?internal=1");
     await page.locator(".site-header").waitFor();
     const menu = page.locator(".header-store-menu");
@@ -81,32 +83,9 @@ try {
     }
     assert.equal((await events()).filter(([, name]) => name === "download_click").length, 2);
     console.log("Header stores passed", { mobile });
-    // View before any tap proves the observer sits on a real box, not the display: contents wrapper.
-    const howPlay = page.locator(".how-play-phone");
-    await howPlay.evaluate((node) => node.scrollIntoView({ block: "center" }));
-    await waitForEvent("experience_view", "how_play");
-    assert.equal((await howPlayEvents("experience_start")).length, 0);
-    for (const [index, [placeButton, pickAll, demoPlace]] of [["부산", true, "busan"], ["강원도 칠해 보기", false, "gangwon"], ["경주도 칠해 보기", true, "gyeongbuk"]].entries()) {
-      await howPlay.getByRole("button", { name: placeButton, exact: true }).click();
-      const starts = await howPlayEvents("experience_start");
-      assert.equal(starts.length, 1);
-      assert.equal(starts[0][2].interaction_type, "place_select");
-      if (pickAll) await howPlay.getByRole("button", { name: "모두 선택", exact: true }).click();
-      else await howPlay.locator(".how-play-photos button").first().click();
-      await howPlay.getByRole("button", { name: pickAll ? "4장 저장하기" : "1장 저장하기", exact: true }).click();
-      await waitForEvent("how_play_save", "how_play", index + 1);
-      const { demo_place, save_index, selected_photos } = (await howPlayEvents("how_play_save")).at(-1)[2];
-      assert.deepEqual({ demo_place, save_index, selected_photos }, { demo_place: demoPlace, save_index: index + 1, selected_photos: pickAll ? 4 : 1 });
-    }
-    // A replay after 처음부터 다시 must not re-send a place already saved on this page.
-    await howPlay.getByRole("button", { name: "처음부터 다시", exact: true }).click();
-    await howPlay.getByRole("button", { name: "부산", exact: true }).click();
-    await howPlay.getByRole("button", { name: "모두 선택", exact: true }).click();
-    await howPlay.getByRole("button", { name: "4장 저장하기", exact: true }).click();
-    await howPlay.getByRole("button", { name: "강원도 칠해 보기", exact: true }).waitFor();
-    assert.equal((await howPlayEvents("how_play_save")).length, 3);
-    assert.equal((await howPlayEvents("experience_start")).length, 1);
-    console.log("How play passed", { mobile });
+    // Reduced motion gets the static version: one view (static) and scenes 1-5 once each after a rest in view.
+    await checkStaticStory(page);
+    console.log("How story (static) passed", { mobile });
     // Mobile hides the header nav, so it enters the globe from the how-it-works link instead.
     if (mobile) await page.locator(".how-experience-link").click();
     else await page.getByRole("link", { name: "지구본 체험", exact: true }).click();
@@ -119,17 +98,10 @@ try {
     assert.equal(globe.filter((name) => name === "experience_start").length, 1);
     assert.ok(globe.indexOf("experience_view") < globe.indexOf("experience_start"));
     assert.ok(globe.indexOf("experience_start") < globe.indexOf("memory_open"));
-    // Leaving the phone for the globe ends how_play after the 1.5 s grace.
-    await waitForEvent("experience_end", "how_play");
-    const howPlayEnds = await howPlayEvents("experience_end");
-    assert.equal(howPlayEnds.length, 1);
-    assert.equal(howPlayEnds[0][2].exit_reason, "section_exit");
-    assert.equal(howPlayEnds[0][2].last_completed_step, "how_play_save");
-    assert.equal(howPlayEnds[0][2].unique_memories_opened, 0);
     if (!mobile) await page.locator(".site-header nav").getByRole("link", { name: "사용 방법", exact: true }).click();
-    assert.deepEqual((await howPlayEvents("experience_cta_click")).map(([, , props]) => props.cta_placement), mobile ? [] : ["header_nav"]);
+    assert.deepEqual((await storyEvents(page, "experience_cta_click")).map(([, , props]) => props.cta_placement), mobile ? [] : ["header_nav"]);
     if (mobile) await page.goBack();
-    if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.cta_placement === "how_section"));
+    if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.experience_type === "globe" && props.cta_placement === "how_section"));
     await page.locator("#download").getByRole("link", { name: "App Store", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
@@ -139,8 +111,11 @@ try {
     assert.ok(storeClicks.every(([, , props]) => props.experience_type === undefined));
     console.log("Final store passed", { mobile });
     const landingEvents = await events();
-    assert.equal(landingEvents.some(([, name, props]) => name === "memory_open" && props.experience_type === "how_play"), false);
-    assert.equal(JSON.stringify(landingEvents).includes("/assets/photos"), false);
+    assert.equal((await storyExperienceEvents(page)).length, 0);
+    assert.equal((await storyEvents(page, "how_story_view")).length, 1);
+    assert.deepEqual((await storyEvents(page, "how_story_scene")).map(([, , props]) => props.scene_index).sort(), [1, 2, 3, 4, 5]);
+    assert.equal(landingEvents.some(([, name]) => /^how_play/.test(name)), false);
+    assert.equal(JSON.stringify(landingEvents).includes("/assets/"), false);
     await page.goto("https://map-mory.com/recap/?internal=1");
     await page.getByRole("button", { name: "사진 없이 샘플 결과 먼저 보기" }).click();
     await page.getByRole("button", { name: "내 여행 영상 보기" }).click();
@@ -173,54 +148,30 @@ try {
     await page.locator('input[type="file"]').setInputFiles({ name: "no-gps.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64") });
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
     assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
-    // A place tap while under half the phone is on screen still counts as exposure: the session survives
-    // partial scrolling and ends only once the phone is fully off screen.
-    const partial = await context.newPage();
-    partial.setDefaultTimeout(20000);
-    partial.on("pageerror", (error) => errors.push(error.message));
-    await partial.goto("https://map-mory.com/?internal=1");
-    const partialPhone = partial.locator(".how-play-phone");
-    const busan = partialPhone.getByRole("button", { name: "부산", exact: true });
-    await busan.waitFor();
-    // Scrolls so that `visible` px of the phone's top show at the bottom of the viewport.
-    const showPhoneTop = (visible) => partialPhone.evaluate((node, px) => {
-      window.scrollTo({ top: window.scrollY + node.getBoundingClientRect().top - window.innerHeight + px, behavior: "instant" });
-      const box = node.getBoundingClientRect();
-      return { visible: Math.max(0, Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)), height: box.height };
-    }, visible);
-    const tileBottom = await partialPhone.evaluate((node, tile) => tile.getBoundingClientRect().bottom - node.getBoundingClientRect().top, await busan.elementHandle());
-    const atTap = await showPhoneTop(Math.ceil(tileBottom) + 2);
-    assert.ok(atTap.visible < atTap.height * 0.5, JSON.stringify(atTap));
-    await busan.click();
-    const partialEvents = () => partial.evaluate(() => (window.dataLayer ?? []).map((args) => [...args])
-      .filter(([command, , props]) => command === "event" && props?.experience_type === "how_play"));
-    assert.equal((await partialEvents()).filter(([, name]) => name === "experience_start").length, 1);
-    // A probe on the same thresholds is delivered in the same frame as the hook's observer,
-    // so once it reports the smaller ratio the hook has seen the scroll too.
-    await partialPhone.evaluate((node) => new Promise((resolve) => {
-      window.__howProbe = [];
-      new IntersectionObserver((entries) => {
-        window.__howProbe.push(...entries.map((entry) => entry.intersectionRatio));
-        resolve();
-      }, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1] }).observe(node);
-    }));
-    await partial.evaluate(() => { window.__howProbe = []; });
-    const scrolledBack = await showPhoneTop(Math.floor(atTap.height * 0.2));
-    assert.ok(scrolledBack.visible > 0 && Math.floor(scrolledBack.visible / scrolledBack.height * 10) < Math.floor(atTap.visible / atTap.height * 10), JSON.stringify({ atTap, scrolledBack }));
-    await partial.waitForFunction((tapRatio) => window.__howProbe.some((ratio) => ratio > 0 && ratio < tapRatio), atTap.visible / atTap.height);
-    // Longer than the 1.5s exit grace, so an exit armed by the partial scroll would have fired.
-    await partial.waitForTimeout(1700);
-    assert.equal((await partialEvents()).filter(([, name]) => name === "experience_end").length, 0);
-    await partialPhone.evaluate((node) => window.scrollTo({ top: window.scrollY + node.getBoundingClientRect().bottom + 40, behavior: "instant" }));
-    await partial.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "experience_end" && args[2]?.experience_type === "how_play"));
-    const partialEnds = (await partialEvents()).filter(([, name]) => name === "experience_end");
-    assert.equal(partialEnds.length, 1);
-    assert.equal(partialEnds[0][2].exit_reason, "section_exit");
-    assert.equal(partialEnds[0][2].last_completed_step, "experience_start");
-    assert.equal(partialEnds[0][2].active_duration_seconds, 0);
-    await partial.close();
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, how_play view before tap/start/save_index 1-3/reset replay not re-sent/section_exit end, partial-view tap kept through partial scroll and ended off screen, globe-only view/start/open, how-section globe link, header how_play link (desktop), final store without experience context, no photo paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-5 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
+    await context.close();
+  }
+  // Scroll mode: a fling past beats 01-04 counts none of them; a reader who stops on each beat's point sends one view
+  // and each scene once; reading it again never re-sends; landing straight on a beat sends the view before the scene.
+  for (const mobile of [false, true]) {
+    const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, isMobile: mobile, hasTouch: mobile, reducedMotion: "no-preference", serviceWorkers: "block" });
+    await context.route("**/*", serve);
+    const page = await context.newPage();
+    page.setDefaultTimeout(20000);
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("https://map-mory.com/?internal=1");
+    await checkScrollStory(page, { mobile, reopen: () => page.goto("https://map-mory.com/?internal=1") });
+    if (mobile) {
+      // The how-section link is still the mobile entry to the globe.
+      await page.locator(".how-experience-link").click();
+      await page.waitForFunction(() => (window.dataLayer ?? []).some((args) => args[0] === "event" && args[1] === "experience_view" && args[2]?.experience_type === "globe"));
+      assert.ok((await dataLayerEvents(page)).some(([, name, props]) => name === "experience_cta_click" && props?.experience_type === "globe" && props?.cta_placement === "how_section"));
+    }
+    assert.equal(errors.length, 0, errors.join("\n"));
+    findings.push({ mobile, passed: true, covered: "scroll mode: a fling past 01-04 counts none and 05 at rest sends view (scroll) then scene 5; stopping on each point sends 04-01 once each, a second read re-sends nothing; no experience_* for how_story; landing on 03 sends the view before the scene" + (mobile ? "; how-section link to the globe" : "") });
+    console.log("How story (scroll) passed", { mobile });
     await context.close();
   }
   console.log(JSON.stringify({ output, findings, productionAnalyticsRequests: 0 }, null, 2));
