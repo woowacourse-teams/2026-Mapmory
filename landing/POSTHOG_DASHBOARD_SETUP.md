@@ -93,7 +93,33 @@ how_story_scene (scene_index = 5) → experience_view (experience_type = globe)
 ### 02-d · 사용 방법 방식과 도달 깊이
 
 - `how_story_view`: breakdown `story_mode` (`scroll` 스크롤 이야기, `static` 동작 줄이기·높이 500px 미만 화면·큰 글씨의 정지 장면 목록)
-- 페이지 로드별 가장 큰 `scene_index`: HogQL로 distinct_id(=페이지 로드)별 `max(properties.scene_index)`를 구해 0(장면 없음)~5 분포로 보고, `story_mode`로 나눈다.
+- 페이지 로드별 도달 깊이: `how_story_view`를 보낸 페이지 로드(distinct_id)를 기준으로 삼고, 같은 distinct_id의 `how_story_scene` 중 가장 큰 `scene_index`를 붙인다. 장면 이벤트가 없는 페이지 로드는 깊이 0이다. `story_mode`는 `how_story_view`에만 있으므로 보기 방식도 view에서 가져와 0~5 분포를 `story_mode`로 나눈다. 장면 이벤트에서 출발하면 깊이 0이 생기지 않고 `story_mode`로도 나눌 수 없다.
+
+  ```sql
+  SELECT v.story_mode AS story_mode, coalesce(s.depth, 0) AS depth, count() AS page_loads
+  FROM (
+    SELECT distinct_id, argMin(properties.story_mode, timestamp) AS story_mode
+    FROM events
+    WHERE event = 'how_story_view' AND {filters}
+      AND properties.landing_version = 'v4'
+      AND properties.surface = 'landing'
+      AND properties.traffic_type = 'external'
+    GROUP BY distinct_id
+  ) AS v
+  LEFT JOIN (
+    SELECT distinct_id, max(toInt(properties.scene_index)) AS depth
+    FROM events
+    WHERE event = 'how_story_scene' AND {filters}
+      AND properties.landing_version = 'v4'
+      AND properties.surface = 'landing'
+      AND properties.traffic_type = 'external'
+    GROUP BY distinct_id
+  ) AS s ON s.distinct_id = v.distinct_id
+  GROUP BY story_mode, depth
+  ORDER BY story_mode, depth
+  ```
+
+  `{filters}`는 대시보드의 기간을 받는다. 조건은 운영 타일 공통 필터와 `landing_version = v4`이다. how_story 이벤트는 모두 `analytics_schema_version = 2`라 그 조건은 넣지 않았다.
 
 표본이 작을 때는 장면별 비율로 판정하지 않는다. (배포 전 02-d는 how_play `experience_end`의 `last_completed_step`·`active_duration_seconds`와 `how_play_save`의 `demo_place`·`selected_photos`였다.)
 
