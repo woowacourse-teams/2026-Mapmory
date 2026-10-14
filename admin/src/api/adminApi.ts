@@ -118,6 +118,9 @@ export async function adminApiRequest<T>(path: string, options: RequestInit = {}
     throw new Error(getErrorMessage(body, "요청을 처리하지 못했습니다."));
   }
 
+  if (response.status !== 204 && body.data === undefined) {
+    throw new Error("서버 응답을 확인하지 못했습니다. 다시 시도해 주세요.");
+  }
   return body.data as T;
 }
 
@@ -137,10 +140,25 @@ export function getAdminMemberDetail(memberId: number, page = 0, size = 20) {
   return adminApiRequest<AdminMemberDetail>(`/admin/members/${memberId}?${query.toString()}`);
 }
 
-export function getAdminFeedback(status: AdminFeedbackStatus | "", page: number, size = 20) {
+export type AdminFeedbackFilters = {
+  status?: AdminFeedbackStatus | "";
+  category?: AdminFeedbackCategory | "";
+  platform?: AdminFeedbackPlatform | "";
+  from?: string;
+  to?: string;
+};
+
+export function getAdminFeedback(filters: AdminFeedbackFilters, page: number, size = 20, signal?: AbortSignal) {
   const query = new URLSearchParams({ page: String(page), size: String(size) });
-  if (status) query.set("status", status);
-  return adminApiRequest<AdminFeedbackList>(`/admin/service-feedback?${query.toString()}`);
+  for (const key of ["status", "category", "platform", "from", "to"] as const) {
+    const value = filters[key];
+    if (value) query.set(key, value);
+  }
+  return adminApiRequest<AdminFeedbackList>(`/admin/service-feedback?${query.toString()}`, { signal });
+}
+
+export function getAdminFeedbackDetail(feedbackId: number, signal?: AbortSignal) {
+  return adminApiRequest<AdminFeedback>(`/admin/service-feedback/${feedbackId}`, { signal });
 }
 
 export function updateAdminFeedbackStatus(feedbackId: number, status: AdminFeedbackStatus) {

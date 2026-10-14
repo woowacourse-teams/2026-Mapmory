@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { adminApiRequest, getAdminFeedback, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, updateAdminFeedbackStatus, type AdminFeedback, type AdminFeedbackStatus, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
+import { adminApiRequest, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
+
+import FeedbackPage from "./FeedbackPage";
 
 type Page = "dashboard" | "members" | "feedback";
 type Member = {
@@ -16,25 +18,6 @@ type DashboardSummary = {
   photos: { total: number };
 };
 type DateRange = { from: string; to: string };
-
-const feedbackStatuses: AdminFeedbackStatus[] = ["UNCONFIRMED", "IN_PROGRESS", "COMPLETED", "ON_HOLD", "NOT_IMPLEMENTED"];
-const feedbackStatusLabels: Record<AdminFeedbackStatus, string> = {
-  UNCONFIRMED: "미확인",
-  IN_PROGRESS: "반영 중",
-  COMPLETED: "반영 완료",
-  ON_HOLD: "보류",
-  NOT_IMPLEMENTED: "미반영",
-};
-const feedbackStatusValues = Object.entries(feedbackStatusLabels).reduce<Record<string, AdminFeedbackStatus>>((acc, [value, label]) => {
-  acc[label] = value as AdminFeedbackStatus;
-  return acc;
-}, {});
-const feedbackCategoryLabels: Record<AdminFeedback["category"], string> = {
-  BUG_REPORT: "오류 제보",
-  FEATURE_REQUEST: "기능 제안",
-  USABILITY: "사용성, 불편",
-  OTHER: "기타",
-};
 
 function getDashboardRange(period: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -154,7 +137,7 @@ function App() {
         <nav className="side-nav" aria-label="주 메뉴">
           <button className={page === "dashboard" ? "nav-item active" : "nav-item"} onClick={() => setPage("dashboard")}><Icon name="grid"/><span>대시보드</span></button>
           <button className={page === "members" ? "nav-item active" : "nav-item"} onClick={() => setPage("members")}><Icon name="users"/><span>회원 관리</span></button>
-          <button className={page === "feedback" ? "nav-item active" : "nav-item"} onClick={() => setPage("feedback")}><Icon name="chat"/><span>서비스 의견</span><span className="nav-count">8</span></button>
+          <button className={page === "feedback" ? "nav-item active" : "nav-item"} onClick={() => setPage("feedback")}><Icon name="chat"/><span>서비스 의견</span></button>
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-help"><div className="help-icon">?</div><div><strong>운영 가이드</strong><span>어드민 사용 방법</span></div><Icon name="arrow" size={15}/></div>
@@ -429,55 +412,6 @@ function toMember(member: AdminMember): Member {
 function formatAdminDate(value: string) {
   const date = value.split("T")[0];
   return date ? date.replaceAll("-", ".") : "—";
-}
-
-function FeedbackPage({ onNotice }: { onNotice: (message: string) => void }) {
-  const [filter, setFilter] = useState("전체");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
-  const [data, setData] = useState<Awaited<ReturnType<typeof getAdminFeedback>> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retryKey, setRetryKey] = useState(0);
-  const status = filter === "전체" ? "" : feedbackStatusValues[filter];
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError("");
-    getAdminFeedback(status, page)
-      .then((result) => { if (active) setData(result); })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "서비스 의견을 불러오지 못했습니다."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [status, page, retryKey]);
-
-  const feedback = (data?.feedback ?? []).filter((item) => {
-    const normalized = query.toLowerCase();
-    return `${item.feedbackId} ${feedbackCategoryLabels[item.category]} ${item.content} ${item.platform}`.toLowerCase().includes(normalized);
-  });
-  const changeStatus = async (feedbackId: number, nextStatus: AdminFeedbackStatus) => {
-    try {
-      await updateAdminFeedbackStatus(feedbackId, nextStatus);
-      setRetryKey((value) => value + 1);
-      onNotice("처리 상태를 변경했습니다.");
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : "처리 상태를 변경하지 못했습니다.");
-    }
-  };
-
-  return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">VOICE OF MAPMORY</div><h1>서비스 의견</h1><p>사용자의 목소리를 모아 더 나은 경험을 만들어 보세요.</p></div><button className="secondary-button" onClick={() => window.print()}><Icon name="download" size={16}/> 목록 인쇄</button></div>
-    <div className="feedback-overview"><div className="feedback-overview-copy"><span className="overview-icon"><Icon name="chat" size={19}/></span><div><strong>조회된 의견 <b>{(data?.totalElements ?? 0).toLocaleString("ko-KR")}건</b></strong><p>의견은 서비스 개선을 위해 내부에서만 관리됩니다.</p></div></div><span className="overview-date"><Icon name="calendar" size={15}/> 서버 기준</span></div>
-    <div className="panel table-panel feedback-table-panel"><div className="feedback-toolbar"><div className="feedback-tabs">{["전체", "미확인", "반영 중", "반영 완료"].map((item) => <button key={item} className={filter === item ? "feedback-tab active" : "feedback-tab"} onClick={() => { setFilter(item); setPage(0); }}>{item}{filter === item && data && <span>{data.totalElements.toLocaleString("ko-KR")}</span>}</button>)}</div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="의견 내용 검색" aria-label="의견 내용 검색"/></div><button className="filter-button" onClick={() => onNotice("상세 필터는 API에 연결되어 있고 화면 컨트롤은 준비 중입니다.")}><Icon name="filter" size={16}/> 상세 필터</button></div></div>
-      {error && <div className="dashboard-error" role="alert">{error}</div>}
-      {loading && <div className="dashboard-loading" role="status">서비스 의견을 불러오는 중입니다.</div>}
-      <div className="table-scroll"><table className="feedback-table"><thead><tr><th>접수일</th><th>유형</th><th className="content-column">의견 내용</th><th>OS</th><th>처리 상태</th><th /></tr></thead><tbody>{feedback.map((item) => {
-        const statusLabel = feedbackStatusLabels[item.status];
-        const categoryLabel = feedbackCategoryLabels[item.category];
-        return <tr key={item.feedbackId}><td><span className="feedback-date">{formatAdminDate(item.createdAt)}</span><small>FB-{String(item.feedbackId).padStart(4, "0")}</small></td><td><span className={`category-tag ${item.category === "BUG_REPORT" ? "bug-category" : item.category === "FEATURE_REQUEST" ? "feature-category" : "other-category"}`}>{categoryLabel}</span></td><td className="feedback-content-cell">{item.content}</td><td><span className="os-label"><span className="os-symbol">{item.platform === "IOS" ? "●" : "◉"}</span>{item.platform === "IOS" ? "iOS" : "Android"}</span></td><td><select className={`status-select status-${statusLabel.replaceAll(" ", "")}`} value={item.status} onChange={(event) => changeStatus(item.feedbackId, event.target.value as AdminFeedbackStatus)} aria-label={`FB-${item.feedbackId} 처리 상태`}>{feedbackStatuses.map((status) => <option key={status} value={status}>{feedbackStatusLabels[status]}</option>)}</select></td><td><button className="row-arrow" aria-label={`FB-${item.feedbackId} 의견 상세`}><Icon name="chevron" size={15}/></button></td></tr>;
-      })}</tbody></table>{!loading && feedback.length === 0 && <div className="empty-state">해당 상태의 의견이 없습니다.</div>}</div>
-      <div className="table-footer"><span>총 <strong>{(data?.totalElements ?? 0).toLocaleString("ko-KR")}</strong>건</span><div className="pagination"><button disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)}>이전</button><span className="current-page">{data ? `${data.page + 1} / ${Math.max(data.totalPages, 1)}` : "—"}</span><button disabled={!data || page + 1 >= data.totalPages || loading} onClick={() => setPage((value) => value + 1)}>다음</button></div></div>
-    </div><div className="feedback-privacy-note"><span>✳</span><p><strong>의견은 내부 개선 목적으로만 사용됩니다.</strong> 제출한 사용자에게 개별 답변은 제공하지 않습니다.</p></div><footer className="page-footer"><span>Mapmory Admin <b>·</b> 의견 관리</span><span>접수일은 서버 기준 시각으로 저장됩니다.</span></footer></div>;
 }
 
 function MemberDrawer({ member, onClose }: { member: Member; onClose: () => void }) {
