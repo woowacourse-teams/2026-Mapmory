@@ -47,7 +47,8 @@ test("declares the agreed landing funnel events", () => {
       "waitlist_submit_error",
       "download_click",
       "hero_demo_select",
-      "how_play_save",
+      "how_story_view",
+      "how_story_scene",
     ]),
   );
 });
@@ -135,17 +136,18 @@ test("allows only the approved photo-sheet diagnostic properties", () => {
   );
 });
 
-test("allows only the approved how-play save properties", () => {
+test("allows only the approved how-story reach properties", () => {
   assert.deepEqual(
     buildEventParameters({
-      experience_type: "how_play",
-      demo_place: "busan",
+      experience_type: "how_story",
+      scene_index: 3,
+      story_mode: "scroll",
+      demo_place: "jeju",
       save_index: 2,
       selected_photos: 3,
-      src: "/assets/photos/busan-01.webp",
-      alt: "해변 열차",
-      picked: [0, 2],
-      label: "부산",
+      src: "/assets/photos/gyeongbuk-02.webp",
+      alt: "첨성대",
+      label: "경주",
       add_index: 1,
     }),
     {
@@ -153,10 +155,10 @@ test("allows only the approved how-play save properties", () => {
       analytics_schema_version: "2",
       landing_version: "v4",
       traffic_type: "external",
-      experience_type: "how_play",
-      demo_place: "busan",
-      save_index: 2,
-      selected_photos: 3,
+      experience_type: "how_story",
+      scene_index: 3,
+      story_mode: "scroll",
+      demo_place: "jeju",
     },
   );
 });
