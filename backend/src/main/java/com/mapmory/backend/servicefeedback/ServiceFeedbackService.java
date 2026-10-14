@@ -4,6 +4,8 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -53,8 +55,8 @@ public class ServiceFeedbackService {
                 status,
                 category,
                 platform,
-                from == null ? null : from.atStartOfDay(),
-                to == null ? null : to.plusDays(1).atStartOfDay(),
+                from == null ? null : toUtcDateTime(from),
+                to == null ? null : toUtcDateTime(to.plusDays(1)),
                 PageRequest.of(
                         page,
                         size,
@@ -83,6 +85,12 @@ public class ServiceFeedbackService {
         feedback.changeStatus(status);
         adminAuditLogRepository.save(AdminAuditLog.serviceFeedbackStatus(feedbackId, before, status));
         return ServiceFeedbackResponse.from(feedback);
+    }
+
+    private LocalDateTime toUtcDateTime(LocalDate date) {
+        return date.atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
     }
 
     private ServiceFeedback findFeedback(Long feedbackId) {

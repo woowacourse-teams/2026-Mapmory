@@ -835,13 +835,13 @@ Authorization: Bearer {accessToken}
 
 ## 8. 관리자 및 서비스 의견 API
 
-관리자 대시보드와 관리자 API는 현재 로그인 없이 접근할 수 있다. 따라서 배포 환경에 올리면 API 주소를
-아는 누구나 회원 정보와 서비스 의견을 조회할 수 있다. CORS Origin 설정은 브라우저의 교차 출처 호출만
-제어하며 API 자체의 접근 권한을 제한하지 않는다.
+관리자 API는 관리자 세션 인증과 ADMIN 권한이 필요하다. 쓰기 요청에는 CSRF 토큰도 필요하다.
+앱의 의견 제출 API는 앱 Access Token으로 인증한다.
 
-목록 API는 기본 `page=0`, `size=20`, 최대 `size=100`을 사용한다. 페이지 응답은 기존 여행 기록 목록과
-같이 `items`, `page`, `size`, `totalElements`, `totalPages`, `hasNext`를 포함한다. 시각은 UTC ISO-8601로
-반환하며, 날짜 범위는 한국 시간 기준 양 끝을 포함한다.
+목록 API는 기본 `page=0`, `size=20`, 최대 `size=100`을 사용한다.
+서비스 의견 목록의 배열 필드는 `feedback`이며 페이지 정보는 `page`, `size`, `totalElements`, `totalPages`다.
+현재 의견 시각 응답에는 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
+의견 날짜 필터는 한국 날짜를 UTC 시작·종료 구간으로 변환해 적용한다.
 
 ### 대시보드 집계
 
@@ -943,7 +943,7 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "data": { "feedbackId": 248, "createdAt": "2026-10-08T05:32:00Z" }
+  "data": { "feedbackId": 248, "createdAt": "2026-10-08T05:32:00" }
 }
 ```
 
@@ -964,7 +964,7 @@ Authorization: Bearer {accessToken}
   "content": "여행 기록을 여러 장 한 번에 등록하고 싶어요.",
   "platform": "IOS",
   "status": "UNCONFIRMED",
-  "createdAt": "2026-10-08T05:32:00Z"
+  "createdAt": "2026-10-08T05:32:00"
 }
 ```
 
@@ -1000,3 +1000,8 @@ Authorization: Bearer {accessToken}
 - 지도 요약 Repository에 선택적 `tagId` 조건을 추가하고 MySQL 실행 계획 검증
 - 목록·상세 응답에 `tags`를 추가한 뒤 KMP DTO 계약 갱신
 - 여행 기록 생성에서도 Object Key 중복·소유권·업로드 완료 검증을 문서 계약과 일치시킴
+
+
+## 서비스 의견 클라이언트 연동 명세
+
+앱 제출 요청·성공 및 오류 응답 예시는 [앱 서비스 의견 제출 API](client/docs/service-feedback-api.md)를 참고한다. 관리자 목록 응답의 배열 필드는 `feedback`이며, 상세한 현재 계약은 [서비스 의견 API 명세](backend/docs/service-feedback-api.md)에 정리했다.
