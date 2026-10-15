@@ -174,7 +174,8 @@ export function mountTravelReplay(root, { onState } = {}) {
   function size() {
     const r = stage.getBoundingClientRect();
     W = r.width; H = r.height;
-    DPR = Math.min(narrow() ? 1.5 : 2, window.devicePixelRatio || 1);
+    // 1.5 everywhere: the globe stays crisp and the three cached holds stay small on large, dense screens
+    DPR = Math.min(1.5, window.devicePixelRatio || 1);
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     dims.cw = cards[0].el.offsetWidth; dims.ch = cards[0].el.offsetHeight;
     dims.tags = tags.map((t) => t.offsetWidth);
@@ -533,8 +534,7 @@ export function mountTravelReplay(root, { onState } = {}) {
   }
   // static: the finished frame, with the five steps as a plain list above it
   function staticFrame() {
-    const b0 = BEAT_SPAN - 0.001, b = b0 - 1;
-    draw(b); place(b, b0); setTally(b); setBeat(BEAT_OF_UNIT.at(-1)); setEnd(true);
+    // read every rect before writing any style, so a scroll never forces a layout
     const vh = window.innerHeight;
     const rr = root.getBoundingClientRect();
     const visible = Math.min(rr.bottom, vh) - Math.max(rr.top, 0);
@@ -546,6 +546,8 @@ export function mountTravelReplay(root, { onState } = {}) {
       const off = Math.abs((s.top + s.bottom) / 2 - vh / 2);
       if (s.height > 0 && seen >= s.height / 2 && off < best) { best = off; scene = k + 1; }
     });
+    const b0 = BEAT_SPAN - 0.001, b = b0 - 1;
+    draw(b); place(b, b0); setTally(b); setBeat(BEAT_OF_UNIT.at(-1)); setEnd(true);
     report({ mode, inView: visible >= Math.min(vh, rr.height) / 2, scene, atRest: scene > 0 });
   }
   const req = () => { if (!raf && !destroyed) raf = requestAnimationFrame(frame); };
@@ -570,7 +572,11 @@ export function mountTravelReplay(root, { onState } = {}) {
   const onResize = () => {
     const changed = decideMode();
     const r = stage.getBoundingClientRect();
-    if (!changed && r.width === lastW && r.height === lastH && window.innerHeight === dims.vh) return;
+    if (!changed && r.width === lastW && r.height === lastH) {
+      // only the window height moved (a phone's address bar): the 100svh stage kept its size, so keep every canvas
+      if (window.innerHeight !== dims.vh) { dims.vh = window.innerHeight; req(); }
+      return;
+    }
     lastW = r.width; lastH = r.height;
     size(); req();
   };
@@ -611,7 +617,7 @@ export function mountTravelReplay(root, { onState } = {}) {
 function requestIdle(fn, timeout) {
   return typeof window.requestIdleCallback === "function"
     ? { idle: window.requestIdleCallback(fn, { timeout }) }
-    : { timer: setTimeout(fn, 60) };
+    : { timer: setTimeout(fn, timeout) }; // Safari has no requestIdleCallback: keep the holds spread out
 }
 function cancelIdle(id) {
   if (id.idle !== undefined) window.cancelIdleCallback(id.idle);

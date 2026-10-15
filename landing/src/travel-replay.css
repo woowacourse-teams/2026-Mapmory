@@ -37,7 +37,8 @@
 .tr-mosaic { position: absolute; left: 0; top: 0; border-radius: 32px; }
 .tr-phone.is-safe { border-color: var(--accent-strong); box-shadow: 0 0 0 6px var(--accent-soft); }
 .tr-chip { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 15px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; transition: background .4s var(--ease-out); }
-.tr-phone.is-safe .tr-chip { background: var(--accent-strong); color: #fff; }
+/* mint with dark ink: the white-on-mint chip fell below AA, most of all in the dark theme */
+.tr-phone.is-safe .tr-chip { background: var(--accent); color: var(--tr-on-accent); }
 
 /* album marker: one round photo per place, with its count */
 .tr-marker { position: absolute; left: 0; top: 0; width: 52px; height: 52px; opacity: 0; will-change: transform, opacity; }
