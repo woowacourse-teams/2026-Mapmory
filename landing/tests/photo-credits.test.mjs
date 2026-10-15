@@ -2,34 +2,25 @@ import assert from "node:assert/strict";
 import { access, readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFinderDemo.js";
+import { REPLAY_PHOTOS_PER_PLACE, REPLAY_PLACES, replayPhoto } from "../src/travelReplay.js";
 
 const readJson = async (path) => JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
 const credits = await readJson("../src/data/photo-credits.json");
-const lqip = await readJson("../src/data/how-photo-story-lqip.json");
-const textureSources = await readJson("../src/data/how-photo-story-sources.json");
-
-// The #how photo story shows its 경주 photos as real prints (each has a placeholder in the LQIP data, beside the
-// placeholders of the textures and of 05's map, which are not photos).
-const HOW_STORY_PHOTOS = Object.keys(lqip)
-  .filter((name) => !["heap", "gallery", "map", "map-dark"].includes(name))
-  .map((name) => `/assets/photos/${name}.webp`);
-// The heap and gallery textures are composites of tiny prints cropped from the other library photos: those photos
-// are shown there too (never readably), so they keep their credits.
-const TEXTURE_PHOTOS = [...new Set([...textureSources.heap, ...textureSources.gallery])];
-
-// The hero library, each hero place and the #how story's 경주 photos each use their own files.
+// The hero library and each hero place use their own files. The #how travel replay (2026-10-15) replays the hero's
+// own example trip, so it reuses the hero place photos on purpose and adds none of its own.
 const distinct = [
   PHOTO_FINDER_LIBRARY_PHOTOS,
   ...PHOTO_FINDER_PLACES.map(({ photos }) => photos),
-  HOW_STORY_PHOTOS,
 ].flat();
-const used = [...new Set([...distinct, ...TEXTURE_PHOTOS])];
+const used = [...new Set(distinct)];
 
-test("no photo file is shared between the hero library, the hero places and the #how story's 경주 photos", () => {
-  assert.deepEqual(HOW_STORY_PHOTOS, [1, 2, 3, 4].map((n) => `/assets/photos/gyeongbuk-0${n}.webp`));
+test("no photo file is shared between the hero library and the hero places, and the replay adds no photos", () => {
   assert.equal(new Set(distinct).size, distinct.length);
-  // The textures stand for "thousands of other photos": the story's own 경주 photos are never baked into them.
-  for (const file of TEXTURE_PHOTOS) assert.ok(!HOW_STORY_PHOTOS.includes(file), `${file} is baked into a texture`);
+  const placePhotos = new Set(PHOTO_FINDER_PLACES.flatMap(({ photos }) => photos));
+  for (const pl of REPLAY_PLACES) {
+    assert.ok(placePhotos.has(replayPhoto(pl.cover)), pl.cover);
+    for (let i = 1; i <= REPLAY_PHOTOS_PER_PLACE; i++) assert.ok(placePhotos.has(replayPhoto(`${pl.key}-0${i}`)), `${pl.key}-0${i}`);
+  }
 });
 
 test("every photo the page shows exists and has an open license credit", async () => {

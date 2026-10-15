@@ -204,7 +204,7 @@ test("a late dwell timer counts its scene only if a fresh frame still shows it a
 });
 
 test("the section confirms each scene on a fresh frame through the engine before sending it", async () => {
-  const component = await readFile(new URL("../src/HowPhotoStory.jsx", import.meta.url), "utf8");
+  const component = await readFile(new URL("../src/TravelReplay.jsx", import.meta.url), "utf8");
   assert.match(component, /confirm: \(check\) => \{\s*cancelAnimationFrame\(confirmFrame\);\s*confirmFrame = requestAnimationFrame\(\(\) => \{\s*confirmFrame = 0;\s*engine\?\.sample\(\);\s*check\(\);/);
   assert.match(component, /cancelAnimationFrame\(confirmFrame\);\s*destroy\(\);/);
 });
