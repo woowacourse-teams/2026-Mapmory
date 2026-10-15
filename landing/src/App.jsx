@@ -909,8 +909,8 @@ function App() {
       <header className="site-header">
         <Brand />
         <nav aria-label="주요 메뉴">
-          <a href="#how" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "how_story", cta_placement: "header_nav" })}>사용 방법</a>
           <a href="#experience" onClick={() => globeAnalytics.trackEntryClick("header_nav")}>지구본 체험</a>
+          <a href="#how" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "how_story", cta_placement: "header_nav" })}>사용 방법</a>
           <a href="#privacy">안심하고 쓰기</a>
         </nav>
         <div className="header-actions"><ThemeToggle theme={theme} onChange={setTheme} /><HeaderStoreMenu /></div>
@@ -924,11 +924,6 @@ function App() {
           </div>
         )}
       />
-
-      <section className="how-section" id="how" aria-labelledby="how-title">
-        <HowPhotoStory />
-        <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
-      </section>
 
       <section className={`experience-section ${isGlobeFocused ? "is-focused" : ""}`} id="experience" ref={setExperienceSectionRef}>
         <div className="experience-pin">
@@ -954,6 +949,11 @@ function App() {
             )}
           </div>
         </div>
+      </section>
+
+      <section className="how-section" id="how" aria-labelledby="how-title">
+        <HowPhotoStory />
+        <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
       {isMobileExperience && isWorldMemoryOpen && createPortal(
