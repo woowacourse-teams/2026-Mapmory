@@ -14,7 +14,7 @@ The admin UI connects only to the production API at `https://api.map-mory.com/ap
 
 ## Screens
 
-- Dashboard: member, travel-record, and attached-photo totals; guest/Kakao/Google login distribution; selected-period counts (Java API)
+- Dashboard: member, travel-record, and attached-photo totals; guest/Kakao/Google login distribution; selected-period counts with 1/7/30/45/60-day presets and custom dates (Java API)
 - Members: production member search, provider filter, and paginated detail with travel-record/photo counts
 - Service feedback: all five statuses, category/OS/KST date filters, paginated list, detail view, and internal status updates. Content search applies to the currently loaded page.
 

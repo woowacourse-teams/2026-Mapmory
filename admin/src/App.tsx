@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApiRequest, getAdminMemberDetail, getAdminMembers, getCurrentAdmin, loginAdmin, logoutAdmin, type AdminMember, type AdminMemberDetail } from "./api/adminApi";
 
 import FeedbackPage from "./FeedbackPage";
+import { dashboardDays, getDashboardRange } from "./utils/dashboard";
 
 type Page = "dashboard" | "members" | "feedback";
 type Member = {
@@ -18,23 +19,6 @@ type DashboardSummary = {
   photos: { total: number };
 };
 type DateRange = { from: string; to: string };
-
-function getDashboardRange(period: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "0";
-  const year = Number(value("year"));
-  const month = Number(value("month"));
-  const day = Number(value("day"));
-  const to = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const fromDate = new Date(Date.UTC(year, month - 1, day));
-  fromDate.setUTCDate(fromDate.getUTCDate() - (period === "최근 30일" ? 29 : 6));
-  return { from: fromDate.toISOString().slice(0, 10), to };
-}
 
 function formatPeriodDate(date: string) {
   if (!date) return "날짜 선택";
@@ -69,7 +53,7 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [page, setPage] = useState<Page>("dashboard");
   const [period, setPeriod] = useState("최근 7일");
-  const [dashboardRange, setDashboardRange] = useState<DateRange>(() => getDashboardRange("최근 7일"));
+  const [dashboardRange, setDashboardRange] = useState<DateRange>(() => getDashboardRange(7));
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -244,7 +228,7 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const today = getDashboardRange("최근 7일").to;
+  const today = getDashboardRange(7).to;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -312,9 +296,10 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
 
       <div className="period-row">
         <div className="period-tabs">
-          {["최근 7일", "최근 30일"].map((item) => (
-            <button key={item} className={period === item ? "period-tab active" : "period-tab"} onClick={() => { setPeriod(item); setRange(getDashboardRange(item)); }}>{item}</button>
-          ))}
+          {dashboardDays.map((days) => {
+            const label = `최근 ${days}일`;
+            return <button key={days} className={period === label ? "period-tab active" : "period-tab"} onClick={() => { setPeriod(label); setRange(getDashboardRange(days)); }}>{label}</button>;
+          })}
         </div>
         <div className="date-picker-group" aria-label="집계 기간 직접 선택">
           <label>시작일<input type="date" value={range.from} max={range.to || today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, from: event.target.value }); }} /></label>
@@ -336,7 +321,6 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
         <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)}`} />
         <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} change={summary ? `+${number(summary.travelRecords.createdInPeriod)}` : "—"} detail="선택 기간 생성" icon="grid" tint="peach" trend="neutral" foot="전체 누적 기록" />
         <MetricCard label="등록 사진" value={number(summary?.photos.total)} change="누적" detail="여행 기록에 연결된 사진" icon="image" tint="lavender" trend="neutral" foot="삭제된 사진 제외" />
-        <MetricCard label="기간 신규 회원" value={number(summary?.members.newInPeriod)} change={loading ? "—" : period} detail="가입 수" icon="users" tint="lavender" trend="neutral" foot={dateLabel} />
       </section>
 
       <section className="dashboard-main-grid">
