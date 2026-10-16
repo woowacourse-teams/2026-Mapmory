@@ -164,8 +164,23 @@ function initializePostHog() {
   return posthogInitialization;
 }
 
+// PostHog (about 90 KB gzipped) waits until the page has loaded and the browser is idle, so it never competes with
+// the first screen. An event tracked earlier still starts it at once through trackEvent.
+function schedulePostHog() {
+  if (typeof window.addEventListener !== "function" || typeof document === "undefined") {
+    void initializePostHog();
+    return;
+  }
+  const start = () => {
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(() => void initializePostHog(), { timeout: 2000 });
+    else setTimeout(() => void initializePostHog(), 1000);
+  };
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start, { once: true });
+}
+
 export function initializeAnalytics() {
-  void initializePostHog();
+  if (typeof window !== "undefined") schedulePostHog();
 
   if (!measurementId || gaInitialized || typeof window === "undefined"
     || !canCaptureGa(environment, window.location.hostname)) return;

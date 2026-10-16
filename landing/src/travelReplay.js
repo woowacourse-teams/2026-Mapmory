@@ -15,7 +15,7 @@ export const REPLAY_LIBRARY_COUNT = 21474;
 export const REPLAY_PLACES = Object.freeze([
   { key: "jeju", name: "제주", count: 31, lonlat: [126.53, 33.38], country: "410", island: true, cover: "jeju-01", lean: [-1, -0.2], leanN: [-0.5, -1] },
   { key: "japan", name: "일본", count: 86, lonlat: [138.5, 36.2], country: "392", cover: "japan-01", lean: [1, -0.35], leanN: [0.7, -1] },
-  { key: "usa", name: "미국", count: 52, lonlat: [-112.1, 36.1], country: "840", cover: "usa-04", lean: [0, -1] },
+  { key: "usa", name: "미국", count: 52, lonlat: [-112.1, 36.1], country: "840", mainland: true, cover: "usa-04", lean: [0, -1] },
 ]);
 export const REPLAY_PHOTOS_PER_PLACE = 5;
 export const REPLAY_TOTAL = REPLAY_PLACES.reduce((sum, { count }) => sum + count, 0);

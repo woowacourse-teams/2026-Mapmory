@@ -572,7 +572,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
           onPolygonClick={(polygon) => { const memory = memoryByCountry.get(String(polygon.id)); if (memory) onSelect(memory, "globe"); }} />}
       </Suspense>}</GlobeLoadBoundary>
       {guideVisible && <GlobeOnboarding />}
-      <p className="globe-instruction" aria-live="polite"><NavigationArrow size={18} weight="fill" />{
+      <p className="globe-instruction" aria-live="polite" hidden={guideVisible && !isSelecting}><NavigationArrow size={18} weight="fill" />{
         isSelecting
           ? "선택한 나라로 이동하는 중이에요"
           : guideVisible
