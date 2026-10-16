@@ -4,7 +4,7 @@ import { App } from "./App.jsx";
 import { initializeAnalytics } from "./analytics.js";
 import "./styles.css";
 import "./photo-finder-hero.css";
-import "./how-photo-story.css";
+import "./travel-replay.css";
 
 initializeAnalytics();
 
