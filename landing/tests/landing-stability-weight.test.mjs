@@ -8,6 +8,13 @@ const app = await read("../src/App.jsx");
 const css = await read("../src/styles.css");
 const engine = await read("../src/travelReplayEngine.js");
 
+// KS X 1001 Hangul = the 2,350 syllables at 0xB0A1-0xC8FE in EUC-KR (what scripts/split-landing-font.py keeps in core)
+const KS_X_1001 = new Set();
+{
+  const decoder = new TextDecoder("euc-kr");
+  for (let hi = 0xb0; hi <= 0xc8; hi++) for (let lo = 0xa1; lo <= 0xfe; lo++) KS_X_1001.add(decoder.decode(new Uint8Array([hi, lo])));
+}
+
 test("a globe chunk that fails to load shows a message instead of unmounting the page", () => {
   assert.match(app, /class GlobeLoadBoundary extends Component/);
   assert.match(app, /<GlobeLoadBoundary>\{materialFailed \? <GlobeUnavailable \/> : <Suspense/);
@@ -40,21 +47,9 @@ test("the landing font is the core subset; the ext family loads only for rare sy
   const { readdir } = await import("node:fs/promises");
   const files = (await readdir(new URL("../src/", import.meta.url), { recursive: true })).filter((f) => /\.(jsx?|json|css)$/.test(f));
   const text = (await Promise.all(files.map((f) => read(`../src/${f}`)))).join("") + (await read("../index.html"));
-  const decoder = new TextDecoder("euc-kr");
-  const outside = [...new Set(text.match(/[가-힣]/g))].filter((c) => {
-    // KS X 1001 Hangul sits at 0xB0A1-0xC8FE in EUC-KR; round-trip through a 2-byte decode table
-    return !KS_X_1001.has(c);
-  });
+  const outside = [...new Set(text.match(/[\uAC00-\uD7A3]/g))].filter((c) => !KS_X_1001.has(c));
   assert.deepEqual(outside, []);
-  void decoder;
 });
-
-// KS X 1001 Hangul = the 2,350 syllables at 0xB0A1-0xC8FE in EUC-KR (what scripts/split-landing-font.py keeps in core)
-const KS_X_1001 = new Set();
-{
-  const decoder = new TextDecoder("euc-kr");
-  for (let hi = 0xb0; hi <= 0xc8; hi++) for (let lo = 0xa1; lo <= 0xfe; lo++) KS_X_1001.add(decoder.decode(new Uint8Array([hi, lo])));
-}
 
 test("team photos ship as webp", async () => {
   assert.doesNotMatch(app, /\/assets\/team-[^"]+\.jpe?g"/);

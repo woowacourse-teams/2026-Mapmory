@@ -450,7 +450,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
         emissive: theme === "dark" ? "#07121b" : "#e8eee9",
         shininess: theme === "dark" ? 12 : 7,
       });
-      if (active) setGlobeMaterial(material);
+      if (active) { setMaterialFailed(false); setGlobeMaterial(material); } // a retry (theme change) can recover a failed fetch
       else material.dispose();
     }).catch(() => { if (active) setMaterialFailed(true); });
     return () => { active = false; material?.dispose(); };
