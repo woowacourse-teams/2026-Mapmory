@@ -23,11 +23,14 @@ class KoreanAddressRegionMatcherTest {
 
     private final Region korea = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
     private final Region seoul = Region.of(korea, korea, "11", "서울특별시", RegionType.PROVINCE);
+    private final Region busan = Region.of(korea, korea, "26", "부산광역시", RegionType.PROVINCE);
     private final Region gwangju = Region.of(korea, korea, "29", "광주광역시", RegionType.PROVINCE);
     private final Region gyeonggi = Region.of(korea, korea, "41", "경기도", RegionType.PROVINCE);
     private final Region gangwon = Region.of(korea, korea, "42", "강원특별자치도", RegionType.PROVINCE);
     private final Region sejong = Region.of(korea, korea, "50", "세종특별자치시", RegionType.PROVINCE);
     private final Region jongno = Region.of(seoul, korea, "11110", "종로구", RegionType.DISTRICT);
+    private final Region haeundae = Region.of(busan, korea, "26350", "해운대구", RegionType.DISTRICT);
+    private final Region busanjin = Region.of(busan, korea, "26230", "부산진구", RegionType.DISTRICT);
     private final Region gwangjuDonggu = Region.of(gwangju, korea, "29110", "동구", RegionType.DISTRICT);
     private final Region seongnam = Region.of(gyeonggi, korea, "41130", "성남시", RegionType.DISTRICT);
     private final Region gyeonggiGwangju = Region.of(gyeonggi, korea, "41610", "광주시", RegionType.DISTRICT);
@@ -41,8 +44,9 @@ class KoreanAddressRegionMatcherTest {
         matcher = new KoreanAddressRegionMatcher(regionResolver);
         when(regionResolver.resolve("KR", null, null)).thenReturn(korea);
         when(regionResolver.children(korea, RegionType.PROVINCE))
-                .thenReturn(List.of(seoul, gwangju, gyeonggi, gangwon, sejong));
+                .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong));
         when(regionResolver.children(seoul, RegionType.DISTRICT)).thenReturn(List.of(jongno));
+        when(regionResolver.children(busan, RegionType.DISTRICT)).thenReturn(List.of(haeundae, busanjin));
         when(regionResolver.children(gwangju, RegionType.DISTRICT)).thenReturn(List.of(gwangjuDonggu));
         when(regionResolver.children(gyeonggi, RegionType.DISTRICT)).thenReturn(List.of(seongnam, gyeonggiGwangju));
         when(regionResolver.children(gangwon, RegionType.DISTRICT)).thenReturn(List.of(yangyang));
@@ -75,8 +79,18 @@ class KoreanAddressRegionMatcherTest {
     }
 
     @Test
-    void 시군구를_찾지_못하면_직접_선택하도록_빈_값을_준다() {
-        assertThat(matcher.match(List.of("경기도", "없는시"))).isEmpty();
+    void 시군구_없이_시도만_있는_주소는_시도로_찾는다() {
+        assertThat(matcher.match(List.of("부산광역시"))).contains(busan);
+    }
+
+    @Test
+    void 시군구를_찾지_못하면_시도로_찾는다() {
+        assertThat(matcher.match(List.of("경기도", "없는시"))).contains(gyeonggi);
+    }
+
+    @Test
+    void 시도를_찾지_못하면_직접_선택하도록_빈_값을_준다() {
+        assertThat(matcher.match(List.of("없는도", "없는시"))).isEmpty();
         assertThat(matcher.match(List.of())).isEmpty();
     }
 }

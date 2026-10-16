@@ -119,9 +119,9 @@ Controller
 
 - `countryCode`는 필수이며 대문자 2자리다.
 - `provinceCode`와 `districtCode`는 입력하는 경우 공백 없이 20자 이하여야 한다.
-- 대한민국(`KR`)은 시도와 시군구를 모두 입력해 `DISTRICT` 단위로 저장한다. 누락하면 `400 REGION_REQUIRED`를 반환한다.
-- 해외는 국가 단위만 허용한다. 하위 지역을 포함하면 `400 INVALID_REGION_TYPE`을 반환한다.
-- `RegionResolver`는 코드 경로를 `parent_id`로 탐색해 존재 여부와 직접 부모 관계를 검증한다.
+- 대한민국(`KR`)은 시도(`PROVINCE`)나 시군구(`DISTRICT`) 단위로 저장한다. 부산광역시처럼 시도까지만 골라도 된다. 국가만 고르면 `TravelRecord`가 `400 REGION_REQUIRED`를 반환한다.
+- 해외는 하위 지역 데이터가 없어 국가 단위로만 저장된다. 하위 지역 코드를 보내면 `404 REGION_NOT_FOUND`다.
+- `RegionResolver`는 상위 코드 없이 하위 코드만 오면 `400 INVALID_REGION_HIERARCHY`를 반환하고, 코드 경로를 `parent_id`로 탐색해 존재 여부와 직접 부모 관계를 검증한다.
 - 존재하지 않는 지역은 `404 REGION_NOT_FOUND`, 다른 부모에 속한 지역은 `400 INVALID_REGION_HIERARCHY`를 반환한다.
 
 ## 5. 여행 기록 목록 조회
@@ -152,8 +152,8 @@ GET /api/v1/travel-records?countryCode=KR&provinceCode=49&districtCode=50110
 | --- | --- |
 | `X-Member-Id` 누락·형식 오류·0 이하 | `400 VALIDATION_ERROR` |
 | 회원이 존재하지 않음 | 확인하지 않는다. `200 OK`와 빈 목록 (ADR 0009 2026-10-14 구현 업데이트) |
-| `provinceCode`에 `countryCode`가 없음 | `400 REGION_REQUIRED` |
-| `districtCode`에 `countryCode` 또는 `provinceCode`가 없음 | `400 REGION_REQUIRED` |
+| `provinceCode`에 `countryCode`가 없음 | `400 INVALID_REGION_HIERARCHY` |
+| `districtCode`에 `provinceCode`가 없음 | `400 INVALID_REGION_HIERARCHY` |
 | 지역 코드 형식 오류, `page < 0`, `size`가 1 미만 또는 100 초과 | `400 VALIDATION_ERROR` |
 | 국가·시도·시군구 코드가 존재하지 않음 | `404 REGION_NOT_FOUND` |
 | 요청한 시도·시군구가 선택한 상위 Region의 직계 자식이 아님 | `400 INVALID_REGION_HIERARCHY` |

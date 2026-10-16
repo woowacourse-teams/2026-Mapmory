@@ -522,10 +522,9 @@ Access Token이 아니라 ID Token을 보낸다.
 
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
-| `400` | `REGION_REQUIRED` | 한국 기록에 시도 또는 시군구가 없음 |
+| `400` | `REGION_REQUIRED` | 지역을 고르지 않았고 장소로도 찾지 못함, 또는 한국 기록에 시도가 없음 |
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구가 존재하지 않음 |
-| `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않음 |
-| `400` | `INVALID_REGION_TYPE` | 대한민국이 시군구 단위가 아니거나 해외 요청에 하위 지역이 포함됨 |
+| `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않거나, 상위 지역 코드 없이 하위 지역 코드만 옴 |
 | `400` | `INVALID_TRAVEL_DATE_RANGE` | 시작일·종료일이 미래이거나 종료일이 시작일보다 빠름 |
 | `400` | `INVALID_OBJECT_KEY` | Object Key 형식 또는 소유자가 올바르지 않음 |
 | `409` | `OBJECT_NOT_UPLOADED` | S3 업로드가 확인되지 않음 |
@@ -611,10 +610,9 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 지역 코드 형식이 올바르지 않음, `page < 0`, `size`가 1 미만 또는 100 초과 |
-| `400` | `REGION_REQUIRED` | `provinceCode`에 `countryCode`가 없거나, `districtCode`에 `countryCode` 또는 `provinceCode`가 없음 |
 | `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 더 이상 존재하지 않음 |
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구 코드가 없음 |
-| `400` | `INVALID_REGION_HIERARCHY` | 시도가 선택 국가의 직계 자식이 아니거나, 시군구가 선택 시도의 직계 자식이 아님 |
+| `400` | `INVALID_REGION_HIERARCHY` | `provinceCode`에 `countryCode`가 없거나 `districtCode`에 `provinceCode`가 없음, 시도가 선택 국가의 직계 자식이 아니거나 시군구가 선택 시도의 직계 자식이 아님 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
 
 조건에 맞는 기록이 없는 경우는 오류가 아니며 `200 OK`와 빈 `items`를 반환한다.

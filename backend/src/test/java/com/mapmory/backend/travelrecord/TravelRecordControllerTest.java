@@ -104,7 +104,7 @@ class TravelRecordControllerTest {
         );
         TravelRecord travelRecord = TravelRecord.of(
                 null,
-                null,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
                 request.title(),
                 request.content(),
                 request.startDate(),
@@ -218,7 +218,7 @@ class TravelRecordControllerTest {
     void 본문이_null이면_여행_일지를_생성한다() throws Exception {
         TravelRecord travelRecord = TravelRecord.of(
                 null,
-                null,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
                 "일본 여행",
                 null,
                 LocalDate.of(2026, 8, 11),
@@ -249,7 +249,7 @@ class TravelRecordControllerTest {
     void 제목이_200자이고_본문이_빈_문자열이면_여행_일지를_생성한다() throws Exception {
         TravelRecord travelRecord = TravelRecord.of(
                 null,
-                null,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
                 "가".repeat(200),
                 "",
                 LocalDate.of(2026, 8, 11),

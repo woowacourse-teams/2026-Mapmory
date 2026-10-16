@@ -29,7 +29,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TravelRecordService {
 
     private static final int MAX_PAGE_SIZE = 100;
-    private static final String KOREA_COUNTRY_CODE = "KR";
 
     private final TravelRecordRepository travelRecordRepository;
     private final RegionResolver regionResolver;
@@ -177,8 +176,6 @@ public class TravelRecordService {
             int page,
             int size
     ) {
-        validateRegionCodeFormat(countryCode, provinceCode, districtCode);
-        validateRegionFilterHierarchy(countryCode, provinceCode, districtCode);
         validatePagination(page, size);
         Long memberId = member.getId();
         Pageable pageable = createPageable(page, size);
@@ -186,72 +183,27 @@ public class TravelRecordService {
             tagService.getOwnedTag(member, tagId);
         }
 
-        Page<TravelRecord> travelRecords;
-
-        if (countryCode == null) {
-            travelRecords = travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable);
-        } else {
-            Region region = regionResolver.resolve(countryCode, provinceCode, districtCode);
-            if (provinceCode == null) {
-                travelRecords = travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
-                        memberId,
-                        region.getId(),
-                        tagId,
-                        pageable
-                );
-            } else if (districtCode == null) {
-                travelRecords = travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
-                        memberId,
-                        region.getId(),
-                        tagId,
-                        pageable
-                );
-            } else {
-                travelRecords = travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
-                        memberId,
-                        region.getId(),
-                        tagId,
-                        pageable
-                );
-            }
-        }
+        Page<TravelRecord> travelRecords = regionResolver.resolveIfPresent(countryCode, provinceCode, districtCode)
+                .map(region -> findInRegion(memberId, region, tagId, pageable))
+                .orElseGet(() -> travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable));
 
         return travelRecordAssembler.assembleSummaries(travelRecords);
+    }
+
+    private Page<TravelRecord> findInRegion(Long memberId, Region region, Long tagId, Pageable pageable) {
+        return switch (region.getRegionType()) {
+            case COUNTRY -> travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
+                    memberId, region.getId(), tagId, pageable);
+            case PROVINCE -> travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
+                    memberId, region.getId(), tagId, pageable);
+            case DISTRICT -> travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
+                    memberId, region.getId(), tagId, pageable);
+        };
     }
 
     private TravelRecord findOwnedTravelRecord(Member member, Long travelRecordId) {
         return travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
                 .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
-    }
-
-    private void validateRegionFilterHierarchy(
-            String countryCode,
-            String provinceCode,
-            String districtCode
-    ) {
-        if (countryCode == null && (provinceCode != null || districtCode != null)) {
-            throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
-        }
-
-        if (provinceCode == null && districtCode != null) {
-            throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
-        }
-    }
-
-    private void validateRegionCodeFormat(
-            String countryCode,
-            String provinceCode,
-            String districtCode
-    ) {
-        if ((countryCode != null && !countryCode.matches("[A-Z]{2}"))
-                || isBlank(provinceCode)
-                || isBlank(districtCode)) {
-            throw new BusinessException(TravelRecordErrorCode.INVALID_REGION_CODE);
-        }
-    }
-
-    private boolean isBlank(String value) {
-        return value != null && value.isBlank();
     }
 
     private void validatePagination(int page, int size) {
@@ -276,7 +228,10 @@ public class TravelRecordService {
     }
 
     private Region resolveRegion(TravelRecordCommand command, PlaceDetails place) {
-        if (hasNoRegion(command) && place != null) {
+        if (!command.hasRegion()) {
+            if (place == null) {
+                throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
+            }
             Region suggestion = placeSelectionService.suggestedRegion(place);
             if (suggestion == null) {
                 throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
@@ -284,12 +239,7 @@ public class TravelRecordService {
             }
             return suggestion;
         }
-        validateTravelRecordRegion(command);
-        return regionResolver.resolve(
-                command.countryCode(),
-                command.provinceCode(),
-                command.districtCode()
-        );
+        return regionResolver.resolve(command.countryCode(), command.provinceCode(), command.districtCode());
     }
 
     private PlaceDetails resolvePlace(TravelRecordCommand command) {
@@ -298,41 +248,15 @@ public class TravelRecordService {
         }
         // 지역이 없으면 장소로 지역을 정해야 해서 제공자에 다시 조회한다. 있으면 기록에 붙일 값만 받는다.
         // 지역이 있으면 장소 국가를 모르므로 요청 지역과 맞는지 확인하지 않는다.
-        return hasNoRegion(command)
+        return !command.hasRegion()
                 ? placeLookupPort.findById(command.placeId())
                 : placeLookupPort.findForRecord(command.placeId());
-    }
-
-    private static boolean hasNoRegion(TravelRecordCommand command) {
-        return command.countryCode() == null && command.provinceCode() == null && command.districtCode() == null;
     }
 
     private void setPlace(TravelRecord travelRecord, PlaceDetails place) {
         travelRecord.setPlace(place == null ? null : new RecordedPlace(
                 placeLookupPort.providerCode(), place.placeId(), place.name(),
                 place.attribution(), place.attributionUrl()));
-    }
-
-    private void validateTravelRecordRegion(TravelRecordCommand command) {
-        String countryCode = command.countryCode();
-        String provinceCode = command.provinceCode();
-        String districtCode = command.districtCode();
-        validateRegionCodeFormat(countryCode, provinceCode, districtCode);
-
-        if (countryCode == null) {
-            throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
-        }
-
-        if (KOREA_COUNTRY_CODE.equals(countryCode)) {
-            if (provinceCode == null || districtCode == null) {
-                throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
-            }
-            return;
-        }
-
-        if (provinceCode != null || districtCode != null) {
-            throw new BusinessException(TravelRecordErrorCode.INVALID_REGION_TYPE);
-        }
     }
 
         private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {

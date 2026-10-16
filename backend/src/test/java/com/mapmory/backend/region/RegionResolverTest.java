@@ -84,6 +84,12 @@ class RegionResolverTest {
         assertThat(regionResolver.resolve("KR", "49", "50110")).isEqualTo(jejuCity);
     }
 
+    @Test
+    void 상위_지역_코드_없이_하위_지역_코드만_오면_거부한다() {
+        assertError(() -> regionResolver.resolve(null, "26", null), "INVALID_REGION_HIERARCHY");
+        assertError(() -> regionResolver.resolve("KR", null, "26350"), "INVALID_REGION_HIERARCHY");
+    }
+
     private Region parent(Long id) {
         Region region = mock(Region.class);
         when(region.getId()).thenReturn(id);

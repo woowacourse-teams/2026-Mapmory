@@ -77,4 +77,8 @@ public class Region extends BaseEntity {
     public RegionType getRegionType() {
         return regionType;
     }
+
+    public boolean isCountry(String countryCode) {
+        return regionType == RegionType.COUNTRY && regionCode.equals(countryCode);
+    }
 }
