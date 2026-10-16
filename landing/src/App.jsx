@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AppleLogo,
@@ -55,7 +55,7 @@ const memories = [
     location: "제주 · 바닷가",
     title: "검은 바위 사이로 밀려오던 제주 바다",
     shortDescription: "파도 소리와 해 질 무렵의 빛만으로도 그날의 제주 여행이 선명하게 돌아와요.",
-    image: "/assets/team-jeju-coast.jpg",
+    image: "/assets/team-jeju-coast.webp",
     photoCredit: "Mapmory 개발팀 촬영",
     lat: 33.4996,
     lng: 126.5312,
@@ -68,7 +68,7 @@ const memories = [
     location: "상하이 · 와이탄",
     title: "황푸강 건너로 번지던 상하이의 밤",
     shortDescription: "불빛이 켜진 푸둥의 스카이라인을 오래 바라보던 여행의 한 장면이에요.",
-    image: "/assets/team-shanghai-bund.jpg",
+    image: "/assets/team-shanghai-bund.webp",
     photoCredit: "Mapmory 개발팀 촬영",
     lat: 31.2304,
     lng: 121.4737,
@@ -81,7 +81,7 @@ const memories = [
     location: "도쿄",
     title: "초록불을 따라 걷던 도쿄의 골목",
     shortDescription: "복잡한 전선과 작은 가게, 평범해서 더 오래 남은 도쿄의 오후예요.",
-    image: "/assets/team-tokyo-street.jpeg",
+    image: "/assets/team-tokyo-street.webp",
     photoCredit: "Mapmory 개발팀 촬영",
     lat: 35.6762,
     lng: 139.6503,
@@ -94,30 +94,30 @@ const memories = [
     location: "미국 · 서부 여행",
     title: "붉은 협곡에서 라스베이거스의 밤까지",
     shortDescription: "브라이스와 앤텔로프의 붉은 결, 야자수 아래의 오후와 불빛이 켜진 라스베이거스까지 한 번의 여행으로 이어져요.",
-    image: "/assets/team-usa-bryce-canyon.jpg",
+    image: "/assets/team-usa-bryce-canyon.webp",
     photos: [
       {
-        src: "/assets/team-usa-bryce-canyon.jpg",
+        src: "/assets/team-usa-bryce-canyon.webp",
         caption: "브라이스 캐니언의 끝없는 기둥",
         alt: "푸른 하늘 아래 주황빛 암석 기둥이 펼쳐진 브라이스 캐니언",
       },
       {
-        src: "/assets/team-usa-antelope-canyon.jpg",
+        src: "/assets/team-usa-antelope-canyon.webp",
         caption: "빛이 스며든 앤텔로프 캐니언",
         alt: "붉은 사암 사이로 햇빛이 들어오는 앤텔로프 캐니언",
       },
       {
-        src: "/assets/team-usa-las-vegas-day.jpg",
+        src: "/assets/team-usa-las-vegas-day.webp",
         caption: "야자수 아래 라스베이거스의 오후",
         alt: "맑고 푸른 하늘과 야자수가 보이는 라스베이거스 거리",
       },
       {
-        src: "/assets/team-usa-las-vegas-fountain.jpg",
+        src: "/assets/team-usa-las-vegas-fountain.webp",
         caption: "분수에 불이 켜진 라스베이거스의 밤",
         alt: "조명이 켜진 분수와 건물이 보이는 라스베이거스 야경",
       },
       {
-        src: "/assets/team-usa-las-vegas-venetian.jpg",
+        src: "/assets/team-usa-las-vegas-venetian.webp",
         caption: "베네시안 앞에서 마주한 야경",
         alt: "조명이 켜진 베네시안 건물과 광장이 보이는 라스베이거스의 밤",
       },
@@ -413,6 +413,17 @@ function LaunchWaitlistForm() {
   );
 }
 
+// A chunk that fails to load (an old tab after a deploy, a dropped connection) must not unmount the whole page.
+class GlobeLoadBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <GlobeUnavailable /> : this.props.children; }
+}
+
+function GlobeUnavailable() {
+  return <div className="globe-loading" role="status"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 불러오지 못했어요. 새로고침해 주세요</span></div>;
+}
+
 function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme, guideVisible, onGuideDismiss, isSelecting }) {
   const globeRef = useRef(null);
   const gestureStartRef = useRef(null);
@@ -421,6 +432,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
   const [hoveredId, setHoveredId] = useState(null);
   const [globeMaterial, setGlobeMaterial] = useState(null);
   const [hasGlobeMounted, setHasGlobeMounted] = useState(false);
+  const [materialFailed, setMaterialFailed] = useState(false);
   const countries = useWorldCountries(hasGlobeMounted);
   const [isGlobeReady, setIsGlobeReady] = useState(false);
   const [isGlobeInView, setIsGlobeInView] = useState(false);
@@ -428,6 +440,8 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
   const lastFocusRequestRef = useRef(0);
 
   useEffect(() => {
+    // three (~580 KB) waits until the globe is near, like the globe itself.
+    if (!hasGlobeMounted) return undefined;
     let active = true;
     let material;
     import("three").then(({ MeshPhongMaterial }) => {
@@ -436,11 +450,11 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
         emissive: theme === "dark" ? "#07121b" : "#e8eee9",
         shininess: theme === "dark" ? 12 : 7,
       });
-      if (active) setGlobeMaterial(material);
+      if (active) { setMaterialFailed(false); setGlobeMaterial(material); } // a retry (theme change) can recover a failed fetch
       else material.dispose();
-    });
+    }).catch(() => { if (active) setMaterialFailed(true); });
     return () => { active = false; material?.dispose(); };
-  }, [theme]);
+  }, [theme, hasGlobeMounted]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -546,7 +560,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
         }
       }}
     >
-      <Suspense fallback={<div className="globe-loading"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 준비하고 있어요</span></div>}>
+      <GlobeLoadBoundary>{materialFailed ? <GlobeUnavailable /> : <Suspense fallback={<div className="globe-loading"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 준비하고 있어요</span></div>}>
         {hasGlobeMounted && globeMaterial && countries.length > 0 && <Globe ref={globeRef} width={size.width} height={size.height} backgroundColor="rgba(0,0,0,0)" globeMaterial={globeMaterial} rendererConfig={GLOBE_RENDERER_CONFIG} showAtmosphere atmosphereColor={globePalette.atmosphere} atmosphereAltitude={0.12} polygonsData={countries}
           onGlobeReady={() => { setIsGlobeReady(true); applyGlobeRenderQuality(globeRef.current); }}
           polygonCapColor={(polygon) => { const id = String(polygon.id); if (id === selected.id) return "#f6c66f"; if (id === hoveredId && isVisited(polygon)) return globePalette.visitedHover; return isVisited(polygon) ? globePalette.visited : globePalette.unvisited; }}
@@ -556,7 +570,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
           polygonsTransitionDuration={WORLD_SELECTION_MOTION_MS}
           onPolygonHover={(polygon) => { const visited = polygon && isVisited(polygon); setHoveredId(visited ? String(polygon.id) : null); if (containerRef.current) containerRef.current.style.cursor = visited ? "pointer" : "grab"; }}
           onPolygonClick={(polygon) => { const memory = memoryByCountry.get(String(polygon.id)); if (memory) onSelect(memory, "globe"); }} />}
-      </Suspense>
+      </Suspense>}</GlobeLoadBoundary>
       {guideVisible && <GlobeOnboarding />}
       <p className="globe-instruction" aria-live="polite"><NavigationArrow size={18} weight="fill" />{
         isSelecting
@@ -732,8 +746,13 @@ function useMediaQuery(query) {
   return matches;
 }
 
+// Blocked site data (some in-app browsers, "block all cookies") makes localStorage throw.
+function readStoredTheme() {
+  try { return localStorage.getItem("mapmory-theme") || "light"; } catch { return "light"; }
+}
+
 function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem("mapmory-theme") || "light");
+  const [theme, setTheme] = useState(readStoredTheme);
   const [selectedMemory, setSelectedMemory] = useState(memories[0]);
   const [displayedMemory, setDisplayedMemory] = useState(memories[0]);
   const [globeFocusRequest, setGlobeFocusRequest] = useState({ id: 0, selectionSource: "initial" });
@@ -874,7 +893,10 @@ function App() {
     };
   }, [isMobileExperience, isWorldMemoryOpen]);
 
-  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("mapmory-theme", theme); }, [theme]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("mapmory-theme", theme); } catch { /* storage blocked: the theme just isn't remembered */ }
+  }, [theme]);
 
   useEffect(() => {
     if (!globePanelRef.current) return undefined;
@@ -957,7 +979,6 @@ function App() {
                 onClose={closeWorldMemory}
                 onPhotoChange={handleMemoryPhotoChange}
                 openSequence={worldMemoryOpenSequence}
-                priority
               />
             )}
           </div>
