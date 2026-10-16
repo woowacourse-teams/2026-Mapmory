@@ -1,8 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap");
 
+/* Core = Latin + the 2,350 common Hangul syllables (all the landing's copy); the ext family is listed after it and is
+   only downloaded when a syllable outside core shows up. Regenerate with scripts/split-landing-font.py. */
 @font-face {
   font-family: "LINE Seed Sans KR";
-  src: url("/assets/fonts/line-seed-kr-regular.woff2") format("woff2");
+  src: url("/assets/fonts/line-seed-kr-regular-core.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -10,14 +12,32 @@
 
 @font-face {
   font-family: "LINE Seed Sans KR";
-  src: url("/assets/fonts/line-seed-kr-bold.woff2") format("woff2");
+  src: url("/assets/fonts/line-seed-kr-bold-core.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
 }
 
+@font-face {
+  font-family: "LINE Seed Sans KR Ext";
+  src: url("/assets/fonts/line-seed-kr-regular-ext.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+AC00-D7A3;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans KR Ext";
+  src: url("/assets/fonts/line-seed-kr-bold-ext.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+AC00-D7A3;
+}
+
 :root {
-  font-family: "LINE Seed Sans KR", system-ui, sans-serif;
+  font-family: "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif;
   color: var(--text);
   background: var(--canvas);
   font-synthesis: none;
@@ -117,7 +137,7 @@ main { overflow-x: clip; }
   box-shadow: 0 12px 34px rgba(20, 43, 31, 0.1);
   backdrop-filter: blur(18px);
 }
-.brand { font: 700 25px/1 "LINE Seed Sans KR", system-ui, sans-serif; letter-spacing: -0.035em; }
+.brand { font: 700 25px/1 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif; letter-spacing: -0.035em; }
 .brand strong { color: var(--accent-strong); }
 .site-header nav { display: flex; gap: 34px; color: var(--muted); font-size: 14px; font-weight: 600; }
 .site-header nav a:hover { color: var(--text); }
@@ -168,7 +188,7 @@ main { overflow-x: clip; }
 /* Headings stay one colour: emphasis comes from line breaks and weight, never a mint phrase. */
 h1 em, h2 em { color: inherit; font-style: normal; }
 .section-heading h2,
-.download-section h2 { font-family: "LINE Seed Sans KR", system-ui, sans-serif; font-weight: 700; }
+.download-section h2 { font-family: "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif; font-weight: 700; }
 
 .experience-section {
   width: min(1080px, calc(100% - 48px));
