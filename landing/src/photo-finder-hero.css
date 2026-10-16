@@ -241,7 +241,7 @@
 @keyframes finder-caret { 50% { opacity: 0; } }
 @keyframes finder-pin-in { from { opacity: 0; transform: translate(-50%, calc(-100% - 2px)) scale(0.9); } }
 
-/* Trust and FAQ (how it works lives in how-photo-story.css). */
+/* Trust and FAQ (how it works lives in travel-replay.css). */
 .trust-section { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 64px 0 96px; scroll-margin-top: 100px; }
 
 /* Trust: one boundary panel, on the phone -> only picked photos on save. Deleting sits outside it. */

@@ -1,6 +1,6 @@
 // Isolated production bundles, a fake GA ID and intercepted requests: no production traffic.
 // node scripts/verify-analytics-browser.mjs <absolute path to playwright/index.mjs>
-// The #how photo story is read through the hooks listed in how-story-browser-checks.mjs.
+// The #how travel replay is read through the hooks listed in how-story-browser-checks.mjs.
 import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -152,7 +152,7 @@ try {
     findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-5 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
     await context.close();
   }
-  // Scroll mode: a fling past beats 01-04 counts none of them; a reader who stops on each beat's point sends one view
+  // Scroll mode: a fling past captions 1-4 counts none of them; a reader who rests on each caption sends one view
   // and each scene once; reading it again never re-sends; landing straight on a beat sends the view before the scene.
   for (const mobile of [false, true]) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, isMobile: mobile, hasTouch: mobile, reducedMotion: "no-preference", serviceWorkers: "block" });
@@ -162,7 +162,17 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("https://map-mory.com/?internal=1");
-    await checkScrollStory(page, { mobile, reopen: () => page.goto("https://map-mory.com/?internal=1") });
+    await checkScrollStory(page, { reopen: () => page.goto("https://map-mory.com/?internal=1") });
+    // The end card's store links stay inert until the card is on screen, then send download_click from "replay".
+    const endcard = page.locator("section#how [data-tr-endcard]");
+    assert.equal(await endcard.evaluate((node) => node.inert), true);
+    await page.locator("section#how [data-tr-track]").evaluate((track) => window.scrollTo({ top: window.scrollY + track.getBoundingClientRect().top + track.offsetHeight - window.innerHeight - 4, behavior: "instant" }));
+    await page.waitForFunction(() => document.querySelector("section#how [data-tr-endcard]").inert === false);
+    await endcard.getByRole("link", { name: "App Store", exact: true }).click();
+    for (const popup of context.pages()) if (popup !== page) await popup.close();
+    await page.bringToFront();
+    const replayClick = (await dataLayerEvents(page)).filter(([, name]) => name === "download_click").at(-1);
+    assert.deepEqual([replayClick[2].cta_placement, replayClick[2].store, replayClick[2].experience_type], ["replay", "app_store", undefined]);
     if (mobile) {
       // The how-section link is still the mobile entry to the globe.
       await page.locator(".how-experience-link").click();
@@ -170,7 +180,7 @@ try {
       assert.ok((await dataLayerEvents(page)).some(([, name, props]) => name === "experience_cta_click" && props?.experience_type === "globe" && props?.cta_placement === "how_section"));
     }
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "scroll mode: a fling past 01-04 counts none and 05 at rest sends view (scroll) then scene 5; stopping on each point sends 04-01 once each, a second read re-sends nothing; no experience_* for how_story; landing on 03 sends the view before the scene" + (mobile ? "; how-section link to the globe" : "") });
+    findings.push({ mobile, passed: true, covered: "scroll mode: a fling past captions 1-4 counts none and 5 at rest sends view (scroll) then scene 5; resting on each caption sends 4-1 once each, a second read re-sends nothing; no experience_* for how_story; landing on 3 sends the view before the scene; end card inert until shown, its App Store sends download_click cta_placement=replay" + (mobile ? "; how-section link to the globe" : "") });
     console.log("How story (scroll) passed", { mobile });
     await context.close();
   }
