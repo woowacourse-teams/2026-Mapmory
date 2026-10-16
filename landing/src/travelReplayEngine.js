@@ -31,16 +31,21 @@ const fillCountry = (pi, b) => ease(seg(local(pi, b), PLACES[pi].island ? 0.4 : 
 const foldT = (pi, b) => seg(local(pi, b), 0.45, 0.62);
 const markerT = (pi, b) => seg(local(pi, b), 0.52, 0.66);
 
-// Lazy geography: d3-geo, topojson and both maps arrive as their own chunks once the section comes near.
+// Lazy geography: d3-geo, topojson and the coarse map arrive as their own chunks once the section comes near; the fine
+// map (~330 KB, only for the still close-ups) waits until the replay is actually being scrolled.
 let geoModules = null;
 function loadGeo() {
   geoModules ??= Promise.all([
     import("d3-geo"),
     import("topojson-client"),
     import("world-atlas/countries-110m.json"),
-    import("./data/replay-countries-50m-lite.json"),
-  ]).then(([d3, topojson, coarse, fine]) => ({ d3, topojson, coarse: coarse.default ?? coarse, fine: fine.default ?? fine }));
+  ]).then(([d3, topojson, coarse]) => ({ d3, topojson, coarse: coarse.default ?? coarse }));
   return geoModules;
+}
+let fineMap = null;
+function loadFineMap() {
+  fineMap ??= import("./data/replay-countries-50m-lite.json").then((fine) => fine.default ?? fine);
+  return fineMap;
 }
 
 function prepare({ d3, topojson }, topo, crop) {
@@ -146,11 +151,21 @@ export function mountTravelReplay(root, { onState } = {}) {
       path = mods.d3.geoPath(projection, ctx);
       grat = mods.d3.geoGraticule().step([20, 20])();
       lo = prepare(mods, mods.coarse);
-      hi = prepare(mods, mods.fine, true);
+      lastKey = "";
+      req();
+    }).catch(() => { /* the globe stays empty; the photos, captions and end card still tell the story */ });
+  }
+  let fineRequested = false;
+  function requestFineMap() {
+    if (fineRequested || destroyed) return;
+    fineRequested = true;
+    Promise.all([loadGeo(), loadFineMap()]).then(([mods, fine]) => {
+      if (destroyed) return;
+      hi = prepare(mods, fine, true);
       lastKey = "";
       prerenderHolds();
       req();
-    }).catch(() => { /* the globe stays empty; the photos, captions and end card still tell the story */ });
+    }).catch(() => { /* the close-ups keep the coarse map */ });
   }
   function loadImage(src) {
     const im = new Image();
@@ -263,7 +278,7 @@ export function mountTravelReplay(root, { onState } = {}) {
     if (key === lastKey) return;
     lastKey = key;
     // fine coastlines only when the camera is still and close; the coarse map is plenty in motion
-    const map = !cam.moving && R > Math.min(W, H) * 0.62 ? hi : lo;
+    const map = hi && !cam.moving && R > Math.min(W, H) * 0.62 ? hi : lo;
     const camKey = key.split(",", 4).join() + (map === hi ? "h" : "l");
     let base = holdCache.get(camKey);
     if (!base) { if (camKey !== baseKey) { baseKey = camKey; renderBase(baseCv, cx, cy, R, map, cam.moving); } base = baseCv; }
@@ -524,6 +539,7 @@ export function mountTravelReplay(root, { onState } = {}) {
     if (mode === "static") { staticFrame(); return; }
     const r = section.getBoundingClientRect();
     const b0 = Math.min(BEAT_SPAN - 0.001, progress(r)), b = Math.max(0, b0 - 1);
+    if (b0 > 0) requestFineMap();
     draw(b); place(b, b0); setTally(b);
     const beat = BEAT_OF_UNIT[Math.min(BEAT_OF_UNIT.length - 1, Math.floor(b0 + 0.1))];
     setBeat(beat);
@@ -547,7 +563,7 @@ export function mountTravelReplay(root, { onState } = {}) {
       if (s.height > 0 && seen >= s.height / 2 && off < best) { best = off; scene = k + 1; }
     });
     const b0 = BEAT_SPAN - 0.001, b = b0 - 1;
-    draw(b); place(b, b0); setTally(b); setBeat(BEAT_OF_UNIT.at(-1)); setEnd(true);
+    draw(b); place(b, b0); setTally(b); setBeat(BEAT_OF_UNIT[BEAT_OF_UNIT.length - 1]); setEnd(true);
     report({ mode, inView: visible >= Math.min(vh, rr.height) / 2, scene, atRest: scene > 0 });
   }
   const req = () => { if (!raf && !destroyed) raf = requestAnimationFrame(frame); };
@@ -562,8 +578,8 @@ export function mountTravelReplay(root, { onState } = {}) {
   }
 
   let near = false;
-  const io = new IntersectionObserver(([e]) => {
-    near = e.isIntersecting;
+  const io = new IntersectionObserver((entries) => {
+    near = entries[entries.length - 1].isIntersecting; // one callback can carry an enter and an exit; the last is current
     if (near) { requestAssets(); req(); } else report({ mode, inView: false, scene: 0, atRest: false });
   }, { rootMargin: "100% 0px" });
   io.observe(root);
