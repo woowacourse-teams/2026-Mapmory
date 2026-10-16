@@ -143,7 +143,7 @@ function App() {
           </div>
         </header>
         <div className="content-area">
-          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} range={dashboardRange} setRange={setDashboardRange} onNavigate={setPage} onNotice={showNotice} />}
+          {page === "dashboard" && <Dashboard period={period} setPeriod={setPeriod} range={dashboardRange} setRange={setDashboardRange} onNavigate={setPage} />}
           {page === "members" && <MembersPage onSelect={setSelectedMember} onNotice={showNotice} />}
           {page === "feedback" && <FeedbackPage onNotice={showNotice} />}
         </div>
@@ -222,7 +222,7 @@ function AdminLoginPage({ error, onLogin }: { error: string; onLogin: (username:
   );
 }
 
-function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }: { period: string; setPeriod: (period: string) => void; range: DateRange; setRange: (range: DateRange) => void; onNavigate: (page: Page) => void; onNotice: (message: string) => void }) {
+function Dashboard({ period, setPeriod, range, setRange, onNavigate }: { period: string; setPeriod: (period: string) => void; range: DateRange; setRange: (range: DateRange) => void; onNavigate: (page: Page) => void }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -265,9 +265,9 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
   const kakao = summary?.members.kakao ?? 0;
   const google = summary?.members.google ?? 0;
   const classifiedMembers = guest + kakao + google;
-  const guestPercent = classifiedMembers === 0 ? 0 : (guest / classifiedMembers) * 100;
-  const kakaoPercent = classifiedMembers === 0 ? 0 : (kakao / classifiedMembers) * 100;
-  const googlePercent = classifiedMembers === 0 ? 0 : (google / classifiedMembers) * 100;
+  const guestPercent = total === 0 ? 0 : (guest / total) * 100;
+  const kakaoPercent = total === 0 ? 0 : (kakao / total) * 100;
+  const googlePercent = total === 0 ? 0 : (google / total) * 100;
   const unknown = Math.max(0, total - classifiedMembers);
   const donutBackground = total === 0
     ? "#e7ece8"
@@ -285,74 +285,72 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
 
   return (
     <div className="page-content dashboard-page">
-      <div className="page-heading-row">
+      <header className="page-heading-row">
         <div>
           <div className="date-eyebrow"><span className="live-dot"/> {todayLabel}</div>
-          <h1>좋은 오후예요, 운영자님 <span className="wave">✳</span></h1>
-          <p>Mapmory의 최근 현황을 확인해 보세요.</p>
+          <h1>대시보드</h1>
+          <p>서비스의 누적 현황과 기간별 변화를 확인하세요.</p>
         </div>
-        <button className="secondary-button" onClick={() => onNotice("리포트 다운로드는 준비 중입니다.")}><Icon name="download" size={16}/> 리포트 내보내기</button>
-      </div>
+      </header>
 
-      <div className="period-row">
-        <div className="period-tabs">
-          {dashboardDays.map((days) => {
-            const label = `최근 ${days}일`;
-            return <button key={days} className={period === label ? "period-tab active" : "period-tab"} onClick={() => { setPeriod(label); setRange(getDashboardRange(days)); }}>{label}</button>;
-          })}
+      <section className="dashboard-totals" aria-labelledby="dashboard-totals-title">
+        <div className="dashboard-section-heading"><h2 id="dashboard-totals-title">누적 현황</h2><span>전체 기간 기준</span></div>
+        <div className="metric-grid" aria-label="주요 지표">
+          <MetricCard label="가입 회원" value={number(summary?.members.total)} unit="명" icon="users" tint="mint" foot="전체 누적 회원" />
+          <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} unit="개" icon="grid" tint="peach" foot="전체 누적 여행 기록" />
+          <MetricCard label="등록 사진" value={number(summary?.photos.total)} unit="장" icon="image" tint="lavender" foot="여행 기록에 연결된 사진 · 삭제 사진 제외" />
         </div>
-        <div className="date-picker-group" aria-label="집계 기간 직접 선택">
-          <label>시작일<input type="date" value={range.from} max={range.to || today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, from: event.target.value }); }} /></label>
-          <span className="date-picker-separator">–</span>
-          <label>종료일<input type="date" value={range.to} min={range.from} max={today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, to: event.target.value }); }} /></label>
-        </div>
-        <div className="date-range"><Icon name="calendar" size={15}/>{dateLabel}<span>한국 시간</span></div>
-      </div>
-
-      {error && (
-        <div className="dashboard-error" role="alert">
-          <span>{error} 백엔드 실행 상태와 주소 설정을 확인해 주세요.</span>
-          <button type="button" onClick={() => setRetryKey((value) => value + 1)}>다시 시도</button>
-        </div>
-      )}
-      {loading && <div className="dashboard-loading" role="status">대시보드 데이터를 불러오는 중입니다.</div>}
-
-      <section className="metric-grid" aria-label="주요 지표">
-        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)}`} />
-        <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} change={summary ? `+${number(summary.travelRecords.createdInPeriod)}` : "—"} detail="선택 기간 생성" icon="grid" tint="peach" trend="neutral" foot="전체 누적 기록" />
-        <MetricCard label="등록 사진" value={number(summary?.photos.total)} change="누적" detail="여행 기록에 연결된 사진" icon="image" tint="lavender" trend="neutral" foot="삭제된 사진 제외" />
       </section>
 
+      <section className="panel dashboard-period-controls" aria-labelledby="dashboard-period-title">
+        <div className="dashboard-section-heading"><h2 id="dashboard-period-title">집계 기간</h2><span>한국 시간 기준</span></div>
+        <div className="period-row">
+          <div className="period-tabs" role="group" aria-label="빠른 기간 선택">
+            {dashboardDays.map((days) => {
+              const label = `최근 ${days}일`;
+              return <button type="button" key={days} aria-pressed={period === label} className={period === label ? "period-tab active" : "period-tab"} onClick={() => { setPeriod(label); setRange(getDashboardRange(days)); }}>{label}</button>;
+            })}
+          </div>
+          <div className="date-picker-group" role="group" aria-label="집계 기간 직접 선택">
+            <label>시작일<input type="date" value={range.from} max={range.to || today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, from: event.target.value }); }} /></label>
+            <span className="date-picker-separator" aria-hidden="true">–</span>
+            <label>종료일<input type="date" value={range.to} min={range.from} max={today} onChange={(event) => { setPeriod("직접 선택"); setRange({ ...range, to: event.target.value }); }} /></label>
+          </div>
+        </div>
+      </section>
+
+      {error && <div className="dashboard-error" role="alert"><span>{error}</span><button className="secondary-button" type="button" onClick={() => setRetryKey((value) => value + 1)}>다시 시도</button></div>}
+      {loading && <div className="dashboard-loading" role="status">대시보드 데이터를 불러오는 중입니다.</div>}
+
       <section className="dashboard-main-grid">
-        <div className="panel chart-panel period-summary-panel">
-          <div className="panel-heading"><div><h2>선택 기간 집계</h2><p>한국 시간 기준 기간별 생성 수</p></div></div>
+        <div className="panel period-summary-panel">
+          <div className="panel-heading"><div><h2>선택 기간 집계</h2><p>{dateLabel} · 한국 시간</p></div></div>
           <div className="period-summary-grid">
             <div className="period-summary-item"><span>신규 회원</span><strong>{number(summary?.members.newInPeriod)}<small>명</small></strong></div>
             <div className="period-summary-item"><span>여행 기록 생성</span><strong>{number(summary?.travelRecords.createdInPeriod)}<small>개</small></strong></div>
           </div>
-          {!loading && !error && <p className="period-summary-caption">집계 기간 · {dateLabel}</p>}
         </div>
         <div className="panel distribution-panel">
           <div className="panel-heading"><div><h2>회원 구성</h2><p>가입 방식별 누적 회원</p></div><button className="more-button" aria-label="회원 페이지로 이동" onClick={() => onNavigate("members")}><Icon name="arrow" size={16}/></button></div>
           <div className="donut-area">
             <div className="donut" style={{ background: donutBackground }}><div className="donut-center"><strong>{number(summary?.members.total)}</strong><span>전체 회원</span></div></div>
             <div className="donut-caption">
-              <span><i className="legend-dot mint-dot"/>게스트<strong>{number(summary?.members.guest)}</strong><small>{guestPercent.toFixed(1)}%</small></span>
-              <span><i className="legend-dot peach-dot"/>카카오<strong>{number(summary?.members.kakao)}</strong><small>{kakaoPercent.toFixed(1)}%</small></span>
-              <span><i className="legend-dot blue-dot"/>Google<strong>{number(summary?.members.google)}</strong><small>{googlePercent.toFixed(1)}%</small></span>
-              {unknown > 0 && <span><i className="legend-dot unknown-dot"/>유형 미지정<strong>{number(unknown)}</strong><small>기존 회원</small></span>}
+              <div className="member-distribution-row"><span><i className="legend-dot mint-dot"/>게스트</span><strong>{number(summary?.members.guest)}</strong><small>{guestPercent.toFixed(1)}%</small></div>
+              <div className="member-distribution-row"><span><i className="legend-dot peach-dot"/>카카오</span><strong>{number(summary?.members.kakao)}</strong><small>{kakaoPercent.toFixed(1)}%</small></div>
+              <div className="member-distribution-row"><span><i className="legend-dot blue-dot"/>Google</span><strong>{number(summary?.members.google)}</strong><small>{googlePercent.toFixed(1)}%</small></div>
+              {unknown > 0 && <div className="member-distribution-row"><span><i className="legend-dot unknown-dot"/>유형 미지정</span><strong>{number(unknown)}</strong><small>{(unknown / total * 100).toFixed(1)}%</small></div>}
             </div>
           </div>
-          <div className="distribution-footer"><span>유형별 비율은 확인 가능한 회원 기준입니다.</span></div>
+          <div className="distribution-footer">전체 회원 수를 기준으로 집계합니다.</div>
         </div>
       </section>
-      <footer className="page-footer"><span>Mapmory Admin <b>·</b> 내부 운영 도구</span><span>마지막 데이터 업데이트 <strong>{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "—"}</strong></span></footer>
+      <footer className="page-footer"><span>Mapmory Admin <b>·</b> 내부 운영 도구</span><span>마지막 업데이트 <strong>{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "—"}</strong></span></footer>
     </div>
   );
 }
 
-function MetricCard({ label, value, change, detail, icon, tint, trend, foot }: { label: string; value: string; change: string; detail: string; icon: string; tint: string; trend: "up" | "neutral"; foot: string }) {
-  return <article className="metric-card"><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tint}`}><Icon name={icon} size={18}/></div></div><div className="metric-value">{value}</div><div className="metric-change"><span className={trend === "up" ? "change-up" : "change-neutral"}>{trend === "up" && <Icon name="arrow" size={12}/>} {change}</span><span>{detail}</span></div><div className="metric-divider"/><div className="metric-foot"><span className="foot-dot"/>{foot}</div></article>;
+function MetricCard({ label, value, unit, icon, tint, foot }: { label: string; value: string; unit: string; icon: string; tint: string; foot: string }) {
+  return <article className="metric-card"><div className="metric-top"><span>{label}</span><div className={`metric-icon ${tint}`}><Icon name={icon} size={18}/></div></div><div className="metric-value">{value}<small>{unit}</small></div><p className="metric-foot">{foot}</p></article>;
 }
 
 function MembersPage({ onSelect, onNotice }: { onSelect: (member: Member) => void; onNotice: (message: string) => void }) {
