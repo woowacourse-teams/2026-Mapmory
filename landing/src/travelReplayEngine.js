@@ -64,12 +64,14 @@ function prepare({ d3, topojson }, topo, crop) {
     feats: {},
   };
   for (const pl of PLACES) {
-    const country = byId.get(pl.country);
+    let country = byId.get(pl.country);
     let island = null;
-    if (pl.island && country) {
+    if ((pl.island || pl.mainland) && country) {
       const polys = country.geometry.type === "MultiPolygon" ? country.geometry.coordinates : [country.geometry.coordinates];
       const hit = polys.find((c) => d3.geoContains({ type: "Polygon", coordinates: c }, pl.lonlat));
-      if (hit) island = { type: "Polygon", coordinates: hit };
+      if (hit && pl.island) island = { type: "Polygon", coordinates: hit };
+      // only the landmass the photos were taken on fills (Alaska would sweep behind the caption)
+      if (hit && pl.mainland) country = { type: "Polygon", coordinates: hit };
     }
     out.feats[pl.key] = { country, island };
   }
@@ -366,7 +368,7 @@ export function mountTravelReplay(root, { onState } = {}) {
       }
       return c;
     };
-    lib = { full: make(0.9), dim: make(0.1), ready, w, h, dpr: DPR };
+    lib = { full: make(0.9), dim: make(0.3), ready, w, h, dpr: DPR };
   }
   function drawMosaic(b0) {
     const { w, h, cols, rows, ts, gap, ox, oy, hits } = tiles;

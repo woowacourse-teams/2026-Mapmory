@@ -164,8 +164,30 @@ function initializePostHog() {
   return posthogInitialization;
 }
 
+// PostHog (about 90 KB gzipped) waits until the page has loaded and the browser is idle, so it never competes with
+// the first screen. A visitor who touches, scrolls or leaves the tab starts it at once (so quick bounces keep their
+// $pageview), an event tracked earlier starts it through trackEvent, and a stuck load event waits at most 4 s.
+function schedulePostHog() {
+  if (typeof window.addEventListener !== "function" || typeof document === "undefined") {
+    void initializePostHog();
+    return;
+  }
+  const now = () => void initializePostHog();
+  const engage = ["pointerdown", "keydown", "scroll", "visibilitychange"];
+  for (const type of engage) window.addEventListener(type, now, { once: true, passive: true });
+  const start = () => {
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(now, { timeout: 2000 });
+    else setTimeout(now, 1000);
+  };
+  if (document.readyState === "complete") start();
+  else {
+    window.addEventListener("load", start, { once: true });
+    setTimeout(now, 4000);
+  }
+}
+
 export function initializeAnalytics() {
-  void initializePostHog();
+  if (typeof window !== "undefined") schedulePostHog();
 
   if (!measurementId || gaInitialized || typeof window === "undefined"
     || !canCaptureGa(environment, window.location.hostname)) return;
