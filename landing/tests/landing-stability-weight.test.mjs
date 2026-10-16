@@ -55,3 +55,9 @@ test("team photos ship as webp", async () => {
   assert.doesNotMatch(app, /\/assets\/team-[^"]+\.jpe?g"/);
   for (const [, file] of app.matchAll(/"\/assets\/(team-[^"]+\.webp)"/g)) await access(new URL(`../public/assets/${file}`, import.meta.url));
 });
+
+test("handwriting font does not block the first paint", async () => {
+  const html = await read("../index.html");
+  assert.doesNotMatch(css, /@import/);
+  assert.match(html, /Nanum\+Pen\+Script[^>]*media="print"[^>]*onload="this\.media='all'"/);
+});
