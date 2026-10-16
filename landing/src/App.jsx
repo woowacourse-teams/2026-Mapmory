@@ -572,11 +572,12 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
           onPolygonClick={(polygon) => { const memory = memoryByCountry.get(String(polygon.id)); if (memory) onSelect(memory, "globe"); }} />}
       </Suspense>}</GlobeLoadBoundary>
       {guideVisible && <GlobeOnboarding />}
-      <p className="globe-instruction" aria-live="polite" hidden={guideVisible && !isSelecting}><NavigationArrow size={18} weight="fill" />{
+      {/* stays rendered (an aria-live region must exist before its text changes); empty while the onboarding overlay says the same */}
+      <p className={`globe-instruction${guideVisible && !isSelecting ? " is-quiet" : ""}`} aria-live="polite"><NavigationArrow size={18} weight="fill" aria-hidden="true" />{
         isSelecting
           ? "선택한 나라로 이동하는 중이에요"
           : guideVisible
-            ? "지구본을 좌우로 움직여보세요"
+            ? ""
             : "민트색 나라를 눌러 사진을 열어보세요"
       }</p>
     </div>
