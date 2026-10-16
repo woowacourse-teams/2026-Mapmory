@@ -23,7 +23,7 @@ import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoFinderHero } from "./PhotoFinderHero.jsx";
-import { HowPhotoStory } from "./HowPhotoStory.jsx";
+import { TravelReplay } from "./TravelReplay.jsx";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
   createWorldMemoryHistoryState,
@@ -211,6 +211,14 @@ function StoreButton({ className = "", placement, platform, label, onSelect, tab
 
   return <a className={`button button-primary button-store ${className}`} href={url} target="_blank" rel="noreferrer" tabIndex={tabIndex} onClick={handleClick}><Icon size={18} weight="fill" />{label}</a>;
 }
+
+// The travel replay's end card offers the stores too; built once so the memoized replay never re-renders.
+const REPLAY_STORE_ACTIONS = (
+  <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
+    <StoreButton placement="replay" platform="ios" label="App Store" />
+    <StoreButton placement="replay" platform="android" label="Google Play" />
+  </div>
+);
 
 function HeaderStoreMenu() {
   const menuRef = useRef(null);
@@ -926,7 +934,7 @@ function App() {
       />
 
       <section className="how-section" id="how" aria-labelledby="how-title">
-        <HowPhotoStory />
+        <TravelReplay storeActions={REPLAY_STORE_ACTIONS} />
         <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
