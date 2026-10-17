@@ -16,7 +16,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
@@ -43,12 +42,12 @@ import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.data.OverviewDistrictData
+import com.mapmory.shared.presentation.map.MapFocusRequest
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -61,12 +60,12 @@ fun KoreaMapArtwork(
     visitedRegionCodes: Set<String> = emptySet(),
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
+    focusRequest: MapFocusRequest? = null,
     onRegionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val bounds = remember(regions) { KoreaBounds.from(regions) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
-    val coroutineScope = rememberCoroutineScope()
     val currentOnRegionClick by rememberUpdatedState(onRegionClick)
     val textMeasurer = rememberTextMeasurer()
     val isDark = LocalMapmoryTheme.current.isDark
@@ -98,23 +97,24 @@ fun KoreaMapArtwork(
     }
     var overviewData by remember { mutableStateOf<OverviewDistrictData?>(null) }
     var overviewDistricts by remember { mutableStateOf<List<ProvincePolygon>?>(null) }
-    var gunwiRegion by remember { mutableStateOf<ProvincePolygon?>(null) }
-    LaunchedEffect(isProvinceOverview) {
-        if (isProvinceOverview && overviewData == null) {
-            overviewData = runCatching {
-                gunwiRegion = GeneratedKoreaDistrictMapData.forProvince("KR-27")
-                    .single { it.code == GunwiDistrictCode }
-                GeneratedKoreaDistrictMapData.overviewData()
-            }.getOrDefault(OverviewDistrictData(emptyList(), emptyList()))
+    var overviewProvinces by remember { mutableStateOf<List<ProvincePolygon>?>(null) }
+    var overviewLoadFailed by remember { mutableStateOf(false) }
+    var overviewLoadAttempt by remember { mutableStateOf(0) }
+    LaunchedEffect(isProvinceOverview, overviewLoadAttempt) {
+        if (isProvinceOverview && overviewProvinces == null) {
+            overviewLoadFailed = false
+            try {
+                overviewData = GeneratedKoreaDistrictMapData.overviewData()
+                overviewDistricts = GeneratedKoreaDistrictMapData.overviewDistricts()
+                overviewProvinces = GeneratedKoreaDistrictMapData.overviewProvinces()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                overviewLoadFailed = true
+            }
         }
     }
-    LaunchedEffect(isProvinceOverview, visitedRegionCodes.isNotEmpty()) {
-        if (isProvinceOverview && visitedRegionCodes.isNotEmpty() && overviewDistricts == null) {
-            overviewDistricts = runCatching {
-                GeneratedKoreaDistrictMapData.overviewDistricts()
-            }.getOrDefault(emptyList())
-        }
-    }
+    val displayedRegions = if (isProvinceOverview) overviewProvinces.orEmpty() else regions
     val projection = remember(bounds, viewportSize) {
         KoreaProjection.from(bounds, viewportSize)
     }
@@ -140,13 +140,18 @@ fun KoreaMapArtwork(
             projection.project(DokdoMapPoint)
         }
     }
-    val preparedRegions = remember(regions, projection, isProvinceOverview) {
+    val preparedRegions = remember(displayedRegions, projection, isProvinceOverview) {
         if (!projection.isValid) {
             emptyList()
         } else {
-            regions.sortedForMapRendering().map { region ->
+            displayedRegions.sortedForMapRendering().map { region ->
                 val (dokdoRings, provinceRings) = if (isProvinceOverview && region.code == DokdoProvinceCode) {
-                    region.rings.partition(List<GeoPoint>::isDokdoIslandRing)
+                    val (islands, mainland) = region.rings.partition(List<GeoPoint>::isDokdoIslandRing)
+                    // The district source omits Dokdo; retain its existing dedicated fill and outline.
+                    islands.ifEmpty {
+                        GeneratedKoreaMapData.provinces.single { it.code == DokdoProvinceCode }
+                            .rings.filter(List<GeoPoint>::isDokdoIslandRing)
+                    } to mainland
                 } else {
                     emptyList<List<GeoPoint>>() to region.rings
                 }
@@ -188,8 +193,6 @@ fun KoreaMapArtwork(
         if (!isProvinceOverview || !projection.isValid) {
             emptyList()
         } else {
-            val sharedEdges = overviewData?.lines.orEmpty()
-                .flatMap { line -> line.zipWithNext { start, end -> setOf(start, end) } }.toSet()
             overviewDistricts.orEmpty()
                 .filter { it.code in visitedRegionCodes }
                 .mapNotNull { district ->
@@ -197,16 +200,12 @@ fun KoreaMapArtwork(
                     val province = preparedRegions.firstOrNull { it.region.code == provinceCode }
                         ?: return@mapNotNull null
                     val fillPath = Path().apply {
-                        val rings = if (district.code == GunwiDistrictCode) district.rings else {
-                            alignDistrictFillWithProvince(district.rings, province.region.rings, sharedEdges)
-                        }
-                        rings.forEach { ring -> addProjectedRing(ring, projection) }
+                        district.rings.forEach { ring -> addProjectedRing(ring, projection) }
                     }
                     PreparedKoreaDistrictFill(
                         fillPath = fillPath,
-                        // Gunwi's visible perimeter overrides the older Daegu province silhouette.
-                        clipPath = if (district.code == GunwiDistrictCode) fillPath else province.fillPath,
-                        smallIslandClipPath = province.smallIslandPath.takeUnless { district.code == GunwiDistrictCode },
+                        clipPath = province.fillPath,
+                        smallIslandClipPath = province.smallIslandPath,
                     )
                 }
         }
@@ -216,6 +215,12 @@ fun KoreaMapArtwork(
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
     val currentTransform = rememberUpdatedState(MapTransform(zoom, pan))
+    LaunchedEffect(focusRequest?.id, projection, viewportSize) {
+        if (focusRequest != null && projection.isValid && viewportSize.width > 0 && viewportSize.height > 0) {
+            val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+            pan = (center - projection.project(focusRequest.point)) * zoom
+        }
+    }
     val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
     val unvisitedFillColor = if (isDark) Color(0xFF1B2536) else Color(0xFFE7EFE9)
@@ -228,7 +233,7 @@ fun KoreaMapArtwork(
     val overviewDistrictOutlineColor = if (isDark) Color(0xFF36453D) else Color(0xFFBECAC1)
     val overviewProvinceOutlineColor = if (isDark) Color(0xFF9AAFA0) else Color(0xFF526157)
     val preparedLabels = remember(
-        regions,
+        displayedRegions,
         projection,
         labelStyle,
         showRegionLabels,
@@ -257,7 +262,7 @@ fun KoreaMapArtwork(
                         ),
                     )
                 }
-            val cityLabels = regions.mapNotNull { region ->
+            val cityLabels = displayedRegions.mapNotNull { region ->
                 val name = MetropolitanCityLabels[region.code] ?: return@mapNotNull null
                 val labelPoint = region.labelPoint() ?: return@mapNotNull null
                 PreparedKoreaLabel(
@@ -288,6 +293,16 @@ fun KoreaMapArtwork(
         }
     }
 
+    if (isProvinceOverview && overviewProvinces == null) {
+        KoreaMapStatusMessage(
+            message = if (overviewLoadFailed) "지도를 불러오지 못했습니다." else "지도를 불러오는 중...",
+            actionLabel = if (overviewLoadFailed) "다시 시도" else null,
+            onAction = { overviewLoadAttempt++ },
+            modifier = modifier,
+        )
+        return
+    }
+
     Canvas(
         modifier = modifier
             .fillMaxSize()
@@ -296,12 +311,16 @@ fun KoreaMapArtwork(
             .pointerInput(viewportSize, projection) {
                 detectTransformGestures(
                     panZoomLock = true,
-                ) { _, panChange, zoomChange, _ ->
+                ) { centroid, panChange, zoomChange, _ ->
                     val transform = currentTransform.value
                     val nextZoom = (transform.zoom * zoomChange).coerceIn(MinZoom, MaxZoom)
+                    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+                    val focalMapPoint = center +
+                        (centroid - center - transform.pan) / transform.zoom
+                    val nextPan = centroid + panChange - center - (focalMapPoint - center) * nextZoom
                     zoom = nextZoom
                     pan = projection.clampPan(
-                        pan = transform.pan + panChange,
+                        pan = nextPan,
                         zoom = nextZoom,
                         viewportSize = viewportSize,
                     )
@@ -310,11 +329,11 @@ fun KoreaMapArtwork(
                 .pointerInput(
                     viewportSize,
                     projection,
-                    regions,
+                    displayedRegions,
+                    overviewDistricts,
                     isProvinceOverview,
                     showRegionLabels,
                     preparedLabels,
-                    gunwiRegion,
                     dokdoTapCenter,
                     dokdoTapRadius,
                 ) {
@@ -349,32 +368,14 @@ fun KoreaMapArtwork(
                     } else if (labelRegion != null) {
                         currentOnRegionClick(labelRegion)
                     } else {
-                        val region = if (isProvinceOverview) {
-                            regions.overviewRegionAt(mapPoint, gunwiRegion)
-                        } else {
-                            regions.regionAt(mapPoint)
+                        val region = displayedRegions.regionAt(mapPoint)
+                        val district = if (isProvinceOverview) overviewDistricts.orEmpty().regionAt(mapPoint) else null
+                        val selectedCode = when {
+                            district?.code == GunwiDistrictCode -> district.code
+                            isProvinceOverview && region?.code !in MetropolitanCityLabels -> district?.code ?: region?.code
+                            else -> region?.code
                         }
-                        if (region?.code == GunwiDistrictCode) {
-                            currentOnRegionClick(region.code)
-                        } else if (
-                            isProvinceOverview &&
-                            region != null &&
-                            region.code !in MetropolitanCityLabels
-                        ) {
-                            coroutineScope.launch {
-                                val district = try {
-                                    GeneratedKoreaDistrictMapData.forProvince(region.code)
-                                        .regionAt(mapPoint)
-                                } catch (cancelled: CancellationException) {
-                                    throw cancelled
-                                } catch (_: Exception) {
-                                    null
-                                }
-                                currentOnRegionClick(district?.code ?: region.code)
-                            }
-                        } else {
-                            region?.let { currentOnRegionClick(it.code) }
-                        }
+                        selectedCode?.let(currentOnRegionClick)
                     }
                 }
             },
@@ -408,7 +409,7 @@ fun KoreaMapArtwork(
             }
 
             preparedVisitedDistricts.forEach { district ->
-                // Keep district fill inside the same province silhouette used by the visible outline.
+                // Use the province silhouette only to apply the same small-island visibility mask.
                 clipPath(district.clipPath) {
                     drawPath(path = district.fillPath, color = visitedFillColor)
                 }
@@ -498,6 +499,12 @@ fun KoreaMapArtwork(
                 textLayoutResult = label.layout,
                 topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
             )
+        }
+
+        focusRequest?.let { request ->
+            val markerCenter = transformMapPoint(projection.project(request.point), transform, viewportSize)
+            drawCircle(color = Color.White, radius = 8.dp.toPx(), center = markerCenter)
+            drawCircle(color = visitedFillColor, radius = 5.dp.toPx(), center = markerCenter)
         }
 
     }
@@ -767,12 +774,6 @@ private fun clampMapAxis(
     if (trailing - leading <= viewportSize) return value.coerceIn(-slack, slack)
     return value.coerceIn(viewportSize - trailing - slack, -leading + slack)
 }
-
-// The older province geometry still assigns Gunwi to Gyeongbuk.
-internal fun List<ProvincePolygon>.overviewRegionAt(
-    point: GeoPoint,
-    gunwiRegion: ProvincePolygon?,
-): ProvincePolygon? = listOfNotNull(gunwiRegion).regionAt(point) ?: regionAt(point)
 
 internal fun List<ProvincePolygon>.regionAt(point: GeoPoint): ProvincePolygon? =
     filter { region -> region.rings.any { pointInRing(point, it) } }

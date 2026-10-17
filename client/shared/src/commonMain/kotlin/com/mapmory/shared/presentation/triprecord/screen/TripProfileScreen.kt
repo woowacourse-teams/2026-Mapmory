@@ -29,6 +29,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,7 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalUriHandler
+import com.mapmory.shared.presentation.privacy.PrivacyPolicyContent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -79,9 +81,9 @@ fun TripProfileScreen(
 ) {
     var showSettings by remember { mutableStateOf(false) }
     var showFeedback by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
     val theme = LocalMapmoryTheme.current
     val analytics = LocalMapmoryAnalytics.current
-    val uriHandler = LocalUriHandler.current
 
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
@@ -210,7 +212,8 @@ fun TripProfileScreen(
                 if (PrivacyPolicy.URL.isNotBlank()) {
                     TextButton(onClick = {
                         analytics.logEvent(MapmoryAnalyticsEvent.PRIVACY_POLICY_OPENED)
-                        uriHandler.openUri(PrivacyPolicy.URL)
+                        showSettings = false
+                        showPrivacyPolicy = true
                     }) {
                         Text("개인정보 처리방침", color = TripRecordPalette.current.primary)
                     }
@@ -230,6 +233,41 @@ fun TripProfileScreen(
             onDismiss = { showFeedback = false },
             onSubmit = onSubmitFeedback,
         )
+    }
+
+    if (showPrivacyPolicy) {
+        Dialog(
+            onDismissRequest = { showPrivacyPolicy = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(TripRecordPalette.current.pageBackground),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(TripRecordPalette.current.surface)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { showPrivacyPolicy = false }) {
+                        Text("닫기", color = TripRecordPalette.current.primary)
+                    }
+                    Text(
+                        text = "개인정보 처리방침",
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                PrivacyPolicyContent(
+                    url = PrivacyPolicy.URL,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                )
+            }
+        }
     }
 }
 
