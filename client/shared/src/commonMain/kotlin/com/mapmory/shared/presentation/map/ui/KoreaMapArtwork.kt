@@ -311,12 +311,16 @@ fun KoreaMapArtwork(
             .pointerInput(viewportSize, projection) {
                 detectTransformGestures(
                     panZoomLock = true,
-                ) { _, panChange, zoomChange, _ ->
+                ) { centroid, panChange, zoomChange, _ ->
                     val transform = currentTransform.value
                     val nextZoom = (transform.zoom * zoomChange).coerceIn(MinZoom, MaxZoom)
+                    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+                    val focalMapPoint = center +
+                        (centroid - center - transform.pan) / transform.zoom
+                    val nextPan = centroid + panChange - center - (focalMapPoint - center) * nextZoom
                     zoom = nextZoom
                     pan = projection.clampPan(
-                        pan = transform.pan + panChange,
+                        pan = nextPan,
                         zoom = nextZoom,
                         viewportSize = viewportSize,
                     )
