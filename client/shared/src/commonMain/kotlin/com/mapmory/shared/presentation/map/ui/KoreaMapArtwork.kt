@@ -96,16 +96,26 @@ fun KoreaMapArtwork(
     val hasDokdoRegion = remember(regions) {
         regions.any { it.code == DokdoProvinceCode || it.code == DokdoDistrictCode }
     }
-    var overviewData by remember { mutableStateOf<OverviewDistrictData?>(null) }
-    var overviewDistricts by remember { mutableStateOf<List<ProvincePolygon>?>(null) }
+    // Re-entering from the editor must not first draw a map without cached details.
+    var overviewData by remember {
+        mutableStateOf(GeneratedKoreaDistrictMapData.cachedOverviewData)
+    }
+    var overviewDistricts by remember {
+        mutableStateOf(GeneratedKoreaDistrictMapData.cachedOverviewDistricts)
+    }
     var gunwiRegion by remember { mutableStateOf<ProvincePolygon?>(null) }
     LaunchedEffect(isProvinceOverview) {
-        if (isProvinceOverview && overviewData == null) {
-            overviewData = runCatching {
-                gunwiRegion = GeneratedKoreaDistrictMapData.forProvince("KR-27")
+        if (isProvinceOverview) {
+            // This geometry is independent of whether overview data was already cached.
+            gunwiRegion = runCatching {
+                GeneratedKoreaDistrictMapData.forProvince("KR-27")
                     .single { it.code == GunwiDistrictCode }
-                GeneratedKoreaDistrictMapData.overviewData()
-            }.getOrDefault(OverviewDistrictData(emptyList(), emptyList()))
+            }.getOrNull()
+            if (overviewData == null) {
+                overviewData = runCatching {
+                    GeneratedKoreaDistrictMapData.overviewData()
+                }.getOrDefault(OverviewDistrictData(emptyList(), emptyList()))
+            }
         }
     }
     LaunchedEffect(isProvinceOverview, visitedRegionCodes.isNotEmpty()) {
