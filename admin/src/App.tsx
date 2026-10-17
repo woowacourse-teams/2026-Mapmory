@@ -5,7 +5,7 @@ type Page = "dashboard" | "members" | "feedback";
 type Member = {
   id: number;
   name: string;
-  provider: "KAKAO" | "GUEST" | "GOOGLE" | null;
+  provider: "KAKAO" | "GUEST" | "GOOGLE" | "APPLE" | null;
   joinedAt: string;
   records: number;
 };
@@ -414,7 +414,7 @@ function MembersPage({ onSelect, onNotice }: { onSelect: (member: Member) => voi
 
   const members = data?.members ?? [];
   return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">MEMBERS</div><h1>회원 관리</h1><p>운영환경 회원과 여행 기록 현황을 확인할 수 있어요.</p></div><button className="secondary-button" onClick={() => onNotice("회원 내보내기는 아직 제공되지 않습니다.")}><Icon name="download" size={16}/> 내보내기</button></div>
-    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</span></h2><p>계정을 선택하면 여행 기록과 사진 통계를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="닉네임 또는 회원 ID 검색" aria-label="회원 검색"/></div><select className="select-control" value={provider} onChange={(event) => { setProvider(event.target.value); setPage(0); }} aria-label="로그인 유형"><option value="">전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">카카오</option><option value="GOOGLE">Google</option></select></div></div>
+    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</span></h2><p>계정을 선택하면 여행 기록과 사진 통계를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="닉네임 또는 회원 ID 검색" aria-label="회원 검색"/></div><select className="select-control" value={provider} onChange={(event) => { setProvider(event.target.value); setPage(0); }} aria-label="로그인 유형"><option value="">전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">카카오</option><option value="GOOGLE">Google</option><option value="APPLE">Apple</option></select></div></div>
       {error && <div className="dashboard-error" role="alert">{error}</div>}
       {loading && <div className="dashboard-loading" role="status">회원 목록을 불러오는 중입니다.</div>}
       <div className="table-scroll"><table><thead><tr><th>회원</th><th>가입일</th><th>로그인 방식</th><th>여행 기록</th><th /></tr></thead><tbody>{members.map((item: AdminMember) => {
@@ -511,7 +511,7 @@ function MemberDrawer({ member, onClose }: { member: Member; onClose: () => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) { return <div className="detail-row"><span>{label}</span><strong>{value}</strong></div>; }
-function providerLabel(provider: Member["provider"]) { return provider === "GUEST" ? "게스트" : provider === "KAKAO" ? "카카오" : provider === "GOOGLE" ? "Google" : "유형 미지정"; }
+function providerLabel(provider: Member["provider"]) { return provider === "GUEST" ? "게스트" : provider === "KAKAO" ? "카카오" : provider === "GOOGLE" ? "Google" : provider === "APPLE" ? "Apple" : "유형 미지정"; }
 function ProviderBadge({ provider }: { provider: Member["provider"] }) { return <span className={`provider-badge ${provider === "GUEST" ? "provider-guest" : "provider-kakao"}`}><i/>{providerLabel(provider)}</span>; }
 
 export default App;
