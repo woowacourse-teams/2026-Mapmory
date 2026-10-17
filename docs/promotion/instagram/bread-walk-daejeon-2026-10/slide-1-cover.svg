@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <defs>
+    <linearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf8ef" stop-opacity="0.32"/>
+      <stop offset="0.52" stop-color="#fbf8ef" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#fbf8ef" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <image href="bread-walk-cover-photo.png" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/>
+  <rect width="1080" height="650" fill="url(#veil)"/>
+  <text x="480" y="112" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" font-weight="700" letter-spacing="3" fill="#4c806c">DAEJEON WEEKEND WALK</text>
+  <rect x="480" y="148" width="150" height="48" rx="24" fill="#386f5a"/>
+  <text x="555" y="180" text-anchor="middle" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="23" font-weight="700" fill="#ffffff">빵축제</text>
+  <text x="650" y="180" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="24" font-weight="700" fill="#345c4b">10.17—18</text>
+  <text x="480" y="302" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="68" font-weight="800" fill="#1f342d">그 빵,</text>
+  <text x="480" y="390" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="68" font-weight="800" fill="#1f342d">어디서 먹었지?</text>
+  <path d="M480 431h390" stroke="#4c806c" stroke-width="3"/>
+  <text x="480" y="486" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="26" font-weight="600" fill="#345c4b">맛있었던 빵과 방문한 장소를</text>
+  <text x="480" y="526" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="26" font-weight="600" fill="#345c4b">함께 남기는 대전 빵 산책</text>
+  <text x="1010" y="1295" text-anchor="end" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="22" font-weight="600" fill="#ffffff">1 / 4</text>
+</svg>

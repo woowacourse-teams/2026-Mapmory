@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect width="1080" height="1350" fill="#eef4ef"/>
+  <text x="82" y="112" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" font-weight="700" letter-spacing="3" fill="#4c806c">KEEP THE PLACE WITH THE PHOTO</text>
+  <text x="82" y="250" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="60" font-weight="800" fill="#1f342d">사진만 남기면</text>
+  <text x="82" y="330" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="60" font-weight="800" fill="#1f342d">장소는 잊기 쉬우니까</text>
+  <text x="82" y="390" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="25" font-weight="500" fill="#62746a">장소와 사진을 하나의 여행 기록으로 남겨보세요.</text>
+  <path d="M140 534v390" stroke="#b7cec0" stroke-width="4" stroke-dasharray="7 11"/>
+  <g font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif">
+    <circle cx="140" cy="560" r="46" fill="#4c9679"/>
+    <text x="140" y="572" text-anchor="middle" font-size="31" font-weight="800" fill="#ffffff">1</text>
+    <text x="220" y="552" font-size="34" font-weight="800" fill="#1f342d">장소를 선택해요</text>
+    <text x="220" y="598" font-size="24" font-weight="500" fill="#62746a">빵을 먹은 지역이나 장소를 골라요.</text>
+    <circle cx="140" cy="730" r="46" fill="#4c9679"/>
+    <text x="140" y="742" text-anchor="middle" font-size="31" font-weight="800" fill="#ffffff">2</text>
+    <text x="220" y="722" font-size="34" font-weight="800" fill="#1f342d">사진을 골라요</text>
+    <text x="220" y="768" font-size="24" font-weight="500" fill="#62746a">그날 찍은 빵과 여행 사진을 선택해요.</text>
+    <circle cx="140" cy="900" r="46" fill="#4c9679"/>
+    <text x="140" y="912" text-anchor="middle" font-size="31" font-weight="800" fill="#ffffff">3</text>
+    <text x="220" y="892" font-size="34" font-weight="800" fill="#1f342d">기록으로 저장해요</text>
+    <text x="220" y="938" font-size="24" font-weight="500" fill="#62746a">장소와 사진을 한 번의 여행 기록에 담아요.</text>
+  </g>
+  <rect x="82" y="1030" width="916" height="176" rx="28" fill="#ffffff"/>
+  <text x="126" y="1090" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="23" font-weight="700" letter-spacing="1" fill="#4c806c">LATER</text>
+  <text x="126" y="1145" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="29" font-weight="800" fill="#345c4b">저장한 기록에서 장소와 사진을 다시 확인해요.</text>
+  <text x="1010" y="1295" text-anchor="end" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="22" font-weight="600" fill="#718278">3 / 4</text>
+</svg>
