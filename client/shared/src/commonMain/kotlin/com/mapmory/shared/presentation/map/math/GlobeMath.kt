@@ -98,6 +98,16 @@ data class Quaternion(
     }
 }
 
+data class GlobeOrientation(
+    val longitude: Float,
+    val latitude: Float,
+)
+
+fun GeoPoint.globeOrientationToCenter(): GlobeOrientation = GlobeOrientation(
+    longitude = -longitude * PI.toFloat() / 180f,
+    latitude = latitude * PI.toFloat() / 180f,
+)
+
 fun GeoPoint.toSphere(): Vec3 {
     val longitude = longitude * PI.toFloat() / 180f
     val latitude = latitude * PI.toFloat() / 180f

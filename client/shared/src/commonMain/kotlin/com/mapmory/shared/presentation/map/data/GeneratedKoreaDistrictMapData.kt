@@ -14,6 +14,7 @@ internal object GeneratedKoreaDistrictMapData {
     private val json = Json
     private var cachedOverviewData: OverviewDistrictData? = null
     private var cachedOverviewDistricts: List<ProvincePolygon>? = null
+    private var cachedOverviewProvinces: List<ProvincePolygon>? = null
     private val supportedProvinceCodes = setOf(
         "11", "26", "27", "28", "29", "30", "31", "41", "42",
         "43", "44", "45", "46", "47", "48", "49", "50",
@@ -45,6 +46,15 @@ internal object GeneratedKoreaDistrictMapData {
                 )
             },
         ).also { cachedOverviewData = it }
+    }
+
+    suspend fun overviewProvinces(): List<ProvincePolygon> {
+        cachedOverviewProvinces?.let { return it }
+        val file = Res.readBytes("files/korea-province-overview-polygons.json").decodeToString()
+        return json.decodeFromString<OverviewDistrictPolygonResource>(file)
+            .districts
+            .toPolygons()
+            .also { cachedOverviewProvinces = it }
     }
 
     suspend fun overviewDistricts(): List<ProvincePolygon> {

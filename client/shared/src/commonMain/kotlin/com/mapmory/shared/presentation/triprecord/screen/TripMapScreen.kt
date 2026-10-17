@@ -51,6 +51,9 @@ fun TripMapScreen(
     onMapScopeChange: (MapScope) -> Unit = {},
     showRegionLabels: Boolean = false,
     onRegionLabelsToggle: () -> Unit = {},
+    currentLocationLoading: Boolean = false,
+    currentLocationMessage: String? = null,
+    onCurrentLocationClick: () -> Unit = {},
     onBackClick: () -> Unit,
     mapDetailTitle: String? = null,
     mapDetailTotal: Int? = null,
@@ -93,6 +96,19 @@ fun TripMapScreen(
                     onClick = onCreateClick,
                     modifier = Modifier.align(Alignment.BottomEnd),
                 )
+
+                Column(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = 33.dp),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    currentLocationMessage?.let { TripTagChip(text = it) }
+                    TripIconButton(
+                        label = if (currentLocationLoading) "…" else "◎",
+                        contentDescription = if (currentLocationLoading) "현재 위치 확인 중" else "현재 위치로 이동",
+                        onClick = onCurrentLocationClick,
+                    )
+                }
 
                 Column(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),

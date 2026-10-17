@@ -20,12 +20,16 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
+import com.mapmory.shared.presentation.map.MapFocusRequest
+import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
+import com.mapmory.shared.presentation.map.domain.isWithinRegions
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
 import com.mapmory.shared.presentation.map.ui.KoreaMapStatusMessage
 import com.mapmory.shared.presentation.map.ui.MapArtwork
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
 import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
+import com.mapmory.shared.presentation.triprecord.screen.CurrentLocationConsentDialog
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
 import kotlinx.coroutines.launch
 
@@ -70,6 +74,28 @@ internal fun MapRoute(
         mutableStateOf(!onboardingPreference.hasSeenRecordIntroduction())
     }
     var showRegionLabels by remember { mutableStateOf(false) }
+    var focusRequest by remember { mutableStateOf<MapFocusRequest?>(null) }
+    var focusRequestId by remember { mutableStateOf(0) }
+    var locationMessage by remember { mutableStateOf<String?>(null) }
+    var showLocationConsent by remember { mutableStateOf(false) }
+    val currentLocationActions = rememberCurrentLocationActions(
+        onLocation = { point ->
+            focusRequestId += 1
+            focusRequest = MapFocusRequest(focusRequestId, point)
+            locationMessage = null
+            val targetScope = if (isWithinRegions(point, GeneratedKoreaMapData.provinces)) {
+                MapScope.KOREA
+            } else {
+                MapScope.WORLD
+            }
+            if (uiState.scope != targetScope ||
+                (targetScope == MapScope.KOREA && uiState.koreaMap != KoreaMapUiState.ProvinceOverview)
+            ) {
+                viewModel.changeScope(targetScope)
+            }
+        },
+        onError = { locationMessage = it },
+    )
 
     LaunchedEffect(Unit) {
         analytics.logEvent(
@@ -127,6 +153,7 @@ internal fun MapRoute(
             },
             onMapScopeChange = { selectedScope ->
                 gestureClosedProvinceCode = null
+                focusRequest = null
                 analytics.logEvent(
                     MapmoryAnalyticsEvent.MAP_SCOPE_CHANGED,
                     mapOf("scope" to selectedScope.name.lowercase()),
@@ -135,13 +162,21 @@ internal fun MapRoute(
             },
             showRegionLabels = showRegionLabels,
             onRegionLabelsToggle = { showRegionLabels = !showRegionLabels },
+            currentLocationLoading = currentLocationActions.isLoading,
+            currentLocationMessage = locationMessage,
+            onCurrentLocationClick = {
+                locationMessage = null
+                showLocationConsent = true
+            },
             mapContent = {
                 when (uiState.scope) {
                     MapScope.WORLD -> MapArtwork(
                         scope = MapScope.WORLD,
                         visitedCountryCodes = viewModel.visitedCountryCodes,
+                        focusRequest = focusRequest,
                         onCountryClick = { countryCode ->
                             if (countryCode == KoreaCountryCode) {
+                                focusRequest = null
                                 viewModel.changeScope(MapScope.KOREA)
                             } else {
                                 regionCatalog.findByCode(countryCode)?.let(::openLocation)
@@ -156,6 +191,7 @@ internal fun MapRoute(
                             koreaRegions = GeneratedKoreaMapData.provinces,
                             showRegionLabels = showRegionLabels,
                             isProvinceOverview = true,
+                            focusRequest = focusRequest,
                             onRegionClick = { provinceCode ->
                                 gestureClosedProvinceCode = null
                                 val selectedLocation = regionCatalog.findByCode(provinceCode)
@@ -189,6 +225,7 @@ internal fun MapRoute(
                             visitedRegionCodes = viewModel.visitedDistrictCodes(mapState.provinceCode),
                             koreaRegions = mapState.regions,
                             showRegionLabels = showRegionLabels,
+                            focusRequest = focusRequest,
                             onRegionClick = { districtCode ->
                                 regionCatalog.findDistrict(
                                     provinceCode = mapState.provinceCode,
@@ -230,6 +267,16 @@ internal fun MapRoute(
                 },
             )
         }
+    }
+    if (showLocationConsent) {
+        CurrentLocationConsentDialog(
+            onDismissRequest = { showLocationConsent = false },
+            onConfirm = {
+                showLocationConsent = false
+                locationMessage = null
+                currentLocationActions.request()
+            },
+        )
     }
 }
 

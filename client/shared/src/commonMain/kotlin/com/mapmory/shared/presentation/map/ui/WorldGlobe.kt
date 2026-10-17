@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,10 +24,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
+import com.mapmory.shared.presentation.map.MapFocusRequest
 import com.mapmory.shared.presentation.map.domain.CountryPolygon
 import com.mapmory.shared.presentation.map.math.Quaternion
 import com.mapmory.shared.presentation.map.math.Vec3
 import com.mapmory.shared.presentation.map.math.clipToFrontHemisphere
+import com.mapmory.shared.presentation.map.math.globeOrientationToCenter
 import com.mapmory.shared.presentation.map.math.projectToScreen
 import com.mapmory.shared.presentation.map.math.toSphere
 import com.mapmory.shared.presentation.triprecord.screen.TripMapPalette
@@ -39,6 +42,7 @@ import kotlin.math.min
 internal fun WorldGlobe(
     visitedCountryCodes: Set<String>,
     onCountryClick: (String) -> Unit,
+    focusRequest: MapFocusRequest? = null,
     modifier: Modifier = Modifier,
 ) {
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
@@ -46,6 +50,12 @@ internal fun WorldGlobe(
     var latitude by rememberSaveable { mutableStateOf(0f) }
     var zoom by rememberSaveable { mutableStateOf(1f) }
     val currentOnCountryClick by rememberUpdatedState(onCountryClick)
+    LaunchedEffect(focusRequest?.id) {
+        focusRequest?.point?.globeOrientationToCenter()?.let { orientation ->
+            longitude = orientation.longitude
+            latitude = orientation.latitude
+        }
+    }
 
     // Keep the globe roll-free: longitude spin plus bounded latitude tilt only.
     val rotation = remember(longitude, latitude) {
@@ -182,6 +192,15 @@ internal fun WorldGlobe(
                 radius = globeRadius,
                 center = center,
             )
+
+            focusRequest?.point?.let { point ->
+                val location = rotation.rotate(point.toSphere())
+                if (location.z >= 0f) {
+                    val markerCenter = projectToScreen(location, center, globeRadius)
+                    drawCircle(color = Color.White, radius = 8.dp.toPx(), center = markerCenter)
+                    drawCircle(color = colors.globeVisitedFill, radius = 5.dp.toPx(), center = markerCenter)
+                }
+            }
 
         }
     }
