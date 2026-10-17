@@ -15,6 +15,7 @@ import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.repository.IosMapSummaryCache
 import com.mapmory.shared.data.repository.IosTripStatisticsCache
 import com.mapmory.shared.data.settings.IosOnboardingPreference
+import com.mapmory.shared.data.settings.IosTeamDevicePreference
 import com.mapmory.shared.data.settings.IosThemePreference
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.Platform
@@ -40,6 +41,7 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
         tripStatisticsCache = IosTripStatisticsCache(),
         themePreference = IosThemePreference(),
         onboardingPreference = IosOnboardingPreference(),
+        teamDevicePreference = IosTeamDevicePreference(),
         onAuthRefreshFailed = { stage, error ->
             if (!Platform.isDebugBinary) {
                 iosAnalytics.logEvent(
@@ -51,6 +53,14 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
                     ),
                 )
             }
+        },
+        // 컨테이너가 MainViewController보다 먼저 만들어질 수 있어 호출 시점의 로거로 보낸다.
+        analytics = object : MapmoryAnalytics {
+            override fun logEvent(name: String, parameters: Map<String, String>) =
+                iosAnalytics.logEvent(name, parameters)
+
+            override fun setUserProperty(name: String, value: String?) =
+                iosAnalytics.setUserProperty(name, value)
         },
     ).also { iosContainer = it }
 }

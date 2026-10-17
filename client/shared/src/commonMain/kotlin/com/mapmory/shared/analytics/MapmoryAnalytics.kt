@@ -7,14 +7,22 @@ interface MapmoryAnalytics {
         name: String,
         parameters: Map<String, String> = emptyMap(),
     )
+
+    fun setUserProperty(name: String, value: String?)
 }
 
 object NoOpMapmoryAnalytics : MapmoryAnalytics {
     override fun logEvent(name: String, parameters: Map<String, String>) = Unit
+
+    override fun setUserProperty(name: String, value: String?) = Unit
 }
 
 val LocalMapmoryAnalytics = staticCompositionLocalOf<MapmoryAnalytics> {
     NoOpMapmoryAnalytics
+}
+
+object MapmoryAnalyticsUserProperty {
+    const val IS_TEAM = "is_team"
 }
 
 object MapmoryAnalyticsEvent {

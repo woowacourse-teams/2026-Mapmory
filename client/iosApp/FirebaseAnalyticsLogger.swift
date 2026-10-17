@@ -16,4 +16,10 @@ final class FirebaseAnalyticsLogger: NSObject, MapmoryAnalytics {
         }
         Analytics.logEvent(name, parameters: firebaseParameters.isEmpty ? nil : firebaseParameters)
     }
+
+    func setUserProperty(name: String, value: String?) {
+        guard isEnabled else { return }
+
+        Analytics.setUserProperty(value, forName: name)
+    }
 }

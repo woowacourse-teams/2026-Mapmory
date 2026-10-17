@@ -19,6 +19,7 @@ import com.mapmory.shared.app.createInMemoryAppContainer
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsUserProperty
 import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.MapmoryNavHost
@@ -66,6 +67,23 @@ fun MapmoryApp(
             },
         )
     }
+    val teamDevicePreference = appContainer.teamDevicePreference
+    var isTeamDevice by remember(teamDevicePreference) {
+        mutableStateOf(teamDevicePreference.loadIsTeamDevice())
+    }
+    LaunchedEffect(analytics, isTeamDevice) {
+        analytics.setUserProperty(MapmoryAnalyticsUserProperty.IS_TEAM, isTeamDevice.toString())
+    }
+    val teamDeviceState = remember(isTeamDevice, teamDevicePreference, updateState) {
+        TeamDeviceState(
+            appVersion = updateState?.currentVersion.orEmpty(),
+            isTeamDevice = isTeamDevice,
+            onTeamDeviceChange = { enabled ->
+                isTeamDevice = enabled
+                teamDevicePreference.saveIsTeamDevice(enabled)
+            },
+        )
+    }
     val navController = rememberNavController()
     val navigator = remember(navController) { MapmoryNavigator(navController) }
     val backHandlerRegistry = remember { MapmoryBackHandlerRegistry() }
@@ -95,6 +113,7 @@ fun MapmoryApp(
         com.mapmory.shared.navigation.LocalNavigationGestureMotion provides remember { com.mapmory.shared.navigation.NavigationGestureMotion() },
         LocalMapmoryTheme provides themeState,
         LocalMapmoryAnalytics provides analytics,
+        LocalTeamDevice provides teamDeviceState,
     ) {
         ProvideTripRecordPalettes(isDark = isDarkTheme) {
             MaterialTheme(typography = MapmoryTypography()) {
