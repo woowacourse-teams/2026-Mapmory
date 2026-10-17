@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import java.time.Clock;
@@ -43,6 +45,21 @@ class AdminDashboardServiceTest {
         verify(members).countCreatedBetween(
                 LocalDateTime.of(2026, 10, 7, 15, 0), LocalDateTime.of(2026, 10, 14, 15, 0)
         );
+    }
+
+    @Test
+    void 가입_방식별_회원_수에_애플_회원을_포함한다() {
+        when(members.countByProvider(AuthProvider.GUEST)).thenReturn(5L);
+        when(members.countByProvider(AuthProvider.KAKAO)).thenReturn(4L);
+        when(members.countByProvider(AuthProvider.GOOGLE)).thenReturn(3L);
+        when(members.countByProvider(AuthProvider.APPLE)).thenReturn(2L);
+
+        var members = service.getDashboard(null, null).members();
+
+        assertThat(members.guest()).isEqualTo(5L);
+        assertThat(members.kakao()).isEqualTo(4L);
+        assertThat(members.google()).isEqualTo(3L);
+        assertThat(members.apple()).isEqualTo(2L);
     }
 
     @Test

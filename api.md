@@ -880,13 +880,13 @@ Authorization: Bearer {accessToken}
 {
   "data": {
     "period": { "from": "2026-10-02", "to": "2026-10-08" },
-    "members": { "total": 1284, "guest": 812, "kakao": 472, "newInPeriod": 35 },
+    "members": { "total": 1284, "guest": 812, "kakao": 380, "google": 70, "apple": 22, "newInPeriod": 35 },
     "travelRecords": { "total": 5492, "createdInPeriod": 286 }
   }
 }
 ```
 
-회원은 `member.provider`의 `GUEST`, `KAKAO` 값으로 집계한다. provider가 비어 있는 기존 회원은 `total`에만
+회원은 `member.provider`의 `GUEST`, `KAKAO`, `GOOGLE`, `APPLE` 값으로 집계한다. provider가 비어 있는 기존 회원은 `total`에만
 포함한다. 기간별 회원·기록 수는 각각 `member.created_at`, `travel_record.created_at` 기준으로 한국 시간
 날짜의 시작부터 종료일 다음 날 시작 전까지 집계한다. `from`이 `to`보다 늦으면 `400 INVALID_DASHBOARD_DATE_RANGE`.
 

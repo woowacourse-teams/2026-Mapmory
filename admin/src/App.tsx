@@ -11,7 +11,7 @@ type Member = {
 };
 type DashboardSummary = {
   period: { from: string; to: string };
-  members: { total: number; guest: number; kakao: number; google: number; newInPeriod: number };
+  members: { total: number; guest: number; kakao: number; google: number; apple: number; newInPeriod: number };
   travelRecords: { total: number; createdInPeriod: number };
   photos: { total: number };
 };
@@ -297,14 +297,16 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
   const guest = summary?.members.guest ?? 0;
   const kakao = summary?.members.kakao ?? 0;
   const google = summary?.members.google ?? 0;
-  const classifiedMembers = guest + kakao + google;
+  const apple = summary?.members.apple ?? 0;
+  const classifiedMembers = guest + kakao + google + apple;
   const guestPercent = classifiedMembers === 0 ? 0 : (guest / classifiedMembers) * 100;
   const kakaoPercent = classifiedMembers === 0 ? 0 : (kakao / classifiedMembers) * 100;
   const googlePercent = classifiedMembers === 0 ? 0 : (google / classifiedMembers) * 100;
+  const applePercent = classifiedMembers === 0 ? 0 : (apple / classifiedMembers) * 100;
   const unknown = Math.max(0, total - classifiedMembers);
   const donutBackground = total === 0
     ? "#e7ece8"
-    : `conic-gradient(#64c1a0 0% ${guest / total * 100}%, #f0ba9c ${guest / total * 100}% ${(guest + kakao) / total * 100}%, #98aadd ${(guest + kakao) / total * 100}% ${classifiedMembers / total * 100}%, #d9dfdb ${classifiedMembers / total * 100}% 100%)`;
+    : `conic-gradient(#64c1a0 0% ${guest / total * 100}%, #f0ba9c ${guest / total * 100}% ${(guest + kakao) / total * 100}%, #98aadd ${(guest + kakao) / total * 100}% ${(guest + kakao + google) / total * 100}%, #4b5563 ${(guest + kakao + google) / total * 100}% ${classifiedMembers / total * 100}%, #d9dfdb ${classifiedMembers / total * 100}% 100%)`;
   const dateLabel = summary
     ? `${formatPeriodDate(summary.period.from)} – ${formatPeriodDate(summary.period.to)}`
     : `${formatPeriodDate(range.from)} – ${formatPeriodDate(range.to)}`;
@@ -350,7 +352,7 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
       {loading && <div className="dashboard-loading" role="status">대시보드 데이터를 불러오는 중입니다.</div>}
 
       <section className="metric-grid" aria-label="주요 지표">
-        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)}`} />
+        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)} · Apple ${number(summary?.members.apple)}`} />
         <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} change={summary ? `+${number(summary.travelRecords.createdInPeriod)}` : "—"} detail="선택 기간 생성" icon="grid" tint="peach" trend="neutral" foot="전체 누적 기록" />
         <MetricCard label="등록 사진" value={number(summary?.photos.total)} change="누적" detail="여행 기록에 연결된 사진" icon="image" tint="lavender" trend="neutral" foot="삭제된 사진 제외" />
         <MetricCard label="기간 신규 회원" value={number(summary?.members.newInPeriod)} change={loading ? "—" : period} detail="가입 수" icon="users" tint="lavender" trend="neutral" foot={dateLabel} />
@@ -373,6 +375,7 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
               <span><i className="legend-dot mint-dot"/>게스트<strong>{number(summary?.members.guest)}</strong><small>{guestPercent.toFixed(1)}%</small></span>
               <span><i className="legend-dot peach-dot"/>카카오<strong>{number(summary?.members.kakao)}</strong><small>{kakaoPercent.toFixed(1)}%</small></span>
               <span><i className="legend-dot blue-dot"/>Google<strong>{number(summary?.members.google)}</strong><small>{googlePercent.toFixed(1)}%</small></span>
+              <span><i className="legend-dot apple-dot"/>Apple<strong>{number(summary?.members.apple)}</strong><small>{applePercent.toFixed(1)}%</small></span>
               {unknown > 0 && <span><i className="legend-dot unknown-dot"/>유형 미지정<strong>{number(unknown)}</strong><small>기존 회원</small></span>}
             </div>
           </div>

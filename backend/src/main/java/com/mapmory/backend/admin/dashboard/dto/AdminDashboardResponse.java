@@ -12,7 +12,7 @@ public record AdminDashboardResponse(
     public record Period(LocalDate from, LocalDate to) {
     }
 
-    public record MemberStatistics(long total, long guest, long kakao, long google, long newInPeriod) {
+    public record MemberStatistics(long total, long guest, long kakao, long google, long apple, long newInPeriod) {
     }
 
     public record TravelRecordStatistics(long total, long createdInPeriod) {

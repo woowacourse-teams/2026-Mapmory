@@ -54,6 +54,7 @@ public class AdminDashboardService {
                         memberRepository.countByProvider(AuthProvider.GUEST),
                         memberRepository.countByProvider(AuthProvider.KAKAO),
                         memberRepository.countByProvider(AuthProvider.GOOGLE),
+                        memberRepository.countByProvider(AuthProvider.APPLE),
                         memberRepository.countCreatedBetween(fromInclusive, toExclusive)
                 ),
                 new TravelRecordStatistics(
