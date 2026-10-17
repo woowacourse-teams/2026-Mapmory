@@ -7,6 +7,7 @@ import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -48,9 +49,9 @@ public class TravelRecordController {
     @GetMapping("/travel-records")
     public ResponseEntity<TravelRecordResponse<TravelRecordListResponse>> findAll(
             @LoginMember Member member,
-            @RequestParam(required = false) String countryCode,
-            @RequestParam(required = false) String provinceCode,
-            @RequestParam(required = false) String districtCode,
+            @RequestParam(required = false) @Pattern(regexp = "[A-Z]{2}") String countryCode,
+            @RequestParam(required = false) @Pattern(regexp = "\\S{1,20}") String provinceCode,
+            @RequestParam(required = false) @Pattern(regexp = "\\S{1,20}") String districtCode,
             @RequestParam(required = false) @Positive Long tagId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size

@@ -30,7 +30,7 @@ class S3UploadedObjectCheckerTest {
     void setUp() {
         checker = new S3UploadedObjectChecker(
                 s3Client,
-                new S3StorageProperties("techcourse-project-2026", "ap-northeast-2", "mapmory")
+                new S3StorageProperties("techcourse-project-2026", "ap-northeast-2", "mapmory", null)
         );
     }
 

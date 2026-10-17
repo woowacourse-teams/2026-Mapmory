@@ -64,6 +64,6 @@ class ObjectKeyGeneratorTest {
 
     private ObjectKeyGenerator objectKeyGenerator(String keyPrefix) {
         return new ObjectKeyGenerator(
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix));
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, null));
     }
 }

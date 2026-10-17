@@ -1,6 +1,7 @@
 package com.mapmory.backend.auth;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -9,14 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
-import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
+import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimitProperties;
+import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimiter;
 import com.mapmory.backend.common.exception.BusinessException;
+import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -26,18 +27,20 @@ import org.springframework.test.web.servlet.ResultActions;
  * 게스트 로그인은 인증 없이 호출되므로 계정을 무제한으로 찍어낼 수 있다.
  * 같은 출처에서 짧은 시간에 반복 호출하면 거절한다. (ADR 0015)
  */
-@AutoConfigureMockMvc
-@TestPropertySource(properties = {
-        "guest-login.rate-limit.capacity=2",
-        "guest-login.rate-limit.window=1h"
-})
 class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoSpyBean
-    private KakaoIdentityAdapter kakaoIdentityAdapter;
+    // 운영 한도(60)를 채우려면 게스트를 수십 명 만들어야 한다. 한도만 2로 낮춘 limiter로 센다.
+    // 설정값으로 낮추면 이 테스트를 위한 컨텍스트를 하나 더 띄우게 된다.
+    @BeforeEach
+    void setUp() {
+        GuestLoginRateLimiter limiter =
+                new GuestLoginRateLimiter(new GuestLoginRateLimitProperties(2, Duration.ofHours(1)));
+        willAnswer(invocation -> limiter.tryAcquire(invocation.getArgument(0)))
+                .given(guestLoginRateLimiter).tryAcquire(anyString());
+    }
 
     @Test
     void 한도까지는_게스트_로그인이_허용된다() throws Exception {

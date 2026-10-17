@@ -11,17 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.auth.token.refresh.RefreshTokenRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@AutoConfigureMockMvc
 class RefreshTokenIntegrationTest extends IntegrationTest {
 
     @Autowired
@@ -29,9 +25,6 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
-
-    @MockitoSpyBean
-    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 로그인_시_refresh는_원문이_아닌_해시로_저장된다() throws Exception {

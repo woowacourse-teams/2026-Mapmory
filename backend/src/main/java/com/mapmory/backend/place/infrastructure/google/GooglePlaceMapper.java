@@ -44,8 +44,6 @@ class GooglePlaceMapper {
                 placeId,
                 null,
                 countryCode(components),
-                null,
-                null,
                 GooglePlacesClient.ATTRIBUTION,
                 GooglePlacesClient.ATTRIBUTION_URL,
                 addressAreas(components)));

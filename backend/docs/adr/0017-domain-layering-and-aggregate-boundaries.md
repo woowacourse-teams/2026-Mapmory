@@ -341,8 +341,9 @@ delete from travel_record where id=?
 - `application`은 포트(`application/port`)와 제공자 중립 모델(`application/model`)로 제공자를 다룬다.
   `web`과 `infrastructure`는 import하지 않는다. 같은 기능의 다른 하위 패키지(`auth/token`)나 다른 도메인(`member`)은 쓸 수 있다.
 - `infrastructure/<제공자>`는 포트 구현체만 `public`으로 두고, 클라이언트·외부 응답 DTO는 package-private으로 숨긴다.
-  설정 클래스는 같은 패키지에 두면 package-private으로 숨길 수 있다(`place/infrastructure/geoapify`).
+  설정 클래스는 같은 패키지에 두면 package-private으로 숨길 수 있다(`place/infrastructure/google`).
   `config/`로 빼면 Properties와 설정 클래스가 `public`이 되지만, 제공자 하나에 설정이 여럿일 때 구현 코드와 섞이지 않는다(`auth/infrastructure/{kakao,google}/config`).
 - 계층 하나에 속하지 않는 하위 패키지는 기능 루트 바로 아래에 둔다. `auth`에서는 다른 도메인도 쓰는 `security`,
   토큰 발급·회전을 맡는 `token`, 여러 하위 패키지가 함께 쓰는 에러 코드 `exception`이 그렇다.
+  `place`에서는 인터셉터부터 DB 버킷까지 회원별 호출 한도를 모은 `ratelimit`이 그렇다.
   에러 코드를 `application` 안에 두면 `application`이 쓰는 `token`도 그 에러 코드를 써서 패키지 순환이 생긴다.

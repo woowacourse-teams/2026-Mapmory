@@ -15,7 +15,7 @@
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 페이지네이션 | `page` 기본 0, `size` 기본 20·최대 100 |
 
-`/auth/**`, `/admin/**`, `/health`를 제외한 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`와 `/auth/login/google`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API는 현재 인증 없이 호출 가능하다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
+`/auth/**`, `/admin/**`, `/health`를 제외한 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`, `/auth/login/google`, `/auth/login/apple`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API는 현재 인증 없이 호출 가능하다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
 
 ### API 목록
 
@@ -23,6 +23,7 @@
 | --- | --- | --- | --- |
 | 구현됨 | `POST` | `/auth/login/kakao` | 카카오 로그인 |
 | 구현됨 | `POST` | `/auth/login/google` | 구글 로그인 |
+| 구현됨 | `POST` | `/auth/login/apple` | 애플 로그인 |
 | 구현됨 | `POST` | `/auth/login/guest` | 게스트 로그인 |
 | 구현됨 | `POST` | `/auth/token/refresh` | Access·Refresh Token 회전 재발급 |
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
@@ -185,6 +186,26 @@ Access Token이 아니라 ID Token을 보낸다.
 
 같은 사람이라도 카카오 회원과 구글 회원은 별개 회원이다. 계정 병합은 지원하지 않는다.
 
+### 애플 로그인
+
+`POST /api/v1/auth/login/apple`
+
+앱이 Sign in with Apple(`ASAuthorizationAppleIDCredential`)로 받은 **identity token**을 전달하면,
+서버가 애플 공개키로 서명과 `iss`·`aud`·`exp`·`sub`를 검증한 뒤 Mapmory 토큰을 발급한다.
+`aud`는 iOS 앱 번들 ID여야 한다. authorization code가 아니라 identity token을 보낸다.
+
+```json
+{
+  "identityToken": "apple-identity-token"
+}
+```
+
+`identityToken`은 `credential.identityToken`을 UTF-8 문자열로 바꾼 값이다.
+애플은 토큰에 이름을 넣지 않으므로 애플 회원은 기본 이름(예: `회원58213`)으로 시작한다.
+
+게스트 승격 규칙, 결과 표, 응답 형식은 카카오 로그인과 같다. 같은 사람이라도 카카오·구글 회원과
+애플 회원은 별개 회원이다.
+
 ### 게스트 로그인
 
 `POST /api/v1/auth/login/guest`
@@ -258,12 +279,14 @@ Access Token이 아니라 ID Token을 보낸다.
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
 | `401` | `INVALID_KAKAO_TOKEN` | 카카오 Access Token이 유효하지 않음 |
 | `401` | `INVALID_GOOGLE_TOKEN` | 구글 ID Token이 유효하지 않음 (서명·발급자·대상 앱·만료). Android가 웹 클라이언트 ID가 아닌 Android 클라이언트 ID로 토큰을 받은 경우도 대상 앱 불일치로 여기에 해당 |
+| `401` | `INVALID_APPLE_TOKEN` | 애플 identity token이 유효하지 않음 (서명·발급자·대상 앱·만료). 서버 `APPLE_CLIENT_IDS`에 번들 ID가 없을 때도 해당 |
 | `401` | `INVALID_REFRESH_TOKEN` | Refresh Token이 유효하지 않거나 폐기됨 |
 | `401` | `EXPIRED_REFRESH_TOKEN` | Refresh Token이 만료됨 |
 | `403` | `ACCESS_DENIED` | 리소스 접근 권한 없음 |
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
 | `503` | `KAKAO_UNAVAILABLE` | 카카오 인증 서버를 일시적으로 사용할 수 없음. 카카오가 회원번호 없이 응답하거나 빈 본문을 준 경우도 해당 |
 | `503` | `GOOGLE_UNAVAILABLE` | 구글 공개키를 받아오지 못해 검증할 수 없음 |
+| `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음 |
 
 ## 3. Upload API
 
@@ -499,10 +522,9 @@ Access Token이 아니라 ID Token을 보낸다.
 
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
-| `400` | `REGION_REQUIRED` | 한국 기록에 시도 또는 시군구가 없음 |
+| `400` | `REGION_REQUIRED` | 지역을 고르지 않았고 장소로도 찾지 못함, 또는 한국 기록에 시도가 없음 |
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구가 존재하지 않음 |
-| `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않음 |
-| `400` | `INVALID_REGION_TYPE` | 대한민국이 시군구 단위가 아니거나 해외 요청에 하위 지역이 포함됨 |
+| `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않거나, 상위 지역 코드 없이 하위 지역 코드만 옴 |
 | `400` | `INVALID_TRAVEL_DATE_RANGE` | 시작일·종료일이 미래이거나 종료일이 시작일보다 빠름 |
 | `400` | `INVALID_OBJECT_KEY` | Object Key 형식 또는 소유자가 올바르지 않음 |
 | `409` | `OBJECT_NOT_UPLOADED` | S3 업로드가 확인되지 않음 |
@@ -557,7 +579,9 @@ GET /api/v1/travel-records?tagId=12
         "regionName": "제주시",
         "startDate": "2026-08-11",
         "endDate": null,
-        "thumbnailUrl": null,
+        "thumbnailUrl": "https://...presigned-get-url",
+        "thumbnailUrlExpiresIn": 300,
+        "photoCount": 3,
         "tags": [
           { "id": 9, "name": "연인" },
           { "id": 12, "name": "라멘맛집" }
@@ -573,7 +597,9 @@ GET /api/v1/travel-records?tagId=12
 }
 ```
 
-목록에는 본문과 전체 미디어 목록을 포함하지 않는다. `thumbnailUrl` 필드는 후속 구현을 위해 포함했으며 현재는 `null`을 반환한다.
+목록에는 본문과 전체 미디어 목록을 포함하지 않는다. `thumbnailUrl`은 정렬 순서가 가장 앞선 사진의 Presigned GET URL이고 `thumbnailUrlExpiresIn`은 그 만료까지 남은 초다. 사진이 없으면 둘 다 `null`이다.
+
+`photoCount`는 기록에 연결된 사진 수다. 사진이 없으면 `0`이다.
 
 `tags`는 `tag.created_at ASC, tag.id ASC` 순서로 반환한다.
 
@@ -584,10 +610,9 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 지역 코드 형식이 올바르지 않음, `page < 0`, `size`가 1 미만 또는 100 초과 |
-| `400` | `REGION_REQUIRED` | `provinceCode`에 `countryCode`가 없거나, `districtCode`에 `countryCode` 또는 `provinceCode`가 없음 |
 | `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 더 이상 존재하지 않음 |
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구 코드가 없음 |
-| `400` | `INVALID_REGION_HIERARCHY` | 시도가 선택 국가의 직계 자식이 아니거나, 시군구가 선택 시도의 직계 자식이 아님 |
+| `400` | `INVALID_REGION_HIERARCHY` | `provinceCode`에 `countryCode`가 없거나 `districtCode`에 `provinceCode`가 없음, 시도가 선택 국가의 직계 자식이 아니거나 시군구가 선택 시도의 직계 자식이 아님 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
 
 조건에 맞는 기록이 없는 경우는 오류가 아니며 `200 OK`와 빈 `items`를 반환한다.
@@ -855,13 +880,13 @@ Authorization: Bearer {accessToken}
 {
   "data": {
     "period": { "from": "2026-10-02", "to": "2026-10-08" },
-    "members": { "total": 1284, "guest": 812, "kakao": 472, "newInPeriod": 35 },
+    "members": { "total": 1284, "guest": 812, "kakao": 380, "google": 70, "apple": 22, "newInPeriod": 35 },
     "travelRecords": { "total": 5492, "createdInPeriod": 286 }
   }
 }
 ```
 
-회원은 `member.provider`의 `GUEST`, `KAKAO` 값으로 집계한다. provider가 비어 있는 기존 회원은 `total`에만
+회원은 `member.provider`의 `GUEST`, `KAKAO`, `GOOGLE`, `APPLE` 값으로 집계한다. provider가 비어 있는 기존 회원은 `total`에만
 포함한다. 기간별 회원·기록 수는 각각 `member.created_at`, `travel_record.created_at` 기준으로 한국 시간
 날짜의 시작부터 종료일 다음 날 시작 전까지 집계한다. `from`이 `to`보다 늦으면 `400 INVALID_DASHBOARD_DATE_RANGE`.
 

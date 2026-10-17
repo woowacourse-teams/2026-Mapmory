@@ -5,13 +5,13 @@ type Page = "dashboard" | "members" | "feedback";
 type Member = {
   id: number;
   name: string;
-  provider: "KAKAO" | "GUEST" | "GOOGLE" | null;
+  provider: "KAKAO" | "GUEST" | "GOOGLE" | "APPLE" | null;
   joinedAt: string;
   records: number;
 };
 type DashboardSummary = {
   period: { from: string; to: string };
-  members: { total: number; guest: number; kakao: number; google: number; newInPeriod: number };
+  members: { total: number; guest: number; kakao: number; google: number; apple: number; newInPeriod: number };
   travelRecords: { total: number; createdInPeriod: number };
   photos: { total: number };
 };
@@ -297,14 +297,16 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
   const guest = summary?.members.guest ?? 0;
   const kakao = summary?.members.kakao ?? 0;
   const google = summary?.members.google ?? 0;
-  const classifiedMembers = guest + kakao + google;
+  const apple = summary?.members.apple ?? 0;
+  const classifiedMembers = guest + kakao + google + apple;
   const guestPercent = classifiedMembers === 0 ? 0 : (guest / classifiedMembers) * 100;
   const kakaoPercent = classifiedMembers === 0 ? 0 : (kakao / classifiedMembers) * 100;
   const googlePercent = classifiedMembers === 0 ? 0 : (google / classifiedMembers) * 100;
+  const applePercent = classifiedMembers === 0 ? 0 : (apple / classifiedMembers) * 100;
   const unknown = Math.max(0, total - classifiedMembers);
   const donutBackground = total === 0
     ? "#e7ece8"
-    : `conic-gradient(#64c1a0 0% ${guest / total * 100}%, #f0ba9c ${guest / total * 100}% ${(guest + kakao) / total * 100}%, #98aadd ${(guest + kakao) / total * 100}% ${classifiedMembers / total * 100}%, #d9dfdb ${classifiedMembers / total * 100}% 100%)`;
+    : `conic-gradient(#64c1a0 0% ${guest / total * 100}%, #f0ba9c ${guest / total * 100}% ${(guest + kakao) / total * 100}%, #98aadd ${(guest + kakao) / total * 100}% ${(guest + kakao + google) / total * 100}%, #4b5563 ${(guest + kakao + google) / total * 100}% ${classifiedMembers / total * 100}%, #d9dfdb ${classifiedMembers / total * 100}% 100%)`;
   const dateLabel = summary
     ? `${formatPeriodDate(summary.period.from)} – ${formatPeriodDate(summary.period.to)}`
     : `${formatPeriodDate(range.from)} – ${formatPeriodDate(range.to)}`;
@@ -350,7 +352,7 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
       {loading && <div className="dashboard-loading" role="status">대시보드 데이터를 불러오는 중입니다.</div>}
 
       <section className="metric-grid" aria-label="주요 지표">
-        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)}`} />
+        <MetricCard label="가입 회원" value={number(summary?.members.total)} change={summary ? `+${number(summary.members.newInPeriod)}` : "—"} detail="선택 기간 신규 가입" icon="users" tint="mint" trend="neutral" foot={`게스트 ${number(summary?.members.guest)} · 카카오 ${number(summary?.members.kakao)} · Google ${number(summary?.members.google)} · Apple ${number(summary?.members.apple)}`} />
         <MetricCard label="여행 기록" value={number(summary?.travelRecords.total)} change={summary ? `+${number(summary.travelRecords.createdInPeriod)}` : "—"} detail="선택 기간 생성" icon="grid" tint="peach" trend="neutral" foot="전체 누적 기록" />
         <MetricCard label="등록 사진" value={number(summary?.photos.total)} change="누적" detail="여행 기록에 연결된 사진" icon="image" tint="lavender" trend="neutral" foot="삭제된 사진 제외" />
         <MetricCard label="기간 신규 회원" value={number(summary?.members.newInPeriod)} change={loading ? "—" : period} detail="가입 수" icon="users" tint="lavender" trend="neutral" foot={dateLabel} />
@@ -373,6 +375,7 @@ function Dashboard({ period, setPeriod, range, setRange, onNavigate, onNotice }:
               <span><i className="legend-dot mint-dot"/>게스트<strong>{number(summary?.members.guest)}</strong><small>{guestPercent.toFixed(1)}%</small></span>
               <span><i className="legend-dot peach-dot"/>카카오<strong>{number(summary?.members.kakao)}</strong><small>{kakaoPercent.toFixed(1)}%</small></span>
               <span><i className="legend-dot blue-dot"/>Google<strong>{number(summary?.members.google)}</strong><small>{googlePercent.toFixed(1)}%</small></span>
+              <span><i className="legend-dot apple-dot"/>Apple<strong>{number(summary?.members.apple)}</strong><small>{applePercent.toFixed(1)}%</small></span>
               {unknown > 0 && <span><i className="legend-dot unknown-dot"/>유형 미지정<strong>{number(unknown)}</strong><small>기존 회원</small></span>}
             </div>
           </div>
@@ -411,7 +414,7 @@ function MembersPage({ onSelect, onNotice }: { onSelect: (member: Member) => voi
 
   const members = data?.members ?? [];
   return <div className="page-content list-page"><div className="page-heading-row"><div><div className="date-eyebrow">MEMBERS</div><h1>회원 관리</h1><p>운영환경 회원과 여행 기록 현황을 확인할 수 있어요.</p></div><button className="secondary-button" onClick={() => onNotice("회원 내보내기는 아직 제공되지 않습니다.")}><Icon name="download" size={16}/> 내보내기</button></div>
-    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</span></h2><p>계정을 선택하면 여행 기록과 사진 통계를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="닉네임 또는 회원 ID 검색" aria-label="회원 검색"/></div><select className="select-control" value={provider} onChange={(event) => { setProvider(event.target.value); setPage(0); }} aria-label="로그인 유형"><option value="">전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">카카오</option><option value="GOOGLE">Google</option></select></div></div>
+    <div className="panel table-panel"><div className="table-toolbar"><div><h2>회원 목록 <span className="muted-count">{data?.totalElements.toLocaleString("ko-KR") ?? "—"}</span></h2><p>계정을 선택하면 여행 기록과 사진 통계를 볼 수 있어요.</p></div><div className="table-actions"><div className="search-field"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="닉네임 또는 회원 ID 검색" aria-label="회원 검색"/></div><select className="select-control" value={provider} onChange={(event) => { setProvider(event.target.value); setPage(0); }} aria-label="로그인 유형"><option value="">전체 유형</option><option value="GUEST">게스트</option><option value="KAKAO">카카오</option><option value="GOOGLE">Google</option><option value="APPLE">Apple</option></select></div></div>
       {error && <div className="dashboard-error" role="alert">{error}</div>}
       {loading && <div className="dashboard-loading" role="status">회원 목록을 불러오는 중입니다.</div>}
       <div className="table-scroll"><table><thead><tr><th>회원</th><th>가입일</th><th>로그인 방식</th><th>여행 기록</th><th /></tr></thead><tbody>{members.map((item: AdminMember) => {
@@ -508,7 +511,7 @@ function MemberDrawer({ member, onClose }: { member: Member; onClose: () => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) { return <div className="detail-row"><span>{label}</span><strong>{value}</strong></div>; }
-function providerLabel(provider: Member["provider"]) { return provider === "GUEST" ? "게스트" : provider === "KAKAO" ? "카카오" : provider === "GOOGLE" ? "Google" : "유형 미지정"; }
+function providerLabel(provider: Member["provider"]) { return provider === "GUEST" ? "게스트" : provider === "KAKAO" ? "카카오" : provider === "GOOGLE" ? "Google" : provider === "APPLE" ? "Apple" : "유형 미지정"; }
 function ProviderBadge({ provider }: { provider: Member["provider"] }) { return <span className={`provider-badge ${provider === "GUEST" ? "provider-guest" : "provider-kakao"}`}><i/>{providerLabel(provider)}</span>; }
 
 export default App;

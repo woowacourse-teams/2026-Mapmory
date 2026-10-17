@@ -30,7 +30,8 @@ public class KoreanAddressRegionMatcher {
     }
 
     /**
-     * areaNames의 첫 값은 시·도, 나머지는 큰 단위부터 작은 단위 순서다. 시·군·구까지 찾지 못하면 빈 값이다.
+     * areaNames의 첫 값은 시·도, 나머지는 큰 단위부터 작은 단위 순서다. 시·도를 찾지 못하면 빈 값이다.
+     * 시·군·구를 찾지 못하면("부산광역시"만 있는 주소) 시·도를 돌려준다.
      * 시·도는 첫 값으로만 비교한다. "광주시"(경기도)처럼 시·군·구 이름이 다른 시·도와 겹칠 수 있기 때문이다.
      */
     public Optional<Region> match(List<String> areaNames) {
@@ -61,7 +62,7 @@ public class KoreanAddressRegionMatcher {
                 return match;
             }
         }
-        return Optional.empty();
+        return Optional.of(province);
     }
 
     private static boolean sameProvince(String regionName, String addressName) {

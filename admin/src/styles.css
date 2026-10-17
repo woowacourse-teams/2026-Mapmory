@@ -31,6 +31,7 @@
 .dashboard-error button:hover{background:#fff0e9}
 .dashboard-loading{margin-bottom:10px;color:#758078;font-size:10px}
 .unknown-dot{background:#d9dfdb}
+.apple-dot{background:#4b5563}
 @media(max-width:860px){.period-summary-grid{margin-top:24px}}
 @media(max-width:600px){.period-summary-grid{gap:8px;margin-top:20px}.period-summary-item{padding:13px}.period-summary-item strong{font-size:21px}.dashboard-error{align-items:flex-start;flex-direction:column}}
 

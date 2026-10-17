@@ -2,10 +2,9 @@ package com.mapmory.backend.auth.web.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Clock;
+import com.mapmory.backend.support.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 class GuestLoginRateLimiterTest {
@@ -54,33 +53,5 @@ class GuestLoginRateLimiterTest {
         clock.advance(WINDOW.minusSeconds(1));
 
         assertThat(rateLimiter.tryAcquire("10.0.0.1")).isFalse();
-    }
-
-    private static final class MutableClock extends Clock {
-
-        private Instant instant;
-
-        private MutableClock(Instant instant) {
-            this.instant = instant;
-        }
-
-        private void advance(Duration duration) {
-            instant = instant.plus(duration);
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
-
-        @Override
-        public ZoneOffset getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(java.time.ZoneId zone) {
-            return this;
-        }
     }
 }

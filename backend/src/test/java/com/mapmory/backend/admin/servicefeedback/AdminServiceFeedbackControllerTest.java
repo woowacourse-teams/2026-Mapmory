@@ -16,11 +16,10 @@ import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.servicefeedback.*;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -56,7 +55,7 @@ class AdminServiceFeedbackControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;
-    @MockitoBean private MemberRepository memberRepository;
+    @MockitoBean private EntityManager entityManager;
     @MockitoBean private ServiceFeedbackService service;
 
     @Test
@@ -135,7 +134,7 @@ class AdminServiceFeedbackControllerTest {
 
     @Test
     void 앱_JWT로_제출하면_접수_ID와_시각을_반환한다() throws Exception {
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(Member.of("회원", UUID.randomUUID())));
+        when(entityManager.getReference(Member.class, 1L)).thenReturn(Member.of("회원", UUID.randomUUID()));
         when(service.submit(any(Member.class), any(ServiceFeedbackRequest.class)))
                 .thenReturn(new ServiceFeedbackSubmitResponse(10L, LocalDateTime.of(2026, 10, 14, 1, 0)));
         mockMvc.perform(post("/api/v1/service-feedback").header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.issueAccessToken(1L))

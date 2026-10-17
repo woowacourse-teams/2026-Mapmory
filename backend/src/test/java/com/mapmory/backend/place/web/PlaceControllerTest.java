@@ -2,6 +2,7 @@ package com.mapmory.backend.place.web;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,13 +31,27 @@ class PlaceControllerTest {
         PlaceSearchService searchService = mock(PlaceSearchService.class);
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
-        when(searchService.search(null, "한강공원", null))
+        String token = "0b6f8f4e-5d0a-4c9a-9f43-0c1c2f5f2b11";
+        when(searchService.search("한강공원", token))
                 .thenReturn(List.of(new PlaceCandidate("park-1", "여의도한강공원", "서울 영등포구", null, null)));
 
-        mockMvc.perform(get("/api/v1/places/search").param("query", "한강공원"))
+        mockMvc.perform(get("/api/v1/places/search").param("query", "한강공원").param("sessionToken", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].placeId").value("park-1"))
                 .andExpect(jsonPath("$.data[0].name").value("여의도한강공원"));
+    }
+
+    @Test
+    void 세션_토큰_없는_검색은_거절한다() throws Exception {
+        PlaceSearchService searchService = mock(PlaceSearchService.class);
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(new PlaceController(searchService, mock(PlaceSelectionService.class)))
+                .build();
+
+        mockMvc.perform(get("/api/v1/places/search").param("query", "한강공원"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(searchService);
     }
 
     @Test
@@ -45,10 +60,10 @@ class PlaceControllerTest {
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         String token = "0b6f8f4e-5d0a-4c9a-9f43-0c1c2f5f2b11";
-        when(searchService.search(null, "경복", token)).thenReturn(List.of());
-        when(selectionService.select(null, "ChIJ-gyeong", token))
+        when(searchService.search("경복", token)).thenReturn(List.of());
+        when(selectionService.select("ChIJ-gyeong", token))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("ChIJ-gyeong", null, "KR", null, null, null, null), null));
+                        new PlaceDetails("ChIJ-gyeong", null, "KR", null, null, List.of()), null));
 
         mockMvc.perform(get("/api/v1/places/search").param("query", "경복").param("sessionToken", token))
                 .andExpect(status().isOk());
@@ -56,8 +71,8 @@ class PlaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").doesNotExist());
 
-        verify(searchService).search(null, "경복", token);
-        verify(selectionService).select(null, "ChIJ-gyeong", token);
+        verify(searchService).search("경복", token);
+        verify(selectionService).select("ChIJ-gyeong", token);
     }
 
     @Test
@@ -70,9 +85,9 @@ class PlaceControllerTest {
         proxyFactory.addAdvice(new MethodValidationInterceptor((jakarta.validation.Validator) validator));
         PlaceController controller = (PlaceController) proxyFactory.getProxy();
 
-        assertThatThrownBy(() -> controller.search(null, "경복", "a".repeat(37)))
+        assertThatThrownBy(() -> controller.search("경복", "a".repeat(37)))
                 .isInstanceOf(ConstraintViolationException.class);
-        controller.search(null, "경복", "a".repeat(36));
+        controller.search("경복", "a".repeat(36));
     }
 
     @Test
@@ -80,13 +95,13 @@ class PlaceControllerTest {
         PlaceSearchService searchService = mock(PlaceSearchService.class);
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
-        when(selectionService.select(null, "park-1", null))
+        when(selectionService.select("ChIJ-park", null))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932, null, null), null));
+                        new PlaceDetails("ChIJ-park", null, "KR", null, null, List.of()), null));
 
-        mockMvc.perform(get("/api/v1/places/park-1"))
+        mockMvc.perform(get("/api/v1/places/ChIJ-park"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.placeId").value("park-1"))
+                .andExpect(jsonPath("$.data.placeId").value("ChIJ-park"))
                 .andExpect(jsonPath("$.data.manualRegionRequired").value(true));
     }
 }

@@ -54,7 +54,7 @@ class UploadControllerTest {
         );
         UploadService uploadService = new UploadService(
                 new UploadPolicy(properties),
-                new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "")),
+                new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)),
                 new FakePresignedUrlProvider(),
                 properties
         );

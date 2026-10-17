@@ -11,16 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -30,7 +27,6 @@ import org.springframework.test.web.servlet.MvcResult;
  * "게스트로 남긴 기록이 계정을 연결한 뒤에도 그대로 보인다"를 사용자 관점에서 검증한다.
  * 승격은 회원 행의 provider만 교체하므로 기록을 옮기지 않는다. (ADR 0015)
  */
-@AutoConfigureMockMvc
 class GuestPromotionIntegrationTest extends IntegrationTest {
 
     private static final String KAKAO_LOGIN_BODY = "{\"kakaoAccessToken\":\"kakao-token\"}";
@@ -40,9 +36,6 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
-
-    @MockitoSpyBean
-    private KakaoIdentityAdapter kakaoIdentityAdapter;
 
     @Test
     void 게스트가_카카오_로그인하면_남긴_기록이_그대로_유지된다() throws Exception {

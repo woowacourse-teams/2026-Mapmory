@@ -10,7 +10,6 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,21 +35,19 @@ public class PlaceController {
 
     @GetMapping("/search")
     public ResponseEntity<TravelRecordResponse<List<PlaceCandidateResponse>>> search(
-            @AuthenticationPrincipal Long memberId,
             @RequestParam @NotBlank @Size(max = 100) String query,
-            @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken
+            @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
         return ResponseEntity.ok(TravelRecordResponse.of(
-                placeSearchService.search(memberId, query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
+                placeSearchService.search(query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
     }
 
     @GetMapping("/{placeId}")
     public ResponseEntity<TravelRecordResponse<PlaceSelectionResponse>> select(
-            @AuthenticationPrincipal Long memberId,
             @PathVariable String placeId,
             @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
         return ResponseEntity.ok(TravelRecordResponse.of(
-                PlaceSelectionResponse.from(placeSelectionService.select(memberId, placeId, sessionToken))));
+                PlaceSelectionResponse.from(placeSelectionService.select(placeId, sessionToken))));
     }
 }

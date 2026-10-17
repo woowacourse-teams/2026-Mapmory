@@ -15,14 +15,13 @@ import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.region.RegionErrorCode;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.service.RegionMapSummaryService;
+import jakarta.persistence.EntityManager;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +46,7 @@ class RegionMapSummaryControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
-    private MemberRepository memberRepository;
+    private EntityManager entityManager;
 
     @MockitoBean
     private RegionMapSummaryService regionMapSummaryService;
@@ -59,7 +58,7 @@ class RegionMapSummaryControllerTest {
     void setUpMember() {
         memberId = 10L;
         member = Member.of("지도 요약 테스트 회원", UUID.randomUUID());
-        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(entityManager.getReference(Member.class, memberId)).thenReturn(member);
     }
 
     private String bearer(Long memberId) {
@@ -125,15 +124,6 @@ class RegionMapSummaryControllerTest {
             mockMvc.perform(get("/api/v1/travel-records/map-summary/regions/roots"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value("INVALID_ACCESS_TOKEN"));
-        }
-
-        @Test
-        @DisplayName("회원을 찾을 수 없으면 MEMBER_NOT_FOUND를 반환한다")
-        void returnsMemberNotFound() throws Exception {
-            mockMvc.perform(get("/api/v1/travel-records/map-summary/regions/roots")
-                            .header(HttpHeaders.AUTHORIZATION, bearer(Long.MAX_VALUE)))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
         }
     }
 

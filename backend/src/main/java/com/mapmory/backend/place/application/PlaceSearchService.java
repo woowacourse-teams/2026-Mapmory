@@ -2,7 +2,6 @@ package com.mapmory.backend.place.application;
 
 import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
-import com.mapmory.backend.place.application.port.PlaceRateLimitPort;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -10,15 +9,12 @@ import org.springframework.stereotype.Service;
 public class PlaceSearchService {
 
     private final PlaceLookupPort placeLookupPort;
-    private final PlaceRateLimitPort rateLimitPort;
 
-    public PlaceSearchService(PlaceLookupPort placeLookupPort, PlaceRateLimitPort rateLimitPort) {
+    public PlaceSearchService(PlaceLookupPort placeLookupPort) {
         this.placeLookupPort = placeLookupPort;
-        this.rateLimitPort = rateLimitPort;
     }
 
-    public List<PlaceCandidate> search(Long memberId, String query, String sessionToken) {
-        rateLimitPort.checkSearch(memberId);
+    public List<PlaceCandidate> search(String query, String sessionToken) {
         return placeLookupPort.search(query.strip(), sessionToken);
     }
 }

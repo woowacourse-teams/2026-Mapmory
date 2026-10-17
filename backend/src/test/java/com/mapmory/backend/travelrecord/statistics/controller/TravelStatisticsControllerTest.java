@@ -12,13 +12,12 @@ import com.mapmory.backend.auth.token.jwt.JwtConfig;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 import com.mapmory.backend.travelrecord.statistics.model.TravelStatistics;
 import com.mapmory.backend.travelrecord.statistics.service.TravelStatisticsService;
+import jakarta.persistence.EntityManager;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +41,7 @@ class TravelStatisticsControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
-    private MemberRepository memberRepository;
+    private EntityManager entityManager;
 
     @MockitoBean
     private TravelStatisticsService travelStatisticsService;
@@ -54,7 +53,7 @@ class TravelStatisticsControllerTest {
     void setUpMember() {
         memberId = 10L;
         member = Member.of("통계 테스트 회원", UUID.randomUUID());
-        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(entityManager.getReference(Member.class, memberId)).thenReturn(member);
     }
 
     @Test

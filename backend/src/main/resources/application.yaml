@@ -49,23 +49,34 @@ google:
   client-ids: ${GOOGLE_CLIENT_IDS:}
   jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
   places:
-    # Places API (New) 키. 비어 있으면 장소 검색은 Geoapify를 쓴다. (docs/place-search.md)
+    # Places API (New) 키. 비어 있으면 장소 검색과 선택이 PLACE_PROVIDER_UNAVAILABLE로 실패한다. (docs/place-search.md)
     api-key: ${GOOGLE_PLACES_API_KEY:}
     rate-limit:
-      # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 하루 한도를 둔다.
-      autocomplete-per-day: 300
-      details-per-day: 300
-      requests-per-second: 4
+      # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
+      autocomplete-per-month: 9000
+      details-per-month: 9000
+      # 서버마다 메모리에서 센다. 몰린 요청이 월 한도를 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
+      requests-per-minute: 60
+    # Google이 멈추면 부르지도 않고 바로 실패해, 사용자가 3초씩 기다리거나 월 한도를 쓰지 않게 한다.
+    # 최근 60초 동안 5번 이상 불렀고 그중 절반 이상이 타임아웃·연결 오류·5xx면 60초 동안 연다. 그 뒤 3번 시험해 본다.
+    circuit-breaker:
+      window: 60s
+      minimum-calls: 5
+      failure-rate-percent: 50
+      open-duration: 60s
+      half-open-calls: 3
 
-geoapify:
-  api-key: ${GEOAPIFY_API_KEY:}
+apple:
+  # identity token의 aud로 허용할 값 목록(쉼표 구분). iOS 네이티브 로그인은 앱 번들 ID가 aud로 들어간다.
+  # 웹·Android에서 Services ID로 로그인하게 되면 그 ID도 추가한다. 비어 있으면 모든 애플 로그인을 거부한다. (ADR 0020)
+  client-ids: ${APPLE_CLIENT_IDS:}
+  jwk-set-uri: https://appleid.apple.com/auth/keys
+
+place:
+  # 회원별 한도. 서버 여러 대가 함께 세도록 DB(place_rate_limit_bucket)에서 센다.
   rate-limit:
     searches-per-member-per-minute: 20
     selections-per-member-per-day: 100
-    searches-per-day: 2000
-    selections-per-day: 400
-    requests-per-day: 2800
-    requests-per-second: 4
 
 upload:
   policy:
@@ -78,6 +89,12 @@ upload:
       region: ${AWS_REGION:ap-northeast-2}
       # 공용 버킷에서 우리 객체를 모으기 위한 접두사. 전용 버킷이면 비워 둔다.
       key-prefix: ${AWS_S3_KEY_PREFIX:}
+      # 작은 요청은 보통 수십 ms라 2초가 지나면 다시 시도한다(AWS S3 성능 가이드).
+      # 재시도를 합쳐도 호출 하나는 6초 안에 끝나, S3가 멈춰도 요청 스레드를 오래 쥐지 않는다.
+      client:
+        attempt-timeout: 2s
+        total-timeout: 6s
+        max-attempts: 3
 
 waitlist:
   cors:
@@ -87,6 +104,9 @@ server:
   port: 8080
   servlet:
     context-path: /
+  tomcat:
+    mbeanregistry:
+      enabled: true
 
 logging:
   pattern:
@@ -127,5 +147,10 @@ management:
         http.server.requests: 5s
         mapmory.operation.duration: 5s
       percentiles:
-        http.server.requests: 0.95
-        mapmory.operation.duration: 0.95
+        http.server.requests:
+          - 0.5
+          - 0.95
+          - 0.99
+        mapmory.operation.duration:
+          - 0.95
+          - 0.99

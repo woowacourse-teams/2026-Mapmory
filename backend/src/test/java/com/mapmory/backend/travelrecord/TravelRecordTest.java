@@ -142,6 +142,31 @@ class TravelRecordTest {
         assertThat(blankTitleRecord.getTitle()).isEmpty();
     }
 
+    @Test
+    void 대한민국_일지는_시도까지만_골라도_만든다() {
+        Region korea = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+        Region busan = Region.of(korea, korea, "26", "부산광역시", RegionType.PROVINCE);
+
+        TravelRecord travelRecord = TravelRecord.of(
+                mock(Member.class), busan, "부산 여행", "본문", LocalDate.of(2026, 8, 11), null);
+
+        assertThat(travelRecord.getRegion()).isEqualTo(busan);
+    }
+
+    @Test
+    void 대한민국_전체에는_일지를_붙이지_않는다() {
+        Region korea = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+
+        assertThatThrownBy(() -> TravelRecord.of(
+                mock(Member.class), korea, "여행", "본문", LocalDate.of(2026, 8, 11), null))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode().code()).isEqualTo("REGION_REQUIRED"));
+        TravelRecord travelRecord = travelRecord();
+        assertThatThrownBy(() -> travelRecord.update(
+                korea, "여행", "본문", LocalDate.of(2026, 8, 11), null))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private TravelRecord travelRecord() {
         Region region = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
 

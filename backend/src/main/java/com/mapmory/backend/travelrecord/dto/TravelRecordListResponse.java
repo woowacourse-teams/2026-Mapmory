@@ -21,7 +21,8 @@ public record TravelRecordListResponse(
                         .map(travelRecord -> TravelRecordListItemResponse.from(
                                 travelRecord,
                                 summaries.tagsOf(travelRecord),
-                                summaries.thumbnailUrlOf(travelRecord)
+                                summaries.thumbnailUrlOf(travelRecord),
+                                summaries.photoCountOf(travelRecord)
                         ))
                         .toList(),
                 travelRecords.getNumber(),

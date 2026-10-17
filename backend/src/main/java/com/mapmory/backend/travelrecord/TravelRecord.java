@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 @Table(name = "travel_record")
 public class TravelRecord extends BaseEntity {
     private static final int MAX_TAGS = 5;
+    private static final String KOREA_COUNTRY_CODE = "KR";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,7 +73,7 @@ public class TravelRecord extends BaseEntity {
             LocalDate endDate
     ) {
         this.member = member;
-        this.region = region;
+        this.region = validateRegion(region);
         this.title = normalizeTitle(title);
         this.content = normalizeContent(content);
         this.period = TravelPeriod.of(startDate, endDate);
@@ -96,10 +97,22 @@ public class TravelRecord extends BaseEntity {
             LocalDate startDate,
             LocalDate endDate
     ) {
-        this.region = region;
+        this.region = validateRegion(region);
         this.title = normalizeTitle(title);
         this.content = normalizeContent(content);
         this.period = TravelPeriod.of(startDate, endDate);
+    }
+
+    /**
+     * 대한민국 일지는 시·도나 시·군·구에 붙인다. 부산광역시처럼 시·도까지만 골라도 되지만
+     * 대한민국 전체에는 붙이지 않는다. 지도와 통계가 시·도부터 칠하기 때문이다.
+     */
+    private static Region validateRegion(Region region) {
+        if (region.isCountry(KOREA_COUNTRY_CODE)) {
+            throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
+                    "대한민국 여행은 시도나 시군구를 골라야 합니다.");
+        }
+        return region;
     }
 
     public void setPlace(RecordedPlace place) {

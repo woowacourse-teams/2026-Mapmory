@@ -12,7 +12,6 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -23,7 +22,6 @@ import org.springframework.test.web.servlet.MvcResult;
  * "로그인하지 않고 서비스를 쓸 수 있다"를 사용자 관점에서 검증한다.
  * 카카오 로그인과 달리 외부 호출이 없으므로 대역이 필요하지 않다. (ADR 0015)
  */
-@AutoConfigureMockMvc
 class GuestLoginIntegrationTest extends IntegrationTest {
 
     @Autowired

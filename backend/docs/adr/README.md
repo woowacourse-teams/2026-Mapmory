@@ -23,3 +23,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0017](0017-domain-layering-and-aggregate-boundaries.md) | 도메인 계층 구조와 애그리거트 경계 | 채택 |
 | [0018](0018-verify-uploaded-object-before-linking.md) | 기록에 붙는 S3 객체의 저장 시점 실존 검증 | 채택 |
 | [0019](0019-google-login-with-id-token.md) | 구글 로그인은 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
+| [0020](0020-apple-login-with-identity-token.md) | 애플 로그인은 앱이 전달한 identity token을 JWKS로 검증 | 제안 |

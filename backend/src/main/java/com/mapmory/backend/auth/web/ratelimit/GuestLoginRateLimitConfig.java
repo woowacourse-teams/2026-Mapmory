@@ -11,25 +11,28 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  *
  * limiter를 이 설정의 @Bean으로 두어 자족적으로 만든다. WebMvcConfigurer는 @WebMvcTest
  * 슬라이스에도 포함되는데, 외부 @Component에 의존하면 슬라이스에서 컨텍스트가 뜨지 않는다.
+ *
+ * 인터셉터는 @Bean 메서드를 거쳐 컨테이너의 limiter를 받는다. 테스트가 limiter 빈을 바꾸면
+ * 인터셉터도 바뀐 빈을 쓴다.
  */
 @Configuration
 @EnableConfigurationProperties(GuestLoginRateLimitProperties.class)
 public class GuestLoginRateLimitConfig implements WebMvcConfigurer {
 
-    private final GuestLoginRateLimiter rateLimiter;
+    private final GuestLoginRateLimitProperties properties;
 
     public GuestLoginRateLimitConfig(GuestLoginRateLimitProperties properties) {
-        this.rateLimiter = new GuestLoginRateLimiter(properties);
+        this.properties = properties;
     }
 
     @Bean
     public GuestLoginRateLimiter guestLoginRateLimiter() {
-        return rateLimiter;
+        return new GuestLoginRateLimiter(properties);
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new GuestLoginRateLimitInterceptor(rateLimiter))
+        registry.addInterceptor(new GuestLoginRateLimitInterceptor(guestLoginRateLimiter()))
                 .addPathPatterns("/api/v1/auth/login/guest");
     }
 }

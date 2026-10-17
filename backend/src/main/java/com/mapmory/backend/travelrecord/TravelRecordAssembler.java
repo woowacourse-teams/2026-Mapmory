@@ -52,10 +52,13 @@ public class TravelRecordAssembler {
                 .map(TravelRecord::getId)
                 .toList();
 
+        List<RecordMedia> media = findMedia(travelRecordIds);
+
         return new TravelRecordSummaries(
                 travelRecords,
                 travelRecordTagService.findByTravelRecordIds(travelRecordIds),
-                createThumbnailUrls(travelRecordIds)
+                createThumbnailUrls(media),
+                countPhotos(media)
         );
     }
 
@@ -68,18 +71,32 @@ public class TravelRecordAssembler {
                 .toList();
     }
 
-    private Map<Long, ExpiringUrl> createThumbnailUrls(List<Long> travelRecordIds) {
+    /**
+     * 썸네일과 사진 개수를 같은 조회 결과에서 만든다. 목록 한 페이지에 미디어 조회는 한 번뿐이다.
+     */
+    private List<RecordMedia> findMedia(List<Long> travelRecordIds) {
         if (travelRecordIds.isEmpty()) {
-            return Map.of();
+            return List.of();
         }
+        return travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds);
+    }
 
+    private Map<Long, ExpiringUrl> createThumbnailUrls(List<RecordMedia> media) {
         Map<Long, ExpiringUrl> thumbnailUrls = new HashMap<>();
-        for (RecordMedia recordMedia : travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds)) {
+        for (RecordMedia recordMedia : media) {
             thumbnailUrls.computeIfAbsent(
                     recordMedia.travelRecordId(),
                     ignored -> recordMediaUrlService.createViewUrl(recordMedia.getThumbnailObjectKey())
             );
         }
         return Map.copyOf(thumbnailUrls);
+    }
+
+    private Map<Long, Integer> countPhotos(List<RecordMedia> media) {
+        Map<Long, Integer> photoCounts = new HashMap<>();
+        for (RecordMedia recordMedia : media) {
+            photoCounts.merge(recordMedia.travelRecordId(), 1, Integer::sum);
+        }
+        return Map.copyOf(photoCounts);
     }
 }

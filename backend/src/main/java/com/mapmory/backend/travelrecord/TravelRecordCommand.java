@@ -27,6 +27,10 @@ public record TravelRecordCommand(
         tagIds = tagIds == null ? List.of() : tagIds;
     }
 
+    public boolean hasRegion() {
+        return countryCode != null || provinceCode != null || districtCode != null;
+    }
+
     public TravelRecordCommand(
             String countryCode, String provinceCode, String districtCode,
             String title, String content, LocalDate startDate, LocalDate endDate,

@@ -19,12 +19,14 @@ public record TravelRecordListItemResponse(
         LocalDate endDate,
         String thumbnailUrl,
         Long thumbnailUrlExpiresIn,
+        int photoCount,
         List<TagSummaryResponse> tags
 ) {
     public static TravelRecordListItemResponse from(
             TravelRecord travelRecord,
             List<Tag> tags,
-            ExpiringUrl thumbnailUrl
+            ExpiringUrl thumbnailUrl,
+            int photoCount
     ) {
         RecordedPlace place = travelRecord.getPlace();
         return new TravelRecordListItemResponse(
@@ -38,6 +40,7 @@ public record TravelRecordListItemResponse(
                 travelRecord.getEndDate(),
                 thumbnailUrl == null ? null : thumbnailUrl.url(),
                 thumbnailUrl == null ? null : thumbnailUrl.expiresIn(),
+                photoCount,
                 tags.stream().map(TagSummaryResponse::from).toList()
         );
     }

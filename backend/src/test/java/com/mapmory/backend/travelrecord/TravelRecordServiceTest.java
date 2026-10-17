@@ -45,6 +45,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class TravelRecordServiceTest {
@@ -107,7 +108,8 @@ class TravelRecordServiceTest {
                 FIXED_CLOCK,
                 uploadedObjectVerifier,
                 placeLookupPort,
-                placeSelectionService
+                placeSelectionService,
+                mock(PlatformTransactionManager.class)
         );
     }
 
@@ -131,17 +133,17 @@ class TravelRecordServiceTest {
     }
 
     @Test
-    void 선택한_장소_ID로_조회한_이름을_여행_일지에_저장한다() {
+    void 선택한_장소를_제공자와_출처_표기와_함께_여행_일지에_저장한다() {
         Region district = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
                 "KR", "11", "11560", "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
         when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
-        when(placeLookupPort.findById("park-1"))
-                .thenReturn(new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932,
-                        "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"));
-        when(placeLookupPort.providerCode("park-1")).thenReturn("TEST_PROVIDER");
+        when(placeLookupPort.findForRecord("ChIJ-park"))
+                .thenReturn(new PlaceDetails("ChIJ-park", null, null,
+                        "Google Maps", "https://www.google.com/maps", List.of()));
+        when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -149,20 +151,20 @@ class TravelRecordServiceTest {
 
         assertThat(result.getRegion()).isEqualTo(district);
         assertThat(result.getPlace()).isEqualTo(new RecordedPlace(
-                "TEST_PROVIDER", "park-1", "여의도한강공원",
-                "© OpenStreetMap contributors", "https://www.openstreetmap.org/copyright"));
+                "GOOGLE", "ChIJ-park", null, "Google Maps", "https://www.google.com/maps"));
     }
 
     @Test
-    void 장소_ID만_보내면_좌표로_추천한_지역에_저장한다() {
+    void 장소_ID만_보내면_장소로_추천한_지역에_저장한다() {
         Region district = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
                 null, null, null, "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
-        PlaceDetails place = new PlaceDetails("park-1", "여의도한강공원", "KR", 37.528, 126.932, null, null);
-        when(placeLookupPort.findById("park-1")).thenReturn(place);
-        when(placeLookupPort.providerCode("park-1")).thenReturn("GEOAPIFY");
+        PlaceDetails place = new PlaceDetails("ChIJ-park", null, "KR",
+                "Google Maps", "https://www.google.com/maps", List.of("서울특별시", "영등포구"));
+        when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
+        when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
         when(placeSelectionService.suggestedRegion(place)).thenReturn(district);
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -170,38 +172,23 @@ class TravelRecordServiceTest {
         TravelRecord result = travelRecordService.create(member, command);
 
         assertThat(result.getRegion()).isEqualTo(district);
-        assertThat(result.getPlace().name()).isEqualTo("여의도한강공원");
+        assertThat(result.getPlace().id()).isEqualTo("ChIJ-park");
     }
 
     @Test
-    void 장소_좌표에_맞는_지역이_없으면_직접_지역을_고르게_한다() {
+    void 장소로_지역을_찾지_못하면_직접_지역을_고르게_한다() {
         TravelRecordCommand command = new TravelRecordCommand(
                 null, null, null, "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
+                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
-        PlaceDetails place = new PlaceDetails("park-1", "한강공원", "KR", 37.5, 127.0, null, null);
-        when(placeLookupPort.findById("park-1")).thenReturn(place);
+        PlaceDetails place = new PlaceDetails("ChIJ-park", null, "KR",
+                "Google Maps", "https://www.google.com/maps", List.of());
+        when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
 
         assertThatThrownBy(() -> travelRecordService.create(member, command))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
                         .isEqualTo("REGION_REQUIRED"));
-        verify(travelRecordRepository, never()).save(any(TravelRecord.class));
-    }
-
-    @Test
-    void 장소의_국가와_요청_국가가_다르면_저장하지_않는다() {
-        TravelRecordCommand command = new TravelRecordCommand(
-                "KR", "11", "11560", "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "park-1"
-        );
-        when(placeLookupPort.findById("park-1"))
-                .thenReturn(new PlaceDetails("park-1", "도쿄 타워", "JP", 35.6586, 139.7454, null, null));
-
-        assertThatThrownBy(() -> travelRecordService.create(member, command))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
-                        .isEqualTo("PLACE_COUNTRY_MISMATCH"));
         verify(travelRecordRepository, never()).save(any(TravelRecord.class));
     }
 
@@ -266,22 +253,24 @@ class TravelRecordServiceTest {
     @Test
     void 대한민국_여행에_시도가_없으면_여행_일지를_생성하지_않는다() {
         TravelRecordCommand command = createCommand("KR", null, null);
+        when(regionResolver.resolve("KR", null, null))
+                .thenReturn(Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY));
 
         assertInvalidRegion(command, "REGION_REQUIRED");
     }
 
     @Test
-    void 대한민국_여행에_시군구가_없으면_여행_일지를_생성하지_않는다() {
-        TravelRecordCommand command = createCommand("KR", "49", null);
+    void 대한민국_여행은_시군구_없이_시도_단위로도_생성한다() {
+        Region busan = mock(Region.class);
+        TravelRecordCommand command = createCommand("KR", "26", null);
+        when(regionResolver.resolve("KR", "26", null)).thenReturn(busan);
+        when(travelRecordRepository.save(any(TravelRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertInvalidRegion(command, "REGION_REQUIRED");
-    }
+        TravelRecord result = travelRecordService.create(member, command);
 
-    @Test
-    void 해외_여행에_하위_지역이_있으면_여행_일지를_생성하지_않는다() {
-        TravelRecordCommand command = createCommand("JP", "13", null);
-
-        assertInvalidRegion(command, "INVALID_REGION_TYPE");
+        assertThat(result.getRegion()).isEqualTo(busan);
+        verify(travelRecordRepository).save(result);
     }
 
     @Test
@@ -435,7 +424,7 @@ class TravelRecordServiceTest {
         Region district = Region.of(province, country, "50110", "제주시", RegionType.DISTRICT);
         TravelRecord travelRecord = TravelRecord.of(
                 mock(Member.class),
-                country,
+                province,
                 "기존 제목",
                 "기존 본문",
                 LocalDate.of(2026, 8, 1),
@@ -481,15 +470,6 @@ class TravelRecordServiceTest {
 
     @Test
     void 수정_요청의_중복_Object_Key를_거부한다() {
-        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
-        TravelRecord travelRecord = TravelRecord.of(
-                mock(Member.class),
-                japan,
-                "일본 여행",
-                "본문",
-                LocalDate.of(2026, 8, 11),
-                null
-        );
         TravelRecordCommand command = new TravelRecordCommand(
                 "JP",
                 null,
@@ -501,8 +481,6 @@ class TravelRecordServiceTest {
                 List.of("travel-records/10/a.jpg", "travel-records/10/a.jpg"),
                 List.of()
             );
-        when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
-                .thenReturn(Optional.of(travelRecord));
 
         assertError(() -> travelRecordService.update(member, 101L, command), "INVALID_OBJECT_KEY");
         verify(regionResolver, never()).resolve("JP", null, null);
@@ -532,7 +510,6 @@ class TravelRecordServiceTest {
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
-        when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
         when(travelRecordRepository.existsMediaByObjectKeyIn(List.of("travel-records/20/used.jpg")))
                 .thenReturn(true);
 
@@ -635,12 +612,37 @@ class TravelRecordServiceTest {
 
         assertThat(result.thumbnailUrlOf(travelRecord).url())
                 .isEqualTo("https://download.example/mapmory/first.jpg");
+        assertThat(result.photoCountOf(travelRecord)).isEqualTo(2);
         verify(recordMediaUrlService).createViewUrl("mapmory/first.jpg");
         verify(recordMediaUrlService, never()).createViewUrl("mapmory/later.jpg");
     }
 
     @Test
-    void 미디어가_없는_일지_목록은_썸네일_정보가_null이다() {
+    void 일지마다_사진_개수를_따로_센다() {
+        TravelRecord jeju = mock(TravelRecord.class);
+        when(jeju.getId()).thenReturn(101L);
+        TravelRecord busan = mock(TravelRecord.class);
+        when(busan.getId()).thenReturn(102L);
+        Page<TravelRecord> expected = new PageImpl<>(List.of(jeju, busan), PageRequest.of(0, 20), 2);
+        when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
+                .thenReturn(expected);
+        List<RecordMedia> media = List.of(
+                recordMedia(101L, "mapmory/jeju-1.jpg"),
+                recordMedia(101L, "mapmory/jeju-2.jpg"),
+                recordMedia(101L, "mapmory/jeju-3.jpg"),
+                recordMedia(102L, "mapmory/busan-1.jpg")
+        );
+        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L, 102L))).thenReturn(media);
+
+        TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
+
+        assertThat(result.photoCountOf(jeju)).isEqualTo(3);
+        assertThat(result.photoCountOf(busan)).isEqualTo(1);
+        verify(travelRecordRepository).findMediaByTravelRecordIdIn(List.of(101L, 102L));
+    }
+
+    @Test
+    void 미디어가_없는_일지_목록은_썸네일_정보가_null이고_사진_개수가_0이다() {
         TravelRecord travelRecord = mock(TravelRecord.class);
         when(travelRecord.getId()).thenReturn(101L);
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
@@ -651,14 +653,15 @@ class TravelRecordServiceTest {
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
         assertThat(result.thumbnailUrlOf(travelRecord)).isNull();
+        assertThat(result.photoCountOf(travelRecord)).isZero();
         verify(recordMediaUrlService, never()).createViewUrl(anyString());
     }
 
     @Test
     void 국가로_일지_목록을_조회한다() {
-        Region korea = region(1L);
+        Region korea = region(1L, RegionType.COUNTRY);
         Page<TravelRecord> expected = Page.empty();
-        when(regionResolver.resolve("KR", null, null)).thenReturn(korea);
+        when(regionResolver.resolveIfPresent("KR", null, null)).thenReturn(Optional.of(korea));
         when(travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
                 eq(10L), eq(1L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -670,9 +673,9 @@ class TravelRecordServiceTest {
     @Test
     void 시도로_일지_목록을_조회한다() {
         Region korea = mock(Region.class);
-        Region jeju = region(2L);
+        Region jeju = region(2L, RegionType.PROVINCE);
         Page<TravelRecord> expected = Page.empty();
-        when(regionResolver.resolve("KR", "49", null)).thenReturn(jeju);
+        when(regionResolver.resolveIfPresent("KR", "49", null)).thenReturn(Optional.of(jeju));
         when(travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
                 eq(10L), eq(2L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -684,9 +687,9 @@ class TravelRecordServiceTest {
     void 시군구로_일지_목록을_조회한다() {
         Region korea = mock(Region.class);
         Region jeju = mock(Region.class);
-        Region jejuCity = region(3L);
+        Region jejuCity = region(3L, RegionType.DISTRICT);
         Page<TravelRecord> expected = Page.empty();
-        when(regionResolver.resolve("KR", "49", "50110")).thenReturn(jejuCity);
+        when(regionResolver.resolveIfPresent("KR", "49", "50110")).thenReturn(Optional.of(jejuCity));
         when(travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
                 eq(10L), eq(3L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -700,25 +703,12 @@ class TravelRecordServiceTest {
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(7L), any(Pageable.class)))
                 .thenReturn(expected);
 
-        TravelRecordSummaries result = travelRecordService.findAll(
-                member, null, null, null, 7L, 0, 20
+        TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, 7L, 0, 20
         );
 
         assertThat(result.travelRecords()).isEmpty();
         verify(tagService).getOwnedTag(member, 7L);
         verify(travelRecordRepository).findByMemberIdAndOptionalTagId(eq(10L), eq(7L), any(Pageable.class));
-    }
-
-    @Test
-    void 잘못된_지역_필터_조합을_거부한다() {
-        assertError(() -> travelRecordService.findAll(member, null, "49", null, null, 0, 20), "REGION_REQUIRED");
-        assertError(() -> travelRecordService.findAll(member, "KR", null, "50110", null, 0, 20), "REGION_REQUIRED");
-    }
-
-    @Test
-    void 잘못된_지역_코드_형식을_거부한다() {
-        assertError(() -> travelRecordService.findAll(member, "kr", null, null, null, 0, 20), "VALIDATION_ERROR");
-        assertError(() -> travelRecordService.findAll(member, "KR", " ", null, null, 0, 20), "VALIDATION_ERROR");
     }
 
     @Test
@@ -755,9 +745,10 @@ class TravelRecordServiceTest {
         return recordMedia;
     }
 
-    private Region region(Long id) {
+    private Region region(Long id, RegionType regionType) {
         Region region = mock(Region.class);
         when(region.getId()).thenReturn(id);
+        when(region.getRegionType()).thenReturn(regionType);
         return region;
     }
 

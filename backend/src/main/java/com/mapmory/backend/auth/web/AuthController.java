@@ -1,6 +1,7 @@
 package com.mapmory.backend.auth.web;
 
 import com.mapmory.backend.auth.application.AuthService;
+import com.mapmory.backend.auth.web.dto.AppleLoginRequest;
 import com.mapmory.backend.auth.web.dto.GoogleLoginRequest;
 import com.mapmory.backend.auth.web.dto.KakaoLoginRequest;
 import com.mapmory.backend.auth.web.dto.LoginResponse;
@@ -50,6 +51,18 @@ public class AuthController {
     ) {
         return ApiResponse.from(LoginResponse.from(
                 authService.loginWithSocial(AuthProvider.GOOGLE, request.idToken(), authenticatedMemberId)));
+    }
+
+    /**
+     * 구글 로그인과 같다. 앱이 Sign in with Apple로 받은 identity token을 보낸다. (ADR 0020)
+     */
+    @PostMapping("/login/apple")
+    public ApiResponse<LoginResponse> loginWithApple(
+            @Valid @RequestBody AppleLoginRequest request,
+            @AuthenticationPrincipal Long authenticatedMemberId
+    ) {
+        return ApiResponse.from(LoginResponse.from(
+                authService.loginWithSocial(AuthProvider.APPLE, request.identityToken(), authenticatedMemberId)));
     }
 
     @PostMapping("/login/guest")

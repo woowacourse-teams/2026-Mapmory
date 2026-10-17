@@ -4,23 +4,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.mock;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.upload.storage.S3PermissionSelfCheck;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.SdkHttpResponse;
@@ -45,17 +44,25 @@ import software.amazon.awssdk.services.s3.model.S3Object;
  *     (단위 테스트는 메서드를 직접 부르므로, 애너테이션이 사라져도 통과한다)
  *   - 약속한 event 키가 실제로 로그에 남는가
  *     (키가 바뀌면 운영자의 확인 절차가 조용히 실패한다)
+ *
+ * 이 둘은 자가진단 빈 하나만 띄운 컨텍스트로 충분하다. 통합 테스트 컨텍스트는 자가진단을 끄므로,
+ * 거기서 켜면 이 테스트만을 위한 컨텍스트를 하나 더 띄우게 된다.
  */
-@TestPropertySource(properties = "upload.storage.s3.permission-self-check=true")
-class S3PermissionSelfCheckAcceptanceTest extends IntegrationTest {
+class S3PermissionSelfCheckAcceptanceTest {
 
     private static final String BUCKET_OBJECT = "mapmory/travel-records/1/photo.jpg";
 
-    @Autowired
-    private ConfigurableApplicationContext context;
+    private final S3Client s3Client = mock(S3Client.class);
 
-    @MockitoBean
-    private S3Client s3Client;
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withBean(S3Client.class, () -> s3Client)
+            .withBean(S3StorageProperties.class, () -> new S3StorageProperties(
+                    "mapmory-test",
+                    "ap-northeast-2",
+                    "mapmory",
+                    new S3StorageProperties.Client(Duration.ofSeconds(2), Duration.ofSeconds(6), 3)
+            ))
+            .withUserConfiguration(S3PermissionSelfCheck.class);
 
     private ListAppender<ILoggingEvent> logs;
 
@@ -125,12 +132,12 @@ class S3PermissionSelfCheckAcceptanceTest extends IntegrationTest {
     }
 
     private void publishApplicationReady() {
-        context.publishEvent(new ApplicationReadyEvent(
+        contextRunner.run(context -> context.publishEvent(new ApplicationReadyEvent(
                 new SpringApplication(),
                 new String[0],
                 context,
                 Duration.ZERO
-        ));
+        )));
     }
 
     private void givenObjectExists() {
