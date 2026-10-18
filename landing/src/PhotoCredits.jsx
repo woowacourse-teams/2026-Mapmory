@@ -12,7 +12,7 @@ function PhotoCredits() {
   const [credits, setCredits] = useState(null);
   const load = (event) => {
     if (!event.currentTarget.open || credits) return;
-    import("./data/photo-credits.json").then(({ default: list }) => setCredits(list)).catch(() => setCredits([]));
+    import("./data/photo-credits.json").then(({ default: list }) => setCredits(list)).catch(() => setCredits(null));
   };
   return (
     <details className="photo-credits" onToggle={load}>

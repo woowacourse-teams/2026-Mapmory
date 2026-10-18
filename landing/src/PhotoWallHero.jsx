@@ -23,6 +23,7 @@ function PhotoWallHero({ storeActions }) {
   }, []);
 
   const choose = useCallback((key, source) => {
+    if (source === "chip") touchedRef.current = true;
     const next = pickRef.current === key ? null : key;
     pickRef.current = next;
     setPick(next);
