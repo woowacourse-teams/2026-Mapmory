@@ -72,7 +72,7 @@ $pageview → experience_view → experience_start
 $pageview → how_story_view
 → how_story_scene (scene_index = 1) → how_story_scene (scene_index = 2)
 → how_story_scene (scene_index = 3) → how_story_scene (scene_index = 4)
-→ how_story_scene (scene_index = 5)
+→ how_story_scene (scene_index = 5) → how_story_scene (scene_index = 6)
 ```
 
 기기 유형으로 나눈다. 스크롤 이야기와 정적 목록은 머묾의 기준이 다르므로(스크롤: 고정된 화면에 그 장면이 떠 있음, 정적: 그 장면 항목이 절반 이상 보임) `how_story_view` 단계에 `story_mode = scroll`을 건 사본과 `story_mode = static`을 건 사본을 따로 둔다. 장면 이벤트는 그 장면에 0.7초 머물렀을 때만 오므로, 단계 사이 이탈은 "그 장면에서 멈춰 보지 않았다"는 뜻이다. 빠르게 훑고 지나간 장면이나, 새로고침으로 중간 장면에서 다시 시작해 건너뛴 앞 장면은 순서 고정 퍼널에서 그 단계에 잡히지 않는다. `how_story_view`는 첫 장면 이벤트보다 늘 먼저 온다. 02와 합산하지 않는다.
@@ -84,7 +84,7 @@ how_story 배포 전(2026-10-08부터)의 같은 자리는 3단계 사용법(how
 순서 고정 Funnel, 전환 창 1일:
 
 ```text
-how_story_scene (scene_index = 5) → experience_view (experience_type = globe)
+how_story_scene (scene_index = 6) → experience_view (experience_type = globe)
 → download_click (cta_placement ≠ demand_primary)
 ```
 
@@ -93,7 +93,7 @@ how_story_scene (scene_index = 5) → experience_view (experience_type = globe)
 ### 02-d · 사용 방법 방식과 도달 깊이
 
 - `how_story_view`: breakdown `story_mode` (`scroll` 스크롤 이야기, `static` 동작 줄이기·높이 500px 미만 화면·큰 글씨의 정지 장면 목록)
-- 페이지 로드별 도달 깊이: `how_story_view`를 보낸 페이지 로드(distinct_id)를 기준으로 삼고, 같은 distinct_id의 `how_story_scene` 중 가장 큰 `scene_index`를 붙인다. 장면 이벤트가 없는 페이지 로드는 깊이 0이다. `story_mode`는 `how_story_view`에만 있으므로 보기 방식도 view에서 가져와 0~5 분포를 `story_mode`로 나눈다. 장면 이벤트에서 출발하면 깊이 0이 생기지 않고 `story_mode`로도 나눌 수 없다.
+- 페이지 로드별 도달 깊이: `how_story_view`를 보낸 페이지 로드(distinct_id)를 기준으로 삼고, 같은 distinct_id의 `how_story_scene` 중 가장 큰 `scene_index`를 붙인다. 장면 이벤트가 없는 페이지 로드는 깊이 0이다. `story_mode`는 `how_story_view`에만 있으므로 보기 방식도 view에서 가져와 0~6 분포를 `story_mode`로 나눈다(2026-10-18 콘텐츠 교체 전 기간은 0~5). 장면 이벤트에서 출발하면 깊이 0이 생기지 않고 `story_mode`로도 나눌 수 없다.
 
   ```sql
   SELECT v.story_mode AS story_mode, coalesce(s.depth, 0) AS depth, count() AS page_loads

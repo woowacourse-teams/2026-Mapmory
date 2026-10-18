@@ -204,14 +204,14 @@ test("a late dwell timer counts its scene only if a fresh frame still shows it a
 });
 
 test("the section confirms each scene on a fresh frame through the engine before sending it", async () => {
-  const component = await readFile(new URL("../src/TravelReplay.jsx", import.meta.url), "utf8");
-  assert.match(component, /confirm: \(check\) => \{\s*cancelAnimationFrame\(confirmFrame\);\s*confirmFrame = requestAnimationFrame\(\(\) => \{\s*confirmFrame = 0;\s*engine\?\.sample\(\);\s*check\(\);/);
+  const component = await readFile(new URL("../src/PhotoStory.jsx", import.meta.url), "utf8");
+  assert.match(component, /confirm: \(check\) => \{\s*cancelAnimationFrame\(confirmFrame\);\s*confirmFrame = requestAnimationFrame\(\(\) => \{\s*confirmFrame = 0;\s*story\?\.sample\(\);\s*check\(\);/);
   assert.match(component, /cancelAnimationFrame\(confirmFrame\);\s*destroy\(\);/);
 });
 
-test("analytics accept only the two how_story events and keep scene_index to 1..5", () => {
+test("analytics accept only the two how_story events and keep scene_index to 1..6 (six beats since 2026-10-18)", () => {
   assert.match(analyticsSource, /HOW_STORY_VIEW: "how_story_view",\s*HOW_STORY_SCENE: "how_story_scene",/);
   assert.match(analyticsSource, /\["scroll", "static"\]\.includes\(parameters\.story_mode\)/);
-  assert.match(analyticsSource, /parameters\.scene_index >= 1\s*&& parameters\.scene_index <= 5/);
+  assert.match(analyticsSource, /parameters\.scene_index >= 1\s*&& parameters\.scene_index <= 6/);
   assert.doesNotMatch(analyticsSource, /how_play|HOW_PLAY|save_index|selected_photos/);
 });
