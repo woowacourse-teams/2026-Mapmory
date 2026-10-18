@@ -2,17 +2,18 @@ package com.mapmory.shared.presentation.triprecord
 
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
+import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 
 /**
  * 여행 기록 API가 저장할 수 있는 지역 단계와 화면의 선택지를 일치시킨다.
- * 국내는 시·군·구, 해외는 국가까지만 기록할 수 있다.
+ * 국내는 시·군·구와 특별시·광역시·세종·제주, 해외는 국가까지 기록할 수 있다.
  */
 internal fun Location.isSelectableTripRecordDestination(): Boolean = when (type) {
     LocationType.DISTRICT -> countryId == KoreaCountryId
     LocationType.PROVINCE ->
-        countryId != KoreaCountryId &&
+        isSelectableKoreanProvince() || (countryId != KoreaCountryId &&
             regionCode != KoreaCountryCode &&
-            regionCode.length == CountryCodeLength
+            regionCode.length == CountryCodeLength)
 }
 
 // 기록 지역의 국가 코드. 국내 시·군·구는 KR, 해외는 국가 코드 자체다.

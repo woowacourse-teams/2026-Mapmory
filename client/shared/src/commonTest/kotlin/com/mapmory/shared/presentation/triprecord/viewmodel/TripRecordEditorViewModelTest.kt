@@ -621,13 +621,13 @@ class TripRecordEditorViewModelTest {
     }
 
     @Test
-    fun `국내_시도는_여행지로_선택되지_않는다`() = runSuspend {
+    fun `국내_도는_여행지로_선택되지_않는다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
         val viewModel = TripRecordEditorViewModel(
             createTripRecord = CreateTripRecordUseCase(repository),
             updateTripRecord = UpdateTripRecordUseCase(repository),
         )
-        viewModel.selectLocation(Location(1, 1, null, "KR-11", "서울특별시", LocationType.PROVINCE))
+        viewModel.selectLocation(Location(11, 1, null, "KR-41", "경기도", LocationType.PROVINCE))
         viewModel.updateTitle("서울 여행")
         viewModel.updateStartDate("2026-08-01")
         viewModel.addPhotos(listOf(selectedPhoto("content://photo/location")))
@@ -638,6 +638,40 @@ class TripRecordEditorViewModelTest {
             "장소를 선택해 주세요.",
             viewModel.uiState.fieldErrors[TripRecordEditorErrorTarget.LOCATION],
         )
+    }
+
+    @Test
+    fun `시군구가_없는_광역시_검색_결과를_선택하고_저장한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val candidate = PlaceCandidate("busan", "부산", "부산광역시", null, null)
+        val places = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.success(listOf(candidate))
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.success(
+                PlaceSelection(
+                    place = PlaceReference(placeId, "부산"),
+                    countryCode = "KR",
+                    suggestedRegion = PlaceRegionSuggestion("KR", "26"),
+                    manualRegionRequired = true,
+                ),
+            )
+        }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            placeRepository = places,
+            regionCatalog = catalog,
+        )
+        viewModel.startCreating(location = null)
+        viewModel.searchPlaces("부산")
+        viewModel.selectPlace(candidate)
+
+        assertEquals("KR-26", viewModel.uiState.selectedLocation?.regionCode)
+        assertFalse(viewModel.uiState.manualRegionRequired)
+        viewModel.updateStartDate("2026-08-01")
+        viewModel.addPhotos(listOf(selectedPhoto("content://photo/busan")))
+        assertTrue(viewModel.save())
+        assertEquals(catalog.requireByCode("KR-26").id, repository.getTripRecord(1).getOrThrow().locationId)
     }
 
     @Test

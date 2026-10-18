@@ -5,11 +5,11 @@ on:
     branches:
       - develop
       - main
-  push:
-    branches:
-      - develop
-      - main
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -36,7 +36,11 @@ jobs:
             ios:
               - '.github/workflows/ios-ci.yml'
               - 'client/iosApp/**'
-              - 'client/shared/**'
+              - 'client/shared/build.gradle.kts'
+              - 'client/shared/src/commonMain/**'
+              - 'client/shared/src/commonTest/**'
+              - 'client/shared/src/iosMain/**'
+              - 'client/shared/src/iosTest/**'
               - 'client/gradle/**'
               - 'client/build.gradle.kts'
               - 'client/settings.gradle.kts'

@@ -1,6 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
 import com.mapmory.shared.presentation.components.MapmoryPhotoExpansion
+import com.mapmory.shared.presentation.components.PhotoListScrollBar
 import com.mapmory.shared.presentation.components.ScrollToTopEffect
 import com.mapmory.shared.presentation.components.MapmoryPhotoViewer
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
@@ -302,7 +303,8 @@ private fun TripRecordPhotoAlbum(
             }
             PhotoListScrollBar(
                 listState = scrollState,
-                layoutKey = columnCount,
+                contentKey = groups to columnCount,
+                testTag = "album-scrollbar",
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),

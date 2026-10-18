@@ -15,6 +15,7 @@ firebaseBom = "34.18.0"
 googleServices = "4.5.0"
 firebaseCrashlyticsPlugin = "3.0.8"
 coil = "3.5.0"
+playAppUpdate = "2.1.0"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -46,5 +47,6 @@ androidx-test-runner = { module = "androidx.test:runner", version.ref = "android
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+play-app-update = { module = "com.google.android.play:app-update", version.ref = "playAppUpdate" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }

@@ -31,7 +31,7 @@ import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalett
 import com.mapmory.shared.presentation.theme.MapmoryTypography
 import com.mapmory.shared.update.ForceUpdateState
 import com.mapmory.shared.update.ForceUpdateGate
-import kotlinx.coroutines.delay
+import com.mapmory.shared.update.awaitSplashUpdateCheck
 
 @Composable
 fun MapmoryApp(
@@ -78,9 +78,12 @@ fun MapmoryApp(
     var edgeGestureWasInternal by remember { mutableStateOf(false) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
-        delay(SplashDurationMillis)
-        showSplash = false
+    LaunchedEffect(updateState) {
+        if (showSplash || updateState?.isChecking == true) {
+            showSplash = true
+            awaitSplashUpdateCheck(updateState, SplashDurationMillis)
+            showSplash = false
+        }
     }
 
     DisposableEffect(navigation, navigator, backHandlerRegistry) {
@@ -98,8 +101,7 @@ fun MapmoryApp(
     ) {
         ProvideTripRecordPalettes(isDark = isDarkTheme) {
             MaterialTheme(typography = MapmoryTypography()) {
-                updateState?.let { ForceUpdateGate(it, onRetryUpdateCheck) }
-                if (showSplash) {
+                if (showSplash || updateState?.isChecking == true) {
                     MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
                 } else {
                     ProvideScrollToTop {
@@ -147,6 +149,7 @@ fun MapmoryApp(
                         )
                     }
                 }
+                updateState?.let { ForceUpdateGate(it, onRetryUpdateCheck) }
             }
         }
     }

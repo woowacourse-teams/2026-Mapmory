@@ -3,6 +3,11 @@ package com.mapmory.shared.presentation.map.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
@@ -28,6 +34,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -48,6 +55,8 @@ import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -66,6 +75,7 @@ fun KoreaMapArtwork(
 ) {
     val bounds = remember(regions) { KoreaBounds.from(regions) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
+    val coroutineScope = rememberCoroutineScope()
     val currentOnRegionClick by rememberUpdatedState(onRegionClick)
     val textMeasurer = rememberTextMeasurer()
     val isDark = LocalMapmoryTheme.current.isDark
@@ -214,13 +224,13 @@ fun KoreaMapArtwork(
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
-    val currentTransform = rememberUpdatedState(MapTransform(zoom, pan))
     LaunchedEffect(focusRequest?.id, projection, viewportSize) {
         if (focusRequest != null && projection.isValid && viewportSize.width > 0 && viewportSize.height > 0) {
             val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
             pan = (center - projection.project(focusRequest.point)) * zoom
         }
     }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
     val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
     val unvisitedFillColor = if (isDark) Color(0xFF1B2536) else Color(0xFFE7EFE9)
@@ -312,18 +322,35 @@ fun KoreaMapArtwork(
                 detectTransformGestures(
                     panZoomLock = true,
                 ) { centroid, panChange, zoomChange, _ ->
-                    val transform = currentTransform.value
-                    val nextZoom = (transform.zoom * zoomChange).coerceIn(MinZoom, MaxZoom)
-                    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
-                    val focalMapPoint = center +
-                        (centroid - center - transform.pan) / transform.zoom
-                    val nextPan = centroid + panChange - center - (focalMapPoint - center) * nextZoom
-                    zoom = nextZoom
-                    pan = projection.clampPan(
-                        pan = nextPan,
-                        zoom = nextZoom,
-                        viewportSize = viewportSize,
+                    // Read state directly: several pointer events may arrive before recomposition.
+                    val next = transformKoreaMapGesture(
+                        MapTransform(zoom, pan), centroid, panChange, zoomChange, viewportSize,
                     )
+                    zoom = next.zoom
+                    val boundedPan = projection.clampPan(next.pan, next.zoom, viewportSize)
+                    pan = resistKoreaMapOverscroll(next.pan, boundedPan)
+                }
+            }
+            // Observe release without consuming input so taps and the standard pinch detector still work.
+            .pointerInput(viewportSize, projection) {
+                try {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        settleJob?.cancel()
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Final)
+                        } while (event.changes.any { it.pressed })
+                        val target = projection.clampPan(pan, zoom, viewportSize)
+                        if (target != pan) {
+                            settleJob = coroutineScope.launch {
+                                Animatable(pan, Offset.VectorConverter).animateTo(target, tween(180)) {
+                                    pan = value
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    settleJob?.cancel()
                 }
             }
                 .pointerInput(
@@ -338,7 +365,7 @@ fun KoreaMapArtwork(
                     dokdoTapRadius,
                 ) {
                 detectTapGestures { position ->
-                    val transform = currentTransform.value
+                    val transform = MapTransform(zoom, pan)
                     val mapPoint = projection.unproject(position, transform, viewportSize)
                     val dokdoScreenCenter = dokdoTapCenter?.let { tapCenter ->
                         transformMapPoint(tapCenter, transform, viewportSize)
@@ -510,10 +537,30 @@ fun KoreaMapArtwork(
     }
 }
 
-private data class MapTransform(
+internal data class MapTransform(
     val zoom: Float,
     val pan: Offset,
 )
+
+internal fun transformKoreaMapGesture(
+    current: MapTransform,
+    centroid: Offset,
+    panChange: Offset,
+    zoomChange: Float,
+    viewportSize: IntSize,
+): MapTransform {
+    val nextZoom = (current.zoom * zoomChange).coerceIn(MinZoom, MaxZoom)
+    val effectiveScale = nextZoom / current.zoom
+    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    val anchor = centroid - center
+    return MapTransform(
+        zoom = nextZoom,
+        pan = anchor - (anchor - current.pan) * effectiveScale + panChange,
+    )
+}
+
+internal fun resistKoreaMapOverscroll(requested: Offset, bounded: Offset): Offset =
+    bounded + (requested - bounded) * 0.2f
 
 private data class PreparedKoreaRegion(
     val region: ProvincePolygon,
@@ -557,6 +604,7 @@ private val MetropolitanCityLabels = mapOf(
     "KR-30" to "대전광역시",
     "KR-31" to "울산광역시",
     "KR-50" to "세종특별자치시",
+    "KR-49" to "제주특별자치도",
 )
 private val DokdoMapPoint = GeoPoint(longitude = 131.86941f, latitude = 37.24006f)
 
@@ -771,7 +819,11 @@ private fun clampMapAxis(
     viewportSize: Float,
     slack: Float,
 ): Float {
-    if (trailing - leading <= viewportSize) return value.coerceIn(-slack, slack)
+    if (trailing - leading <= viewportSize) {
+        // Match the large-map bounds continuously when its size crosses the viewport size.
+        val centeredPan = viewportSize / 2f - (leading + trailing) / 2f
+        return value.coerceIn(centeredPan - slack, centeredPan + slack)
+    }
     return value.coerceIn(viewportSize - trailing - slack, -leading + slack)
 }
 

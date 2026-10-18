@@ -1,17 +1,17 @@
 # 클라이언트 CI
 
-Mapmory 클라이언트의 `develop` 또는 `main`을 대상으로 하는 Pull Request가 생성·수정되면 GitHub Actions가 변경 경로를 확인합니다.
+Mapmory 클라이언트의 `develop` 또는 `main`을 대상으로 하는 Pull Request가 생성·수정되면 GitHub Actions가 변경 경로를 확인합니다. 병합 후 push에서는 동일 검증을 다시 실행하지 않으며, 필요한 경우 `workflow_dispatch`로 수동 실행할 수 있습니다. 같은 PR에서 새 커밋이 올라오면 이전 PR 검증은 취소됩니다.
 
 ## PR에서 실행하는 검증
 
-`.github/workflows/android-ci.yml`은 다음 작업을 순서대로 실행합니다.
+`.github/workflows/android-ci.yml`은 다음 작업을 한 번의 Gradle 실행으로 수행합니다.
 
 1. `:shared:jvmTest` — 공통 JVM 테스트
 2. `:shared:testAndroidHostTest` — Android 호스트 테스트
 3. `:androidApp:lint` — Android 정적 분석
 4. `:androidApp:assembleDebug` — Android Debug APK 빌드
 
-각 작업을 별도 Step으로 실행하므로 실패한 검증과 로그를 GitHub Actions의 PR Checks 화면에서 바로 확인할 수 있습니다.
+실패한 Gradle 작업은 해당 Step 로그에서 확인할 수 있습니다.
 
 ### Android CI 실행 범위
 
@@ -19,7 +19,10 @@ Android 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합�
 
 - `.github/workflows/android-ci.yml`
 - `client/androidApp/**`
-- `client/shared/**`
+- `client/shared/build.gradle.kts`
+- `client/shared/src/commonMain/**`, `client/shared/src/commonTest/**`
+- `client/shared/src/androidMain/**`, `client/shared/src/androidHostTest/**`, `client/shared/src/androidDeviceTest/**`
+- `client/shared/src/jvmMain/**`, `client/shared/src/jvmTest/**`
 - `client/gradle/**`
 - `client/build.gradle.kts`
 - `client/settings.gradle.kts`
@@ -32,20 +35,14 @@ Android 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합�
 
 ```bash
 cd client
-./gradlew :shared:jvmTest --no-daemon
-./gradlew :shared:testAndroidHostTest --no-daemon
-./gradlew :androidApp:lint --no-daemon
-./gradlew :androidApp:assembleDebug --no-daemon
+./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon
 ```
 
 Windows에서는 `./gradlew` 대신 `gradlew.bat`을 사용합니다.
 
 ```bat
 cd client
-gradlew.bat :shared:jvmTest --no-daemon
-gradlew.bat :shared:testAndroidHostTest --no-daemon
-gradlew.bat :androidApp:lint --no-daemon
-gradlew.bat :androidApp:assembleDebug --no-daemon
+gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon
 ```
 
 ## 실패 시 대응
@@ -75,7 +72,7 @@ gradlew.bat :androidApp:assembleDebug --no-daemon
 
 ## iOS 컴파일 CI
 
-`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR과 push에서 iOS Simulator용 Debug 빌드를 실행합니다.
+`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 iOS Simulator용 Debug 빌드를 실행합니다. 병합 후 push에서는 다시 실행하지 않습니다.
 
 - Runner: `macos-26`
 - Xcode scheme: `Mapmory`
@@ -87,7 +84,9 @@ iOS 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합니다
 
 - `.github/workflows/ios-ci.yml`
 - `client/iosApp/**`
-- `client/shared/**`
+- `client/shared/build.gradle.kts`
+- `client/shared/src/commonMain/**`, `client/shared/src/commonTest/**`
+- `client/shared/src/iosMain/**`, `client/shared/src/iosTest/**`
 - `client/gradle/**`
 - `client/build.gradle.kts`
 - `client/settings.gradle.kts`

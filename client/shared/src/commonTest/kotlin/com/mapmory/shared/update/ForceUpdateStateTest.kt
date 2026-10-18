@@ -35,4 +35,14 @@ class ForceUpdateStateTest {
         state.finishCheck()
         assertTrue(state.isBlocking)
     }
+
+    @Test fun storeUpdatePromptCanBeDismissed() {
+        val state = ForceUpdateState("1.2.2", "https://example.com")
+        state.finishCheck()
+        state.reportStoreUpdateAvailability(true)
+        assertTrue(state.isStoreUpdateAvailable)
+        assertFalse(state.isBlocking)
+        state.dismissStoreUpdate()
+        assertFalse(state.isStoreUpdateAvailable)
+    }
 }

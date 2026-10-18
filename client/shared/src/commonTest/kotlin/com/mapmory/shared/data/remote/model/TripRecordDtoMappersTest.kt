@@ -260,15 +260,26 @@ class ApiDtoMappersTest {
     }
 
     @Test
-    fun `국내_기록은_시군구가_필수이고_제목은_그대로_전송한다`() {
-        val seoul = catalog.requireByCode("KR-11")
+    fun `도_단위_기록은_시군구가_필수이고_제목은_그대로_전송한다`() {
+        val province = catalog.requireByCode("KR-41")
         val japan = catalog.requireByCode("JP")
 
         assertFailsWith<IllegalArgumentException> {
-            draft(locationId = seoul.id, title = "서울 여행").toRequestDto(catalog)
+            draft(locationId = province.id, title = "경기 여행").toRequestDto(catalog)
         }
         val longTitle = "가".repeat(201)
         assertEquals(longTitle, draft(locationId = japan.id, title = longTitle).toRequestDto(catalog).title)
+    }
+
+    @Test
+    fun `특별시_광역시_세종_제주_초안은_시도_코드만_전송한다`() {
+        listOf("11", "26", "27", "28", "29", "30", "31", "50", "49").forEach { code ->
+            val location = catalog.requireByCode("KR-$code")
+            val request = draft(location.id, location.name).toRequestDto(catalog)
+            assertEquals("KR", request.countryCode)
+            assertEquals(code, request.provinceCode)
+            assertEquals(null, request.districtCode)
+        }
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(

@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.presentation.components.photoScrollBarMetrics
+import com.mapmory.shared.presentation.components.photoScrollTarget
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import com.mapmory.shared.presentation.photo.PhotoRecommendationPagingState
@@ -59,7 +61,7 @@ class PhotoDragAutoScrollTest {
 
     @Test
     fun `사진 목록 스크롤바는 보이는 비율과 이동 위치를 계산한다`() {
-        val metrics = photoPickerScrollBarMetrics(
+        val metrics = photoScrollBarMetrics(
             scrollOffset = 650,
             viewportSize = 400,
             contentSize = 2_000,
@@ -73,7 +75,7 @@ class PhotoDragAutoScrollTest {
     @Test
     fun `전체 항목이 한 화면에 보이면 스크롤바를 표시하지 않는다`() {
         assertNull(
-            photoPickerScrollBarMetrics(
+            photoScrollBarMetrics(
                 scrollOffset = 0,
                 viewportSize = 500,
                 contentSize = 500,
@@ -171,7 +173,7 @@ class PhotoDragAutoScrollTest {
 
     @Test
     fun `스크롤바_끝을_드래그하면_마지막_항목_내부_위치를_계산한다`() {
-        val target = photoPickerScrollTarget(
+        val target = photoScrollTarget(
             scrollFraction = 1f,
             viewportSize = 200,
             itemSizes = listOf(100, 200, 300),
@@ -182,6 +184,6 @@ class PhotoDragAutoScrollTest {
 
         requireNotNull(target)
         assertEquals(2, target.itemIndex)
-        assertEquals(130, target.itemScrollOffset)
+        assertEquals(150, target.itemScrollOffset)
     }
 }

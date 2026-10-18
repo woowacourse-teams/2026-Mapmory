@@ -106,6 +106,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation("com.google.firebase:firebase-config")
+    implementation(libs.play.app.update)
     implementation(libs.firebase.crashlytics)
     implementation(libs.ktor.client.core)
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

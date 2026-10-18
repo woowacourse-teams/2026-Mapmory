@@ -10,6 +10,8 @@ class ForceUpdateState(val currentVersion: String, val storeUrl: String) {
         private set
     var isChecking by mutableStateOf(true)
         private set
+    var isStoreUpdateAvailable by mutableStateOf(false)
+        private set
 
     val isUpdateRequired: Boolean
         get() = requiresUpdate(currentVersion, minimumVersion.orEmpty())
@@ -26,6 +28,14 @@ class ForceUpdateState(val currentVersion: String, val storeUrl: String) {
 
     fun finishCheck() {
         isChecking = false
+    }
+
+    fun reportStoreUpdateAvailability(isAvailable: Boolean) {
+        isStoreUpdateAvailable = isAvailable
+    }
+
+    fun dismissStoreUpdate() {
+        isStoreUpdateAvailable = false
     }
 }
 

@@ -20,6 +20,7 @@ import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.model.TopRegionStatistics
+import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
 
@@ -176,7 +177,9 @@ private fun Location.toRegionQuery(
     }
 
     regionCode.startsWith(KoreanProvincePrefix) -> {
-        require(allowKoreanProvince) { "대한민국 기록은 시·군·구까지 선택해야 합니다." }
+        require(allowKoreanProvince || isSelectableKoreanProvince()) {
+            "특별시·광역시·세종·제주 외의 국내 지역은 시·군·구까지 선택해 주세요."
+        }
         RegionQuery(
             countryCode = KoreaCountryCode,
             provinceCode = regionCode.removePrefix(KoreanProvincePrefix),

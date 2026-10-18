@@ -18,6 +18,7 @@ import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMediaDraft
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.dateValidationError
+import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
@@ -399,7 +400,8 @@ class TripRecordEditorViewModel(
                     selectedLocation = location,
                     isSelectingPlace = false,
                     placeSelectionErrorMessage = null,
-                    manualRegionRequired = selection.manualRegionRequired || location == null,
+                    manualRegionRequired = location == null ||
+                        (selection.manualRegionRequired && !location.isSelectableKoreanProvince()),
                 ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
                 location
             },
@@ -697,6 +699,8 @@ private fun PlaceSelection.toSelectableLocation(regionCatalog: RegionCatalog?): 
             catalog.findDistrict(provinceCode, suggestion.districtCode)
                 ?: catalog.findDistrict(provinceCode, suggestion.districtCode.collapseCityDistrictCode())
         }
+        countryCode == KoreaCountryCode && suggestion?.provinceCode != null ->
+            catalog.findByCode("$KoreanProvincePrefix${suggestion.provinceCode}")
         countryCode == KoreaCountryCode -> null
         else -> catalog.findByCode(countryCode)
     }

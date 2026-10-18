@@ -9,14 +9,25 @@ import kotlin.test.assertTrue
 
 class TripRecordDestinationTest {
     @Test
-    fun `국내는_시군구만_여행지_선택지에_포함한다`() {
+    fun `국내는_특별시_광역시_세종_제주과_시군구를_여행지_선택지에_포함한다`() {
         val seoul = location(1, 1, "KR-11", "서울특별시", LocationType.PROVINCE)
         val gangnam = location(2, 1, "11680", "강남구", LocationType.DISTRICT)
         val korea = location(3, 3, "KR", "대한민국", LocationType.PROVINCE)
 
-        assertFalse(seoul.isSelectableTripRecordDestination())
+        assertTrue(seoul.isSelectableTripRecordDestination())
         assertTrue(gangnam.isSelectableTripRecordDestination())
         assertFalse(korea.isSelectableTripRecordDestination())
+    }
+
+    @Test
+    fun `특별시_광역시_세종_제주_전체를_허용하고_그외_도_단위는_허용하지_않는다`() {
+        val catalog = com.mapmory.shared.data.local.StaticRegionCatalog()
+        listOf("11", "26", "27", "28", "29", "30", "31", "50", "49").forEach { code ->
+            assertTrue(catalog.requireByCode("KR-$code").isSelectableTripRecordDestination())
+        }
+        listOf("41", "42", "43", "44", "45", "46", "47", "48").forEach { code ->
+            assertFalse(catalog.requireByCode("KR-$code").isSelectableTripRecordDestination())
+        }
     }
 
     @Test
@@ -38,7 +49,7 @@ class TripRecordDestinationTest {
         )
 
         assertEquals(
-            listOf("11680", "JP"),
+            listOf("KR-11", "11680", "JP"),
             locations.selectableTripRecordDestinations().map(Location::regionCode),
         )
     }

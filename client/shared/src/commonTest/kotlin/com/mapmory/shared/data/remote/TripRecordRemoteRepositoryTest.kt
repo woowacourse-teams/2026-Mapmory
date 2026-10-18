@@ -13,6 +13,10 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -105,6 +109,9 @@ class TripRecordRemoteRepositoryTest {
                     assertEquals("POST", request.method.value)
                     val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
                     assertTrue("\"title\":\"\"" in body)
+                    val regionBody = Json.parseToJsonElement(body).jsonObject
+                    assertEquals(JsonNull, regionBody.getValue("provinceCode"))
+                    assertEquals(JsonNull, regionBody.getValue("districtCode"))
                     jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
                 }
 
@@ -229,6 +236,43 @@ class TripRecordRemoteRepositoryTest {
         val result = repository(client).deleteTripRecord(101)
 
         assertTrue(result.isSuccess)
+        client.close()
+    }
+
+    @Test
+    fun `광역시_기록_생성과_수정은_districtCode_null을_전송하고_상세를_복원한다`() = runBlocking {
+        val busan = catalog.requireByCode("KR-26")
+        var requestCount = 0
+        val detail = detailResponse("부산 여행").replace(
+            "\"province\":{\"code\":\"49\",\"name\":\"제주특별자치도\"},\"district\":{\"code\":\"50110\",\"name\":\"제주시\"}",
+            "\"province\":{\"code\":\"26\",\"name\":\"부산광역시\"},\"district\":null",
+        )
+        val client = client { request ->
+            requestCount += 1
+            if (request.method.value != "GET") {
+                val body = Json.parseToJsonElement(assertIs<io.ktor.http.content.TextContent>(request.body).text).jsonObject
+                assertEquals("KR", body.getValue("countryCode").jsonPrimitive.content)
+                assertEquals("26", body.getValue("provinceCode").jsonPrimitive.content)
+                assertEquals(JsonNull, body.getValue("districtCode"))
+            }
+            if (request.method.value == "POST") {
+                jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
+            } else {
+                jsonResponse(detail)
+            }
+        }
+        val repository = repository(client)
+        val draft = TripRecordDraft(
+            locationId = busan.id,
+            title = "부산 여행",
+            content = "",
+            startDate = "2026-08-11",
+            endDate = null,
+            mediaObjectKeys = listOf("travel-records/guest/a.jpg"),
+        )
+        assertEquals(busan.id, repository.createTripRecord(draft).getOrThrow().locationId)
+        assertEquals(busan.id, repository.updateTripRecord(101, draft).getOrThrow().locationId)
+        assertEquals(3, requestCount)
         client.close()
     }
 

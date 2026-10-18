@@ -60,6 +60,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -558,14 +560,14 @@ fun TripRecordEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                    .padding(vertical = 4.dp),
             ) {
-                Text("이 장소에서 찍은 사진", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("이 장소에서 찍은 사진", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp))
                 Text(
                     "사진에 저장된 촬영 위치를 기준으로 찾았어요.",
                     color = TripRecordPalette.current.muted,
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier.padding(start = 20.dp, top = 6.dp, end = 20.dp),
                 )
                 Text(
                     text = recommendationSelectionMessage
@@ -577,7 +579,7 @@ fun TripRecordEditorScreen(
                         TripRecordPalette.current.danger
                     },
                     fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier.padding(start = 20.dp, top = 6.dp, end = 20.dp),
                 )
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
@@ -587,8 +589,8 @@ fun TripRecordEditorScreen(
                         .heightIn(min = 120.dp, max = 360.dp)
                         .testTag(PhotoRecommendationGridTestTag),
                     contentPadding = PaddingValues(top = 18.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     gridItems(
                         items = recommendationPagingState.photos,
@@ -659,7 +661,7 @@ fun TripRecordEditorScreen(
                     },
                     enabled = recommendationPagingState.selectedIds.isNotEmpty() &&
                         !isPreparingRecommendationPhotos,
-                    modifier = Modifier.align(Alignment.End),
+                    modifier = Modifier.align(Alignment.End).padding(horizontal = 20.dp),
                 ) {
                     Text(
                         if (isPreparingRecommendationPhotos) {
@@ -1168,43 +1170,49 @@ private fun RecommendedPhoto(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .testTag("photo-recommendation-item-${photo.id}")
-                .clip(RoundedCornerShape(18.dp))
-                .clickable(onClick = onClick),
-        ) {
-            PhotoPreview(photo, Modifier.fillMaxSize())
-            if (selected) {
-                Text(
-                    "✓",
-                    color = TripRecordPalette.current.text,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(7.dp)
-                        .background(TripRecordPalette.current.accent, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                )
-            }
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .testTag("photo-recommendation-item-${photo.id}")
+            .clickable(onClick = onClick),
+    ) {
+        PhotoPreview(photo, Modifier.fillMaxSize(), shape = RectangleShape)
         Text(
             text = photo.capturedAt ?: photo.displayName,
-            color = TripRecordPalette.current.muted,
+            color = TripRecordPalette.current.contentOnMedia,
             fontSize = 10.sp,
             maxLines = 1,
-            modifier = Modifier.padding(top = 5.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(TripRecordPalette.current.mediaScrim)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
         )
+        if (selected) {
+            Text(
+                "✓",
+                color = TripRecordPalette.current.text,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(7.dp)
+                    .background(TripRecordPalette.current.accent, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+            )
+        }
     }
 }
 
 @Composable
-private fun PhotoPreview(photo: SelectedPhoto, modifier: Modifier = Modifier) {
+private fun PhotoPreview(
+    photo: SelectedPhoto,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(18.dp),
+) {
     MapmoryAsyncImage(
         imageBytes = photo.previewBytes,
+        shape = shape,
         contentDescription = photo.displayName,
         modifier = modifier,
     )
