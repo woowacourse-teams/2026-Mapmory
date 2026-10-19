@@ -102,7 +102,7 @@ try {
     assert.deepEqual((await storyEvents(page, "experience_cta_click")).map(([, , props]) => props.cta_placement), mobile ? [] : ["header_nav"]);
     if (mobile) await page.goBack();
     if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.experience_type === "globe" && props.cta_placement === "how_section"));
-    await page.locator("#download").getByRole("link", { name: "아이폰 App Store", exact: true }).click();
+    await page.locator("#download").getByRole("link", { name: "iOS App Store", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
     const storeClicks = (await events()).filter(([, name]) => name === "download_click");
@@ -168,7 +168,7 @@ try {
     await page.locator(".wall-hero").getByRole("button", { name: /^일본/ }).click();
     const chip = (await dataLayerEvents(page)).filter(([, name]) => name === "hero_demo_select");
     assert.deepEqual(chip.map(([, , props]) => [props.experience_type, props.demo_place]), [["hero_demo", "japan"]]);
-    await page.locator(".wall-hero").getByRole("link", { name: "아이폰 앱 받기", exact: true }).click();
+    await page.locator(".wall-hero").getByRole("link", { name: "iOS 앱 받기", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
     const heroClick = (await dataLayerEvents(page)).filter(([, name]) => name === "download_click").at(-1);
