@@ -937,8 +937,8 @@ function App() {
       <PhotoWallHero
         storeActions={(
           <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
-            <StoreButton placement="hero" platform="ios" label="아이폰 앱 받기" />
-            <StoreButton placement="hero" platform="android" label="갤럭시 앱 받기" />
+            <StoreButton placement="hero" platform="ios" label="iOS 앱 받기" />
+            <StoreButton placement="hero" platform="android" label="Android 앱 받기" />
           </div>
         )}
       />
@@ -1020,8 +1020,8 @@ function App() {
       <section className="download-section" id="download">
         <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요.</h2>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
-          <StoreButton placement="final" platform="ios" label={<>아이폰 <small>App Store</small></>} />
-          <StoreButton placement="final" platform="android" label={<>갤럭시 <small>Google Play</small></>} />
+          <StoreButton placement="final" platform="ios" label={<>iOS <small>App Store</small></>} />
+          <StoreButton placement="final" platform="android" label={<>Android <small>Google Play</small></>} />
         </div>
         <p className="download-free">{FREE_LINE}</p>
         <p className="trust-line download-trust"><ShieldCheck size={18} weight="fill" />{TRUST_LINE}</p>

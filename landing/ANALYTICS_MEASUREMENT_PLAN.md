@@ -45,7 +45,7 @@
 체험 유형: `globe`. (`how_play`는 2026-10-08부터 how_story 배포일까지. `how_story`는 `experience_*`를 보내지 않고 `experience_cta_click`·`how_story_*`에만 붙음. `korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)
 `experience_view`·`experience_start`·`experience_end`를 세는 보고서는 반드시 `experience_type`으로 거른다. 사용법 섹션이 히어로 바로 아래라 합치면 지구본 노출이 약 두 배로 보인다. `demo_place` 분석도 이벤트 이름을 먼저 고정한다.
 체험 진입 위치: `header_nav`, `how_section`(사용 방법 섹션 아래 지구본 미리 보기 링크). (`hero`, `hero_mobile`, `hero_handoff`, `hero_reduced_handoff`는 2026-10 사진 찾기 히어로 교체 전 데이터에만 있음)
-스토어 위치: `header`, `hero`, `final` (Recap은 `demand_primary`). (`replay`는 2026-10-15~10-18 여행 리플레이 끝 카드에만 있음; 2026-10-18 히어로 버튼은 `아이폰 앱 받기`·`갤럭시 앱 받기`로 바뀌었고 위치 값은 `hero` 그대로)
+스토어 위치: `header`, `hero`, `final` (Recap은 `demand_primary`). (`replay`는 2026-10-15~10-18 여행 리플레이 끝 카드에만 있음; 2026-10-18 히어로 버튼은 `아이폰 앱 받기`·`갤럭시 앱 받기`로, 2026-10-19 `iOS 앱 받기`·`Android 앱 받기`로 바뀌었고 위치 값은 `hero` 그대로)
 `waitlist_*`는 비노출 폴백으로 보존하지만 현재 퍼널에서 제외한다.
 
 체험시간은 탭과 영역이 함께 보이는 동안만 누적한다. 종료 전송은 브라우저 종료 시 누락될 수 있다.
