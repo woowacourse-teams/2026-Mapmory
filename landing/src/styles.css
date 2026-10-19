@@ -353,6 +353,59 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .waitlist-feedback { grid-column: 1 / -1; margin: 5px 0 0; padding: 11px 13px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .waitlist-feedback.is-success { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 .waitlist-feedback.is-error { color: #bd3a3a; background: color-mix(in srgb, #ef5350 10%, var(--surface)); }
+/* Trust and FAQ (moved from the old photo-finder-hero.css with the 2026-10-18 hero). */
+.trust-section { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 64px 0 96px; scroll-margin-top: 100px; }
+
+/* Trust: one boundary panel, on the phone -> only picked photos on save. Deleting sits outside it. */
+.trust-section .section-heading { max-width: 760px; margin: 0 auto 28px; text-align: left; }
+.trust-flow {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+}
+.trust-zone { padding: 22px 22px 24px; border-radius: 16px; }
+.trust-zone.is-device { background: var(--canvas); border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
+.trust-zone-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.trust-zone-label svg { flex: 0 0 auto; color: var(--accent-strong); }
+.trust-zone h3 { margin: 12px 0 6px; font-size: 18px; line-height: 1.4; word-break: keep-all; }
+.trust-zone p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; word-break: keep-all; }
+.trust-arrow { display: grid; place-items: center; color: var(--muted); }
+
+.faq-list { max-width: 760px; margin: 44px auto 0; }
+.faq-title { margin: 0 0 12px; font-size: 20px; }
+.faq-list details { border-bottom: 1px solid var(--line); }
+.faq-list summary { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; font-weight: 700; cursor: pointer; list-style: none; }
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary svg { flex: 0 0 auto; color: var(--muted); transition: transform 220ms var(--ease-out); }
+.faq-list details[open] summary svg { transform: rotate(180deg); }
+.faq-list details p { margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height: 1.7; word-break: keep-all; }
+.faq-list details[open] > p { animation: faq-in 220ms var(--ease-out) both; }
+@keyframes faq-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* The one-line trust promise at the last conversion point (sketch v11). */
+.trust-line { margin: 14px 0 0; display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 13px; font-weight: 700; word-break: keep-all; }
+.trust-line svg { flex: 0 0 auto; color: var(--accent-strong); }
+.download-section .download-actions { margin-top: 30px; }
+.download-section .button-store small { margin-left: 2px; font-size: 12px; opacity: 0.75; }
+.download-section > p.download-free { margin: 14px 0 0; color: var(--muted); font-size: 13px; font-weight: 700; }
+@media (max-width: 900px) {
+  .trust-flow { grid-template-columns: 1fr; }
+  .trust-arrow { height: 36px; }
+  .trust-arrow svg { transform: rotate(90deg); }
+  .trust-section { width: min(100% - 30px, 720px); }
+}
+@media (max-width: 560px) {
+  .trust-section { width: min(100% - 48px, 520px); padding: 40px 0 64px; }
+  .trust-zone { padding: 18px; }
+  .faq-list { margin-top: 36px; }
+}
+
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 footer { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 40px 0 50px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-end; color: var(--muted); font-size: 12px; }

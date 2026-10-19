@@ -7,3 +7,8 @@ function hasFinalConsonant(word) {
 export function withObjectParticle(word) {
   return `${word}${hasFinalConsonant(word) ? "을" : "를"}`;
 }
+
+// 은/는 the same way: "제주는", "일본은", "미국은".
+export function withTopicParticle(word) {
+  return `${word}${hasFinalConsonant(word) ? "은" : "는"}`;
+}
