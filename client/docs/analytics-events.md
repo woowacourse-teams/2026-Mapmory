@@ -20,8 +20,8 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 | 지도 탐색 | 기존 화면·scope·지역 선택 + `map_retry_clicked` | root/region 조회 결과는 공통 operation 이벤트 |
 | 하단 탭 | 기존 `bottom_nav_clicked` | 각 아이콘·픽셀·스크롤마다 중복 계측하지 않음 |
 | 기록 작성 | 기존 시작·단계·필드 상호작용·이탈·저장 시작·대기 | 제목/본문 자체는 전송하지 않음 |
-| 실제 생성·수정 | `record_save_completed(mode=create/edit, record_id, photo_count, has_title, has_end_date, has_photos, has_content, has_tags)` | 생성은 repository 성공 후 새로 보완. 수정은 기존 화면의 save 성공 처리 지점과 기존 파라미터를 유지하고 record_id만 추가. repository에서는 수정 완료를 중복 발행하지 않음 |
-| 백그라운드 실패 | `record_background_save_failed` | 자동 재시도까지 끝나고 실패 상태가 된 작업 사이클. 앱 재시작으로 복구한 불확실 상태는 과거 실패로 재발행하지 않음 |
+| 실제 생성·수정 | `record_save_completed(mode=create/edit, record_id, photo_count, has_title, has_end_date, has_photos, has_content, has_tags)` | 생성은 백그라운드 저장 큐의 최종 성공 시점에 한 번 발행한다. repository는 공통 작업 결과만 측정한다. 수정은 기존 화면의 save 성공 처리 지점과 기존 파라미터를 유지하고 record_id만 추가. repository에서는 수정 완료를 중복 발행하지 않음 |
+| 백그라운드 실패 | `record_save_failed(save_mode=background)` | 자동 재시도까지 끝나고 실패 상태가 된 작업 사이클. 앱 재시작으로 복구한 불확실 상태는 과거 실패로 재발행하지 않음 |
 | 백그라운드 복구 행동 | `record_save_retry`, `record_save_discarded` | 실패 상태의 유효한 재시도/폐기만 기록 |
 | 기록 목록 | 기존 필터·페이지·재시도, `journal_record_opened(record_id, source=journal)` | 목록 클릭이며 성공 열람과 구별 |
 | 기록 열람 | `record_viewed(record_id)` | 상세 데이터가 성공적으로 표시된 탐색 진입당 1회. recomposition·동일 entry 복원·수정 후 새로고침으로 중복하지 않음. 편집용 데이터 조회는 열람으로 세지 않음 |

@@ -65,6 +65,7 @@ class BackgroundTripRecordSaver internal constructor(
     private val mutableSaves = MutableStateFlow<List<BackgroundTripRecordSave>>(emptyList())
     private var nextId = 0L
     private val attemptStarts = mutableMapOf<Long, TimeSource.Monotonic.ValueTimeMark>()
+    private val queuedAt = mutableMapOf<Long, TimeSource.Monotonic.ValueTimeMark>()
 
     val saves: StateFlow<List<BackgroundTripRecordSave>> = mutableSaves.asStateFlow()
     private val mutablePendingPhotoIds = MutableStateFlow<Set<String>>(emptySet())
@@ -103,6 +104,7 @@ class BackgroundTripRecordSaver internal constructor(
     fun enqueue(draft: TripRecordDraft, locationName: String): Long {
         val id = ++nextId
         drafts[id] = draft
+        queuedAt[id] = TimeSource.Monotonic.markNow()
         updatePendingPhotoIds()
         mutableSaves.update { current ->
             current + BackgroundTripRecordSave(
@@ -126,6 +128,7 @@ class BackgroundTripRecordSaver internal constructor(
         if (failed.status != BackgroundSaveStatus.FAILED) return
         analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_RETRY)
         serverSaveStarted.remove(id)
+        queuedAt[id] = TimeSource.Monotonic.markNow()
         persist()
         mutableSaves.update { current ->
             current.map { save ->
@@ -150,6 +153,7 @@ class BackgroundTripRecordSaver internal constructor(
         val discarded = drafts.remove(id)
         serverSaveStarted.remove(id)
         attemptStarts.remove(id)
+        queuedAt.remove(id)
         updatePendingPhotoIds()
         mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
         persist()
@@ -178,7 +182,7 @@ class BackgroundTripRecordSaver internal constructor(
                 } catch (error: kotlinx.coroutines.CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    analytics.emit(MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED)
+                    logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, error)
                     mutableSaves.update { saves -> saves.map { save ->
                         if (save.id == id) save.copy(status = BackgroundSaveStatus.FAILED, errorMessage = error.toBackgroundSaveMessage()) else save
                     } }
@@ -220,9 +224,11 @@ class BackgroundTripRecordSaver internal constructor(
         }
 
         result.fold(
-            onSuccess = {
+            onSuccess = { record ->
+                logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, recordId = record.id)
                 val completed = mutableSaves.value.firstOrNull { it.id == id }
                 attemptStarts.remove(id)
+                queuedAt.remove(id)
                 drafts.remove(id)
                 serverSaveStarted.remove(id)
                 updatePendingPhotoIds()
@@ -233,7 +239,7 @@ class BackgroundTripRecordSaver internal constructor(
             },
             onFailure = { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                analytics.emit(MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED)
+                logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, error)
                 val message = error.toBackgroundSaveMessage()
                 mutableSaves.update { current ->
                     current.map { save ->
@@ -289,6 +295,24 @@ class BackgroundTripRecordSaver internal constructor(
         mutableSaves.value.firstOrNull { it.id == id }?.let(execution::onProgress)
     }
 
+    // 편집 화면의 저장 이벤트와 같은 이름·파라미터로 자동 재시도까지 끝난 최종 결과만 남긴다.
+    private fun logSaveResult(id: Long, event: String, error: Throwable? = null, recordId: Long? = null) {
+        val draft = drafts[id] ?: return
+        val parameters = buildMap {
+            recordId?.let { put("record_id", it.toString()) }
+            put("photo_count", draft.mediaObjectKeys.size.toString())
+            put("mode", "create")
+            put("save_mode", "background")
+            put("has_title", draft.title.isNotBlank().toString())
+            put("has_content", (!draft.content.isNullOrBlank()).toString())
+            put("has_end_date", (!draft.endDate.isNullOrBlank()).toString())
+            put("has_tags", draft.tagIds.isNotEmpty().toString())
+            put("has_photos", draft.mediaObjectKeys.isNotEmpty().toString())
+            queuedAt[id]?.let { put("duration_ms", it.elapsedNow().inWholeMilliseconds.toString()) }
+            error?.let { put("error_type", it::class.simpleName ?: "unknown") }
+        }
+        analytics.emit(event, parameters)
+    }
 }
 
 private fun Throwable.toBackgroundSaveMessage(): String {

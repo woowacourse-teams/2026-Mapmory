@@ -43,7 +43,7 @@ class AnalyticsRepositoriesTest {
         withTimeout(5_000) { saver.saves.first { it.isEmpty() } }
         assertEquals(2, attempts)
         assertEquals(listOf(50), progress)
-        assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED })
+        assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.RECORD_SAVE_FAILED })
         assertEquals(2, analytics.events.count { it.first == MapmoryAnalyticsEvent.OPERATION_COMPLETED })
         assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.APP_ERROR })
         val completed = analytics.events.single { it.first == MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED }.second
@@ -73,7 +73,7 @@ class AnalyticsRepositoriesTest {
         withTimeout(5_000) { saver.saves.first { it.singleOrNull()?.status == BackgroundSaveStatus.FAILED } }
         assertEquals(0, analytics.events.count { it.first == MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED })
         assertEquals(2, analytics.events.count { it.first == MapmoryAnalyticsEvent.APP_ERROR })
-        assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED })
+        assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.RECORD_SAVE_FAILED })
         saver.dismissFailure(queuedId)
         saver.dismissFailure(queuedId)
         saver.retry(queuedId)
@@ -91,9 +91,7 @@ class AnalyticsRepositoriesTest {
             repository.updateTripRecord(saved.id, draft()).getOrThrow()
             repository.deleteTripRecord(saved.id).getOrThrow()
             // Edit completion remains at the legacy UI boundary; repository must not duplicate it.
-            assertEquals(listOf("create"), analytics.events.filter {
-                it.first == MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED
-            }.map { it.second["mode"] })
+            assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED })
             assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.RECORD_DELETED })
             assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.RECORD_VIEWED })
             assertTrue(container.tripRecordRepository is ProgressReportingTripRecordRepository)

@@ -45,6 +45,7 @@ class OperationAnalyticsTest {
     @Test fun `telemetry failure cannot change successful business result`() = runBlocking {
         val analytics = object : MapmoryAnalytics {
             override fun logEvent(name: String, parameters: Map<String, String>) { error("logger failed") }
+            override fun setUserProperty(name: String, value: String?) = Unit
         }
         assertEquals(42, analytics.observeOperation("record_create") { Result.success(42) }.getOrThrow())
     }
@@ -58,6 +59,7 @@ class OperationAnalyticsTest {
 }
 
 internal class RecordingAnalytics : MapmoryAnalytics {
+    override fun setUserProperty(name: String, value: String?) = Unit
     val events = mutableListOf<Pair<String, Map<String, String>>>()
     override fun logEvent(name: String, parameters: Map<String, String>) { events += name to parameters }
 }

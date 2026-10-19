@@ -7,18 +7,25 @@ interface MapmoryAnalytics {
         name: String,
         parameters: Map<String, String> = emptyMap(),
     )
+
+    fun setUserProperty(name: String, value: String?)
 }
 
 object NoOpMapmoryAnalytics : MapmoryAnalytics {
     override fun logEvent(name: String, parameters: Map<String, String>) = Unit
+
+    override fun setUserProperty(name: String, value: String?) = Unit
 }
 
 val LocalMapmoryAnalytics = staticCompositionLocalOf<MapmoryAnalytics> {
     NoOpMapmoryAnalytics
 }
 
+object MapmoryAnalyticsUserProperty {
+    const val IS_TEAM = "is_team"
+}
+
 object MapmoryAnalyticsEvent {
-    const val RECORD_BACKGROUND_SAVE_FAILED = "record_background_save_failed"
     const val RECORD_SAVE_RETRY = "record_save_retry"
     const val RECORD_SAVE_DISCARDED = "record_save_discarded"
     const val RECORD_INTRODUCTION_VIEWED = "record_introduction_viewed"

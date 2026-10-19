@@ -2,6 +2,7 @@ package com.mapmory.android
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.data.auth.AndroidAuthTokenStore
@@ -11,6 +12,7 @@ import com.mapmory.shared.data.repository.AndroidTripRecordListCache
 import com.mapmory.shared.data.repository.AndroidMapSummaryCache
 import com.mapmory.shared.data.repository.AndroidTripStatisticsCache
 import com.mapmory.shared.data.settings.AndroidOnboardingPreference
+import com.mapmory.shared.data.settings.AndroidTeamDevicePreference
 import com.mapmory.shared.data.settings.AndroidThemePreference
 
 class MapmoryAppViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,7 +32,6 @@ internal object UploadContainer {
         val configuredApiBaseUrl = application.getString(R.string.mapmory_api_base_url)
         val execution = AndroidBackgroundSaveExecution(application, configuredApiBaseUrl)
         return createGuestRemoteAppContainer(
-            analytics = com.mapmory.android.analytics.FirebaseAnalyticsLogger(application),
             apiBaseUrl = configuredApiBaseUrl,
             tokenStore = AndroidAuthTokenStore(application, configuredApiBaseUrl),
             photoPreviewCache = AndroidPhotoPreviewCache(application),
@@ -40,7 +41,9 @@ internal object UploadContainer {
             tripRecordListCache = AndroidTripRecordListCache(application, configuredApiBaseUrl),
             themePreference = AndroidThemePreference(application),
             onboardingPreference = AndroidOnboardingPreference(application),
+            teamDevicePreference = AndroidTeamDevicePreference(application),
             backgroundSaveExecution = execution,
+            analytics = FirebaseAnalyticsLogger(application),
         ).also { instance = it }
     }
 }

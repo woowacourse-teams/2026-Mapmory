@@ -20,16 +20,6 @@ internal class AnalyticsTripRecordRepository(
         analytics.observeOperation("record_create") {
             (delegate as? ProgressReportingTripRecordRepository)?.createTripRecord(draft, onProgress)
                 ?: delegate.createTripRecord(draft)
-        }.onSuccess { record ->
-            analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, mapOf(
-                "record_id" to record.id.toString(), "mode" to "create",
-                "photo_count" to draft.mediaObjectKeys.size.toString(),
-                "has_title" to draft.title.isNotBlank().toString(),
-                "has_end_date" to (!draft.endDate.isNullOrBlank()).toString(),
-                "has_photos" to draft.mediaObjectKeys.isNotEmpty().toString(),
-                "has_content" to (!draft.content.isNullOrBlank()).toString(),
-                "has_tags" to draft.tagIds.isNotEmpty().toString(),
-            ))
         }
 
     // The existing editor emits record_save_completed for edits, with its original parameters.
