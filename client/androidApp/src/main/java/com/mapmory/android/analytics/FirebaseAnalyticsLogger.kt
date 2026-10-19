@@ -25,6 +25,10 @@ class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
             },
         )
     }
+
+    override fun setUserProperty(name: String, value: String?) {
+        firebaseAnalytics?.setUserProperty(name, value)
+    }
 }
 
 private const val InternalPackageSuffix = ".internal"

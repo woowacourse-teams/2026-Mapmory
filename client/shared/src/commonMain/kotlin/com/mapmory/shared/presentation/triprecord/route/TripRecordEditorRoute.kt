@@ -111,6 +111,7 @@ internal fun TripRecordEditorRoute(
             val state = viewModel.uiState
             val saveParameters = mapOf(
                 "mode" to mode,
+                "save_mode" to if (recordId == null) "background" else "foreground",
                 "has_title" to state.title.isNotBlank().toString(),
                 "has_content" to state.content.isNotBlank().toString(),
                 "has_end_date" to state.endDate.isNotBlank().toString(),
