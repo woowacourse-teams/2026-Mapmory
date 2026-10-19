@@ -51,8 +51,8 @@ test("the hero is the sketch's example roll: 제주 / 일본 / 미국, 4.5 s aut
 test("chip taps keep the hero_demo_select contract; the auto-pick is never measured", () => {
   assert.match(hero, /if \(next && source === "chip"\) trackEvent\(ANALYTICS_EVENTS\.HERO_DEMO_SELECT, \{ experience_type: "hero_demo", demo_place: next \}\);/);
   assert.match(hero, /choose\(HERO_AUTO_PICK, "autoplay"\)/);
-  assert.match(app, /<StoreButton placement="hero" platform="ios" label="아이폰 앱 받기" \/>/);
-  assert.match(app, /<StoreButton placement="hero" platform="android" label="갤럭시 앱 받기" \/>/);
+  assert.match(app, /<StoreButton placement="hero" platform="ios" label="iOS 앱 받기" \/>/);
+  assert.match(app, /<StoreButton placement="hero" platform="android" label="Android 앱 받기" \/>/);
   assert.match(app, /<StoreButton placement="final" platform="ios"/);
   assert.match(app, /<StoreButton placement="final" platform="android"/);
   assert.doesNotMatch(app, /placement="replay"|PhotoFinderHero|TravelReplay|<LaunchWaitlistForm/);
