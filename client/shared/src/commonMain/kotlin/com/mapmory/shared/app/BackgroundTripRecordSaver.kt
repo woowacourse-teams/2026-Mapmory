@@ -1,5 +1,6 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.media.PhotoPreviewCache
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -56,6 +57,7 @@ class BackgroundTripRecordSaver internal constructor(
     private val onSaved: () -> Unit = {},
     private val automaticRetryDelayMillis: Long = AutomaticRetryDelayMillis,
     private val localPhotoDataSource: com.mapmory.shared.data.media.LocalPhotoDataSource? = null,
+    private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ) {
     private val queueMutex = Mutex()
     private val serverSaveStarted = mutableSetOf<Long>()
@@ -122,6 +124,7 @@ class BackgroundTripRecordSaver internal constructor(
         if (drafts[id] == null) return
         val failed = mutableSaves.value.firstOrNull { save -> save.id == id } ?: return
         if (failed.status != BackgroundSaveStatus.FAILED) return
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_RETRY)
         serverSaveStarted.remove(id)
         persist()
         mutableSaves.update { current ->
@@ -143,6 +146,7 @@ class BackgroundTripRecordSaver internal constructor(
 
     fun dismissFailure(id: Long) {
         if (mutableSaves.value.none { it.id == id && it.status == BackgroundSaveStatus.FAILED }) return
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_DISCARDED)
         val discarded = drafts.remove(id)
         serverSaveStarted.remove(id)
         attemptStarts.remove(id)
@@ -174,6 +178,7 @@ class BackgroundTripRecordSaver internal constructor(
                 } catch (error: kotlinx.coroutines.CancellationException) {
                     throw error
                 } catch (error: Exception) {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED)
                     mutableSaves.update { saves -> saves.map { save ->
                         if (save.id == id) save.copy(status = BackgroundSaveStatus.FAILED, errorMessage = error.toBackgroundSaveMessage()) else save
                     } }
@@ -183,7 +188,14 @@ class BackgroundTripRecordSaver internal constructor(
     }
 
     private suspend fun save(id: Long) {
-        val draft = prepareDraft(id) ?: return
+        val draft = try {
+            prepareDraft(id)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            analytics.reportFailure("record_save_prepare", error)
+            throw error
+        } ?: return
         mutableSaves.update { current ->
             current.map { save ->
                 if (save.id == id) {
@@ -220,6 +232,8 @@ class BackgroundTripRecordSaver internal constructor(
                 onSaved()
             },
             onFailure = { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                analytics.emit(MapmoryAnalyticsEvent.RECORD_BACKGROUND_SAVE_FAILED)
                 val message = error.toBackgroundSaveMessage()
                 mutableSaves.update { current ->
                     current.map { save ->

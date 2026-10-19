@@ -99,6 +99,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionScope
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.model.Location
@@ -472,6 +473,10 @@ internal fun NewTripRecordFlowScreen(
                     preselectedIds = preselectedLocalPhotoIds,
                 )
                 ?.let { nextState ->
+                    analytics.emit(MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_PAGE_LOADED, mapOf(
+                        "result_count" to page.photos.size.toString(),
+                        "has_more" to page.hasMore.toString(),
+                    ))
                     recommendationPagingState = if (isSelectingAllPhotos) {
                         nextState.selectAllLoadedPhotos()
                     } else {
@@ -505,7 +510,10 @@ internal fun NewTripRecordFlowScreen(
             isPreparingPhotoPreviews = progress.total > 0 && progress.processed >= progress.total
         },
         { isLoading -> isRecommendationLoading = isLoading },
-        { issue -> photoPermissionIssue = issue },
+        { issue ->
+            analytics.emit(MapmoryAnalyticsEvent.PHOTO_PERMISSION_REQUIRED, mapOf("permission_state" to issue.name.lowercase()))
+            photoPermissionIssue = issue
+        },
     )
 
     LaunchedEffect(previewPhotoId) {

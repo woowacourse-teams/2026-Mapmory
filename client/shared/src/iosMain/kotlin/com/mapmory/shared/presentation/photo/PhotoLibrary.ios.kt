@@ -5,6 +5,10 @@
 
 package com.mapmory.shared.presentation.photo
 
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
+import com.mapmory.shared.analytics.reportFailure
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -90,6 +94,7 @@ actual fun rememberPhotoLibraryActions(
 ): PhotoLibraryActions {
     val scope = rememberCoroutineScope()
     val controller = remember(scope) { IosPhotoLibraryController(scope) }
+    controller.analytics = LocalMapmoryAnalytics.current
     controller.onPhotosPicked = onPhotosPicked
     controller.onPhotosRecommended = onPhotosRecommended
     controller.onMessage = onMessage
@@ -151,6 +156,7 @@ private data class PendingIosRecommendation(
 private class IosPhotoLibraryController(
     private val scope: CoroutineScope,
 ) : NSObject(), PHPickerViewControllerDelegateProtocol {
+    var analytics: MapmoryAnalytics = NoOpMapmoryAnalytics
     var onPhotosPicked: (List<SelectedPhoto>) -> Unit = {}
     var onPhotosRecommended: (PhotoRecommendationPage) -> Unit = {}
     var onMessage: (String) -> Unit = {}
@@ -174,6 +180,7 @@ private class IosPhotoLibraryController(
 
     fun presentPicker() {
         val presenter = topViewController() ?: run {
+            analytics.reportFailure("photo_picker_open", IllegalStateException())
             onMessage("사진 선택 화면을 열지 못했어요.")
             return
         }
@@ -209,6 +216,9 @@ private class IosPhotoLibraryController(
                     "pick_total_ms=${startedAtMillis?.let(::elapsedMillis) ?: 0} " +
                         "requested_photos=${results.size} loaded_photos=${loaded.size}",
                 )
+                if (loaded.size < results.size) {
+                    analytics.reportFailure("photo_import", kotlinx.io.IOException())
+                }
                 if (loaded.isEmpty()) {
                     onMessage("선택한 사진을 읽지 못했어요.")
                 } else {
@@ -344,6 +354,7 @@ private class IosPhotoLibraryController(
                 }
                 return@launch
             } catch (error: Exception) {
+                analytics.reportFailure("photo_recommendation", error)
                 if (generation == recommendationGeneration) {
                     logPhotoPerformance(
                         "recommend_total_ms=${elapsedMillis(startedAtMillis)} recommended_photos=0",
@@ -444,6 +455,7 @@ private class IosPhotoLibraryController(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
                 if (generation == recommendationGeneration) {
                     onMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
                 }
@@ -653,6 +665,7 @@ private class IosPhotoLibraryController(
         val available = photos.filter { photo -> isIosLocalPhotoAvailable(photo.id) }
         completion(available)
         if (available.size != photos.size) {
+            analytics.reportFailure("photo_prepare", kotlinx.io.IOException())
             onMessage("일부 사진의 원본을 읽지 못했어요.")
         }
     }

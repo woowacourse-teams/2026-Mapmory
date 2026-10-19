@@ -42,6 +42,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.analytics.emit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -101,6 +104,7 @@ fun TripRecordDetailScreen(
     initialLatestDate: String? = null,
     initialPhotoCount: Int? = null,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
     var expandedPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var forwardPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -192,6 +196,7 @@ fun TripRecordDetailScreen(
                             onEditClick = onEditClick,
                             onDeleteClick = { showDeleteDialog = true },
                             onPhotoClick = { photo ->
+                                analytics.emit(MapmoryAnalyticsEvent.RECORD_PHOTO_OPENED, mapOf("record_id" to record.id.toString()))
                                 forwardPhotoIndex = null
                                 expandedPhotoIndex = orderedPhotos.indexOfFirst { it.id == photo.id }
                                     .takeIf { it >= 0 }

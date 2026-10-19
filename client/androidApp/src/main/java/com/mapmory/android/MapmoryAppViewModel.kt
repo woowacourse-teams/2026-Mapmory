@@ -30,6 +30,7 @@ internal object UploadContainer {
         val configuredApiBaseUrl = application.getString(R.string.mapmory_api_base_url)
         val execution = AndroidBackgroundSaveExecution(application, configuredApiBaseUrl)
         return createGuestRemoteAppContainer(
+            analytics = com.mapmory.android.analytics.FirebaseAnalyticsLogger(application),
             apiBaseUrl = configuredApiBaseUrl,
             tokenStore = AndroidAuthTokenStore(application, configuredApiBaseUrl),
             photoPreviewCache = AndroidPhotoPreviewCache(application),

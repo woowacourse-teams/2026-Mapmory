@@ -15,6 +15,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.analytics.emit
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +51,8 @@ internal fun ServiceFeedbackDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var submitted by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val analytics = LocalMapmoryAnalytics.current
+    LaunchedEffect(Unit) { analytics.emit(MapmoryAnalyticsEvent.FEEDBACK_OPENED) }
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) onDismiss() },

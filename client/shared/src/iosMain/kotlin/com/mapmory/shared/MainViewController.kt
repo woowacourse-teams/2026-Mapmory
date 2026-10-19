@@ -7,6 +7,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.uikit.EndEdgePanGestureBehavior
 import com.mapmory.shared.analytics.MapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import kotlin.native.Platform
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.app.IosBackgroundSaveExecution
 import com.mapmory.shared.data.auth.AuthTokenStore
@@ -17,13 +18,13 @@ import com.mapmory.shared.data.repository.IosTripStatisticsCache
 import com.mapmory.shared.data.settings.IosOnboardingPreference
 import com.mapmory.shared.data.settings.IosThemePreference
 import kotlin.experimental.ExperimentalNativeApi
-import kotlin.native.Platform
 
 private var iosContainer: com.mapmory.shared.app.AppContainer? = null
 private var iosAnalytics: MapmoryAnalytics = com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 
 /** Bootstrap the same queue for a system relaunch, even when SwiftUI has no visible window. */
-fun resumeBackgroundUploads(apiBaseUrl: String, tokenStore: AuthTokenStore) {
+fun resumeBackgroundUploads(apiBaseUrl: String, tokenStore: AuthTokenStore, analytics: MapmoryAnalytics) {
+    iosAnalytics = analytics
     getIosContainer(apiBaseUrl, tokenStore)
 }
 
@@ -50,6 +51,11 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
                         "error_type" to (error::class.simpleName ?: "unknown"),
                     ),
                 )
+            }
+        },
+        analytics = object : MapmoryAnalytics {
+            override fun logEvent(name: String, parameters: Map<String, String>) {
+                iosAnalytics.logEvent(name, parameters)
             }
         },
     ).also { iosContainer = it }

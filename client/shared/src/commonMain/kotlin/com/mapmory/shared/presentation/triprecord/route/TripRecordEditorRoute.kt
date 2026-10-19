@@ -133,7 +133,7 @@ internal fun TripRecordEditorRoute(
                     } else {
                         MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED
                     },
-                    saveParameters,
+                    saveParameters + if (recordId != null) mapOf("record_id" to recordId.toString()) else emptyMap(),
                 )
                 if (recordId == null) {
                     onOpenRecords()

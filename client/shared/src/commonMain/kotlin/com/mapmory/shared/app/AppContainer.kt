@@ -1,5 +1,6 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.auth.AuthTokenStore
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.data.local.StaticRegionCatalog
@@ -169,6 +170,7 @@ private class DefaultAppContainer(
     backgroundSaveExecution: BackgroundSaveExecution,
     private val onClose: () -> Unit,
     localPhotoDataSource: LocalPhotoDataSource?,
+    analytics: MapmoryAnalytics,
 ) : AppContainer {
     private val recordedPhotoIndex = com.mapmory.shared.data.media.RecordedPhotoIndex(photoPreviewCache)
     override val tripRecordRepository: TripRecordRepository =
@@ -182,6 +184,7 @@ private class DefaultAppContainer(
         mutableTripRecordRevision.update { revision -> revision + 1 }
     }
     override val backgroundTripRecordSaver = BackgroundTripRecordSaver(
+        analytics = analytics,
         repository = this.tripRecordRepository,
         scope = backgroundSaveScope,
         execution = backgroundSaveExecution,
@@ -232,23 +235,25 @@ fun createAppContainer(
     placeRepository: PlaceRepository? = null,
     onClose: () -> Unit = {},
     localPhotoDataSource: LocalPhotoDataSource? = null,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
-        delegate = tripStatisticsRepository,
+        delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
         cache = tripStatisticsCache,
     )
     val cachedMapSummary = CachedMapSummaryRepository(
-        delegate = mapSummaryRepository,
+        delegate = AnalyticsMapSummaryRepository(mapSummaryRepository, analytics),
         cache = mapSummaryCache,
     )
     return DefaultAppContainer(
+        analytics = analytics,
         regionCatalog = regionCatalog,
-        tripRecordRepository = tripRecordRepository,
+        tripRecordRepository = AnalyticsTripRecordRepository(tripRecordRepository, analytics),
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
-        serviceFeedbackRepository = serviceFeedbackRepository,
-        tagRepository = tagRepository,
-        placeRepository = placeRepository,
+        serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
+        tagRepository = AnalyticsTagRepository(tagRepository, analytics),
+        placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         thumbnailLoader = thumbnailLoader,
@@ -329,6 +334,7 @@ fun createGuestRemoteAppContainer(
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
 ): AppContainer {
     val client = createHttpClient()
@@ -345,6 +351,7 @@ fun createGuestRemoteAppContainer(
         onboardingPreference = onboardingPreference,
         localPhotoDataSource = localPhotoDataSource,
         backgroundSaveExecution = backgroundSaveExecution,
+        analytics = analytics,
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
     )
@@ -363,6 +370,7 @@ internal fun createGuestRemoteAppContainer(
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
 ): AppContainer {
@@ -431,6 +439,7 @@ internal fun createGuestRemoteAppContainer(
     )
 
     return createAppContainer(
+        analytics = analytics,
         tripRecordRepository = CachedTripRecordRepository(
             delegate = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
             cache = tripRecordListCache,
