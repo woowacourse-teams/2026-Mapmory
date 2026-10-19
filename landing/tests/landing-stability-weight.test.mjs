@@ -6,7 +6,8 @@ import test from "node:test";
 const read = (file) => readFile(new URL(file, import.meta.url), "utf8");
 const app = await read("../src/App.jsx");
 const css = await read("../src/styles.css");
-const engine = await read("../src/travelReplayEngine.js");
+const engines = await Promise.all(["rollStoryEngine.js", "recStoryEngine.js", "heroWallEngine.js", "photoStoryController.js", "storyCanvas.js"].map((f) => read(`../src/${f}`)));
+const firstLoad = await Promise.all(["App.jsx", "PhotoWallHero.jsx", "PhotoStory.jsx", "photoStory.js", "photoStoryController.js", "heroWallEngine.js", "storyCanvas.js", "PhotoCredits.jsx"].map((f) => read(`../src/${f}`)));
 
 // KS X 1001 Hangul = the 2,350 syllables at 0xB0A1-0xC8FE in EUC-KR (what scripts/split-landing-font.py keeps in core)
 const KS_X_1001 = new Set();
@@ -29,10 +30,13 @@ test("localStorage is only touched inside try/catch", () => {
   for (const line of app.split("\n").filter((l) => l.includes("localStorage."))) assert.match(line, /try \{/, line);
 });
 
-test("the replay avoids Array.prototype.at (iOS 14-15.3) and loads the fine map only once scrolled", () => {
-  assert.doesNotMatch(engine, /\.at\(/);
-  assert.match(engine, /if \(b0 > 0\) requestFineMap\(\);/);
-  assert.doesNotMatch(engine.slice(engine.indexOf("function loadGeo"), engine.indexOf("let fineMap")), /replay-countries/);
+test("the stories avoid Array.prototype.at (iOS 14-15.3) and keep maps, d3 and the engines out of the first load", () => {
+  for (const source of engines) assert.doesNotMatch(source, /\.at\(/);
+  // the first-load modules never import geography or the story engines statically
+  for (const source of firstLoad) assert.doesNotMatch(source, /^import [^;]*(d3-geo|topojson-client|world-atlas|story-globe-dots|rollStoryEngine|recStoryEngine|photo-credits)/m);
+  const controller = firstLoad[4];
+  assert.match(controller, /import\("\.\/rollStoryEngine\.js"\), import\("\.\/recStoryEngine\.js"\)/);
+  assert.match(controller, /\{ rootMargin: "100% 0px" \}/);
 });
 
 test("the landing font is the core subset; the ext family loads only for rare syllables", async () => {

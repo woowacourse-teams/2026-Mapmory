@@ -1,0 +1,94 @@
+/* The photo-roll landing (2026-10-18, sketch v11): the hero wall (.wall-hero) and the #how scroll stories (.ps),
+   plus main's .how-section and its globe link. Canvas colours come from the --ps-* tokens below; the dark block at the
+   end restyles both in place when the header's theme toggle flips data-theme. */
+.wall-hero, .ps {
+  --ps-on-accent: #062b1d;
+  --ps-dot: #b7c6bc;
+  --ps-shadow: rgba(25, 54, 39, 0.22);
+  --ps-roll-bg: #eaf1ec;
+  --ps-ocean-hi: #f4f8f5;
+  --ps-ocean-lo: #d9e5dd;
+  --ps-land: #c6d6cc;
+  --ps-land-line: #eef3f0;
+  --ps-graticule: rgba(20, 60, 40, 0.06);
+}
+
+/* ── first screen: the wall fills the viewport under the floating header */
+.wall-hero { --header-space: 84px; position: relative; height: 100vh; height: 100svh; min-height: 560px; margin-top: calc(-1 * var(--header-space)); overflow: hidden; touch-action: pan-y; background: var(--canvas); }
+.wall-hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wall-hero-copy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(720px, calc(100% - 32px)); text-align: center; pointer-events: none; }
+.wall-hero-kicker { display: inline-block; padding: 7px 14px; border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; box-shadow: 0 4px 14px var(--ps-shadow); }
+.wall-hero h1 { margin: 18px 0 0; font-size: clamp(40px, 8vw, 92px); line-height: 1.04; letter-spacing: -0.04em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
+.wall-hero h1 span { display: block; color: var(--accent-strong); text-wrap: balance; }
+.wall-hero-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 26px; pointer-events: auto; }
+.wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 18px var(--ps-shadow); transition: transform 200ms var(--ease-out), background-color 200ms ease, border-color 200ms ease; }
+.wall-hero-chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--ps-on-accent); }
+.wall-hero-chips button small { margin-left: 6px; font-size: inherit; font-weight: 700; opacity: 0.7; }
+.wall-hero-diff { margin: 14px auto 0; max-width: 30em; font-size: 17px; font-weight: 700; opacity: 0.9; word-break: keep-all; text-wrap: balance; }
+.wall-hero-ask { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; padding: 0 16px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 14px; font-weight: 700; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
+@keyframes wall-ask-in { from { opacity: 0; transform: translateY(6px); } }
+.wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; pointer-events: none; }
+.wall-hero-foot .store-buttons { pointer-events: auto; }
+.wall-hero-foot .button-store { min-height: 44px; padding-inline: 16px; border-color: var(--text); border-radius: 12px; background: var(--text); color: var(--canvas); font-size: 13px; }
+@media (hover: hover) and (pointer: fine) {
+  .wall-hero-chips button:hover { transform: translateY(-2px); }
+  .wall-hero-foot .button-store:hover:not(:disabled) { background: var(--text); }
+}
+@media (max-width: 900px) { .wall-hero { --header-space: 80px; } }
+@media (max-width: 760px) {
+  .wall-hero-copy { transform: translate(-50%, -60%); }
+  .wall-hero-chips button { padding: 0 13px; font-size: 14px; }
+}
+@media (max-width: 560px) { .wall-hero { --header-space: 72px; } }
+
+/* ── #how: two pinned stories. The stage is 100svh and sticks while its track scrolls past. */
+.how-section { position: relative; padding: 0 0 72px; }
+.how-section > .how-experience-link { width: fit-content; min-height: 44px; margin: 8px max(24px, calc((100% - 1080px) / 2)) 0; padding: 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.how-section > .how-experience-link:hover { color: var(--accent-ink); }
+.ps-track { position: relative; }
+.ps-roll { height: 330vh; height: 330svh; background: var(--ps-roll-bg); }
+.ps-rec { height: 320vh; height: 320svh; }
+.ps-stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.ps-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ps-rec .ps-canvas { cursor: grab; touch-action: pan-y; }
+.ps-rec .ps-canvas:active { cursor: grabbing; }
+.ps-copy { position: absolute; z-index: 3; left: max(24px, 7vw); top: 50%; transform: translateY(-50%); width: min(30rem, 38vw); min-height: 220px; }
+.ps-beat { position: absolute; inset: 0 auto auto 0; width: 100%; opacity: 0; transform: translateY(12px); transition: opacity 450ms var(--ease-out), transform 450ms var(--ease-out); pointer-events: none; }
+.ps-beat.is-active { opacity: 1; transform: none; pointer-events: auto; }
+.ps-beat h3 { margin: 0 0 14px; font-size: clamp(30px, 3.6vw, 50px); line-height: 1.2; letter-spacing: -0.035em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
+.ps-beat h3 em { font-style: normal; color: var(--accent-strong); }
+.ps-beat p { margin: 0; color: var(--muted); font-size: clamp(15px, 1.25vw, 18px); line-height: 1.6; word-break: keep-all; }
+.ps-beat .ps-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
+.ps-beat p.ps-note { margin-top: 10px; font-size: 12px; opacity: 0.85; }
+@media (max-width: 760px) {
+  .ps-copy { left: 20px; right: 20px; top: 84px; transform: none; width: auto; min-height: 150px; text-align: center; }
+  .ps-beat h3 { margin-bottom: 8px; font-size: 26px; }
+  .ps-beat p { font-size: 14px; }
+}
+@media (max-width: 560px) { .how-section { padding-bottom: 48px; } }
+
+/* Static version (reduced motion, a viewport under 500px tall): each story's words as a list, then its finished frame. */
+.ps.is-static .ps-roll, .ps.is-static .ps-rec { height: auto; }
+.ps.is-static .ps-stage { position: relative; height: auto; overflow: visible; display: grid; gap: 28px; padding: 64px max(24px, calc((100% - 1080px) / 2)) 32px; }
+.ps.is-static .ps-copy { position: static; order: 1; width: auto; max-width: 640px; min-height: 0; display: grid; gap: 32px; transform: none; text-align: left; }
+.ps.is-static .ps-beat { position: static; opacity: 1; transform: none; pointer-events: auto; transition: none; }
+.ps.is-static .ps-canvas { position: relative; inset: auto; order: 2; height: clamp(380px, 70vh, 600px); }
+@media (min-width: 900px) {
+  .ps.is-static .ps-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 48px; }
+  .ps.is-static .ps-canvas { height: clamp(420px, 80vh, 640px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ps-beat, .wall-hero-chips button { transition: none; }
+  .wall-hero-ask { animation: none; }
+}
+
+:root[data-theme="dark"] .wall-hero, :root[data-theme="dark"] .ps {
+  --ps-dot: #3a4b55;
+  --ps-shadow: rgba(0, 0, 0, 0.5);
+  --ps-roll-bg: #0f1a20;
+  --ps-ocean-hi: #1b2b34;
+  --ps-ocean-lo: #111d24;
+  --ps-land: #33454f;
+  --ps-land-line: #0b141a;
+  --ps-graticule: rgba(240, 255, 248, 0.05);
+}
