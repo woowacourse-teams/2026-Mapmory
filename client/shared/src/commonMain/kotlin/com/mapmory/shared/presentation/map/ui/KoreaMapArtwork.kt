@@ -106,9 +106,16 @@ fun KoreaMapArtwork(
     val hasDokdoRegion = remember(regions) {
         regions.any { it.code == DokdoProvinceCode || it.code == DokdoDistrictCode }
     }
-    var overviewData by remember { mutableStateOf<OverviewDistrictData?>(null) }
-    var overviewDistricts by remember { mutableStateOf<List<ProvincePolygon>?>(null) }
-    var overviewProvinces by remember { mutableStateOf<List<ProvincePolygon>?>(null) }
+    // Re-entering from the editor must not first draw a map without cached details.
+    var overviewData by remember {
+        mutableStateOf(GeneratedKoreaDistrictMapData.cachedOverviewData)
+    }
+    var overviewDistricts by remember {
+        mutableStateOf(GeneratedKoreaDistrictMapData.cachedOverviewDistricts)
+    }
+    var overviewProvinces by remember {
+        mutableStateOf(GeneratedKoreaDistrictMapData.cachedOverviewProvinces)
+    }
     var overviewLoadFailed by remember { mutableStateOf(false) }
     var overviewLoadAttempt by remember { mutableStateOf(0) }
     LaunchedEffect(isProvinceOverview, overviewLoadAttempt) {
@@ -594,7 +601,7 @@ private data class PreparedKoreaLabel(
 )
 
 private const val MinZoom = 1f
-private const val MaxZoom = 12f
+private const val MaxZoom = 9f
 private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f

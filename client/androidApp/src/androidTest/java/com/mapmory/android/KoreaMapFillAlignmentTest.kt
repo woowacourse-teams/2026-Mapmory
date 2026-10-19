@@ -97,7 +97,7 @@ class KoreaMapFillAlignmentTest {
             map.performTouchInput { up(0); up(1) }
             composeRule.waitForIdle()
         }
-        val pan = (center - seamPoint) * 12f
+        val pan = (center - seamPoint) * 9f
         val steps = ceil(maxOf(abs(pan.x) / (bounds.width * 0.2f), abs(pan.y) / (bounds.height * 0.2f)))
             .toInt().coerceAtLeast(1)
         repeat(steps) {
@@ -108,9 +108,9 @@ class KoreaMapFillAlignmentTest {
             composeRule.waitForIdle()
         }
         val maximumPixel = locateSeongnamSeamAtMaximum(isDark, bounds.width, bounds.height, seamPoint)
-        val maximumColor = capture(isDark, "maximum-12", maximumPixel)
+        val maximumColor = capture(isDark, "maximum-9", maximumPixel)
         assertVisitedColor(isDark, "initial-1.5", initialColor, tolerance = 40)
-        assertVisitedColor(isDark, "maximum-12", maximumColor, tolerance = 4)
+        assertVisitedColor(isDark, "maximum-9", maximumColor, tolerance = 4)
     }
 
     private fun locateSeongnamSeamAtMaximum(isDark: Boolean, width: Float, height: Float, seam: Offset): Offset {
@@ -133,8 +133,8 @@ class KoreaMapFillAlignmentTest {
         // Exterior extrema stay fixed across the seam fix, calibrating gesture slop without hiding gaps.
         val west = project(width, height, 127.02792f, 37.33493f)
         val east = project(width, height, 127.19543f, 37.33493f)
-        assertTrue("Pinch must reach the 12x limit: actual width=${right - left}, expected=${(east.x - west.x) * 12f}", abs((right - left) - (east.x - west.x) * 12f) <= 5f)
-        return Offset(left + (seam.x - west.x) * 12f, bottom + (seam.y - west.y) * 12f)
+        assertTrue("Pinch must reach the 9x limit: actual width=${right - left}, expected=${(east.x - west.x) * 9f}", abs((right - left) - (east.x - west.x) * 9f) <= 5f)
+        return Offset(left + (seam.x - west.x) * 9f, bottom + (seam.y - west.y) * 9f)
     }
 
     private fun capture(isDark: Boolean, scale: String, pixel: Offset, fixture: String = "seongnam"): Int {

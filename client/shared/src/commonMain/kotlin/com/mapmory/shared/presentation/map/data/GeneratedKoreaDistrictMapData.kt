@@ -12,9 +12,12 @@ import mapmoryclient.shared.generated.resources.Res
  */
 internal object GeneratedKoreaDistrictMapData {
     private val json = Json
-    private var cachedOverviewData: OverviewDistrictData? = null
-    private var cachedOverviewDistricts: List<ProvincePolygon>? = null
-    private var cachedOverviewProvinces: List<ProvincePolygon>? = null
+    var cachedOverviewData: OverviewDistrictData? = null
+        private set
+    var cachedOverviewDistricts: List<ProvincePolygon>? = null
+        private set
+    var cachedOverviewProvinces: List<ProvincePolygon>? = null
+        private set
     private val supportedProvinceCodes = setOf(
         "11", "26", "27", "28", "29", "30", "31", "41", "42",
         "43", "44", "45", "46", "47", "48", "49", "50",

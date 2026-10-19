@@ -12,6 +12,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -106,6 +107,11 @@ internal fun ServiceFeedbackDialog(
                     minLines = 4,
                     maxLines = 6,
                     supportingText = { Text("${content.length}/$MaxServiceFeedbackLength") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TripRecordPalette.current.primary,
+                        unfocusedBorderColor = TripRecordPalette.current.border,
+                        disabledBorderColor = TripRecordPalette.current.border,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 when {

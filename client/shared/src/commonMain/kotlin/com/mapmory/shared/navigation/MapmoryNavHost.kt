@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,7 +40,8 @@ internal fun MapmoryNavHost(
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
-    Box(Modifier.fillMaxSize()) {
+    val gestureMotion = LocalNavigationGestureMotion.current
+    Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
         NavHost(
             navController = navController,
             startDestination = MapRoute,
@@ -50,6 +52,7 @@ internal fun MapmoryNavHost(
             popExitTransition = { ExitTransition.None },
         ) {
         composable<MapRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(NavigationLogTag, "screen=map")
             }
@@ -73,6 +76,7 @@ internal fun MapmoryNavHost(
         }
 
         composable<RecordsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<RecordsRoute>()
             val requestedLocationId by backStackEntry.savedStateHandle
                 .getStateFlow<Long?>(RecordsLocationKey, route.locationId)
@@ -102,6 +106,7 @@ internal fun MapmoryNavHost(
         }
 
         composable<EditorRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<EditorRoute>()
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(
@@ -138,6 +143,7 @@ internal fun MapmoryNavHost(
         }
 
         composable<ProfileRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(NavigationLogTag, "screen=profile")
             }
@@ -158,7 +164,8 @@ internal fun MapmoryNavHost(
             )
         }
 
-        composable<DeveloperToolsRoute> {
+        composable<DeveloperToolsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             if (developerToolsInfo != null) {
                 DeveloperToolsScreen(
                     info = developerToolsInfo,
@@ -171,6 +178,7 @@ internal fun MapmoryNavHost(
         }
 
         composable<DetailRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<DetailRoute>()
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(

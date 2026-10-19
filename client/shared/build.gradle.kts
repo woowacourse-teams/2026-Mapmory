@@ -66,6 +66,11 @@ kotlin {
             implementation(libs.ktor.client.darwin)
         }
 
+        jvmTest.dependencies {
+            // Native renderer for pixel-level navigation regression tests.
+            runtimeOnly(compose.desktop.currentOs)
+        }
+
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.ktor.client.mock)

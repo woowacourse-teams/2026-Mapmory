@@ -92,6 +92,70 @@ class MapmoryNavigationHistoryTest {
         fixture.close()
     }
 
+    @Test
+    fun `cancelled back repeatedly restores entry saved UI state and draft`() = onUiThread {
+        val fixture = Fixture()
+        fixture.navigator.navigateToEditor()
+        val editor = fixture.controller.currentBackStackEntry!!
+        fixture.compose.onTransitionComplete(editor)
+        val draft = Draft().apply { text = "취소해도 유지할 초안" }
+        editor.viewModelStore.put("draft", draft)
+        editor.savedStateHandle["scrollOffset"] = 240
+
+        repeat(3) {
+            val departing = fixture.controller.currentBackStackEntry!!
+            assertTrue(fixture.navigator.navigateBackKeepingState())
+            fixture.compose.onTransitionComplete(departing)
+            // Same inverse operation used by onBackCancelled.
+            assertTrue(fixture.navigator.navigateForward())
+            val restored = fixture.controller.currentBackStackEntry!!
+            fixture.compose.onTransitionComplete(restored)
+            assertEquals(editor.id, restored.id)
+            assertSame(draft, restored.viewModelStore["draft"])
+            assertEquals(240, restored.savedStateHandle.get<Int>("scrollOffset"))
+            assertEquals("취소해도 유지할 초안", draft.text)
+            assertFalse(draft.cleared)
+            assertFalse(fixture.navigator.navigateForward())
+        }
+        fixture.close()
+    }
+
+    @Test
+    fun `cancelled forward preserves remaining forward history and draft`() = onUiThread {
+        val fixture = Fixture()
+        fixture.navigator.navigateToDetail(42)
+        val detail = fixture.controller.currentBackStackEntry!!
+        fixture.navigator.navigateToEditor(recordId = 42)
+        val editor = fixture.controller.currentBackStackEntry!!
+        val draft = Draft().apply { text = "이어서 작성" }
+        editor.viewModelStore.put("draft", draft)
+        assertTrue(fixture.navigator.navigateBackKeepingState())
+        fixture.compose.onTransitionComplete(editor)
+        assertTrue(fixture.navigator.navigateBackKeepingState())
+        fixture.compose.onTransitionComplete(detail)
+        val originId = fixture.controller.currentBackStackEntry!!.id
+
+        repeat(3) {
+            assertTrue(fixture.navigator.navigateForward())
+            val departing = fixture.controller.currentBackStackEntry!!
+            fixture.compose.onTransitionComplete(departing)
+            assertEquals(detail.id, departing.id)
+            // Same inverse operation used by onForwardCancelled.
+            assertTrue(fixture.navigator.navigateBackKeepingState())
+            fixture.compose.onTransitionComplete(departing)
+            assertEquals(originId, fixture.controller.currentBackStackEntry!!.id)
+        }
+        assertTrue(fixture.navigator.navigateForward())
+        assertEquals(detail.id, fixture.controller.currentBackStackEntry!!.id)
+        assertTrue(fixture.navigator.navigateForward())
+        val restored = fixture.controller.currentBackStackEntry!!
+        assertEquals(editor.id, restored.id)
+        assertSame(draft, restored.viewModelStore["draft"])
+        assertFalse(draft.cleared)
+        assertFalse(fixture.navigator.navigateForward())
+        fixture.close()
+    }
+
     private class Draft : ViewModel() {
         var text = ""
         var cleared = false

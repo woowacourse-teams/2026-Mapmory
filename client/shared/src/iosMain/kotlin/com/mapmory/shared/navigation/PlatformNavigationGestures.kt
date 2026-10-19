@@ -4,14 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.backhandler.LocalCompatNavigationEventDispatcherOwner
 import androidx.compose.ui.uikit.LocalUIViewController
@@ -50,7 +48,8 @@ internal actual fun PlatformNavigationGestures(
     var snapshot by remember { mutableStateOf<UIView?>(null) }
     var navigationStarted by remember { mutableStateOf(false) }
     var settling by remember { mutableStateOf(false) }
-    var translatedView by remember { mutableStateOf<UIView?>(null) }
+    var destinationSnapshot by remember { mutableStateOf<UIView?>(null) }
+    var settlement by remember { mutableStateOf<Job?>(null) }
     val latestBackStarted by rememberUpdatedState(onBackStarted)
     val latestBackCancelled by rememberUpdatedState(onBackCancelled)
     val latestForwardStarted by rememberUpdatedState(onForwardStarted)
@@ -61,9 +60,10 @@ internal actual fun PlatformNavigationGestures(
         preparation = null
         destinationReady = false
         pendingProgress = 0f
+        motion.clearBackCover()
         motion.isActive = false
-        translatedView?.setTransform(CGAffineTransformMakeTranslation(0.0, 0.0))
-        translatedView = null
+        destinationSnapshot?.removeFromSuperview()
+        destinationSnapshot = null
         snapshot?.removeFromSuperview()
         snapshot = null
         snapshotWidth = 0.0
@@ -72,9 +72,39 @@ internal actual fun PlatformNavigationGestures(
         settling = false
     }
 
+    fun applyProgress(value: Float) {
+        val offset = value.coerceIn(0f, 1f) * snapshotWidth
+        if (direction < 0f) {
+            destinationSnapshot?.setTransform(CGAffineTransformMakeTranslation(snapshotWidth - offset, 0.0))
+        } else {
+            motion.backProgress = value.coerceIn(0f, 1f)
+        }
+    }
+
     fun beginGesture(nextDirection: Float, navigate: () -> Boolean) {
         if (navigationStarted || settling) return
         removeSnapshot()
+        if (nextDirection > 0f) {
+            direction = nextDirection
+            navigationStarted = true
+            preparation = scope.launch {
+                // Capture before changing either the entry or photo expansion state.
+                motion.captureBackCover()
+                motion.isActive = true
+                if (!navigate()) {
+                    removeSnapshot()
+                    return@launch
+                }
+                progress.snapTo(0f)
+                motion.awaitRenderedContent()
+                destinationReady = true
+                if (!settling) {
+                    progress.snapTo(pendingProgress)
+                    applyProgress(pendingProgress)
+                }
+            }
+            return
+        }
         val rootView = viewController.view
         val parent = rootView.superview ?: return
         val captured = rootView.snapshotViewAfterScreenUpdates(false) ?: return
@@ -82,48 +112,59 @@ internal actual fun PlatformNavigationGestures(
         snapshotWidth = rootView.bounds.useContents { size.width }
         direction = nextDirection
         snapshot = captured
-        if (nextDirection < 0f) {
-            // Keep the current screen stationary underneath the live destination.
-            // The restored forward screen enters from the right, covering this snapshot.
-            captured.setFrame(rootView.frame)
-            parent.insertSubview(captured, belowSubview = rootView)
-            translatedView = rootView
-            rootView.setTransform(CGAffineTransformMakeTranslation(snapshotWidth, 0.0))
-        } else {
-            captured.setFrame(rootView.bounds)
-            rootView.addSubview(captured)
-        }
+        // Forward keeps its UIKit covers without moving the recognizer.
+        captured.setFrame(rootView.frame)
+        parent.addSubview(captured)
         motion.isActive = true
         navigationStarted = navigate()
         if (!navigationStarted) removeSnapshot()
         if (navigationStarted) preparation = scope.launch {
             progress.snapTo(0f)
-            // Navigation changes state synchronously, but Compose draws the destination later.
-            // Keep the outgoing snapshot still until the destination has had a render frame.
-            withFrameNanos { }
-            withFrameNanos { }
+            motion.awaitRenderedContent()
+            if (nextDirection < 0f) {
+                // Only forward needs an incoming cover. For back, capturing here
+                // can freeze the outgoing Metal frame over the live previous screen.
+                val destination = rootView.snapshotViewAfterScreenUpdates(true)
+                if (destination == null) {
+                    latestForwardCancelled()
+                    motion.awaitRenderedContent()
+                    removeSnapshot()
+                    return@launch
+                }
+                destination.userInteractionEnabled = false
+                destination.setFrame(rootView.frame)
+                destinationSnapshot = destination
+                destination.setTransform(CGAffineTransformMakeTranslation(snapshotWidth, 0.0))
+                parent.insertSubview(destination, aboveSubview = captured)
+            }
             destinationReady = true
-            if (!settling) progress.snapTo(pendingProgress)
+            if (!settling) {
+                progress.snapTo(pendingProgress)
+                applyProgress(pendingProgress)
+            }
         }
     }
 
     fun updateGesture(event: NavigationEvent) {
         if (!navigationStarted || settling) return
         pendingProgress = event.progress.coerceIn(0f, 1f)
-        if (destinationReady) scope.launch { progress.snapTo(pendingProgress) }
+        // No animation or queued coroutine while dragging: a stationary finger
+        // must leave the covering screen at exactly the same position.
+        if (destinationReady) applyProgress(pendingProgress)
     }
 
     fun cancelGesture(restore: () -> Unit) {
         if (!navigationStarted || settling) return
         settling = true
-        scope.launch {
+        settlement = scope.launch {
             preparation?.join()
-            progress.animateTo(0f, tween(durationMillis = 180))
+            if (!navigationStarted) return@launch
+            progress.snapTo(pendingProgress)
+            progress.animateTo(0f, tween(durationMillis = 180)) { applyProgress(value) }
             // Restore under the fully covering snapshot (back) or offscreen destination
             // (forward), so the live screen never changes midway through the gesture.
             restore()
-            withFrameNanos { }
-            withFrameNanos { }
+            motion.awaitRenderedContent()
             removeSnapshot()
         }
     }
@@ -131,26 +172,13 @@ internal actual fun PlatformNavigationGestures(
     fun completeGesture() {
         if (!navigationStarted || settling) return
         settling = true
-        scope.launch {
+        settlement = scope.launch {
             preparation?.join()
-            progress.animateTo(1f, tween(durationMillis = 140))
+            if (!navigationStarted) return@launch
+            progress.snapTo(pendingProgress)
+            progress.animateTo(1f, tween(durationMillis = 140)) { applyProgress(value) }
             removeSnapshot()
             progress.snapTo(0f)
-        }
-    }
-
-    val currentProgress = if (destinationReady) progress.value else 0f
-    SideEffect {
-        if (direction < 0f) {
-            translatedView?.setTransform(CGAffineTransformMakeTranslation(
-                tx = (1f - currentProgress) * snapshotWidth,
-                ty = 0.0,
-            ))
-        } else {
-            snapshot?.setTransform(CGAffineTransformMakeTranslation(
-                tx = currentProgress * snapshotWidth,
-                ty = 0.0,
-            ))
         }
     }
 
@@ -185,6 +213,7 @@ internal actual fun PlatformNavigationGestures(
         dispatcher.addHandler(handler)
         onDispose {
             handler.remove()
+            settlement?.cancel()
             removeSnapshot()
         }
     }
