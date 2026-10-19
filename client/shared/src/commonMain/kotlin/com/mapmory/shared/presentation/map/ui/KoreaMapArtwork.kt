@@ -51,6 +51,7 @@ import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.data.OverviewDistrictData
 import com.mapmory.shared.presentation.map.MapFocusRequest
 import com.mapmory.shared.presentation.map.domain.GeoPoint
+import com.mapmory.shared.presentation.map.domain.isWithinRegions
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
@@ -224,8 +225,15 @@ fun KoreaMapArtwork(
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
-    LaunchedEffect(focusRequest?.id, projection, viewportSize) {
-        if (focusRequest != null && projection.isValid && viewportSize.width > 0 && viewportSize.height > 0) {
+    val focusRegions = if (isProvinceOverview) overviewProvinces.orEmpty() else regions
+    LaunchedEffect(focusRequest?.id, projection, viewportSize, zoom, focusRegions) {
+        if (
+            focusRequest != null &&
+            projection.isValid &&
+            viewportSize.width > 0 &&
+            viewportSize.height > 0 &&
+            isWithinRegions(focusRequest.point, focusRegions)
+        ) {
             val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
             pan = (center - projection.project(focusRequest.point)) * zoom
         }

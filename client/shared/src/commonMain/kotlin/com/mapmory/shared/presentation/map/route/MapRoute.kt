@@ -29,7 +29,6 @@ import com.mapmory.shared.presentation.map.ui.KoreaMapStatusMessage
 import com.mapmory.shared.presentation.map.ui.MapArtwork
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
 import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
-import com.mapmory.shared.presentation.triprecord.screen.CurrentLocationConsentDialog
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
 import kotlinx.coroutines.launch
 
@@ -77,7 +76,6 @@ internal fun MapRoute(
     var focusRequest by remember { mutableStateOf<MapFocusRequest?>(null) }
     var focusRequestId by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
-    var showLocationConsent by remember { mutableStateOf(false) }
     val currentLocationActions = rememberCurrentLocationActions(
         onLocation = { point ->
             focusRequestId += 1
@@ -152,6 +150,7 @@ internal fun MapRoute(
                 else -> viewModel.visitedKoreaDistrictCodes.size
             },
             onMapScopeChange = { selectedScope ->
+                currentLocationActions.cancel()
                 gestureClosedProvinceCode = null
                 focusRequest = null
                 analytics.logEvent(
@@ -166,7 +165,8 @@ internal fun MapRoute(
             currentLocationMessage = locationMessage,
             onCurrentLocationClick = {
                 locationMessage = null
-                showLocationConsent = true
+                focusRequest = null
+                currentLocationActions.request()
             },
             mapContent = {
                 when (uiState.scope) {
@@ -175,8 +175,9 @@ internal fun MapRoute(
                         visitedCountryCodes = viewModel.visitedCountryCodes,
                         focusRequest = focusRequest,
                         onCountryClick = { countryCode ->
+                            currentLocationActions.cancel()
+                            focusRequest = null
                             if (countryCode == KoreaCountryCode) {
-                                focusRequest = null
                                 viewModel.changeScope(MapScope.KOREA)
                             } else {
                                 regionCatalog.findByCode(countryCode)?.let(::openLocation)
@@ -193,6 +194,8 @@ internal fun MapRoute(
                             isProvinceOverview = true,
                             focusRequest = focusRequest,
                             onRegionClick = { provinceCode ->
+                                currentLocationActions.cancel()
+                                focusRequest = null
                                 gestureClosedProvinceCode = null
                                 val selectedLocation = regionCatalog.findByCode(provinceCode)
                                 if (selectedLocation?.type == LocationType.DISTRICT) {
@@ -227,6 +230,8 @@ internal fun MapRoute(
                             showRegionLabels = showRegionLabels,
                             focusRequest = focusRequest,
                             onRegionClick = { districtCode ->
+                                currentLocationActions.cancel()
+                                focusRequest = null
                                 regionCatalog.findDistrict(
                                     provinceCode = mapState.provinceCode,
                                     districtCode = districtCode,
@@ -246,6 +251,8 @@ internal fun MapRoute(
                 else -> null
             },
             onMapDetailBackClick = {
+                currentLocationActions.cancel()
+                focusRequest = null
                 gestureClosedProvinceCode = null
                 analytics.logEvent(MapmoryAnalyticsEvent.MAP_DETAIL_BACK_CLICKED)
                 viewModel.closeProvince()
@@ -267,16 +274,6 @@ internal fun MapRoute(
                 },
             )
         }
-    }
-    if (showLocationConsent) {
-        CurrentLocationConsentDialog(
-            onDismissRequest = { showLocationConsent = false },
-            onConfirm = {
-                showLocationConsent = false
-                locationMessage = null
-                currentLocationActions.request()
-            },
-        )
     }
 }
 

@@ -11,6 +11,7 @@ data class MapFocusRequest(
 data class CurrentLocationActions(
     val isLoading: Boolean,
     val request: () -> Unit,
+    val cancel: () -> Unit,
 )
 
 @Composable

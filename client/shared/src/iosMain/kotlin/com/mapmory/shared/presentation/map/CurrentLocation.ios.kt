@@ -37,7 +37,7 @@ actual fun rememberCurrentLocationActions(
     DisposableEffect(controller) {
         onDispose { controller.dispose() }
     }
-    return CurrentLocationActions(controller.isLoading, controller::request)
+    return CurrentLocationActions(controller.isLoading, controller::request, controller::cancel)
 }
 
 private class IosCurrentLocationController(
@@ -64,13 +64,19 @@ private class IosCurrentLocationController(
                 waitingForPermission = true
                 manager.requestWhenInUseAuthorization()
             }
-            else -> fail("현재 위치를 보려면 위치 권한이 필요합니다.")
+            else -> fail("현재 위치 권한이 필요해요. 설정에서 권한을 허용하거나 장소를 직접 검색해 주세요.")
         }
     }
 
     fun dispose() {
-        manager.stopUpdatingLocation()
+        cancel()
         manager.delegate = null
+    }
+
+    fun cancel() {
+        waitingForPermission = false
+        isLoading = false
+        manager.stopUpdatingLocation()
     }
 
     override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
@@ -79,15 +85,16 @@ private class IosCurrentLocationController(
         when (manager.authorizationStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse,
             kCLAuthorizationStatusAuthorizedAlways -> manager.requestLocation()
-            else -> fail("현재 위치를 보려면 위치 권한이 필요합니다.")
+            else -> fail("현재 위치 권한이 필요해요. 설정에서 권한을 허용하거나 장소를 직접 검색해 주세요.")
         }
     }
 
     override fun locationManager(manager: CLLocationManager, didUpdateLocations: List<*>) {
+        if (!isLoading) return
         val location = didUpdateLocations.lastOrNull() as? CLLocation
         isLoading = false
         if (location == null) {
-            onError("현재 위치를 가져오지 못했습니다.")
+            onError("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
             return
         }
         location.coordinate.useContents {
@@ -96,7 +103,7 @@ private class IosCurrentLocationController(
     }
 
     override fun locationManager(manager: CLLocationManager, didFailWithError: NSError) {
-        fail("현재 위치를 가져오지 못했습니다.")
+        if (isLoading) fail("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
     }
 
     private fun fail(message: String) {

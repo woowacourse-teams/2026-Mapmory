@@ -128,6 +128,7 @@ import com.mapmory.shared.presentation.photo.toggleSelection
 import com.mapmory.shared.presentation.triprecord.selectableTripRecordDestinations
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
@@ -369,52 +370,77 @@ internal fun NewTripRecordFlowScreen(
     var previewPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
     var fullResolutionPreviewBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingLocation by remember { mutableStateOf<Location?>(null) }
-    var showCurrentLocationConsent by remember { mutableStateOf(false) }
     var isResolvingCurrentLocation by remember { mutableStateOf(false) }
     var currentLocationError by remember { mutableStateOf<String?>(null) }
+    var currentLocationRequestId by remember { mutableStateOf(0) }
+    var currentLocationResolutionJob by remember { mutableStateOf<Job?>(null) }
     val currentLocationActions = rememberCurrentLocationActions(
         onLocation = { point ->
-            currentLocationError = null
-            isResolvingCurrentLocation = true
-            placeSelectionScope.launch {
-                try {
-                    val location = findCurrentTripRecordLocation(
-                        point = point,
-                        districtBoundaries = GeneratedKoreaDistrictMapData.overviewDistricts(),
-                        countryBoundaries = GeneratedWorldMapData.countries,
-                        locations = locations,
-                    )
-                    if (location == null) {
-                        currentLocationError = "현재 위치에서 Mapmory 지역을 찾지 못했어요. 장소를 직접 검색해 주세요."
-                        return@launch
+            if (stepName == NewRecordFlowStep.LOCATION.name) {
+                currentLocationError = null
+                currentLocationResolutionJob?.cancel()
+                val requestId = ++currentLocationRequestId
+                isResolvingCurrentLocation = true
+                currentLocationResolutionJob = placeSelectionScope.launch {
+                    try {
+                        val location = findCurrentTripRecordLocation(
+                            point = point,
+                            districtBoundaries = GeneratedKoreaDistrictMapData.overviewDistricts(),
+                            countryBoundaries = GeneratedWorldMapData.countries,
+                            locations = locations,
+                        )
+                        if (requestId != currentLocationRequestId || stepName != NewRecordFlowStep.LOCATION.name) {
+                            return@launch
+                        }
+                        if (location == null) {
+                            currentLocationError = "현재 위치에서 Mapmory 지역을 찾지 못했어요. 장소를 직접 검색해 주세요."
+                            return@launch
+                        }
+                        keyboard?.hide()
+                        onLocationTouched()
+                        onPlaceSearchQueryChanged()
+                        onSelectedPlaceCleared()
+                        onLocationSelected(location)
+                        pendingLocation = null
+                        locationSearchQuery = location.flowDisplayName(locations)
+                        currentLocationError = null
+                        detailsErrorMessage = null
+                        analytics.logEvent(
+                            MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
+                            mapOf(
+                                "source" to "current_location",
+                                "location_type" to location.type.name.lowercase(),
+                            ),
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        if (requestId == currentLocationRequestId) {
+                            currentLocationError = "현재 위치의 지역 정보를 확인하지 못했어요. 장소를 직접 검색해 주세요."
+                        }
+                    } finally {
+                        if (requestId == currentLocationRequestId) {
+                            isResolvingCurrentLocation = false
+                            currentLocationResolutionJob = null
+                        }
                     }
-                    keyboard?.hide()
-                    onLocationTouched()
-                    onPlaceSearchQueryChanged()
-                    onSelectedPlaceCleared()
-                    onLocationSelected(location)
-                    pendingLocation = null
-                    locationSearchQuery = location.flowDisplayName(locations)
-                    currentLocationError = null
-                    detailsErrorMessage = null
-                    analytics.logEvent(
-                        MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
-                        mapOf(
-                            "source" to "current_location",
-                            "location_type" to location.type.name.lowercase(),
-                        ),
-                    )
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    currentLocationError = "현재 위치의 지역 정보를 확인하지 못했어요. 장소를 직접 검색해 주세요."
-                } finally {
-                    isResolvingCurrentLocation = false
                 }
             }
         },
-        onError = { message -> currentLocationError = message },
+        onError = { message ->
+            if (stepName == NewRecordFlowStep.LOCATION.name) currentLocationError = message
+        },
     )
+    fun cancelCurrentLocationLookup() {
+        currentLocationRequestId += 1
+        currentLocationActions.cancel()
+        currentLocationResolutionJob?.cancel()
+        currentLocationResolutionJob = null
+        isResolvingCurrentLocation = false
+    }
+    LaunchedEffect(step) {
+        if (step != NewRecordFlowStep.LOCATION) cancelCurrentLocationLookup()
+    }
     var pendingSave by remember { mutableStateOf(false) }
     var hasStartedInitialPhotoSearch by rememberSaveable(startWithPhotoSearch) { mutableStateOf(false) }
     val photoListState = rememberLazyListState()
@@ -940,17 +966,6 @@ internal fun NewTripRecordFlowScreen(
         pendingSave = true
     }
 
-    if (showCurrentLocationConsent) {
-        CurrentLocationConsentDialog(
-            onDismissRequest = { showCurrentLocationConsent = false },
-            onConfirm = {
-                showCurrentLocationConsent = false
-                currentLocationError = null
-                currentLocationActions.request()
-            },
-        )
-    }
-
     TripRecordBackground(
         modifier = modifier,
         backgroundColor = TripRecordPalette.current.pageBackground,
@@ -985,10 +1000,12 @@ internal fun NewTripRecordFlowScreen(
                             currentLocationLoading = currentLocationActions.isLoading || isResolvingCurrentLocation,
                             currentLocationError = currentLocationError,
                             onCurrentLocationClick = {
+                                cancelCurrentLocationLookup()
                                 currentLocationError = null
-                                showCurrentLocationConsent = true
+                                currentLocationActions.request()
                             },
                             onSearchQueryChanged = {
+                                cancelCurrentLocationLookup()
                                 currentLocationError = null
                                 onLocationTouched()
                                 if (it.isNotBlank()) logFieldInteraction("location")
@@ -999,6 +1016,7 @@ internal fun NewTripRecordFlowScreen(
                                 detailsErrorMessage = null
                             },
                             onLocationSelected = { location ->
+                                cancelCurrentLocationLookup()
                                 logFieldInteraction("location")
                                 analytics.logEvent(
                                     MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
@@ -1016,6 +1034,7 @@ internal fun NewTripRecordFlowScreen(
                             },
                             onPlaceCandidateSelected = { candidate ->
                                 if (!uiState.isSelectingPlace) {
+                                    cancelCurrentLocationLookup()
                                     logFieldInteraction("location")
                                     keyboard?.hide()
                                     onPlaceSearchQueryChanged()
@@ -1035,6 +1054,7 @@ internal fun NewTripRecordFlowScreen(
                                 }
                             },
                             onSelectedPlaceCleared = {
+                                cancelCurrentLocationLookup()
                                 onSelectedPlaceCleared()
                                 locationSearchQuery = uiState.selectedLocation
                                     ?.flowDisplayName(locations)
