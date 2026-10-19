@@ -168,7 +168,7 @@ try {
     await page.locator(".wall-hero").getByRole("button", { name: /^일본/ }).click();
     const chip = (await dataLayerEvents(page)).filter(([, name]) => name === "hero_demo_select");
     assert.deepEqual(chip.map(([, , props]) => [props.experience_type, props.demo_place]), [["hero_demo", "japan"]]);
-    await page.locator(".wall-hero").getByRole("link", { name: "아이폰 앱 받기", exact: true }).click();
+    await page.locator(".wall-hero").getByRole("link", { name: "iOS 앱 받기", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
     const heroClick = (await dataLayerEvents(page)).filter(([, name]) => name === "download_click").at(-1);

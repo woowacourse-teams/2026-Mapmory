@@ -937,8 +937,8 @@ function App() {
       <PhotoWallHero
         storeActions={(
           <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
-            <StoreButton placement="hero" platform="ios" label="아이폰 앱 받기" />
-            <StoreButton placement="hero" platform="android" label="갤럭시 앱 받기" />
+            <StoreButton placement="hero" platform="ios" label="iOS 앱 받기" />
+            <StoreButton placement="hero" platform="android" label="Android 앱 받기" />
           </div>
         )}
       />
