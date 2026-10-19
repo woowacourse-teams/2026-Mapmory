@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-10-08 · 범위: 인증, 지역 선택, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견
+> 기준일: 2026-10-19 · 범위: 인증, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -15,7 +15,7 @@
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 페이지네이션 | `page` 기본 0, `size` 기본 20·최대 100 |
 
-`/auth/**`, `/admin/**`, `/health`를 제외한 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`, `/auth/login/google`, `/auth/login/apple`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API는 현재 인증 없이 호출 가능하다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
+`POST /auth/**`, `POST /waitlist`, `/health`와 `/admin/**`를 제외한 앱 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`, `/auth/login/google`, `/auth/login/apple`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API(`/admin/**`)는 Access Token 대신 관리자 세션과 ADMIN 권한이 필요하며, `/admin/auth/csrf`와 `/admin/auth/login`만 세션 없이 호출한다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
 
 ### API 목록
 
@@ -27,13 +27,19 @@
 | 구현됨 | `POST` | `/auth/login/guest` | 게스트 로그인 |
 | 구현됨 | `POST` | `/auth/token/refresh` | Access·Refresh Token 회전 재발급 |
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
+| 구현됨 | `GET` | `/admin/auth/csrf` | 관리자 CSRF 토큰 발급 |
+| 구현됨 | `POST` | `/admin/auth/login` | 관리자 로그인(세션 발급) |
+| 구현됨 | `GET` | `/admin/auth/me` | 현재 관리자 조회 |
+| 구현됨 | `POST` | `/admin/auth/logout` | 관리자 로그아웃 |
 | 구현됨 | `GET` | `/admin/dashboard` | 운영 현황 집계 조회 |
-| 구현 전 설계 | `GET` | `/admin/members` | 회원 목록 조회 |
-| 구현 전 설계 | `GET` | `/admin/members/{memberId}` | 회원 상세·세션 상태 조회 |
-| 구현 완료 | `POST` | `/service-feedback` | 앱 서비스 의견 제출 |
-| 구현 완료 | `GET` | `/admin/service-feedback` | 서비스 의견 목록 조회 |
-| 구현 완료 | `GET` | `/admin/service-feedback/{feedbackId}` | 서비스 의견 상세 조회 |
-| 구현 완료 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
+| 구현됨 | `GET` | `/admin/members` | 회원 목록 조회 |
+| 구현됨 | `GET` | `/admin/members/{memberId}` | 회원 상세·세션 상태 조회 |
+| 구현됨 | `POST` | `/service-feedback` | 앱 서비스 의견 제출 |
+| 구현됨 | `GET` | `/admin/service-feedback` | 서비스 의견 목록 조회 |
+| 구현됨 | `GET` | `/admin/service-feedback/{feedbackId}` | 서비스 의견 상세 조회 |
+| 구현됨 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
+| 구현됨 | `GET` | `/places/search` | 장소 검색(Google Places Autocomplete) |
+| 구현됨 | `GET` | `/places/{placeId}` | 장소 선택·추천 지역 조회 |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -43,10 +49,11 @@
 | 구현됨 | `GET` | `/travel-records/statistics` | 내 전체 여행 통계 조회 |
 | 구현됨 | `GET` | `/travel-records/map-summary/regions/roots` | 루트 Region별 지도 색칠 정보 조회 |
 | 구현됨 | `GET` | `/travel-records/map-summary/regions/{regionId}/children` | 직속 하위 Region별 지도 색칠 정보 조회 |
-| 구현 전 설계 | `POST` | `/tags` | 내 태그 생성 |
-| 구현 전 설계 | `GET` | `/tags` | 내 태그 목록 조회 |
-| 구현 전 설계 | `PATCH` | `/tags/{tagId}` | 내 태그 이름 수정 |
-| 구현 전 설계 | `DELETE` | `/tags/{tagId}` | 내 태그 삭제 |
+| 구현됨 | `POST` | `/tags` | 내 태그 생성 |
+| 구현됨 | `GET` | `/tags` | 내 태그 목록 조회 |
+| 구현됨 | `PATCH` | `/tags/{tagId}` | 내 태그 이름 수정 |
+| 구현됨 | `DELETE` | `/tags/{tagId}` | 내 태그 삭제 |
+| 구현됨 | `POST` | `/waitlist` | 출시 알림 신청 |
 
 ### 공통 응답
 
@@ -339,7 +346,7 @@ Access Token이 아니라 ID Token을 보낸다.
 
 업로드 후 24시간 안에 여행 기록과 연결되지 않은 객체는 고아 객체로 정리한다.
 
-## 4. Tag API — 구현 전 설계
+## 4. Tag API
 
 태그는 회원이 직접 만드는 비공개 리소스다. `연인`, `친구`, `가족`, `라멘맛집`처럼 자유롭게 만들 수 있으며 하나의 여행 기록에 여러 태그를 연결할 수 있다.
 
@@ -434,8 +441,6 @@ Access Token이 아니라 ID Token을 보낸다.
 
 ## 5. Travel Record API
 
-기존 여행 기록 엔드포인트는 구현돼 있다. 이 절의 `tagIds`, `tags`, `tagId` 계약은 태그 기능 구현 전 설계다.
-
 ### 지역 선택 규칙
 
 클라이언트는 Region의 DB ID가 아닌 표준 코드 경로를 전달한다. 서버는 `parent_id` 관계로 경로를 검증한 뒤 최종 Region의 ID만 `travel_record.region_id`에 저장한다.
@@ -443,13 +448,16 @@ Access Token이 아니라 ID Token을 보낸다.
 | 기록 대상 | 요청 값 | 저장되는 Region |
 | --- | --- | --- |
 | 해외 국가 | `countryCode` | `COUNTRY` |
+| 대한민국 시·도 | `countryCode`, `provinceCode` | `PROVINCE` |
 | 대한민국 시·군·구 | `countryCode`, `provinceCode`, `districtCode` | `DISTRICT` |
 
-- `countryCode = KR`이면 `provinceCode`, `districtCode`가 모두 필수다.
+- `countryCode = KR`이면 `provinceCode`가 필수다. 대한민국 전체(국가 단위)에는 기록을 붙일 수 없다. 시·도 단위 기록은 통계의 `visitedKoreaDistrictCount`에 세지 않는다.
+- 상위 코드 없이 하위 코드만 보내면 `INVALID_REGION_HIERARCHY`다.
 - `countryCode`는 대문자 2자리이며, 하위 지역 코드는 입력하는 경우 공백 없이 20자 이하여야 한다.
 - `provinceCode`는 선택 국가의 직접 자식 `PROVINCE`여야 한다.
 - `districtCode`는 선택 시도의 직접 자식 `DISTRICT`여야 한다.
-- 해외에서는 MVP 기준 국가 단위만 허용한다.
+- 해외에서는 MVP 기준 국가 단위만 허용한다. 해외 국가에 하위 코드를 보내면 `REGION_NOT_FOUND`다.
+- 지역 코드를 하나도 보내지 않고 `placeId`를 보내면 서버가 장소 주소로 지역을 추천해 저장한다. 자세한 흐름은 [9. 장소 검색 API](#9-장소-검색-api)를 따른다.
 - 코드 접두사로 부모 지역을 추론하지 않는다.
 
 ### 여행 기록 생성
@@ -470,7 +478,8 @@ Access Token이 아니라 ID Token을 보낸다.
   "objectKeys": [
     "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg"
   ],
-  "tagIds": [9, 12]
+  "tagIds": [9, 12],
+  "placeId": null
 }
 ```
 
@@ -492,15 +501,16 @@ Access Token이 아니라 ID Token을 보낸다.
 
 | 필드 | 타입 | 필수 | 제약조건 |
 | --- | --- | --- | --- |
-| `countryCode` | String | 예 | 대문자 2자리이며 존재하는 ISO 3166-1 alpha-2 코드 |
+| `countryCode` | String | 조건부 | `placeId`가 없으면 필수. 대문자 2자리이며 존재하는 ISO 3166-1 alpha-2 코드 |
 | `provinceCode` | String | 조건부 | `KR`이면 필수, 입력 시 공백 없이 최대 20자 |
-| `districtCode` | String | 조건부 | `KR`이면 필수, 입력 시 공백 없이 최대 20자 |
+| `districtCode` | String | 아니요 | 입력 시 `provinceCode` 필수, 공백 없이 최대 20자 |
 | `title` | String | 예 | 공백이 아닌 문자를 포함해야 하며 최대 200자 |
 | `content` | String | 아니요 | `null`, 빈 문자열·공백 허용 |
 | `startDate` | LocalDate | 예 | `YYYY-MM-DD`, 오늘 또는 과거 |
 | `endDate` | LocalDate | 아니요 | 오늘 또는 과거이며 시작일과 같거나 이후 |
 | `objectKeys` | String[] | 아니요 | 업로드 완료된 Object Key 목록 |
 | `tagIds` | Long[] | 아니요 | 빈 배열 허용, 최대 5개, 중복 불가, 모두 현재 회원 소유 |
+| `placeId` | String | 아니요 | `GET /places/search` 후보의 장소 ID, 최대 255자. 지역 코드가 없으면 이 장소로 지역을 정함 |
 
 `objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 값이 없거나 `null`이면 미디어를 생성하지 않는다.
 
@@ -530,6 +540,9 @@ Access Token이 아니라 ID Token을 보낸다.
 | `409` | `OBJECT_NOT_UPLOADED` | S3 업로드가 확인되지 않음 |
 | `400` | `TOO_MANY_TAGS` | 임시 기록당 태그 5개 제한 초과 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
+| `400` | `INVALID_PLACE_ID` | `placeId` 형식이 올바르지 않음 |
+| `404` | `PLACE_NOT_FOUND` | 지역 없이 보낸 `placeId`를 제공자에서 찾을 수 없음 |
+| `503` | `PLACE_PROVIDER_UNAVAILABLE` | 장소 제공자 장애·키 없음으로 장소를 다시 조회하지 못함 |
 
 ### 여행 기록 목록 조회
 
@@ -577,6 +590,9 @@ GET /api/v1/travel-records?tagId=12
         "id": 101,
         "title": "비 오는 날의 제주시",
         "regionName": "제주시",
+        "placeName": null,
+        "placeAttribution": "Google Maps",
+        "placeAttributionUrl": "https://www.google.com/maps",
         "startDate": "2026-08-11",
         "endDate": null,
         "thumbnailUrl": "https://...presigned-get-url",
@@ -600,6 +616,8 @@ GET /api/v1/travel-records?tagId=12
 목록에는 본문과 전체 미디어 목록을 포함하지 않는다. `thumbnailUrl`은 정렬 순서가 가장 앞선 사진의 Presigned GET URL이고 `thumbnailUrlExpiresIn`은 그 만료까지 남은 초다. 사진이 없으면 둘 다 `null`이다.
 
 `photoCount`는 기록에 연결된 사진 수다. 사진이 없으면 `0`이다.
+
+`placeName`, `placeAttribution`, `placeAttributionUrl`은 장소를 연결한 기록에만 값이 있고, 아니면 `null`이다. Google 장소는 약관상 이름을 저장하지 않아 `placeName`이 `null`이다.
 
 `tags`는 `tag.created_at ASC, tag.id ASC` 순서로 반환한다.
 
@@ -650,17 +668,33 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
     "objectKeys": [
       "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg"
     ],
+    "media": [
+      {
+        "id": 501,
+        "objectKey": "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg",
+        "viewUrl": "https://...presigned-get-url",
+        "viewUrlExpiresIn": 300,
+        "sortOrder": 0
+      }
+    ],
     "tags": [
       { "id": 9, "name": "연인" },
       { "id": 12, "name": "라멘맛집" }
     ],
     "createdAt": "2026-08-14T10:30:00",
-    "updatedAt": "2026-08-15T09:00:00"
+    "updatedAt": "2026-08-15T09:00:00",
+    "placeProvider": "GOOGLE",
+    "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+    "placeName": null,
+    "placeAttribution": "Google Maps",
+    "placeAttributionUrl": "https://www.google.com/maps"
   }
 }
 ```
 
-`objectKeys`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. 국가 단위 기록은 `province`와 `district`가 `null`이다. Presigned GET URL 변환은 S3 조회 연동 시 추가한다.
+`objectKeys`와 `media`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. `media[].viewUrl`은 Presigned GET URL이고 `viewUrlExpiresIn`은 만료까지 남은 초다. 국가 단위 기록은 `province`와 `district`가, 시·도 단위 기록은 `district`가 `null`이다.
+
+`place*` 필드는 장소를 연결한 기록에만 값이 있고 아니면 모두 `null`이다. 예전 Geoapify 장소로 저장된 기록은 `placeProvider`가 `GEOAPIFY`로 남는다. `PUT`은 전체 수정이므로 `placeId`를 빼면 기존 장소 연결이 제거된다.
 
 ### 여행 기록 수정
 
@@ -710,8 +744,6 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 ## 6. 지도 요약 API
 
 지도 요약 응답에는 현재 회원의 기록이 있는 Region만 포함한다. 응답에 없는 Region은 앱에서 `count = 0`, `level = NONE`으로 처리한다.
-
-기존 지도 요약 엔드포인트와 `count`, `level` 응답은 구현돼 있다. 이 절의 선택 파라미터 `tagId` 계약은 태그 기능 구현 전 설계다.
 
 두 지도 요약 API는 선택 쿼리 파라미터 `tagId`를 받는다.
 
@@ -868,6 +900,22 @@ Authorization: Bearer {accessToken}
 현재 의견 시각 응답에는 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 의견 날짜 필터는 한국 날짜를 UTC 시작·종료 구간으로 변환해 적용한다.
 
+### 관리자 인증
+
+관리자 웹은 쿠키 세션(`JSESSIONID`)을 쓴다. 쓰기 요청(`POST`·`PATCH` 등)은 `GET /admin/auth/csrf`로 받은 토큰을 응답의 `headerName` 헤더에 담아 보낸다.
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/admin/auth/csrf` | 없음 | `{ "data": { "headerName": "X-CSRF-TOKEN", "token": "..." } }` |
+| `POST` | `/api/v1/admin/auth/login` | 없음(CSRF 필요) | 본문 `{ "username", "password" }`(둘 다 필수). 성공 시 세션 ID를 새로 발급하고 `{ "data": { "username" } }` 반환 |
+| `GET` | `/api/v1/admin/auth/me` | 관리자 세션 | 현재 관리자 `{ "data": { "username" } }` |
+| `POST` | `/api/v1/admin/auth/logout` | 관리자 세션 | 세션을 끊고 `204 No Content` |
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `401` | `ADMIN_LOGIN_FAILED` | 아이디 또는 비밀번호가 틀림 |
+| `401` | `ADMIN_SESSION_REQUIRED` | 관리자 세션 없이 관리자 API 호출 |
+
 ### 대시보드 집계
 
 `GET /api/v1/admin/dashboard?from=2026-10-02&to=2026-10-08`
@@ -1014,17 +1062,111 @@ Authorization: Bearer {accessToken}
 - `service_feedback`: 회원, 카테고리, 내용, OS, 내부 상태, 접수·수정 시각
 - `admin_audit_log`: 의견 상태 변경 대상·변경 내용·시각. 관리자별 행위자는 기록하지 않음
 
-## 9. 구현 전 확인 사항
+## 9. 장소 검색 API
 
-- 서비스 의견 테이블과 앱 제출 API 추가
-- 관리자 서비스 의견 조회·상태 변경 API 및 감사 로그 추가
-- 회원 인증 Refresh 성공·실패 이벤트 기록 및 관리자 집계 조회 추가
-- `tag`, `travel_record_tag` Flyway 마이그레이션과 JPA 모델 추가
-- 태그 이름 정규화 규칙을 서버와 클라이언트에서 동일하게 적용
-- 여행 기록 생성·수정 시 태그 소유권 검증과 연결 변경을 같은 트랜잭션에서 처리
-- 지도 요약 Repository에 선택적 `tagId` 조건을 추가하고 MySQL 실행 계획 검증
-- 목록·상세 응답에 `tags`를 추가한 뒤 KMP DTO 계약 갱신
-- 여행 기록 생성에서도 Object Key 중복·소유권·업로드 완료 검증을 문서 계약과 일치시킴
+사진을 찾기 위한 장소 검색이다. Google Places API (New) Autocomplete를 쓴다. 약관, 호출 한도, 서킷 브레이커, 과금 상세는 [장소 검색과 여행 기록 연결](backend/docs/place-search.md)에 정리했다.
+
+### 장소 검색
+
+`GET /api/v1/places/search?query=경복&sessionToken={uuid}`
+
+| 파라미터 | 필수 | 제약조건 |
+| --- | --- | --- |
+| `query` | 예 | 공백 불가, 최대 100자 |
+| `sessionToken` | 예 | 검색 시작 시 만든 UUID. 영문·숫자·`-`·`_` 1~36자 |
+
+#### Response `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+      "name": "경복궁",
+      "address": "대한민국 서울특별시 종로구 사직로 161",
+      "attribution": "Google Maps",
+      "attributionUrl": "https://www.google.com/maps"
+    }
+  ]
+}
+```
+
+후보 목록 근처에 Google Maps 로고나 `Google Maps` 글자를 표시해야 한다.
+
+### 장소 선택
+
+`GET /api/v1/places/{placeId}?sessionToken={uuid}`
+
+검색에 쓴 `sessionToken`을 그대로 보낸다(선택). 선택 후나 검색을 지울 때 클라이언트는 새 토큰을 만든다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+    "name": null,
+    "countryCode": "KR",
+    "suggestedRegion": {
+      "country": { "code": "KR", "name": "대한민국" },
+      "province": { "code": "11", "name": "서울특별시" },
+      "district": { "code": "11010", "name": "종로구" }
+    },
+    "manualRegionRequired": false,
+    "attribution": "Google Maps",
+    "attributionUrl": "https://www.google.com/maps"
+  }
+}
+```
+
+- Google 장소는 이름을 저장·반환하지 않아 `name`이 `null`이다. 화면에는 고른 후보의 `name`을 표시한다.
+- `suggestedRegion`은 주소 이름으로 맞춘 **추천값**이다. 시·군·구를 못 맞추면 시·도까지만 추천한다. 지역을 전혀 찾지 못하면 `suggestedRegion`이 `null`, `manualRegionRequired`가 `true`이며 사용자가 지역을 직접 고른다.
+- 기록 저장 시 `placeId`만 보내면 이 추천 지역을 쓰고, 사용자가 지역을 고쳤다면 지역 코드도 함께 보낸다.
+
+### 호출 한도
+
+- 검색은 회원별 1분에 20회, 선택은 회원별 UTC 하루 100회다. 요청 값 검증보다 먼저 세므로 `400`으로 끝날 요청도 횟수에 들어간다.
+- Google 호출은 서버 전체 기준 분당 60회(서버별), 자동완성·상세 각각 UTC 월 9,000회로 제한한다.
+
+### 장소 오류
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | `query`·`sessionToken` 형식이 올바르지 않음 |
+| `400` | `INVALID_PLACE_ID` | 장소 ID가 영문·숫자·`-`·`_` 1~255자가 아님 |
+| `404` | `PLACE_NOT_FOUND` | 제공자에 장소가 없음 |
+| `429` | `PLACE_RATE_LIMITED` | 회원 한도 또는 Google 분당 한도 초과 |
+| `429` | `PLACE_SEARCH_BUDGET_EXHAUSTED` | 이번 달 자동완성 한도 소진 |
+| `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 한도 소진 |
+| `503` | `PLACE_PROVIDER_UNAVAILABLE` | Google 장애·서킷 열림·키 없음·한도 저장소 장애 |
+
+## 10. 출시 알림 API
+
+### 출시 알림 신청
+
+`POST /api/v1/waitlist` — 인증 없음(랜딩 페이지용)
+
+```json
+{
+  "email": "traveler@example.com",
+  "privacyConsent": true,
+  "ageConfirmed": true
+}
+```
+
+| 필드 | 타입 | 필수 | 제약조건 |
+| --- | --- | --- | --- |
+| `email` | String | 예 | 이메일 형식, 최대 254자. 앞뒤 공백 제거·NFKC·소문자로 정규화해 중복을 판단 |
+| `privacyConsent` | Boolean | 예 | 개인정보 수집·이용 동의, `true`여야 함 |
+| `ageConfirmed` | Boolean | 예 | 만 14세 이상 확인, `true`여야 함 |
+
+#### Response
+
+| 상태 | 본문 | 조건 |
+| --- | --- | --- |
+| `201 Created` | `{ "data": { "status": "SUBSCRIBED" } }` | 새로 신청 |
+| `200 OK` | `{ "data": { "status": "ALREADY_SUBSCRIBED" } }` | 이미 신청한 이메일 |
+| `400` | `VALIDATION_ERROR` | 이메일 형식·길이 오류 또는 동의 항목이 `true`가 아님 |
 
 
 ## 서비스 의견 클라이언트 연동 명세
