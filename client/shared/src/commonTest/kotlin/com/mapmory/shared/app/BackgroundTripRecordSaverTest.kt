@@ -1,5 +1,7 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.data.media.MemoryPhotoPreviewCache
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -278,6 +280,78 @@ class BackgroundTripRecordSaverTest {
         saver.saves.first { saves -> saves.isEmpty() }
         assertEquals(3, attempts)
     }
+
+    @Test
+    fun `자동_재시도_후_성공하면_완료_이벤트만_한번_남긴다`() = runBlocking {
+        var attempts = 0
+        val analytics = RecordingAnalytics()
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> {
+                    attempts += 1
+                    return if (attempts == 1) Result.failure(IllegalStateException("일시 오류"))
+                    else Result.success(draft.toRecord())
+                }
+            },
+            scope = CoroutineScope(coroutineContext),
+            automaticRetryDelayMillis = 0,
+            analytics = analytics,
+        )
+
+        saver.enqueue(draft().copy(tagIds = listOf(3)), locationName = "서울")
+        saver.saves.first { saves -> saves.isEmpty() && attempts > 0 }
+
+        val (name, parameters) = analytics.events.single()
+        assertEquals(MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, name)
+        assertEquals("create", parameters["mode"])
+        assertEquals("background", parameters["save_mode"])
+        assertEquals("true", parameters["has_title"])
+        assertEquals("true", parameters["has_tags"])
+        assertEquals("false", parameters["has_photos"])
+        assertTrue(parameters["duration_ms"]?.toLongOrNull() != null)
+    }
+
+    @Test
+    fun `최종_실패는_오류_유형과_함께_한번_남기고_다시_시도한_결과도_남긴다`() = runBlocking {
+        var attempts = 0
+        val analytics = RecordingAnalytics()
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> {
+                    attempts += 1
+                    return if (attempts <= 2) Result.failure(IllegalStateException("네트워크 오류"))
+                    else Result.success(draft.toRecord())
+                }
+            },
+            scope = CoroutineScope(coroutineContext),
+            automaticRetryDelayMillis = 0,
+            analytics = analytics,
+        )
+
+        val id = saver.enqueue(draft(), locationName = "서울")
+        saver.saves.first { saves -> saves.singleOrNull()?.status == BackgroundSaveStatus.FAILED }
+
+        val (failedName, failedParameters) = analytics.events.single()
+        assertEquals(MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, failedName)
+        assertEquals("IllegalStateException", failedParameters["error_type"])
+        assertEquals("background", failedParameters["save_mode"])
+
+        saver.retry(id)
+        saver.saves.first { saves -> saves.isEmpty() }
+        assertContentEquals(
+            listOf(MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED),
+            analytics.events.map { it.first },
+        )
+    }
+}
+
+private class RecordingAnalytics : MapmoryAnalytics {
+    val events = mutableListOf<Pair<String, Map<String, String>>>()
+    override fun logEvent(name: String, parameters: Map<String, String>) {
+        events += name to parameters
+    }
+
+    override fun setUserProperty(name: String, value: String?) = Unit
 }
 
 private open class EmptyTripRecordRepository : TripRecordRepository {

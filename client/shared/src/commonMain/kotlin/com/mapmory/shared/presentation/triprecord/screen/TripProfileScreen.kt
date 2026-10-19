@@ -46,6 +46,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.LocalTeamDevice
+import com.mapmory.shared.TeamDeviceState
+import com.mapmory.shared.TeamDeviceTapCounter
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.PrivacyPolicy
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
@@ -82,6 +88,7 @@ fun TripProfileScreen(
     val theme = LocalMapmoryTheme.current
     val analytics = LocalMapmoryAnalytics.current
     val uriHandler = LocalUriHandler.current
+    val teamDevice = LocalTeamDevice.current
 
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
@@ -204,6 +211,9 @@ fun TripProfileScreen(
                             modifier = Modifier.padding(top = 20.dp),
                         )
                     }
+                    if (teamDevice.appVersion.isNotBlank()) {
+                        AppVersionRow(teamDevice)
+                    }
                 }
             },
             confirmButton = {
@@ -232,6 +242,49 @@ fun TripProfileScreen(
         )
     }
 }
+
+@Composable
+private fun AppVersionRow(teamDevice: TeamDeviceState) {
+    val tapCounter = remember { TeamDeviceTapCounter() }
+    var notice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            delay(TeamDeviceNoticeMillis)
+            notice = null
+        }
+    }
+    Text(
+        text = "앱 버전 ${teamDevice.appVersion}",
+        color = TripRecordPalette.current.secondaryText,
+        fontSize = 11.sp,
+        modifier = Modifier
+            .padding(top = 16.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
+                if (tapCounter.tap()) {
+                    val enabled = !teamDevice.isTeamDevice
+                    teamDevice.onTeamDeviceChange(enabled)
+                    notice = if (enabled) "팀원 기기 모드를 켰어요" else "팀원 기기 모드를 껐어요"
+                }
+            },
+    )
+    notice?.let { message ->
+        Text(
+            text = message,
+            color = TripRecordPalette.current.contentOnMedia,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .background(TripRecordPalette.current.mediaScrim, RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}
+
+private const val TeamDeviceNoticeMillis = 2_000L
 
 @Composable
 private fun ThemeOption(

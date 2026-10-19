@@ -1,5 +1,7 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 import com.mapmory.shared.data.auth.AuthTokenStore
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.data.local.StaticRegionCatalog
@@ -39,8 +41,10 @@ import com.mapmory.shared.data.repository.MemoryMapSummaryCache
 import com.mapmory.shared.data.repository.TripStatisticsCache
 import com.mapmory.shared.data.repository.UploadingTripRecordRepository
 import com.mapmory.shared.data.settings.MemoryOnboardingPreference
+import com.mapmory.shared.data.settings.MemoryTeamDevicePreference
 import com.mapmory.shared.data.settings.MemoryThemePreference
 import com.mapmory.shared.data.settings.OnboardingPreference
+import com.mapmory.shared.data.settings.TeamDevicePreference
 import com.mapmory.shared.data.settings.ThemePreference
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
@@ -83,6 +87,7 @@ interface AppContainer {
     val tagRepository: TagRepository
     val themePreference: ThemePreference
     val onboardingPreference: OnboardingPreference
+    val teamDevicePreference: TeamDevicePreference
     val viewModelFactory: MapmoryViewModelFactory
     val tripRecordRevision: StateFlow<Long>
     val backgroundTripRecordSaver: BackgroundTripRecordSaver
@@ -164,11 +169,13 @@ private class DefaultAppContainer(
     private val placeRepository: PlaceRepository?,
     override val themePreference: ThemePreference,
     override val onboardingPreference: OnboardingPreference,
+    override val teamDevicePreference: TeamDevicePreference,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val photoPreviewCache: PhotoPreviewCache?,
     backgroundSaveExecution: BackgroundSaveExecution,
     private val onClose: () -> Unit,
     localPhotoDataSource: LocalPhotoDataSource?,
+    analytics: MapmoryAnalytics,
 ) : AppContainer {
     private val recordedPhotoIndex = com.mapmory.shared.data.media.RecordedPhotoIndex(photoPreviewCache)
     override val tripRecordRepository: TripRecordRepository =
@@ -188,6 +195,7 @@ private class DefaultAppContainer(
         photoPreviewCache = photoPreviewCache,
         onSaved = notifyTripRecordsChanged,
         localPhotoDataSource = localPhotoDataSource,
+        analytics = analytics,
     )
 
     override val viewModelFactory: MapmoryViewModelFactory = DefaultMapmoryViewModelFactory(
@@ -226,12 +234,14 @@ fun createAppContainer(
     regionCatalog: RegionCatalog = StaticRegionCatalog(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     thumbnailLoader: TripRecordThumbnailLoader? = null,
     photoPreviewCache: PhotoPreviewCache? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     placeRepository: PlaceRepository? = null,
     onClose: () -> Unit = {},
     localPhotoDataSource: LocalPhotoDataSource? = null,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = tripStatisticsRepository,
@@ -251,11 +261,13 @@ fun createAppContainer(
         placeRepository = placeRepository,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
         thumbnailLoader = thumbnailLoader,
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
         onClose = onClose,
+        analytics = analytics,
     )
 }
 
@@ -327,9 +339,11 @@ fun createGuestRemoteAppContainer(
     tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -343,10 +357,12 @@ fun createGuestRemoteAppContainer(
         tripRecordListCache = tripRecordListCache,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
         localPhotoDataSource = localPhotoDataSource,
         backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
+        analytics = analytics,
     )
 }
 
@@ -361,10 +377,12 @@ internal fun createGuestRemoteAppContainer(
     tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
     themePreference: ThemePreference = MemoryThemePreference(),
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
     val discardRecordCache = tokenStore.load() == null
     if (discardRecordCache) {
@@ -446,10 +464,12 @@ internal fun createGuestRemoteAppContainer(
         regionCatalog = regionCatalog,
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
         thumbnailLoader = CachedTripRecordThumbnailLoader(photoPreviewLoader),
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
         onClose = onClose,
+        analytics = analytics,
     )
 }
