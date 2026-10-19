@@ -1,56 +1,50 @@
 import assert from "node:assert/strict";
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, stat } from "node:fs/promises";
 import test from "node:test";
-import { PHOTO_FINDER_LIBRARY_PHOTOS, PHOTO_FINDER_PLACES } from "../src/photoFinderDemo.js";
-import { REPLAY_PHOTOS_PER_PLACE, REPLAY_PLACES, replayPhoto } from "../src/travelReplay.js";
+import { FOOD_URL, SPRITE, SPRITE_URL } from "../src/photoStory.js";
 
 const readJson = async (path) => JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
 const credits = await readJson("../src/data/photo-credits.json");
-// The hero library and each hero place use their own files. The #how travel replay (2026-10-15) replays the hero's
-// own example trip, so it reuses the hero place photos on purpose and adds none of its own.
-const distinct = [
-  PHOTO_FINDER_LIBRARY_PHOTOS,
-  ...PHOTO_FINDER_PLACES.map(({ photos }) => photos),
-].flat();
-const used = [...new Set(distinct)];
+// 2026-10-18: the landing's photos are one sprite (sketch v11, one openly licensed photo per cell) and the two food
+// photos. Each cell has its own credit, keyed "<file>#<cell>"; team photos stay in the globe with their own credit.
+const fileOf = (key) => key.split("#")[0];
 
-test("no photo file is shared between the hero library and the hero places, and the replay adds no photos", () => {
-  assert.equal(new Set(distinct).size, distinct.length);
-  const placePhotos = new Set(PHOTO_FINDER_PLACES.flatMap(({ photos }) => photos));
-  for (const pl of REPLAY_PLACES) {
-    assert.ok(placePhotos.has(replayPhoto(pl.cover)), pl.cover);
-    for (let i = 1; i <= REPLAY_PHOTOS_PER_PLACE; i++) assert.ok(placePhotos.has(replayPhoto(`${pl.key}-0${i}`)), `${pl.key}-0${i}`);
-  }
-});
-
-test("every photo the page shows exists and has an open license credit", async () => {
-  const byFile = new Map(credits.map((credit) => [credit.file, credit]));
-  for (const src of used) {
-    await access(new URL(`../public${src}`, import.meta.url));
-    const credit = byFile.get(src);
-    assert.ok(credit, `missing credit for ${src}`);
-    assert.ok(["cc0", "pdm", "by"].includes(credit.license), `${src}: ${credit.license}`);
-    assert.match(credit.source, /^https:\/\//);
-    if (credit.license === "by") assert.ok(credit.creator, `${src} needs a creator`);
-    // Openverse sometimes returns names still URL-escaped ("Krzysztof%20Puszczy%u0144ski").
-    for (const field of ["creator", "title"]) assert.doesNotMatch(credit[field] ?? "", /%[0-9a-f]{2}|%u[0-9a-f]{4}/i, `${src} ${field}`);
-  }
-});
-
-test("every credit belongs to a photo the page shows, so removed photos leave no orphan credits", async () => {
-  const usedFiles = new Set(used);
+test("every sprite cell and food photo has exactly one open license credit, and nothing else is credited", () => {
   assert.equal(new Set(credits.map(({ file }) => file)).size, credits.length);
-  for (const { file } of credits) {
-    assert.ok(usedFiles.has(file), `orphaned credit ${file}`);
+  const expected = [
+    ...SPRITE.tiles.map((_, k) => `${SPRITE_URL}#${k}`),
+    `${FOOD_URL}#0`, `${FOOD_URL}#1`,
+  ];
+  assert.deepEqual(credits.map(({ file }) => file), expected);
+  for (const credit of credits) {
+    assert.ok(["cc0", "pdm", "pd", "by"].includes(credit.license), `${credit.file}: ${credit.license}`);
+    assert.match(credit.source, /^https:\/\//);
+    if (credit.license === "by") {
+      assert.ok(credit.creator, `${credit.file} needs a creator`);
+      assert.match(credit.licenseUrl, /^https:\/\/creativecommons\.org\/licenses\/by\/\d\.\d\/$/);
+    }
+    for (const field of ["creator", "title"]) assert.doesNotMatch(credit[field] ?? "", /%[0-9a-f]{2}|%u[0-9a-f]{4}/i, `${credit.file} ${field}`);
+  }
+  // the sprite's place labels match the credits cell by cell (the lens shows them as where the photo was taken)
+  SPRITE.tiles.forEach(({ label }, k) => assert.equal(credits[k].place, label, `cell ${k}`));
+});
+
+test("the credited files ship as small webp, and the old per-photo files are gone", async () => {
+  for (const file of new Set(credits.map(({ file }) => fileOf(file)))) {
+    assert.match(file, /\.webp$/);
     await access(new URL(`../public${file}`, import.meta.url));
   }
+  const story = (await readdir(new URL("../public/assets/story/", import.meta.url))).sort();
+  assert.deepEqual(story, ["food.webp", "tiles.webp"]);
+  assert.ok((await stat(new URL(`../public${SPRITE_URL}`, import.meta.url))).size < 300 * 1024);
+  await assert.rejects(access(new URL("../public/assets/photos/", import.meta.url)));
+  assert.equal(SPRITE.colors.length, SPRITE.tiles.length);
 });
 
-test("every photo shipped in public/assets/photos is credited", async () => {
-  const credited = new Set(credits.map(({ file }) => file));
-  const files = (await readdir(new URL("../public/assets/photos/", import.meta.url))).filter((name) => name.endsWith(".webp"));
-  assert.ok(files.length > 0);
-  for (const name of files) assert.ok(credited.has(`/assets/photos/${name}`), `uncredited photo ${name}`);
-  // The artwork and sculpture photos the old 3-tap demo used are gone with their credits.
-  for (const name of ["busan-04.webp", "gangwon-02.webp", "gangwon-04.webp"]) assert.ok(!files.includes(name), name);
+test("the footer credits load only when 사진 출처 is opened", async () => {
+  const source = await readFile(new URL("../src/PhotoCredits.jsx", import.meta.url), "utf8");
+  assert.match(source, /<summary>사진 출처<\/summary>/);
+  assert.match(source, /import\("\.\/data\/photo-credits\.json"\)/);
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /<footer>[\s\S]*<PhotoCredits \/>/);
 });

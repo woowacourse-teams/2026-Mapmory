@@ -22,8 +22,9 @@ import {
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
-import { PhotoFinderHero } from "./PhotoFinderHero.jsx";
-import { TravelReplay } from "./TravelReplay.jsx";
+import { PhotoWallHero } from "./PhotoWallHero.jsx";
+import { PhotoStory } from "./PhotoStory.jsx";
+import { FAQ_ITEMS, FREE_LINE, TRUST_LINE } from "./photoStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
   createWorldMemoryHistoryState,
@@ -139,12 +140,6 @@ const [TRUST_ON_DEVICE, TRUST_ON_SAVE] = TRUST_POINTS;
 const { Icon: TrustOnDeviceIcon } = TRUST_ON_DEVICE;
 const { Icon: TrustOnSaveIcon } = TRUST_ON_SAVE;
 
-const FAQ_ITEMS = [
-  { question: "사진첩 사진을 전부 가져가나요?", answer: "아니요. 사진을 찾는 일은 폰 안에서만 이뤄지고, 서버에는 기록을 저장할 때 직접 고른 사진만 올라가요." },
-  { question: "위치 정보가 없는 사진은요?", answer: "자동으로 찾지는 못하지만, 사진첩에서 직접 골라 기록에 넣을 수 있어요." },
-  { question: "남긴 기록은 지울 수 있나요?", answer: "네. 여행 기록은 앱에서 언제든 삭제할 수 있어요." },
-  { question: "무료인가요?", answer: "네. App Store와 Google Play에서 무료로 받아 바로 쓸 수 있어요." },
-];
 
 const memoryByCountry = new Map(memories.map((memory) => [memory.id, memory]));
 const memoryByKey = new Map(memories.map((memory) => [memory.key, memory]));
@@ -211,14 +206,6 @@ function StoreButton({ className = "", placement, platform, label, onSelect, tab
 
   return <a className={`button button-primary button-store ${className}`} href={url} target="_blank" rel="noreferrer" tabIndex={tabIndex} onClick={handleClick}><Icon size={18} weight="fill" />{label}</a>;
 }
-
-// The travel replay's end card offers the stores too; built once so the memoized replay never re-renders.
-const REPLAY_STORE_ACTIONS = (
-  <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
-    <StoreButton placement="replay" platform="ios" label="App Store" />
-    <StoreButton placement="replay" platform="android" label="Google Play" />
-  </div>
-);
 
 function HeaderStoreMenu() {
   const menuRef = useRef(null);
@@ -947,17 +934,17 @@ function App() {
         <div className="header-actions"><ThemeToggle theme={theme} onChange={setTheme} /><HeaderStoreMenu /></div>
       </header>
 
-      <PhotoFinderHero
+      <PhotoWallHero
         storeActions={(
           <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
-            <StoreButton placement="hero" platform="ios" label="App Store" />
-            <StoreButton placement="hero" platform="android" label="Google Play" />
+            <StoreButton placement="hero" platform="ios" label="아이폰 앱 받기" />
+            <StoreButton placement="hero" platform="android" label="갤럭시 앱 받기" />
           </div>
         )}
       />
 
       <section className="how-section" id="how" aria-labelledby="how-title">
-        <TravelReplay storeActions={REPLAY_STORE_ACTIONS} />
+        <PhotoStory />
         <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
@@ -1032,12 +1019,12 @@ function App() {
 
       <section className="download-section" id="download">
         <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요.</h2>
-        <p>iPhone과 Android에서 바로 시작할 수 있어요.</p>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
-          <StoreButton placement="final" platform="ios" label="App Store" />
-          <StoreButton placement="final" platform="android" label="Google Play" />
+          <StoreButton placement="final" platform="ios" label={<>아이폰 <small>App Store</small></>} />
+          <StoreButton placement="final" platform="android" label={<>갤럭시 <small>Google Play</small></>} />
         </div>
-        <p className="finder-trust-note download-trust"><ShieldCheck size={18} weight="fill" />사진은 폰 안에서 찾고, 고른 사진만 올라가요.</p>
+        <p className="download-free">{FREE_LINE}</p>
+        <p className="trust-line download-trust"><ShieldCheck size={18} weight="fill" />{TRUST_LINE}</p>
       </section>
 
       <footer><div><Brand /><p>기억은 흩어져도, 지도는 남아요.</p></div><div className="footer-meta"><PhotoCredits /><p>© 2026 Mapmory. All rights reserved.</p></div></footer>

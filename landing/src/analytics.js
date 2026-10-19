@@ -247,7 +247,7 @@ export function trackEvent(name, parameters = {}) {
     && !(parameters.experience_type === "how_story"
       && Number.isInteger(parameters.scene_index)
       && parameters.scene_index >= 1
-      && parameters.scene_index <= 5)) return false;
+      && parameters.scene_index <= 6)) return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;
 

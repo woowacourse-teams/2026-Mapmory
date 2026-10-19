@@ -1,6 +1,6 @@
 // Isolated production bundles, a fake GA ID and intercepted requests: no production traffic.
 // node scripts/verify-analytics-browser.mjs <absolute path to playwright/index.mjs>
-// The #how travel replay is read through the hooks listed in how-story-browser-checks.mjs.
+// The #how stories (#roll, #rec) are read through the hooks listed in how-story-browser-checks.mjs.
 import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -21,7 +21,7 @@ for (const surface of process.argv[3] ? [] : ["landing", "recap"]) {
     build: { outDir: path.join(output, surface) },
   });
 }
-const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL || undefined, headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL || undefined, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined, headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".woff2": "font/woff2" };
 const serve = async (route) => {
   const url = new URL(route.request().url());
@@ -83,7 +83,7 @@ try {
     }
     assert.equal((await events()).filter(([, name]) => name === "download_click").length, 2);
     console.log("Header stores passed", { mobile });
-    // Reduced motion gets the static version: one view (static) and scenes 1-5 once each after a rest in view.
+    // Reduced motion gets the static version: one view (static) and scenes 1-6 once each after a rest in view.
     await checkStaticStory(page);
     console.log("How story (static) passed", { mobile });
     // Mobile hides the header nav, so it enters the globe from the how-it-works link instead.
@@ -102,7 +102,7 @@ try {
     assert.deepEqual((await storyEvents(page, "experience_cta_click")).map(([, , props]) => props.cta_placement), mobile ? [] : ["header_nav"]);
     if (mobile) await page.goBack();
     if (mobile) assert.ok((await events()).some(([, name, props]) => name === "experience_cta_click" && props.experience_type === "globe" && props.cta_placement === "how_section"));
-    await page.locator("#download").getByRole("link", { name: "App Store", exact: true }).click();
+    await page.locator("#download").getByRole("link", { name: "아이폰 App Store", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
     const storeClicks = (await events()).filter(([, name]) => name === "download_click");
@@ -113,7 +113,7 @@ try {
     const landingEvents = await events();
     assert.equal((await storyExperienceEvents(page)).length, 0);
     assert.equal((await storyEvents(page, "how_story_view")).length, 1);
-    assert.deepEqual((await storyEvents(page, "how_story_scene")).map(([, , props]) => props.scene_index).sort(), [1, 2, 3, 4, 5]);
+    assert.deepEqual((await storyEvents(page, "how_story_scene")).map(([, , props]) => props.scene_index).sort(), [1, 2, 3, 4, 5, 6]);
     assert.equal(landingEvents.some(([, name]) => /^how_play/.test(name)), false);
     assert.equal(JSON.stringify(landingEvents).includes("/assets/"), false);
     await page.goto("https://map-mory.com/recap/?internal=1");
@@ -149,10 +149,10 @@ try {
     await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
     assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-5 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-6 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
     await context.close();
   }
-  // Scroll mode: a fling past captions 1-4 counts none of them; a reader who rests on each caption sends one view
+  // Scroll mode: a fling past beats 1-5 counts none of them; a reader who rests on each beat sends one view
   // and each scene once; reading it again never re-sends; landing straight on a beat sends the view before the scene.
   for (const mobile of [false, true]) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, isMobile: mobile, hasTouch: mobile, reducedMotion: "no-preference", serviceWorkers: "block" });
@@ -163,16 +163,16 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("https://map-mory.com/?internal=1");
     await checkScrollStory(page, { reopen: () => page.goto("https://map-mory.com/?internal=1") });
-    // The end card's store links stay inert until the card is on screen, then send download_click from "replay".
-    const endcard = page.locator("section#how [data-tr-endcard]");
-    assert.equal(await endcard.evaluate((node) => node.inert), true);
-    await page.locator("section#how [data-tr-track]").evaluate((track) => window.scrollTo({ top: window.scrollY + track.getBoundingClientRect().top + track.offsetHeight - window.innerHeight - 4, behavior: "instant" }));
-    await page.waitForFunction(() => document.querySelector("section#how [data-tr-endcard]").inert === false);
-    await endcard.getByRole("link", { name: "App Store", exact: true }).click();
+    // The hero's own store buttons send download_click from "hero"; its chips send hero_demo_select only when tapped.
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await page.locator(".wall-hero").getByRole("button", { name: /^일본/ }).click();
+    const chip = (await dataLayerEvents(page)).filter(([, name]) => name === "hero_demo_select");
+    assert.deepEqual(chip.map(([, , props]) => [props.experience_type, props.demo_place]), [["hero_demo", "japan"]]);
+    await page.locator(".wall-hero").getByRole("link", { name: "아이폰 앱 받기", exact: true }).click();
     for (const popup of context.pages()) if (popup !== page) await popup.close();
     await page.bringToFront();
-    const replayClick = (await dataLayerEvents(page)).filter(([, name]) => name === "download_click").at(-1);
-    assert.deepEqual([replayClick[2].cta_placement, replayClick[2].store, replayClick[2].experience_type], ["replay", "app_store", undefined]);
+    const heroClick = (await dataLayerEvents(page)).filter(([, name]) => name === "download_click").at(-1);
+    assert.deepEqual([heroClick[2].cta_placement, heroClick[2].store, heroClick[2].experience_type], ["hero", "app_store", undefined]);
     if (mobile) {
       // The how-section link is still the mobile entry to the globe.
       await page.locator(".how-experience-link").click();
@@ -180,7 +180,7 @@ try {
       assert.ok((await dataLayerEvents(page)).some(([, name, props]) => name === "experience_cta_click" && props?.experience_type === "globe" && props?.cta_placement === "how_section"));
     }
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "scroll mode: a fling past captions 1-4 counts none and 5 at rest sends view (scroll) then scene 5; resting on each caption sends 4-1 once each, a second read re-sends nothing; no experience_* for how_story; landing on 3 sends the view before the scene; end card inert until shown, its App Store sends download_click cta_placement=replay" + (mobile ? "; how-section link to the globe" : "") });
+    findings.push({ mobile, passed: true, covered: "scroll mode: a fling past beats 1-5 counts none and 6 at rest sends view (scroll) then scene 6; resting on each beat sends 5-1 once each, a second read re-sends nothing; no experience_* for how_story; landing on 3 sends the view before the scene; hero chip tap sends hero_demo_select (japan) once, the auto-pick none; hero App Store sends download_click cta_placement=hero" + (mobile ? "; how-section link to the globe" : "") });
     console.log("How story (scroll) passed", { mobile });
     await context.close();
   }

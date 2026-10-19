@@ -1,0 +1,136 @@
+// The first screen (sketch v11 "A"): a live wall of photos. The pointer is a lens that shows where each photo was
+// taken; a place chip keeps only that place. Every tile is a different photo (no repeats): the wall grows its tiles
+// until it fits the photos it has. A port of the sketch's hero IIFE with init/destroy; React owns the chips and text.
+// It follows the pointer only (no wheel/touch/key handlers, never preventDefault) and draws only while on screen.
+import { SPRITE, getSpriteImage } from "./photoStory.js";
+import { clamp, drawSpriteTile, easeOut, fitCanvas, font, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
+
+const TOKENS = ["canvas", "surface", "text", "accent", "ps-on-accent", "ps-dot", "ps-shadow"];
+const rand = (n) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
+
+// mountHeroWall(hero section, canvas, { reducedMotion }) -> { setPick(key | null), destroy() }
+export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
+  const ctx = canvas.getContext("2d");
+  const sprite = getSpriteImage();
+  let W = 0, H = 0, DPR = 1, tiles = [], tok = {};
+  const lens = { x: 0, y: 0, tx: 0, ty: 0, live: false, last: 0 };
+  let pick = null, pickAt = 0, visible = true, raf = 0, destroyed = false;
+
+  const readTok = () => { tok = readTokens(hero, TOKENS); };
+  function layout() {
+    ({ W, H, DPR } = fitCanvas(canvas));
+    const N = SPRITE.tiles.length, small = W < 520;
+    let ts = small ? 46 : 80, cols, rows;
+    const gap = small ? 5 : 8;
+    for (;;) { const step = ts + gap; cols = Math.ceil(W / step) + 1; rows = Math.ceil(H / step) + 1; if (cols * rows <= N) break; ts += 2; }
+    const step = ts + gap;
+    tiles = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const k = tiles.length, d = SPRITE.tiles[k];
+      tiles.push({ x: x * step - (y % 2) * step / 2, y: y * step - step / 3, s: ts, k, place: d.place, label: d.label, v: 0, ph: rand(k * 5.5) * 6.28 });
+    }
+    lens.x = lens.tx = W * 0.72; lens.y = lens.ty = H * 0.7;
+  }
+
+  function paint({ t, x, y, s, a, ring }) {
+    ctx.globalAlpha = a;
+    drawSpriteTile(ctx, sprite, SPRITE, t.k, x, y, s, 8);
+    if (ring > 0) { ctx.globalAlpha = ring; ctx.strokeStyle = tok.accent; ctx.lineWidth = 2.5; roundRect(ctx, x - 2, y - 2, s + 4, s + 4, 10); ctx.stroke(); }
+  }
+
+  // one frame; returns true while something is still settling (reduced motion keeps drawing only until then)
+  function draw(now) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, W, H);
+    if (!reducedMotion && (!lens.live || now - lens.last > 2600)) { // idle: the lens drifts on its own so phones see it too
+      lens.live = false;
+      const t = now / 1000;
+      lens.tx = W * (0.5 + 0.36 * Math.sin(t * 0.45)); lens.ty = H * (0.5 + 0.34 * Math.sin(t * 0.31 + 1.2));
+    }
+    const follow = reducedMotion ? 1 : 0.12;
+    lens.x += (lens.tx - lens.x) * follow; lens.y += (lens.ty - lens.y) * follow;
+    const LR = W < 520 ? 92 : 150, k = pick ? (reducedMotion ? 1 : easeOut(clamp((now - pickAt) / 700))) : 0;
+    let hit = null, hitD = 1e9, settling = k < 1 && !!pick;
+    const top = [];
+    for (const t of tiles) {
+      const cx = t.x + t.s / 2, cy = t.y + t.s / 2, d = Math.hypot(cx - lens.x, cy - lens.y);
+      const inLens = clamp(1 - d / LR);
+      const keep = pick ? (t.place === pick ? 1 : 0) : 1;
+      const target = pick ? keep : inLens;
+      t.v = reducedMotion ? target : t.v + (target - t.v) * 0.14;
+      if (Math.abs(target - t.v) > 0.01) settling = true;
+      // a calm wall: photos sit dim; the lens (or a chosen place) brings them up
+      const dotK = pick && !keep ? k : 0;
+      if (dotK > 0.98) { ctx.globalAlpha = 0.7; ctx.fillStyle = tok["ps-dot"]; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, 7); ctx.fill(); continue; }
+      const lift = 1 + t.v * (pick ? 0.12 : 0.16);
+      const bob = reducedMotion ? 0 : Math.sin(now / 1400 + t.ph) * 1.2;
+      const s = t.s * lift * (1 - dotK * 0.9), x = cx - s / 2, y = cy - s / 2 + bob;
+      const item = { t, x, y, s, a: 0.16 + t.v * 0.84 - dotK * 0.1, ring: pick && keep ? k : 0 };
+      if (!pick && t.v > 0.3) top.push(item); else paint(item);
+      if (!pick && d < hitD && inLens > 0.55) { hitD = d; hit = item; }
+    }
+    // a soft clearing behind the words, then the lit photos on top of it
+    const g = ctx.createRadialGradient(W / 2, H * 0.47, 0, W / 2, H * 0.47, Math.max(W, H) * 0.42);
+    g.addColorStop(0, tok.canvas); g.addColorStop(0.55, `${tok.canvas}e6`); g.addColorStop(1, `${tok.canvas}00`);
+    ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    top.forEach(paint);
+    ctx.globalAlpha = 1;
+    // the lens: one photo at a time tells where it was taken
+    if (hit) {
+      const { t, x, y, s } = hit;
+      ctx.font = font(W < 520 ? 13 : 15);
+      const label = `📍 ${t.label}`, tw = ctx.measureText(label).width + 22, th = W < 520 ? 28 : 32;
+      const lx = Math.min(W - tw - 8, Math.max(8, x + s / 2 - tw / 2)), ly = y - th - 8;
+      ctx.shadowColor = tok["ps-shadow"]; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = t.place ? tok.accent : tok.surface; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill(); ctx.shadowColor = "transparent";
+      ctx.fillStyle = t.place ? tok["ps-on-accent"] : tok.text; ctx.textBaseline = "middle"; ctx.fillText(label, lx + 11, ly + th / 2 + 1);
+      ctx.strokeStyle = t.place ? tok.accent : tok.text; ctx.lineWidth = 2; roundRect(ctx, x - 2, y - 2, s + 4, s + 4, 10); ctx.stroke();
+    }
+    return settling;
+  }
+
+  const loop = (now) => {
+    raf = 0;
+    if (destroyed || !visible || !W) return;
+    const settling = draw(now);
+    if (!reducedMotion || settling) raf = requestAnimationFrame(loop);
+  };
+  const kick = () => { if (!raf && !destroyed && visible) raf = requestAnimationFrame(loop); };
+
+  const io = new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; kick(); });
+  io.observe(hero);
+  const ro = new ResizeObserver(() => { layout(); kick(); });
+  ro.observe(canvas);
+  const onPointerMove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    lens.tx = e.clientX - r.left; lens.ty = e.clientY - r.top; lens.live = true; lens.last = performance.now();
+    kick();
+  };
+  hero.addEventListener("pointermove", onPointerMove);
+  const onSprite = () => kick();
+  sprite?.addEventListener("load", onSprite);
+  const offTheme = onThemeChange(() => { readTok(); kick(); });
+  document.fonts?.ready.then(() => kick());
+
+  readTok();
+  layout();
+  kick();
+
+  return {
+    setPick(key) {
+      if (key === pick) return;
+      pick = key; pickAt = performance.now();
+      kick();
+    },
+    destroy() {
+      destroyed = true;
+      cancelAnimationFrame(raf);
+      io.disconnect();
+      ro.disconnect();
+      offTheme();
+      hero.removeEventListener("pointermove", onPointerMove);
+      sprite?.removeEventListener("load", onSprite);
+    },
+  };
+}
