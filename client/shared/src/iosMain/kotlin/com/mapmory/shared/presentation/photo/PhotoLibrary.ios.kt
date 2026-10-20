@@ -115,6 +115,7 @@ actual fun rememberPhotoLibraryActions(
             loadRecommendationPagesForSelection = controller::loadRecommendationPagesForSelection,
             prepareForAdding = controller::prepareForAdding,
             loadFullResolutionPreview = controller::loadFullResolutionPreview,
+            cancelFullResolutionPreview = controller::cancelFullResolutionPreview,
             cancelRecommendation = controller::cancelRecommendation,
             openAppSettings = controller::openAppSettings,
         )
@@ -672,18 +673,13 @@ private class IosPhotoLibraryController(
             deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
             networkAccessAllowed = true
         }
-        fullResolutionRequestId = PHImageManager.defaultManager().requestImageForAsset(
+        // Only requested for the opened photo. Preserve original pixels and metadata
+        // instead of resizing to 2048px and re-encoding another JPEG preview.
+        fullResolutionRequestId = PHImageManager.defaultManager().requestImageDataAndOrientationForAsset(
             asset = asset,
-            targetSize = CGSizeMake(
-                FullResolutionPreviewSizePx.toDouble(),
-                FullResolutionPreviewSizePx.toDouble(),
-            ),
-            contentMode = PHImageContentModeAspectFit,
             options = options,
-        ) { image, _ ->
-            val bytes = image
-                ?.let { UIImageJPEGRepresentation(it, FullResolutionPreviewJpegQuality) }
-                ?.toByteArray()
+        ) { data, _, _, _ ->
+            val bytes = data?.toByteArray()
             onMain { completion(bytes) }
         }
     }
@@ -794,8 +790,6 @@ private fun logPhotoPerformance(message: String) {
 
 private const val RecommendationPreviewSizePx = 640
 private const val PreviewJpegQuality = 0.85
-private const val FullResolutionPreviewSizePx = 2_048
-private const val FullResolutionPreviewJpegQuality = 0.92
 private const val IosProgressUpdateInterval = 25
 private fun Long.toPermissionIssue(): PhotoLibraryPermissionIssue =
     if (this == platform.Photos.PHAuthorizationStatusRestricted) {

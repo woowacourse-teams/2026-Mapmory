@@ -71,6 +71,7 @@ data class PhotoLibraryActions(
         photo: SelectedPhoto,
         onReady: (ByteArray?) -> Unit,
     ) -> Unit = { photo, onReady -> onReady(photo.originalBytes) },
+    val cancelFullResolutionPreview: () -> Unit = {},
     val recommendationsAvailable: Boolean = true,
     val cancelRecommendation: () -> Unit = {},
     val openAppSettings: () -> Unit = {},

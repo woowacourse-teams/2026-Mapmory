@@ -1,5 +1,9 @@
 package com.mapmory.shared.presentation.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
@@ -72,6 +76,7 @@ internal fun MapmoryPhotoViewer(
     onClose: () -> Unit,
     closeContentDescription: String,
     canDragDown: () -> Boolean = { true },
+    showTopBar: Boolean = true,
     trailingContent: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
@@ -84,43 +89,52 @@ internal fun MapmoryPhotoViewer(
     val latestCanDrag by rememberUpdatedState(canDragDown)
     val dismissDistance = with(LocalDensity.current) { 120.dp.toPx() }
     Box(Modifier.fillMaxSize().then(photoViewerBackground())) {
-        Box(
-            Modifier.fillMaxSize()
-                .photoDragDown(
-                    canStart = { !closing && latestCanDrag() },
-                    onStart = { returnJob?.cancel() },
-                    onDrag = { delta -> dragOffset = (dragOffset + delta).coerceAtLeast(0f) },
-                    onFinish = { cancelled ->
-                        if (!cancelled && dragOffset >= dismissDistance) {
-                            closing = true
-                            latestClose()
-                        } else {
-                            returnJob = scope.launch {
-                                animate(dragOffset, 0f, animationSpec = tween(180)) { value, _ ->
-                                    dragOffset = value
+        Box(Modifier.fillMaxSize().navigationBarsPadding().clipToBounds()) {
+            Box(
+                Modifier.fillMaxSize()
+                    .photoDragDown(
+                        canStart = { !closing && latestCanDrag() },
+                        onStart = { returnJob?.cancel() },
+                        onDrag = { delta -> dragOffset = (dragOffset + delta).coerceAtLeast(0f) },
+                        onFinish = { cancelled ->
+                            if (!cancelled && dragOffset >= dismissDistance) {
+                                closing = true
+                                latestClose()
+                            } else {
+                                returnJob = scope.launch {
+                                    animate(dragOffset, 0f, animationSpec = tween(180)) { value, _ ->
+                                        dragOffset = value
+                                    }
                                 }
                             }
-                        }
-                    },
-                )
-                .offset { IntOffset(0, dragOffset.roundToInt()) },
-        ) { content() }
-        Row(
-            Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding()
-                .height(56.dp).padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                        },
+                    )
+                    .offset { IntOffset(0, dragOffset.roundToInt()) },
+            ) { content() }
+        }
+        AnimatedVisibility(
+            visible = showTopBar,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(180)),
+            modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            MapmoryBackButton(
-                onClick = onClose,
-                color = Color.White,
-                label = closeContentDescription,
-            )
-            Text(
-                title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-            )
-            trailingContent()
+            Row(
+                Modifier.fillMaxWidth().statusBarsPadding()
+                    .height(56.dp).padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MapmoryBackButton(
+                    onClick = onClose,
+                    color = Color.White,
+                    label = closeContentDescription,
+                )
+                Text(
+                    title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                trailingContent()
+            }
         }
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(16.dp),

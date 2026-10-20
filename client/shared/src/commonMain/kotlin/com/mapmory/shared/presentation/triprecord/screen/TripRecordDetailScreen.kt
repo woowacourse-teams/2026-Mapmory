@@ -420,6 +420,9 @@ private fun ExpandedTripPhotoViewer(
     var localPreview by remember(currentPhoto.id) { mutableStateOf<ByteArray?>(null) }
     var localLookupFinished by remember(currentPhoto.id) { mutableStateOf(false) }
     val photoLibrary = rememberPhotoLibraryActions({}, {}, {}, {}, {}, {}, {})
+    androidx.compose.runtime.DisposableEffect(currentPhoto.id) {
+        onDispose { photoLibrary.cancelFullResolutionPreview() }
+    }
     LaunchedEffect(currentPhoto.id) {
         val localId = currentPhoto.localPhotoId
         if (localId != null && currentPhoto.localOriginalUri == null) {
@@ -438,6 +441,7 @@ private fun ExpandedTripPhotoViewer(
     MapmoryPhotoViewer(
         title = locationName,
         canDragDown = { currentPhotoZoom <= 1f && !pagerState.isScrollInProgress },
+        showTopBar = currentPhotoZoom <= 1f,
         onClose = onBackClick,
         closeContentDescription = "사진첩으로 돌아가기",
         trailingContent = {
@@ -475,23 +479,24 @@ private fun ExpandedTripPhotoViewer(
             val localBytes = localPreview.takeIf { isCurrent }
             val awaitingLocalPhoto = isCurrent && !localLookupFinished &&
                 photo.localPhotoId != null && photo.localOriginalUri == null
-            val usePreview = imageTransitionActive || awaitingLocalPhoto
+            val usePreview = !isCurrent || imageTransitionActive || awaitingLocalPhoto
             Box(Modifier.fillMaxSize()) {
                 MapmoryAsyncImage(
                     imageBytes = if (usePreview) {
                         photo.previewBytes?.bytesForDecoding() ?: photo.originalBytes?.bytesForDecoding()
                     } else {
-                        localBytes ?: photo.previewBytes?.bytesForDecoding()
-                            ?: photo.originalBytes?.bytesForDecoding()
+                        localBytes ?: photo.originalBytes?.bytesForDecoding()
+                            ?: photo.previewBytes?.bytesForDecoding()
                     },
                     imageUri = when {
                         usePreview -> photo.previewUri ?: photo.localOriginalUri
-                        localBytes != null -> null
+                        localBytes != null || photo.originalBytes != null -> null
                         !isCurrent -> photo.previewUri
                         else -> photo.localOriginalUri ?: photo.fullResolutionUri ?: photo.previewUri
                     },
                     cacheKey = if (usePreview) "trip-preview:${photo.id}" else "trip-full:${photo.id}",
                     blackLoadingBackground = true,
+                    decodeOriginalSize = !usePreview,
                     fallbackUri = when {
                         usePreview -> null
                         photo.localOriginalUri != null -> photo.fullResolutionUri ?: photo.previewUri
