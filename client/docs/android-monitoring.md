@@ -284,7 +284,7 @@ Console 데이터 보안 응답을 최종 배포 빌드 기준으로 갱신해�
 
 Android Crashlytics는 SDK와 Gradle 플러그인을 연결했으며, Analytics도 함께 포함되어 크래시 전후의
 Analytics breadcrumb를 확인할 수 있다. 단, Firebase Console에서 첫 보고서가 실제로 수신되는지까지는
-별도 검증해야 한다. 이 저장소에는 iOS Crashlytics와 Firebase Performance Monitoring을 연결하지 않았다.
+별도 검증해야 한다. iOS Crashlytics는 후속 변경에서 SDK와 Release 기기 빌드 dSYM 업로드를 연결했다(실제 수신 검증은 별도, `ios-crashlytics.md` 참고). Firebase Performance Monitoring은 연결하지 않았다.
 
 ### Android Crashlytics 최초 수신 확인
 
