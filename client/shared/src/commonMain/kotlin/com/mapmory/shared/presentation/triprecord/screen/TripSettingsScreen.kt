@@ -76,7 +76,7 @@ internal fun TripSettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
             ) {
-                Column(Modifier.padding(top = 24.dp, bottom = 20.dp)) {
+                Column(Modifier.padding(vertical = 18.dp)) {
                     Text(
                         text = "SETTINGS",
                         color = TripRecordPalette.current.primary,
