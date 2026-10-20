@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.os.Build
 import android.os.CancellationSignal
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +39,7 @@ actual fun rememberCurrentLocationActions(
     val cancellationSignals = remember { mutableListOf<CancellationSignal>() }
     var timeout by remember { mutableStateOf<Runnable?>(null) }
     val handler = remember { Handler(Looper.getMainLooper()) }
+    val isEmulator = Build.HARDWARE == "ranchu" || Build.HARDWARE == "goldfish"
 
     fun clearPendingRequest() {
         timeout?.let(handler::removeCallbacks)
@@ -96,7 +98,12 @@ actual fun rememberCurrentLocationActions(
                     return@requestLocation
                 }
                 timeout = Runnable {
-                    finish(id, null, "현재 위치 확인이 지연되고 있어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
+                    finish(
+                        id,
+                        null,
+                        if (isEmulator) "에뮬레이터에 모의 위치를 설정한 뒤 다시 눌러 주세요. 위치를 설정할 수 없다면 장소를 직접 검색해 주세요."
+                        else "현재 위치 확인이 지연되고 있어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.",
+                    )
                 }.also { handler.postDelayed(it, LocationRequestTimeoutMillis) }
                 val pendingProviders = providers.toMutableSet()
                 fun onResult(provider: String, location: Location?) {
@@ -146,7 +153,7 @@ actual fun rememberCurrentLocationActions(
             if (!isLoading) {
                 requestId += 1
                 isLoading = true
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                     PackageManager.PERMISSION_GRANTED
                 ) {
                     requestLocation(requestId)

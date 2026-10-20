@@ -190,14 +190,13 @@ private fun CurrentLocationMapButton(
     modifier: Modifier = Modifier,
 ) {
     val palette = TripRecordPalette.current
-    val iconColor = palette.pageBackground
+    val iconColor = palette.onPrimary
     Box(
         modifier = modifier
             .padding(start = 28.dp, bottom = 33.dp)
             .size(48.dp)
             .clip(CircleShape)
-            .background(palette.text)
-            .border(1.dp, palette.border, CircleShape)
+            .background(palette.primary)
             .clickable(enabled = !isLoading, role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = if (isLoading) "현재 위치 확인 중" else "현재 위치 표시"

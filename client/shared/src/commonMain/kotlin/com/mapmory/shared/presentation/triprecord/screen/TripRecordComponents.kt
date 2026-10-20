@@ -167,7 +167,7 @@ internal fun TripRecordCreateButton(
     Box(
         modifier = modifier
             .padding(end = 28.dp, bottom = 33.dp)
-            .size(44.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(palette.primary)
             .clickable {
