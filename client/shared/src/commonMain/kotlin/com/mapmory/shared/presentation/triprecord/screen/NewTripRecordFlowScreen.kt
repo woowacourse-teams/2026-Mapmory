@@ -1845,7 +1845,7 @@ private fun LocationSearchField(
             .height(58.dp)
             .background(TripRecordPalette.current.surfaceElevated, RoundedCornerShape(18.dp))
             .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(18.dp))
-            .padding(horizontal = 17.dp),
+            .padding(start = 17.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SearchIcon(
@@ -1918,15 +1918,39 @@ private fun CurrentLocationIcon(
 ) {
     Canvas(modifier) {
         val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = size.minDimension * 0.26f
-        val gap = size.minDimension * 0.17f
-        val stroke = 1.7.dp.toPx()
+        val radius = size.minDimension * 0.29f
+        val gap = size.minDimension * 0.07f
+        val stroke = 1.8.dp.toPx()
         drawCircle(color, radius, center, style = Stroke(stroke))
         drawCircle(color, size.minDimension * 0.08f, center)
-        drawLine(color, Offset(center.x, 0f), Offset(center.x, center.y - radius - gap), stroke)
-        drawLine(color, Offset(center.x, center.y + radius + gap), Offset(center.x, size.height), stroke)
-        drawLine(color, Offset(0f, center.y), Offset(center.x - radius - gap, center.y), stroke)
-        drawLine(color, Offset(center.x + radius + gap, center.y), Offset(size.width, center.y), stroke)
+        drawLine(
+            color,
+            Offset(center.x, 0f),
+            Offset(center.x, center.y - radius - gap),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(center.x, center.y + radius + gap),
+            Offset(center.x, size.height),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(0f, center.y),
+            Offset(center.x - radius - gap, center.y),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(center.x + radius + gap, center.y),
+            Offset(size.width, center.y),
+            stroke,
+            cap = StrokeCap.Round,
+        )
     }
 }
 

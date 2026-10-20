@@ -4,6 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,12 +26,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +63,9 @@ fun TripMapScreen(
     onMapScopeChange: (MapScope) -> Unit = {},
     showRegionLabels: Boolean = false,
     onRegionLabelsToggle: () -> Unit = {},
+    isCurrentLocationLoading: Boolean = false,
+    currentLocationError: String? = null,
+    onCurrentLocationClick: () -> Unit = {},
     onBackClick: () -> Unit,
     mapDetailTitle: String? = null,
     mapDetailTotal: Int? = null,
@@ -72,6 +87,7 @@ fun TripMapScreen(
             MapHeaderOverlay(
                 mapScope = mapScope,
                 visitedCount = visitedCount,
+                mapDetailTitle = mapDetailTitle,
                 mapDetailTotal = mapDetailTotal,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -83,16 +99,41 @@ fun TripMapScreen(
                     .fillMaxWidth()
                     .weight(1f),
             ) {
+                val mapStateHolder = rememberSaveableStateHolder()
                 MapViewport(
                     modifier = Modifier.fillMaxSize(),
-                    content = mapContent,
-                )
+                ) {
+                    mapStateHolder.SaveableStateProvider(mapScope.name, mapContent)
+                }
 
                 TripRecordCreateButton(
                     source = "map_fab",
                     onClick = onCreateClick,
                     modifier = Modifier.align(Alignment.BottomEnd),
                 )
+
+                CurrentLocationMapButton(
+                    isLoading = isCurrentLocationLoading,
+                    onClick = onCurrentLocationClick,
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
+
+                currentLocationError?.let { message ->
+                    Text(
+                        text = message,
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 146.dp)
+                            .widthIn(max = 320.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(TripRecordPalette.current.surface)
+                            .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                    )
+                }
 
                 Column(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
@@ -141,9 +182,53 @@ fun TripMapScreen(
 }
 
 @Composable
+private fun CurrentLocationMapButton(
+    isLoading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = TripRecordPalette.current
+    val iconColor = palette.pageBackground
+    Box(
+        modifier = modifier
+            .padding(start = 16.dp, bottom = 16.dp)
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(palette.text)
+            .border(1.dp, palette.border, CircleShape)
+            .clickable(enabled = !isLoading, role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = if (isLoading) "현재 위치 확인 중" else "현재 위치 표시"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = iconColor,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Canvas(Modifier.size(22.dp)) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val radius = size.minDimension * 0.22f
+                val strokeWidth = 1.8.dp.toPx()
+                val gap = radius + 1.dp.toPx()
+                drawCircle(iconColor, radius, center, style = Stroke(strokeWidth))
+                drawLine(iconColor, Offset(center.x, 0f), Offset(center.x, center.y - gap), strokeWidth, cap = StrokeCap.Round)
+                drawLine(iconColor, Offset(center.x, center.y + gap), Offset(center.x, size.height), strokeWidth, cap = StrokeCap.Round)
+                drawLine(iconColor, Offset(0f, center.y), Offset(center.x - gap, center.y), strokeWidth, cap = StrokeCap.Round)
+                drawLine(iconColor, Offset(center.x + gap, center.y), Offset(size.width, center.y), strokeWidth, cap = StrokeCap.Round)
+            }
+        }
+    }
+}
+
+@Composable
 private fun MapHeaderOverlay(
     mapScope: MapScope,
     visitedCount: Int,
+    mapDetailTitle: String?,
     mapDetailTotal: Int?,
     modifier: Modifier = Modifier,
 ) {
@@ -174,6 +259,7 @@ private fun MapHeaderOverlay(
         MapSummaryCard(
             mapScope = mapScope,
             visitedCount = visitedCount,
+            mapDetailTitle = mapDetailTitle,
             mapDetailTotal = mapDetailTotal,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
@@ -252,12 +338,13 @@ private fun MapScopeChip(
 private fun MapSummaryCard(
     mapScope: MapScope,
     visitedCount: Int,
+    mapDetailTitle: String?,
     mapDetailTotal: Int?,
     modifier: Modifier = Modifier,
 ) {
     val title = when (mapScope) {
         MapScope.WORLD -> "나의 세계 지도"
-        MapScope.KOREA -> "나의 대한민국 지도"
+        MapScope.KOREA -> "나의 ${mapDetailTitle ?: "대한민국"} 지도"
     }
     val total = mapDetailTotal ?: when (mapScope) {
         MapScope.WORLD -> 195
@@ -388,6 +475,7 @@ private fun MapSummaryCardPreview() {
     MapSummaryCard(
         mapScope = MapScope.WORLD,
         visitedCount = 3,
+        mapDetailTitle = null,
         mapDetailTotal = 9,
     )
 }
