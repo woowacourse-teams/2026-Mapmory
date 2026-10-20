@@ -138,7 +138,7 @@ fun TripRecordListScreen(
                                     onRetryPendingSave = onRetryPendingSave,
                                     onDismissPendingSave = onDismissPendingSave,
                                     onRecordClick = { recordId ->
-                                        analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED)
+                                        analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED, mapOf("record_id" to recordId.toString(), "source" to "journal"))
                                         onRecordClick(recordId)
                                     },
                                     modifier = Modifier.weight(1f),

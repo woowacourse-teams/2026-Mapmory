@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.data.settings.OnboardingPreference
@@ -103,6 +104,10 @@ internal fun MapRoute(
             MapmoryAnalyticsEvent.SCREEN_VIEW,
             mapOf("screen_name" to "map"),
         )
+    }
+
+    LaunchedEffect(showRecordIntroduction) {
+        if (showRecordIntroduction) analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_VIEWED)
     }
 
     LaunchedEffect(viewModel, tripRecordRevision) {
@@ -216,6 +221,7 @@ internal fun MapRoute(
                             message = mapState.message,
                             actionLabel = "다시 시도",
                             onAction = {
+                                analytics.emit(MapmoryAnalyticsEvent.MAP_RETRY_CLICKED)
                                 gestureClosedProvinceCode = null
                                 scope.launch { viewModel.openProvince(mapState.provinceCode) }
                             },
@@ -260,11 +266,14 @@ internal fun MapRoute(
         if (showRecordIntroduction) {
             FirstRecordIntroduction(
                 onAddRecord = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "create"))
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_CREATE_STARTED, mapOf("source" to "introduction"))
                     onboardingPreference.markRecordIntroductionSeen()
                     showRecordIntroduction = false
                     onOpenEditor(null)
                 },
                 onExplore = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "explore"))
                     onboardingPreference.markRecordIntroductionSeen()
                     showRecordIntroduction = false
                 },

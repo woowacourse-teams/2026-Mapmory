@@ -339,7 +339,7 @@ class BackgroundTripRecordSaverTest {
         saver.retry(id)
         saver.saves.first { saves -> saves.isEmpty() }
         assertContentEquals(
-            listOf(MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED),
+            listOf(MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, MapmoryAnalyticsEvent.RECORD_SAVE_RETRY, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED),
             analytics.events.map { it.first },
         )
     }

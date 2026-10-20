@@ -193,7 +193,7 @@ private fun CurrentLocationMapButton(
     val iconColor = palette.pageBackground
     Box(
         modifier = modifier
-            .padding(start = 16.dp, bottom = 16.dp)
+            .padding(start = 28.dp, bottom = 33.dp)
             .size(48.dp)
             .clip(CircleShape)
             .background(palette.text)
