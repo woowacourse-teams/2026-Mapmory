@@ -52,7 +52,7 @@ export const heroPickedCopy = ({ name, count }) => ({
 // ── #how: two pinned scroll stories, six beats in all. scene_index (how_story_scene) is the global beat, 1-6.
 // Each beat is { title: [line 1, emphasized line 2], body: [paragraphs], note?, kicker?, noteShort? }.
 // Phones show the title only, not the body and note: short words that never cover the phone. Only the three core beats
-// (find by place, food photos, only picked photos go up) carry a coloured hand-written kicker: one impact, 2-3 times in all.
+// (find by place, food photos, only picked photos go up) carry a green hand-written kicker: one impact, 2-3 times in all.
 export const ROLL_BEATS = Object.freeze([
   { title: ["내 사진첩에서도", "될까요?"], body: ["여행이 쌓일수록 사진은 묻혀요. 다시 꺼내 보려면 끝없이 넘겨야 하죠."] },
   {

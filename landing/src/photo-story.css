@@ -3,7 +3,6 @@
    end restyles both in place when the header's theme toggle flips data-theme. */
 .wall-hero, .ps {
   --ps-on-accent: #062b1d;
-  --ps-kicker: #e8466b;
   --ps-dot: #b7c6bc;
   --ps-shadow: rgba(25, 54, 39, 0.22);
   --ps-roll-bg: #eaf1ec;
@@ -63,11 +62,11 @@
 .ps-beat p.ps-note { margin-top: 10px; font-size: 12px; opacity: 0.85; }
 .ps-beat .ps-kicker, .ps-beat p.ps-phone { display: none; }
 @media (max-width: 760px) {
-  .ps-copy { left: 20px; right: 20px; top: 84px; transform: none; width: auto; min-height: 150px; text-align: center; }
+  .ps-copy { left: 20px; right: 20px; top: 120px; transform: none; width: auto; min-height: 150px; text-align: center; }
   .ps-beat h3 { margin-bottom: 8px; font-size: 28px; }
   .ps-beat .ps-long { display: none; }
   .ps-beat h3 em { color: inherit; } /* one impact per beat: only the kicker is coloured */
-  .ps-beat .ps-kicker { display: block; margin: 0 0 4px; color: var(--ps-kicker); font: 400 28px/1.1 "Nanum Pen Script", cursive; letter-spacing: 0; }
+  .ps-beat .ps-kicker { display: block; margin: 0 0 4px; color: var(--accent-strong); font: 400 28px/1.1 "Nanum Pen Script", cursive; letter-spacing: 0; }
   .ps-beat p.ps-phone { display: block; margin-top: 6px; font-size: 12px; opacity: 0.6; }
 }
 @media (max-width: 560px) { .how-section { padding-bottom: 48px; } }
@@ -88,7 +87,6 @@
 }
 
 :root[data-theme="dark"] .wall-hero, :root[data-theme="dark"] .ps {
-  --ps-kicker: #ff7a95;
   --ps-dot: #3a4b55;
   --ps-shadow: rgba(0, 0, 0, 0.5);
   --ps-roll-bg: #0f1a20;
