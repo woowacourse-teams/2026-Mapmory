@@ -18,6 +18,7 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
+            entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
             else -> return false
         }
         if (!navController.popBackStack(entry.destination.id, inclusive = true, saveState = true)) return false
@@ -61,6 +62,10 @@ internal class MapmoryNavigator(
 
     fun navigateToProfile() {
         navigateToTab(ProfileRoute)
+    }
+
+    fun navigateToSettings() {
+        navigateToTab(SettingsRoute)
     }
 
     fun navigateToDeveloperTools() {

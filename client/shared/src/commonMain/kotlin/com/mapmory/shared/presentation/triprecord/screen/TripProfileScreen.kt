@@ -7,7 +7,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,38 +23,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.mapmory.shared.presentation.privacy.PrivacyPolicyContent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mapmory.shared.LocalMapmoryTheme
-import com.mapmory.shared.LocalTeamDevice
-import com.mapmory.shared.TeamDeviceState
-import com.mapmory.shared.TeamDeviceTapCounter
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
-import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
-import com.mapmory.shared.PrivacyPolicy
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
@@ -63,12 +45,6 @@ import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewStatistics
 import kotlin.math.abs
-import com.mapmory.shared.analytics.LocalMapmoryAnalytics
-import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
-import com.mapmory.shared.domain.model.ServiceFeedbackCategory
-import com.mapmory.shared.domain.model.ServiceFeedbackPlatform
-import com.mapmory.shared.presentation.feedback.ServiceFeedbackDialog
-import com.mapmory.shared.presentation.feedback.currentServiceFeedbackPlatform
 
 @Composable
 fun TripProfileScreen(
@@ -76,28 +52,14 @@ fun TripProfileScreen(
     onRecordClick: () -> Unit,
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     onRetryClick: () -> Unit = {},
-    developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
-    onOpenDeveloperTools: () -> Unit = {},
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
-    onSubmitFeedback: suspend (ServiceFeedbackCategory, String) -> Result<Unit> = { _, _ ->
-        Result.failure(IllegalStateException("의견 보내기를 사용할 수 없습니다."))
-    },
     modifier: Modifier = Modifier,
 ) {
-    var showSettings by remember { mutableStateOf(false) }
-    var showFeedback by remember { mutableStateOf(false) }
-    var showPrivacyPolicy by remember { mutableStateOf(false) }
-    val theme = LocalMapmoryTheme.current
-    val analytics = LocalMapmoryAnalytics.current
-    val teamDevice = LocalTeamDevice.current
-
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
-            StatisticsHeader(onSettingsClick = {
-                analytics.logEvent(MapmoryAnalyticsEvent.SETTINGS_OPENED)
-                showSettings = true
-            })
+            StatisticsHeader()
 
             when (statisticsUiState) {
                 TripStatisticsUiState.Loading -> TripProfileSkeleton(Modifier.weight(1f))
@@ -130,6 +92,7 @@ fun TripProfileScreen(
                 onRecordClick = onRecordClick,
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
+                onSettingsClick = onSettingsClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,
@@ -138,224 +101,10 @@ fun TripProfileScreen(
             )
         }
     }
-
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            containerColor = TripRecordPalette.current.surface,
-            title = { Text("설정", color = TripRecordPalette.current.headingText) },
-            text = {
-                Column {
-                    Text(
-                        text = "화면 테마",
-                        color = TripRecordPalette.current.bodyText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        ThemeOption(
-                            label = "라이트 모드",
-                            selected = !theme.isDark,
-                            onClick = {
-                                analytics.logEvent(
-                                    MapmoryAnalyticsEvent.THEME_CHANGED,
-                                    mapOf("theme" to "light"),
-                                )
-                                theme.onThemeChange(false)
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ThemeOption(
-                            label = "다크 모드",
-                            selected = theme.isDark,
-                            onClick = {
-                                analytics.logEvent(
-                                    MapmoryAnalyticsEvent.THEME_CHANGED,
-                                    mapOf("theme" to "dark"),
-                                )
-                                theme.onThemeChange(true)
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Text(
-                        text = "불편한 점이나 의견이 있으면 알려주세요.",
-                        color = TripRecordPalette.current.secondaryText,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 18.dp),
-                    )
-                    TextButton(
-                        onClick = {
-                            showSettings = false
-                            showFeedback = true
-                        },
-                    ) {
-                        Text("의견 보내기", color = TripRecordPalette.current.primary)
-                    }
-                    if (developerToolsInfo != null) {
-                        TextButton(
-                            onClick = {
-                                showSettings = false
-                                onOpenDeveloperTools()
-                            },
-                        ) {
-                            Text("개발자 도구", color = TripRecordPalette.current.primary)
-                        }
-                    }
-                    if (PrivacyPolicy.URL.isNotBlank()) {
-                        Text(
-                            text = "서비스 정책은 아래 버튼에서 확인할 수 있어요.",
-                            color = TripRecordPalette.current.secondaryText,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 20.dp),
-                        )
-                    }
-                    if (teamDevice.appVersion.isNotBlank()) {
-                        AppVersionRow(teamDevice)
-                    }
-                }
-            },
-            confirmButton = {
-                if (PrivacyPolicy.URL.isNotBlank()) {
-                    TextButton(onClick = {
-                        analytics.logEvent(MapmoryAnalyticsEvent.PRIVACY_POLICY_OPENED)
-                        showSettings = false
-                        showPrivacyPolicy = true
-                    }) {
-                        Text("개인정보 처리방침", color = TripRecordPalette.current.primary)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettings = false }) {
-                    Text("닫기", color = TripRecordPalette.current.secondaryText)
-                }
-            },
-        )
-    }
-
-    if (showFeedback) {
-        ServiceFeedbackDialog(
-            platform = currentServiceFeedbackPlatform(),
-            onDismiss = { showFeedback = false },
-            onSubmit = onSubmitFeedback,
-        )
-    }
-
-    if (showPrivacyPolicy) {
-        Dialog(
-            onDismissRequest = { showPrivacyPolicy = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(TripRecordPalette.current.pageBackground),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(TripRecordPalette.current.surface)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = { showPrivacyPolicy = false }) {
-                        Text("닫기", color = TripRecordPalette.current.primary)
-                    }
-                    Text(
-                        text = "개인정보 처리방침",
-                        color = TripRecordPalette.current.headingText,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                PrivacyPolicyContent(
-                    url = PrivacyPolicy.URL,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                )
-            }
-        }
-    }
 }
 
 @Composable
-private fun AppVersionRow(teamDevice: TeamDeviceState) {
-    val tapCounter = remember { TeamDeviceTapCounter() }
-    var notice by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(notice) {
-        if (notice != null) {
-            delay(TeamDeviceNoticeMillis)
-            notice = null
-        }
-    }
-    Text(
-        text = "앱 버전 ${teamDevice.appVersion}",
-        color = TripRecordPalette.current.secondaryText,
-        fontSize = 11.sp,
-        modifier = Modifier
-            .padding(top = 16.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                if (tapCounter.tap()) {
-                    val enabled = !teamDevice.isTeamDevice
-                    teamDevice.onTeamDeviceChange(enabled)
-                    notice = if (enabled) "팀원 기기 모드를 켰어요" else "팀원 기기 모드를 껐어요"
-                }
-            },
-    )
-    notice?.let { message ->
-        Text(
-            text = message,
-            color = TripRecordPalette.current.contentOnMedia,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .background(TripRecordPalette.current.mediaScrim, RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-    }
-}
-
-private const val TeamDeviceNoticeMillis = 2_000L
-
-@Composable
-private fun ThemeOption(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(11.dp)
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(if (selected) TripRecordPalette.current.primarySoft else Color.Transparent)
-            .border(
-                width = 1.dp,
-                color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.border,
-                shape = shape,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.bodyText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun StatisticsHeader(onSettingsClick: () -> Unit) {
+private fun StatisticsHeader() {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
@@ -377,12 +126,6 @@ private fun StatisticsHeader(onSettingsClick: () -> Unit) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Text(
-            text = "⚙",
-            color = TripRecordPalette.current.secondaryText,
-            fontSize = 21.sp,
-            modifier = Modifier.clickable(onClick = onSettingsClick).padding(7.dp),
-        )
     }
 }
 

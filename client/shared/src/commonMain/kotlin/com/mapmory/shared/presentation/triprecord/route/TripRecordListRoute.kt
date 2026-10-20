@@ -24,6 +24,7 @@ internal fun TripRecordListRoute(
     onOpenEditor: () -> Unit,
     onOpenDetail: (Long, String?, String?, Int?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -74,5 +75,6 @@ internal fun TripRecordListRoute(
             scope.launch { viewModel.refresh(initialLocationId) }
         },
         onProfileClick = onOpenProfile,
+        onSettingsClick = onOpenSettings,
     )
 }

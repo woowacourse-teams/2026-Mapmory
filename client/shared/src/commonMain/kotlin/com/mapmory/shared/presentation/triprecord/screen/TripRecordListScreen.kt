@@ -61,6 +61,7 @@ fun TripRecordListScreen(
     onRecordClick: (Long) -> Unit,
     onRetryClick: () -> Unit,
     onProfileClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
@@ -179,6 +180,7 @@ fun TripRecordListScreen(
                 onMapClick = onMapClick,
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
+                onSettingsClick = onSettingsClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,

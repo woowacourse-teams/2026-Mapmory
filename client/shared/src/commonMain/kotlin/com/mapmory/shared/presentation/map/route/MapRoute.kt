@@ -44,6 +44,7 @@ internal fun MapRoute(
     onOpenRecords: (Long?) -> Unit,
     onOpenEditor: (Long?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState = viewModel.uiState
@@ -254,6 +255,7 @@ internal fun MapRoute(
             onRecordClick = { onOpenRecords(null) },
             onCreateClick = { onOpenEditor(null) },
             onProfileClick = onOpenProfile,
+            onSettingsClick = onOpenSettings,
         )
         if (showRecordIntroduction) {
             FirstRecordIntroduction(

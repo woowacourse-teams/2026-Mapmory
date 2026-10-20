@@ -20,6 +20,9 @@ internal data class EditorRoute(
 internal data object ProfileRoute
 
 @Serializable
+internal data object SettingsRoute
+
+@Serializable
 internal data object DeveloperToolsRoute
 
 @Serializable
