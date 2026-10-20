@@ -91,10 +91,7 @@ class MapViewModel(
     }
 
     fun changeScope(scope: MapScope) {
-        uiState = uiState.copy(
-            scope = scope,
-            koreaMap = KoreaMapUiState.ProvinceOverview,
-        )
+        uiState = uiState.copy(scope = scope)
     }
 
     suspend fun selectTag(tagId: Long?) {

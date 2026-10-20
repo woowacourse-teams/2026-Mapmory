@@ -1,7 +1,6 @@
 package com.mapmory.shared.app
 
-import com.mapmory.shared.analytics.MapmoryAnalytics
-import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
+import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.auth.AuthTokenStore
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.data.local.StaticRegionCatalog
@@ -244,21 +243,21 @@ fun createAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
-        delegate = tripStatisticsRepository,
+        delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
         cache = tripStatisticsCache,
     )
     val cachedMapSummary = CachedMapSummaryRepository(
-        delegate = mapSummaryRepository,
+        delegate = AnalyticsMapSummaryRepository(mapSummaryRepository, analytics),
         cache = mapSummaryCache,
     )
     return DefaultAppContainer(
         regionCatalog = regionCatalog,
-        tripRecordRepository = tripRecordRepository,
+        tripRecordRepository = AnalyticsTripRecordRepository(tripRecordRepository, analytics),
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
-        serviceFeedbackRepository = serviceFeedbackRepository,
-        tagRepository = tagRepository,
-        placeRepository = placeRepository,
+        serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
+        tagRepository = AnalyticsTagRepository(tagRepository, analytics),
+        placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         teamDevicePreference = teamDevicePreference,

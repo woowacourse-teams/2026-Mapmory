@@ -6,12 +6,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.data.settings.OnboardingPreference
@@ -20,10 +22,13 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
+import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.MapScope
+import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
 import com.mapmory.shared.presentation.map.ui.KoreaMapStatusMessage
 import com.mapmory.shared.presentation.map.ui.MapArtwork
+import com.mapmory.shared.presentation.map.ui.regionAt
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
 import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
@@ -70,12 +75,38 @@ internal fun MapRoute(
         mutableStateOf(!onboardingPreference.hasSeenRecordIntroduction())
     }
     var showRegionLabels by remember { mutableStateOf(false) }
-
+    var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var currentLocationError by remember { mutableStateOf<String?>(null) }
+    var worldLocationFocusRequest by remember { mutableIntStateOf(0) }
+    var koreaLocationFocusRequest by remember { mutableIntStateOf(0) }
+    val currentLocationActions = rememberCurrentLocationActions(
+        onLocation = { point ->
+            currentLocation = point
+            currentLocationError = null
+            gestureClosedProvinceCode = null
+            when {
+                viewModel.uiState.scope == MapScope.WORLD -> worldLocationFocusRequest++
+                GeneratedKoreaMapData.provinces.regionAt(point) != null -> {
+                    viewModel.closeProvince()
+                    koreaLocationFocusRequest++
+                }
+                else -> {
+                    viewModel.changeScope(MapScope.WORLD)
+                    worldLocationFocusRequest++
+                }
+            }
+        },
+        onError = { currentLocationError = it },
+    )
     LaunchedEffect(Unit) {
         analytics.logEvent(
             MapmoryAnalyticsEvent.SCREEN_VIEW,
             mapOf("screen_name" to "map"),
         )
+    }
+
+    LaunchedEffect(showRecordIntroduction) {
+        if (showRecordIntroduction) analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_VIEWED)
     }
 
     LaunchedEffect(viewModel, tripRecordRevision) {
@@ -135,11 +166,19 @@ internal fun MapRoute(
             },
             showRegionLabels = showRegionLabels,
             onRegionLabelsToggle = { showRegionLabels = !showRegionLabels },
+            isCurrentLocationLoading = currentLocationActions.isLoading,
+            currentLocationError = currentLocationError,
+            onCurrentLocationClick = {
+                currentLocationError = null
+                currentLocationActions.request()
+            },
             mapContent = {
                 when (uiState.scope) {
                     MapScope.WORLD -> MapArtwork(
                         scope = MapScope.WORLD,
                         visitedCountryCodes = viewModel.visitedCountryCodes,
+                        currentLocation = currentLocation,
+                        currentLocationFocusRequest = worldLocationFocusRequest,
                         onCountryClick = { countryCode ->
                             if (countryCode == KoreaCountryCode) {
                                 viewModel.changeScope(MapScope.KOREA)
@@ -154,6 +193,8 @@ internal fun MapRoute(
                             scope = MapScope.KOREA,
                             visitedRegionCodes = viewModel.visitedKoreaMapRegionCodes,
                             koreaRegions = GeneratedKoreaMapData.provinces,
+                            currentLocation = currentLocation,
+                            currentLocationFocusRequest = koreaLocationFocusRequest,
                             showRegionLabels = showRegionLabels,
                             isProvinceOverview = true,
                             onRegionClick = { provinceCode ->
@@ -179,6 +220,7 @@ internal fun MapRoute(
                             message = mapState.message,
                             actionLabel = "다시 시도",
                             onAction = {
+                                analytics.emit(MapmoryAnalyticsEvent.MAP_RETRY_CLICKED)
                                 gestureClosedProvinceCode = null
                                 scope.launch { viewModel.openProvince(mapState.provinceCode) }
                             },
@@ -188,6 +230,8 @@ internal fun MapRoute(
                             scope = MapScope.KOREA,
                             visitedRegionCodes = viewModel.visitedDistrictCodes(mapState.provinceCode),
                             koreaRegions = mapState.regions,
+                            currentLocation = currentLocation,
+                            currentLocationFocusRequest = koreaLocationFocusRequest,
                             showRegionLabels = showRegionLabels,
                             onRegionClick = { districtCode ->
                                 regionCatalog.findDistrict(
@@ -220,11 +264,14 @@ internal fun MapRoute(
         if (showRecordIntroduction) {
             FirstRecordIntroduction(
                 onAddRecord = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "create"))
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_CREATE_STARTED, mapOf("source" to "introduction"))
                     onboardingPreference.markRecordIntroductionSeen()
                     showRecordIntroduction = false
                     onOpenEditor(null)
                 },
                 onExplore = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "explore"))
                     onboardingPreference.markRecordIntroductionSeen()
                     showRecordIntroduction = false
                 },

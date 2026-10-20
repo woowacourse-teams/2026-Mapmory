@@ -1,8 +1,6 @@
 package com.mapmory.shared.app
 
-import com.mapmory.shared.analytics.MapmoryAnalytics
-import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
-import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
+import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.media.PhotoPreviewCache
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -128,6 +126,7 @@ class BackgroundTripRecordSaver internal constructor(
         if (drafts[id] == null) return
         val failed = mutableSaves.value.firstOrNull { save -> save.id == id } ?: return
         if (failed.status != BackgroundSaveStatus.FAILED) return
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_RETRY)
         serverSaveStarted.remove(id)
         queuedAt[id] = TimeSource.Monotonic.markNow()
         persist()
@@ -150,6 +149,7 @@ class BackgroundTripRecordSaver internal constructor(
 
     fun dismissFailure(id: Long) {
         if (mutableSaves.value.none { it.id == id && it.status == BackgroundSaveStatus.FAILED }) return
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SAVE_DISCARDED)
         val discarded = drafts.remove(id)
         serverSaveStarted.remove(id)
         attemptStarts.remove(id)
@@ -192,7 +192,14 @@ class BackgroundTripRecordSaver internal constructor(
     }
 
     private suspend fun save(id: Long) {
-        val draft = prepareDraft(id) ?: return
+        val draft = try {
+            prepareDraft(id)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            analytics.reportFailure("record_save_prepare", error)
+            throw error
+        } ?: return
         mutableSaves.update { current ->
             current.map { save ->
                 if (save.id == id) {
@@ -217,8 +224,8 @@ class BackgroundTripRecordSaver internal constructor(
         }
 
         result.fold(
-            onSuccess = {
-                logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED)
+            onSuccess = { record ->
+                logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, recordId = record.id)
                 val completed = mutableSaves.value.firstOrNull { it.id == id }
                 attemptStarts.remove(id)
                 queuedAt.remove(id)
@@ -231,6 +238,7 @@ class BackgroundTripRecordSaver internal constructor(
                 onSaved()
             },
             onFailure = { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
                 logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_FAILED, error)
                 val message = error.toBackgroundSaveMessage()
                 mutableSaves.update { current ->
@@ -288,9 +296,11 @@ class BackgroundTripRecordSaver internal constructor(
     }
 
     // 편집 화면의 저장 이벤트와 같은 이름·파라미터로 자동 재시도까지 끝난 최종 결과만 남긴다.
-    private fun logSaveResult(id: Long, event: String, error: Throwable? = null) {
+    private fun logSaveResult(id: Long, event: String, error: Throwable? = null, recordId: Long? = null) {
         val draft = drafts[id] ?: return
         val parameters = buildMap {
+            recordId?.let { put("record_id", it.toString()) }
+            put("photo_count", draft.mediaObjectKeys.size.toString())
             put("mode", "create")
             put("save_mode", "background")
             put("has_title", draft.title.isNotBlank().toString())
@@ -301,7 +311,7 @@ class BackgroundTripRecordSaver internal constructor(
             queuedAt[id]?.let { put("duration_ms", it.elapsedNow().inWholeMilliseconds.toString()) }
             error?.let { put("error_type", it::class.simpleName ?: "unknown") }
         }
-        analytics.logEvent(event, parameters)
+        analytics.emit(event, parameters)
     }
 }
 

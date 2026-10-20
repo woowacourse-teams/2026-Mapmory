@@ -22,6 +22,8 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.reportFailure
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -68,6 +70,7 @@ actual fun rememberPhotoLibraryActions(
     onRecommendationLoadingChanged: (Boolean) -> Unit,
     onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit,
 ): PhotoLibraryActions {
+    val analytics by rememberUpdatedState(LocalMapmoryAnalytics.current)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val latestPicked by rememberUpdatedState(onPhotosPicked)
@@ -138,6 +141,7 @@ actual fun rememberPhotoLibraryActions(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
                 Log.e("PhotoRecommendation", "Failed to load recommendation", error)
                 if (generation == recommendationGeneration.value) {
                     latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
@@ -175,6 +179,7 @@ actual fun rememberPhotoLibraryActions(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
                 Log.e("PhotoRecommendation", "Failed to load recommendation", error)
                 if (generation == recommendationGeneration.value) {
                     latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
@@ -230,6 +235,7 @@ actual fun rememberPhotoLibraryActions(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
                 if (generation == recommendationGeneration.value) {
                     latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
                 }
@@ -306,6 +312,9 @@ actual fun rememberPhotoLibraryActions(
                     Trace.endAsyncSection("photo.pick.total", TraceCookie.Pick)
                 }
             }
+                if (photos.size < uris.size) {
+                    analytics.reportFailure("photo_import", kotlinx.io.IOException())
+                }
                 if (photos.isEmpty()) {
                     latestMessage("선택한 사진을 읽지 못했어요.")
                 } else {
@@ -334,6 +343,9 @@ actual fun rememberPhotoLibraryActions(
                         photos.mapNotNull { photo ->
                             photo.takeIf { context.canOpenPhoto(Uri.parse(photo.id)) }
                         }
+                    }
+                    if (preparedPhotos.size < photos.size) {
+                        analytics.reportFailure("photo_prepare", kotlinx.io.IOException())
                     }
                     onReady(preparedPhotos)
                 }

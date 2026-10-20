@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.map.domain.CountryPolygon
+import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.math.Quaternion
 import com.mapmory.shared.presentation.map.math.Vec3
 import com.mapmory.shared.presentation.map.math.clipToFrontHemisphere
@@ -38,6 +40,8 @@ import kotlin.math.min
 @Composable
 internal fun WorldGlobe(
     visitedCountryCodes: Set<String>,
+    currentLocation: GeoPoint?,
+    currentLocationFocusRequest: Int,
     onCountryClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,8 +49,17 @@ internal fun WorldGlobe(
     var longitude by rememberSaveable { mutableStateOf(InitialLongitude) }
     var latitude by rememberSaveable { mutableStateOf(0f) }
     var zoom by rememberSaveable { mutableStateOf(1f) }
+    var lastLocationFocusRequest by rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(currentLocation, currentLocationFocusRequest) {
+        val point = currentLocation ?: return@LaunchedEffect
+        if (currentLocationFocusRequest == 0 || currentLocationFocusRequest == lastLocationFocusRequest) {
+            return@LaunchedEffect
+        }
+        longitude = -point.longitude * PI.toFloat() / 180f
+        latitude = point.latitude * PI.toFloat() / 180f
+        lastLocationFocusRequest = currentLocationFocusRequest
+    }
     val currentOnCountryClick by rememberUpdatedState(onCountryClick)
-
     // Keep the globe roll-free: longitude spin plus bounded latitude tilt only.
     val rotation = remember(longitude, latitude) {
         val polarRotation = Quaternion.fromAxisAngle(
@@ -182,6 +195,16 @@ internal fun WorldGlobe(
                 radius = globeRadius,
                 center = center,
             )
+
+            currentLocation?.let { point ->
+                val location = rotation.rotate(point.toSphere())
+                if (location.z >= 0f) {
+                    val markerCenter = projectToScreen(location, center, globeRadius)
+                    drawCircle(Color(0xFF2F80ED).copy(alpha = 0.24f), 12.dp.toPx(), markerCenter)
+                    drawCircle(Color.White, 8.dp.toPx(), markerCenter)
+                    drawCircle(Color(0xFF2F80ED), 5.5.dp.toPx(), markerCenter)
+                }
+            }
 
         }
     }

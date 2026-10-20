@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.painter.Painter
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.reportFailure
 import coil3.compose.AsyncImage
 import com.mapmory.shared.presentation.triprecord.screen.TripPhotoPlaceholder
 
@@ -68,6 +70,8 @@ internal fun MapmoryAsyncImage(
     onClick: (() -> Unit)? = null,
     onReadyChanged: (Boolean) -> Unit = {},
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    var reportedFailure by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(false) }
     val transition = LocalMapmoryImageTransitionScope.current
     // Both incoming and outgoing photos follow the same timeline as their bounds.
     // The fullscreen photo starts rounded instead of switching to a rectangle on entry.
@@ -177,10 +181,13 @@ internal fun MapmoryAsyncImage(
                         showPlaceholder = false
                         imageLoaded = true
                     },
-                    onError = {
+                    onError = { state ->
                         showPlaceholder = true
                         if (!useFallback && primaryModel != null && fallbackModel != null && fallbackModel != primaryModel) {
                             useFallback = true
+                        } else if (!reportedFailure) {
+                            reportedFailure = true
+                            analytics.reportFailure("photo_display", state.result.throwable)
                         }
                     },
                 )
