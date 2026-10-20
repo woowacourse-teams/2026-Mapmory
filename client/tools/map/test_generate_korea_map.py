@@ -15,6 +15,73 @@ SPEC.loader.exec_module(MODULE)
 
 
 class GenerateKoreaMapTest(unittest.TestCase):
+    def test_시도_외곽은_시군구_채움의_공유_변만_제거하고_구멍을_보존한다(self):
+        districts = [
+            MODULE.Boundary("KR-46", f"{x}{y}", "지역", [
+                [[x, y], [x, y + 1], [x + 1, y + 1], [x + 1, y], [x, y]],
+            ])
+            for x in range(3) for y in range(3) if (x, y) != (1, 1)
+        ]
+
+        province, = MODULE.dissolve_overview_provinces(districts)
+
+        self.assertEqual("KR-46", province.code)
+        self.assertEqual(2, len(province.rings))
+        signed_areas = [sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:]))
+                        for ring in province.rings]
+        self.assertEqual([-18, 2], sorted(signed_areas))
+        self.assertEqual(-16, sum(signed_areas))
+
+    def test_꼭짓점만_닿는_섬은_각각_닫힌_시도_외곽으로_남는다(self):
+        districts = [
+            MODULE.Boundary("KR-28", str(x), "섬", [
+                [[x, x], [x, x + 1], [x + 1, x + 1], [x + 1, x], [x, x]],
+            ])
+            for x in (0, 1)
+        ]
+
+        province, = MODULE.dissolve_overview_provinces(districts)
+
+        self.assertEqual(2, len(province.rings))
+        self.assertTrue(all(len(ring) == 5 and ring[0] == ring[-1] for ring in province.rings))
+
+    def test_시도_외곽은_열린_링이나_겹친_채움_변을_허용하지_않는다(self):
+        ring = [[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]
+        with self.assertRaisesRegex(ValueError, "unclosed overview province source"):
+            MODULE.dissolve_overview_provinces([MODULE.Boundary("KR-41", "A", "A", [ring[:-1]])])
+        with self.assertRaisesRegex(ValueError, "duplicate directed overview edge"):
+            MODULE.dissolve_overview_provinces([
+                MODULE.Boundary("KR-41", "A", "A", [ring]),
+                MODULE.Boundary("KR-41", "B", "B", [ring]),
+            ])
+
+    def test_전국_시도_외곽은_최종_시군구_채움의_변과_정확하게_일치한다(self):
+        resource_dir = MODULE_PATH.parents[2] / "shared/src/commonMain/composeResources/files"
+        districts = json.loads((resource_dir / "korea-district-overview-polygons.json").read_text())["districts"]
+        boundaries = [MODULE.Boundary(d["provinceCode"], d["code"], d["name"], d["rings"])
+                      for d in districts]
+        bundled = (resource_dir / "korea-province-overview-polygons.json").read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            MODULE.write_overview_province_polygons_resource(Path(directory), boundaries)
+            self.assertEqual(bundled, (Path(directory) / "korea-province-overview-polygons.json").read_text())
+        provinces = json.loads(bundled)["districts"]
+        self.assertEqual(set(MODULE.PROVINCE_NAMES), {p["code"] for p in provinces})
+        self.assertEqual(17, len(provinces))
+        for province in provinces:
+            source_edges = {
+                (tuple(start), tuple(end))
+                for district in districts if district["provinceCode"] == province["code"]
+                for ring in district["rings"] for start, end in zip(ring, ring[1:])
+                if start != end
+            }
+            expected = {edge for edge in source_edges if tuple(reversed(edge)) not in source_edges}
+            actual = [(tuple(start), tuple(end))
+                      for ring in province["rings"] for start, end in zip(ring, ring[1:])]
+            self.assertEqual(expected, set(actual), province["code"])
+            self.assertEqual(len(expected), len(actual), province["code"])
+            self.assertTrue(all(ring[0] == ring[-1] for ring in province["rings"]))
+            self.assertEqual(province["code"], province["provinceCode"])
+
     def test_같은_시의_일반구_접합부를_채움에서만_제거한다(self):
         source = MODULE.Boundary("KR-41", "41130", "성남시", [
             [[0, 0], [1, 0], [0.8, 1], [1.2, 2], [1, 3], [0, 3], [0, 0]],

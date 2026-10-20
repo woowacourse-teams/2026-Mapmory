@@ -127,6 +127,14 @@ private struct ComposeView: UIViewControllerRepresentable {
 }
 
 final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private static var analyticsEnabled: Bool {
+#if DEBUG || INTERNAL
+        false
+#else
+        true
+#endif
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         return true
@@ -143,7 +151,8 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         }
         MainViewControllerKt.resumeBackgroundUploads(
             apiBaseUrl: AppConfiguration.apiBaseUrl,
-            tokenStore: KeychainAuthTokenStore(apiBaseUrl: AppConfiguration.apiBaseUrl)
+            tokenStore: KeychainAuthTokenStore(apiBaseUrl: AppConfiguration.apiBaseUrl),
+            analytics: FirebaseAnalyticsLogger(isEnabled: Self.analyticsEnabled)
         )
         PhotoUploadTransferKt.handleBackgroundUploadEvents(completion: completionHandler)
     }

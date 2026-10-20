@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.collect
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.model.Location
@@ -213,6 +214,10 @@ fun TripRecordEditorScreen(
         { page ->
             val nextState = recommendationPagingState.accept(page)
             if (nextState != null) {
+                analytics.emit(MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_PAGE_LOADED, mapOf(
+                    "result_count" to page.photos.size.toString(),
+                    "has_more" to page.hasMore.toString(),
+                ))
                 recommendationPagingState = nextState
                 if (nextState.photos.isNotEmpty()) {
                     showRecommendationSheet = true
@@ -231,6 +236,7 @@ fun TripRecordEditorScreen(
         { progress -> photoLoadingProgress = progress },
         { isLoading -> isRecommendationLoading = isLoading },
         { issue ->
+            analytics.emit(MapmoryAnalyticsEvent.PHOTO_PERMISSION_REQUIRED, mapOf("permission_state" to issue.name.lowercase()))
             photoMessage = null
             photoPermissionIssue = issue
         },

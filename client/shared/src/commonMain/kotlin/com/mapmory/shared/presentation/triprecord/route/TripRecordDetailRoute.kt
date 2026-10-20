@@ -6,6 +6,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.mapmory.shared.analytics.emit
+import com.mapmory.shared.presentation.triprecord.state.TripRecordDetailUiState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,15 +64,24 @@ internal fun TripRecordDetailRoute(
         onBack = { latestBackHandler() },
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(recordId) {
         analytics.logEvent(
             MapmoryAnalyticsEvent.SCREEN_VIEW,
-            mapOf("screen_name" to "record_detail"),
+            mapOf("screen_name" to "record_detail", "record_id" to recordId.toString()),
         )
     }
 
     LaunchedEffect(viewModel, recordId, tripRecordRevision) {
         viewModel.loadIfNeeded(recordId, tripRecordRevision)
+    }
+
+    var reportedView by rememberSaveable(recordId) { mutableStateOf(false) }
+    val loadedRecord = (viewModel.uiState as? TripRecordDetailUiState.Success)?.record
+    LaunchedEffect(recordId, loadedRecord?.id) {
+        if (!reportedView && loadedRecord?.id == recordId) {
+            analytics.emit(MapmoryAnalyticsEvent.RECORD_VIEWED, mapOf("record_id" to recordId.toString()))
+            reportedView = true
+        }
     }
 
     TripRecordDetailScreen(
@@ -79,8 +91,12 @@ internal fun TripRecordDetailRoute(
         initialLatestDate = initialLatestDate,
         initialPhotoCount = initialPhotoCount,
         onBackClick = onBack,
-        onEditClick = { onEdit(recordId) },
+        onEditClick = {
+            analytics.emit(MapmoryAnalyticsEvent.RECORD_EDIT_STARTED, mapOf("record_id" to recordId.toString()))
+            onEdit(recordId)
+        },
         onDeleteClick = {
+            analytics.emit(MapmoryAnalyticsEvent.RECORD_DELETE_STARTED, mapOf("record_id" to recordId.toString()))
             scope.launch {
                 if (viewModel.delete()) {
                     onDeleted()

@@ -99,6 +99,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionScope
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.model.Location
@@ -108,6 +109,10 @@ import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.PlaceRules
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
+import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
+import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
+import com.mapmory.shared.presentation.map.domain.findCurrentTripRecordLocation
+import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
 import com.mapmory.shared.presentation.photo.PhotoLoadingProgress
@@ -123,6 +128,8 @@ import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
 import com.mapmory.shared.presentation.triprecord.selectableTripRecordDestinations
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
@@ -364,6 +371,77 @@ internal fun NewTripRecordFlowScreen(
     var previewPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
     var fullResolutionPreviewBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingLocation by remember { mutableStateOf<Location?>(null) }
+    var isResolvingCurrentLocation by remember { mutableStateOf(false) }
+    var currentLocationError by remember { mutableStateOf<String?>(null) }
+    var currentLocationRequestId by remember { mutableStateOf(0) }
+    var currentLocationResolutionJob by remember { mutableStateOf<Job?>(null) }
+    val currentLocationActions = rememberCurrentLocationActions(
+        onLocation = { point ->
+            if (stepName == NewRecordFlowStep.LOCATION.name) {
+                currentLocationError = null
+                currentLocationResolutionJob?.cancel()
+                val requestId = ++currentLocationRequestId
+                isResolvingCurrentLocation = true
+                currentLocationResolutionJob = placeSelectionScope.launch {
+                    try {
+                        val location = findCurrentTripRecordLocation(
+                            point = point,
+                            districtBoundaries = GeneratedKoreaDistrictMapData.overviewDistricts(),
+                            countryBoundaries = GeneratedWorldMapData.countries,
+                            locations = locations,
+                        )
+                        if (requestId != currentLocationRequestId || stepName != NewRecordFlowStep.LOCATION.name) {
+                            return@launch
+                        }
+                        if (location == null) {
+                            currentLocationError = "현재 위치에서 Mapmory 지역을 찾지 못했어요. 장소를 직접 검색해 주세요."
+                            return@launch
+                        }
+                        keyboard?.hide()
+                        onLocationTouched()
+                        onPlaceSearchQueryChanged()
+                        onSelectedPlaceCleared()
+                        onLocationSelected(location)
+                        pendingLocation = null
+                        locationSearchQuery = location.flowDisplayName(locations)
+                        currentLocationError = null
+                        detailsErrorMessage = null
+                        analytics.logEvent(
+                            MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
+                            mapOf(
+                                "source" to "current_location",
+                                "location_type" to location.type.name.lowercase(),
+                            ),
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        if (requestId == currentLocationRequestId) {
+                            currentLocationError = "현재 위치의 지역 정보를 확인하지 못했어요. 장소를 직접 검색해 주세요."
+                        }
+                    } finally {
+                        if (requestId == currentLocationRequestId) {
+                            isResolvingCurrentLocation = false
+                            currentLocationResolutionJob = null
+                        }
+                    }
+                }
+            }
+        },
+        onError = { message ->
+            if (stepName == NewRecordFlowStep.LOCATION.name) currentLocationError = message
+        },
+    )
+    fun cancelCurrentLocationLookup() {
+        currentLocationRequestId += 1
+        currentLocationActions.cancel()
+        currentLocationResolutionJob?.cancel()
+        currentLocationResolutionJob = null
+        isResolvingCurrentLocation = false
+    }
+    LaunchedEffect(step) {
+        if (step != NewRecordFlowStep.LOCATION) cancelCurrentLocationLookup()
+    }
     var pendingSave by remember { mutableStateOf(false) }
     var hasStartedInitialPhotoSearch by rememberSaveable(startWithPhotoSearch) { mutableStateOf(false) }
     val photoListState = rememberLazyListState()
@@ -472,6 +550,10 @@ internal fun NewTripRecordFlowScreen(
                     preselectedIds = preselectedLocalPhotoIds,
                 )
                 ?.let { nextState ->
+                    analytics.emit(MapmoryAnalyticsEvent.PHOTO_RECOMMENDATION_PAGE_LOADED, mapOf(
+                        "result_count" to page.photos.size.toString(),
+                        "has_more" to page.hasMore.toString(),
+                    ))
                     recommendationPagingState = if (isSelectingAllPhotos) {
                         nextState.selectAllLoadedPhotos()
                     } else {
@@ -505,7 +587,10 @@ internal fun NewTripRecordFlowScreen(
             isPreparingPhotoPreviews = progress.total > 0 && progress.processed >= progress.total
         },
         { isLoading -> isRecommendationLoading = isLoading },
-        { issue -> photoPermissionIssue = issue },
+        { issue ->
+            analytics.emit(MapmoryAnalyticsEvent.PHOTO_PERMISSION_REQUIRED, mapOf("permission_state" to issue.name.lowercase()))
+            photoPermissionIssue = issue
+        },
     )
 
     DisposableEffect(previewPhotoId) {
@@ -923,7 +1008,16 @@ internal fun NewTripRecordFlowScreen(
                             searchQuery = locationSearchQuery,
                             searchResults = filteredLocations,
                             errorMessage = detailsErrorMessage,
+                            currentLocationLoading = currentLocationActions.isLoading || isResolvingCurrentLocation,
+                            currentLocationError = currentLocationError,
+                            onCurrentLocationClick = {
+                                cancelCurrentLocationLookup()
+                                currentLocationError = null
+                                currentLocationActions.request()
+                            },
                             onSearchQueryChanged = {
+                                cancelCurrentLocationLookup()
+                                currentLocationError = null
                                 onLocationTouched()
                                 if (it.isNotBlank()) logFieldInteraction("location")
                                 locationSearchQuery = it.take(PlaceRules.MaxQueryLength)
@@ -933,6 +1027,7 @@ internal fun NewTripRecordFlowScreen(
                                 detailsErrorMessage = null
                             },
                             onLocationSelected = { location ->
+                                cancelCurrentLocationLookup()
                                 logFieldInteraction("location")
                                 analytics.logEvent(
                                     MapmoryAnalyticsEvent.RECORD_LOCATION_SELECTED,
@@ -950,6 +1045,7 @@ internal fun NewTripRecordFlowScreen(
                             },
                             onPlaceCandidateSelected = { candidate ->
                                 if (!uiState.isSelectingPlace) {
+                                    cancelCurrentLocationLookup()
                                     logFieldInteraction("location")
                                     keyboard?.hide()
                                     onPlaceSearchQueryChanged()
@@ -969,6 +1065,7 @@ internal fun NewTripRecordFlowScreen(
                                 }
                             },
                             onSelectedPlaceCleared = {
+                                cancelCurrentLocationLookup()
                                 onSelectedPlaceCleared()
                                 locationSearchQuery = uiState.selectedLocation
                                     ?.flowDisplayName(locations)
@@ -1200,6 +1297,9 @@ private fun LocationStep(
     searchQuery: String,
     searchResults: List<Location>,
     errorMessage: String?,
+    currentLocationLoading: Boolean,
+    currentLocationError: String?,
+    onCurrentLocationClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onLocationSelected: (Location) -> Unit,
     onPlaceCandidateSelected: (PlaceCandidate) -> Unit,
@@ -1288,11 +1388,18 @@ private fun LocationStep(
             ) {
                 LocationSearchField(
                     value = searchQuery,
+                    currentLocationLoading = currentLocationLoading,
                     onValueChange = {
                         showSearchResults = true
                         onSearchQueryChanged(it)
                     },
                     onFocused = { showSearchResults = true },
+                    onCurrentLocationClick = {
+                        showSearchResults = false
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        onCurrentLocationClick()
+                    },
                 )
                 if (showSearchResults && searchFieldWidth > 0 && (showPlaceResults || showRegionResults)) {
                     Popup(
@@ -1355,6 +1462,14 @@ private fun LocationStep(
                         }
                     }
                 }
+            }
+            currentLocationError?.let { message ->
+                Text(
+                    text = message,
+                    color = TripRecordPalette.current.danger,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
             uiState.selectedPlace?.let { place ->
                 SelectedPlaceCard(
@@ -1724,7 +1839,9 @@ private fun LocationSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    currentLocationLoading: Boolean = false,
     onFocused: () -> Unit = {},
+    onCurrentLocationClick: () -> Unit = {},
 ) {
     val latestOnFocused by rememberUpdatedState(onFocused)
     Row(
@@ -1739,7 +1856,7 @@ private fun LocationSearchField(
             .height(58.dp)
             .background(TripRecordPalette.current.surfaceElevated, RoundedCornerShape(18.dp))
             .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(18.dp))
-            .padding(horizontal = 17.dp),
+            .padding(start = 17.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SearchIcon(
@@ -1773,6 +1890,77 @@ private fun LocationSearchField(
                 .padding(start = 12.dp)
                 .onFocusChanged { if (it.isFocused) onFocused() }
                 .testTag("new-record-location-search"),
+        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(
+                    enabled = !currentLocationLoading,
+                    role = Role.Button,
+                    onClick = onCurrentLocationClick,
+                )
+                .semantics {
+                    contentDescription = if (currentLocationLoading) "현재 위치 확인 중" else "현재 위치로 지역 선택"
+                }
+                .testTag("current-location-search-button"),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (currentLocationLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = TripRecordPalette.current.accent,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                CurrentLocationIcon(
+                    color = TripRecordPalette.current.accent,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CurrentLocationIcon(
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.29f
+        val gap = size.minDimension * 0.07f
+        val stroke = 1.8.dp.toPx()
+        drawCircle(color, radius, center, style = Stroke(stroke))
+        drawCircle(color, size.minDimension * 0.08f, center)
+        drawLine(
+            color,
+            Offset(center.x, 0f),
+            Offset(center.x, center.y - radius - gap),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(center.x, center.y + radius + gap),
+            Offset(center.x, size.height),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(0f, center.y),
+            Offset(center.x - radius - gap, center.y),
+            stroke,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color,
+            Offset(center.x + radius + gap, center.y),
+            Offset(size.width, center.y),
+            stroke,
+            cap = StrokeCap.Round,
         )
     }
 }
