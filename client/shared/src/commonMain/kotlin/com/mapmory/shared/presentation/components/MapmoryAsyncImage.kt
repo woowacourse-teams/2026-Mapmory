@@ -66,6 +66,7 @@ internal fun MapmoryAsyncImage(
     shape: Shape = RoundedCornerShape(18.dp),
     contentScale: ContentScale = ContentScale.Crop,
     sharedImageKey: String? = null,
+    imageIdentity: String? = sharedImageKey,
     sharedCornerRadius: Dp = 18.dp,
     onClick: (() -> Unit)? = null,
     onReadyChanged: (Boolean) -> Unit = {},
@@ -83,8 +84,10 @@ internal fun MapmoryAsyncImage(
         }
         RoundedCornerShape(cornerRadius)
     } else shape
-    var lastPainter by remember(sharedImageKey, contentDescription) {
-        mutableStateOf(sharedImageKey?.let { transition?.painters?.get(it) })
+    // Becoming the current pager page changes sharedImageKey, not image identity.
+    // Keep the displayed frame while preview/original requests are replaced.
+    var lastPainter by remember(imageIdentity, contentDescription) {
+        mutableStateOf(imageIdentity?.let { transition?.painters?.get(it) })
     }
     var useFallback by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(false) }
     var showPlaceholder by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(true) }

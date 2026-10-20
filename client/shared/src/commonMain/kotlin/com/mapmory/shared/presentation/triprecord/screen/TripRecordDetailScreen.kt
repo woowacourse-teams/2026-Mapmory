@@ -1,6 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
 import com.mapmory.shared.presentation.components.MapmoryPhotoExpansion
+import com.mapmory.shared.presentation.components.PhotoViewerOriginalCache
 import com.mapmory.shared.presentation.components.PhotoListScrollBar
 import com.mapmory.shared.presentation.components.ScrollToTopEffect
 import com.mapmory.shared.presentation.components.MapmoryPhotoViewer
@@ -416,25 +417,31 @@ private fun ExpandedTripPhotoViewer(
     val pagerState = rememberPagerState(initialPage = initialPage) { photos.size }
     val imageTransitionActive =
         LocalMapmoryImageTransitionScope.current?.isTransitionActive == true
-    val currentPhoto = photos[pagerState.currentPage]
-    var localPreview by remember(currentPhoto.id) { mutableStateOf<ByteArray?>(null) }
-    var localLookupFinished by remember(currentPhoto.id) { mutableStateOf(false) }
+    val originals = remember { PhotoViewerOriginalCache() }
     val photoLibrary = rememberPhotoLibraryActions({}, {}, {}, {}, {}, {}, {})
-    androidx.compose.runtime.DisposableEffect(currentPhoto.id) {
+    DisposableEffect(Unit) {
         onDispose { photoLibrary.cancelFullResolutionPreview() }
     }
-    LaunchedEffect(currentPhoto.id) {
-        val localId = currentPhoto.localPhotoId
-        if (localId != null && currentPhoto.localOriginalUri == null) {
-            localPreview = suspendCancellableCoroutine { continuation ->
-                photoLibrary.loadFullResolutionPreview(
-                    SelectedPhoto(localId, currentPhoto.displayName, null),
-                ) { bytes ->
-                    if (continuation.isActive) continuation.resume(bytes)
-                }
+    LaunchedEffect(pagerState.currentPage, photos, imageTransitionActive) {
+        if (imageTransitionActive) return@LaunchedEffect
+        try {
+            originals.prepare(photos.map { it.id }, pagerState.currentPage) { id ->
+                val photo = photos.first { it.id == id }
+                val localId = photo.localPhotoId
+                if (localId != null && photo.localOriginalUri == null && photo.originalBytes == null) {
+                    suspendCancellableCoroutine { continuation ->
+                        continuation.invokeOnCancellation { photoLibrary.cancelFullResolutionPreview() }
+                        photoLibrary.loadFullResolutionPreview(
+                            SelectedPhoto(localId, photo.displayName, null),
+                        ) { bytes ->
+                            if (continuation.isActive) continuation.resume(bytes)
+                        }
+                    }
+                } else null
             }
+        } finally {
+            photoLibrary.cancelFullResolutionPreview()
         }
-        localLookupFinished = true
     }
 
     var currentPhotoZoom by remember { mutableStateOf(1f) }
@@ -455,6 +462,7 @@ private fun ExpandedTripPhotoViewer(
     ) {
         HorizontalPager(
             state = pagerState,
+            beyondViewportPageCount = 1,
             key = { photos[it].id },
             modifier = Modifier.fillMaxSize(),
         ) { page ->
@@ -476,10 +484,11 @@ private fun ExpandedTripPhotoViewer(
             androidx.compose.runtime.SideEffect {
                 if (isCurrent) currentPhotoZoom = zoom
             }
-            val localBytes = localPreview.takeIf { isCurrent }
-            val awaitingLocalPhoto = isCurrent && !localLookupFinished &&
-                photo.localPhotoId != null && photo.localOriginalUri == null
-            val usePreview = !isCurrent || imageTransitionActive || awaitingLocalPhoto
+            val localBytes = originals[photo.id]
+            val awaitingLocalPhoto = !originals.contains(photo.id) &&
+                photo.localPhotoId != null && photo.localOriginalUri == null && photo.originalBytes == null
+            // A page keeps the same original request when becoming current or adjacent.
+            val usePreview = imageTransitionActive || awaitingLocalPhoto
             Box(Modifier.fillMaxSize()) {
                 MapmoryAsyncImage(
                     imageBytes = if (usePreview) {
@@ -491,7 +500,6 @@ private fun ExpandedTripPhotoViewer(
                     imageUri = when {
                         usePreview -> photo.previewUri ?: photo.localOriginalUri
                         localBytes != null || photo.originalBytes != null -> null
-                        !isCurrent -> photo.previewUri
                         else -> photo.localOriginalUri ?: photo.fullResolutionUri ?: photo.previewUri
                     },
                     cacheKey = if (usePreview) "trip-preview:${photo.id}" else "trip-full:${photo.id}",
@@ -505,6 +513,7 @@ private fun ExpandedTripPhotoViewer(
                     fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                     contentDescription = "$locationName 확대 사진 ${page + 1}",
                     sharedImageKey = photo.id.takeIf { isCurrent },
+                    imageIdentity = photo.id,
                     modifier = Modifier
                         .fillMaxSize()
                         .clipToBounds()
