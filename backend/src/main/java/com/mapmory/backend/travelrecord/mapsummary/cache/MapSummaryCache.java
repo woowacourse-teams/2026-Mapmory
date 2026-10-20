@@ -27,7 +27,10 @@ public class MapSummaryCache {
 
     public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry) {
         this.cache = Caffeine.newBuilder()
-                .maximumSize(properties.maximumSize())
+                // 항목마다 지역 수가 1개(루트)부터 수백 개(하위)까지 달라, 개수 대신 지역 줄 수 합으로 메모리를 묶는다.
+                // 꽉 차면 덜 쓰인 항목부터 버린다(축출). 무게는 버릴 순서가 아니라 버릴 양만 정한다.
+                .maximumWeight(properties.maximumWeight())
+                .weigher((Key key, List<RegionMapSummary> summaries) -> Math.max(1, summaries.size()))
                 .expireAfterWrite(properties.timeToLive())
                 .recordStats()
                 .build();
@@ -41,6 +44,11 @@ public class MapSummaryCache {
 
     public void evictMember(Long memberId) {
         cache.asMap().keySet().removeIf(key -> key.memberId().equals(memberId));
+    }
+
+    long weightedSize() {
+        cache.cleanUp();
+        return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
     }
 
     private record Key(Long memberId, Long parentRegionId, Long tagId) {

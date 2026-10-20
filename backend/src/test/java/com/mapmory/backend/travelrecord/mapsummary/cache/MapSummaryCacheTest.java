@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +51,27 @@ class MapSummaryCacheTest {
                 .functionCounter().count()).isEqualTo(2.0);
         assertThat(meterRegistry.get("cache.gets").tag("cache", "mapSummary").tag("result", "miss")
                 .functionCounter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("지역 줄 수 합이 상한을 넘으면 덜 쓰인 항목을 버려 상한 안으로 맞춘다")
+    void evictsByRegionRowCount() {
+        MapSummaryCache small = new MapSummaryCache(
+                new MapSummaryCacheProperties(30, Duration.ofHours(1)),
+                new SimpleMeterRegistry()
+        );
+
+        for (long memberId = 1; memberId <= 5; memberId++) {
+            small.get(memberId, null, null, () -> rows(10));
+        }
+
+        assertThat(small.weightedSize()).isLessThanOrEqualTo(30);
+    }
+
+    private List<RegionMapSummary> rows(int count) {
+        return LongStream.rangeClosed(1, count)
+                .mapToObj(id -> new RegionMapSummary(id, "R" + id, RegionType.PROVINCE, "지역" + id, 1L, MapColorLevel.LOW))
+                .toList();
     }
 
     private List<RegionMapSummary> load(AtomicInteger loads) {
