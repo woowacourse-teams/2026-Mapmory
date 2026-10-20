@@ -14,3 +14,6 @@ expect fun rememberCurrentLocationActions(
     onLocation: (GeoPoint) -> Unit,
     onError: (String) -> Unit,
 ): CurrentLocationActions
+
+internal fun isRecentCurrentLocation(nowNanos: Long, locationNanos: Long): Boolean =
+    locationNanos > 0 && nowNanos - locationNanos in 0..60_000_000_000L

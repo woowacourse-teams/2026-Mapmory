@@ -12,6 +12,7 @@ import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
+import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
 
@@ -33,6 +34,13 @@ class MapViewModel(
 ) : ViewModel() {
     var uiState by mutableStateOf(mapSummaryRepository.cachedUiState())
         private set
+
+    var currentLocation by mutableStateOf<GeoPoint?>(null)
+        private set
+
+    fun updateCurrentLocation(point: GeoPoint) {
+        currentLocation = point
+    }
 
     private var loadedRevision: Long? = null
 
