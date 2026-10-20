@@ -2637,7 +2637,7 @@ private fun PhotoPreviewViewer(
             sharedCornerRadius = 0.dp,
             contentDescription = "${photo.displayName} 확대 사진",
             blackLoadingBackground = true,
-            modifier = Modifier.fillMaxSize().padding(vertical = 104.dp),
+            modifier = Modifier.fillMaxSize(),
             shape = RectangleShape,
             contentScale = ContentScale.Fit,
         )
