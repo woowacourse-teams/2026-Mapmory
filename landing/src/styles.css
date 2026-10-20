@@ -54,7 +54,7 @@
   --accent-strong: #0a9d67;
   /* Small mint text: AA on white, canvas and accent-soft. Keep --accent-strong for icons, borders and fills. */
   --accent-ink: #077a4f;
-  --kicker: #e0306b; /* how-story kickers: the one hand-written line that should catch the eye */
+  --kicker: #b8651a; /* how-story kickers: warm amber, the same family as the globe's yellow chip */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --type-h2: clamp(28px, 3vw, 42px);
@@ -87,7 +87,7 @@
   --accent: #21e69a;
   --accent-strong: #1fcf8d;
   --accent-ink: #1fcf8d;
-  --kicker: #ff7aa8;
+  --kicker: #f6c66f;
   --header: rgba(11, 20, 26, 0.94);
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.26);
   --globe-panel: #0d161e;

@@ -66,7 +66,7 @@ function PhotoStoryInner() {
             <div className="ps-copy" data-story-copy="">
               {beats.map(({ kicker, title, body, note, footnote, shortNote }, index) => (
                 <div className={`ps-beat${index === 0 ? " is-active" : ""}`} data-story-step="" key={title.join(" ")}>
-                  <p className="ps-kicker">{kicker}</p>
+                  {kicker && <p className="ps-kicker">{kicker}</p>}
                   <h3>{title[0]}<br />{title[1]}{footnote && <sup className="ps-fn">*</sup>}</h3>
                   {body.map((text) => <p className="ps-long" key={text}>{text}</p>)}
                   {note && <p className="ps-note ps-long">{note}</p>}
