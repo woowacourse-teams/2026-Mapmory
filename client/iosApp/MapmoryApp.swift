@@ -1,3 +1,4 @@
+import FirebaseCrashlytics
 import FirebaseCore
 import FirebaseRemoteConfig
 import Foundation
@@ -42,6 +43,7 @@ struct MapmoryApp: App {
         analyticsLogger = FirebaseAnalyticsLogger(isEnabled: false)
 #else
         FirebaseApp.configure()
+        _ = Crashlytics.crashlytics()
         analyticsLogger = FirebaseAnalyticsLogger()
 #endif
         forceUpdate = IosForceUpdateController()
