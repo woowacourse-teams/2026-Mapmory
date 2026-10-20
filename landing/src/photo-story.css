@@ -60,10 +60,13 @@
 .ps-beat p { margin: 0; color: var(--muted); font-size: clamp(15px, 1.25vw, 18px); line-height: 1.6; word-break: keep-all; }
 .ps-beat .ps-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
 .ps-beat p.ps-note { margin-top: 10px; font-size: 12px; opacity: 0.85; }
+.ps-beat .ps-kicker, .ps-beat p.ps-phone { display: none; }
 @media (max-width: 760px) {
   .ps-copy { left: 20px; right: 20px; top: 84px; transform: none; width: auto; min-height: 150px; text-align: center; }
-  .ps-beat h3 { margin-bottom: 8px; font-size: 26px; }
-  .ps-beat p { font-size: 14px; }
+  .ps-beat h3 { margin-bottom: 8px; font-size: 28px; }
+  .ps-beat .ps-long { display: none; }
+  .ps-beat .ps-kicker { display: block; margin: 0 0 4px; color: var(--accent-strong); font: 400 28px/1.1 "Nanum Pen Script", cursive; letter-spacing: 0; }
+  .ps-beat p.ps-phone { display: block; margin-top: 6px; font-size: 12px; opacity: 0.6; }
 }
 @media (max-width: 560px) { .how-section { padding-bottom: 48px; } }
 
