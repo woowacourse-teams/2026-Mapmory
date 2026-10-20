@@ -6,7 +6,7 @@
 import { geoContains, geoGraticule, geoOrthographic, geoPath, geoRotation } from "d3-geo";
 import { feature, merge } from "topojson-client";
 import { SPRITE, getSpriteImage } from "./photoStory.js";
-import { clamp, drawSpriteTile, easeIO, fitCanvas, font, lerp, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
+import { clamp, drawSpriteTile, easeIO, fitCanvas, fitFont, font, lerp, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
 
 // trips in the order the globe meets them as it turns west from Korea
 const TRIPS = [
@@ -126,7 +126,7 @@ export function mountRecStory({ track, canvas }, { mode: initialMode = "scroll" 
       for (let q = 0; q < 4; q++) ctx.fillRect(sx + sw * 0.7 + q * f2 * 0.32, sby + f2 * 0.3 - f2 * 0.18 * (q + 1), f2 * 0.2, f2 * 0.18 * (q + 1));
       ctx.strokeStyle = "#142019"; ctx.lineWidth = 1; roundRect(ctx, sx + sw * 0.8, sby - f2 * 0.32, f2 * 1.25, f2 * 0.64, 2); ctx.stroke(); ctx.fillRect(sx + sw * 0.8 + f2 * 0.08, sby - f2 * 0.24, f2 * 0.9, f2 * 0.48);
       ctx.fillStyle = "#142019"; ctx.font = font(f2 * 1.5); ctx.textBaseline = "middle"; ctx.fillText("제주", sx + pad, sy + sh * 0.11);
-      ctx.font = font(f2 * 0.9); ctx.fillStyle = "#66756b"; ctx.fillText("31장 · 마음에 드는 사진을 골라요", sx + pad, sy + sh * 0.155);
+      fitFont(ctx, "31장 · 마음에 드는 사진을 골라요", Math.max(f2 * 0.9, phone ? 11 : 0), sw - pad * 2); ctx.fillStyle = "#66756b"; ctx.fillText("31장 · 마음에 드는 사진을 골라요", sx + pad, sy + sh * 0.155);
       const cols = 3, gap = 4, cell = (sw - pad * 2 - gap * (cols - 1)) / cols, gy = sy + sh * 0.19;
       const picks = [0, 4, 6], ticked = picks.map((_, j) => clamp((pP - 0.08 - j * 0.12) / 0.08)), saved = clamp((pP - 0.52) / 0.06), rise = easeIO(clamp((pP - 0.68) / 0.24)), riseA = 1 - clamp((pK - 0.15) / 0.3);
       for (let i = 0; i < 9; i++) {
@@ -147,9 +147,9 @@ export function mountRecStory({ track, canvas }, { mode: initialMode = "scroll" 
       // the save button, then the note that only the picked ones go up
       const bw = sw - pad * 2, bh = f2 * 3, bx = sx + pad, byy = sy + sh - bh - sh * 0.05;
       ctx.globalAlpha = phA; ctx.fillStyle = saved > 0 ? "#0a9d67" : "#17c985"; roundRect(ctx, bx, byy, bw, bh, bh / 2); ctx.fill();
-      ctx.fillStyle = "#062b1d"; ctx.font = font(f2 * 1.1); ctx.textAlign = "center";
+      ctx.fillStyle = "#062b1d"; ctx.font = font(Math.max(f2 * 1.1, phone ? 12 : 0)); ctx.textAlign = "center";
       ctx.fillText(saved > 0 ? "저장했어요 · 고른 3장만 올라가요" : `${ticked.filter((t) => t >= 1).length}장 골랐어요 · 저장하기`, cx, byy + bh / 2 + 1); ctx.textAlign = "left";
-      if (saved > 0) { ctx.globalAlpha = phA * saved; ctx.fillStyle = "#66756b"; ctx.font = font(f2 * 0.85); ctx.textAlign = "center"; ctx.fillText("나머지 28장은 폰에 그대로예요", cx, byy - f2 * 1.1); ctx.textAlign = "left"; }
+      if (saved > 0) { ctx.globalAlpha = phA * saved; ctx.fillStyle = "#66756b"; ctx.font = font(Math.max(f2 * 0.85, phone ? 11 : 0)); ctx.textAlign = "center"; ctx.fillText("나머지 28장은 폰에 그대로예요", cx, byy - f2 * 1.1); ctx.textAlign = "left"; }
       ctx.restore(); ctx.globalAlpha = 1;
       // the three picked photos lift out toward where Korea will fill
       if (rise > 0 && riseA > 0) picks.forEach((i, j) => {

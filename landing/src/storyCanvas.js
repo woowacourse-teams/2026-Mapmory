@@ -5,6 +5,12 @@ export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 export const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 export const FONT = '"LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif';
 export const font = (px, weight = 700) => `${weight} ${px}px ${FONT}`;
+// sets ctx.font at px, shrunk just enough for txt to fit in maxW
+export function fitFont(ctx, txt, px, maxW) {
+  ctx.font = font(px);
+  const w = ctx.measureText(txt).width;
+  if (w > maxW) ctx.font = font(px * maxW / w);
+}
 export const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function roundRect(ctx, x, y, w, h, r) {
