@@ -10,6 +10,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
@@ -40,6 +41,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -78,6 +80,8 @@ class TravelRecordServiceTest {
     private PlaceLookupPort placeLookupPort;
     @Mock
     private PlaceSelectionService placeSelectionService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
 
@@ -109,7 +113,8 @@ class TravelRecordServiceTest {
                 uploadedObjectVerifier,
                 placeLookupPort,
                 placeSelectionService,
-                mock(PlatformTransactionManager.class)
+                mock(PlatformTransactionManager.class),
+                eventPublisher
         );
     }
 
@@ -727,6 +732,7 @@ class TravelRecordServiceTest {
         travelRecordService.delete(member, 101L);
 
         verify(travelRecordRepository).delete(travelRecord);
+        verify(eventPublisher).publishEvent(new TravelRecordChangedEvent(10L));
     }
 
     @Test
@@ -736,6 +742,7 @@ class TravelRecordServiceTest {
 
         assertError(() -> travelRecordService.delete(member, 101L), "TRAVEL_RECORD_NOT_FOUND");
         verify(travelRecordRepository, never()).delete(any(TravelRecord.class));
+        verifyNoInteractions(eventPublisher);
     }
 
     private RecordMedia recordMedia(Long travelRecordId, String thumbnailObjectKey) {

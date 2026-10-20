@@ -72,6 +72,15 @@ apple:
   client-ids: ${APPLE_CLIENT_IDS:}
   jwk-set-uri: https://appleid.apple.com/auth/keys
 
+travel-record:
+  map-summary:
+    # 회원별 지도 요약을 서버 메모리에 둔다. 일지 생성·수정·삭제, 태그 삭제가 커밋되면 그 회원 것을 지운다.
+    # TTL은 지우기를 놓친 경우(서버가 여러 대가 되거나 조회와 변경이 겹친 경우)의 안전망이다.
+    # 한 항목은 지역 수십 개라 수 KB이고, 10,000개면 수십 MB 안이다.
+    cache:
+      maximum-size: 10000
+      time-to-live: 10m
+
 place:
   # 회원별 한도. 서버 여러 대가 함께 세도록 DB(place_rate_limit_bucket)에서 센다.
   rate-limit:

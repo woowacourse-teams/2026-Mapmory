@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.mapsummary.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,11 +16,14 @@ import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
+import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCache;
+import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCacheProperties;
 import com.mapmory.backend.travelrecord.mapsummary.policy.LevelPolicy;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.repository.RegionMapSummaryQueryResult;
 import com.mapmory.backend.travelrecord.mapsummary.repository.RegionMapSummaryRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,6 +52,10 @@ class RegionMapSummaryServiceTest {
 
     private final LevelPolicy levelPolicy = LevelPolicy.standard();
     private final OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
+    private final MapSummaryCache mapSummaryCache = new MapSummaryCache(
+            new MapSummaryCacheProperties(100, Duration.ofMinutes(10)),
+            new SimpleMeterRegistry()
+    );
 
     @Nested
     @DisplayName("Region 요약을 조회할 때")
@@ -134,13 +142,51 @@ class RegionMapSummaryServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("캐시가 있을 때")
+    class Cached {
+
+        @Test
+        @DisplayName("같은 회원이 같은 조건으로 다시 부르면 DB에 가지 않는다")
+        void secondCallSkipsDatabase() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, null))
+                    .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 3L)));
+
+            List<RegionMapSummary> first = service.getSummaries(member, null, null);
+            List<RegionMapSummary> second = service.getSummaries(member, null, null);
+
+            assertThat(second).isEqualTo(first);
+            verify(regionMapSummaryRepository, times(1)).findRegionMapSummaries(10L, null, null);
+        }
+
+        @Test
+        @DisplayName("회원 캐시를 비우면 다음 조회는 DB에서 다시 읽는다")
+        void evictedMemberReloads() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, null))
+                    .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 3L)))
+                    .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 4L)));
+
+            service.getSummaries(member, null, null);
+            mapSummaryCache.evictMember(10L);
+            List<RegionMapSummary> reloaded = service.getSummaries(member, null, null);
+
+            assertThat(reloaded).singleElement().extracting(RegionMapSummary::recordCount).isEqualTo(4L);
+            verify(regionMapSummaryRepository, times(2)).findRegionMapSummaries(10L, null, null);
+        }
+    }
+
     private RegionMapSummaryService service() {
         return new RegionMapSummaryService(
                 regionRepository,
                 regionMapSummaryRepository,
                 levelPolicy,
                 tagService,
-                operationTimer
+                operationTimer,
+                mapSummaryCache
         );
     }
 

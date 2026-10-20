@@ -16,6 +16,7 @@ import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +43,7 @@ public class TravelRecordService {
     private final PlaceSelectionService placeSelectionService;
     private final TransactionTemplate transactionTemplate;
     private final TransactionTemplate readOnlyTransactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -54,7 +56,8 @@ public class TravelRecordService {
             UploadedObjectVerifier uploadedObjectVerifier,
             PlaceLookupPort placeLookupPort,
             PlaceSelectionService placeSelectionService,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -68,6 +71,7 @@ public class TravelRecordService {
         this.placeSelectionService = placeSelectionService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.eventPublisher = eventPublisher;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -97,6 +101,7 @@ public class TravelRecordService {
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
             travelRecordTagService.replace(member, savedTravelRecord, command.tagIds());
+            eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return savedTravelRecord;
         });
@@ -154,6 +159,7 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
+            eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return travelRecordAssembler.assembleDetail(travelRecord, tags);
         });
@@ -164,6 +170,7 @@ public class TravelRecordService {
         TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
         travelRecordRepository.delete(travelRecord);
+        eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
     }
 
     @Transactional(readOnly = true)
