@@ -76,7 +76,7 @@ internal fun MapmoryPhotoViewer(
     onClose: () -> Unit,
     closeContentDescription: String,
     canDragDown: () -> Boolean = { true },
-    showTopBar: Boolean = false,
+    showTopBar: Boolean = true,
     trailingContent: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
     content: @Composable () -> Unit,

@@ -441,6 +441,7 @@ private fun ExpandedTripPhotoViewer(
     MapmoryPhotoViewer(
         title = locationName,
         canDragDown = { currentPhotoZoom <= 1f && !pagerState.isScrollInProgress },
+        showTopBar = currentPhotoZoom <= 1f,
         onClose = onBackClick,
         closeContentDescription = "사진첩으로 돌아가기",
         trailingContent = {
