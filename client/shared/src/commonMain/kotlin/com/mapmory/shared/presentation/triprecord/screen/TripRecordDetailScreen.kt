@@ -434,8 +434,10 @@ private fun ExpandedTripPhotoViewer(
         localLookupFinished = true
     }
 
+    var currentPhotoZoom by remember { mutableStateOf(1f) }
     MapmoryPhotoViewer(
         title = locationName,
+        canDragDown = { currentPhotoZoom <= 1f && !pagerState.isScrollInProgress },
         onClose = onBackClick,
         closeContentDescription = "사진첩으로 돌아가기",
         trailingContent = {
@@ -467,6 +469,9 @@ private fun ExpandedTripPhotoViewer(
                 )
             }
             val isCurrent = page == pagerState.currentPage
+            androidx.compose.runtime.SideEffect {
+                if (isCurrent) currentPhotoZoom = zoom
+            }
             val localBytes = localPreview.takeIf { isCurrent }
             val awaitingLocalPhoto = isCurrent && !localLookupFinished &&
                 photo.localPhotoId != null && photo.localOriginalUri == null
