@@ -21,7 +21,12 @@ class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
         firebaseAnalytics?.logEvent(
             name,
             Bundle().apply {
-                parameters.forEach { (key, value) -> putString(key, value) }
+                parameters.forEach { (key, value) ->
+                    if (key in setOf("duration_ms", "result_count", "http_status") && value.toLongOrNull() != null) {
+                        putLong(key, value.toLong())
+                    } else putString(key, value)
+                }
+                putString("event_schema_version", "2")
             },
         )
     }
