@@ -67,6 +67,14 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Cache Swift Package dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mapmory-derived-data/SourcePackages
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ hashFiles('client/iosApp/Mapmory.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Check Xcode
         run: xcodebuild -version
@@ -82,4 +90,5 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/mapmory-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ARCHS=arm64 \
             build
