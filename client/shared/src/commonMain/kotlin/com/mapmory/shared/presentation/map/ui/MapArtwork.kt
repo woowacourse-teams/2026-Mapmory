@@ -3,7 +3,6 @@ package com.mapmory.shared.presentation.map.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.mapmory.shared.presentation.map.MapFocusRequest
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
@@ -17,7 +16,6 @@ fun MapArtwork(
     koreaRegions: List<ProvincePolygon>? = null,
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
-    focusRequest: MapFocusRequest? = null,
     onCountryClick: (String) -> Unit = {},
     onRegionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -26,7 +24,6 @@ fun MapArtwork(
         MapScope.WORLD -> WorldGlobe(
             visitedCountryCodes = visitedCountryCodes,
             onCountryClick = onCountryClick,
-            focusRequest = focusRequest,
             modifier = modifier,
         )
 
@@ -35,7 +32,6 @@ fun MapArtwork(
             visitedRegionCodes = visitedRegionCodes,
             showRegionLabels = showRegionLabels,
             isProvinceOverview = isProvinceOverview,
-            focusRequest = focusRequest,
             onRegionClick = onRegionClick,
             modifier = modifier,
         )

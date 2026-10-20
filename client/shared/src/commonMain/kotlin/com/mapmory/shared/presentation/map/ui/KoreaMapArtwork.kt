@@ -49,9 +49,7 @@ import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.data.OverviewDistrictData
-import com.mapmory.shared.presentation.map.MapFocusRequest
 import com.mapmory.shared.presentation.map.domain.GeoPoint
-import com.mapmory.shared.presentation.map.domain.isWithinRegions
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
@@ -70,7 +68,6 @@ fun KoreaMapArtwork(
     visitedRegionCodes: Set<String> = emptySet(),
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
-    focusRequest: MapFocusRequest? = null,
     onRegionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -232,19 +229,6 @@ fun KoreaMapArtwork(
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
-    val focusRegions = if (isProvinceOverview) overviewProvinces.orEmpty() else regions
-    LaunchedEffect(focusRequest?.id, projection, viewportSize, zoom, focusRegions) {
-        if (
-            focusRequest != null &&
-            projection.isValid &&
-            viewportSize.width > 0 &&
-            viewportSize.height > 0 &&
-            isWithinRegions(focusRequest.point, focusRegions)
-        ) {
-            val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
-            pan = (center - projection.project(focusRequest.point)) * zoom
-        }
-    }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
@@ -541,12 +525,6 @@ fun KoreaMapArtwork(
                 textLayoutResult = label.layout,
                 topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
             )
-        }
-
-        focusRequest?.let { request ->
-            val markerCenter = transformMapPoint(projection.project(request.point), transform, viewportSize)
-            drawCircle(color = Color.White, radius = 8.dp.toPx(), center = markerCenter)
-            drawCircle(color = visitedFillColor, radius = 5.dp.toPx(), center = markerCenter)
         }
 
     }
