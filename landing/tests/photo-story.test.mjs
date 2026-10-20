@@ -67,8 +67,8 @@ test("#how is #roll then #rec: six beats with the sketch's words and the footnot
   ]);
   assert.equal(ROLL_BEATS[1].note, "* 팀 테스트 폰에서 사진 3만 장을 잰 시간이에요. 기기에 따라 달라질 수 있어요.");
   assert.ok(ROLL_BEATS[1].footnote);
-  // on a phone the long gray paragraphs ran into the mockup: every beat has a one-to-two-line version
-  [...ROLL_BEATS, ...REC_BEATS].forEach(({ short }) => assert.ok(short && short.length <= 32, short));
+  // on a phone only the hand-font kicker and the title show; the long gray paragraphs ran into the mockup
+  assert.deepEqual([...ROLL_BEATS, ...REC_BEATS].map(({ kicker }) => kicker), ["쌓이기만 하는 사진", "찍은 곳만 읽어요", "내용 말고 장소로", "고른 사진만 올라가요", "국내는 시·도, 해외는 나라", "직접 돌려 보세요"]);
   assert.equal(ROLL_BEATS[1].shortNote, "* 팀 테스트 폰 기준이에요.");
   // each QA scroll point sits inside its scene
   SCENE_AT.forEach(([trackIndex, p], i) => assert.equal(sceneOf(trackIndex, beatOf(STORY_TRACKS[trackIndex], p)), i + 1));
@@ -197,7 +197,7 @@ test("the server-rendered hero and stories have real headings, the chips and the
     assert.match(html, /^<div class="ps"><h2 class="sr-only" id="how-title">사용 방법<\/h2>/);
     assert.match(html, /<section class="ps-track ps-roll" id="roll" data-story-track="roll" aria-label="어떻게 찾았냐면">/);
     assert.match(html, /<section class="ps-track ps-rec" id="rec" data-story-track="rec" aria-label="어떻게 기록되나요">/);
-    const headings = [...html.matchAll(/<h3>([^<]+)<br\/><em>([^<]+)<\/em>/g)].map(([, a, b]) => `${a} ${b}`);
+    const headings = [...html.matchAll(/<h3>([^<]+)<br\/>([^<]+)</g)].map(([, a, b]) => `${a} ${b}`);
     assert.deepEqual(headings, [...ROLL_BEATS, ...REC_BEATS].map(({ title }) => title.join(" ")));
     assert.equal(html.match(/data-story-step=""/g).length, 6);
     const heroHtml = renderToStaticMarkup(createElement(PhotoWallHero, { storeActions: createElement("div", { className: "store-buttons" }) }));

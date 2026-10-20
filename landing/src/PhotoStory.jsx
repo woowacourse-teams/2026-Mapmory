@@ -64,12 +64,12 @@ function PhotoStoryInner() {
           <div className="ps-stage" data-story-stage="">
             <canvas className="ps-canvas" aria-hidden="true" />
             <div className="ps-copy" data-story-copy="">
-              {beats.map(({ title, body, note, footnote, short, shortNote }, index) => (
+              {beats.map(({ kicker, title, body, note, footnote, shortNote }, index) => (
                 <div className={`ps-beat${index === 0 ? " is-active" : ""}`} data-story-step="" key={title.join(" ")}>
-                  <h3>{title[0]}<br /><em>{title[1]}</em>{footnote && <sup className="ps-fn">*</sup>}</h3>
+                  <p className="ps-kicker">{kicker}</p>
+                  <h3>{title[0]}<br />{title[1]}{footnote && <sup className="ps-fn">*</sup>}</h3>
                   {body.map((text) => <p className="ps-long" key={text}>{text}</p>)}
                   {note && <p className="ps-note ps-long">{note}</p>}
-                  {short && <p className="ps-short">{short}</p>}
                   {shortNote && <p className="ps-note ps-short">{shortNote}</p>}
                 </div>
               ))}

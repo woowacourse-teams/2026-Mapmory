@@ -56,17 +56,17 @@
 .ps-beat { position: absolute; inset: 0 auto auto 0; width: 100%; opacity: 0; transform: translateY(12px); transition: opacity 450ms var(--ease-out), transform 450ms var(--ease-out); pointer-events: none; }
 .ps-beat.is-active { opacity: 1; transform: none; pointer-events: auto; }
 .ps-beat h3 { margin: 0 0 14px; font-size: clamp(30px, 3.6vw, 50px); line-height: 1.2; letter-spacing: -0.035em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
-.ps-beat h3 em { font-style: normal; color: var(--accent-strong); }
+.ps-beat .ps-kicker { margin: 0 0 6px; color: var(--accent-ink); font: 400 clamp(28px, 2.4vw, 34px)/1.1 "Nanum Pen Script", cursive; letter-spacing: 0; opacity: 1; }
 .ps-beat p { margin: 0; color: var(--muted); font-size: clamp(15px, 1.25vw, 18px); line-height: 1.6; word-break: keep-all; }
 .ps-beat .ps-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
 .ps-beat p.ps-note { margin-top: 10px; font-size: 12px; opacity: 0.85; }
-.ps-beat p.ps-short { display: none; }
+.ps-beat p.ps-note.ps-short { display: none; }
 @media (max-width: 760px) {
   .ps-copy { left: 20px; right: 20px; top: 84px; transform: none; width: auto; min-height: 150px; text-align: center; }
   .ps-beat h3 { margin-bottom: 8px; font-size: 26px; }
-  .ps-beat p { font-size: 15px; color: var(--text); opacity: 0.78; }
+  .ps-beat .ps-kicker { font-size: 28px; }
   .ps-beat p.ps-long { display: none; }
-  .ps-beat p.ps-short { display: block; }
+  .ps-beat p.ps-note.ps-short { display: block; }
   .ps-beat p.ps-note { margin-top: 6px; font-size: 12px; opacity: 0.6; }
 }
 @media (max-width: 560px) { .how-section { padding-bottom: 48px; } }

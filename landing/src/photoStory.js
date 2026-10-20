@@ -50,24 +50,23 @@ export const heroPickedCopy = ({ name, count }) => ({
 });
 
 // ── #how: two pinned scroll stories, six beats in all. scene_index (how_story_scene) is the global beat, 1-6.
-// Each beat is { title: [line 1, emphasized line 2], body: [paragraphs], short, note?, shortNote? }.
-// On a phone (≤760px) `short`/`shortNote` replace body/note: the phone mockup sits right under the words and long gray text ran into it.
+// Each beat is { kicker, title: [line 1, line 2], body: [paragraphs], note?, shortNote? }. The kicker is the one thing to remember, set in the hand font.
+// On a phone (≤760px) only kicker + title (+ shortNote) show: the mockup sits right under the words and long gray text ran into it.
 export const ROLL_BEATS = Object.freeze([
-  { title: ["내 사진첩에서도", "될까요?"], body: ["여행이 쌓일수록 사진은 묻혀요. 다시 꺼내 보려면 끝없이 넘겨야 하죠."], short: "쌓인 사진, 다시 꺼내 보기 어렵죠." },
+  { kicker: "쌓이기만 하는 사진", title: ["내 사진첩에서도", "될까요?"], body: ["여행이 쌓일수록 사진은 묻혀요. 다시 꺼내 보려면 끝없이 넘겨야 하죠."] },
   {
-    title: ["사진에 담긴 위치로,", "3만 장도 30초 안에"],
+    kicker: "찍은 곳만 읽어요", title: ["사진에 담긴 위치로,", "3만 장도 30초 안에"],
     footnote: true,
     body: ["사진마다 찍은 곳이 이미 담겨 있어요. 그 위치만 읽어 장소별로 나눠요. 이 사진첩(21,474장)은 21초면 끝나요. 사진은 그대로, 모두 내 폰 안에서요."],
     note: "* 팀 테스트 폰에서 사진 3만 장을 잰 시간이에요. 기기에 따라 달라질 수 있어요.",
-    short: "찍은 곳만 읽어 장소별로 나눠요. 모두 내 폰 안에서요.",
     shortNote: "* 팀 테스트 폰 기준이에요.",
   },
-  { title: ["음식 사진도", "되나요?"], body: ["사진 속 내용이 아니라 찍은 곳으로 찾아요. 제주에서 찍었다면 흑돼지 사진도 제주로 모여요. 위치가 없는 캡처나 받은 사진은 자동으로 모이지 않아요. 필요하면 직접 골라 넣을 수 있어요."], short: "내용이 아니라 찍은 곳으로 찾아요. 흑돼지도 제주로." },
+  { kicker: "내용 말고 장소로", title: ["음식 사진도", "되나요?"], body: ["사진 속 내용이 아니라 찍은 곳으로 찾아요. 제주에서 찍었다면 흑돼지 사진도 제주로 모여요. 위치가 없는 캡처나 받은 사진은 자동으로 모이지 않아요. 필요하면 직접 골라 넣을 수 있어요."] },
 ]);
 export const REC_BEATS = Object.freeze([
-  { title: ["그래서", "어떻게 기록되나요?"], body: ["찾은 31장 중 마음에 드는 사진만 고르면 돼요. 기록을 저장할 때 고른 사진만 앱에 올라가고, 나만 볼 수 있어요. 나머지는 폰에만 있어요."], short: "고른 사진만 앱에 올라가고, 나만 봐요." },
-  { title: ["다녀온 곳이", "지도에 칠해져요"], body: ["제주를 저장하면 지도에 제주도가 칠해지고, 고른 사진이 그 자리에 꽂혀요. 국내는 시·도 단위로, 해외는 나라 단위로 칠해져요."], short: "국내는 시·도, 해외는 나라 단위로 칠해져요." },
-  { title: ["여행이 쌓일수록", "지구본이 채워져요"], body: ["일본, 대만, 미국… 다녀온 곳이 하나씩. 지구본을 직접 돌려 보세요."], short: "지구본을 직접 돌려 보세요." },
+  { kicker: "고른 사진만 올라가요", title: ["그래서", "어떻게 기록되나요?"], body: ["찾은 31장 중 마음에 드는 사진만 고르면 돼요. 기록을 저장할 때 고른 사진만 앱에 올라가고, 나만 볼 수 있어요. 나머지는 폰에만 있어요."] },
+  { kicker: "국내는 시·도, 해외는 나라", title: ["다녀온 곳이", "지도에 칠해져요"], body: ["제주를 저장하면 지도에 제주도가 칠해지고, 고른 사진이 그 자리에 꽂혀요. 국내는 시·도 단위로, 해외는 나라 단위로 칠해져요."] },
+  { kicker: "직접 돌려 보세요", title: ["여행이 쌓일수록", "지구본이 채워져요"], body: ["일본, 대만, 미국… 다녀온 곳이 하나씩. 지구본을 직접 돌려 보세요."] },
 ]);
 
 // Track heights (svh) and where each beat starts in the track's progress p (0..1), as in the sketch.
