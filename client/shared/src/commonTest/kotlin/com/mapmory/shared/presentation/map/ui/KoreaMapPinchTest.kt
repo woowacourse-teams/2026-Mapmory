@@ -25,7 +25,7 @@ class KoreaMapPinchTest {
 
     @Test
     fun zoomLimitsUseEffectiveScaleAndDoNotMoveMapWhenAlreadyAtLimit() {
-        listOf(MapTransform(1f, Offset(20f, 30f)) to 0.5f, MapTransform(12f, Offset(20f, 30f)) to 2f)
+        listOf(MapTransform(1f, Offset(20f, 30f)) to 0.5f, MapTransform(9f, Offset(20f, 30f)) to 2f)
             .forEach { (current, scale) ->
                 val next = transformKoreaMapGesture(current, Offset(800f, 600f), Offset.Zero, scale, viewport)
                 assertEquals(current, next)

@@ -800,13 +800,21 @@ def dissolve_overview_fill_rings(source: Boundary, overview: Boundary) -> Bounda
         if any(normalized_edge(*edge) in internal_edges for edge in edges):
             exterior_edges.update(edge for edge in edges if normalized_edge(*edge) not in internal_edges)
 
+    rings = trace_overview_exterior_rings(exterior_edges, source.code)
+    return Boundary(overview.province_code, overview.code, overview.name, rings)
+
+
+def trace_overview_exterior_rings(
+    exterior_edges: set[tuple[tuple[float, float], tuple[float, float]]],
+    code: str,
+) -> list[list[list[float]]]:
     following = defaultdict(set)
     incoming = defaultdict(int)
     for start, end in exterior_edges:
         following[start].add(end)
         incoming[end] += 1
     if any(len(following[point]) != incoming[point] for point in following.keys() | incoming.keys()):
-        raise ValueError(f"unclosed overview fill exterior: {source.code}")
+        raise ValueError(f"unclosed overview fill exterior: {code}")
     rings = []
     remaining = set(exterior_edges)
     while remaining:
@@ -818,7 +826,7 @@ def dissolve_overview_fill_rings(source: Boundary, overview: Boundary) -> Bounda
             ring.append(current)
             candidates = [point for point in following[current] if (current, point) in remaining]
             if not candidates:
-                raise ValueError(f"disconnected overview fill exterior: {source.code}")
+                raise ValueError(f"disconnected overview fill exterior: {code}")
             reverse_angle = atan2(previous[1] - current[1], previous[0] - current[0])
             # Clockwise source rings keep point-touching islands in separate exterior cycles.
             next_point = min(candidates, key=lambda point: (
@@ -829,12 +837,40 @@ def dissolve_overview_fill_rings(source: Boundary, overview: Boundary) -> Bounda
             previous, current = current, next_point
         ring.append(start)
         if len(ring) < 4:
-            raise ValueError(f"degenerate overview fill exterior: {source.code}")
+            raise ValueError(f"degenerate overview fill exterior: {code}")
         rings.append([[x, y] for x, y in ring])
-    return Boundary(overview.province_code, overview.code, overview.name, rings)
+    return rings
 
 
-def write_overview_district_polygons_resource(output: Path, boundaries: list[Boundary]) -> None:
+def dissolve_overview_provinces(boundaries: list[Boundary]) -> list[Boundary]:
+    # Cancel exact shared fill edges; preserve winding so enclosed provinces remain holes.
+    grouped: dict[str, list[Boundary]] = defaultdict(list)
+    for boundary in boundaries:
+        grouped[boundary.province_code].append(boundary)
+    provinces = []
+    for code, districts in sorted(grouped.items()):
+        directed_edges = set()
+        for boundary in districts:
+            for ring in boundary.rings:
+                if len(ring) < 4 or ring[0] != ring[-1]:
+                    raise ValueError(f"unclosed overview province source: {boundary.code}")
+                for first, second in zip(ring, ring[1:]):
+                    start = tuple(round(value, 5) for value in first)
+                    end = tuple(round(value, 5) for value in second)
+                    if start == end:
+                        continue
+                    if (start, end) in directed_edges:
+                        raise ValueError(f"duplicate directed overview edge: {code}")
+                    directed_edges.add((start, end))
+        exterior_edges = {edge for edge in directed_edges if tuple(reversed(edge)) not in directed_edges}
+        rings = trace_overview_exterior_rings(exterior_edges, code)
+        if not rings:
+            raise ValueError(f"empty overview province: {code}")
+        provinces.append(Boundary(code, code, PROVINCE_NAMES[code], rings))
+    return provinces
+
+
+def write_overview_polygons_resource(output: Path, boundaries: list[Boundary], filename: str) -> None:
     payload = {
         "districts": [
             {
@@ -852,10 +888,21 @@ def write_overview_district_polygons_resource(output: Path, boundaries: list[Bou
     }
     districts = payload["districts"]
     if len(districts) != len(boundaries) or len({district["code"] for district in districts}) != len(boundaries):
-        raise ValueError("overview district polygons must match the canonical district boundaries")
-    (output / "korea-district-overview-polygons.json").write_text(
+        raise ValueError("overview polygons must match the canonical boundaries")
+    (output / filename).write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
     )
+
+
+def write_overview_district_polygons_resource(output: Path, boundaries: list[Boundary]) -> None:
+    write_overview_polygons_resource(output, boundaries, "korea-district-overview-polygons.json")
+
+
+def write_overview_province_polygons_resource(output: Path, boundaries: list[Boundary]) -> None:
+    write_overview_polygons_resource(
+        output, dissolve_overview_provinces(boundaries), "korea-province-overview-polygons.json",
+    )
+
 
 def write_districts(
     resource_output: Path,
@@ -888,6 +935,7 @@ def write_districts(
         for source, overview in zip(boundaries, overview_boundaries)
     ]
     write_overview_district_polygons_resource(resource_output, fill_boundaries)
+    write_overview_province_polygons_resource(resource_output, fill_boundaries)
     print(f"generated {len(boundaries)} display boundaries for {len(by_province)} provinces")
     if skipped:
         print("skipped source features without a canonical app location:")
