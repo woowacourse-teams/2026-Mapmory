@@ -50,10 +50,11 @@ export const heroPickedCopy = ({ name, count }) => ({
 });
 
 // ── #how: two pinned scroll stories, six beats in all. scene_index (how_story_scene) is the global beat, 1-6.
-// Each beat is { title: [line 1, emphasized line 2], body: [paragraphs], note?, kicker, noteShort? }.
-// Phones show only a hand-written kicker above the title (and `noteShort`), not the body and note: short words that never cover the phone.
+// Each beat is { title: [line 1, emphasized line 2], body: [paragraphs], note?, kicker?, noteShort? }.
+// Phones show the title only, not the body and note: short words that never cover the phone. Only the three core beats
+// (find by place, food photos, only picked photos go up) carry a coloured hand-written kicker: one impact, 2-3 times in all.
 export const ROLL_BEATS = Object.freeze([
-  { title: ["내 사진첩에서도", "될까요?"], body: ["여행이 쌓일수록 사진은 묻혀요. 다시 꺼내 보려면 끝없이 넘겨야 하죠."], kicker: "끝없이 넘기는 사진첩" },
+  { title: ["내 사진첩에서도", "될까요?"], body: ["여행이 쌓일수록 사진은 묻혀요. 다시 꺼내 보려면 끝없이 넘겨야 하죠."] },
   {
     title: ["사진에 담긴 위치로,", "3만 장도 30초 안에"],
     footnote: true,
@@ -66,8 +67,8 @@ export const ROLL_BEATS = Object.freeze([
 ]);
 export const REC_BEATS = Object.freeze([
   { title: ["그래서", "어떻게 기록되나요?"], body: ["찾은 31장 중 마음에 드는 사진만 고르면 돼요. 기록을 저장할 때 고른 사진만 앱에 올라가고, 나만 볼 수 있어요. 나머지는 폰에만 있어요."], kicker: "고른 사진만 올라가요" },
-  { title: ["다녀온 곳이", "지도에 칠해져요"], body: ["제주를 저장하면 지도에 제주도가 칠해지고, 고른 사진이 그 자리에 꽂혀요. 국내는 시·도 단위로, 해외는 나라 단위로 칠해져요."], kicker: "국내는 시·도, 해외는 나라로" },
-  { title: ["여행이 쌓일수록", "지구본이 채워져요"], body: ["일본, 대만, 미국… 다녀온 곳이 하나씩. 지구본을 직접 돌려 보세요."], kicker: "지구본을 돌려 보세요" },
+  { title: ["다녀온 곳이", "지도에 칠해져요"], body: ["제주를 저장하면 지도에 제주도가 칠해지고, 고른 사진이 그 자리에 꽂혀요. 국내는 시·도 단위로, 해외는 나라 단위로 칠해져요."] },
+  { title: ["여행이 쌓일수록", "지구본이 채워져요"], body: ["일본, 대만, 미국… 다녀온 곳이 하나씩. 지구본을 직접 돌려 보세요."] },
 ]);
 
 // Track heights (svh) and where each beat starts in the track's progress p (0..1), as in the sketch.
