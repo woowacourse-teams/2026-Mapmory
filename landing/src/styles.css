@@ -223,7 +223,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 }
 .selector-copy { min-width: 130px; font-size: 13px; white-space: nowrap; }
 .location-shortcuts { display: flex; gap: 7px; }
-.location-shortcuts button { min-height: 36px; padding: 0 11px; border: 1px solid var(--globe-line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--globe-panel); color: var(--globe-muted); cursor: pointer; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.location-shortcuts button { min-height: 36px; padding: 0 11px; border: 1px solid var(--globe-line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--globe-panel); color: var(--globe-muted); cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .location-shortcuts button:hover { border-color: var(--accent); color: var(--globe-text); }
 .location-shortcuts button.is-active { color: #2d1c05; background: #f6c66f; border-color: #f6c66f; box-shadow: 0 7px 18px rgba(246, 198, 111, 0.24); }
 
@@ -395,6 +395,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .trust-line svg { flex: 0 0 auto; color: var(--accent-strong); }
 .download-section .download-actions { margin-top: 30px; }
 .download-section .button-store small { margin-left: 2px; font-size: 12px; opacity: 0.75; }
+@media (max-width: 400px) { .download-section .button-store small { display: none; } }
 .download-section > p.download-free { margin: 14px 0 0; color: var(--muted); font-size: 13px; font-weight: 700; }
 @media (max-width: 900px) {
   .trust-flow { grid-template-columns: 1fr; }
@@ -501,13 +502,13 @@ footer p { margin: 10px 0 0; }
   .globe-country-dock { padding: 9px 10px 10px; display: block; }
   .selector-copy { min-width: 0; font-size: 12px; }
   .location-shortcuts { margin-top: 8px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-  .location-shortcuts button { min-height: 44px; padding: 0 4px; gap: 4px; font-size: 10px; }
+  .location-shortcuts button { min-height: 44px; padding: 0 4px; gap: 4px; font-size: 12px; }
   .location-shortcuts button svg { display: none; }
   .experience-stage { width: 100%; margin-inline: 0; gap: 12px; }
   .globe-panel, .memory-card { height: auto; border-radius: 18px; }
   .globe-panel > header { min-height: 52px; padding: 0 14px; }
   .globe-shell { min-height: 0; aspect-ratio: 1 / 1; touch-action: pan-y; }
-  .globe-instruction { bottom: 10px; max-width: calc(100% - 20px); padding: 8px 11px; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .globe-instruction { bottom: 10px; max-width: calc(100% - 20px); padding: 8px 11px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
   .memory-card { display: block; }
   .memory-card header { min-height: 50px; padding: 0 16px; }
   .memory-image-wrap { min-height: 0; aspect-ratio: 1.18 / 1; }
@@ -552,7 +553,7 @@ footer p { margin: 10px 0 0; }
     padding: 20px 10px;
   }
   .globe-onboarding-card strong { font-size: 20px; }
-  .globe-onboarding-copy { font-size: 11px; white-space: nowrap; }
+  .globe-onboarding-copy { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

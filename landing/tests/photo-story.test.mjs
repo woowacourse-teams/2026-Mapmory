@@ -67,6 +67,12 @@ test("#how is #roll then #rec: six beats with the sketch's words and the footnot
   ]);
   assert.equal(ROLL_BEATS[1].note, "* 팀 테스트 폰에서 사진 3만 장을 잰 시간이에요. 기기에 따라 달라질 수 있어요.");
   assert.ok(ROLL_BEATS[1].footnote);
+  // phones show the title only; three core beats add one coloured hand-written kicker (2026-10-20, 티온: "임팩트는 하나만", "최대 2개~3개만")
+  assert.deepEqual([...ROLL_BEATS, ...REC_BEATS].map(({ kicker }) => kicker), [
+    undefined, "위치만 읽어요 · 내 폰 안에서", "흑돼지 사진도 제주로", "고른 사진만 올라가요", undefined, undefined,
+  ]);
+  assert.equal(ROLL_BEATS[1].noteShort, "* 팀 테스트 폰에서 잰 시간이에요.");
+  assert.match(css, /@media \(max-width: 760px\) \{[^}]*\}[\s\S]*?\.ps-beat \.ps-long \{ display: none; \}/);
   // each QA scroll point sits inside its scene
   SCENE_AT.forEach(([trackIndex, p], i) => assert.equal(sceneOf(trackIndex, beatOf(STORY_TRACKS[trackIndex], p)), i + 1));
   assert.equal(beatOf(STORY_TRACKS[0], 0.299), 0);
