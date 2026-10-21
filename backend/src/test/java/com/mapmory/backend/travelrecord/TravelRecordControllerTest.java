@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.ProblemDetailFactory;
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
@@ -23,7 +24,6 @@ import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
-import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -114,12 +114,12 @@ class TravelRecordControllerTest {
 
         when(travelRecordService.create(MEMBER, request.toCommand())).thenReturn(travelRecord);
 
-        ResponseEntity<TravelRecordResponse<CreateTravelRecordResponse>> response =
+        ResponseEntity<ApiResponse<CreateTravelRecordResponse>> response =
                 travelRecordController.create(MEMBER, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isEqualTo(
-                TravelRecordResponse.of(new CreateTravelRecordResponse(1L))
+                ApiResponse.from(new CreateTravelRecordResponse(1L))
         );
         verify(travelRecordService).create(MEMBER, request.toCommand());
     }
@@ -274,12 +274,12 @@ class TravelRecordControllerTest {
                 List.of("mapmory/travel-records/a.jpg"));
         when(travelRecordService.findById(MEMBER, 101L)).thenReturn(detail);
 
-        ResponseEntity<TravelRecordResponse<TravelRecordDetailResponse>> response =
+        ResponseEntity<ApiResponse<TravelRecordDetailResponse>> response =
                 travelRecordController.findById(MEMBER, 101L);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(
-                TravelRecordResponse.of(TravelRecordDetailResponse.from(detail))
+                ApiResponse.from(TravelRecordDetailResponse.from(detail))
         );
         verify(travelRecordService).findById(MEMBER, 101L);
     }
