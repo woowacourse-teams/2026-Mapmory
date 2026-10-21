@@ -98,7 +98,9 @@ class TravelRecordControllerTest {
                 "",
                 LocalDate.of(2026, 8, 11),
                 null,
-                List.of()
+                List.of(),
+                List.of(),
+                null
         );
         TravelRecord travelRecord = TravelRecord.of(
                 null,

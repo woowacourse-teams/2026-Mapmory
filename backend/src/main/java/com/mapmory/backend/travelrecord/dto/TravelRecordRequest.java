@@ -26,28 +26,6 @@ public record TravelRecordRequest(
         @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
         String placeId
 ) {
-    public TravelRecordRequest(
-            String countryCode, String provinceCode, String districtCode,
-            String title, String content, LocalDate startDate, LocalDate endDate,
-            List<String> objectKeys, List<Long> tagIds
-    ) {
-        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
-                objectKeys, tagIds, null);
-    }
-
-    public TravelRecordRequest(
-            String countryCode,
-            String provinceCode,
-            String districtCode,
-            String title,
-            String content,
-            LocalDate startDate,
-            LocalDate endDate,
-            List<String> objectKeys
-    ) {
-        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate, objectKeys, List.of(), null);
-    }
-
     public TravelRecordCommand toCommand() {
         return new TravelRecordCommand(
                 countryCode,

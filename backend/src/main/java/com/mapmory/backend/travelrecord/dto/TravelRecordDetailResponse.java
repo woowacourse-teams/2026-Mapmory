@@ -27,31 +27,6 @@ public record TravelRecordDetailResponse(
         String placeAttribution,
         String placeAttributionUrl
 ) {
-    public TravelRecordDetailResponse(
-            Long id, String title, String content, RegionDetailResponse region,
-            LocalDate startDate, LocalDate endDate, List<String> objectKeys,
-            List<TravelRecordMediaResponse> media, List<TagSummaryResponse> tags,
-            LocalDateTime createdAt, LocalDateTime updatedAt
-    ) {
-        this(id, title, content, region, startDate, endDate, objectKeys, media, tags,
-                createdAt, updatedAt, null, null, null, null, null);
-    }
-
-    public TravelRecordDetailResponse(
-            Long id,
-            String title,
-            String content,
-            RegionDetailResponse region,
-            LocalDate startDate,
-            LocalDate endDate,
-            List<String> objectKeys,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
-    ) {
-        this(id, title, content, region, startDate, endDate, objectKeys, List.of(), List.of(),
-                createdAt, updatedAt, null, null, null, null, null);
-    }
-
     public static TravelRecordDetailResponse from(TravelRecordDetail detail) {
         TravelRecord travelRecord = detail.travelRecord();
         RecordedPlace place = travelRecord.getPlace();

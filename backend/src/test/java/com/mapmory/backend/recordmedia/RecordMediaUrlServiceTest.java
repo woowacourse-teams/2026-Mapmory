@@ -6,7 +6,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class RecordMediaUrlServiceTest {
 
-    private final PresignedUrlProvider presignedUrlProvider = mock(PresignedUrlProvider.class);
+    private final MediaViewUrlSigner mediaViewUrlSigner = mock(MediaViewUrlSigner.class);
     private final UploadPolicyProperties uploadPolicyProperties = mock(UploadPolicyProperties.class);
     private RecordMediaUrlService recordMediaUrlService;
 
@@ -22,14 +21,14 @@ class RecordMediaUrlServiceTest {
     void setUp() {
         when(uploadPolicyProperties.presignedUrlExpiration()).thenReturn(Duration.ofMinutes(5));
         recordMediaUrlService = new RecordMediaUrlService(
-                presignedUrlProvider,
+                mediaViewUrlSigner,
                 uploadPolicyProperties
         );
     }
 
     @Test
     void 조회_URL과_만료_시간을_값_객체로_반환한다() {
-        when(presignedUrlProvider.createPresignedGetUrl("mapmory/original.jpg", Duration.ofMinutes(5)))
+        when(mediaViewUrlSigner.sign("mapmory/original.jpg", Duration.ofMinutes(5)))
                 .thenReturn(URI.create("https://download.example/mapmory/original.jpg"));
 
         ExpiringUrl result = recordMediaUrlService.createViewUrl("mapmory/original.jpg");
