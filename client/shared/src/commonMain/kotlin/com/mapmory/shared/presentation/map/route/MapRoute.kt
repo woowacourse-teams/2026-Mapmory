@@ -154,7 +154,7 @@ internal fun MapRoute(
             visitedCount = when {
                 uiState.scope == MapScope.WORLD -> viewModel.visitedCountryCodes.size
                 selectedProvinceCode != null -> viewModel.visitedDistrictCount(selectedProvinceCode)
-                else -> viewModel.visitedKoreaDistrictCodes.size
+                else -> viewModel.visitedProvinceCodes.size
             },
             onMapScopeChange = { selectedScope ->
                 gestureClosedProvinceCode = null
@@ -191,7 +191,7 @@ internal fun MapRoute(
                     MapScope.KOREA -> when (val mapState = uiState.koreaMap) {
                         KoreaMapUiState.ProvinceOverview -> MapArtwork(
                             scope = MapScope.KOREA,
-                            visitedRegionCodes = viewModel.visitedKoreaDistrictCodes,
+                            visitedRegionCodes = viewModel.visitedKoreaMapRegionCodes,
                             koreaRegions = GeneratedKoreaMapData.provinces,
                             currentLocation = currentLocation,
                             currentLocationFocusRequest = koreaLocationFocusRequest,

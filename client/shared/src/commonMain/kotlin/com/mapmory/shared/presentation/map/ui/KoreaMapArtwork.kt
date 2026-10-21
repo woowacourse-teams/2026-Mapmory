@@ -78,7 +78,16 @@ fun KoreaMapArtwork(
     val coroutineScope = rememberCoroutineScope()
     val currentOnRegionClick by rememberUpdatedState(onRegionClick)
     val textMeasurer = rememberTextMeasurer()
+    var zoom by rememberSaveable(regions, isProvinceOverview) {
+        mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
+    }
     val isDark = LocalMapmoryTheme.current.isDark
+    val baseLabelFontSize = when {
+        isProvinceOverview -> 6f
+        regions.size >= 35 -> 8f
+        regions.size >= 25 -> 9f
+        else -> 11f
+    }
     val labelStyle = TextStyle(
         color = if (isProvinceOverview) {
             if (isDark) Color(0xFFE0E9E2) else Color(0xFF34443A)
@@ -87,12 +96,7 @@ fun KoreaMapArtwork(
         } else {
             Color(0xFF6B786F)
         },
-        fontSize = when {
-            isProvinceOverview -> 5.sp
-            regions.size >= 35 -> 7.sp
-            regions.size >= 25 -> 8.sp
-            else -> 10.sp
-        },
+        fontSize = (baseLabelFontSize * koreaMapLabelZoomScale(zoom)).sp,
         fontWeight = FontWeight.Bold,
     )
     val overviewDistrictLabelStyle = labelStyle.copy(
@@ -227,9 +231,6 @@ fun KoreaMapArtwork(
                     )
                 }
         }
-    }
-    var zoom by rememberSaveable(regions, isProvinceOverview) {
-        mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
     var lastLocationFocusRequest by rememberSaveable { mutableStateOf(0) }
@@ -559,6 +560,11 @@ internal data class MapTransform(
     val pan: Offset,
 )
 
+internal fun koreaMapLabelZoomScale(zoom: Float): Float {
+    val progress = ((zoom - MinZoom) / (MaxZoom - MinZoom)).coerceIn(0f, 1f)
+    return 1f + progress * MaxLabelZoomScaleIncrease
+}
+
 internal fun transformKoreaMapGesture(
     current: MapTransform,
     centroid: Offset,
@@ -603,7 +609,8 @@ private data class PreparedKoreaLabel(
 )
 
 private const val MinZoom = 1f
-private const val MaxZoom = 9f
+private const val MaxZoom = 18f
+private const val MaxLabelZoomScaleIncrease = 1.2f
 private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f
