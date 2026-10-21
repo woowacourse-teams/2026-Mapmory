@@ -132,7 +132,7 @@ class TravelRecordServiceTest {
     void 국가_단위_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L)
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -211,7 +211,7 @@ class TravelRecordServiceTest {
     void 본문이_null이면_빈_문자열로_정규화해_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, List.of(), List.of()
+                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, List.of(), List.of(), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -363,7 +363,7 @@ class TravelRecordServiceTest {
                 startDate,
                 endDate,
                 List.of(),
-                List.of()
+                List.of(), null
         );
     }
 
@@ -381,7 +381,7 @@ class TravelRecordServiceTest {
                 TODAY,
                 null,
                 List.of(),
-                List.of()
+                List.of(), null
         );
     }
 
@@ -457,7 +457,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 LocalDate.of(2026, 8, 13),
                 List.of("travel-records/10/b.jpg", "travel-records/10/c.jpg"),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -494,7 +494,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 null,
                 List.of("travel-records/10/a.jpg", "travel-records/10/a.jpg"),
-                List.of()
+                List.of(), null
             );
 
         assertError(() -> travelRecordService.update(member, 101L, command), "INVALID_OBJECT_KEY");
@@ -521,7 +521,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 12),
                 null,
                 List.of("travel-records/20/used.jpg"),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -554,7 +554,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 12),
                 null,
                 null,
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -579,7 +579,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 null,
                 List.of(),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.empty());
