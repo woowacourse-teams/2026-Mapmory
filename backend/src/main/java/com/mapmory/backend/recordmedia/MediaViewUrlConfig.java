@@ -1,8 +1,9 @@
 package com.mapmory.backend.recordmedia;
 
+import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,14 +18,22 @@ import org.springframework.context.annotation.Configuration;
 public class MediaViewUrlConfig {
 
     @Bean
-    @ConditionalOnProperty(name = "media.view.cdn.enabled", havingValue = "true")
-    public MediaViewUrlSigner cloudFrontMediaViewUrlSigner(CloudFrontProperties properties) {
-        return new CloudFrontMediaViewUrlSigner(properties, Clock.systemUTC());
-    }
-
-    @Bean
-    @ConditionalOnProperty(name = "media.view.cdn.enabled", havingValue = "false", matchIfMissing = true)
-    public MediaViewUrlSigner s3MediaViewUrlSigner(PresignedUrlProvider presignedUrlProvider) {
-        return new S3MediaViewUrlSigner(presignedUrlProvider);
+    public MediaViewUrlSigner mediaViewUrlSigner(
+            CloudFrontProperties cloudFrontProperties,
+            S3StorageProperties s3StorageProperties,
+            UploadPolicyProperties uploadPolicyProperties,
+            PresignedUrlProvider presignedUrlProvider
+    ) {
+        MediaViewUrlSigner s3 = new S3MediaViewUrlSigner(presignedUrlProvider);
+        if (!cloudFrontProperties.enabled()) {
+            return s3;
+        }
+        return new CloudFrontMediaViewUrlSigner(
+                cloudFrontProperties,
+                s3StorageProperties.normalizedKeyPrefix(),
+                uploadPolicyProperties.presignedUrlExpiration(),
+                s3,
+                Clock.systemUTC()
+        );
     }
 }
