@@ -5,7 +5,7 @@
 // A port of the sketch's IIFE with init/destroy. It follows the page scroll (progress comes from PhotoStory) and the
 // pointer sways the phone; it never steers the scroll. A lazy chunk: loaded only when #how comes near.
 import { FOOD_URL, SPRITE, getSpriteImage } from "./photoStory.js";
-import { clamp, drawSpriteTile, easeIO, fitCanvas, font, lerp, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
+import { clamp, drawSpriteTile, easeIO, fitCanvas, fitFont, font, lerp, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
 
 const LIBRARY = 21474, SORT_SECONDS = 21, COLS = 5, VIS_ROWS = 9, RAD = Math.PI / 180;
 const PLACE = {
@@ -72,13 +72,18 @@ export function mountRollStory({ track, canvas, copy }, { mode: initialMode = "s
     const fit = mode === "static";
     let h = fit ? Math.min(H * 0.92, 600) : phone ? Math.min(H * 0.6, 520) : Math.min(H * 0.84, 680), w = h * 0.485;
     if (w > W * (phone ? 0.66 : 0.9)) { w = W * (phone ? 0.66 : 0.9); h = w / 0.485; }
+    const st = canvas.getBoundingClientRect();
+    if (phone && !fit) { // short phones: shrink the phone so it starts below the tallest beat's words
+      const words = Math.max(0, ...[...copy.querySelectorAll("[data-story-step]")].map((el) => el.getBoundingClientRect().bottom - st.top)) + 12;
+      if (H - h - 28 < words) { h = Math.max(H - 28 - words, H * 0.45); w = h * 0.485; }
+    }
     const cx = fit || phone ? W / 2 : W * 0.66, top = fit ? (H - h) / 2 : phone ? H - h - 28 : (H - h) / 2;
     const bez = w * 0.035, sx = cx - w / 2 + bez, sy = top + bez, sw = w - bez * 2, sh = h - bez * 2;
     const pad = sw * 0.045, gap = Math.max(1.5, sw * 0.008), cell = (sw - pad * 2 - gap * (COLS - 1)) / COLS;
     ph = { cx, top, w, h, bez, sx, sy, sw, sh, r: w * 0.14, pad, gap, cell, status: sh * 0.06, header: sh * 0.1 };
     ph.gR = sw * 0.42; ph.gx = cx; ph.gy = sy + ph.status + ph.header + (sh - ph.status - ph.header) * 0.5;
     // the flying photos start anywhere on the stage except behind the words
-    const cr = copy.getBoundingClientRect(), st = canvas.getBoundingClientRect();
+    const cr = copy.getBoundingClientRect();
     const box = [cr.left - st.left - 30, cr.top - st.top - 30, cr.right - st.left + 30, cr.bottom - st.top + 30];
     tiles.forEach((t, i) => {
       let x, y, k = 0;
@@ -150,7 +155,7 @@ export function mountRollStory({ track, canvas, copy }, { mode: initialMode = "s
     ctx.strokeStyle = "#3b4349"; ctx.lineWidth = 1.5; roundRect(ctx, ph.cx - ph.w / 2 + 0.75, ph.top + 0.75, ph.w - 1.5, ph.h - 1.5, ph.r); ctx.stroke();
     ctx.fillStyle = "#f7f9f7"; roundRect(ctx, ph.sx, ph.sy, ph.sw, ph.sh, ph.r - ph.bez); ctx.fill();
     ctx.save(); roundRect(ctx, ph.sx, ph.sy, ph.sw, ph.sh, ph.r - ph.bez); ctx.clip();
-    const fs = Math.max(9, ph.sw * 0.045), F = (k) => font(fs * k);
+    const fs = Math.max(9, ph.sw * 0.045), F = (k) => font(Math.max(fs * k, phone ? 11 : 0)); // phone: no line under 11px
     // status bar: time, island, signal, battery
     ctx.fillStyle = "#142019"; ctx.font = F(1); ctx.textBaseline = "middle";
     const d = new Date(); ctx.fillText(`${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`, ph.sx + ph.sw * 0.1, ph.sy + ph.status * 0.62);
@@ -171,6 +176,7 @@ export function mountRollStory({ track, canvas, copy }, { mode: initialMode = "s
     const count = LIBRARY.toLocaleString("ko-KR");
     const line = pB <= 0 ? `${count}장` : pB < 0.9 ? "위치로 나누는 중…" : `${count}장 · ${SORT_SECONDS}초 만에 나눴어요`;
     if (pB >= 0.9) ctx.fillStyle = "#077a4f";
+    fitFont(ctx, line, Math.max(fs * 0.85, phone ? 11 : 0), ph.sw - ph.pad * 2);
     ctx.fillText(line, ph.sx + ph.pad, ph.sy + ph.status + ph.header * 0.92);
     // the globe fades in as the roll comes apart
     const gA = clamp(pB * 1.6);
@@ -233,7 +239,8 @@ export function mountRollStory({ track, canvas, copy }, { mode: initialMode = "s
     // the promise, in one line, once the map is up
     const lockA = clamp((pB - 0.4) * 3);
     if (lockA > 0) {
-      const txt = "찍은 곳만 읽어요 · 내 폰 안에서"; ctx.font = F(0.8); const tw = ctx.measureText(txt).width + 34, th = fs * 2.1;
+      const txt = "찍은 곳만 읽어요 · 내 폰 안에서"; fitFont(ctx, txt, Math.max(fs * 0.8, phone ? 11 : 0), ph.sw - 42);
+      const tw = ctx.measureText(txt).width + 34, th = fs * 2.1;
       const lx = ph.cx - tw / 2, ly = ph.sy + ph.sh - th - ph.sh * 0.035; ctx.globalAlpha = lockA; ctx.fillStyle = "#142019"; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill();
       ctx.fillStyle = "#17c985"; roundRect(ctx, lx + 12, ly + th * 0.42, fs * 0.8, fs * 0.62, 2); ctx.fill(); ctx.strokeStyle = "#17c985"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(lx + 12 + fs * 0.4, ly + th * 0.42, fs * 0.28, Math.PI, 0); ctx.stroke();
       ctx.fillStyle = "#f0fff8"; ctx.textBaseline = "middle"; ctx.fillText(txt, lx + 26, ly + th / 2 + 1); ctx.globalAlpha = 1;
