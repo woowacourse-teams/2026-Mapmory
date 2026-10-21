@@ -116,7 +116,7 @@ fun TripMapScreen(
                 CurrentLocationMapButton(
                     isLoading = isCurrentLocationLoading,
                     onClick = onCurrentLocationClick,
-                    modifier = Modifier.align(Alignment.BottomStart),
+                    modifier = Modifier.align(Alignment.BottomEnd),
                 )
 
                 currentLocationError?.let { message ->
@@ -190,36 +190,44 @@ private fun CurrentLocationMapButton(
     modifier: Modifier = Modifier,
 ) {
     val palette = TripRecordPalette.current
-    val iconColor = palette.onPrimary
+    val iconColor = palette.bodyText
     Box(
         modifier = modifier
-            .padding(start = 28.dp, bottom = 33.dp)
+            .padding(end = 28.dp, bottom = 89.dp)
             .size(48.dp)
             .clip(CircleShape)
-            .background(palette.primary)
             .clickable(enabled = !isLoading, role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = if (isLoading) "현재 위치 확인 중" else "현재 위치 표시"
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.CenterEnd,
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color = iconColor,
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Canvas(Modifier.size(22.dp)) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val radius = size.minDimension * 0.22f
-                val strokeWidth = 1.8.dp.toPx()
-                val gap = radius + 1.dp.toPx()
-                drawCircle(iconColor, radius, center, style = Stroke(strokeWidth))
-                drawLine(iconColor, Offset(center.x, 0f), Offset(center.x, center.y - gap), strokeWidth, cap = StrokeCap.Round)
-                drawLine(iconColor, Offset(center.x, center.y + gap), Offset(center.x, size.height), strokeWidth, cap = StrokeCap.Round)
-                drawLine(iconColor, Offset(0f, center.y), Offset(center.x - gap, center.y), strokeWidth, cap = StrokeCap.Round)
-                drawLine(iconColor, Offset(center.x + gap, center.y), Offset(size.width, center.y), strokeWidth, cap = StrokeCap.Round)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(palette.surface)
+                .border(1.dp, palette.border, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = iconColor,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Canvas(Modifier.size(22.dp)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.minDimension * 0.22f
+                    val strokeWidth = 1.8.dp.toPx()
+                    val gap = radius + 1.dp.toPx()
+                    drawCircle(iconColor, radius, center, style = Stroke(strokeWidth))
+                    drawLine(iconColor, Offset(center.x, 0f), Offset(center.x, center.y - gap), strokeWidth, cap = StrokeCap.Round)
+                    drawLine(iconColor, Offset(center.x, center.y + gap), Offset(center.x, size.height), strokeWidth, cap = StrokeCap.Round)
+                    drawLine(iconColor, Offset(0f, center.y), Offset(center.x - gap, center.y), strokeWidth, cap = StrokeCap.Round)
+                    drawLine(iconColor, Offset(center.x + gap, center.y), Offset(size.width, center.y), strokeWidth, cap = StrokeCap.Round)
+                }
             }
         }
     }
