@@ -72,10 +72,20 @@ class SecurityIntegrationTest extends IntegrationTest {
 
     @Test
     void 화이트리스트_경로의_에러는_401로_덮이지_않고_원래_상태가_유지된다() throws Exception {
-        // permitAll 인 /api/v1/auth/** 아래 없는 경로 → 404가 /error로 재디스패치된다.
-        // ERROR 디스패치가 permitAll이 아니면 이 응답이 401로 덮인다.
+        // permitAll 인 로그인 경로에서 요청 검증 오류가 나도 401로 덮이지 않고 400이 유지된다.
+        mockMvc.perform(post("/api/v1/auth/login/kakao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kakaoAccessToken\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 공개_목록에_없는_auth_경로는_토큰이_없으면_401로_응답한다() throws Exception {
+        // /api/v1/auth 아래라도 공개 경로로 적지 않은 POST는 인증이 필요하다.
         mockMvc.perform(post("/api/v1/auth/no-such-endpoint"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("INVALID_ACCESS_TOKEN"));
     }
 
     @Test
