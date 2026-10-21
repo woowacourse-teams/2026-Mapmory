@@ -1,5 +1,6 @@
 package com.mapmory.backend.admin.dashboard;
 
+import com.mapmory.backend.admin.AdminTravelRecordQueryRepository;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.MemberStatistics;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.Period;
@@ -8,7 +9,6 @@ import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.TravelReco
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,16 +25,16 @@ public class AdminDashboardService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final MemberRepository memberRepository;
-    private final TravelRecordRepository travelRecordRepository;
+    private final AdminTravelRecordQueryRepository travelRecordQueryRepository;
     private final Clock clock;
 
     public AdminDashboardService(
             MemberRepository memberRepository,
-            TravelRecordRepository travelRecordRepository,
+            AdminTravelRecordQueryRepository travelRecordQueryRepository,
             Clock clock
     ) {
         this.memberRepository = memberRepository;
-        this.travelRecordRepository = travelRecordRepository;
+        this.travelRecordQueryRepository = travelRecordQueryRepository;
         this.clock = clock;
     }
 
@@ -58,10 +58,10 @@ public class AdminDashboardService {
                         memberRepository.countCreatedBetween(fromInclusive, toExclusive)
                 ),
                 new TravelRecordStatistics(
-                        travelRecordRepository.count(),
-                        travelRecordRepository.countCreatedBetween(fromInclusive, toExclusive)
+                        travelRecordQueryRepository.count(),
+                        travelRecordQueryRepository.countCreatedBetween(fromInclusive, toExclusive)
                 ),
-                new PhotoStatistics(travelRecordRepository.countAllMedia())
+                new PhotoStatistics(travelRecordQueryRepository.countAllMedia())
         );
     }
 

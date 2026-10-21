@@ -1,11 +1,11 @@
 package com.mapmory.backend.admin.member;
 
+import com.mapmory.backend.admin.AdminTravelRecordQueryRepository;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.exception.MemberErrorCode;
-import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,14 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminMemberService {
 
     private final MemberRepository memberRepository;
-    private final TravelRecordRepository travelRecordRepository;
+    private final AdminTravelRecordQueryRepository travelRecordQueryRepository;
 
     public AdminMemberService(
             MemberRepository memberRepository,
-            TravelRecordRepository travelRecordRepository
+            AdminTravelRecordQueryRepository travelRecordQueryRepository
     ) {
         this.memberRepository = memberRepository;
-        this.travelRecordRepository = travelRecordRepository;
+        this.travelRecordQueryRepository = travelRecordQueryRepository;
     }
 
     @Transactional(readOnly = true)
@@ -51,10 +51,10 @@ public class AdminMemberService {
                 .toList();
         Map<Long, Long> recordCounts = memberIds.isEmpty()
                 ? Map.of()
-                : travelRecordRepository.countByMemberIds(memberIds).stream()
+                : travelRecordQueryRepository.countByMemberIds(memberIds).stream()
                         .collect(Collectors.toMap(
-                                TravelRecordRepository.MemberRecordCount::getMemberId,
-                                TravelRecordRepository.MemberRecordCount::getRecordCount
+                                AdminTravelRecordQueryRepository.MemberRecordCount::getMemberId,
+                                AdminTravelRecordQueryRepository.MemberRecordCount::getRecordCount
                         ));
 
         List<AdminMemberListResponse.MemberItem> members = result.getContent().stream()
@@ -81,8 +81,8 @@ public class AdminMemberService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        Page<TravelRecordRepository.MemberRecordDetail> recordPage =
-                travelRecordRepository.findAdminRecordDetailsByMemberId(
+        Page<AdminTravelRecordQueryRepository.MemberRecordDetail> recordPage =
+                travelRecordQueryRepository.findAdminRecordDetailsByMemberId(
                         memberId,
                         PageRequest.of(page, size)
                 );
@@ -103,7 +103,7 @@ public class AdminMemberService {
                         member.getCreatedAt()
                 ),
                 recordPage.getTotalElements(),
-                travelRecordRepository.countMediaByMemberId(memberId),
+                travelRecordQueryRepository.countMediaByMemberId(memberId),
                 records,
                 recordPage.getNumber(),
                 recordPage.getSize(),
