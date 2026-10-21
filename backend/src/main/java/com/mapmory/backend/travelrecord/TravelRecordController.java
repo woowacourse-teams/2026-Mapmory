@@ -1,12 +1,12 @@
 package com.mapmory.backend.travelrecord;
 
 import com.mapmory.backend.auth.security.LoginMember;
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
-import com.mapmory.backend.common.dto.ApiResponse;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.Valid;

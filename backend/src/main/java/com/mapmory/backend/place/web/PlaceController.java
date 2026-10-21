@@ -1,10 +1,10 @@
 package com.mapmory.backend.place.web;
 
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
-import com.mapmory.backend.common.dto.ApiResponse;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
