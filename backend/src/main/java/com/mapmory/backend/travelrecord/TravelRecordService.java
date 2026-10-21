@@ -290,13 +290,10 @@ public class TravelRecordService {
                 place.attribution(), place.attributionUrl()));
     }
 
-        private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
+    private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
         if (!newObjectKeys.isEmpty()
                 && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }
-
-
-
 }
