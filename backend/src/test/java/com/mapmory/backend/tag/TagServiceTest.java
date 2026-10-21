@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,11 +31,14 @@ class TagServiceTest {
     @Mock
     private Member member;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TagService tagService;
 
     @BeforeEach
     void setUp() {
-        tagService = new TagService(tagRepository);
+        tagService = new TagService(tagRepository, eventPublisher);
     }
 
     @Test
@@ -121,5 +125,17 @@ class TagServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
                 .isEqualTo(code);
+    }
+
+    @Test
+    void 태그를_삭제하면_지도_요약을_다시_계산하도록_알린다() {
+        Tag tag = mock(Tag.class);
+        when(member.getId()).thenReturn(10L);
+        when(tagRepository.findByIdAndMemberId(7L, 10L)).thenReturn(Optional.of(tag));
+
+        tagService.delete(member, 7L);
+
+        verify(tagRepository).delete(tag);
+        verify(eventPublisher).publishEvent(new TagDeletedEvent(10L));
     }
 }

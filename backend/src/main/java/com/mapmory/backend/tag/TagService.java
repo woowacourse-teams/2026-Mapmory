@@ -4,6 +4,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import java.util.List;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +14,11 @@ public class TagService {
     private static final int MAX_TAGS_PER_MEMBER = 10;
     private static final String TAG_NAME_UNIQUE_CONSTRAINT = "uk_tag_member_name_key";
     private final TagRepository tagRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public TagService(TagRepository tagRepository) {
+    public TagService(TagRepository tagRepository, ApplicationEventPublisher eventPublisher) {
         this.tagRepository = tagRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -49,6 +52,7 @@ public class TagService {
     @Transactional
     public void delete(Member member, Long tagId) {
         tagRepository.delete(findOwnedTag(member, tagId));
+        eventPublisher.publishEvent(new TagDeletedEvent(member.getId()));
     }
 
     @Transactional(readOnly = true)
