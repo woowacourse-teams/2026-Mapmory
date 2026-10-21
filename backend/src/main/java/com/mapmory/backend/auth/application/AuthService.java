@@ -9,19 +9,15 @@ import com.mapmory.backend.auth.token.refresh.RefreshTokenService;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.MemberName;
 import com.mapmory.backend.member.MemberRepository;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
-
-    private static final String DEFAULT_NAME_PREFIX = "회원";
-    // member.name 컬럼 길이(VARCHAR(50))와 같다.
-    private static final int MAX_NAME_LENGTH = 50;
 
     private final SocialIdentityPorts socialIdentityPorts;
     private final MemberRepository memberRepository;
@@ -64,7 +60,7 @@ public class AuthService {
 
         if (guest.isPresent()) {
             Member promoted = guest.get();
-            promoted.promote(provider, providerId, resolveName(identity.name()));
+            promoted.promote(provider, providerId, MemberName.fromProvider(identity.name()));
             // 게스트로 이미 앱을 사용했으므로 온보딩을 반복하지 않도록 신규로 보지 않는다.
             return issueTokens(promoted, false);
         }
@@ -90,7 +86,7 @@ public class AuthService {
     public LoginResult loginAsGuest() {
         Member member = memberRepository.save(Member.ofGuest(
                 UUID.randomUUID().toString(),
-                resolveName(null),
+                MemberName.generated(),
                 UUID.randomUUID()
         ));
         return issueTokens(member, true);
@@ -121,25 +117,9 @@ public class AuthService {
         Member member = Member.ofOAuth(
                 provider,
                 providerId,
-                resolveName(nickname),
+                MemberName.fromProvider(nickname),
                 UUID.randomUUID()
         );
         return memberRepository.save(member);
-    }
-
-    private String resolveName(String nickname) {
-        if (nickname == null || nickname.isBlank()) {
-            // 닉네임 미동의 시 구분 가능한 기본 이름을 부여한다. (예: 회원58213)
-            return DEFAULT_NAME_PREFIX + ThreadLocalRandom.current().nextInt(10_000, 100_000);
-        }
-        return truncate(nickname);
-    }
-
-    // 구글 표시 이름은 길이 제한이 없어 컬럼(50자)을 넘을 수 있다. 서로게이트 쌍이 잘리지 않게 코드 포인트 단위로 자른다.
-    private String truncate(String name) {
-        if (name.codePointCount(0, name.length()) <= MAX_NAME_LENGTH) {
-            return name;
-        }
-        return name.substring(0, name.offsetByCodePoints(0, MAX_NAME_LENGTH));
     }
 }
