@@ -32,13 +32,15 @@ import kotlinx.coroutines.launch
 actual fun rememberCurrentLocationActions(
     onLocation: (GeoPoint) -> Unit,
     onError: (String) -> Unit,
+    cachedLocationMaxAgeMillis: Long,
 ): CurrentLocationActions {
     val latestLocation = rememberUpdatedState(onLocation)
     val latestError = rememberUpdatedState(onError)
-    val controller = remember {
+    val controller = remember(cachedLocationMaxAgeMillis) {
         IosCurrentLocationController(
             onLocation = { latestLocation.value(it) },
             onError = { latestError.value(it) },
+            cachedLocationMaxAgeMillis = cachedLocationMaxAgeMillis,
         )
     }
     DisposableEffect(controller) {
@@ -50,6 +52,7 @@ actual fun rememberCurrentLocationActions(
 private class IosCurrentLocationController(
     private val onLocation: (GeoPoint) -> Unit,
     private val onError: (String) -> Unit,
+    private val cachedLocationMaxAgeMillis: Long,
 ) : NSObject(), CLLocationManagerDelegateProtocol {
     private val manager = CLLocationManager()
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -120,7 +123,8 @@ private class IosCurrentLocationController(
 
     private fun requestLocation() {
         val cached = manager.location
-        if (cached != null && cached.horizontalAccuracy >= 0 && cached.timestamp.timeIntervalSinceNow in -60.0..0.0) {
+        val cacheAgeSeconds = cachedLocationMaxAgeMillis / 1_000.0
+        if (cached != null && cached.horizontalAccuracy >= 0 && cached.timestamp.timeIntervalSinceNow in -cacheAgeSeconds..0.0) {
             locationManager(manager, listOf(cached))
             return
         }

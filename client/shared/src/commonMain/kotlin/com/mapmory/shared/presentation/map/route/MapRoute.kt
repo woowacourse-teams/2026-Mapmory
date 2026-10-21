@@ -22,6 +22,7 @@ import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
+import com.mapmory.shared.presentation.map.MapCurrentLocationCacheMaxAgeMillis
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
@@ -98,6 +99,8 @@ internal fun MapRoute(
             }
         },
         onError = { currentLocationError = it },
+        // 지도 중심 이동은 기록 장소 선택보다 조금 오래된 시스템 위치도 허용한다.
+        cachedLocationMaxAgeMillis = MapCurrentLocationCacheMaxAgeMillis,
     )
     LaunchedEffect(Unit) {
         analytics.logEvent(

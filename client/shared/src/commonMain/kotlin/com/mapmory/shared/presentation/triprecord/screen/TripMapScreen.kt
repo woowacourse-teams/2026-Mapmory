@@ -200,7 +200,7 @@ private fun CurrentLocationMapButton(
             .semantics {
                 contentDescription = if (isLoading) "현재 위치 확인 중" else "현재 위치 표시"
             },
-        contentAlignment = Alignment.CenterEnd,
+        contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier

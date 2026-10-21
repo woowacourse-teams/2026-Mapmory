@@ -28,6 +28,7 @@ import com.mapmory.shared.presentation.map.domain.GeoPoint
 actual fun rememberCurrentLocationActions(
     onLocation: (GeoPoint) -> Unit,
     onError: (String) -> Unit,
+    cachedLocationMaxAgeMillis: Long,
 ): CurrentLocationActions {
     val context = LocalContext.current
     val manager = remember(context) { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
@@ -91,7 +92,13 @@ actual fun rememberCurrentLocationActions(
                     } catch (_: SecurityException) {
                         null
                     }
-                }.filter { isRecentCurrentLocation(now, it.elapsedRealtimeNanos) }
+                }.filter {
+                    isRecentCurrentLocation(
+                        nowNanos = now,
+                        locationNanos = it.elapsedRealtimeNanos,
+                        maxAgeNanos = cachedLocationMaxAgeMillis * 1_000_000L,
+                    )
+                }
                     .maxByOrNull { it.elapsedRealtimeNanos }
                 if (recentLocation != null) {
                     finish(id, recentLocation)
