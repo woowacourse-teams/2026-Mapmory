@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.mapsummary.cache;
 
-import com.mapmory.backend.tag.TagDeletedEvent;
+import com.mapmory.backend.tag.TagChangedEvent;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -23,7 +23,7 @@ class MapSummaryCacheInvalidator {
     }
 
     @TransactionalEventListener(fallbackExecution = true)
-    void onTagDeleted(TagDeletedEvent event) {
+    void onTagChanged(TagChangedEvent event) {
         mapSummaryCache.evictMember(event.memberId());
     }
 }

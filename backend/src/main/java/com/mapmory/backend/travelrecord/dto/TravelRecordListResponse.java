@@ -1,9 +1,8 @@
 package com.mapmory.backend.travelrecord.dto;
 
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
 import com.mapmory.backend.travelrecord.TravelRecordSummaries;
 import java.util.List;
-import org.springframework.data.domain.Page;
 
 public record TravelRecordListResponse(
         List<TravelRecordListItemResponse> items,
@@ -14,22 +13,17 @@ public record TravelRecordListResponse(
         boolean hasNext
 ) {
     public static TravelRecordListResponse from(TravelRecordSummaries summaries) {
-        Page<TravelRecord> travelRecords = summaries.travelRecords();
+        TravelRecordListPage listPage = summaries.listPage();
 
         return new TravelRecordListResponse(
-                travelRecords.getContent().stream()
-                        .map(travelRecord -> TravelRecordListItemResponse.from(
-                                travelRecord,
-                                summaries.tagsOf(travelRecord),
-                                summaries.thumbnailUrlOf(travelRecord),
-                                summaries.photoCountOf(travelRecord)
-                        ))
+                listPage.entries().stream()
+                        .map(entry -> TravelRecordListItemResponse.from(entry, summaries.thumbnailUrlOf(entry)))
                         .toList(),
-                travelRecords.getNumber(),
-                travelRecords.getSize(),
-                travelRecords.getTotalElements(),
-                travelRecords.getTotalPages(),
-                travelRecords.hasNext()
+                listPage.page(),
+                listPage.size(),
+                listPage.totalElements(),
+                listPage.totalPages(),
+                listPage.hasNext()
         );
     }
 }

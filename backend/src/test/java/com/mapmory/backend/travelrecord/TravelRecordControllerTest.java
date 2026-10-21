@@ -38,8 +38,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -307,15 +305,16 @@ class TravelRecordControllerTest {
 
     @Test
     void 여행_일지_목록에_썸네일_URL과_사진_개수를_반환한다() throws Exception {
-        TravelRecord travelRecord = travelRecord("제주 여행", "");
+        TravelRecordListPage.Entry entry = new TravelRecordListPage.Entry(
+                101L, "제주 여행", "제주시", null, null, null,
+                LocalDate.of(2026, 8, 11), null, "mapmory/travel-records/a.jpg", 3, List.of()
+        );
         TravelRecordSummaries summaries = new TravelRecordSummaries(
-                new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1),
-                Map.of(),
+                new TravelRecordListPage(List.of(entry), 0, 20, 1, 1, false),
                 Map.of(101L, new ExpiringUrl(
                         "https://download.example/mapmory/travel-records/a.jpg",
                         300L
-                )),
-                Map.of(101L, 3)
+                ))
         );
         when(travelRecordService.findAll(MEMBER, null, null, null, null, 0, 20))
                 .thenReturn(summaries);
