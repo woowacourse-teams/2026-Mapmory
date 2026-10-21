@@ -95,6 +95,7 @@ fun MapmoryApp(
     var edgeGestureOwnerId by remember { mutableStateOf<String?>(null) }
     var edgeGestureWasInternal by remember { mutableStateOf(false) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
+    var isTimelineJournal by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(updateState) {
         if (showSplash || updateState?.isChecking == true) {
@@ -131,6 +132,8 @@ fun MapmoryApp(
                             backHandlerRegistry = backHandlerRegistry,
                             contentWindowInsets = contentWindowInsets,
                             developerToolsInfo = developerToolsInfo,
+                            isTimelineJournal = isTimelineJournal,
+                            onTimelineLayoutChange = { isTimelineJournal = it },
                         )
                         if (updateState?.isBlocking != true) PlatformNavigationGestures(
                             onBackStarted = {

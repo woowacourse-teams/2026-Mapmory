@@ -11,11 +11,15 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,11 +29,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -37,6 +43,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -57,8 +65,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -68,8 +78,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
@@ -104,6 +116,7 @@ fun TripRecordDetailScreen(
     initialLocationName: String? = null,
     initialLatestDate: String? = null,
     initialPhotoCount: Int? = null,
+    isTimelineLayout: Boolean = false,
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -187,22 +200,35 @@ fun TripRecordDetailScreen(
                             onBackClick = { expandedPhotoIndex = null },
                         )
                     } else {
-                        TripRecordPhotoAlbum(
-                            record = record,
-                            groups = groups,
-                            scrollState = albumScrollState,
-                            columnCount = photoColumns,
-                            onColumnCountChange = { photoColumns = it },
-                            onBackClick = onBackClick,
-                            onEditClick = onEditClick,
-                            onDeleteClick = { showDeleteDialog = true },
-                            onPhotoClick = { photo ->
-                                analytics.emit(MapmoryAnalyticsEvent.RECORD_PHOTO_OPENED, mapOf("record_id" to record.id.toString()))
-                                forwardPhotoIndex = null
-                                expandedPhotoIndex = orderedPhotos.indexOfFirst { it.id == photo.id }
-                                    .takeIf { it >= 0 }
-                            },
-                        )
+                        val openPhoto: (TripRecordPhotoUiState) -> Unit = { photo ->
+                            analytics.emit(MapmoryAnalyticsEvent.RECORD_PHOTO_OPENED, mapOf("record_id" to record.id.toString()))
+                            forwardPhotoIndex = null
+                            expandedPhotoIndex = orderedPhotos.indexOfFirst { it.id == photo.id }
+                                .takeIf { it >= 0 }
+                        }
+                        if (isTimelineLayout) {
+                            TripRecordPhotoTimeline(
+                                record = record,
+                                groups = groups,
+                                scrollState = albumScrollState,
+                                onBackClick = onBackClick,
+                                onEditClick = onEditClick,
+                                onDeleteClick = { showDeleteDialog = true },
+                                onPhotoClick = openPhoto,
+                            )
+                        } else {
+                            TripRecordPhotoAlbum(
+                                record = record,
+                                groups = groups,
+                                scrollState = albumScrollState,
+                                columnCount = photoColumns,
+                                onColumnCountChange = { photoColumns = it },
+                                onBackClick = onBackClick,
+                                onEditClick = onEditClick,
+                                onDeleteClick = { showDeleteDialog = true },
+                                onPhotoClick = openPhoto,
+                            )
+                        }
                     }
                 }
             }
@@ -244,19 +270,19 @@ private fun TripRecordPhotoAlbum(
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
     var isPinching by remember { mutableStateOf(false) }
-    val photoRows = remember(groups, columnCount) {
-        groups.map { group -> group.photos.chunked(columnCount) }
+    val heroPhoto = remember(record.photos) { record.photos.minByOrNull { it.sortOrder } }
+    val galleryGroups = remember(groups, heroPhoto) {
+        groups.map { group -> group.copy(photos = group.photos.filterNot { it.id == heroPhoto?.id }) }
+            .filter { it.photos.isNotEmpty() }
+    }
+    val photoRows = remember(galleryGroups, columnCount) {
+        galleryGroups.map { group -> group.photos.chunked(columnCount) }
     }
     Column(Modifier.fillMaxSize()) {
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = {
-                DetailMoreButton(
-                    onEditClick = onEditClick,
-                    onDeleteClick = onDeleteClick,
-                )
-            },
+            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
         )
         BoxWithConstraints(
             modifier = Modifier
@@ -272,17 +298,122 @@ private fun TripRecordPhotoAlbum(
             LazyColumn(
                 state = scrollState,
                 userScrollEnabled = !isPinching,
-                contentPadding = PaddingValues(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
+                contentPadding = PaddingValues(bottom = 36.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .photoGridPinch(columnCount, onColumnCountChange, { isPinching = it })
                     .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item(key = "heading", contentType = "heading") { AlbumHeading(record.locationName) }
-                if (groups.isEmpty()) {
-                    item(key = "empty") { EmptyPhotoAlbum() }
+                if (heroPhoto != null) {
+                    item(key = "editorial-hero", contentType = "hero") {
+                        val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
+                        Box(Modifier.fillMaxWidth().height(heroHeight)) {
+                            MapmoryAsyncImage(
+                                imageBytes = heroPhoto.previewBytes?.bytesForDecoding()
+                                    ?: heroPhoto.originalBytes?.bytesForDecoding(),
+                                imageUri = heroPhoto.previewUri ?: heroPhoto.localOriginalUri
+                                    ?: heroPhoto.fullResolutionUri,
+                                cacheKey = "trip-preview:${heroPhoto.id}",
+                                fallbackUri = heroPhoto.fullResolutionUri,
+                                fallbackBytes = heroPhoto.originalBytes?.bytesForDecoding(),
+                                contentDescription = "${record.locationName} 대표 사진 확대",
+                                sharedImageKey = heroPhoto.id,
+                                sharedCornerRadius = 0.dp,
+                                onClick = { onPhotoClick(heroPhoto) },
+                                modifier = Modifier.fillMaxSize(),
+                                shape = RoundedCornerShape(0.dp),
+                            )
+                            Box(
+                                Modifier.fillMaxSize().background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
+                                    ),
+                                ),
+                            )
+                            Column(
+                                Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    "${record.locationName} · ${recordDateRange(record)}",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    record.title,
+                                    color = Color.White,
+                                    fontSize = 25.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
                 } else {
-                    groups.forEachIndexed { index, group ->
+                    item(key = "editorial-heading", contentType = "heading") {
+                        AlbumHeading(record.locationName)
+                    }
+                }
+                if (record.content.isNotBlank()) {
+                    item(key = "editorial-note", contentType = "note") {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .background(TripRecordPalette.current.primarySoft, RoundedCornerShape(16.dp))
+                                .padding(15.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            Text(
+                                "그날의 메모",
+                                color = TripRecordPalette.current.primary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                record.content,
+                                color = TripRecordPalette.current.headingText,
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                            )
+                        }
+                    }
+                }
+                item(key = "editorial-gallery-heading", contentType = "heading") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "함께 남긴 사진",
+                            color = TripRecordPalette.current.headingText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "${record.photoCount ?: record.photos.size}장",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+                if (record.photos.isEmpty()) {
+                    item(key = "empty") { EmptyPhotoAlbum() }
+                } else if (galleryGroups.isEmpty()) {
+                    item(key = "single-hero-caption") {
+                        Text(
+                            "대표 사진을 눌러 전체 화면으로 볼 수 있어요.",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 12.sp,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        )
+                    }
+                } else {
+                    galleryGroups.forEachIndexed { index, group ->
                         item(key = "date:${group.displayDate}", contentType = "date") {
                             Text(
                                 text = group.displayDate,
@@ -291,7 +422,8 @@ private fun TripRecordPhotoAlbum(
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.animateItem().padding(top = if (index == 0) 32.dp else 34.dp, bottom = 14.dp),
+                                modifier = Modifier.animateItem().padding(horizontal = 20.dp)
+                                    .padding(top = if (index == 0) 2.dp else 14.dp),
                             )
                         }
                         itemsIndexed(
@@ -301,20 +433,290 @@ private fun TripRecordPhotoAlbum(
                         ) { rowIndex, photos ->
                             AlbumPhotoRow(
                                 photos, group.displayDate, columnCount, { photoSize.value }, onPhotoClick,
-                                Modifier.animateItem().padding(top = if (rowIndex == 0) 0.dp else 8.dp),
+                                Modifier.animateItem().padding(horizontal = 20.dp)
+                                    .padding(top = if (rowIndex == 0) 0.dp else 8.dp),
                             )
                         }
                     }
                 }
             }
-            PhotoListScrollBar(
-                listState = scrollState,
-                contentKey = groups to columnCount,
-                testTag = "album-scrollbar",
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
+            if (galleryGroups.isNotEmpty()) {
+                PhotoListScrollBar(
+                    listState = scrollState,
+                    contentKey = galleryGroups to columnCount,
+                    testTag = "album-scrollbar",
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripRecordPhotoTimeline(
+    record: TripRecordItemUiState,
+    groups: List<TripRecordPhotoGroup>,
+    scrollState: LazyListState,
+    onBackClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onPhotoClick: (TripRecordPhotoUiState) -> Unit,
+) {
+    val timelineGroups = remember(groups) {
+        groups.sortedWith(
+            compareBy<TripRecordPhotoGroup> { it.sortDate == null }
+                .thenBy(TripRecordPhotoGroup::sortDate),
+        ).map { group ->
+            group.copy(
+                photos = group.photos.sortedWith(
+                    compareBy<TripRecordPhotoUiState> { it.capturedAt.isNullOrBlank() }
+                        .thenBy { it.capturedAt.orEmpty() }
+                        .thenBy(TripRecordPhotoUiState::sortOrder),
+                ),
             )
+        }
+    }
+    val availableYears = remember(timelineGroups) {
+        timelineGroups.mapNotNull { it.sortDate?.take(4) }.distinct().sortedDescending()
+    }
+    val hasUndatedPhotos = timelineGroups.any { it.sortDate == null }
+    val yearOptions = remember(availableYears, hasUndatedPhotos) {
+        listOf("전체") + availableYears + if (hasUndatedPhotos) listOf("날짜 미정") else emptyList()
+    }
+    var selectedYear by rememberSaveable(record.id) { mutableStateOf("전체") }
+    LaunchedEffect(record.id, yearOptions) {
+        if (selectedYear !in yearOptions) selectedYear = "전체"
+    }
+    val visibleGroups = remember(timelineGroups, selectedYear) {
+        when (selectedYear) {
+            "전체" -> timelineGroups
+            "날짜 미정" -> timelineGroups.filter { it.sortDate == null }
+            else -> timelineGroups.filter { it.sortDate?.startsWith(selectedYear) == true }
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        TripRecordTopBar(
+            title = "",
+            onBackClick = onBackClick,
+            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
+        )
+        LazyColumn(
+            state = scrollState,
+            modifier = Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 36.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(key = "timeline-heading") {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text(
+                        record.title,
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${record.locationName} · ${recordDateRange(record)} · 사진 ${record.photoCount ?: record.photos.size}장",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (record.content.isNotBlank()) {
+                item(key = "timeline-note") {
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .background(TripRecordPalette.current.primarySoft, RoundedCornerShape(16.dp))
+                            .padding(15.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            "기록 메모",
+                            color = TripRecordPalette.current.primary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            record.content,
+                            color = TripRecordPalette.current.headingText,
+                            fontSize = 14.sp,
+                            lineHeight = 21.sp,
+                        )
+                    }
+                }
+            }
+            item(key = "timeline-list-heading") {
+                Text(
+                    "시간순 기록",
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 3.dp),
+                )
+            }
+            if (yearOptions.size > 1) {
+                item(key = "timeline-year-filter") {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "연도별로 보기",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            yearOptions.forEach { year ->
+                                val selected = selectedYear == year
+                                val shape = RoundedCornerShape(50)
+                                val label = year.toIntOrNull()?.let { "${year}년" } ?: year
+                                Row(
+                                    modifier = Modifier
+                                        .clip(shape)
+                                        .background(
+                                            if (selected) TripRecordPalette.current.primary
+                                            else TripRecordPalette.current.surface,
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (selected) TripRecordPalette.current.primary
+                                            else TripRecordPalette.current.border,
+                                            shape,
+                                        )
+                                        .selectable(
+                                            selected = selected,
+                                            role = Role.RadioButton,
+                                            onClick = { selectedYear = year },
+                                        )
+                                        .heightIn(min = 44.dp)
+                                        .padding(horizontal = 14.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (selected) {
+                                        Text(
+                                            "✓",
+                                            color = TripRecordPalette.current.onPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                    Text(
+                                        label,
+                                        color = if (selected) TripRecordPalette.current.onPrimary
+                                        else TripRecordPalette.current.headingText,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (visibleGroups.isEmpty()) {
+                item(key = "timeline-empty") { EmptyPhotoAlbum() }
+            } else {
+                visibleGroups.forEachIndexed { index, group ->
+                    item(key = "timeline-${group.displayDate}") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Column(
+                                modifier = Modifier.width(25.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Box(
+                                    Modifier.size(24.dp)
+                                        .background(TripRecordPalette.current.primarySoft, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "${index + 1}",
+                                        color = TripRecordPalette.current.primary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                if (index < visibleGroups.lastIndex) {
+                                    Box(
+                                        Modifier.width(1.dp).height(98.dp)
+                                            .background(TripRecordPalette.current.border),
+                                    )
+                                }
+                            }
+                            Column(
+                                Modifier.weight(1f).padding(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(
+                                            group.displayDate,
+                                            color = TripRecordPalette.current.headingText,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            record.locationName,
+                                            color = TripRecordPalette.current.secondaryText,
+                                            fontSize = 11.sp,
+                                        )
+                                    }
+                                    Text(
+                                        "${group.photos.size}장",
+                                        color = TripRecordPalette.current.secondaryText,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(
+                                        androidx.compose.foundation.rememberScrollState(),
+                                    ),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    group.photos.forEach { photo ->
+                                        MapmoryAsyncImage(
+                                            imageBytes = photo.previewBytes?.bytesForDecoding()
+                                                ?: photo.originalBytes?.bytesForDecoding(),
+                                            imageUri = photo.previewUri ?: photo.localOriginalUri
+                                                ?: photo.fullResolutionUri,
+                                            cacheKey = "trip-preview:${photo.id}",
+                                            fallbackUri = photo.fullResolutionUri,
+                                            fallbackBytes = photo.originalBytes?.bytesForDecoding(),
+                                            contentDescription = "${group.displayDate} 여행 사진 확대",
+                                            sharedImageKey = photo.id,
+                                            sharedCornerRadius = 10.dp,
+                                            onClick = { onPhotoClick(photo) },
+                                            modifier = Modifier.size(width = 64.dp, height = 64.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -38,6 +38,8 @@ internal fun MapmoryNavHost(
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
+    isTimelineJournal: Boolean,
+    onTimelineLayoutChange: (Boolean) -> Unit,
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
@@ -105,6 +107,9 @@ internal fun MapmoryNavHost(
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
+                isTimelineLayout = isTimelineJournal,
+                showLayoutSwitcher = developerToolsInfo != null,
+                onTimelineLayoutChange = onTimelineLayoutChange,
             )
         }
 
@@ -230,6 +235,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                isTimelineLayout = isTimelineJournal,
             )
         }
         }
