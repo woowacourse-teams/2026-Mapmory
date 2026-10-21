@@ -15,6 +15,22 @@ import kotlin.test.assertTrue
 
 class MapViewModelTest {
     @Test
+    fun `화면을_다시_그리거나_새로고침해도_확인한_현재위치를_유지한다`() = runSuspend {
+        val repository = object : MapSummaryRepository {
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
+                Result.success(emptyList<MapRegionSummary>())
+        }
+        val viewModel = MapViewModel(repository, StaticRegionCatalog())
+        val point = com.mapmory.shared.presentation.map.domain.GeoPoint(127f, 37f)
+        viewModel.updateCurrentLocation(point)
+        viewModel.refreshIfNeeded(0)
+        assertEquals(point, viewModel.currentLocation)
+        viewModel.refreshIfNeeded(1)
+        assertEquals(point, viewModel.currentLocation)
+    }
+
+    @Test
     fun `지도_재진입은_열린_지역을_유지하고_같은_데이터를_재조회하지_않는다`() = runSuspend {
         var requests = 0
         val repository = object : MapSummaryRepository {

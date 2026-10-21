@@ -16,22 +16,31 @@ import platform.CoreLocation.CLLocationManagerDelegateProtocol
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedAlways
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedWhenInUse
 import platform.CoreLocation.kCLAuthorizationStatusNotDetermined
-import platform.CoreLocation.kCLLocationAccuracyKilometer
+import platform.CoreLocation.kCLLocationAccuracyHundredMeters
 import platform.Foundation.NSError
+import platform.Foundation.timeIntervalSinceNow
 import platform.darwin.NSObject
 import kotlinx.cinterop.useContents
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 actual fun rememberCurrentLocationActions(
     onLocation: (GeoPoint) -> Unit,
     onError: (String) -> Unit,
+    cachedLocationMaxAgeMillis: Long,
 ): CurrentLocationActions {
     val latestLocation = rememberUpdatedState(onLocation)
     val latestError = rememberUpdatedState(onError)
-    val controller = remember {
+    val controller = remember(cachedLocationMaxAgeMillis) {
         IosCurrentLocationController(
             onLocation = { latestLocation.value(it) },
             onError = { latestError.value(it) },
+            cachedLocationMaxAgeMillis = cachedLocationMaxAgeMillis,
         )
     }
     DisposableEffect(controller) {
@@ -43,15 +52,18 @@ actual fun rememberCurrentLocationActions(
 private class IosCurrentLocationController(
     private val onLocation: (GeoPoint) -> Unit,
     private val onError: (String) -> Unit,
+    private val cachedLocationMaxAgeMillis: Long,
 ) : NSObject(), CLLocationManagerDelegateProtocol {
     private val manager = CLLocationManager()
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var timeout: Job? = null
     var isLoading by mutableStateOf(false)
         private set
     private var waitingForPermission = false
 
     init {
         manager.delegate = this
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
     fun request() {
@@ -59,7 +71,7 @@ private class IosCurrentLocationController(
         isLoading = true
         when (manager.authorizationStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse,
-            kCLAuthorizationStatusAuthorizedAlways -> manager.requestLocation()
+            kCLAuthorizationStatusAuthorizedAlways -> requestLocation()
             kCLAuthorizationStatusNotDetermined -> {
                 waitingForPermission = true
                 manager.requestWhenInUseAuthorization()
@@ -71,9 +83,12 @@ private class IosCurrentLocationController(
     fun dispose() {
         cancel()
         manager.delegate = null
+        scope.cancel()
     }
 
     fun cancel() {
+        timeout?.cancel()
+        timeout = null
         waitingForPermission = false
         isLoading = false
         manager.stopUpdatingLocation()
@@ -84,7 +99,7 @@ private class IosCurrentLocationController(
         waitingForPermission = false
         when (manager.authorizationStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse,
-            kCLAuthorizationStatusAuthorizedAlways -> manager.requestLocation()
+            kCLAuthorizationStatusAuthorizedAlways -> requestLocation()
             else -> fail("현재 위치 권한이 필요해요. 설정에서 권한을 허용하거나 장소를 직접 검색해 주세요.")
         }
     }
@@ -92,8 +107,8 @@ private class IosCurrentLocationController(
     override fun locationManager(manager: CLLocationManager, didUpdateLocations: List<*>) {
         if (!isLoading) return
         val location = didUpdateLocations.lastOrNull() as? CLLocation
-        isLoading = false
-        if (location == null) {
+        cancel()
+        if (location == null || location.horizontalAccuracy < 0) {
             onError("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
             return
         }
@@ -106,9 +121,23 @@ private class IosCurrentLocationController(
         if (isLoading) fail("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
     }
 
+    private fun requestLocation() {
+        val cached = manager.location
+        val cacheAgeSeconds = cachedLocationMaxAgeMillis / 1_000.0
+        if (cached != null && cached.horizontalAccuracy >= 0 && cached.timestamp.timeIntervalSinceNow in -cacheAgeSeconds..0.0) {
+            locationManager(manager, listOf(cached))
+            return
+        }
+        timeout?.cancel()
+        timeout = scope.launch {
+            delay(15_000L)
+            fail("현재 위치 확인이 지연되고 있어요. 위치 서비스를 확인하거나 장소를 직접 검색해 주세요.")
+        }
+        manager.requestLocation()
+    }
+
     private fun fail(message: String) {
-        isLoading = false
-        waitingForPermission = false
+        cancel()
         onError(message)
     }
 }
