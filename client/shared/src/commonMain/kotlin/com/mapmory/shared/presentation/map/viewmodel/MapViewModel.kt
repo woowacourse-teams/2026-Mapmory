@@ -175,8 +175,18 @@ class MapViewModel(
 
     val visitedProvinceCodes: Set<String>
         get() = uiState.koreaProvinces
+            .filter { it.count > 0 }
             .map { "$KoreanProvincePrefix${it.code}" }
             .toSet()
+
+    /** 시도에 직접 저장된 기록이 있을 때만 시도 전체를 칠한다. */
+    val directlyVisitedProvinceCodes: Set<String>
+        get() = uiState.koreaProvinces.mapNotNull { province ->
+            val provinceCode = "$KoreanProvincePrefix${province.code}"
+            val districts = uiState.districtsByProvince[provinceCode] ?: return@mapNotNull null
+            val districtRecordCount = districts.sumOf(MapRegionSummary::count)
+            provinceCode.takeIf { province.count > districtRecordCount }
+        }.toSet()
 
     fun visitedDistrictCodes(provinceCode: String): Set<String> =
         uiState.districtsByProvince[provinceCode]
@@ -190,6 +200,9 @@ class MapViewModel(
             .filter { it.count > 0 }
             .map(MapRegionSummary::code)
             .toSet()
+
+    val visitedKoreaMapRegionCodes: Set<String>
+        get() = visitedKoreaDistrictCodes + directlyVisitedProvinceCodes
 
     val koreaDistrictCount: Int
         get() = regionCatalog.locations.count { it.type == LocationType.DISTRICT }
