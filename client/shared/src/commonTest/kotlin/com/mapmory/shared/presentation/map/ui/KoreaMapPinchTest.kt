@@ -25,11 +25,24 @@ class KoreaMapPinchTest {
 
     @Test
     fun zoomLimitsUseEffectiveScaleAndDoNotMoveMapWhenAlreadyAtLimit() {
-        listOf(MapTransform(1f, Offset(20f, 30f)) to 0.5f, MapTransform(9f, Offset(20f, 30f)) to 2f)
+        listOf(MapTransform(1f, Offset(20f, 30f)) to 0.5f, MapTransform(18f, Offset(20f, 30f)) to 2f)
             .forEach { (current, scale) ->
                 val next = transformKoreaMapGesture(current, Offset(800f, 600f), Offset.Zero, scale, viewport)
                 assertEquals(current, next)
             }
+    }
+
+    @Test
+    fun zoomCanReachTheNewMaximumForReadingSmallRegions() {
+        val next = transformKoreaMapGesture(
+            current = MapTransform(1f, Offset.Zero),
+            centroid = center,
+            panChange = Offset.Zero,
+            zoomChange = 30f,
+            viewportSize = viewport,
+        )
+
+        assertEquals(18f, next.zoom)
     }
 
     @Test

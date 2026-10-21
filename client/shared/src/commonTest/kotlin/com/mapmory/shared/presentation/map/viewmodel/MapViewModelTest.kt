@@ -147,7 +147,23 @@ class MapViewModelTest {
         viewModel.refresh()
 
         assertEquals(setOf("11680"), viewModel.visitedKoreaDistrictCodes)
+        assertEquals(setOf("KR-11"), viewModel.directlyVisitedProvinceCodes)
+        assertEquals(setOf("KR-11", "11680"), viewModel.visitedKoreaMapRegionCodes)
         assertTrue(viewModel.hasRecords(seoul))
+    }
+
+    @Test
+    fun `부산에_직접_저장한_기록은_부산_전체를_방문_지역으로_표시한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository(catalog) { "2026-08-31T00:00:00" }
+        repository.createTripRecord(draft(catalog.requireByCode("KR-26").id, "부산 기록"))
+        val viewModel = MapViewModel(repository, catalog)
+
+        viewModel.refresh()
+
+        assertEquals(setOf("KR-26"), viewModel.directlyVisitedProvinceCodes)
+        assertEquals(setOf("KR-26"), viewModel.visitedKoreaMapRegionCodes)
+        assertTrue(viewModel.visitedKoreaDistrictCodes.isEmpty())
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(

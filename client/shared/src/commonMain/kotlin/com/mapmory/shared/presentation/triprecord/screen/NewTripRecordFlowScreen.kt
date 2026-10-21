@@ -593,6 +593,9 @@ internal fun NewTripRecordFlowScreen(
         },
     )
 
+    DisposableEffect(previewPhotoId) {
+        onDispose { photoLibrary.cancelFullResolutionPreview() }
+    }
     LaunchedEffect(previewPhotoId) {
         val photoId = previewPhotoId ?: run {
             fullResolutionPreviewBytes = null
@@ -2788,6 +2791,8 @@ private fun PhotoPreviewViewer(
     onDismiss: () -> Unit,
 ) {
     val usePreview = LocalMapmoryImageTransitionScope.current?.isTransitionActive == true
+    val hasOriginal = fullResolutionBytes != null || photo.fullResolutionUri != null || photo.originalBytes != null
+    val showOriginal = !usePreview && hasOriginal
     MapmoryPhotoViewer(
         title = photo.displayName,
         onClose = onDismiss,
@@ -2808,18 +2813,19 @@ private fun PhotoPreviewViewer(
         },
     ) {
         MapmoryAsyncImage(
-            imageBytes = if (usePreview) photo.previewBytes else fullResolutionBytes ?: photo.previewBytes,
-            imageUri = if (usePreview) {
+            imageBytes = if (showOriginal) fullResolutionBytes ?: photo.originalBytes else photo.previewBytes,
+            imageUri = if (!showOriginal) {
                 photo.previewUri ?: photo.fullResolutionUri.takeIf { photo.previewBytes == null }
             } else photo.fullResolutionUri.takeIf { fullResolutionBytes == null },
             fallbackUri = photo.previewUri,
             fallbackBytes = photo.previewBytes,
-            cacheKey = if (usePreview) "picker-preview:${photo.id}" else "picker-full:${photo.id}",
+            cacheKey = if (showOriginal) "picker-full:${photo.id}" else "picker-preview:${photo.id}",
+            decodeOriginalSize = showOriginal,
             sharedImageKey = "picker:${photo.id}",
             sharedCornerRadius = 0.dp,
             contentDescription = "${photo.displayName} 확대 사진",
             blackLoadingBackground = true,
-            modifier = Modifier.fillMaxSize().padding(vertical = 104.dp),
+            modifier = Modifier.fillMaxSize(),
             shape = RectangleShape,
             contentScale = ContentScale.Fit,
         )
