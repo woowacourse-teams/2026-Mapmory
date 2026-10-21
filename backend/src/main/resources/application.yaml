@@ -114,6 +114,18 @@ upload:
         total-timeout: 6s
         max-attempts: 3
 
+media:
+  view:
+    # 사진 조회 URL을 CloudFront 서명 URL로 낸다. 끄면 S3 presigned GET으로 돌아간다.
+    # 배포 원본 경로가 공용 버킷의 우리 폴더(mapmory)라, Object Key 앞의 그 값을 빼고 서명한다.
+    # 유효시간은 upload.policy.presigned-url-expiration을 같이 쓴다.
+    cdn:
+      enabled: ${CLOUDFRONT_ENABLED:false}
+      domain: ${CLOUDFRONT_DOMAIN:}
+      origin-path: ${CLOUDFRONT_ORIGIN_PATH:mapmory}
+      key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:}
+      private-key-path: ${CLOUDFRONT_PRIVATE_KEY_PATH:}
+
 waitlist:
   cors:
     allowed-origins: ${WAITLIST_ALLOWED_ORIGINS:http://localhost:4173,http://localhost:5173,https://map-mory.com,https://www.map-mory.com}
