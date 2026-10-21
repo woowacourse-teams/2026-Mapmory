@@ -35,6 +35,21 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     @EntityGraph(attributePaths = {"region", "region.parent", "region.root"})
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
 
+    /**
+     * startDate가 같으면 TravelRecord.id 순서로 고정
+     * region.root를 함께 조회해 지연 로딩 문제 방지
+     * 개수 제한 없음
+     */
+    @EntityGraph(attributePaths = {"region", "region.root"})
+    @Query("""
+        SELECT travelRecord
+        FROM TravelRecord travelRecord
+        WHERE travelRecord.member.id = :memberId
+                AND travelRecord.deletedAt IS NULL
+        ORDER BY travelRecord.startDate ASC, travelRecord.id ASC
+        """)
+    List<TravelRecord> findAllForTravelTimeline(@Param("memberId") Long memberId);
+
     @Query("SELECT COUNT(tr) FROM TravelRecord tr WHERE tr.createdAt >= :from AND tr.createdAt < :to")
     long countCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
