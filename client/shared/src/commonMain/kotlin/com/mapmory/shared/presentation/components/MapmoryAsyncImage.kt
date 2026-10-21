@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import coil3.size.Size
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.reportFailure
 import coil3.compose.AsyncImage
@@ -61,11 +62,13 @@ internal fun MapmoryAsyncImage(
     fallbackUri: String? = null,
     cacheKey: String? = null,
     blackLoadingBackground: Boolean = false,
+    decodeOriginalSize: Boolean = false,
     contentDescription: String,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(18.dp),
     contentScale: ContentScale = ContentScale.Crop,
     sharedImageKey: String? = null,
+    imageIdentity: String? = sharedImageKey,
     sharedCornerRadius: Dp = 18.dp,
     onClick: (() -> Unit)? = null,
     onReadyChanged: (Boolean) -> Unit = {},
@@ -85,8 +88,10 @@ internal fun MapmoryAsyncImage(
         }
         RoundedCornerShape(cornerRadius)
     } else shape
-    var lastPainter by remember(sharedImageKey, contentDescription) {
-        mutableStateOf(sharedImageKey?.let { transition?.painters?.get(it) })
+    // Becoming the current pager page changes sharedImageKey, not image identity.
+    // Keep the displayed frame while preview/original requests are replaced.
+    var lastPainter by remember(imageIdentity, contentDescription) {
+        mutableStateOf(imageIdentity?.let { transition?.painters?.get(it) })
     }
     var useFallback by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(false) }
     var showPlaceholder by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(true) }
@@ -99,12 +104,13 @@ internal fun MapmoryAsyncImage(
     val latestOnReadyChanged by rememberUpdatedState(onReadyChanged)
     LaunchedEffect(isReady) { latestOnReadyChanged(isReady) }
     val context = LocalPlatformContext.current
-    val request = remember(context, model, cacheKey, useFallback, blackLoadingBackground) {
+    val request = remember(context, model, cacheKey, useFallback, blackLoadingBackground, decodeOriginalSize) {
         ImageRequest.Builder(context).data(model).apply {
             crossfade(false)
+            if (decodeOriginalSize) size(Size.ORIGINAL)
             cacheKey?.let { key ->
-                memoryCacheKey("$key:$useFallback")
-                diskCacheKey("$key:$useFallback")
+                memoryCacheKey("$key:$useFallback:$decodeOriginalSize")
+                diskCacheKey("$key:$useFallback:$decodeOriginalSize")
             }
         }.build()
     }
@@ -177,7 +183,10 @@ internal fun MapmoryAsyncImage(
                     onLoading = { showPlaceholder = true; imageLoaded = false },
                     onSuccess = { state ->
                         lastPainter = state.painter
-                        sharedImageKey?.let { transition?.painters?.set(it, state.painter) }
+                        // The grid's shared cache must not retain every decoded original.
+                        if (!decodeOriginalSize) {
+                            sharedImageKey?.let { transition?.painters?.set(it, state.painter) }
+                        }
                         showPlaceholder = false
                         imageLoaded = true
                     },
