@@ -132,6 +132,7 @@ export const WorldGlobe: React.FC<WorldGlobeProps> = ({
 }) => {
   const fromStop = stops[segmentIndex];
   const toStop = stops[Math.min(segmentIndex + 1, stops.length - 1)];
+  const sameCountry = fromStop.countryCode === toStop.countryCode;
   const from = toSphere(fromStop.longitude, fromStop.latitude);
   const to = toSphere(toStop.longitude, toStop.latitude);
   const cameraPoint = slerp(from, to, clamp(progress + (1 - progress) * 0.055, 0, 1));
@@ -204,9 +205,13 @@ export const WorldGlobe: React.FC<WorldGlobeProps> = ({
         })}
 
         {routeEntries.map((route, index) => {
+          if (stops[index].countryCode === stops[index + 1].countryCode) {
+            return null;
+          }
+
           const d = routePath(route.from, route.to, route.progress, camera);
           return (
-            <React.Fragment key={`${stops[index].countryCode}-${stops[index + 1].countryCode}`}>
+            <React.Fragment key={`${index}-${stops[index].countryCode}-${stops[index + 1].countryCode}`}>
               {route.current ? (
                 <path
                   d={d}
@@ -235,7 +240,7 @@ export const WorldGlobe: React.FC<WorldGlobeProps> = ({
           if (point.z < 0) return null;
           const isDestination = index === segmentIndex + 1;
           return (
-            <g key={stop.countryCode} opacity={isDestination ? 0.45 + currentCountryProgress * 0.55 : 0.65}>
+            <g key={`${index}-${stop.countryCode}`} opacity={isDestination ? 0.45 + currentCountryProgress * 0.55 : 0.65}>
               {isDestination && arrival > 0 ? (
                 <circle
                   cx={point.screenX}
@@ -253,7 +258,7 @@ export const WorldGlobe: React.FC<WorldGlobeProps> = ({
         })}
       </g>
 
-      {planePoint.z >= 0 ? (
+      {!sameCountry && planePoint.z >= 0 ? (
         <text
           x={planePoint.screenX}
           y={planePoint.screenY}

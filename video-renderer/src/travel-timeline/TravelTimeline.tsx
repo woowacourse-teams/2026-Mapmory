@@ -1,11 +1,30 @@
 import React from "react";
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from "remotion";
 import {clamp, easeInOutCubic} from "./globe-math";
-import type {TravelTimelineProps} from "./schema";
+import type {TravelStop, TravelTimelineProps} from "./schema";
 import {HOLD_FRAMES, LEG_FRAMES, MOVE_FRAMES, START_FRAMES} from "./timing";
 import {WorldGlobe} from "./WorldGlobe";
 
-const yearOf = (date: string) => date.match(/\d{4}/)?.[0] ?? date;
+const formatDate = (date: string) => {
+  const [year, month, day] = date.split("-");
+  return `${year}. ${month}. ${day}`;
+};
+
+const dateLabelOf = (stop: TravelStop) => {
+  const firstVisit = stop.visits[0];
+
+  if (stop.visits.length > 1) {
+    return `${formatDate(firstVisit.startDate)} 외 ${stop.visits.length - 1}회`;
+  }
+
+  if (!firstVisit.endDate || firstVisit.endDate === firstVisit.startDate) {
+    return formatDate(firstVisit.startDate);
+  }
+
+  return `${formatDate(firstVisit.startDate)} – ${formatDate(firstVisit.endDate)}`;
+};
+
+const yearOf = (stop: TravelStop) => stop.visits[0].startDate.slice(0, 4);
 
 export const TravelTimeline: React.FC<TravelTimelineProps> = ({stops}) => {
   const frame = useCurrentFrame();
@@ -24,8 +43,8 @@ export const TravelTimeline: React.FC<TravelTimelineProps> = ({stops}) => {
   const activeStop = progress < 0.76 ? stops[segmentIndex] : stops[segmentIndex + 1];
   const labelOpacity = Math.max(outgoing, incoming);
   const labelOffset = interpolate(labelOpacity, [0, 1], [24, 0]);
-  const years = [...new Set(stops.map((stop) => yearOf(stop.date)))];
-  const activeYear = yearOf(activeStop.date);
+  const years = [...new Set(stops.map(yearOf))];
+  const activeYear = yearOf(activeStop);
   const fadeIn = clamp(frame / 15, 0, 1);
   const fadeOut = clamp((durationInFrames - frame) / 18, 0, 1);
 
@@ -72,7 +91,7 @@ export const TravelTimeline: React.FC<TravelTimelineProps> = ({stops}) => {
           {activeStop.countryName}
         </div>
         <div style={{marginTop: 18, color: "#8B95A1", fontSize: 30, fontWeight: 600}}>
-          {activeStop.date}
+          {dateLabelOf(activeStop)}
         </div>
       </div>
 

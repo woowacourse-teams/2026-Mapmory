@@ -30,8 +30,10 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "generate:map": "node scripts/generate-world-map.mjs",
+    "generate:coordinates": "node scripts/generate-country-coordinates.mjs",
     "render:sample": "remotion render src/index.ts TravelTimeline out/travel-timeline.mp4 --port=3001",
     "render:worker": "tsx src/render/render-video.ts",
+    "render:fixture": "tsx src/render/render-video.ts fixtures/travel-timeline-snapshot.json out/travel-timeline-fixture.mp4",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"
   },

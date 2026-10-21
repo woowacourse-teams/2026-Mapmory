@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "stops": [
+    {
+      "countryCode": "KR",
+      "countryName": "대한민국",
+      "visits": [
+        {
+          "visitId": 101,
+          "startDate": "2024-03-12",
+          "endDate": "2024-03-14"
+        },
+        {
+          "visitId": 102,
+          "startDate": "2024-04-20",
+          "endDate": null
+        }
+      ]
+    },
+    {
+      "countryCode": "GB",
+      "countryName": "영국",
+      "visits": [
+        {
+          "visitId": 103,
+          "startDate": "2025-05-14",
+          "endDate": "2025-05-20"
+        }
+      ]
+    },
+    {
+      "countryCode": "IS",
+      "countryName": "아이슬란드",
+      "visits": [
+        {
+          "visitId": 104,
+          "startDate": "2026-08-26",
+          "endDate": null
+        }
+      ]
+    }
+  ]
+}

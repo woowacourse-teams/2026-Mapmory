@@ -90,4 +90,6 @@ POST /api/v1/share-videos/travel-timeline
 
 ## 렌더러 연결 전 남은 작업
 
-백엔드 스냅샷에는 국가 대표 좌표가 없다. 렌더 작업을 시작할 때 각 `countryCode`에 `longitude`, `latitude`를 보강해야 한다. 좌표 보강 방식과 작업 실행기는 별도 단계에서 구현한다.
+백엔드 스냅샷에는 국가 대표 좌표를 저장하지 않는다. Video Renderer의 입력 변환기가 각 `countryCode`에 `longitude`, `latitude`를 보강한다.
+
+백엔드에는 아직 `PENDING` 작업을 가져와 렌더 명령을 실행하고 결과를 저장하는 작업 실행기가 연결되지 않았다.
