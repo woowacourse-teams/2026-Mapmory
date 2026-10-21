@@ -7,10 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.admin.AdminTravelRecordQueryRepository;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
