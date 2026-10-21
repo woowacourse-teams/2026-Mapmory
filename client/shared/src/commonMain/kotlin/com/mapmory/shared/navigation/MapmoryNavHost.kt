@@ -28,6 +28,7 @@ import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
+import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
 
 @Composable
 internal fun MapmoryNavHost(
@@ -72,6 +73,7 @@ internal fun MapmoryNavHost(
                     navigator.navigateToEditor(selectedLocationId = locationId)
                 },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
             )
         }
 
@@ -102,6 +104,7 @@ internal fun MapmoryNavHost(
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
             )
         }
 
@@ -145,7 +148,7 @@ internal fun MapmoryNavHost(
         composable<ProfileRoute> { backStackEntry ->
             SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
-                mapmoryDebugLog(NavigationLogTag, "screen=profile")
+                mapmoryDebugLog(NavigationLogTag, "screen=statistics")
             }
             val viewModel = viewModel {
                 container.viewModelFactory.createTripStatisticsViewModel()
@@ -158,6 +161,21 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
+            )
+        }
+
+        composable<SettingsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(NavigationLogTag, "screen=settings")
+            }
+            TripSettingsRoute(
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                onOpenMap = navigator::navigateToMap,
+                onOpenRecords = navigator::navigateToRecords,
+                onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
                 developerToolsInfo = developerToolsInfo,
                 onOpenDeveloperTools = navigator::navigateToDeveloperTools,
                 serviceFeedbackRepository = container.serviceFeedbackRepository,

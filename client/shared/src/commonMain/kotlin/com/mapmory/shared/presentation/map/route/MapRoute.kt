@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.emit
@@ -21,8 +22,8 @@ import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
+import com.mapmory.shared.presentation.map.MapCurrentLocationCacheMaxAgeMillis
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
-import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
@@ -45,6 +46,7 @@ internal fun MapRoute(
     onOpenRecords: (Long?) -> Unit,
     onOpenEditor: (Long?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState = viewModel.uiState
@@ -75,13 +77,13 @@ internal fun MapRoute(
         mutableStateOf(!onboardingPreference.hasSeenRecordIntroduction())
     }
     var showRegionLabels by remember { mutableStateOf(false) }
-    var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    val currentLocation = viewModel.currentLocation
     var currentLocationError by remember { mutableStateOf<String?>(null) }
-    var worldLocationFocusRequest by remember { mutableIntStateOf(0) }
-    var koreaLocationFocusRequest by remember { mutableIntStateOf(0) }
+    var worldLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
+    var koreaLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
     val currentLocationActions = rememberCurrentLocationActions(
         onLocation = { point ->
-            currentLocation = point
+            viewModel.updateCurrentLocation(point)
             currentLocationError = null
             gestureClosedProvinceCode = null
             when {
@@ -97,6 +99,8 @@ internal fun MapRoute(
             }
         },
         onError = { currentLocationError = it },
+        // 지도 중심 이동은 기록 장소 선택보다 조금 오래된 시스템 위치도 허용한다.
+        cachedLocationMaxAgeMillis = MapCurrentLocationCacheMaxAgeMillis,
     )
     LaunchedEffect(Unit) {
         analytics.logEvent(
@@ -260,6 +264,7 @@ internal fun MapRoute(
             onRecordClick = { onOpenRecords(null) },
             onCreateClick = { onOpenEditor(null) },
             onProfileClick = onOpenProfile,
+            onSettingsClick = onOpenSettings,
         )
         if (showRecordIntroduction) {
             FirstRecordIntroduction(

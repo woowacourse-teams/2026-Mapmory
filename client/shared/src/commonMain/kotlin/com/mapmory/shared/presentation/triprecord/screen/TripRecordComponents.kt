@@ -2,6 +2,7 @@ package com.mapmory.shared.presentation.triprecord.screen
 
 import com.mapmory.shared.presentation.components.MapmoryBackButton
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -47,6 +49,9 @@ import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 import com.mapmory.shared.preview.PreviewSurface
+import mapmoryclient.shared.generated.resources.Res
+import mapmoryclient.shared.generated.resources.settings_24px
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 internal fun TripRecordTopBar(
@@ -162,7 +167,7 @@ internal fun TripRecordCreateButton(
     Box(
         modifier = modifier
             .padding(end = 28.dp, bottom = 33.dp)
-            .size(44.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(palette.primary)
             .clickable {
@@ -218,6 +223,7 @@ internal fun TripBottomBar(
     onMapClick: () -> Unit = {},
     onCreateClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     backgroundColor: Color = TripRecordPalette.current.background,
     dividerColor: Color = TripRecordPalette.current.line,
     selectedIconColor: Color = TripRecordPalette.current.accent,
@@ -295,6 +301,24 @@ internal fun TripBottomBar(
             unselectedColor = unselectedColor,
             modifier = Modifier.weight(1f),
         )
+        TripBottomItem(
+            tab = TripBottomTab.SETTINGS,
+            selected = selected == TripBottomTab.SETTINGS,
+            onClick = {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
+                    mapOf(
+                        "from_tab" to selected.name.lowercase(),
+                        "to_tab" to TripBottomTab.SETTINGS.name.lowercase(),
+                    ),
+                )
+                onSettingsClick()
+            },
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -302,6 +326,7 @@ internal enum class TripBottomTab(val label: String) {
     MAP("지도"),
     RECORD("일지"),
     PROFILE("통계"),
+    SETTINGS("설정"),
 }
 
 @Composable
@@ -344,6 +369,16 @@ private fun TripBottomIcon(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
+    if (tab == TripBottomTab.SETTINGS) {
+        Image(
+            painter = painterResource(Res.drawable.settings_24px),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(color),
+            modifier = modifier,
+        )
+        return
+    }
+
     Canvas(modifier) {
         val stroke = Stroke(
             width = 1.7.dp.toPx(),
@@ -420,6 +455,8 @@ private fun TripBottomIcon(
                     )
                 }
             }
+
+            TripBottomTab.SETTINGS -> Unit
         }
     }
 }
