@@ -92,6 +92,7 @@ class TagServiceTest {
         );
 
         assertThat(tag.getName()).isEqualTo("친구");
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -128,7 +129,7 @@ class TagServiceTest {
     }
 
     @Test
-    void 태그를_삭제하면_지도_요약을_다시_계산하도록_알린다() {
+    void 태그를_삭제하면_그_회원_캐시를_비우도록_알린다() {
         Tag tag = mock(Tag.class);
         when(member.getId()).thenReturn(10L);
         when(tagRepository.findByIdAndMemberId(7L, 10L)).thenReturn(Optional.of(tag));
@@ -136,6 +137,20 @@ class TagServiceTest {
         tagService.delete(member, 7L);
 
         verify(tagRepository).delete(tag);
-        verify(eventPublisher).publishEvent(new TagDeletedEvent(10L));
+        verify(eventPublisher).publishEvent(new TagChangedEvent(10L));
+    }
+
+    @Test
+    void 태그_이름을_바꾸면_그_회원_캐시를_비우도록_알린다() {
+        when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+        ReflectionTestUtils.setField(tag, "id", 1L);
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.of(tag));
+        when(tagRepository.existsByMemberIdAndNameKeyAndIdNot(10L, "가족", 1L)).thenReturn(false);
+
+        tagService.update(member, 1L, "가족");
+
+        assertThat(tag.getName()).isEqualTo("가족");
+        verify(eventPublisher).publishEvent(new TagChangedEvent(10L));
     }
 }

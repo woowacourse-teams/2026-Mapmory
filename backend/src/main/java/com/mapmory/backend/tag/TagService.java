@@ -46,13 +46,14 @@ public class TagService {
         tag.rename(name);
 
         flushTagChanges();
+        eventPublisher.publishEvent(new TagChangedEvent(member.getId()));
         return tag;
     }
 
     @Transactional
     public void delete(Member member, Long tagId) {
         tagRepository.delete(findOwnedTag(member, tagId));
-        eventPublisher.publishEvent(new TagDeletedEvent(member.getId()));
+        eventPublisher.publishEvent(new TagChangedEvent(member.getId()));
     }
 
     @Transactional(readOnly = true)

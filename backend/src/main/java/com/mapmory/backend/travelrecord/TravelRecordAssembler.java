@@ -47,18 +47,70 @@ public class TravelRecordAssembler {
         return new TravelRecordDetail(travelRecord, tags, toMediaViews(travelRecord));
     }
 
-    public TravelRecordSummaries assembleSummaries(Page<TravelRecord> travelRecords) {
+    /**
+     * 일지 한 페이지를 캐시에 넣을 수 있는 값으로 옮긴다. 서명 URL은 만들지 않는다({@link #signThumbnails}).
+     */
+    public TravelRecordListPage assembleListPage(Page<TravelRecord> travelRecords) {
         List<Long> travelRecordIds = travelRecords.getContent().stream()
                 .map(TravelRecord::getId)
                 .toList();
 
         List<RecordMedia> media = findMedia(travelRecordIds);
+        Map<Long, List<Tag>> tags = travelRecordTagService.findByTravelRecordIds(travelRecordIds);
+        Map<Long, String> thumbnailObjectKeys = findThumbnailObjectKeys(media);
+        Map<Long, Integer> photoCounts = countPhotos(media);
 
-        return new TravelRecordSummaries(
-                travelRecords,
-                travelRecordTagService.findByTravelRecordIds(travelRecordIds),
-                createThumbnailUrls(media),
-                countPhotos(media)
+        return new TravelRecordListPage(
+                travelRecords.getContent().stream()
+                        .map(travelRecord -> toEntry(
+                                travelRecord,
+                                tags.getOrDefault(travelRecord.getId(), List.of()),
+                                thumbnailObjectKeys.get(travelRecord.getId()),
+                                photoCounts.getOrDefault(travelRecord.getId(), 0)
+                        ))
+                        .toList(),
+                travelRecords.getNumber(),
+                travelRecords.getSize(),
+                travelRecords.getTotalElements(),
+                travelRecords.getTotalPages(),
+                travelRecords.hasNext()
+        );
+    }
+
+    /**
+     * 썸네일 URL은 5분 뒤 만료되므로 캐시에 두지 않고 응답할 때마다 새로 서명한다. 서명은 서버 안의 계산이라 DB나 S3에 가지 않는다.
+     */
+    public TravelRecordSummaries signThumbnails(TravelRecordListPage listPage) {
+        Map<Long, ExpiringUrl> thumbnailUrls = new HashMap<>();
+        for (TravelRecordListPage.Entry entry : listPage.entries()) {
+            if (entry.thumbnailObjectKey() != null) {
+                thumbnailUrls.put(entry.id(), recordMediaUrlService.createViewUrl(entry.thumbnailObjectKey()));
+            }
+        }
+        return new TravelRecordSummaries(listPage, Map.copyOf(thumbnailUrls));
+    }
+
+    private TravelRecordListPage.Entry toEntry(
+            TravelRecord travelRecord,
+            List<Tag> tags,
+            String thumbnailObjectKey,
+            int photoCount
+    ) {
+        RecordedPlace place = travelRecord.getPlace();
+        return new TravelRecordListPage.Entry(
+                travelRecord.getId(),
+                travelRecord.getTitle(),
+                travelRecord.getRegion().getName(),
+                place == null ? null : place.name(),
+                place == null ? null : place.attribution(),
+                place == null ? null : place.attributionUrl(),
+                travelRecord.getStartDate(),
+                travelRecord.getEndDate(),
+                thumbnailObjectKey,
+                photoCount,
+                tags.stream()
+                        .map(tag -> new TravelRecordListPage.TagLabel(tag.getId(), tag.getName()))
+                        .toList()
         );
     }
 
@@ -81,15 +133,12 @@ public class TravelRecordAssembler {
         return travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds);
     }
 
-    private Map<Long, ExpiringUrl> createThumbnailUrls(List<RecordMedia> media) {
-        Map<Long, ExpiringUrl> thumbnailUrls = new HashMap<>();
+    private Map<Long, String> findThumbnailObjectKeys(List<RecordMedia> media) {
+        Map<Long, String> thumbnailObjectKeys = new HashMap<>();
         for (RecordMedia recordMedia : media) {
-            thumbnailUrls.computeIfAbsent(
-                    recordMedia.travelRecordId(),
-                    ignored -> recordMediaUrlService.createViewUrl(recordMedia.getThumbnailObjectKey())
-            );
+            thumbnailObjectKeys.putIfAbsent(recordMedia.travelRecordId(), recordMedia.getThumbnailObjectKey());
         }
-        return Map.copyOf(thumbnailUrls);
+        return thumbnailObjectKeys;
     }
 
     private Map<Long, Integer> countPhotos(List<RecordMedia> media) {
