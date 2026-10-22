@@ -5,7 +5,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 회원 이름 규칙.
  *
- * 이름이 없으면 구분 가능한 기본 이름을 짓고, 있으면 컬럼 길이에 맞게 자른다.
+ * 이름(name)은 소셜 제공자가 준 이름이다. 없으면 구분 가능한 기본 이름을 짓고, 있으면 컬럼 길이에 맞게 자른다.
+ * 닉네임(nickname)은 다른 회원에게 보이는 이름이다. 제공자 이름과 관계없이 기본 이름으로 시작한다.
  */
 public final class MemberName {
 
@@ -17,7 +18,7 @@ public final class MemberName {
     }
 
     /**
-     * 기본 이름. 닉네임 미동의나 게스트처럼 이름이 없을 때 쓴다. (예: 회원58213)
+     * 기본 이름. 처음 닉네임과, 닉네임 미동의나 게스트처럼 이름이 없을 때의 이름에 쓴다. (예: 회원58213)
      */
     public static String generated() {
         return DEFAULT_NAME_PREFIX + ThreadLocalRandom.current().nextInt(10_000, 100_000);

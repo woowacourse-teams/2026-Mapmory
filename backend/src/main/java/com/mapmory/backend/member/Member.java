@@ -21,8 +21,13 @@ public class Member extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 소셜 제공자가 준 이름(없으면 기본 이름). 회원이 바꾸지 않는다.
     @Column(nullable = false, length = 50)
     private String name;
+
+    // 다른 회원에게 보이는 이름. 제공자 이름과 관계없이 기본 이름으로 시작하고, 로그인으로 바뀌지 않는다.
+    @Column(nullable = false, length = 20)
+    private String nickname;
 
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, unique = true, length = 36)
@@ -44,6 +49,7 @@ public class Member extends BaseEntity {
         this.provider = provider;
         this.providerId = providerId;
         this.name = name;
+        this.nickname = MemberName.generated();
         this.uuid = uuid;
     }
 
@@ -81,6 +87,10 @@ public class Member extends BaseEntity {
 
     public String getName() {
         return name;
+    }
+
+    public String getNickname() {
+        return nickname;
     }
 
     public UUID getUuid() {
