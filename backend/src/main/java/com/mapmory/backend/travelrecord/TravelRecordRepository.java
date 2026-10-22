@@ -45,8 +45,7 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         SELECT travelRecord
         FROM TravelRecord travelRecord
         WHERE travelRecord.member.id = :memberId
-                AND travelRecord.deletedAt IS NULL
-        ORDER BY travelRecord.startDate ASC, travelRecord.id ASC
+        ORDER BY travelRecord.period.startDate ASC, travelRecord.id ASC
         """)
     List<TravelRecord> findAllForTravelTimeline(@Param("memberId") Long memberId);
 

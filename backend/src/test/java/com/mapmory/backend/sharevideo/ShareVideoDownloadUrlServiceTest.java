@@ -1,0 +1,60 @@
+package com.mapmory.backend.sharevideo;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import java.net.URI;
+import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.util.unit.DataSize;
+
+class ShareVideoDownloadUrlServiceTest {
+
+    private static final Duration EXPIRATION = Duration.ofMinutes(5);
+
+    private final PresignedUrlProvider presignedUrlProvider = mock(PresignedUrlProvider.class);
+    private ShareVideoDownloadUrlService downloadUrlService;
+
+    @BeforeEach
+    void setUp() {
+        UploadPolicyProperties properties = new UploadPolicyProperties(
+                DataSize.ofMegabytes(10),
+                100,
+                EXPIRATION
+        );
+        downloadUrlService = new ShareVideoDownloadUrlService(presignedUrlProvider, properties);
+    }
+
+    @Test
+    void Object_Key로_다운로드_URL을_생성한다() {
+        String objectKey = "share-videos/15/result.mp4";
+        URI presignedUrl = URI.create("https://download.example/share-videos/15/result.mp4");
+        when(presignedUrlProvider.createPresignedGetUrl(objectKey, EXPIRATION))
+                .thenReturn(presignedUrl);
+
+        ShareVideoDownloadUrl result = downloadUrlService.create(objectKey);
+
+        assertThat(result).isEqualTo(new ShareVideoDownloadUrl(presignedUrl.toString(), 300L));
+        verify(presignedUrlProvider).createPresignedGetUrl(objectKey, EXPIRATION);
+    }
+
+    @Test
+    void 다운로드_URL은_빈_URL을_허용하지_않는다() {
+        assertThatThrownBy(() -> new ShareVideoDownloadUrl(" ", 300L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 다운로드_URL은_유효하지_않은_만료_시간을_허용하지_않는다() {
+        assertThatThrownBy(() -> new ShareVideoDownloadUrl(
+                "https://download.example/video.mp4",
+                0L
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+}
