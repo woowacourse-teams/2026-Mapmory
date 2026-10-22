@@ -149,6 +149,53 @@ class MemberTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    void 게스트를_버려진_게스트로_표시하면_활동_중이_아니다() {
+        Member guest = guest();
+        LocalDateTime now = LocalDateTime.of(2026, 10, 22, 15, 0);
+
+        guest.abandon(now);
+
+        assertThat(guest.isAbandoned()).isTrue();
+        assertThat(guest.getAbandonedAt()).isEqualTo(now);
+        assertThat(guest.isActive()).isFalse();
+        assertThat(guest.isWithdrawn()).isFalse();
+        assertThat(guest.getProvider()).isEqualTo(AuthProvider.GUEST);
+        assertThat(guest.getProviderId()).isNotNull();
+    }
+
+    @Test
+    void 이미_버려진_게스트는_다시_표시해도_처음_시각이_남는다() {
+        Member guest = guest();
+        LocalDateTime first = LocalDateTime.of(2026, 10, 22, 15, 0);
+        guest.abandon(first);
+
+        guest.abandon(first.plusDays(1));
+
+        assertThat(guest.getAbandonedAt()).isEqualTo(first);
+    }
+
+    @Test
+    void 게스트가_아닌_회원은_버려진_게스트가_될_수_없다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "500030", "소현", UUID.randomUUID());
+
+        assertThatThrownBy(() -> member.abandon(LocalDateTime.of(2026, 10, 22, 15, 0)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(member.isActive()).isTrue();
+    }
+
+    @Test
+    void 버려진_게스트는_승격할_수_없다() {
+        Member guest = guest();
+        String guestProviderId = guest.getProviderId();
+        guest.abandon(LocalDateTime.of(2026, 10, 22, 15, 0));
+
+        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500031", "소현"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(guest.getProvider()).isEqualTo(AuthProvider.GUEST);
+        assertThat(guest.getProviderId()).isEqualTo(guestProviderId);
+    }
+
     private Member guest() {
         return Member.ofGuest(UUID.randomUUID().toString(), MemberName.generated(), UUID.randomUUID());
     }

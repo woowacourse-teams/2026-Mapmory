@@ -44,6 +44,10 @@ public class Member extends BaseEntity {
     @Column(name = "withdrawn_at")
     private LocalDateTime withdrawnAt;
 
+    // 버려진 게스트가 된 시각. 게스트만 값이 있다. (ADR 0021)
+    @Column(name = "abandoned_at")
+    private LocalDateTime abandonedAt;
+
     protected Member() {
     }
 
@@ -114,15 +118,35 @@ public class Member extends BaseEntity {
         this.providerId = null;
     }
 
+    /**
+     * 버려진 게스트로 표시한다. 이미 표시됐으면 아무것도 하지 않는다.
+     *
+     * 같은 사람이 이미 가입한 소셜 계정으로 로그인하면 기존 회원으로 들어가고, 게스트 회원에는 아무도 접근할 수 없게 된다.
+     * 행과 기록은 지우지 않는다. 게스트의 이름·providerId는 서버가 만든 값이라 개인정보가 아니다. (ADR 0021)
+     */
+    public void abandon(LocalDateTime now) {
+        if (this.provider != AuthProvider.GUEST) {
+            throw new IllegalStateException("게스트만 버려진 게스트가 될 수 있습니다. memberId=" + id);
+        }
+        if (isAbandoned()) {
+            return;
+        }
+        this.abandonedAt = now;
+    }
+
     public boolean isWithdrawn() {
         return withdrawnAt != null;
     }
 
+    public boolean isAbandoned() {
+        return abandonedAt != null;
+    }
+
     /**
-     * 탈퇴하지 않은 회원이다.
+     * 탈퇴하지도, 버려지지도 않은 회원이다.
      */
     public boolean isActive() {
-        return !isWithdrawn();
+        return !isWithdrawn() && !isAbandoned();
     }
 
     public Long getId() {
@@ -151,5 +175,9 @@ public class Member extends BaseEntity {
 
     public LocalDateTime getWithdrawnAt() {
         return withdrawnAt;
+    }
+
+    public LocalDateTime getAbandonedAt() {
+        return abandonedAt;
     }
 }
