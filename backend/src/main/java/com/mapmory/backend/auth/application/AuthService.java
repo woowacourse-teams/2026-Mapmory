@@ -66,8 +66,12 @@ public class AuthService {
 
     // @Transactional을 두지 않는다. validateAndRevoke가 자체 트랜잭션에서 (재사용 시) 토큰 폐기를
     // 커밋한 뒤, 재사용이면 여기서 트랜잭션 밖에서 401을 던져 그 폐기가 롤백되지 않게 한다.
+    //
+    // 탈퇴하면 refresh를 모두 폐기하지만, 탈퇴와 재발급이 동시에 오면 폐기 전에 검증을 통과할 수 있다.
+    // 그래서 회원이 활동 중인지 한 번 더 본다. 이때 제시된 토큰은 이미 폐기됐으므로 새 토큰만 주지 않으면 된다. (ADR 0021)
     public AuthTokens refresh(String refreshToken) {
         Member member = refreshTokenService.validateAndRevoke(refreshToken)
+                .filter(Member::isActive)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
         String accessToken = jwtProvider.issueAccessToken(member.getId());
         String newRefreshToken = refreshTokenService.issue(member);

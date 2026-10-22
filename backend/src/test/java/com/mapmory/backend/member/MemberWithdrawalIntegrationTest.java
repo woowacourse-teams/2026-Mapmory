@@ -15,6 +15,7 @@ import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.event.MemberWithdrawn;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -100,6 +101,19 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
         refresh(JsonPath.read(secondLogin, "$.data.refreshToken"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 폐기되지_않은_refresh가_남아_있어도_탈퇴한_회원이면_재발급하지_않는다() throws Exception {
+        // 탈퇴와 재발급이 동시에 와서 폐기 전에 검증을 통과한 경우를 흉내 낸다. 이벤트 없이 회원만 탈퇴시킨다.
+        String loginBody = kakaoLogin(null, "700007");
+        Member member = memberRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "700007").orElseThrow();
+        member.withdraw(LocalDateTime.now());
+        memberRepository.save(member);
+
+        refresh(JsonPath.read(loginBody, "$.data.refreshToken"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
     }
