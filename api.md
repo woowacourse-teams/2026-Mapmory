@@ -70,6 +70,8 @@
 | 구현 전 설계 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
 | 구현 전 설계 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
 | 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
+| 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
+| 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
 
 ### 공통 응답
 
@@ -1279,6 +1281,7 @@ Authorization: Bearer {accessToken}
 | T3 나가기 | 그룹 나가기 |
 | T4 앨범 쓰기 | 앨범 열기, 앨범에 기록 붙이기, 앨범에서 내리기, 앨범 바꾸기 |
 | T5 앨범 조회 | 앨범 목록, 앨범 상세 |
+| T6 알림 | 기기 토큰 등록·삭제, 앨범에 올리면 다른 멤버에게 푸시 |
 
 ### 그룹 만들기
 
@@ -1525,6 +1528,45 @@ Authorization: Bearer {accessToken}
 ```
 
 `media`는 담은 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+
+### 앨범 알림
+
+그룹원이 앨범을 열거나 기록을 붙이면, 올린 사람을 뺀 같은 그룹 멤버의 기기에 FCM 푸시를 보낸다. 앨범 쓰기가 커밋된 뒤 따로 보내므로 발송 실패가 올리기를 실패시키지 않는다.
+
+| 항목 | 값 |
+| --- | --- |
+| 제목 | 그룹 이름 (예: `제주 가족`) |
+| 본문 | `민호님이 '도쿄 3월'에 사진을 올렸어요` |
+| data | `{"type": "ALBUM_UPDATED", "groupId": "3", "albumId": "7"}` — 누르면 앨범 상세로 이동 |
+
+### 기기 토큰 등록
+
+`PUT /api/v1/push-tokens`
+
+```json
+{
+  "token": "fcm-registration-token",
+  "platform": "ANDROID"
+}
+```
+
+앱은 로그인 뒤와 FCM이 토큰을 새로 줄 때마다 부른다. 같은 토큰이 이미 있으면 현재 회원으로 옮긴다. `platform`은 `ANDROID` 또는 `IOS`다.
+
+#### Response `204 No Content`
+
+### 기기 토큰 삭제
+
+`DELETE /api/v1/push-tokens`
+
+```json
+{
+  "token": "fcm-registration-token"
+}
+```
+
+로그아웃 전에 부른다. 없는 토큰이어도 `204`다.
+
+#### Response `204 No Content`
 
 ### Group 오류
 

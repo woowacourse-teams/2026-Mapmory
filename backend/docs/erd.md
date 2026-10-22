@@ -26,6 +26,7 @@ erDiagram
     REGION ||--o{ ALBUM : labels
     ALBUM ||--o{ ALBUM_ENTRY : contains
     TRAVEL_RECORD ||..o{ ALBUM_ENTRY : "id only (no FK)"
+    MEMBER ||--o{ PUSH_TOKEN : registers
 
     MEMBER {
         bigint id PK
@@ -134,6 +135,15 @@ erDiagram
         bigint member_id FK
         datetime created_at
     }
+
+    PUSH_TOKEN {
+        bigint id PK
+        bigint member_id FK
+        varchar token UK
+        varchar platform
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
 ## 테이블 상태와 역할
@@ -152,6 +162,7 @@ erDiagram
 | 구현 전 설계 | `group_invitation` | 초대 링크 토큰, 6자리 코드, 만료 시각을 저장한다. |
 | 구현 전 설계 | `album` | 그룹 앨범의 이름, 지역, 연 사람을 저장한다. |
 | 구현 전 설계 | `album_entry` | 앨범에 담긴 여행 기록 id와 담은 회원을 저장한다. |
+| 구현 전 설계 | `push_token` | 앨범 알림을 받을 회원 기기의 FCM 토큰을 저장한다. |
 
 ## 현재 구현 스키마
 
@@ -379,6 +390,21 @@ CONSTRAINT fk_travel_record_tag_tag
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 
 `UNIQUE(album_id, member_id)`로 한 앨범에 멤버당 기록 하나만 담는다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
+
+### `push_token`
+
+그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0021 결정 7). 마이그레이션은 알림 태스크(T6)에서 따로 추가한다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 토큰 식별자 |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 기기를 쓰는 회원 |
+| `token` | `VARCHAR(255)` | NOT NULL, UNIQUE | FCM 등록 토큰 |
+| `platform` | `VARCHAR(10)` | NOT NULL | `ANDROID`, `IOS` |
+| `created_at` | `DATETIME` | NOT NULL | 등록 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 등록 시각 |
+
+같은 토큰을 다른 회원이 등록하면(기기에서 계정을 바꿈) `member_id`를 새 회원으로 바꾼다. `INDEX(member_id)`로 그룹 멤버들의 토큰을 모은다.
 
 ## 관계 및 삭제 정책
 
