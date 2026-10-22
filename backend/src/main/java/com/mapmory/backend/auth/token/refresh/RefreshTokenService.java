@@ -108,6 +108,11 @@ public class RefreshTokenService {
     }
 
     @Transactional
+    public void revokeAll(Long memberId) {
+        refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now());
+    }
+
+    @Transactional
     public void revoke(String rawToken) {
         refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .ifPresent(token -> token.revoke(LocalDateTime.now()));

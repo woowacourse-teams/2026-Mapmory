@@ -6,6 +6,7 @@ import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,6 +100,24 @@ class MemberJoinServiceTest extends IntegrationTest {
         Member untouched = memberRepository.findById(social.getId()).orElseThrow();
         assertThat(untouched.getProvider()).isEqualTo(AuthProvider.KAKAO);
         assertThat(untouched.getProviderId()).isEqualTo("300003");
+    }
+
+    @Test
+    void 탈퇴한_게스트의_ID가_오면_승격하지_않고_새로_가입한다() {
+        Member guest = memberJoinService.joinAsGuest();
+        Member withdrawn = memberRepository.findById(guest.getId()).orElseThrow();
+        withdrawn.withdraw(LocalDateTime.of(2026, 10, 22, 15, 0));
+        memberRepository.save(withdrawn);
+
+        SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300020", "소현", guest.getId());
+
+        assertThat(join.type()).isEqualTo(SocialJoinType.SOCIAL_JOINED);
+        assertThat(join.member().getId()).isNotEqualTo(guest.getId());
+        assertThat(join.leftGuest()).isNull();
+        Member untouched = memberRepository.findById(guest.getId()).orElseThrow();
+        assertThat(untouched.isWithdrawn()).isTrue();
+        assertThat(untouched.getProviderId()).isNull();
+        assertThat(untouched.getName()).isEqualTo("탈퇴한 회원");
     }
 
     @Test
