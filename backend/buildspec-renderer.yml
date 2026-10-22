@@ -1,0 +1,33 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+
+  pre_build:
+    commands:
+      - cd backend
+      - chmod +x gradlew
+      - chmod +x scripts/renderer/*.sh
+
+  build:
+    commands:
+      - ./gradlew clean build --no-daemon
+
+  post_build:
+    commands:
+      - mkdir -p deploy-renderer/scripts deploy-renderer/video-renderer
+      - cp build/libs/mapmory-backend.jar deploy-renderer/
+      - cp appspec-renderer.yml deploy-renderer/appspec.yml
+      - cp scripts/renderer/*.sh deploy-renderer/scripts/
+      - cp scripts/renderer/mapmory-render-worker.service deploy-renderer/
+      - cp ../video-renderer/package.json ../video-renderer/package-lock.json deploy-renderer/video-renderer/
+      - cp ../video-renderer/tsconfig.json ../video-renderer/remotion.config.ts deploy-renderer/video-renderer/
+      - cp -R ../video-renderer/src deploy-renderer/video-renderer/
+
+artifacts:
+  base-directory: backend/deploy-renderer
+  files:
+    - "**/*"
+  discard-paths: no

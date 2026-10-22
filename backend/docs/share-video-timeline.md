@@ -248,8 +248,30 @@ classDiagram
 
 워커를 켜기 전에 Video Renderer의 의존성 설치와 S3 자격 증명 설정이 필요하다. 생성된 영상은 `share-videos/{jobId}/travel-timeline.mp4` Object Key로 업로드된다.
 
+## 개발 환경 배포 구조
+
+API 서버와 렌더링 워커는 별도의 EC2에서 실행한다.
+
+```mermaid
+flowchart LR
+    Client[Android / iOS] --> Api[API EC2<br/>worker.enabled=false]
+    Api --> DB[(개발 DB)]
+    Worker[Renderer EC2<br/>worker.enabled=true] --> DB
+    Worker --> Remotion[Node.js + Remotion + Chromium]
+    Remotion --> S3[(S3)]
+```
+
+- API EC2는 영상 작업을 `PENDING`으로 저장하고 상태 조회 및 다운로드 API를 제공한다.
+- Renderer EC2는 외부 HTTP 요청을 받지 않고 DB의 작업을 하나씩 처리한다.
+- Renderer EC2에서는 `SPRING_MAIN_WEB_APPLICATION_TYPE=none`으로 웹 서버를 실행하지 않는다.
+- 렌더링 임시 파일은 메모리 기반 `/tmp` 대신 `/var/lib/mapmory-renderer` 아래 EBS 경로에 저장한다.
+- 렌더러 전용 배포에는 `buildspec-renderer.yml`, `appspec-renderer.yml`, `scripts/renderer/`를 사용한다.
+- 렌더러 프로세스는 `mapmory-render-worker.service`가 관리한다.
+
+개발 환경의 초기 인스턴스 유형은 `t4g.small`이며 동시 렌더링 수는 1개다. 부하 테스트에서 OOM이나 과도한 Swap 사용이 확인되면 `t4g.medium`으로 변경한다.
+
 ## 남은 운영 작업
 
 백엔드 스냅샷에는 국가 대표 좌표를 저장하지 않는다. Video Renderer의 입력 변환기가 각 `countryCode`에 `longitude`, `latitude`를 보강한다.
 
-현재 워커는 한 애플리케이션 인스턴스에서 영상 하나씩 처리한다. 여러 인스턴스가 실행될 때는 `FOR UPDATE SKIP LOCKED`로 같은 작업을 동시에 가져가지 않는다. 개발 환경에서 렌더링 시간, CPU, 메모리 사용량을 측정한 뒤 같은 인스턴스를 유지할지 전용 워커 인스턴스로 분리할지 결정한다.
+현재 워커는 렌더링 전용 인스턴스에서 영상 하나씩 처리한다. 여러 워커 인스턴스가 실행될 때는 `FOR UPDATE SKIP LOCKED`로 같은 작업을 동시에 가져가지 않는다. 개발 환경에서 렌더링 시간, CPU, 메모리, Swap 사용량을 측정한 뒤 인스턴스 유형과 워커 수를 조정한다.

@@ -1,0 +1,19 @@
+[Unit]
+Description=Mapmory share video render worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/mapmory-renderer
+EnvironmentFile=/etc/mapmory-renderer.env
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -jar /opt/mapmory-renderer/mapmory-backend.jar
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
