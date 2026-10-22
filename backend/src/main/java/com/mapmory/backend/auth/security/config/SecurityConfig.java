@@ -60,7 +60,10 @@ public class SecurityConfig {
                         .requestMatchers(EndpointRequest.to("health", "prometheus")).permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
+                        // /auth 아래 새 경로가 실수로 공개되지 않도록 인증 없이 여는 경로를 하나씩 적는다.
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/auth/login/kakao", "/api/v1/auth/login/google", "/api/v1/auth/login/apple",
+                                "/api/v1/auth/login/guest", "/api/v1/auth/token/refresh", "/api/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/waitlist").permitAll()
                         .requestMatchers("/api/v1/admin/auth/csrf", "/api/v1/admin/auth/login").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

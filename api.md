@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-10-19 · 범위: 인증, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림
+> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -27,6 +27,8 @@
 | 구현됨 | `POST` | `/auth/login/guest` | 게스트 로그인 |
 | 구현됨 | `POST` | `/auth/token/refresh` | Access·Refresh Token 회전 재발급 |
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
+| 구현됨 | `GET` | `/members/me` | 내 회원 정보 조회 |
+| 구현됨 | `PATCH` | `/members/me/nickname` | 내 닉네임 변경 |
 | 구현됨 | `GET` | `/admin/auth/csrf` | 관리자 CSRF 토큰 발급 |
 | 구현됨 | `POST` | `/admin/auth/login` | 관리자 로그인(세션 발급) |
 | 구현됨 | `GET` | `/admin/auth/me` | 현재 관리자 조회 |
@@ -1168,6 +1170,72 @@ Authorization: Bearer {accessToken}
 | `200 OK` | `{ "data": { "status": "ALREADY_SUBSCRIBED" } }` | 이미 신청한 이메일 |
 | `400` | `VALIDATION_ERROR` | 이메일 형식·길이 오류 또는 동의 항목이 `true`가 아님 |
 
+## 11. Member API
+
+로그인한 회원 자신의 정보를 다룬다. 게스트 회원도 같은 API를 쓴다. 응답에 회원 ID는 넣지 않는다.
+
+닉네임은 다른 회원에게 보이는 이름이다. 소셜 제공자가 준 이름과는 따로 저장하며, 제공자 이름은 응답에 넣지 않는다.
+
+- 가입하면(소셜·게스트 모두) 제공자 이름과 관계없이 기본 이름으로 시작한다. `회원` 뒤에 5자리 숫자를 붙인다(예: `회원58213`).
+- 로그인·게스트 승격으로는 바뀌지 않는다. 회원이 직접 바꿀 때만 바뀐다.
+
+닉네임 변경 규칙:
+
+- 앞뒤 공백을 지운 뒤 1~20자 (이모지 등은 한 글자로 센다). 20자를 넘으면 자르지 않고 거절
+- 공백만 있거나 제어 문자(줄바꿈 등)가 있으면 거절
+- 다른 회원과 같은 닉네임도 쓸 수 있음
+
+### 내 회원 정보 조회
+
+`GET /api/v1/members/me`
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "nickname": "회원58213",
+    "provider": "GUEST"
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `nickname` | String | 닉네임 |
+| `provider` | String | 로그인 방식. `KAKAO`, `GOOGLE`, `APPLE`, `GUEST` |
+
+### 내 닉네임 변경
+
+`PATCH /api/v1/members/me/nickname`
+
+```json
+{
+  "nickname": "지수"
+}
+```
+
+#### Response `200 OK`
+
+내 회원 정보 조회와 같은 객체를 반환한다.
+
+```json
+{
+  "data": {
+    "nickname": "지수",
+    "provider": "KAKAO"
+  }
+}
+```
+
+### Member 오류
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | 닉네임이 없거나 길이·형식 규칙에 맞지 않음 |
+| `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
+| `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
+| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 더 이상 존재하지 않음 |
 
 ## 서비스 의견 클라이언트 연동 명세
 

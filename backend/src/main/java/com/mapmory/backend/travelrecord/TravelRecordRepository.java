@@ -1,6 +1,5 @@
 package com.mapmory.backend.travelrecord;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -12,20 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
-
-    interface MemberRecordCount {
-        Long getMemberId();
-
-        Long getRecordCount();
-    }
-
-    interface MemberRecordDetail {
-        Long getRecordId();
-
-        LocalDateTime getCreatedAt();
-
-        Long getPhotoCount();
-    }
 
     /**
      * 상세 응답은 지역을 국가·시도·시군구로 펼쳐 보여주므로 Region의 parent·root까지 필요하다.
@@ -48,40 +33,6 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         ORDER BY travelRecord.period.startDate ASC, travelRecord.id ASC
         """)
     List<TravelRecord> findAllForTravelTimeline(@Param("memberId") Long memberId);
-
-    @Query("SELECT COUNT(tr) FROM TravelRecord tr WHERE tr.createdAt >= :from AND tr.createdAt < :to")
-    long countCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
-
-    @Query("SELECT COUNT(rm) FROM RecordMedia rm")
-    long countAllMedia();
-
-    @Query("""
-        SELECT tr.member.id AS memberId, COUNT(tr.id) AS recordCount
-        FROM TravelRecord tr
-        WHERE tr.member.id IN :memberIds
-        GROUP BY tr.member.id
-    """)
-    List<MemberRecordCount> countByMemberIds(@Param("memberIds") Collection<Long> memberIds);
-
-    @Query(value = """
-        SELECT tr.id AS recordId, tr.createdAt AS createdAt, COUNT(rm.id) AS photoCount
-        FROM TravelRecord tr
-        LEFT JOIN tr.media rm
-        WHERE tr.member.id = :memberId
-        GROUP BY tr.id, tr.createdAt
-        ORDER BY tr.createdAt DESC, tr.id DESC
-    """, countQuery = """
-        SELECT COUNT(tr)
-        FROM TravelRecord tr
-        WHERE tr.member.id = :memberId
-    """)
-    Page<MemberRecordDetail> findAdminRecordDetailsByMemberId(
-            @Param("memberId") Long memberId,
-            Pageable pageable
-    );
-
-    @Query("SELECT COUNT(rm) FROM RecordMedia rm WHERE rm.travelRecord.member.id = :memberId")
-    long countMediaByMemberId(@Param("memberId") Long memberId);
 
     /**
      * RecordMedia는 TravelRecord 애그리거트 내부 엔티티이므로 루트 리포지토리에서 조회한다.

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.ProblemDetailFactory;
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
@@ -23,7 +24,6 @@ import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
-import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +38,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -100,7 +98,9 @@ class TravelRecordControllerTest {
                 "",
                 LocalDate.of(2026, 8, 11),
                 null,
-                List.of()
+                List.of(),
+                List.of(),
+                null
         );
         TravelRecord travelRecord = TravelRecord.of(
                 null,
@@ -114,12 +114,12 @@ class TravelRecordControllerTest {
 
         when(travelRecordService.create(MEMBER, request.toCommand())).thenReturn(travelRecord);
 
-        ResponseEntity<TravelRecordResponse<CreateTravelRecordResponse>> response =
+        ResponseEntity<ApiResponse<CreateTravelRecordResponse>> response =
                 travelRecordController.create(MEMBER, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isEqualTo(
-                TravelRecordResponse.of(new CreateTravelRecordResponse(1L))
+                ApiResponse.from(new CreateTravelRecordResponse(1L))
         );
         verify(travelRecordService).create(MEMBER, request.toCommand());
     }
@@ -274,12 +274,12 @@ class TravelRecordControllerTest {
                 List.of("mapmory/travel-records/a.jpg"));
         when(travelRecordService.findById(MEMBER, 101L)).thenReturn(detail);
 
-        ResponseEntity<TravelRecordResponse<TravelRecordDetailResponse>> response =
+        ResponseEntity<ApiResponse<TravelRecordDetailResponse>> response =
                 travelRecordController.findById(MEMBER, 101L);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(
-                TravelRecordResponse.of(TravelRecordDetailResponse.from(detail))
+                ApiResponse.from(TravelRecordDetailResponse.from(detail))
         );
         verify(travelRecordService).findById(MEMBER, 101L);
     }
@@ -307,15 +307,16 @@ class TravelRecordControllerTest {
 
     @Test
     void 여행_일지_목록에_썸네일_URL과_사진_개수를_반환한다() throws Exception {
-        TravelRecord travelRecord = travelRecord("제주 여행", "");
+        TravelRecordListPage.Entry entry = new TravelRecordListPage.Entry(
+                101L, "제주 여행", "제주시", null, null, null,
+                LocalDate.of(2026, 8, 11), null, "mapmory/travel-records/a.jpg", 3, List.of()
+        );
         TravelRecordSummaries summaries = new TravelRecordSummaries(
-                new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1),
-                Map.of(),
+                new TravelRecordListPage(List.of(entry), 0, 20, 1, 1, false),
                 Map.of(101L, new ExpiringUrl(
                         "https://download.example/mapmory/travel-records/a.jpg",
                         300L
-                )),
-                Map.of(101L, 3)
+                ))
         );
         when(travelRecordService.findAll(MEMBER, null, null, null, null, 0, 20))
                 .thenReturn(summaries);

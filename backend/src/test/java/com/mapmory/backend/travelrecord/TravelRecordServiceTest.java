@@ -9,7 +9,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
@@ -25,10 +27,13 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
+import com.mapmory.backend.travelrecord.listcache.TravelRecordListCacheProperties;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -40,6 +45,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -78,10 +84,17 @@ class TravelRecordServiceTest {
     private PlaceLookupPort placeLookupPort;
     @Mock
     private PlaceSelectionService placeSelectionService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
 
     private TravelRecordService travelRecordService;
+
+    private final TravelRecordListCache travelRecordListCache = new TravelRecordListCache(
+            new TravelRecordListCacheProperties(1_000, Duration.ofMinutes(30)),
+            new SimpleMeterRegistry()
+    );
 
     private Member member;
 
@@ -109,7 +122,9 @@ class TravelRecordServiceTest {
                 uploadedObjectVerifier,
                 placeLookupPort,
                 placeSelectionService,
-                mock(PlatformTransactionManager.class)
+                mock(PlatformTransactionManager.class),
+                eventPublisher,
+                travelRecordListCache
         );
     }
 
@@ -117,7 +132,7 @@ class TravelRecordServiceTest {
     void 국가_단위_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L)
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -196,7 +211,7 @@ class TravelRecordServiceTest {
     void 본문이_null이면_빈_문자열로_정규화해_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, List.of(), List.of()
+                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, List.of(), List.of(), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -348,7 +363,7 @@ class TravelRecordServiceTest {
                 startDate,
                 endDate,
                 List.of(),
-                List.of()
+                List.of(), null
         );
     }
 
@@ -366,7 +381,7 @@ class TravelRecordServiceTest {
                 TODAY,
                 null,
                 List.of(),
-                List.of()
+                List.of(), null
         );
     }
 
@@ -442,7 +457,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 LocalDate.of(2026, 8, 13),
                 List.of("travel-records/10/b.jpg", "travel-records/10/c.jpg"),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -479,7 +494,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 null,
                 List.of("travel-records/10/a.jpg", "travel-records/10/a.jpg"),
-                List.of()
+                List.of(), null
             );
 
         assertError(() -> travelRecordService.update(member, 101L, command), "INVALID_OBJECT_KEY");
@@ -506,7 +521,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 12),
                 null,
                 List.of("travel-records/20/used.jpg"),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -539,7 +554,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 12),
                 null,
                 null,
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
@@ -564,7 +579,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11),
                 null,
                 List.of(),
-                List.of()
+                List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.empty());
@@ -575,8 +590,7 @@ class TravelRecordServiceTest {
 
     @Test
     void 지역_필터_없이_일지_목록을_조회한다() {
-        TravelRecord travelRecord = mock(TravelRecord.class);
-        when(travelRecord.getId()).thenReturn(101L);
+        TravelRecord travelRecord = listedRecord(101L);
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -586,10 +600,10 @@ class TravelRecordServiceTest {
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
-        assertThat(result.travelRecords().getTotalElements()).isEqualTo(1);
-        assertThat(result.thumbnailUrlOf(travelRecord).url())
+        assertThat(result.listPage().totalElements()).isEqualTo(1);
+        assertThat(result.thumbnailUrlOf(entryOf(result, travelRecord)).url())
                 .isEqualTo("https://download.example/mapmory/travel-records/a.jpg");
-        assertThat(result.thumbnailUrlOf(travelRecord).expiresIn()).isEqualTo(300L);
+        assertThat(result.thumbnailUrlOf(entryOf(result, travelRecord)).expiresIn()).isEqualTo(300L);
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(travelRecordRepository).findByMemberIdAndOptionalTagId(eq(10L), eq(null), captor.capture());
         assertThat(captor.getValue().getPageSize()).isEqualTo(20);
@@ -598,8 +612,7 @@ class TravelRecordServiceTest {
 
     @Test
     void 일지마다_정렬이_가장_앞선_미디어만_썸네일로_쓴다() {
-        TravelRecord travelRecord = mock(TravelRecord.class);
-        when(travelRecord.getId()).thenReturn(101L);
+        TravelRecord travelRecord = listedRecord(101L);
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -610,19 +623,17 @@ class TravelRecordServiceTest {
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
-        assertThat(result.thumbnailUrlOf(travelRecord).url())
+        assertThat(result.thumbnailUrlOf(entryOf(result, travelRecord)).url())
                 .isEqualTo("https://download.example/mapmory/first.jpg");
-        assertThat(result.photoCountOf(travelRecord)).isEqualTo(2);
+        assertThat(entryOf(result, travelRecord).photoCount()).isEqualTo(2);
         verify(recordMediaUrlService).createViewUrl("mapmory/first.jpg");
         verify(recordMediaUrlService, never()).createViewUrl("mapmory/later.jpg");
     }
 
     @Test
     void 일지마다_사진_개수를_따로_센다() {
-        TravelRecord jeju = mock(TravelRecord.class);
-        when(jeju.getId()).thenReturn(101L);
-        TravelRecord busan = mock(TravelRecord.class);
-        when(busan.getId()).thenReturn(102L);
+        TravelRecord jeju = listedRecord(101L);
+        TravelRecord busan = listedRecord(102L);
         Page<TravelRecord> expected = new PageImpl<>(List.of(jeju, busan), PageRequest.of(0, 20), 2);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -636,15 +647,14 @@ class TravelRecordServiceTest {
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
-        assertThat(result.photoCountOf(jeju)).isEqualTo(3);
-        assertThat(result.photoCountOf(busan)).isEqualTo(1);
+        assertThat(entryOf(result, jeju).photoCount()).isEqualTo(3);
+        assertThat(entryOf(result, busan).photoCount()).isEqualTo(1);
         verify(travelRecordRepository).findMediaByTravelRecordIdIn(List.of(101L, 102L));
     }
 
     @Test
     void 미디어가_없는_일지_목록은_썸네일_정보가_null이고_사진_개수가_0이다() {
-        TravelRecord travelRecord = mock(TravelRecord.class);
-        when(travelRecord.getId()).thenReturn(101L);
+        TravelRecord travelRecord = listedRecord(101L);
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
@@ -652,8 +662,8 @@ class TravelRecordServiceTest {
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
-        assertThat(result.thumbnailUrlOf(travelRecord)).isNull();
-        assertThat(result.photoCountOf(travelRecord)).isZero();
+        assertThat(result.thumbnailUrlOf(entryOf(result, travelRecord))).isNull();
+        assertThat(entryOf(result, travelRecord).photoCount()).isZero();
         verify(recordMediaUrlService, never()).createViewUrl(anyString());
     }
 
@@ -666,7 +676,7 @@ class TravelRecordServiceTest {
                 eq(10L), eq(1L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
 
-        assertThat(travelRecordService.findAll(member, "KR", null, null, null, 0, 20).travelRecords()).isEmpty();
+        assertThat(travelRecordService.findAll(member, "KR", null, null, null, 0, 20).listPage().entries()).isEmpty();
         verify(travelRecordRepository, never()).findMediaByTravelRecordIdIn(anyList());
     }
 
@@ -680,7 +690,7 @@ class TravelRecordServiceTest {
                 eq(10L), eq(2L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
 
-        assertThat(travelRecordService.findAll(member, "KR", "49", null, null, 0, 20).travelRecords()).isEmpty();
+        assertThat(travelRecordService.findAll(member, "KR", "49", null, null, 0, 20).listPage().entries()).isEmpty();
     }
 
     @Test
@@ -694,7 +704,7 @@ class TravelRecordServiceTest {
                 eq(10L), eq(3L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
 
-        assertThat(travelRecordService.findAll(member, "KR", "49", "50110", null, 0, 20).travelRecords()).isEmpty();
+        assertThat(travelRecordService.findAll(member, "KR", "49", "50110", null, 0, 20).listPage().entries()).isEmpty();
     }
 
     @Test
@@ -706,9 +716,43 @@ class TravelRecordServiceTest {
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, 7L, 0, 20
         );
 
-        assertThat(result.travelRecords()).isEmpty();
+        assertThat(result.listPage().entries()).isEmpty();
         verify(tagService).getOwnedTag(member, 7L);
         verify(travelRecordRepository).findByMemberIdAndOptionalTagId(eq(10L), eq(7L), any(Pageable.class));
+    }
+
+    @Test
+    void 같은_조건의_일지_목록은_다시_DB에_가지_않고_썸네일_URL만_새로_서명한다() {
+        TravelRecord travelRecord = listedRecord(101L);
+        when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1));
+        RecordMedia thumbnailMedia = recordMedia(101L, "mapmory/a.jpg");
+        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L)))
+                .thenReturn(List.of(thumbnailMedia));
+
+        travelRecordService.findAll(member, null, null, null, null, 0, 20);
+        TravelRecordSummaries second = travelRecordService.findAll(member, null, null, null, null, 0, 20);
+
+        assertThat(second.thumbnailUrlOf(entryOf(second, travelRecord)).url())
+                .isEqualTo("https://download.example/mapmory/a.jpg");
+        verify(travelRecordRepository, times(1))
+                .findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class));
+        verify(travelRecordRepository, times(1)).findMediaByTravelRecordIdIn(List.of(101L));
+        verify(recordMediaUrlService, times(2)).createViewUrl("mapmory/a.jpg");
+    }
+
+    @Test
+    void 회원_캐시를_비우면_일지_목록을_다시_조회한다() {
+        TravelRecord travelRecord = listedRecord(101L);
+        when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1));
+
+        travelRecordService.findAll(member, null, null, null, null, 0, 20);
+        travelRecordListCache.evictMember(10L);
+        travelRecordService.findAll(member, null, null, null, null, 0, 20);
+
+        verify(travelRecordRepository, times(2))
+                .findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class));
     }
 
     @Test
@@ -727,6 +771,7 @@ class TravelRecordServiceTest {
         travelRecordService.delete(member, 101L);
 
         verify(travelRecordRepository).delete(travelRecord);
+        verify(eventPublisher).publishEvent(new TravelRecordChangedEvent(10L));
     }
 
     @Test
@@ -736,6 +781,23 @@ class TravelRecordServiceTest {
 
         assertError(() -> travelRecordService.delete(member, 101L), "TRAVEL_RECORD_NOT_FOUND");
         verify(travelRecordRepository, never()).delete(any(TravelRecord.class));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    private TravelRecord listedRecord(Long id) {
+        TravelRecord travelRecord = mock(TravelRecord.class);
+        Region region = mock(Region.class);
+        lenient().when(travelRecord.getId()).thenReturn(id);
+        lenient().when(travelRecord.getRegion()).thenReturn(region);
+        lenient().when(region.getName()).thenReturn("제주시");
+        return travelRecord;
+    }
+
+    private TravelRecordListPage.Entry entryOf(TravelRecordSummaries summaries, TravelRecord travelRecord) {
+        return summaries.listPage().entries().stream()
+                .filter(entry -> entry.id().equals(travelRecord.getId()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private RecordMedia recordMedia(Long travelRecordId, String thumbnailObjectKey) {

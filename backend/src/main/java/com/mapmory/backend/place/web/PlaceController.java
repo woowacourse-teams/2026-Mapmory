@@ -1,10 +1,10 @@
 package com.mapmory.backend.place.web;
 
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -34,20 +34,20 @@ public class PlaceController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<TravelRecordResponse<List<PlaceCandidateResponse>>> search(
+    public ResponseEntity<ApiResponse<List<PlaceCandidateResponse>>> search(
             @RequestParam @NotBlank @Size(max = 100) String query,
             @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
-        return ResponseEntity.ok(TravelRecordResponse.of(
+        return ResponseEntity.ok(ApiResponse.from(
                 placeSearchService.search(query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
     }
 
     @GetMapping("/{placeId}")
-    public ResponseEntity<TravelRecordResponse<PlaceSelectionResponse>> select(
+    public ResponseEntity<ApiResponse<PlaceSelectionResponse>> select(
             @PathVariable String placeId,
             @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
-        return ResponseEntity.ok(TravelRecordResponse.of(
+        return ResponseEntity.ok(ApiResponse.from(
                 PlaceSelectionResponse.from(placeSelectionService.select(placeId, sessionToken))));
     }
 }

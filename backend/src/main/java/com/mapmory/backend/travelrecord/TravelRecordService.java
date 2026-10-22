@@ -11,11 +11,13 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +44,8 @@ public class TravelRecordService {
     private final PlaceSelectionService placeSelectionService;
     private final TransactionTemplate transactionTemplate;
     private final TransactionTemplate readOnlyTransactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
+    private final TravelRecordListCache travelRecordListCache;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -54,7 +58,9 @@ public class TravelRecordService {
             UploadedObjectVerifier uploadedObjectVerifier,
             PlaceLookupPort placeLookupPort,
             PlaceSelectionService placeSelectionService,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            ApplicationEventPublisher eventPublisher,
+            TravelRecordListCache travelRecordListCache
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -68,6 +74,8 @@ public class TravelRecordService {
         this.placeSelectionService = placeSelectionService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.eventPublisher = eventPublisher;
+        this.travelRecordListCache = travelRecordListCache;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -97,6 +105,7 @@ public class TravelRecordService {
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
             travelRecordTagService.replace(member, savedTravelRecord, command.tagIds());
+            eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return savedTravelRecord;
         });
@@ -154,6 +163,7 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
+            eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return travelRecordAssembler.assembleDetail(travelRecord, tags);
         });
@@ -164,9 +174,14 @@ public class TravelRecordService {
         TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
         travelRecordRepository.delete(travelRecord);
+        eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * 캐시에 있으면 DB에 가지 않고 트랜잭션도 열지 않는다. 썸네일 URL만 매번 새로 서명한다.
+     * 캐시에 있다는 건 같은 회원이 같은 조건으로 검증을 통과했다는 뜻이다. 지역은 바뀌지 않고,
+     * 태그가 바뀌거나 삭제되면 그 회원 캐시를 비우므로 검증을 다시 하지 않는다.
+     */
     public TravelRecordSummaries findAll(
             Member member,
             String countryCode,
@@ -177,6 +192,22 @@ public class TravelRecordService {
             int size
     ) {
         validatePagination(page, size);
+        TravelRecordListCache.Key key = new TravelRecordListCache.Key(
+                member.getId(), countryCode, provinceCode, districtCode, tagId, page, size);
+        TravelRecordListPage listPage = travelRecordListCache.get(key, () -> readOnlyTransactionTemplate.execute(
+                status -> loadListPage(member, countryCode, provinceCode, districtCode, tagId, page, size)));
+        return travelRecordAssembler.signThumbnails(listPage);
+    }
+
+    private TravelRecordListPage loadListPage(
+            Member member,
+            String countryCode,
+            String provinceCode,
+            String districtCode,
+            Long tagId,
+            int page,
+            int size
+    ) {
         Long memberId = member.getId();
         Pageable pageable = createPageable(page, size);
         if (tagId != null) {
@@ -187,7 +218,7 @@ public class TravelRecordService {
                 .map(region -> findInRegion(memberId, region, tagId, pageable))
                 .orElseGet(() -> travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable));
 
-        return travelRecordAssembler.assembleSummaries(travelRecords);
+        return travelRecordAssembler.assembleListPage(travelRecords);
     }
 
     private Page<TravelRecord> findInRegion(Long memberId, Region region, Long tagId, Pageable pageable) {
@@ -259,13 +290,10 @@ public class TravelRecordService {
                 place.attribution(), place.attributionUrl()));
     }
 
-        private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
+    private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
         if (!newObjectKeys.isEmpty()
                 && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }
-
-
-
 }

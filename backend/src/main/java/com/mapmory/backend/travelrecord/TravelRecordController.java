@@ -1,12 +1,12 @@
 package com.mapmory.backend.travelrecord;
 
 import com.mapmory.backend.auth.security.LoginMember;
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
 import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.Valid;
@@ -35,7 +35,7 @@ public class TravelRecordController {
     }
 
     @PostMapping("/travel-records")
-    public ResponseEntity<TravelRecordResponse<CreateTravelRecordResponse>> create(
+    public ResponseEntity<ApiResponse<CreateTravelRecordResponse>> create(
             @LoginMember Member member,
             @Valid @RequestBody TravelRecordRequest travelRecordRequest
     ) {
@@ -43,11 +43,11 @@ public class TravelRecordController {
         CreateTravelRecordResponse response = CreateTravelRecordResponse.from(travelRecord);
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(TravelRecordResponse.of(response));
+                .body(ApiResponse.from(response));
     }
 
     @GetMapping("/travel-records")
-    public ResponseEntity<TravelRecordResponse<TravelRecordListResponse>> findAll(
+    public ResponseEntity<ApiResponse<TravelRecordListResponse>> findAll(
             @LoginMember Member member,
             @RequestParam(required = false) @Pattern(regexp = "[A-Z]{2}") String countryCode,
             @RequestParam(required = false) @Pattern(regexp = "\\S{1,20}") String provinceCode,
@@ -67,11 +67,11 @@ public class TravelRecordController {
         );
         TravelRecordListResponse response = TravelRecordListResponse.from(summaries);
 
-        return ResponseEntity.ok(TravelRecordResponse.of(response));
+        return ResponseEntity.ok(ApiResponse.from(response));
     }
 
     @GetMapping("/travel-records/{travelRecordId}")
-    public ResponseEntity<TravelRecordResponse<TravelRecordDetailResponse>> findById(
+    public ResponseEntity<ApiResponse<TravelRecordDetailResponse>> findById(
             @LoginMember Member member,
             @PathVariable @Positive Long travelRecordId
     ) {
@@ -79,11 +79,11 @@ public class TravelRecordController {
                 travelRecordService.findById(member, travelRecordId)
         );
 
-        return ResponseEntity.ok(TravelRecordResponse.of(response));
+        return ResponseEntity.ok(ApiResponse.from(response));
     }
 
     @PutMapping("/travel-records/{travelRecordId}")
-    public ResponseEntity<TravelRecordResponse<TravelRecordDetailResponse>> update(
+    public ResponseEntity<ApiResponse<TravelRecordDetailResponse>> update(
             @LoginMember Member member,
             @PathVariable @Positive Long travelRecordId,
             @Valid @RequestBody TravelRecordRequest travelRecordRequest
@@ -95,7 +95,7 @@ public class TravelRecordController {
         );
         TravelRecordDetailResponse response = TravelRecordDetailResponse.from(detail);
 
-        return ResponseEntity.ok(TravelRecordResponse.of(response));
+        return ResponseEntity.ok(ApiResponse.from(response));
     }
 
     @DeleteMapping("/travel-records/{travelRecordId}")

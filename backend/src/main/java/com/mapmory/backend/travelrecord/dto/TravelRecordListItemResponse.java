@@ -1,10 +1,8 @@
 package com.mapmory.backend.travelrecord.dto;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
-import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;
-import com.mapmory.backend.travelrecord.TravelRecord;
-import com.mapmory.backend.travelrecord.RecordedPlace;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -22,26 +20,22 @@ public record TravelRecordListItemResponse(
         int photoCount,
         List<TagSummaryResponse> tags
 ) {
-    public static TravelRecordListItemResponse from(
-            TravelRecord travelRecord,
-            List<Tag> tags,
-            ExpiringUrl thumbnailUrl,
-            int photoCount
-    ) {
-        RecordedPlace place = travelRecord.getPlace();
+    public static TravelRecordListItemResponse from(TravelRecordListPage.Entry entry, ExpiringUrl thumbnailUrl) {
         return new TravelRecordListItemResponse(
-                travelRecord.getId(),
-                travelRecord.getTitle(),
-                travelRecord.getRegion().getName(),
-                place == null ? null : place.name(),
-                place == null ? null : place.attribution(),
-                place == null ? null : place.attributionUrl(),
-                travelRecord.getStartDate(),
-                travelRecord.getEndDate(),
+                entry.id(),
+                entry.title(),
+                entry.regionName(),
+                entry.placeName(),
+                entry.placeAttribution(),
+                entry.placeAttributionUrl(),
+                entry.startDate(),
+                entry.endDate(),
                 thumbnailUrl == null ? null : thumbnailUrl.url(),
                 thumbnailUrl == null ? null : thumbnailUrl.expiresIn(),
-                photoCount,
-                tags.stream().map(TagSummaryResponse::from).toList()
+                entry.photoCount(),
+                entry.tags().stream()
+                        .map(tag -> new TagSummaryResponse(tag.id(), tag.name()))
+                        .toList()
         );
     }
 }
