@@ -1,4 +1,7 @@
-package com.mapmory.backend.sharevideo;
+package com.mapmory.backend.sharevideo.dto;
+
+import com.mapmory.backend.sharevideo.ShareVideoJob;
+import com.mapmory.backend.sharevideo.ShareVideoStatus;
 
 public record CreateShareVideoResponse(
         Long jobId,

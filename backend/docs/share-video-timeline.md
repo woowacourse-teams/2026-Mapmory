@@ -23,6 +23,64 @@ POST /api/v1/share-videos/travel-timeline
 }
 ```
 
+## 상태 조회 API
+
+```http
+GET /api/v1/share-videos/{jobId}
+```
+
+현재 로그인 회원이 생성한 작업만 조회할 수 있다. 작업이 없거나 다른 회원의 작업이면 `SHARE_VIDEO_JOB_NOT_FOUND` 오류를 반환한다.
+
+성공 시 `200 OK`를 반환한다.
+
+```json
+{
+  "data": {
+    "jobId": 15,
+    "status": "RENDERING"
+  }
+}
+```
+
+클라이언트는 `PENDING` 또는 `RENDERING`인 동안 일정 간격으로 이 API를 다시 호출한다. `COMPLETED`가 되면 다운로드 URL을 요청하고, `FAILED`가 되면 재시도 화면을 표시한다.
+
+## 다운로드 URL API
+
+```http
+GET /api/v1/share-videos/{jobId}/download-url
+```
+
+`COMPLETED` 작업에 대해 S3 조회용 Presigned URL을 발급한다. 백엔드가 영상 파일을 직접 전송하지 않으며, 클라이언트가 반환된 URL에서 영상을 다운로드한다.
+
+성공 시 `200 OK`를 반환한다.
+
+```json
+{
+  "data": {
+    "jobId": 15,
+    "downloadUrl": "https://example-bucket.s3.ap-northeast-2.amazonaws.com/share-videos/15/result.mp4?...",
+    "downloadUrlExpiresIn": 300
+  }
+}
+```
+
+`downloadUrlExpiresIn`의 단위는 초다. 현재 `upload.policy.presigned-url-expiration` 설정을 사용하며 기본값은 5분이다. URL이 만료되어도 저장된 영상 파일은 삭제되지 않으므로 새 URL을 다시 요청할 수 있다.
+
+작업 상태에 따른 응답은 다음과 같다.
+
+| 작업 상태 | 결과 |
+| --- | --- |
+| `PENDING`, `RENDERING` | `409 Conflict`, `SHARE_VIDEO_NOT_READY` |
+| `COMPLETED` | 다운로드 URL 반환 |
+| `FAILED` | `409 Conflict`, `SHARE_VIDEO_GENERATION_FAILED` |
+
+## 클라이언트 호출 흐름
+
+1. 생성 API를 호출해 `jobId`를 받는다.
+2. 상태 조회 API를 주기적으로 호출한다.
+3. 상태가 `COMPLETED`이면 다운로드 URL API를 호출한다.
+4. 반환된 URL로 영상을 다운로드하거나 공유한다.
+
 ## 스냅샷 구조
 
 `share_video_job.snapshot_json`에 다음 구조를 저장한다.
@@ -92,4 +150,4 @@ POST /api/v1/share-videos/travel-timeline
 
 백엔드 스냅샷에는 국가 대표 좌표를 저장하지 않는다. Video Renderer의 입력 변환기가 각 `countryCode`에 `longitude`, `latitude`를 보강한다.
 
-백엔드에는 아직 `PENDING` 작업을 가져와 렌더 명령을 실행하고 결과를 저장하는 작업 실행기가 연결되지 않았다.
+백엔드에는 아직 `PENDING` 작업을 가져와 렌더 명령을 실행하고 결과를 저장하는 작업 실행기가 연결되지 않았다. 따라서 현재 생성된 작업은 자동으로 `RENDERING` 또는 `COMPLETED`로 전환되지 않는다.
