@@ -35,6 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest({AdminServiceFeedbackController.class, ServiceFeedbackController.class})
 @Import({JwtConfig.class, JwtProvider.class, ProblemDetailFactory.class,
         com.mapmory.backend.auth.security.config.SecurityConfig.class,
+        com.mapmory.backend.auth.security.config.SecurityContextRepositoryConfig.class,
         com.mapmory.backend.auth.security.filter.JwtAuthenticationFilter.class,
         com.mapmory.backend.auth.security.handler.RestAuthenticationEntryPoint.class,
         com.mapmory.backend.auth.security.handler.RestAccessDeniedHandler.class,
