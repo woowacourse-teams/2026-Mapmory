@@ -38,12 +38,13 @@ class AdminTravelRecordQueryRepositoryTest extends MySqlTestContainerSupport {
         long recordsBefore = repository.count();
         long createdBefore = repository.countCreatedBetween(now.minusDays(1), now.plusDays(1));
         long mediaBefore = repository.countAllMedia();
+        long futureBefore = repository.countCreatedBetween(now.plusDays(1), now.plusDays(2));
 
         createScenario();
 
         assertThat(repository.count() - recordsBefore).isEqualTo(3L);
         assertThat(repository.countCreatedBetween(now.minusDays(1), now.plusDays(1)) - createdBefore).isEqualTo(3L);
-        assertThat(repository.countCreatedBetween(now.plusDays(1), now.plusDays(2))).isZero();
+        assertThat(repository.countCreatedBetween(now.plusDays(1), now.plusDays(2))).isEqualTo(futureBefore);
         assertThat(repository.countAllMedia() - mediaBefore).isEqualTo(4L);
     }
 
@@ -71,23 +72,27 @@ class AdminTravelRecordQueryRepositoryTest extends MySqlTestContainerSupport {
     void readsMemberRecordDetails() {
         Scenario scenario = createScenario();
 
-        Page<AdminTravelRecordQueryRepository.MemberRecordDetail> page =
-                repository.findAdminRecordDetailsByMemberId(scenario.member().getId(), PageRequest.of(0, 10));
+        // 한 페이지에 다 안 들어가게 크기를 1로 잡아 countQuery까지 실행되게 한다.
+        Page<AdminTravelRecordQueryRepository.MemberRecordDetail> firstPage =
+                repository.findAdminRecordDetailsByMemberId(scenario.member().getId(), PageRequest.of(0, 1));
+        Page<AdminTravelRecordQueryRepository.MemberRecordDetail> secondPage =
+                repository.findAdminRecordDetailsByMemberId(scenario.member().getId(), PageRequest.of(1, 1));
 
-        assertThat(page.getTotalElements()).isEqualTo(2L);
-        assertThat(page.getContent())
-                .extracting(AdminTravelRecordQueryRepository.MemberRecordDetail::getRecordId)
-                .containsExactlyInAnyOrder(scenario.withPhotos().getId(), scenario.withoutPhotos().getId());
-        assertThat(page.getContent())
-                .filteredOn(detail -> detail.getRecordId().equals(scenario.withPhotos().getId()))
+        assertThat(firstPage.getTotalElements()).isEqualTo(2L);
+        assertThat(firstPage.getTotalPages()).isEqualTo(2);
+        // 같은 flush로 넣어 createdAt이 같을 수 있으므로 id 내림차순이 순서를 정한다.
+        assertThat(firstPage.getContent())
                 .singleElement()
-                .extracting(AdminTravelRecordQueryRepository.MemberRecordDetail::getPhotoCount)
-                .isEqualTo(3L);
-        assertThat(page.getContent())
-                .filteredOn(detail -> detail.getRecordId().equals(scenario.withoutPhotos().getId()))
+                .satisfies(detail -> {
+                    assertThat(detail.getRecordId()).isEqualTo(scenario.withoutPhotos().getId());
+                    assertThat(detail.getPhotoCount()).isZero();
+                });
+        assertThat(secondPage.getContent())
                 .singleElement()
-                .extracting(AdminTravelRecordQueryRepository.MemberRecordDetail::getPhotoCount)
-                .isEqualTo(0L);
+                .satisfies(detail -> {
+                    assertThat(detail.getRecordId()).isEqualTo(scenario.withPhotos().getId());
+                    assertThat(detail.getPhotoCount()).isEqualTo(3L);
+                });
         assertThat(repository.countMediaByMemberId(scenario.member().getId())).isEqualTo(3L);
         assertThat(repository.countMediaByMemberId(scenario.emptyMember().getId())).isZero();
     }
@@ -96,7 +101,7 @@ class AdminTravelRecordQueryRepositoryTest extends MySqlTestContainerSupport {
         Member member = persist(Member.of("관리자 집계 회원", UUID.randomUUID()));
         Member otherMember = persist(Member.of("다른 회원", UUID.randomUUID()));
         Member emptyMember = persist(Member.of("기록 없는 회원", UUID.randomUUID()));
-        Region japan = persist(Region.of(null, null, "JP", "일본", RegionType.COUNTRY));
+        Region japan = persist(Region.of(null, null, "ZQ", "테스트 국가", RegionType.COUNTRY));
 
         TravelRecord withPhotos = saveRecord(member, japan);
         TravelRecord withoutPhotos = saveRecord(member, japan);
