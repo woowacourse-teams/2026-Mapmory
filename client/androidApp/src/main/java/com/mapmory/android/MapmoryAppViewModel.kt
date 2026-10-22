@@ -12,6 +12,7 @@ import com.mapmory.shared.data.repository.AndroidTripRecordListCache
 import com.mapmory.shared.data.repository.AndroidMapSummaryCache
 import com.mapmory.shared.data.repository.AndroidTripStatisticsCache
 import com.mapmory.shared.data.settings.AndroidOnboardingPreference
+import com.mapmory.shared.data.settings.AndroidShareVideoJobStore
 import com.mapmory.shared.data.settings.AndroidTeamDevicePreference
 import com.mapmory.shared.data.settings.AndroidThemePreference
 
@@ -42,6 +43,7 @@ internal object UploadContainer {
             themePreference = AndroidThemePreference(application),
             onboardingPreference = AndroidOnboardingPreference(application),
             teamDevicePreference = AndroidTeamDevicePreference(application),
+            shareVideoJobStore = AndroidShareVideoJobStore(application, configuredApiBaseUrl),
             backgroundSaveExecution = execution,
             analytics = FirebaseAnalyticsLogger(application),
         ).also { instance = it }

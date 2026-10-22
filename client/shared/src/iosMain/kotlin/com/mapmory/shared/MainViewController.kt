@@ -16,6 +16,7 @@ import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.repository.IosMapSummaryCache
 import com.mapmory.shared.data.repository.IosTripStatisticsCache
 import com.mapmory.shared.data.settings.IosOnboardingPreference
+import com.mapmory.shared.data.settings.IosShareVideoJobStore
 import com.mapmory.shared.data.settings.IosTeamDevicePreference
 import com.mapmory.shared.data.settings.IosThemePreference
 import kotlin.experimental.ExperimentalNativeApi
@@ -43,6 +44,7 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
         themePreference = IosThemePreference(),
         onboardingPreference = IosOnboardingPreference(),
         teamDevicePreference = IosTeamDevicePreference(),
+        shareVideoJobStore = IosShareVideoJobStore(apiBaseUrl),
         onAuthRefreshFailed = { stage, error ->
             if (!Platform.isDebugBinary) {
                 iosAnalytics.logEvent(

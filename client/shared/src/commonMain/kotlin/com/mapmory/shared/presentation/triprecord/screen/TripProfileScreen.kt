@@ -46,6 +46,9 @@ import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
+import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
+import com.mapmory.shared.data.settings.ShareVideoJobStore
+import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewStatistics
 import kotlin.math.abs
@@ -58,10 +61,14 @@ fun TripProfileScreen(
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
     onRetryClick: () -> Unit = {},
+    showTravelAchievements: Boolean = false,
+    shareVideoRepository: ShareVideoRepository? = null,
+    shareVideoJobStore: ShareVideoJobStore? = null,
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
     var showSharePreview by rememberSaveable { mutableStateOf(false) }
+    var showTimelineVideo by rememberSaveable { mutableStateOf(false) }
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
             StatisticsHeader(onShareClick = { showSharePreview = true })
@@ -87,6 +94,7 @@ fun TripProfileScreen(
 
                 is TripStatisticsUiState.Success -> StatisticsContent(
                     statistics = statisticsUiState.statistics,
+                    showTravelAchievements = showTravelAchievements,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -111,6 +119,16 @@ fun TripProfileScreen(
         TripArchiveSharePreviewDialog(
             statistics = statistics,
             onDismiss = { showSharePreview = false },
+            onCreateVideo = if (shareVideoRepository != null) {
+                { showSharePreview = false; showTimelineVideo = true }
+            } else null,
+        )
+    }
+    if (showTimelineVideo && shareVideoRepository != null) {
+        TripTimelineVideoDialog(
+            repository = shareVideoRepository,
+            jobStore = shareVideoJobStore ?: remember { MemoryShareVideoJobStore() },
+            onDismiss = { showTimelineVideo = false },
         )
     }
 }
@@ -148,6 +166,7 @@ private fun StatisticsHeader(onShareClick: () -> Unit) {
 @Composable
 private fun StatisticsContent(
     statistics: TripStatisticsUiModel,
+    showTravelAchievements: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -160,6 +179,7 @@ private fun StatisticsContent(
     ) {
         item { PassportCard(statistics) }
         item { VisitProgressCard(statistics) }
+        if (showTravelAchievements) item { TripAchievementCollection(statistics) }
         item { RankingCard(statistics.topLocations) }
     }
 }
@@ -385,7 +405,7 @@ private fun RankingRow(index: Int, location: TopLocationUiModel) {
 }
 
 @Composable
-private fun StatsCard(content: @Composable () -> Unit) {
+internal fun StatsCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),

@@ -40,6 +40,10 @@ internal fun MapmoryNavHost(
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     isTimelineJournal: Boolean,
     onTimelineLayoutChange: (Boolean) -> Unit,
+    isTravelAchievementsEnabled: Boolean,
+    onTravelAchievementsEnabledChange: (Boolean) -> Unit,
+    isMascotPreviewEnabled: Boolean,
+    onMascotPreviewEnabledChange: (Boolean) -> Unit,
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
@@ -162,11 +166,14 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 tripRecordRevision = tripRecordRevision,
+                shareVideoRepository = container.shareVideoRepository,
+                shareVideoJobStore = container.shareVideoJobStore,
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
             )
         }
 
@@ -192,6 +199,10 @@ internal fun MapmoryNavHost(
             if (developerToolsInfo != null) {
                 DeveloperToolsScreen(
                     info = developerToolsInfo,
+                    isTravelAchievementsEnabled = isTravelAchievementsEnabled,
+                    onTravelAchievementsEnabledChange = onTravelAchievementsEnabledChange,
+                    isMascotPreviewEnabled = isMascotPreviewEnabled,
+                    onMascotPreviewEnabledChange = onMascotPreviewEnabledChange,
                     onBack = { navigator.navigateBack() },
                     modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 )

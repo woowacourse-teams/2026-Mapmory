@@ -96,6 +96,8 @@ fun MapmoryApp(
     var edgeGestureWasInternal by remember { mutableStateOf(false) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
     var isTimelineJournal by rememberSaveable { mutableStateOf(false) }
+    var isTravelAchievementsEnabled by rememberSaveable { mutableStateOf(false) }
+    var isMascotPreviewEnabled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(updateState) {
         if (showSplash || updateState?.isChecking == true) {
@@ -134,6 +136,10 @@ fun MapmoryApp(
                             developerToolsInfo = developerToolsInfo,
                             isTimelineJournal = isTimelineJournal,
                             onTimelineLayoutChange = { isTimelineJournal = it },
+                            isTravelAchievementsEnabled = isTravelAchievementsEnabled,
+                            onTravelAchievementsEnabledChange = { isTravelAchievementsEnabled = it },
+                            isMascotPreviewEnabled = isMascotPreviewEnabled,
+                            onMascotPreviewEnabledChange = { isMascotPreviewEnabled = it },
                         )
                         if (updateState?.isBlocking != true) PlatformNavigationGestures(
                             onBackStarted = {
