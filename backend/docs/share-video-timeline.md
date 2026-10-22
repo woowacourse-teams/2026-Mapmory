@@ -10,7 +10,7 @@
 POST /api/v1/share-videos/travel-timeline
 ```
 
-로그인 회원의 삭제되지 않은 여행 기록을 시작일과 ID 순서로 조회한다. 국가 정류장이 두 개보다 적으면 `INSUFFICIENT_TIMELINE_STOPS` 오류를 반환한다.
+로그인 회원의 여행 기록을 시작일과 ID 순서로 조회한다. 국가 정류장이 두 개보다 적으면 `INSUFFICIENT_TIMELINE_STOPS` 오류를 반환한다.
 
 성공 시 `202 Accepted`를 반환한다.
 
