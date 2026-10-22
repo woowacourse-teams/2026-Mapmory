@@ -18,12 +18,14 @@ fi
 
 install -d -o ubuntu -g ubuntu /var/lib/mapmory-renderer/work
 install -d -o ubuntu -g ubuntu /var/lib/mapmory-renderer/tmp
-install -d -o ubuntu -g ubuntu /home/ubuntu/.remotion
 install -d -o ubuntu -g ubuntu /var/log/mapmory
 chown -R ubuntu:ubuntu "$RENDERER_ROOT"
 chmod 600 /etc/mapmory-renderer.env
 
-sudo -H -u ubuntu env HOME=/home/ubuntu npm --prefix "$RENDERER_DIRECTORY" ci --omit=dev
-sudo -H -u ubuntu env HOME=/home/ubuntu npm --prefix "$RENDERER_DIRECTORY" exec -- remotion browser ensure
+sudo -H -u ubuntu env HOME=/home/ubuntu sh -e -c '
+  cd "$1"
+  npm ci --omit=dev
+  npm exec -- remotion browser ensure
+' sh "$RENDERER_DIRECTORY"
 
 systemctl daemon-reload
