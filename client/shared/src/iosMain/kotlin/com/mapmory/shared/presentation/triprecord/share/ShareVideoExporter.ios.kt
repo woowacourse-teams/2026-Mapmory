@@ -3,10 +3,20 @@
 package com.mapmory.shared.presentation.triprecord.share
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.UIKitViewController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.pause
+import platform.AVKit.AVPlayerViewController
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSHTTPURLResponse
@@ -36,6 +46,38 @@ import platform.UIKit.popoverPresentationController
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
+
+@Composable
+internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val player = remember(video.path) { AVPlayer(uRL = NSURL.fileURLWithPath(video.path)) }
+    DisposableEffect(lifecycle, player) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) player.pause()
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            player.pause()
+        }
+    }
+
+    key(video.path) {
+        UIKitViewController(
+            factory = {
+                AVPlayerViewController().apply {
+                    showsPlaybackControls = true
+                    this.player = player
+                }
+            },
+            modifier = modifier,
+            onRelease = { controller ->
+                controller.player?.pause()
+                controller.player = null
+            },
+        )
+    }
+}
 
 @Composable
 internal actual fun rememberShareVideoExporter(): ShareVideoExporter = remember { IosShareVideoExporter() }

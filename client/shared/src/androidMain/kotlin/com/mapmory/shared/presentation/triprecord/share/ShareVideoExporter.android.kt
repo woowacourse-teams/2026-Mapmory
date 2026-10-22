@@ -5,16 +5,25 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.io.File
 import java.net.URL
 import java.util.UUID
@@ -22,6 +31,42 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.net.ssl.HttpsURLConnection
+
+@Composable
+internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val videoView = remember { arrayOfNulls<VideoView>(1) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) videoView[0]?.pause()
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            videoView[0]?.pause()
+        }
+    }
+
+    androidx.compose.runtime.key(video.path) {
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                VideoView(context).apply {
+                    val controller = MediaController(context)
+                    setMediaController(controller)
+                    controller.setAnchorView(this)
+                    setOnPreparedListener { controller.show(3_000) }
+                    setVideoURI(Uri.fromFile(File(video.path)))
+                    videoView[0] = this
+                }
+            },
+            onRelease = { releasedView ->
+                releasedView.stopPlayback()
+                if (videoView[0] === releasedView) videoView[0] = null
+            },
+        )
+    }
+}
 
 @Composable
 internal actual fun rememberShareVideoExporter(): ShareVideoExporter {

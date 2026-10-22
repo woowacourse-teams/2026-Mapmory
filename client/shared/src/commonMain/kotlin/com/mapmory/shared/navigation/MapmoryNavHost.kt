@@ -29,6 +29,7 @@ import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
+import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
 
 @Composable
 internal fun MapmoryNavHost(
@@ -49,6 +50,9 @@ internal fun MapmoryNavHost(
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
     val gestureMotion = LocalNavigationGestureMotion.current
     Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
+        container.shareVideoRepository?.let { repository ->
+            TripTimelineVideoJobMonitor(repository, container.shareVideoJobStore)
+        }
         NavHost(
             navController = navController,
             startDestination = MapRoute,
