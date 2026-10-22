@@ -347,3 +347,23 @@ delete from travel_record where id=?
   토큰 발급·회전을 맡는 `token`, 여러 하위 패키지가 함께 쓰는 에러 코드 `exception`이 그렇다.
   `place`에서는 인터셉터부터 DB 버킷까지 회원별 호출 한도를 모은 `ratelimit`이 그렇다.
   에러 코드를 `application` 안에 두면 `application`이 쓰는 `token`도 그 에러 코드를 써서 패키지 순환이 생긴다.
+
+## 2026-10-22 보완: 애그리거트가 여럿인 기능의 패키지 (`group`)
+
+그룹 공유(`group`)는 애그리거트를 담는 기능이지만 결정 6과 달리 `web` / `application` / `domain`으로 나눈다.
+루트가 셋(`TravelGroup`, `GroupInvitation`, `Album`)이고 서비스·컨트롤러도 루트마다 생겨 한 폴더에 20개가 넘는 클래스가
+쌓이기 때문이다. 팀원이 태스크를 나눠 맡을 때 어느 층을 건드리는지 폴더로 보이는 편이 낫다고 판단했다.
+
+```
+group/
+├── web/           # 컨트롤러, dto/
+├── application/   # 응용 서비스, GroupMembership(멤버인지 확인)
+├── domain/        # 애그리거트 루트 3개와 내부 엔티티, 루트당 리포지토리 하나
+├── event/         # 다른 컨텍스트 이벤트를 듣는 리스너 (기록 삭제 → 앨범에서 빼기)
+└── exception/     # GroupErrorCode. 여러 하위 패키지가 함께 쓴다 (2026-10-07 보완과 같은 이유)
+```
+
+- 의존 방향은 `web → application → domain`이다. `domain`은 `web`과 `application`을 import하지 않는다.
+- 결정 2를 그대로 따른다. 그룹은 회원과 여행 기록을 id로만 가리킨다. 지역은 참조 데이터라 `Region`을 직접 가진다.
+- 여행 기록은 여행기록이 열어 둔 조회 창구로만 읽는다. 여행기록은 그룹을 import하지 않고, 기록 삭제는 이벤트로만 알린다.
+- `travelrecord`, `tag`는 결정 6대로 평평하게 둔다. 이 보완은 `group`에만 적용한다.
