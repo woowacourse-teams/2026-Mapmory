@@ -1,16 +1,22 @@
 package com.mapmory.backend.member.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.event.GuestAbandoned;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
+@RecordApplicationEvents
 class MemberJoinServiceTest extends IntegrationTest {
 
     @Autowired
@@ -18,6 +24,9 @@ class MemberJoinServiceTest extends IntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Test
     void 처음_보는_소셜_계정이면_새_회원으로_가입한다() {
@@ -118,6 +127,72 @@ class MemberJoinServiceTest extends IntegrationTest {
         assertThat(untouched.isWithdrawn()).isTrue();
         assertThat(untouched.getProviderId()).isNull();
         assertThat(untouched.getName()).isEqualTo("탈퇴한 회원");
+    }
+
+    @Test
+    void 이미_가입한_소셜_계정으로_들어오면_두고_떠난_게스트를_버려진_게스트로_표시하고_이벤트를_발행한다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300030", "소현", null);
+        Member guest = memberJoinService.joinAsGuest();
+
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300030", "소현", guest.getId());
+
+        Member abandoned = memberRepository.findById(guest.getId()).orElseThrow();
+        assertThat(abandoned.isAbandoned()).isTrue();
+        assertThat(abandoned.isActive()).isFalse();
+        assertThat(events.stream(GuestAbandoned.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.guestMemberId()).isEqualTo(guest.getId());
+                    // DATETIME 컬럼은 초 단위로 저장되므로 1초 안쪽 차이는 같은 시각으로 본다.
+                    assertThat(event.abandonedAt()).isCloseTo(abandoned.getAbandonedAt(), within(1, ChronoUnit.SECONDS));
+                });
+    }
+
+    @Test
+    void 게스트_없이_이미_가입한_소셜_계정으로_들어오면_이벤트를_발행하지_않는다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300031", "소현", null);
+
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300031", "소현", null);
+
+        assertThat(events.stream(GuestAbandoned.class)).isEmpty();
+    }
+
+    @Test
+    void 버려진_게스트의_ID로_다시_들어와도_이벤트를_다시_발행하지_않는다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300032", "소현", null);
+        Member guest = memberJoinService.joinAsGuest();
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300032", "소현", guest.getId());
+
+        SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300032", "소현", guest.getId());
+
+        assertThat(join.type()).isEqualTo(SocialJoinType.EXISTING_ACCOUNT);
+        assertThat(join.leftGuest()).isNull();
+        assertThat(events.stream(GuestAbandoned.class)).hasSize(1);
+    }
+
+    @Test
+    void 버려진_게스트의_ID로_처음_보는_소셜_계정이_들어오면_승격하지_않고_새로_가입한다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300033", "소현", null);
+        Member guest = memberJoinService.joinAsGuest();
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300033", "소현", guest.getId());
+
+        SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.GOOGLE, "google-sub-3", "소현", guest.getId());
+
+        assertThat(join.type()).isEqualTo(SocialJoinType.SOCIAL_JOINED);
+        assertThat(join.member().getId()).isNotEqualTo(guest.getId());
+        Member untouched = memberRepository.findById(guest.getId()).orElseThrow();
+        assertThat(untouched.getProvider()).isEqualTo(AuthProvider.GUEST);
+        assertThat(untouched.isAbandoned()).isTrue();
+    }
+
+    @Test
+    void 승격하거나_새로_가입하면_이벤트를_발행하지_않는다() {
+        Member guest = memberJoinService.joinAsGuest();
+
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300034", "소현", guest.getId());
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300035", "소현", null);
+
+        assertThat(events.stream(GuestAbandoned.class)).isEmpty();
     }
 
     @Test
