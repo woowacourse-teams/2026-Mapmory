@@ -132,7 +132,7 @@ share-video:
     enabled: ${SHARE_VIDEO_WORKER_ENABLED:false}
     # 앞 작업이 끝난 뒤 이 시간만큼 기다렸다가 다음 PENDING 작업을 확인한다.
     poll-delay: ${SHARE_VIDEO_WORKER_POLL_DELAY:3s}
-    renderer-directory: ${SHARE_VIDEO_RENDERER_DIRECTORY:../video-renderer}
+    renderer-directory: ${SHARE_VIDEO_RENDERER_DIRECTORY:${user.dir}/../video-renderer}
     work-directory: ${SHARE_VIDEO_WORK_DIRECTORY:${java.io.tmpdir}/mapmory/share-videos}
     render-timeout: ${SHARE_VIDEO_RENDER_TIMEOUT:10m}
     npm-command: ${SHARE_VIDEO_NPM_COMMAND:npm}
