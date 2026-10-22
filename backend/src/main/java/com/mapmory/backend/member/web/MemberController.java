@@ -5,7 +5,9 @@ import com.mapmory.backend.member.application.MemberService;
 import com.mapmory.backend.member.web.dto.MemberResponse;
 import com.mapmory.backend.member.web.dto.NicknameChangeRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,5 +41,11 @@ public class MemberController {
             @Valid @RequestBody NicknameChangeRequest request
     ) {
         return ApiResponse.from(MemberResponse.from(memberService.changeNickname(memberId, request.nickname())));
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Void> withdraw(@AuthenticationPrincipal Long memberId) {
+        memberService.withdraw(memberId);
+        return ResponseEntity.noContent().build();
     }
 }
