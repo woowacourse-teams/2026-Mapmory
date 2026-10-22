@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.travelrecord.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class AdminDashboardServiceTest {
 
     private final MemberRepository members = mock(MemberRepository.class);
-    private final TravelRecordRepository records = mock(TravelRecordRepository.class);
+    private final AdminTravelRecordQueryRepository records = mock(AdminTravelRecordQueryRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-13T15:30:00Z"), ZoneId.of("Asia/Seoul"));
     private final AdminDashboardService service = new AdminDashboardService(members, records, clock);
 
