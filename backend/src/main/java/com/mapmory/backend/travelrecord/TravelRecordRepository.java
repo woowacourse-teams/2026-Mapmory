@@ -21,6 +21,20 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
 
     /**
+     * startDate가 같으면 TravelRecord.id 순서로 고정
+     * region.root를 함께 조회해 지연 로딩 문제 방지
+     * 개수 제한 없음
+     */
+    @EntityGraph(attributePaths = {"region", "region.root"})
+    @Query("""
+        SELECT travelRecord
+        FROM TravelRecord travelRecord
+        WHERE travelRecord.member.id = :memberId
+        ORDER BY travelRecord.period.startDate ASC, travelRecord.id ASC
+        """)
+    List<TravelRecord> findAllForTravelTimeline(@Param("memberId") Long memberId);
+
+    /**
      * RecordMedia는 TravelRecord 애그리거트 내부 엔티티이므로 루트 리포지토리에서 조회한다.
      * 다른 일지가 이미 쓰고 있는 Object Key인지 판별하는 데 쓴다.
      */

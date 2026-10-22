@@ -126,6 +126,17 @@ media:
       key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:}
       private-key-path: ${CLOUDFRONT_PRIVATE_KEY_PATH:}
 
+share-video:
+  worker:
+    # 개발 환경에서 먼저 부하를 확인한 뒤 true로 켠다.
+    enabled: ${SHARE_VIDEO_WORKER_ENABLED:false}
+    # 앞 작업이 끝난 뒤 이 시간만큼 기다렸다가 다음 PENDING 작업을 확인한다.
+    poll-delay: ${SHARE_VIDEO_WORKER_POLL_DELAY:3s}
+    renderer-directory: ${SHARE_VIDEO_RENDERER_DIRECTORY:../video-renderer}
+    work-directory: ${SHARE_VIDEO_WORK_DIRECTORY:${java.io.tmpdir}/mapmory/share-videos}
+    render-timeout: ${SHARE_VIDEO_RENDER_TIMEOUT:10m}
+    npm-command: ${SHARE_VIDEO_NPM_COMMAND:npm}
+
 waitlist:
   cors:
     allowed-origins: ${WAITLIST_ALLOWED_ORIGINS:http://localhost:4173,http://localhost:5173,https://map-mory.com,https://www.map-mory.com}

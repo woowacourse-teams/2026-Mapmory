@@ -1,0 +1,43 @@
+{
+  "name": "video-renderer",
+  "version": "1.0.0",
+  "description": "My Remotion video",
+  "repository": {},
+  "license": "UNLICENSED",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "private": true,
+  "dependencies": {
+    "@remotion/bundler": "4.0.537",
+    "@remotion/cli": "4.0.537",
+    "@remotion/renderer": "4.0.537",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.537",
+    "tsx": "4.23.15",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.537",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "10.12.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "generate:map": "node scripts/generate-world-map.mjs",
+    "generate:coordinates": "node scripts/generate-country-coordinates.mjs",
+    "render:sample": "remotion render src/index.ts TravelTimeline out/travel-timeline.mp4 --port=3001",
+    "render:worker": "tsx src/render/render-video.ts",
+    "render:fixture": "tsx src/render/render-video.ts fixtures/travel-timeline-snapshot.json out/travel-timeline-fixture.mp4",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc"
+  },
+  "allowScripts": {
+    "esbuild": false
+  }
+}

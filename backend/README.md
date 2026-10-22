@@ -31,6 +31,7 @@ Windows에서는 `./gradlew` 대신 `./gradlew.bat`을 사용합니다.
 - [여행 기록 저장 및 목록 조회 방식](docs/travel-record-storage-and-query.md)
 - [대한민국 여행 기록 지역 코드표](docs/region-code-table.md)
 - [전체 Region 코드표](docs/region-code-all.md)
+- [여행 타임라인 공유 영상 API](docs/share-video-timeline.md)
 - [일반구와 시 단위 지역 코드 불일치 트러블슈팅](docs/region-code-troubleshooting.md)
 - [Testcontainers 테스트 성능 개선](docs/testcontainers-performance.md)
 
