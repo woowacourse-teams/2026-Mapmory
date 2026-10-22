@@ -50,6 +50,20 @@ class MemberJoinServiceTest extends IntegrationTest {
     }
 
     @Test
+    void 닉네임을_바꾼_게스트가_승격해도_그_닉네임을_유지한다() {
+        Member guest = memberJoinService.joinAsGuest();
+        Member changed = memberRepository.findById(guest.getId()).orElseThrow();
+        changed.changeNickname("지수");
+        memberRepository.save(changed);
+
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300010", "소현", guest.getId());
+
+        Member promoted = memberRepository.findById(guest.getId()).orElseThrow();
+        assertThat(promoted.getName()).isEqualTo("소현");
+        assertThat(promoted.getNickname()).isEqualTo("지수");
+    }
+
+    @Test
     void 이미_가입한_소셜_계정이면_기존_회원으로_들어오고_게스트를_돌려준다() {
         Member registered = memberJoinService.joinWithSocial(AuthProvider.APPLE, "apple-sub", null, null).member();
         Member guest = memberJoinService.joinAsGuest();

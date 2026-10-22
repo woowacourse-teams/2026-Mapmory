@@ -2,6 +2,7 @@ package com.mapmory.backend.member;
 
 import com.mapmory.backend.common.entity.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -21,13 +22,9 @@ public class Member extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 소셜 제공자가 준 이름(없으면 기본 이름). 회원이 바꾸지 않는다.
-    @Column(nullable = false, length = 50)
-    private String name;
-
-    // 다른 회원에게 보이는 이름. 제공자 이름과 관계없이 기본 이름으로 시작하고, 로그인으로 바뀌지 않는다.
-    @Column(nullable = false, length = 20)
-    private String nickname;
+    // name·nickname 컬럼. 두 이름이 언제 바뀌는지는 MemberName이 정한다.
+    @Embedded
+    private MemberName memberName;
 
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, unique = true, length = 36)
@@ -48,8 +45,7 @@ public class Member extends BaseEntity {
     private Member(AuthProvider provider, String providerId, String name, UUID uuid) {
         this.provider = provider;
         this.providerId = providerId;
-        this.name = name;
-        this.nickname = MemberName.generated();
+        this.memberName = MemberName.startingWith(name);
         this.uuid = uuid;
     }
 
@@ -74,11 +70,21 @@ public class Member extends BaseEntity {
      *
      * 새 회원을 만들지 않고 이 행의 소속만 바꾸므로, member_id를 참조하는 기록은 그대로 유지된다.
      * (ADR 0015)
+     *
+     * 이름은 제공자가 준 이름으로 바꾸고, 주지 않으면(애플 등) 게스트일 때의 이름을 그대로 쓴다.
+     * 닉네임은 로그인으로 바뀌지 않는다.
      */
-    public void promote(AuthProvider provider, String providerId, String name) {
+    public void promote(AuthProvider provider, String providerId, String providerName) {
         this.provider = provider;
         this.providerId = providerId;
-        this.name = name;
+        this.memberName = memberName.promote(providerName);
+    }
+
+    /**
+     * 닉네임을 바꾼다. 이름(name)은 그대로다.
+     */
+    public void changeNickname(String nickname) {
+        this.memberName = memberName.changeNickname(nickname);
     }
 
     public Long getId() {
@@ -86,11 +92,11 @@ public class Member extends BaseEntity {
     }
 
     public String getName() {
-        return name;
+        return memberName.name();
     }
 
     public String getNickname() {
-        return nickname;
+        return memberName.nickname();
     }
 
     public UUID getUuid() {

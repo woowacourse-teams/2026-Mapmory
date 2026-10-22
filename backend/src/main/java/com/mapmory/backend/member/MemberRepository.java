@@ -18,7 +18,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
         WHERE (:provider IS NULL OR m.provider = :provider)
           AND (
               :keyword IS NULL
-              OR LOWER(m.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+              OR LOWER(m.memberName.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
               OR (:memberId IS NOT NULL AND m.id = :memberId)
           )
     """)
