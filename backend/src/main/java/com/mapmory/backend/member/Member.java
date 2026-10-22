@@ -78,8 +78,14 @@ public class Member extends BaseEntity {
      *
      * 이름은 제공자가 준 이름으로 바꾸고, 주지 않으면(애플 등) 게스트일 때의 이름을 그대로 쓴다.
      * 닉네임은 로그인으로 바뀌지 않는다.
+     *
+     * 활동 중인 게스트만 승격한다. 탈퇴한 게스트를 승격하면 지운 이름·providerId가 다시 채워져 되살아난다.
+     * 호출부(MemberJoinService.findGuest)가 먼저 거르므로 여기서는 잘못된 호출을 막기만 한다.
      */
     public void promote(AuthProvider provider, String providerId, String providerName) {
+        if (this.provider != AuthProvider.GUEST || !isActive()) {
+            throw new IllegalStateException("활동 중인 게스트만 승격할 수 있습니다. memberId=" + id);
+        }
         this.provider = provider;
         this.providerId = providerId;
         this.memberName = memberName.promote(providerName);

@@ -24,8 +24,9 @@ public class MemberJoinService {
     /**
      * 소셜 계정으로 들어온다.
      *
-     * 게스트로 사용 중이었다면(guestMemberId가 게스트 회원) 새 회원을 만들지 않고
+     * 게스트로 사용 중이었다면(guestMemberId가 활동 중인 게스트 회원) 새 회원을 만들지 않고
      * 그 회원을 승격해, 게스트로 남긴 기록이 그대로 이어지게 한다.
+     * 탈퇴한 게스트의 남은 access token이 오면 게스트가 없는 것으로 보고 일반 로그인으로 처리한다. (ADR 0021)
      *
      * 이미 같은 소셜 계정으로 가입한 회원이 있으면 한 사람에게 회원 행이 둘인 상황이므로,
      * 기존 회원을 우선하고 게스트는 leftGuest로 돌려준다. 이때 게스트가 남긴 기록은 이어지지 않는다.
@@ -74,6 +75,7 @@ public class MemberJoinService {
             return Optional.empty();
         }
         return memberRepository.findById(memberId)
-                .filter(member -> member.getProvider() == AuthProvider.GUEST);
+                .filter(member -> member.getProvider() == AuthProvider.GUEST)
+                .filter(Member::isActive);
     }
 }

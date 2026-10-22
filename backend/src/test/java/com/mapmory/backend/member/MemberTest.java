@@ -129,6 +129,26 @@ class MemberTest {
         assertThat(guest.getProviderId()).isNull();
     }
 
+    @Test
+    void 탈퇴한_게스트는_승격할_수_없다() {
+        Member guest = guest();
+        guest.withdraw(LocalDateTime.of(2026, 10, 22, 15, 0));
+
+        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500020", "소현"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(guest.getProvider()).isEqualTo(AuthProvider.GUEST);
+        assertThat(guest.getProviderId()).isNull();
+        assertThat(guest.getName()).isEqualTo("탈퇴한 회원");
+    }
+
+    @Test
+    void 게스트가_아닌_회원은_승격할_수_없다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "500021", "소현", UUID.randomUUID());
+
+        assertThatThrownBy(() -> member.promote(AuthProvider.GOOGLE, "google-sub", "소현"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     private Member guest() {
         return Member.ofGuest(UUID.randomUUID().toString(), MemberName.generated(), UUID.randomUUID());
     }
