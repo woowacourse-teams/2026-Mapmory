@@ -146,8 +146,110 @@ GET /api/v1/share-videos/{jobId}/download-url
 - `COMPLETED`: 영상 생성 완료
 - `FAILED`: 영상 생성 실패
 
-## 렌더러 연결 전 남은 작업
+## 워커 실행 흐름
+
+클라이언트의 생성 API 요청과 실제 영상 렌더링은 서로 다른 흐름으로 실행된다. 생성 API는 작업을 `PENDING`으로 저장한 뒤 바로 응답하고, 워커가 이후 작업을 처리한다.
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as Spring Scheduler
+    participant Worker as ShareVideoWorker
+    participant Claimer as ShareVideoJobClaimer
+    participant DB as share_video_job
+    participant Renderer as ProcessShareVideoRenderer
+    participant Remotion as Video Renderer
+    participant S3 as S3ShareVideoStorage
+    participant Updater as ShareVideoJobUpdater
+
+    Scheduler->>Worker: processNext()
+    Worker->>Claimer: claimNext()
+    Claimer->>DB: 가장 오래된 PENDING 작업 잠금 조회
+    Claimer->>DB: 상태를 RENDERING으로 변경
+    Claimer-->>Worker: jobId + snapshotJson
+    Worker->>Renderer: render(task)
+    Renderer->>Remotion: npm run render:worker -- snapshot.json result.mp4
+    Remotion-->>Renderer: result.mp4
+    Renderer-->>Worker: 영상 파일 경로
+    Worker->>S3: upload(jobId, videoPath)
+    S3-->>Worker: S3 Object Key
+    Worker->>Updater: complete(jobId, objectKey)
+    Updater->>DB: 상태를 COMPLETED로 변경
+    Worker->>Renderer: cleanup(renderedVideo)
+```
+
+렌더링 또는 업로드 중 예외가 발생하면 `ShareVideoJobUpdater.fail()`이 상태를 `FAILED`로 바꾸고 실패 이유를 최대 1,000자까지 저장한다.
+
+## 워커 클래스 관계
+
+```mermaid
+classDiagram
+    class ShareVideoWorker {
+        +processNext()
+        -process(task)
+    }
+    class ShareVideoJobClaimer {
+        +claimNext() Optional~ShareVideoRenderTask~
+    }
+    class ShareVideoJobUpdater {
+        +complete(jobId, objectKey)
+        +fail(jobId, throwable)
+    }
+    class ShareVideoJobRepository {
+        +findNextPendingForUpdate()
+        +findById(jobId)
+    }
+    class ShareVideoRenderer {
+        <<interface>>
+        +render(task) RenderedShareVideo
+        +cleanup(renderedVideo)
+    }
+    class ProcessShareVideoRenderer {
+        +render(task) RenderedShareVideo
+        +cleanup(renderedVideo)
+    }
+    class ShareVideoStorage {
+        <<interface>>
+        +upload(jobId, videoPath) String
+    }
+    class S3ShareVideoStorage {
+        +upload(jobId, videoPath) String
+    }
+    class ShareVideoJob {
+        +startRendering()
+        +complete(objectKey)
+        +fail(reason)
+    }
+
+    ShareVideoWorker --> ShareVideoJobClaimer
+    ShareVideoWorker --> ShareVideoJobUpdater
+    ShareVideoWorker --> ShareVideoRenderer
+    ShareVideoWorker --> ShareVideoStorage
+    ShareVideoJobClaimer --> ShareVideoJobRepository
+    ShareVideoJobUpdater --> ShareVideoJobRepository
+    ShareVideoJobRepository --> ShareVideoJob
+    ProcessShareVideoRenderer ..|> ShareVideoRenderer
+    S3ShareVideoStorage ..|> ShareVideoStorage
+```
+
+인터페이스인 `ShareVideoRenderer`와 `ShareVideoStorage`가 실행 방법과 저장 장소를 감싼다. 그래서 워커는 Remotion 명령이나 S3 SDK 사용법을 알 필요 없이 `render()`와 `upload()`만 호출한다.
+
+## 워커 설정
+
+기본값은 워커 비활성화다. 개발 환경에서 아래 환경 변수로 활성화한다.
+
+| 환경 변수 | 기본값 | 역할 |
+| --- | --- | --- |
+| `SHARE_VIDEO_WORKER_ENABLED` | `false` | 스케줄러와 워커 실행 여부 |
+| `SHARE_VIDEO_WORKER_POLL_DELAY` | `3s` | 앞 실행이 끝난 후 다음 작업을 확인하기까지의 대기 시간 |
+| `SHARE_VIDEO_RENDERER_DIRECTORY` | `../video-renderer` | `package.json`이 있는 Video Renderer 경로 |
+| `SHARE_VIDEO_WORK_DIRECTORY` | 운영체제 임시 폴더 아래 `mapmory/share-videos` | 스냅샷 JSON과 결과 MP4 임시 저장 위치 |
+| `SHARE_VIDEO_RENDER_TIMEOUT` | `10m` | 영상 하나의 최대 렌더링 시간 |
+| `SHARE_VIDEO_NPM_COMMAND` | `npm` | Video Renderer를 실행할 명령 |
+
+워커를 켜기 전에 Video Renderer의 의존성 설치와 S3 자격 증명 설정이 필요하다. 생성된 영상은 `share-videos/{jobId}/travel-timeline.mp4` Object Key로 업로드된다.
+
+## 남은 운영 작업
 
 백엔드 스냅샷에는 국가 대표 좌표를 저장하지 않는다. Video Renderer의 입력 변환기가 각 `countryCode`에 `longitude`, `latitude`를 보강한다.
 
-백엔드에는 아직 `PENDING` 작업을 가져와 렌더 명령을 실행하고 결과를 저장하는 작업 실행기가 연결되지 않았다. 따라서 현재 생성된 작업은 자동으로 `RENDERING` 또는 `COMPLETED`로 전환되지 않는다.
+현재 워커는 한 애플리케이션 인스턴스에서 영상 하나씩 처리한다. 여러 인스턴스가 실행될 때는 `FOR UPDATE SKIP LOCKED`로 같은 작업을 동시에 가져가지 않는다. 개발 환경에서 렌더링 시간, CPU, 메모리 사용량을 측정한 뒤 같은 인스턴스를 유지할지 전용 워커 인스턴스로 분리할지 결정한다.
