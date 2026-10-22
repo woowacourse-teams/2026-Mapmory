@@ -10,6 +10,7 @@ import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionSco
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -120,6 +121,7 @@ fun TripRecordDetailScreen(
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     var expandedPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var forwardPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val albumScrollState = rememberLazyListState()
@@ -214,6 +216,7 @@ fun TripRecordDetailScreen(
                                 onBackClick = onBackClick,
                                 onEditClick = onEditClick,
                                 onDeleteClick = { showDeleteDialog = true },
+                                onShareClick = { showSharePreview = true },
                                 onPhotoClick = openPhoto,
                             )
                         } else {
@@ -226,6 +229,7 @@ fun TripRecordDetailScreen(
                                 onBackClick = onBackClick,
                                 onEditClick = onEditClick,
                                 onDeleteClick = { showDeleteDialog = true },
+                                onShareClick = { showSharePreview = true },
                                 onPhotoClick = openPhoto,
                             )
                         }
@@ -233,6 +237,14 @@ fun TripRecordDetailScreen(
                 }
             }
         }
+    }
+
+    val shareRecord = (uiState as? TripRecordDetailUiState.Success)?.record
+    if (showSharePreview && shareRecord != null) {
+        TripRecordSharePreviewDialog(
+            record = shareRecord,
+            onDismiss = { showSharePreview = false },
+        )
     }
 
     if (showDeleteDialog) {
@@ -264,6 +276,7 @@ private fun TripRecordPhotoAlbum(
     onBackClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onShareClick: () -> Unit,
     scrollState: LazyListState,
     columnCount: Int,
     onColumnCountChange: (Int) -> Unit,
@@ -282,7 +295,15 @@ private fun TripRecordPhotoAlbum(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TripSharePreviewButton(
+                        contentDescription = "여행 기록 공유 미리보기",
+                        onClick = onShareClick,
+                    )
+                    DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick)
+                }
+            },
         )
         BoxWithConstraints(
             modifier = Modifier
@@ -462,6 +483,7 @@ private fun TripRecordPhotoTimeline(
     onBackClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onShareClick: () -> Unit,
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
     val timelineGroups = remember(groups) {
@@ -500,7 +522,15 @@ private fun TripRecordPhotoTimeline(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TripSharePreviewButton(
+                        contentDescription = "여행 기록 공유 미리보기",
+                        onClick = onShareClick,
+                    )
+                    DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick)
+                }
+            },
         )
         LazyColumn(
             state = scrollState,
@@ -967,13 +997,22 @@ private fun DetailMoreButton(
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        TripIconButton(
-            label = "•••",
-            contentDescription = "더보기",
-            onClick = { expanded = true },
-            containerColor = Color.Transparent,
-            contentColor = TripRecordPalette.current.text,
-        )
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                .semantics { contentDescription = "더보기" }
+                .clickable(role = Role.Button) { expanded = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            val colors = TripRecordPalette.current
+            Box(Modifier.size(40.dp).background(colors.primarySoft, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(22.dp)) {
+                    listOf(0.25f, 0.5f, 0.75f).forEach { x ->
+                        drawCircle(colors.primary, 1.6.dp.toPx(), Offset(size.width * x, size.height / 2f))
+                    }
+                }
+            }
+        }
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
