@@ -44,11 +44,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
@@ -67,8 +66,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -88,6 +92,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.presentation.triprecord.state.TripRecordDetailUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
@@ -120,20 +126,26 @@ fun TripRecordDetailScreen(
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDetailActions by rememberSaveable { mutableStateOf(false) }
     var expandedPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var forwardPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val albumScrollState = rememberLazyListState()
     ScrollToTopEffect(albumScrollState, enabled = expandedPhotoIndex == null && uiState is TripRecordDetailUiState.Success)
     var photoColumns by rememberSaveable { mutableStateOf(2) }
     val latestPhotoViewerBackHandler by rememberUpdatedState {
-        forwardPhotoIndex = expandedPhotoIndex
-        expandedPhotoIndex = null
-        true
+        if (showDetailActions) {
+            showDetailActions = false
+            true
+        } else if (expandedPhotoIndex != null) {
+            forwardPhotoIndex = expandedPhotoIndex
+            expandedPhotoIndex = null
+            true
+        } else false
     }
 
-    DisposableEffect(expandedPhotoIndex) {
+    DisposableEffect(expandedPhotoIndex, showDetailActions) {
         onInternalBackHandlerChanged(
-            if (expandedPhotoIndex == null) null else latestPhotoViewerBackHandler,
+            if (expandedPhotoIndex == null && !showDetailActions) null else latestPhotoViewerBackHandler,
         )
         onDispose { onInternalBackHandlerChanged(null) }
     }
@@ -212,8 +224,7 @@ fun TripRecordDetailScreen(
                                 groups = groups,
                                 scrollState = albumScrollState,
                                 onBackClick = onBackClick,
-                                onEditClick = onEditClick,
-                                onDeleteClick = { showDeleteDialog = true },
+                                onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
                         } else {
@@ -224,13 +235,37 @@ fun TripRecordDetailScreen(
                                 columnCount = photoColumns,
                                 onColumnCountChange = { photoColumns = it },
                                 onBackClick = onBackClick,
-                                onEditClick = onEditClick,
-                                onDeleteClick = { showDeleteDialog = true },
+                                onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+
+    if (showDetailActions) {
+        Dialog(
+            onDismissRequest = { showDetailActions = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().clickable(onClick = { showDetailActions = false }))
+                DetailActionCardMenu(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(top = 62.dp, end = 22.dp),
+                    onEditClick = {
+                        showDetailActions = false
+                        onEditClick()
+                    },
+                    onDeleteClick = {
+                        showDetailActions = false
+                        showDeleteDialog = true
+                    },
+                )
             }
         }
     }
@@ -262,8 +297,7 @@ private fun TripRecordPhotoAlbum(
     record: TripRecordItemUiState,
     groups: List<TripRecordPhotoGroup>,
     onBackClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit,
+    onActionMenuOpen: () -> Unit,
     scrollState: LazyListState,
     columnCount: Int,
     onColumnCountChange: (Int) -> Unit,
@@ -282,7 +316,7 @@ private fun TripRecordPhotoAlbum(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
+            trailing = { DetailMoreButton(onClick = onActionMenuOpen) },
         )
         BoxWithConstraints(
             modifier = Modifier
@@ -460,8 +494,7 @@ private fun TripRecordPhotoTimeline(
     groups: List<TripRecordPhotoGroup>,
     scrollState: LazyListState,
     onBackClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit,
+    onActionMenuOpen: () -> Unit,
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
     val timelineGroups = remember(groups) {
@@ -500,7 +533,7 @@ private fun TripRecordPhotoTimeline(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onEditClick = onEditClick, onDeleteClick = onDeleteClick) },
+            trailing = { DetailMoreButton(onClick = onActionMenuOpen) },
         )
         LazyColumn(
             state = scrollState,
@@ -960,38 +993,104 @@ private fun ExpandedTripPhotoViewer(
 
 @Composable
 private fun DetailMoreButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TripIconButton(
+        label = "•••",
+        contentDescription = "더보기",
+        onClick = onClick,
+        containerColor = Color.Transparent,
+        contentColor = TripRecordPalette.current.text,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun DetailActionCardMenu(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    val palette = TripRecordPalette.current
+    val shape = RoundedCornerShape(19.dp)
+    Column(
+        modifier = modifier
+            .width(208.dp)
+            .shadow(12.dp, shape)
+            .clip(shape)
+            .background(palette.surface)
+            .border(1.dp, palette.border, shape)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DetailActionCardRow("기록 수정", isDestructive = false, onClick = onEditClick)
+        DetailActionCardRow("기록 삭제", isDestructive = true, onClick = onDeleteClick)
+    }
+}
 
-    Box(modifier = modifier) {
-        TripIconButton(
-            label = "•••",
-            contentDescription = "더보기",
-            onClick = { expanded = true },
-            containerColor = Color.Transparent,
-            contentColor = TripRecordPalette.current.text,
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
+@Composable
+private fun DetailActionCardRow(
+    label: String,
+    isDestructive: Boolean,
+    onClick: () -> Unit,
+) {
+    val palette = TripRecordPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    val tint = if (isDestructive) palette.danger else palette.accent
+    val background = if (isDestructive) palette.danger.copy(alpha = 0.08f) else palette.primarySoft
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(background)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(if (isDestructive) tint.copy(alpha = 0.12f) else palette.accentSoft, CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
-            DropdownMenuItem(
-                text = { Text("수정") },
-                onClick = {
-                    expanded = false
-                    onEditClick()
-                },
+            DetailActionGlyph(isDestructive = isDestructive, tint = tint)
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = label,
+            color = if (isDestructive) palette.danger else palette.headingText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun DetailActionGlyph(
+    isDestructive: Boolean,
+    tint: Color,
+) {
+    Canvas(Modifier.size(17.dp)) {
+        val stroke = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round)
+        if (isDestructive) {
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(size.width * 0.28f, size.height * 0.32f),
+                size = Size(size.width * 0.44f, size.height * 0.52f),
+                cornerRadius = CornerRadius(2.dp.toPx()),
+                style = stroke,
             )
-            DropdownMenuItem(
-                text = { Text("삭제", color = TripRecordPalette.current.danger) },
-                onClick = {
-                    expanded = false
-                    onDeleteClick()
-                },
-            )
+            drawLine(tint, Offset(size.width * 0.2f, size.height * 0.25f), Offset(size.width * 0.8f, size.height * 0.25f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.4f, size.height * 0.16f), Offset(size.width * 0.6f, size.height * 0.16f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.43f, size.height * 0.45f), Offset(size.width * 0.43f, size.height * 0.7f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.57f, size.height * 0.45f), Offset(size.width * 0.57f, size.height * 0.7f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+        } else {
+            drawLine(tint, Offset(size.width * 0.28f, size.height * 0.72f), Offset(size.width * 0.7f, size.height * 0.3f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.64f, size.height * 0.24f), Offset(size.width * 0.76f, size.height * 0.36f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.24f, size.height * 0.76f), Offset(size.width * 0.42f, size.height * 0.72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, Offset(size.width * 0.24f, size.height * 0.76f), Offset(size.width * 0.28f, size.height * 0.58f), strokeWidth = stroke.width, cap = StrokeCap.Round)
         }
     }
 }
