@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -38,6 +39,10 @@ public class Member extends BaseEntity {
 
     @Column(name = "provider_id")
     private String providerId;
+
+    // 탈퇴 시각. NULL이면 활동 중이다. (ADR 0021)
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
 
     protected Member() {
     }
@@ -87,6 +92,33 @@ public class Member extends BaseEntity {
         this.memberName = memberName.changeNickname(nickname);
     }
 
+    /**
+     * 탈퇴한다. 이미 탈퇴했으면 아무것도 하지 않는다.
+     *
+     * 개인정보인 이름·닉네임·providerId를 지운다. providerId를 비워야 (provider, provider_id) UNIQUE가 풀려
+     * 같은 소셜 계정으로 다시 가입할 수 있고, 그때는 새 회원이 된다.
+     * provider는 어떤 제공자였는지 운영 통계에 남기려고, uuid는 다른 테이블과의 관계를 위해 그대로 둔다. (ADR 0021)
+     */
+    public void withdraw(LocalDateTime now) {
+        if (isWithdrawn()) {
+            return;
+        }
+        this.withdrawnAt = now;
+        this.memberName = MemberName.withdrawn();
+        this.providerId = null;
+    }
+
+    public boolean isWithdrawn() {
+        return withdrawnAt != null;
+    }
+
+    /**
+     * 탈퇴하지 않은 회원이다.
+     */
+    public boolean isActive() {
+        return !isWithdrawn();
+    }
+
     public Long getId() {
         return id;
     }
@@ -109,5 +141,9 @@ public class Member extends BaseEntity {
 
     public String getProviderId() {
         return providerId;
+    }
+
+    public LocalDateTime getWithdrawnAt() {
+        return withdrawnAt;
     }
 }

@@ -27,6 +27,7 @@ public record MemberName(
 ) {
 
     private static final String DEFAULT_NAME_PREFIX = "회원";
+    private static final String WITHDRAWN_NAME = "탈퇴한 회원";
     // member.name 컬럼 길이(VARCHAR(50))와 같다.
     private static final int MAX_NAME_LENGTH = 50;
     private static final int MIN_NICKNAME_LENGTH = 1;
@@ -71,6 +72,13 @@ public record MemberName(
             return this;
         }
         return new MemberName(truncate(providerName), nickname);
+    }
+
+    /**
+     * 탈퇴할 때. 이름(제공자가 준 이름, 구글은 실명일 수 있음)과 닉네임을 모두 지운다.
+     */
+    static MemberName withdrawn() {
+        return new MemberName(WITHDRAWN_NAME, WITHDRAWN_NAME);
     }
 
     /**
