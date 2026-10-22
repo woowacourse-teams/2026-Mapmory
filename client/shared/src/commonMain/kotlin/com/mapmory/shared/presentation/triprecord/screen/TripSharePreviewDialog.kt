@@ -29,11 +29,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -167,10 +169,23 @@ internal fun TripArchiveSharePreviewDialog(
     }
 }
 
-private class PosterCapture {
+internal enum class PosterPhotoState { Loading, Ready, Failed }
+
+internal class PosterCapture {
     var layer: GraphicsLayer? = null
     var drawn = false
-    val photos = mutableStateMapOf<String, Boolean>()
+    val photos = mutableStateMapOf<String, PosterPhotoState>()
+    var retryAttempt by mutableStateOf(0)
+        private set
+
+    val hasFailedPhotos: Boolean get() = photos.values.any { it == PosterPhotoState.Failed }
+    val canExport: Boolean get() = drawn && photos.values.all { it == PosterPhotoState.Ready }
+
+    fun retryPhotos() {
+        photos.clear()
+        drawn = false
+        retryAttempt++
+    }
 }
 
 private val LocalPosterCapture = staticCompositionLocalOf<PosterCapture?> { null }
@@ -187,13 +202,17 @@ private fun SharePreviewDialog(
     val pagerState = rememberPagerState(pageCount = { pageTitles.size })
     val scope = rememberCoroutineScope()
     val exporter = rememberShareImageExporter()
-    val captures = remember { mutableMapOf<Int, PosterCapture>() }
+    val captures = remember { mutableStateMapOf<Int, PosterCapture>() }
     var exporting by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
     fun export(save: Boolean) {
         if (exporting || pagerState.isScrollInProgress) return
         val capture = captures[pagerState.currentPage]
-        if (capture == null || !capture.drawn || capture.photos.values.any { !it }) {
+        if (capture?.hasFailedPhotos == true) {
+            feedback = null
+            return
+        }
+        if (capture == null || !capture.canExport) {
             feedback = "사진을 불러오는 중이에요. 잠시 후 다시 눌러주세요."
             return
         }
@@ -276,7 +295,9 @@ private fun SharePreviewDialog(
                     onDispose { captures.remove(page) }
                 }
                 CompositionLocalProvider(LocalPosterCapture provides capture) {
-                    poster(page, Modifier.fillMaxSize())
+                    key(capture.retryAttempt) {
+                        poster(page, Modifier.fillMaxSize())
+                    }
                 }
             }
             if (!pageTitleAbovePreview) {
@@ -295,7 +316,28 @@ private fun SharePreviewDialog(
                     onSelect = { page -> if (!exporting) scope.launch { pagerState.animateScrollToPage(page) } },
                 )
             }
-            feedback?.let { message ->
+            val currentCapture = captures[pagerState.currentPage]
+            if (currentCapture?.hasFailedPhotos == true) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "사진을 불러오지 못했어요.",
+                        color = Color(0xFFE5EDE8),
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = { feedback = null; currentCapture.retryPhotos() },
+                        enabled = !exporting && !pagerState.isScrollInProgress,
+                    ) {
+                        Text("다시 시도", color = Color(0xFF9CC5AB))
+                    }
+                }
+            }
+            feedback?.takeIf { currentCapture?.hasFailedPhotos != true }?.let { message ->
                 Text(
                     message,
                     color = Color(0xFFE5EDE8),
@@ -603,7 +645,7 @@ internal fun SharePosterPhoto(
 ) {
     val capture = LocalPosterCapture.current
     DisposableEffect(capture, photo.id) {
-        capture?.photos?.set(photo.id, false)
+        capture?.photos?.set(photo.id, PosterPhotoState.Loading)
         onDispose { capture?.photos?.remove(photo.id) }
     }
     MapmoryAsyncImage(
@@ -612,7 +654,12 @@ internal fun SharePosterPhoto(
         fallbackBytes = photo.previewBytes?.bytesForDecoding(),
         fallbackUri = photo.previewUri,
         cacheKey = "share-poster:${photo.id}",
-        onReadyChanged = { ready -> capture?.photos?.set(photo.id, ready) },
+        onReadyChanged = { ready ->
+            if (ready || capture?.photos?.get(photo.id) != PosterPhotoState.Failed) {
+                capture?.photos?.set(photo.id, if (ready) PosterPhotoState.Ready else PosterPhotoState.Loading)
+            }
+        },
+        onLoadFailed = { capture?.photos?.set(photo.id, PosterPhotoState.Failed) },
         contentDescription = description,
         modifier = modifier.clip(shape),
         shape = shape,
