@@ -241,7 +241,7 @@ classDiagram
 | --- | --- | --- |
 | `SHARE_VIDEO_WORKER_ENABLED` | `false` | 스케줄러와 워커 실행 여부 |
 | `SHARE_VIDEO_WORKER_POLL_DELAY` | `3s` | 앞 실행이 끝난 후 다음 작업을 확인하기까지의 대기 시간 |
-| `SHARE_VIDEO_RENDERER_DIRECTORY` | `../video-renderer` | `package.json`이 있는 Video Renderer 경로 |
+| `SHARE_VIDEO_RENDERER_DIRECTORY` | `${user.dir}/../video-renderer` | `package.json`이 있는 Video Renderer 경로. 기본값은 실행 디렉터리를 기준으로 절대 경로가 되며, 배포 환경에서는 실제 렌더러 경로를 설정한다. |
 | `SHARE_VIDEO_WORK_DIRECTORY` | 운영체제 임시 폴더 아래 `mapmory/share-videos` | 스냅샷 JSON과 결과 MP4 임시 저장 위치 |
 | `SHARE_VIDEO_RENDER_TIMEOUT` | `10m` | 영상 하나의 최대 렌더링 시간 |
 | `SHARE_VIDEO_NPM_COMMAND` | `npm` | Video Renderer를 실행할 명령 |
