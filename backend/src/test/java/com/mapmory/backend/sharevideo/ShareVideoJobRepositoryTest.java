@@ -92,6 +92,36 @@ class ShareVideoJobRepositoryTest extends MySqlTestContainerSupport {
         assertThat(storedStatus).isEqualTo("PENDING");
     }
 
+    @Test
+    void 가장_먼저_생성된_PENDING_작업을_가져온다() {
+        Member member = memberRepository.save(Member.of("선점 테스트 회원", UUID.randomUUID()));
+        ShareVideoJob first = shareVideoJobRepository.saveAndFlush(
+                ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson())
+        );
+        shareVideoJobRepository.saveAndFlush(
+                ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson())
+        );
+
+        ShareVideoJob found = shareVideoJobRepository.findNextPendingForUpdate().orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(first.getId());
+    }
+
+    @Test
+    void RENDERING_작업은_다음_선점_대상에서_제외한다() {
+        Member member = memberRepository.save(Member.of("상태 필터 회원", UUID.randomUUID()));
+        ShareVideoJob rendering = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson());
+        rendering.startRendering();
+        shareVideoJobRepository.saveAndFlush(rendering);
+        ShareVideoJob pending = shareVideoJobRepository.saveAndFlush(
+                ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson())
+        );
+
+        ShareVideoJob found = shareVideoJobRepository.findNextPendingForUpdate().orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(pending.getId());
+    }
+
     private String snapshotJson() {
         return """
                 {
