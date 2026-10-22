@@ -42,7 +42,7 @@ public class MemberJoinService {
 
         if (guest.isPresent()) {
             Member promoted = guest.get();
-            promoted.promote(provider, providerId, MemberName.fromProvider(providerName));
+            promoted.promote(provider, providerId, providerName);
             return new SocialJoin(promoted, SocialJoinType.PROMOTED, null);
         }
 
