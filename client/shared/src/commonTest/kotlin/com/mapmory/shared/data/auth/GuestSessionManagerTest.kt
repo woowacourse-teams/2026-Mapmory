@@ -11,6 +11,71 @@ import kotlin.test.assertSame
 
 class GuestSessionManagerTest {
     @Test
+    fun internalCancellationBlocksAllPathsUntilDeadlineAndThenRecovers() = runBlocking {
+        for (cancelContext in listOf(false, true)) {
+            var now = 0L
+            var calls = 0
+            val original = AuthTokens("old", "refresh")
+            val store = FakeAuthTokenStore(original)
+            val gateway = object : AuthGateway {
+                override suspend fun loginAsGuest(): Result<AuthTokens> = error("Must not create guest")
+                override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                    assertEquals("refresh", refreshToken)
+                    calls++
+                    if (calls == 1) {
+                        if (cancelContext) kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!.cancel()
+                        throw kotlinx.coroutines.CancellationException("internal")
+                    }
+                    return Result.success(AuthTokens("new", "rotated"))
+                }
+            }
+            val session = GuestSessionManager(gateway, store, elapsedMillis = { now })
+            val failure = session.ensureAuthenticated().exceptionOrNull()
+            kotlin.test.assertNotNull(failure)
+            kotlin.test.assertFalse(failure is kotlinx.coroutines.CancellationException)
+            now = 59_999
+            coroutineScope {
+                List(21) { async {
+                    kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+                    kotlin.test.assertTrue(session.refreshAfterUnauthorized("old").isFailure)
+                } }.awaitAll()
+            }
+            assertEquals(1, calls)
+            assertEquals(original, store.tokens)
+            now = 60_000
+            session.ensureAuthenticated().getOrThrow()
+            assertEquals(2, calls)
+            assertEquals(AuthTokens("new", "rotated"), store.tokens)
+            session.close()
+        }
+    }
+
+    @Test
+    fun closingSessionCancelsWorkAndRejectsFurtherRequests() = runBlocking {
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val stopped = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var calls = 0
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("unused")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                calls++
+                entered.complete(Unit)
+                try { kotlinx.coroutines.awaitCancellation() } finally { stopped.complete(Unit) }
+            }
+        }
+        val session = GuestSessionManager(gateway, FakeAuthTokenStore(AuthTokens("old", "refresh")))
+        val waiter = async { session.ensureAuthenticated() }
+        entered.await()
+        session.close()
+        stopped.await()
+        try { waiter.await(); kotlin.test.fail("Expected cancellation") } catch (_: kotlinx.coroutines.CancellationException) {}
+        repeat(21) {
+            try { session.ensureAuthenticated(); kotlin.test.fail("Closed session") } catch (_: kotlinx.coroutines.CancellationException) {}
+        }
+        assertEquals(1, calls)
+    }
+
+    @Test
     fun invalidRefreshStopsPollingAndPreservesIdentity() = runBlocking {
         val error = com.mapmory.shared.data.remote.MapmoryApiException(401, "INVALID_REFRESH_TOKEN", null, null, null, emptyList())
         val gateway = FakeAuthGateway(refreshResult = Result.failure(error))

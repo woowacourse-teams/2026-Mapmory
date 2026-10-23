@@ -70,15 +70,24 @@ internal class GuestSessionManager(
     fun close() { sessionScope.cancel() }
 
     private suspend fun sharedAuthentication(key: String? = null, block: suspend () -> Result<Unit>): Result<Unit> {
+        currentCoroutineContext().ensureActive()
         val work = flightMutex.withLock {
+            sessionScope.ensureActive()
             flight?.takeIf { flightKey == key && !it.isCompleted } ?: sessionScope.async {
-                try { block() } catch (error: CancellationException) {
-                    // Session shutdown/internal cancellation must not cancel unrelated callers.
-                    Result.failure(IllegalStateException("인증 요청이 중단되었습니다. 다시 시도해 주세요.", error))
-                }
+                block()
             }.also { flight = it; flightKey = key }
         }
-        return work.await()
+        return try {
+            work.await()
+        } catch (error: CancellationException) {
+            // Caller/session cancellation remains cancellation. A cancelled internal worker
+            // cannot return a value, so live waiters read its recorded ordinary failure.
+            currentCoroutineContext().ensureActive()
+            sessionScope.ensureActive()
+            authenticationMutex.withLock {
+                Result.failure(blockedFailure ?: IllegalStateException("인증 요청이 중단되었습니다. 다시 시도해 주세요.", error))
+            }
+        }
     }
 
     private fun refreshBlock(): Throwable? {
@@ -88,21 +97,32 @@ internal class GuestSessionManager(
 
     private suspend fun refreshWithRetry(token: String): Result<AuthTokens> {
         refreshBlock()?.let { return Result.failure(it) }
-        repeat(3) { attempt ->
-            val result = gateway.refresh(token)
-            if (result.isSuccess) return result
-            val error = checkNotNull(result.exceptionOrNull())
-            if (error is CancellationException) throw error
-            val transient = error is MapmoryConnectionException ||
-                (error is MapmoryApiException && error.statusCode in 500..599)
-            if (!transient || attempt == 2) {
-                blockedFailure = error
-                retryAt = if (error is MapmoryApiException && error.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN")) Long.MAX_VALUE else elapsedMillis() + 60_000
-                return result
+        try {
+            repeat(3) { attempt ->
+                val result = gateway.refresh(token)
+                if (result.isSuccess) return result
+                val error = checkNotNull(result.exceptionOrNull())
+                if (error is CancellationException) throw error
+                val transient = error is MapmoryConnectionException ||
+                    (error is MapmoryApiException && error.statusCode in 500..599)
+                if (!transient || attempt == 2) {
+                    blockedFailure = error
+                    retryAt = if (error is MapmoryApiException && error.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN")) Long.MAX_VALUE else elapsedMillis() + 60_000
+                    return result
+                }
+                retryDelay(1_000L shl attempt)
             }
-            retryDelay(1_000L shl attempt)
+            error("Unreachable")
+        } catch (error: CancellationException) {
+            sessionScope.ensureActive()
+            // Called under authenticationMutex, including when the worker context itself
+            // was cancelled. Record once without suspending or retrying that context.
+            val failure = IllegalStateException("인증 요청이 중단되었습니다. 잠시 후 다시 시도해 주세요.", error)
+            blockedFailure = failure
+            retryAt = elapsedMillis() + 60_000
+            isAuthenticated = false
+            return Result.failure(failure)
         }
-        error("Unreachable")
     }
     private var didLoadStoredTokens = false
     private var isAuthenticated = false
