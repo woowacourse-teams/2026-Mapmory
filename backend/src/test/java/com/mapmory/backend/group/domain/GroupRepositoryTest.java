@@ -20,7 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * V25 테이블과 엔티티 매핑, 그리고 DB 제약을 확인한다.
+ * V28 테이블과 엔티티 매핑, 그리고 DB 제약을 확인한다.
  */
 @DataJpaTest
 class GroupRepositoryTest extends MySqlTestContainerSupport {

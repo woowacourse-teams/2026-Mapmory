@@ -1,6 +1,6 @@
 # Mapmory ERD
 
-> 기준일: 2026-10-22 · 기준 스키마: Flyway V1~V14 + 사용자 생성 태그 구현 전 설계 + 그룹 공유 구현 전 설계(V25)
+> 기준일: 2026-10-22 · 기준 스키마: Flyway V1~V14 + 사용자 생성 태그 구현 전 설계 + 그룹 공유 구현 전 설계(V28)
 
 이 문서는 현재 운영 스키마와 다음 구현 대상인 태그 스키마를 함께 보여준다.
 
@@ -318,7 +318,7 @@ CONSTRAINT fk_travel_record_tag_tag
 
 ## 그룹 공유 스키마 — 구현 전 설계
 
-결정과 이유는 [ADR 0021](adr/0021-group-sharing-albums.md)에 있다. 마이그레이션은 `V25__create_travel_group.sql`이다.
+결정과 이유는 [ADR 0021](adr/0021-group-sharing-albums.md)에 있다. 마이그레이션은 `V28__create_travel_group.sql`이다.
 
 ### 핵심 결정
 
