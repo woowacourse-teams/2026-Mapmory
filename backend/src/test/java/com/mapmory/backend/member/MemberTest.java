@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 class MemberTest {
 
     private static final String GENERATED_NAME_PATTERN = "회원[1-9]\\d{4}";
+    private static final LocalDateTime PROMOTED_AT = LocalDateTime.of(2026, 10, 23, 15, 0);
 
     @Test
     void 소셜_회원은_제공자_이름과_관계없이_기본_이름_닉네임으로_시작한다() {
@@ -52,10 +53,26 @@ class MemberTest {
         Member guest = guest();
         String nickname = guest.getNickname();
 
-        guest.promote(AuthProvider.KAKAO, "500004", "소현");
+        guest.promote(AuthProvider.KAKAO, "500004", "소현", PROMOTED_AT);
 
         assertThat(guest.getName()).isEqualTo("소현");
         assertThat(guest.getNickname()).isEqualTo(nickname);
+    }
+
+    @Test
+    void 승격하면_승격_시각을_남긴다() {
+        Member guest = guest();
+
+        guest.promote(AuthProvider.KAKAO, "500006", "소현", PROMOTED_AT);
+
+        assertThat(guest.getPromotedAt()).isEqualTo(PROMOTED_AT);
+    }
+
+    @Test
+    void 처음부터_소셜로_가입한_회원은_승격_시각이_없다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "500007", "소현", UUID.randomUUID());
+
+        assertThat(member.getPromotedAt()).isNull();
     }
 
     @Test
@@ -63,7 +80,7 @@ class MemberTest {
         Member guest = guest();
         guest.changeNickname("지수");
 
-        guest.promote(AuthProvider.KAKAO, "500005", "소현");
+        guest.promote(AuthProvider.KAKAO, "500005", "소현", PROMOTED_AT);
 
         assertThat(guest.getName()).isEqualTo("소현");
         assertThat(guest.getNickname()).isEqualTo("지수");
@@ -74,7 +91,7 @@ class MemberTest {
         Member guest = guest();
         String guestName = guest.getName();
 
-        guest.promote(AuthProvider.APPLE, "apple-sub", null);
+        guest.promote(AuthProvider.APPLE, "apple-sub", null, PROMOTED_AT);
 
         assertThat(guest.getProvider()).isEqualTo(AuthProvider.APPLE);
         assertThat(guest.getName()).isEqualTo(guestName);
@@ -134,7 +151,7 @@ class MemberTest {
         Member guest = guest();
         guest.withdraw(LocalDateTime.of(2026, 10, 22, 15, 0));
 
-        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500020", "소현"))
+        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500020", "소현", PROMOTED_AT))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(guest.getProvider()).isEqualTo(AuthProvider.GUEST);
         assertThat(guest.getProviderId()).isNull();
@@ -145,7 +162,7 @@ class MemberTest {
     void 게스트가_아닌_회원은_승격할_수_없다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "500021", "소현", UUID.randomUUID());
 
-        assertThatThrownBy(() -> member.promote(AuthProvider.GOOGLE, "google-sub", "소현"))
+        assertThatThrownBy(() -> member.promote(AuthProvider.GOOGLE, "google-sub", "소현", PROMOTED_AT))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -190,7 +207,7 @@ class MemberTest {
         String guestProviderId = guest.getProviderId();
         guest.abandon(LocalDateTime.of(2026, 10, 22, 15, 0));
 
-        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500031", "소현"))
+        assertThatThrownBy(() -> guest.promote(AuthProvider.KAKAO, "500031", "소현", PROMOTED_AT))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(guest.getProvider()).isEqualTo(AuthProvider.GUEST);
         assertThat(guest.getProviderId()).isEqualTo(guestProviderId);
