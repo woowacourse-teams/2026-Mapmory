@@ -5,14 +5,8 @@ import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,34 +14,37 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * refresh 토큰 발급·회전·폐기.
  *
- * 원문(raw)은 SecureRandom으로 생성해 클라이언트에만 반환하고, 서버는 SHA-256 해시만 저장한다.
+ * 원문(raw)은 RefreshTokenGenerator로 받아 클라이언트에만 반환하고, 서버는 RefreshTokenHasher로 만든 해시만 저장한다.
  * 회전 시 기존 토큰을 폐기하고, 이미 폐기된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
  * 유효한 토큰을 모두 폐기한다. 단, 게스트의 회전 응답 유실은 재발급한다. (ADR 0023)
  */
 @Service
 public class RefreshTokenService {
 
-    private static final int RAW_TOKEN_BYTES = 32;
-
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenGenerator refreshTokenGenerator;
+    private final RefreshTokenHasher refreshTokenHasher;
     private final Duration refreshTokenValidity;
     private final Duration guestRefreshTokenValidity;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
+            RefreshTokenGenerator refreshTokenGenerator,
+            RefreshTokenHasher refreshTokenHasher,
             JwtProperties jwtProperties
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.refreshTokenGenerator = refreshTokenGenerator;
+        this.refreshTokenHasher = refreshTokenHasher;
         this.refreshTokenValidity = jwtProperties.refreshTokenValidity();
         this.guestRefreshTokenValidity = jwtProperties.guestRefreshTokenValidity();
     }
 
     @Transactional
     public String issue(Member member) {
-        String rawToken = generateRawToken();
+        String rawToken = refreshTokenGenerator.generate();
         LocalDateTime expiresAt = LocalDateTime.now().plus(validityFor(member));
-        refreshTokenRepository.save(RefreshToken.issue(member, hash(rawToken), expiresAt));
+        refreshTokenRepository.save(RefreshToken.issue(member, refreshTokenHasher.hash(rawToken), expiresAt));
         return rawToken;
     }
 
@@ -76,7 +73,8 @@ public class RefreshTokenService {
      */
     @Transactional
     public Optional<RotatedRefreshToken> rotate(String rawToken) {
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(hash(rawToken))
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
         LocalDateTime now = LocalDateTime.now();
@@ -127,8 +125,9 @@ public class RefreshTokenService {
     // 새 토큰을 먼저 저장해야(IDENTITY) id가 생겨 후속으로 기록할 수 있다.
     private RotatedRefreshToken replace(RefreshToken current, LocalDateTime now) {
         Member member = current.getMember();
-        String rawToken = generateRawToken();
-        RefreshToken successor = RefreshToken.issue(member, hash(rawToken), now.plus(validityFor(member)));
+        String rawToken = refreshTokenGenerator.generate();
+        RefreshToken successor = RefreshToken.issue(
+                member, refreshTokenHasher.hash(rawToken), now.plus(validityFor(member)));
         refreshTokenRepository.save(successor);
         current.replaceWith(successor, now);
         return new RotatedRefreshToken(member.getId(), rawToken);
@@ -151,23 +150,7 @@ public class RefreshTokenService {
 
     @Transactional
     public void revoke(String rawToken) {
-        refreshTokenRepository.findByTokenHash(hash(rawToken))
+        refreshTokenRepository.findByTokenHash(refreshTokenHasher.hash(rawToken))
                 .ifPresent(token -> token.revoke(LocalDateTime.now()));
-    }
-
-    private String generateRawToken() {
-        byte[] bytes = new byte[RAW_TOKEN_BYTES];
-        secureRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private String hash(String rawToken) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", exception);
-        }
     }
 }
