@@ -154,16 +154,20 @@ Authorization: Bearer {게스트 accessToken}
 
 결과는 세 가지다.
 
-| 상황 | 결과 | `isNewMember` |
-| --- | --- | --- |
-| 게스트 토큰 있음 · 처음 보는 카카오 계정 | **승격**. 게스트로 남긴 기록이 이어진다 | `false` |
-| 게스트 토큰 있음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인. **게스트 기록은 이어지지 않는다** | `false` |
-| 게스트 토큰 없음 · 처음 보는 카카오 계정 | 신규 가입 | `true` |
-| 게스트 토큰 없음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인 | `false` |
+| 상황 | 결과 | `isNewMember` | `guestAbandoned` |
+| --- | --- | --- | --- |
+| 게스트 토큰 있음 · 처음 보는 카카오 계정 | **승격**. 게스트로 남긴 기록이 이어진다 | `false` | `false` |
+| 게스트 토큰 있음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인. **게스트 기록은 이어지지 않는다** | `false` | `true` |
+| 게스트 토큰 없음 · 처음 보는 카카오 계정 | 신규 가입 | `true` | `false` |
+| 게스트 토큰 없음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인 | `false` | `false` |
 
-두 번째 경우 게스트의 Refresh Token은 폐기되어 그 세션으로는 더 이상 갱신할 수 없다.
-응답만으로는 승격인지 기존 로그인인지 구분할 수 없으므로, **클라이언트는 카카오 로그인 전에
-기록이 이어지지 않을 수 있음을 안내해야 한다.**
+두 번째 경우 게스트는 **버려진 게스트**가 된다. 게스트의 Refresh Token은 폐기되어 그 세션으로는 더 이상 갱신할 수 없고,
+남은 Access Token으로 회원 정보 API를 부르면 `404`다. 게스트로 남긴 기록은 지우지 않고 남겨 둔다.
+
+로그인 전에는 서버가 기존 계정이 있는지 알려줄 수 없다. **클라이언트는 로그인 뒤 `guestAbandoned`가 `true`이면
+게스트로 남긴 기록이 이어지지 않았음을 안내한다.**
+
+탈퇴했거나 이미 버려진 게스트의 Access Token을 실어 보내면 게스트가 없는 것으로 보고 위 표의 "게스트 토큰 없음"처럼 처리한다.
 
 #### Response `200 OK`
 
@@ -172,7 +176,8 @@ Authorization: Bearer {게스트 accessToken}
   "data": {
     "accessToken": "mapmory-access-token",
     "refreshToken": "mapmory-refresh-token",
-    "isNewMember": true
+    "isNewMember": true,
+    "guestAbandoned": false
   }
 }
 ```
@@ -235,7 +240,8 @@ Access Token이 아니라 ID Token을 보낸다.
   "data": {
     "accessToken": "mapmory-access-token",
     "refreshToken": "mapmory-refresh-token",
-    "isNewMember": true
+    "isNewMember": true,
+    "guestAbandoned": false
   }
 }
 ```
@@ -1251,7 +1257,7 @@ Authorization: Bearer {accessToken}
 | `400` | `VALIDATION_ERROR` | 닉네임이 없거나 길이·형식 규칙에 맞지 않음 |
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
-| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 없거나 탈퇴함. 탈퇴 API는 탈퇴한 회원에게도 `204` |
+| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 없거나 탈퇴했거나 버려진 게스트임. 탈퇴 API는 탈퇴한 회원에게도 `204` |
 
 ## 서비스 의견 클라이언트 연동 명세
 
