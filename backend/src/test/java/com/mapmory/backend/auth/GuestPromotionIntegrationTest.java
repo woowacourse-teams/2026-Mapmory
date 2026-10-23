@@ -11,15 +11,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.event.GuestAbandoned;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * 게스트 → 카카오 승격 인수 테스트.
@@ -27,6 +32,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * "게스트로 남긴 기록이 계정을 연결한 뒤에도 그대로 보인다"를 사용자 관점에서 검증한다.
  * 승격은 회원 행의 provider만 교체하므로 기록을 옮기지 않는다. (ADR 0015)
  */
+@RecordApplicationEvents
 class GuestPromotionIntegrationTest extends IntegrationTest {
 
     private static final String KAKAO_LOGIN_BODY = "{\"kakaoAccessToken\":\"kakao-token\"}";
@@ -36,6 +42,12 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private JwtProvider jwtProvider;
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Test
     void 게스트가_카카오_로그인하면_남긴_기록이_그대로_유지된다() throws Exception {
@@ -121,6 +133,59 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
         assertThat(memberRepository.count()).isEqualTo(before + 1);
     }
 
+    @Test
+    void 이미_가입한_카카오_계정으로_로그인하면_guestAbandoned가_true이고_게스트를_버려진_게스트로_표시한다() throws Exception {
+        willReturn(kakaoIdentity(200_006L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+        kakaoLogin(null, "accessToken");
+        String guestAccessToken = guestLogin("accessToken");
+        Long guestId = jwtProvider.parseMemberId(guestAccessToken);
+
+        mockMvc.perform(kakaoLoginRequest(guestAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isNewMember").value(false))
+                .andExpect(jsonPath("$.data.guestAbandoned").value(true));
+
+        Member abandoned = memberRepository.findById(guestId).orElseThrow();
+        assertThat(abandoned.isAbandoned()).isTrue();
+        assertThat(events.stream(GuestAbandoned.class))
+                .singleElement()
+                .extracting(GuestAbandoned::guestMemberId)
+                .isEqualTo(guestId);
+    }
+
+    @Test
+    void 승격하거나_새로_가입하면_guestAbandoned가_false다() throws Exception {
+        willReturn(kakaoIdentity(200_007L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+        String guestAccessToken = guestLogin("accessToken");
+
+        mockMvc.perform(kakaoLoginRequest(guestAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guestAbandoned").value(false));
+
+        willReturn(kakaoIdentity(200_008L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+        mockMvc.perform(kakaoLoginRequest(null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guestAbandoned").value(false));
+
+        mockMvc.perform(post("/api/v1/auth/login/guest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guestAbandoned").value(false));
+        assertThat(events.stream(GuestAbandoned.class)).isEmpty();
+    }
+
+    @Test
+    void 버려진_게스트의_남은_access_token으로_회원_정보를_조회하면_404다() throws Exception {
+        willReturn(kakaoIdentity(200_009L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+        kakaoLogin(null, "accessToken");
+        String guestAccessToken = guestLogin("accessToken");
+        kakaoLogin(guestAccessToken, "accessToken");
+
+        mockMvc.perform(get("/api/v1/members/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + guestAccessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+    }
+
     private String guestLogin(String field) throws Exception {
         return JsonPath.read(guestLogin(), "$.data." + field);
     }
@@ -133,16 +198,20 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     }
 
     private String kakaoLogin(String bearerToken, String field) throws Exception {
+        MvcResult result = mockMvc.perform(kakaoLoginRequest(bearerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data." + field);
+    }
+
+    private MockHttpServletRequestBuilder kakaoLoginRequest(String bearerToken) {
         var request = post("/api/v1/auth/login/kakao")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(KAKAO_LOGIN_BODY);
         if (bearerToken != null) {
             request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
-        MvcResult result = mockMvc.perform(request)
-                .andExpect(status().isOk())
-                .andReturn();
-        return JsonPath.read(result.getResponse().getContentAsString(), "$.data." + field);
+        return request;
     }
 
     private void createTravelRecord(String accessToken, String title) throws Exception {

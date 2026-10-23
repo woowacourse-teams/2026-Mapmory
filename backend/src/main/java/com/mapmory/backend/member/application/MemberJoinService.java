@@ -4,8 +4,12 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberName;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.event.GuestAbandoned;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,20 +20,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberJoinService {
 
     private final MemberRepository memberRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
-    public MemberJoinService(MemberRepository memberRepository) {
+    public MemberJoinService(MemberRepository memberRepository, ApplicationEventPublisher eventPublisher, Clock clock) {
         this.memberRepository = memberRepository;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     /**
      * 소셜 계정으로 들어온다.
      *
-     * 게스트로 사용 중이었다면(guestMemberId가 게스트 회원) 새 회원을 만들지 않고
+     * 게스트로 사용 중이었다면(guestMemberId가 활동 중인 게스트 회원) 새 회원을 만들지 않고
      * 그 회원을 승격해, 게스트로 남긴 기록이 그대로 이어지게 한다.
+     * 탈퇴했거나 버려진 게스트의 남은 access token이 오면 게스트가 없는 것으로 보고 일반 로그인으로 처리한다. (ADR 0021)
      *
      * 이미 같은 소셜 계정으로 가입한 회원이 있으면 한 사람에게 회원 행이 둘인 상황이므로,
      * 기존 회원을 우선하고 게스트는 leftGuest로 돌려준다. 이때 게스트가 남긴 기록은 이어지지 않는다.
-     * (ADR 0015)
+     * (ADR 0015) 게스트는 버려진 게스트로 표시하고 GuestAbandoned를 발행한다. (ADR 0021)
      */
     @Transactional
     public SocialJoin joinWithSocial(AuthProvider provider, String providerId, String providerName, Long guestMemberId) {
@@ -37,6 +46,7 @@ public class MemberJoinService {
 
         Optional<Member> registered = memberRepository.findByProviderAndProviderId(provider, providerId);
         if (registered.isPresent()) {
+            guest.ifPresent(this::abandon);
             return new SocialJoin(registered.get(), SocialJoinType.EXISTING_ACCOUNT, guest.orElse(null));
         }
 
@@ -69,11 +79,17 @@ public class MemberJoinService {
         ));
     }
 
+    private void abandon(Member guest) {
+        guest.abandon(LocalDateTime.now(clock));
+        eventPublisher.publishEvent(new GuestAbandoned(guest.getId(), guest.getAbandonedAt()));
+    }
+
     private Optional<Member> findGuest(Long memberId) {
         if (memberId == null) {
             return Optional.empty();
         }
         return memberRepository.findById(memberId)
-                .filter(member -> member.getProvider() == AuthProvider.GUEST);
+                .filter(member -> member.getProvider() == AuthProvider.GUEST)
+                .filter(Member::isActive);
     }
 }

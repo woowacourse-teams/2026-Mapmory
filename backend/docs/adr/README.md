@@ -24,4 +24,5 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0018](0018-verify-uploaded-object-before-linking.md) | 기록에 붙는 S3 객체의 저장 시점 실존 검증 | 채택 |
 | [0019](0019-google-login-with-id-token.md) | 구글 로그인은 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
 | [0020](0020-apple-login-with-identity-token.md) | 애플 로그인은 앱이 전달한 identity token을 JWKS로 검증 | 제안 |
-| [0021](0021-group-sharing-albums.md) | 그룹 공유는 저장은 각자 기록에, 보기는 앨범 하나로 | 제안 |
+| [0021](0021-member-withdrawal-and-abandoned-guest.md) | 회원 탈퇴와 버려진 게스트는 행을 남기고 이벤트로 알림 | 제안 |
+| [0022](0021-group-sharing-albums.md) | 그룹 공유는 저장은 각자 기록에, 보기는 앨범 하나로 | 제안 |

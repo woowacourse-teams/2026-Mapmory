@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -38,6 +39,14 @@ public class Member extends BaseEntity {
 
     @Column(name = "provider_id")
     private String providerId;
+
+    // 탈퇴 시각. NULL이면 활동 중이다. (ADR 0021)
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
+
+    // 버려진 게스트가 된 시각. 게스트만 값이 있다. (ADR 0021)
+    @Column(name = "abandoned_at")
+    private LocalDateTime abandonedAt;
 
     protected Member() {
     }
@@ -73,8 +82,14 @@ public class Member extends BaseEntity {
      *
      * 이름은 제공자가 준 이름으로 바꾸고, 주지 않으면(애플 등) 게스트일 때의 이름을 그대로 쓴다.
      * 닉네임은 로그인으로 바뀌지 않는다.
+     *
+     * 활동 중인 게스트만 승격한다. 탈퇴한 게스트를 승격하면 지운 이름·providerId가 다시 채워져 되살아난다.
+     * 호출부(MemberJoinService.findGuest)가 먼저 거르므로 여기서는 잘못된 호출을 막기만 한다.
      */
     public void promote(AuthProvider provider, String providerId, String providerName) {
+        if (this.provider != AuthProvider.GUEST || !isActive()) {
+            throw new IllegalStateException("활동 중인 게스트만 승격할 수 있습니다. memberId=" + id);
+        }
         this.provider = provider;
         this.providerId = providerId;
         this.memberName = memberName.promote(providerName);
@@ -85,6 +100,53 @@ public class Member extends BaseEntity {
      */
     public void changeNickname(String nickname) {
         this.memberName = memberName.changeNickname(nickname);
+    }
+
+    /**
+     * 탈퇴한다. 이미 탈퇴했으면 아무것도 하지 않는다.
+     *
+     * 개인정보인 이름·닉네임·providerId를 지운다. providerId를 비워야 (provider, provider_id) UNIQUE가 풀려
+     * 같은 소셜 계정으로 다시 가입할 수 있고, 그때는 새 회원이 된다.
+     * provider는 어떤 제공자였는지 운영 통계에 남기려고, uuid는 다른 테이블과의 관계를 위해 그대로 둔다. (ADR 0021)
+     */
+    public void withdraw(LocalDateTime now) {
+        if (isWithdrawn()) {
+            return;
+        }
+        this.withdrawnAt = now;
+        this.memberName = MemberName.withdrawn();
+        this.providerId = null;
+    }
+
+    /**
+     * 버려진 게스트로 표시한다. 이미 표시됐으면 아무것도 하지 않는다.
+     *
+     * 같은 사람이 이미 가입한 소셜 계정으로 로그인하면 기존 회원으로 들어가고, 게스트 회원에는 아무도 접근할 수 없게 된다.
+     * 행과 기록은 지우지 않는다. 게스트의 이름·providerId는 서버가 만든 값이라 개인정보가 아니다. (ADR 0021)
+     */
+    public void abandon(LocalDateTime now) {
+        if (this.provider != AuthProvider.GUEST) {
+            throw new IllegalStateException("게스트만 버려진 게스트가 될 수 있습니다. memberId=" + id);
+        }
+        if (isAbandoned()) {
+            return;
+        }
+        this.abandonedAt = now;
+    }
+
+    public boolean isWithdrawn() {
+        return withdrawnAt != null;
+    }
+
+    public boolean isAbandoned() {
+        return abandonedAt != null;
+    }
+
+    /**
+     * 탈퇴하지도, 버려지지도 않은 회원이다.
+     */
+    public boolean isActive() {
+        return !isWithdrawn() && !isAbandoned();
     }
 
     public Long getId() {
@@ -109,5 +171,13 @@ public class Member extends BaseEntity {
 
     public String getProviderId() {
         return providerId;
+    }
+
+    public LocalDateTime getWithdrawnAt() {
+        return withdrawnAt;
+    }
+
+    public LocalDateTime getAbandonedAt() {
+        return abandonedAt;
     }
 }

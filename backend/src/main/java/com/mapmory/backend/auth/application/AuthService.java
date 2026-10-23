@@ -40,6 +40,7 @@ public class AuthService {
      *
      * 게스트로 사용 중이었다면(authenticatedMemberId가 게스트 회원) 그 회원을 승격한다.
      * 이미 같은 소셜 계정으로 가입한 회원이 있으면 기존 회원을 우선하고, 두고 떠난 게스트의 세션은 끊는다.
+     * 이때 응답의 guestAbandoned로 게스트 기록이 이어지지 않았음을 알린다. (ADR 0021)
      * 게스트로 이미 앱을 사용했으므로 승격·기존 계정은 온보딩을 반복하지 않도록 신규로 보지 않는다.
      * (ADR 0015)
      */
@@ -51,7 +52,7 @@ public class AuthService {
         if (join.leftGuest() != null) {
             refreshTokenService.revokeAll(join.leftGuest());
         }
-        return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED);
+        return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED, join.leftGuest() != null);
     }
 
     /**
@@ -61,13 +62,17 @@ public class AuthService {
      */
     @Transactional
     public LoginResult loginAsGuest() {
-        return issueTokens(memberJoinService.joinAsGuest(), true);
+        return issueTokens(memberJoinService.joinAsGuest(), true, false);
     }
 
     // @Transactional을 두지 않는다. validateAndRevoke가 자체 트랜잭션에서 (재사용 시) 토큰 폐기를
     // 커밋한 뒤, 재사용이면 여기서 트랜잭션 밖에서 401을 던져 그 폐기가 롤백되지 않게 한다.
+    //
+    // 탈퇴하면 refresh를 모두 폐기하지만, 탈퇴와 재발급이 동시에 오면 폐기 전에 검증을 통과할 수 있다.
+    // 그래서 회원이 활동 중인지 한 번 더 본다. 이때 제시된 토큰은 이미 폐기됐으므로 새 토큰만 주지 않으면 된다. (ADR 0021)
     public AuthTokens refresh(String refreshToken) {
         Member member = refreshTokenService.validateAndRevoke(refreshToken)
+                .filter(Member::isActive)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
         String accessToken = jwtProvider.issueAccessToken(member.getId());
         String newRefreshToken = refreshTokenService.issue(member);
@@ -79,9 +84,9 @@ public class AuthService {
         refreshTokenService.revoke(refreshToken);
     }
 
-    private LoginResult issueTokens(Member member, boolean isNewMember) {
+    private LoginResult issueTokens(Member member, boolean isNewMember, boolean guestAbandoned) {
         String accessToken = jwtProvider.issueAccessToken(member.getId());
         String refreshToken = refreshTokenService.issue(member);
-        return new LoginResult(new AuthTokens(accessToken, refreshToken), isNewMember);
+        return new LoginResult(new AuthTokens(accessToken, refreshToken), isNewMember, guestAbandoned);
     }
 }

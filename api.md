@@ -29,6 +29,7 @@
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
 | 구현됨 | `GET` | `/members/me` | 내 회원 정보 조회 |
 | 구현됨 | `PATCH` | `/members/me/nickname` | 내 닉네임 변경 |
+| 구현됨 | `DELETE` | `/members/me` | 회원 탈퇴 |
 | 구현됨 | `GET` | `/admin/auth/csrf` | 관리자 CSRF 토큰 발급 |
 | 구현됨 | `POST` | `/admin/auth/login` | 관리자 로그인(세션 발급) |
 | 구현됨 | `GET` | `/admin/auth/me` | 현재 관리자 조회 |
@@ -169,16 +170,20 @@ Authorization: Bearer {게스트 accessToken}
 
 결과는 세 가지다.
 
-| 상황 | 결과 | `isNewMember` |
-| --- | --- | --- |
-| 게스트 토큰 있음 · 처음 보는 카카오 계정 | **승격**. 게스트로 남긴 기록이 이어진다 | `false` |
-| 게스트 토큰 있음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인. **게스트 기록은 이어지지 않는다** | `false` |
-| 게스트 토큰 없음 · 처음 보는 카카오 계정 | 신규 가입 | `true` |
-| 게스트 토큰 없음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인 | `false` |
+| 상황 | 결과 | `isNewMember` | `guestAbandoned` |
+| --- | --- | --- | --- |
+| 게스트 토큰 있음 · 처음 보는 카카오 계정 | **승격**. 게스트로 남긴 기록이 이어진다 | `false` | `false` |
+| 게스트 토큰 있음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인. **게스트 기록은 이어지지 않는다** | `false` | `true` |
+| 게스트 토큰 없음 · 처음 보는 카카오 계정 | 신규 가입 | `true` | `false` |
+| 게스트 토큰 없음 · 이미 가입한 카카오 계정 | 기존 회원으로 로그인 | `false` | `false` |
 
-두 번째 경우 게스트의 Refresh Token은 폐기되어 그 세션으로는 더 이상 갱신할 수 없다.
-응답만으로는 승격인지 기존 로그인인지 구분할 수 없으므로, **클라이언트는 카카오 로그인 전에
-기록이 이어지지 않을 수 있음을 안내해야 한다.**
+두 번째 경우 게스트는 **버려진 게스트**가 된다. 게스트의 Refresh Token은 폐기되어 그 세션으로는 더 이상 갱신할 수 없고,
+남은 Access Token으로 회원 정보 API를 부르면 `404`다. 게스트로 남긴 기록은 지우지 않고 남겨 둔다.
+
+로그인 전에는 서버가 기존 계정이 있는지 알려줄 수 없다. **클라이언트는 로그인 뒤 `guestAbandoned`가 `true`이면
+게스트로 남긴 기록이 이어지지 않았음을 안내한다.**
+
+탈퇴했거나 이미 버려진 게스트의 Access Token을 실어 보내면 게스트가 없는 것으로 보고 위 표의 "게스트 토큰 없음"처럼 처리한다.
 
 #### Response `200 OK`
 
@@ -187,7 +192,8 @@ Authorization: Bearer {게스트 accessToken}
   "data": {
     "accessToken": "mapmory-access-token",
     "refreshToken": "mapmory-refresh-token",
-    "isNewMember": true
+    "isNewMember": true,
+    "guestAbandoned": false
   }
 }
 ```
@@ -250,7 +256,8 @@ Access Token이 아니라 ID Token을 보낸다.
   "data": {
     "accessToken": "mapmory-access-token",
     "refreshToken": "mapmory-refresh-token",
-    "isNewMember": true
+    "isNewMember": true,
+    "guestAbandoned": false
   }
 }
 ```
@@ -265,7 +272,7 @@ Access Token이 아니라 ID Token을 보낸다.
 
 `POST /api/v1/auth/token/refresh`
 
-새 Access·Refresh Token 쌍을 반환한다. 회전 규칙은 위 토큰 정책을 참고한다.
+새 Access·Refresh Token 쌍을 반환한다. 회전 규칙은 위 토큰 정책을 참고한다. 탈퇴한 회원은 재발급받을 수 없다(`INVALID_REFRESH_TOKEN`).
 
 ```json
 {
@@ -305,7 +312,7 @@ Access Token이 아니라 ID Token을 보낸다.
 | `401` | `INVALID_KAKAO_TOKEN` | 카카오 Access Token이 유효하지 않음 |
 | `401` | `INVALID_GOOGLE_TOKEN` | 구글 ID Token이 유효하지 않음 (서명·발급자·대상 앱·만료). Android가 웹 클라이언트 ID가 아닌 Android 클라이언트 ID로 토큰을 받은 경우도 대상 앱 불일치로 여기에 해당 |
 | `401` | `INVALID_APPLE_TOKEN` | 애플 identity token이 유효하지 않음 (서명·발급자·대상 앱·만료). 서버 `APPLE_CLIENT_IDS`에 번들 ID가 없을 때도 해당 |
-| `401` | `INVALID_REFRESH_TOKEN` | Refresh Token이 유효하지 않거나 폐기됨 |
+| `401` | `INVALID_REFRESH_TOKEN` | Refresh Token이 유효하지 않거나 폐기됨. 탈퇴한 회원의 토큰도 해당 |
 | `401` | `EXPIRED_REFRESH_TOKEN` | Refresh Token이 만료됨 |
 | `403` | `ACCESS_DENIED` | 리소스 접근 권한 없음 |
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
@@ -1244,6 +1251,21 @@ Authorization: Bearer {accessToken}
 }
 ```
 
+### 회원 탈퇴
+
+`DELETE /api/v1/members/me`
+
+게스트 회원도 같은 API로 탈퇴한다.
+
+- 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
+- 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
+- 이미 발급된 Access Token은 만료(최대 30분)까지 남지만, 회원 정보 API는 `404`, 토큰 재발급은 `401`이다.
+- 같은 소셜 계정으로 다시 로그인하면 **새 회원**으로 가입한다(`isNewMember: true`). 탈퇴 전 기록은 이어지지 않는다.
+- 이미 탈퇴했으면 아무것도 하지 않고 `204`를 반환한다.
+- 탈퇴한 게스트의 Access Token을 실어 소셜 로그인하면 승격하지 않고 새 회원으로 가입한다.
+
+#### Response `204 No Content`
+
 ### Member 오류
 
 | 상태 | `code` | 조건 |
@@ -1251,7 +1273,7 @@ Authorization: Bearer {accessToken}
 | `400` | `VALIDATION_ERROR` | 닉네임이 없거나 길이·형식 규칙에 맞지 않음 |
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
-| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 더 이상 존재하지 않음 |
+| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 없거나 탈퇴했거나 버려진 게스트임. 탈퇴 API는 탈퇴한 회원에게도 `204` |
 
 ## 12. Group API
 
