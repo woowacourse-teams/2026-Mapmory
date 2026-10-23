@@ -11,6 +11,75 @@ import kotlin.test.assertSame
 
 class GuestSessionManagerTest {
     @Test
+    fun unauthorizedRotationWithFailedDiskWriteRetriesPersistenceNotTheConsumedRefreshToken() = runBlocking {
+        var failWrites = false
+        var saved: AuthTokens? = null
+        val first = AuthTokens("access-1", "refresh-1")
+        val rotated = AuthTokens("access-2", "refresh-2")
+        val gateway = FakeAuthGateway(loginResult = Result.success(first), refreshResult = Result.success(rotated))
+        val session = GuestSessionManager(gateway, object : AuthTokenStore {
+            override fun load() = saved
+            override fun save(tokens: AuthTokens) { check(!failWrites); saved = tokens }
+            override fun clear() = Unit
+        })
+        session.ensureAuthenticated().getOrThrow()
+        failWrites = true
+        kotlin.test.assertTrue(session.refreshAfterUnauthorized("access-1").isFailure)
+        assertEquals("access-2", session.getAccessToken())
+        failWrites = false
+        session.refreshAfterUnauthorized("access-1").getOrThrow()
+        assertEquals(rotated, saved)
+        assertEquals(1, gateway.refreshCount)
+    }
+
+    @Test
+    fun temporaryStorageReadFailureNeverCreatesANewGuest() = runBlocking {
+        val saved = AuthTokens("header.eyJleHAiOjIwMDB9.signature", "refresh")
+        var unavailable = true
+        val store = object : AuthTokenStore {
+            override fun load(): AuthTokens? {
+                if (unavailable) error("storage locked")
+                return saved
+            }
+            override fun save(tokens: AuthTokens) = Unit
+            override fun clear() = Unit
+        }
+        val gateway = FakeAuthGateway()
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 })
+        kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+        assertEquals(0, gateway.loginCount)
+        unavailable = false
+        session.ensureAuthenticated().getOrThrow()
+        assertEquals(saved.accessToken, session.getAccessToken())
+        assertEquals(0, gateway.refreshCount)
+    }
+
+    @Test
+    fun rotatedTokensAreRetainedAndPersistedWithoutRefreshingAgainAfterDiskFailure() = runBlocking {
+        val old = AuthTokens("old", "old-refresh")
+        val rotated = AuthTokens("new", "new-refresh")
+        var unavailable = true
+        var saved = old
+        val store = object : AuthTokenStore {
+            override fun load() = saved
+            override fun save(tokens: AuthTokens) {
+                if (unavailable) error("disk unavailable")
+                saved = tokens
+            }
+            override fun clear() = Unit
+        }
+        val gateway = FakeAuthGateway(refreshResult = Result.success(rotated))
+        val session = GuestSessionManager(gateway, store)
+        kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+        assertEquals("new", session.getAccessToken())
+        unavailable = false
+        session.ensureAuthenticated().getOrThrow()
+        assertEquals(rotated, saved)
+        assertEquals(1, gateway.refreshCount)
+        assertEquals(0, gateway.loginCount)
+    }
+
+    @Test
     fun missingTokensTriggerOnlyOneGuestLoginAcrossConcurrentRequests() = runBlocking {
         val issuedTokens = AuthTokens("guest-access", "guest-refresh")
         val gateway = FakeAuthGateway(loginResult = Result.success(issuedTokens))

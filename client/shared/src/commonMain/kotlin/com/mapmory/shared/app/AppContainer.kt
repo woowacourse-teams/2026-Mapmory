@@ -383,7 +383,7 @@ internal fun createGuestRemoteAppContainer(
     onClose: () -> Unit = client::close,
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
 ): AppContainer {
-    val discardRecordCache = tokenStore.load() == null
+    val discardRecordCache = runCatching { tokenStore.read().tokens == null }.getOrDefault(false)
     if (discardRecordCache) {
         mapSummaryCache.clear()
         tripStatisticsCache.clear()

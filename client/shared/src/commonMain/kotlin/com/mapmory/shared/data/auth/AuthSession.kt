@@ -19,9 +19,16 @@ data class AuthTokens(
 }
 
 /** 플랫폼별 영속 저장소를 교체할 수 있도록 만든 인증 토큰 저장 경계다. */
+class AuthTokenRead(val tokens: AuthTokens?)
+
 interface AuthTokenStore {
     fun load(): AuthTokens?
 
+    /** Non-null wrapper keeps NSError distinguishable from an absent token across Swift interop. */
+    @Throws(Exception::class)
+    fun read(): AuthTokenRead = AuthTokenRead(load())
+
+    @Throws(Exception::class)
     fun save(tokens: AuthTokens)
 
     fun clear()
@@ -49,16 +56,24 @@ internal class GuestSessionManager(
     private val authenticationMutex = Mutex()
     private var didLoadStoredTokens = false
     private var isAuthenticated = false
+    private var pendingPersistence = false
     private var tokens: AuthTokens? = null
     private var didReportRefreshFailure = false
 
     override fun getAccessToken(): String? = tokens?.accessToken
 
     suspend fun ensureAuthenticated(): Result<Unit> = authenticationMutex.withLock {
+        if (pendingPersistence) return@withLock persistTokens()
         if (isAuthenticated) return@withLock Result.success(Unit)
 
         if (!didLoadStoredTokens) {
-            tokens = tokenStore.load()
+            try {
+                tokens = tokenStore.read().tokens
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportRefreshFailureOnce("storage_read", error)
+                return@withLock Result.failure(error)
+            }
             didLoadStoredTokens = true
             if (tokens?.accessToken?.hasUsableJwtLifetime(nowEpochSeconds()) == true) {
                 isAuthenticated = true
@@ -72,10 +87,7 @@ internal class GuestSessionManager(
 
         authentication.fold(
             onSuccess = { issuedTokens ->
-                tokenStore.save(issuedTokens)
-                tokens = issuedTokens
-                isAuthenticated = true
-                Result.success(Unit)
+                acceptIssuedTokens(issuedTokens)
             },
             onFailure = { error ->
                 if (tokens != null) reportRefreshFailureOnce("startup", error)
@@ -92,6 +104,7 @@ internal class GuestSessionManager(
      */
     suspend fun refreshAfterUnauthorized(failedAccessToken: String): Result<Unit> =
         authenticationMutex.withLock {
+            if (pendingPersistence) return@withLock persistTokens()
             val currentTokens = tokens
                 ?: return@withLock Result.failure(
                     IllegalStateException("로그인 정보가 만료되었습니다. 다시 로그인해 주세요."),
@@ -103,10 +116,7 @@ internal class GuestSessionManager(
 
             gateway.refresh(currentTokens.refreshToken).fold(
                 onSuccess = { issuedTokens ->
-                    tokenStore.save(issuedTokens)
-                    tokens = issuedTokens
-                    isAuthenticated = true
-                    Result.success(Unit)
+                    acceptIssuedTokens(issuedTokens)
                 },
                 onFailure = { error ->
                     reportRefreshFailureOnce("unauthorized", error)
@@ -114,6 +124,24 @@ internal class GuestSessionManager(
                 },
             )
         }
+
+    private fun acceptIssuedTokens(issuedTokens: AuthTokens): Result<Unit> {
+        // A rotated refresh token must never be replaced by the old in-memory token on disk failure.
+        tokens = issuedTokens
+        pendingPersistence = true
+        return persistTokens()
+    }
+
+    private fun persistTokens(): Result<Unit> = try {
+        tokenStore.save(checkNotNull(tokens))
+        pendingPersistence = false
+        isAuthenticated = true
+        Result.success(Unit)
+    } catch (error: Exception) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        reportRefreshFailureOnce("storage_write", error)
+        Result.failure(error)
+    }
 
     private fun reportRefreshFailureOnce(stage: String, error: Throwable) {
         if (didReportRefreshFailure) return
