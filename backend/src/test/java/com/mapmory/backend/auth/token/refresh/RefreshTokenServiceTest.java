@@ -27,6 +27,7 @@ class RefreshTokenServiceTest {
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final RefreshTokenService refreshTokenService = new RefreshTokenService(
             refreshTokenRepository,
+            new SecureRandomRefreshTokenGenerator(),
             new JwtProperties(
                     "test-secret-key-must-be-long-enough-0123456789",
                     Duration.ofMinutes(30),
