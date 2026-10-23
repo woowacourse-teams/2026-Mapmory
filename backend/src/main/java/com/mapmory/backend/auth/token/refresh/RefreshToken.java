@@ -18,6 +18,7 @@ import org.hibernate.annotations.CreationTimestamp;
  *
  * 원문은 클라이언트에만 두고, 서버는 해시(tokenHash)만 저장한다.
  * 회전(rotation) 시 기존 토큰을 revoke하고 새 토큰을 발급하며, 로그아웃 시에도 revoke한다.
+ * 회전으로 폐기된 토큰은 후속 토큰의 id(replacedById)를 남긴다. (ADR 0023)
  */
 @Entity
 @Table(name = "refresh_token")
@@ -39,6 +40,9 @@ public class RefreshToken {
 
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
+
+    @Column(name = "replaced_by_id")
+    private Long replacedById;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -67,6 +71,20 @@ public class RefreshToken {
 
     public void revoke(LocalDateTime now) {
         this.revokedAt = now;
+    }
+
+    /**
+     * 회전한다. 이미 폐기된 토큰이면 후속만 바꾼다(응답 유실 재발급 시 새 후속을 가리키게 한다).
+     */
+    public void replaceWith(RefreshToken successor, LocalDateTime now) {
+        if (!isRevoked()) {
+            this.revokedAt = now;
+        }
+        this.replacedById = successor.id;
+    }
+
+    public Long getReplacedById() {
+        return replacedById;
     }
 
     public LocalDateTime getExpiresAt() {
