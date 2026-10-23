@@ -468,7 +468,7 @@ internal fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
-        onClose = onClose,
+        onClose = { session.close(); onClose() },
         analytics = analytics,
     )
 }

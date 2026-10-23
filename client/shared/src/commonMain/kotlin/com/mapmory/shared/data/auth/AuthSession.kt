@@ -1,6 +1,10 @@
 package com.mapmory.shared.data.auth
 
 import com.mapmory.shared.data.remote.AccessTokenProvider
+import kotlinx.coroutines.*
+import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.data.remote.MapmoryConnectionException
+import kotlin.time.TimeSource
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
@@ -51,9 +55,55 @@ internal class GuestSessionManager(
     private val gateway: AuthGateway,
     private val tokenStore: AuthTokenStore,
     private val nowEpochSeconds: () -> Long = { Clock.System.now().epochSeconds },
+    private val retryDelay: suspend (Long) -> Unit = { delay(it) },
+    private val elapsedMillis: () -> Long = run { val start = TimeSource.Monotonic.markNow(); { start.elapsedNow().inWholeMilliseconds } },
     private val onRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
 ) : AccessTokenProvider {
     private val authenticationMutex = Mutex()
+    private val flightMutex = Mutex()
+    private val sessionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var flightKey: String? = null
+    private var flight: Deferred<Result<Unit>>? = null
+    private var blockedFailure: Throwable? = null
+    private var retryAt = 0L
+
+    fun close() { sessionScope.cancel() }
+
+    private suspend fun sharedAuthentication(key: String? = null, block: suspend () -> Result<Unit>): Result<Unit> {
+        val work = flightMutex.withLock {
+            flight?.takeIf { flightKey == key && !it.isCompleted } ?: sessionScope.async {
+                try { block() } catch (error: CancellationException) {
+                    // Session shutdown/internal cancellation must not cancel unrelated callers.
+                    Result.failure(IllegalStateException("인증 요청이 중단되었습니다. 다시 시도해 주세요.", error))
+                }
+            }.also { flight = it; flightKey = key }
+        }
+        return work.await()
+    }
+
+    private fun refreshBlock(): Throwable? {
+        if (blockedFailure != null && elapsedMillis() >= retryAt) blockedFailure = null
+        return blockedFailure
+    }
+
+    private suspend fun refreshWithRetry(token: String): Result<AuthTokens> {
+        refreshBlock()?.let { return Result.failure(it) }
+        repeat(3) { attempt ->
+            val result = gateway.refresh(token)
+            if (result.isSuccess) return result
+            val error = checkNotNull(result.exceptionOrNull())
+            if (error is CancellationException) throw error
+            val transient = error is MapmoryConnectionException ||
+                (error is MapmoryApiException && error.statusCode in 500..599)
+            if (!transient || attempt == 2) {
+                blockedFailure = error
+                retryAt = if (error is MapmoryApiException && error.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN")) Long.MAX_VALUE else elapsedMillis() + 60_000
+                return result
+            }
+            retryDelay(1_000L shl attempt)
+        }
+        error("Unreachable")
+    }
     private var didLoadStoredTokens = false
     private var isAuthenticated = false
     private var pendingPersistence = false
@@ -62,7 +112,10 @@ internal class GuestSessionManager(
 
     override fun getAccessToken(): String? = tokens?.accessToken
 
-    suspend fun ensureAuthenticated(): Result<Unit> = authenticationMutex.withLock {
+    suspend fun ensureAuthenticated(): Result<Unit> = sharedAuthentication { ensureSession() }
+
+    private suspend fun ensureSession(): Result<Unit> = authenticationMutex.withLock {
+        refreshBlock()?.let { return@withLock Result.failure(it) }
         if (pendingPersistence) return@withLock persistTokens()
         if (isAuthenticated) return@withLock Result.success(Unit)
 
@@ -82,7 +135,7 @@ internal class GuestSessionManager(
         }
 
         val authentication = tokens
-            ?.let { gateway.refresh(it.refreshToken) }
+            ?.let { refreshWithRetry(it.refreshToken) }
             ?: gateway.loginAsGuest()
 
         authentication.fold(
@@ -103,6 +156,9 @@ internal class GuestSessionManager(
      * 수행한다. 뒤늦게 Mutex를 얻은 요청은 이미 바뀐 Access Token을 그대로 사용한다.
      */
     suspend fun refreshAfterUnauthorized(failedAccessToken: String): Result<Unit> =
+        sharedAuthentication(failedAccessToken) { refreshUnauthorized(failedAccessToken) }
+
+    private suspend fun refreshUnauthorized(failedAccessToken: String): Result<Unit> =
         authenticationMutex.withLock {
             if (pendingPersistence) return@withLock persistTokens()
             val currentTokens = tokens
@@ -114,11 +170,12 @@ internal class GuestSessionManager(
                 return@withLock Result.success(Unit)
             }
 
-            gateway.refresh(currentTokens.refreshToken).fold(
+            refreshWithRetry(currentTokens.refreshToken).fold(
                 onSuccess = { issuedTokens ->
                     acceptIssuedTokens(issuedTokens)
                 },
                 onFailure = { error ->
+                    isAuthenticated = false
                     reportRefreshFailureOnce("unauthorized", error)
                     Result.failure(error)
                 },

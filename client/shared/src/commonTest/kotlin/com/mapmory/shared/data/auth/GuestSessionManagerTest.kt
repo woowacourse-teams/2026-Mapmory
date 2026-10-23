@@ -11,6 +11,92 @@ import kotlin.test.assertSame
 
 class GuestSessionManagerTest {
     @Test
+    fun invalidRefreshStopsPollingAndPreservesIdentity() = runBlocking {
+        val error = com.mapmory.shared.data.remote.MapmoryApiException(401, "INVALID_REFRESH_TOKEN", null, null, null, emptyList())
+        val gateway = FakeAuthGateway(refreshResult = Result.failure(error))
+        val original = AuthTokens("old", "refresh")
+        val store = FakeAuthTokenStore(original)
+        var now = 0L
+        val session = GuestSessionManager(gateway, store, elapsedMillis = { now })
+        session.ensureAuthenticated()
+        now = 1_000_000
+        repeat(20) { session.ensureAuthenticated(); session.refreshAfterUnauthorized("old") }
+        assertEquals(1, gateway.refreshCount)
+        assertEquals(original, store.tokens)
+        session.close()
+    }
+
+    @Test
+    fun internalCancellationIsAnOrdinaryFailureForWaiters() = runBlocking {
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("unused")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                throw kotlinx.coroutines.CancellationException("transport cancelled")
+            }
+        }
+        val session = GuestSessionManager(gateway, FakeAuthTokenStore(AuthTokens("old", "refresh")))
+        val error = session.ensureAuthenticated().exceptionOrNull()
+        kotlin.test.assertTrue(error is IllegalStateException)
+        kotlin.test.assertFalse(error is kotlinx.coroutines.CancellationException)
+        session.close()
+    }
+
+    @Test
+    fun transientFailureIsBoundedAndRecoversWithoutRestart() = runBlocking {
+        var calls = 0
+        var now = 0L
+        var online = false
+        val waits = mutableListOf<Long>()
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("Must preserve identity")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                calls++
+                return if (online) Result.success(AuthTokens("new", "new-refresh"))
+                else Result.failure(com.mapmory.shared.data.remote.MapmoryConnectionException("offline", Exception()))
+            }
+        }
+        val session = GuestSessionManager(gateway, FakeAuthTokenStore(AuthTokens("old", "refresh")),
+            retryDelay = { waits += it }, elapsedMillis = { now })
+        kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+        repeat(20) { session.ensureAuthenticated() }
+        assertEquals(3, calls)
+        assertEquals(listOf(1000L, 2000L), waits)
+        online = true
+        now = 60_000
+        session.ensureAuthenticated().getOrThrow()
+        assertEquals(4, calls)
+        assertEquals("new", session.getAccessToken())
+        session.close()
+    }
+
+    @Test
+    fun cancellingCallerDoesNotCancelRotationOrOtherWaiters() = runBlocking {
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var calls = 0
+        val store = FakeAuthTokenStore(AuthTokens("old", "refresh"))
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("Must preserve identity")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                calls++
+                entered.complete(Unit)
+                release.await()
+                return Result.success(AuthTokens("new", "rotated"))
+            }
+        }
+        val session = GuestSessionManager(gateway, store)
+        val first = async { session.ensureAuthenticated() }
+        entered.await()
+        val second = async { session.ensureAuthenticated().getOrThrow() }
+        first.cancel()
+        release.complete(Unit)
+        second.await()
+        assertEquals(1, calls)
+        assertEquals("rotated", store.tokens?.refreshToken)
+        session.close()
+    }
+
+    @Test
     fun unauthorizedRotationWithFailedDiskWriteRetriesPersistenceNotTheConsumedRefreshToken() = runBlocking {
         var failWrites = false
         var saved: AuthTokens? = null
