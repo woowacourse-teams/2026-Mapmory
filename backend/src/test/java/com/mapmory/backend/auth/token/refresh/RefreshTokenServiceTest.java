@@ -28,6 +28,7 @@ class RefreshTokenServiceTest {
     private final RefreshTokenService refreshTokenService = new RefreshTokenService(
             refreshTokenRepository,
             new SecureRandomRefreshTokenGenerator(),
+            new Sha256RefreshTokenHasher(),
             new JwtProperties(
                     "test-secret-key-must-be-long-enough-0123456789",
                     Duration.ofMinutes(30),
