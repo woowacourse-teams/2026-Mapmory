@@ -57,6 +57,7 @@ class MemberJoinServiceTest extends IntegrationTest {
         assertThat(promoted.getProvider()).isEqualTo(AuthProvider.GOOGLE);
         assertThat(promoted.getProviderId()).isEqualTo("google-sub");
         assertThat(promoted.getName()).isEqualTo("소현");
+        assertThat(promoted.getPromotedAt()).isNotNull();
     }
 
     @Test

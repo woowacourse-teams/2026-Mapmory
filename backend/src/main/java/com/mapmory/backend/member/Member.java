@@ -48,6 +48,10 @@ public class Member extends BaseEntity {
     @Column(name = "abandoned_at")
     private LocalDateTime abandonedAt;
 
+    // 게스트에서 소셜 회원으로 승격한 시각. 승격하면 provider가 바뀌어 처음부터 가입한 회원과 구분되지 않으므로 남긴다. (#440)
+    @Column(name = "promoted_at")
+    private LocalDateTime promotedAt;
+
     protected Member() {
     }
 
@@ -86,13 +90,14 @@ public class Member extends BaseEntity {
      * 활동 중인 게스트만 승격한다. 탈퇴한 게스트를 승격하면 지운 이름·providerId가 다시 채워져 되살아난다.
      * 호출부(MemberJoinService.findGuest)가 먼저 거르므로 여기서는 잘못된 호출을 막기만 한다.
      */
-    public void promote(AuthProvider provider, String providerId, String providerName) {
+    public void promote(AuthProvider provider, String providerId, String providerName, LocalDateTime now) {
         if (this.provider != AuthProvider.GUEST || !isActive()) {
             throw new IllegalStateException("활동 중인 게스트만 승격할 수 있습니다. memberId=" + id);
         }
         this.provider = provider;
         this.providerId = providerId;
         this.memberName = memberName.promote(providerName);
+        this.promotedAt = now;
     }
 
     /**
@@ -175,6 +180,10 @@ public class Member extends BaseEntity {
 
     public LocalDateTime getWithdrawnAt() {
         return withdrawnAt;
+    }
+
+    public LocalDateTime getPromotedAt() {
+        return promotedAt;
     }
 
     public LocalDateTime getAbandonedAt() {
