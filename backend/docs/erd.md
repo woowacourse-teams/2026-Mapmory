@@ -1,6 +1,6 @@
 # Mapmory ERD
 
-> 기준일: 2026-08-20 · 기준 스키마: Flyway V1~V14 + 사용자 생성 태그 구현 전 설계
+> 기준일: 2026-10-22 · 기준 스키마: Flyway V1~V14 + 사용자 생성 태그 구현 전 설계 + 그룹 공유 구현 전 설계(V28)
 
 이 문서는 현재 운영 스키마와 다음 구현 대상인 태그 스키마를 함께 보여준다.
 
@@ -19,6 +19,14 @@ erDiagram
     TRAVEL_RECORD ||--o{ RECORD_MEDIA : has
     TRAVEL_RECORD ||--o{ TRAVEL_RECORD_TAG : tagged_with
     TAG ||--o{ TRAVEL_RECORD_TAG : assigned_to
+    TRAVEL_GROUP ||--o{ GROUP_MEMBER : has
+    MEMBER ||--o{ GROUP_MEMBER : joins
+    TRAVEL_GROUP ||--o{ GROUP_INVITATION : issues
+    TRAVEL_GROUP ||--o{ ALBUM : holds
+    REGION ||--o{ ALBUM : labels
+    ALBUM ||--o{ ALBUM_ENTRY : contains
+    TRAVEL_RECORD ||..o{ ALBUM_ENTRY : "id only (no FK)"
+    MEMBER ||--o{ PUSH_TOKEN : registers
 
     MEMBER {
         bigint id PK
@@ -85,6 +93,57 @@ erDiagram
         bigint tag_id PK,FK
         datetime created_at
     }
+
+    TRAVEL_GROUP {
+        bigint id PK
+        varchar name
+        bigint owner_member_id FK
+        datetime created_at
+        datetime updated_at
+    }
+
+    GROUP_MEMBER {
+        bigint id PK
+        bigint group_id FK
+        bigint member_id FK
+        datetime joined_at
+    }
+
+    GROUP_INVITATION {
+        bigint id PK
+        bigint group_id FK
+        varchar token UK
+        char code UK
+        bigint inviter_member_id FK
+        datetime expires_at
+    }
+
+    ALBUM {
+        bigint id PK
+        bigint group_id FK
+        varchar name
+        bigint region_id FK
+        bigint opener_member_id FK
+        datetime created_at
+        datetime updated_at
+    }
+
+    ALBUM_ENTRY {
+        bigint id PK
+        bigint album_id FK
+        bigint travel_record_id
+        bigint member_id FK
+        datetime created_at
+    }
+
+    PUSH_TOKEN {
+        bigint id PK
+        bigint member_id FK
+        varchar token UK
+        varchar platform
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
 ## 테이블 상태와 역할
@@ -98,6 +157,12 @@ erDiagram
 | 구현됨 | `record_media` | S3 객체 키, 썸네일 키, 노출 순서를 보관한다. |
 | 구현 전 설계 | `tag` | 회원이 만든 개인 태그를 저장한다. |
 | 구현 전 설계 | `travel_record_tag` | 여행 기록과 태그의 다대다 관계를 저장한다. |
+| 구현 전 설계 | `travel_group` | 그룹 이름과 방장을 저장한다. |
+| 구현 전 설계 | `group_member` | 그룹에 들어온 회원과 들어온 시각을 저장한다. |
+| 구현 전 설계 | `group_invitation` | 초대 링크 토큰, 6자리 코드, 만료 시각을 저장한다. |
+| 구현 전 설계 | `album` | 그룹 앨범의 이름, 지역, 연 사람을 저장한다. |
+| 구현 전 설계 | `album_entry` | 앨범에 담긴 여행 기록 id와 담은 회원을 저장한다. |
+| 구현 전 설계 | `push_token` | 앨범 알림을 받을 회원 기기의 FCM 토큰을 저장한다. |
 
 ## 현재 구현 스키마
 
@@ -251,6 +316,96 @@ CONSTRAINT fk_travel_record_tag_tag
 
 데이터베이스 외래 키만으로는 기록과 태그가 같은 회원 소유인지 보장하지 못한다. 서비스는 연결 전에 요청한 모든 태그를 `member_id`로 한 번에 조회하고, 조회된 고유 ID 수가 요청 ID 수와 같은지 검증해야 한다. 검증과 연결 저장은 여행 기록 생성·수정 트랜잭션 안에서 수행한다.
 
+## 그룹 공유 스키마 — 구현 전 설계
+
+결정과 이유는 [ADR 0021](adr/0021-group-sharing-albums.md)에 있다. 마이그레이션은 `V28__create_travel_group.sql`이다.
+
+### 핵심 결정
+
+- 사진은 각자 자기 `travel_record`에 저장한다. 앨범은 기록을 id로만 가리키고 내용을 복사하지 않는다.
+- `album_entry.travel_record_id`에는 FK를 걸지 않는다(ADR 0017 결정 2, 애그리거트 사이는 id 참조). 기록 삭제는 이벤트로 받아 그룹이 항목을 지운다.
+- 한 기록을 여러 앨범에 담을 수 있고, 한 앨범에는 멤버당 기록 하나다.
+- 앨범 기간은 저장하지 않고 담긴 기록의 기간으로 계산한다.
+- `group`은 MySQL 예약어라 `travel_group`으로 둔다.
+
+### `travel_group`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 그룹 식별자 |
+| `name` | `VARCHAR(30)` | NOT NULL | 그룹 이름, 앞뒤 공백 제거 후 1~30자 |
+| `owner_member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 방장. 나가면 가장 먼저 들어온 멤버에게 넘긴다 |
+| `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
+
+### `group_member`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 멤버십 식별자 |
+| `group_id` | `BIGINT` | NOT NULL, FK → `travel_group.id` | 그룹 |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 회원 |
+| `joined_at` | `DATETIME` | NOT NULL | 들어온 시각. 방장을 넘길 순서 |
+| `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
+
+`UNIQUE(group_id, member_id)`로 중복 참여를 막고, `INDEX(member_id)`로 내 그룹 목록을 조회한다. 그룹당 최대 30명은 애플리케이션이 지킨다.
+
+### `group_invitation`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 초대 식별자 |
+| `group_id` | `BIGINT` | NOT NULL, FK → `travel_group.id` | 초대할 그룹 |
+| `token` | `VARCHAR(64)` | NOT NULL, UNIQUE | 초대 링크에 들어가는 값 |
+| `code` | `CHAR(6)` | NOT NULL, UNIQUE | 직접 입력하는 6자리 코드 |
+| `inviter_member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 초대한 멤버 |
+| `expires_at` | `DATETIME` | NOT NULL | 만료 시각. 발급 1일 뒤 |
+| `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
+
+### `album`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 앨범 식별자 |
+| `group_id` | `BIGINT` | NOT NULL, FK → `travel_group.id` | 앨범이 속한 그룹 |
+| `name` | `VARCHAR(200)` | NOT NULL | 앨범 이름, 1~200자 |
+| `region_id` | `BIGINT` | NOT NULL, FK → `region.id` | 앨범 카드와 붙이기 기본값에 쓴다. 지도를 칠하지 않는다 |
+| `opener_member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 앨범을 연 멤버 |
+| `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
+
+`INDEX(group_id)`로 그룹의 앨범 목록을 조회한다.
+
+### `album_entry`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 항목 식별자 |
+| `album_id` | `BIGINT` | NOT NULL, FK → `album.id` | 앨범 |
+| `travel_record_id` | `BIGINT` | NOT NULL, FK 없음 | 담긴 여행 기록 id |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 기록을 담은 멤버(기록 소유자) |
+| `created_at` | `DATETIME` | NOT NULL | 담은 시각. 연 사람을 넘길 순서 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
+
+`UNIQUE(album_id, member_id)`로 한 앨범에 멤버당 기록 하나만 담는다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
+
+### `push_token`
+
+그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0021 결정 7). 마이그레이션은 알림 태스크(T6)에서 따로 추가한다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 토큰 식별자 |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 기기를 쓰는 회원 |
+| `token` | `VARCHAR(255)` | NOT NULL, UNIQUE | FCM 등록 토큰 |
+| `platform` | `VARCHAR(10)` | NOT NULL | `ANDROID`, `IOS` |
+| `created_at` | `DATETIME` | NOT NULL | 등록 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막 등록 시각 |
+
+같은 토큰을 다른 회원이 등록하면(기기에서 계정을 바꿈) `member_id`를 새 회원으로 바꾼다. `INDEX(member_id)`로 그룹 멤버들의 토큰을 모은다.
+
 ## 관계 및 삭제 정책
 
 - `member` 1 : N `refresh_token`
@@ -264,6 +419,11 @@ CONSTRAINT fk_travel_record_tag_tag
 - 태그 삭제 시 `travel_record_tag`만 CASCADE 삭제하며 여행 기록은 유지한다.
 - 회원 탈퇴 정책은 아직 확정되지 않았으므로 회원 관련 외래 키의 삭제 정책은 별도 ADR에서 결정한다.
 - 참조 중인 Region은 삭제하지 않는다. 행정구역 개편은 이력·코드 변경 정책으로 처리한다.
+- `travel_group` 1 : N `group_member`, `group_invitation`, `album`
+- `album` 1 : N `album_entry`
+- `travel_record` 1 : N `album_entry` (id 참조, FK 없음)
+- 그룹 테이블의 FK에는 CASCADE를 걸지 않는다. 나가기·그룹 삭제·기록 삭제 연쇄는 애플리케이션이 처리한다.
+- 여행 기록이 삭제되면 그 기록의 `album_entry`를 모두 지운다. 그 기록이 앨범을 연 기록이면 가장 먼저 담은 멤버가 연 사람이 된다.
 
 ## 태그 기능 한도와 후속 범위
 

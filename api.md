@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림
+> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림, 그룹 공유(구현 전 설계)
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -15,7 +15,7 @@
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 페이지네이션 | `page` 기본 0, `size` 기본 20·최대 100 |
 
-`POST /auth/**`, `POST /waitlist`, `/health`와 `/admin/**`를 제외한 앱 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`, `/auth/login/google`, `/auth/login/apple`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API(`/admin/**`)는 Access Token 대신 관리자 세션과 ADMIN 권한이 필요하며, `/admin/auth/csrf`와 `/admin/auth/login`만 세션 없이 호출한다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
+`POST /auth/**`, `POST /waitlist`, `/health`와 `/admin/**`를 제외한 앱 API는 유효한 Access Token이 필요하다. `/auth/login/kakao`, `/auth/login/google`, `/auth/login/apple`은 인증 없이 호출하지만, 게스트가 계정을 연결할 때는 게스트 Access Token을 함께 보낸다. 관리자 API(`/admin/**`)는 Access Token 대신 관리자 세션과 ADMIN 권한이 필요하며, `/admin/auth/csrf`와 `/admin/auth/login`만 세션 없이 호출한다. 여행 기록과 태그는 비공개이며 소유자 본인만 접근할 수 있다. 예외로 그룹 앨범에 담긴 기록은 그 그룹 멤버가 앨범 API로 읽을 수 있다. 다른 회원의 리소스 ID를 요청해도 존재 여부를 숨기기 위해 `404`를 반환한다.
 
 ### API 목록
 
@@ -57,6 +57,22 @@
 | 구현됨 | `PATCH` | `/tags/{tagId}` | 내 태그 이름 수정 |
 | 구현됨 | `DELETE` | `/tags/{tagId}` | 내 태그 삭제 |
 | 구현됨 | `POST` | `/waitlist` | 출시 알림 신청 |
+| 구현 전 설계 | `POST` | `/groups` | 그룹 만들기 |
+| 구현 전 설계 | `GET` | `/groups` | 내 그룹 목록 |
+| 구현 전 설계 | `GET` | `/groups/{groupId}` | 그룹 조회(멤버 닉네임) |
+| 구현 전 설계 | `PATCH` | `/groups/{groupId}` | 그룹 이름 바꾸기 |
+| 구현 전 설계 | `POST` | `/groups/{groupId}/invitations` | 초대 링크·코드 만들기 |
+| 구현 전 설계 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
+| 구현 전 설계 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
+| 구현 전 설계 | `DELETE` | `/groups/{groupId}/members/me` | 그룹 나가기 |
+| 구현 전 설계 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
+| 구현 전 설계 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
+| 구현 전 설계 | `DELETE` | `/groups/{groupId}/albums/{albumId}/entries/{travelRecordId}` | 앨범에서 내 기록 내리기 |
+| 구현 전 설계 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
+| 구현 전 설계 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
+| 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
+| 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
+| 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
 
 ### 공통 응답
 
@@ -1258,6 +1274,336 @@ Authorization: Bearer {accessToken}
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
 | `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 없거나 탈퇴했거나 버려진 게스트임. 탈퇴 API는 탈퇴한 회원에게도 `204` |
+
+## 12. Group API
+
+> 상태: 구현 전 설계 · 결정과 이유는 [ADR 0021](backend/docs/adr/0021-group-sharing-albums.md)
+
+친구·가족이 같은 여행을 앨범 하나로 함께 본다. **저장은 각자, 보기는 하나로** 한다. 사진은 늘 자기 여행 기록에 저장하고, 앨범은 그 기록들을 id로 묶는다. 앱은 앨범을 기록 하나처럼 보여 준다.
+
+```
+지수의 기록 (도쿄, 3/1~3/3) ─┐
+                              ├─▶ 앨범 "도쿄" (3/1~3/4, 사진마다 올린 사람 닉네임)
+민호의 기록 (도쿄, 3/2~3/4) ─┘
+```
+
+공통 규칙:
+
+- 그룹 API는 소셜 로그인 회원만 쓴다. 게스트는 `403 SOCIAL_LOGIN_REQUIRED`다.
+- 그룹 멤버가 아니면 그룹이 있어도 `404 GROUP_NOT_FOUND`를 돌려준다.
+- 그룹 이름은 앞뒤 공백 제거 후 1~30자, 앨범 이름은 1~200자다. 이름은 멤버 누구나 바꾼다.
+- 그룹은 최대 30명이다. 초대는 멤버 누구나 만들고 1일 뒤 만료된다.
+- 한 기록을 여러 앨범에 담을 수 있다. 한 앨범에는 멤버당 기록 하나다.
+- 앨범에 담는 기록은 내 기록이어야 한다. 남의 기록 id면 `404 TRAVEL_RECORD_NOT_FOUND`다.
+
+| 태스크 | API |
+| --- | --- |
+| T1 그룹 | 그룹 만들기, 내 그룹 목록, 그룹 조회, 그룹 이름 바꾸기 |
+| T2 초대 | 초대 만들기, 초대 미리보기, 초대 수락 |
+| T3 나가기 | 그룹 나가기 |
+| T4 앨범 쓰기 | 앨범 열기, 앨범에 기록 붙이기, 앨범에서 내리기, 앨범 바꾸기 |
+| T5 앨범 조회 | 앨범 목록, 앨범 상세 |
+| T6 알림 | 기기 토큰 등록·삭제, 앨범에 올리면 다른 멤버에게 푸시 |
+
+### 그룹 만들기
+
+`POST /api/v1/groups`
+
+```json
+{
+  "name": "제주 가족"
+}
+```
+
+만든 사람이 첫 멤버이자 방장이 된다.
+
+#### Response `201 Created`
+
+그룹 조회와 같은 객체를 반환한다.
+
+### 내 그룹 목록
+
+`GET /api/v1/groups`
+
+내가 들어간 그룹을 들어간 순서(`joinedAt ASC`)로 반환한다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": 3,
+      "name": "제주 가족",
+      "memberCount": 4,
+      "albumCount": 2
+    }
+  ]
+}
+```
+
+### 그룹 조회
+
+`GET /api/v1/groups/{groupId}`
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "id": 3,
+    "name": "제주 가족",
+    "members": [
+      { "nickname": "지수", "owner": true, "me": true },
+      { "nickname": "민호", "owner": false, "me": false }
+    ]
+  }
+}
+```
+
+`members`는 들어온 순서다. 회원 ID는 넣지 않는다.
+
+### 그룹 이름 바꾸기
+
+`PATCH /api/v1/groups/{groupId}`
+
+```json
+{
+  "name": "제주 가족여행"
+}
+```
+
+성공 시 그룹 조회와 같은 객체를 `200 OK`로 반환한다.
+
+### 초대 만들기
+
+`POST /api/v1/groups/{groupId}/invitations`
+
+링크용 토큰과 직접 입력용 6자리 코드를 함께 발급한다. 앱은 `token`으로 링크를 만들어 공유창에 넘긴다.
+
+#### Response `201 Created`
+
+```json
+{
+  "data": {
+    "token": "q9Xw2...",
+    "code": "4KD7PZ",
+    "expiresAt": "2026-10-23T18:00:00"
+  }
+}
+```
+
+### 초대 미리보기
+
+`GET /api/v1/invitations/{tokenOrCode}`
+
+수락 전에 어느 그룹인지 보여 준다. 링크 토큰과 6자리 코드를 모두 받는다. 게스트도 호출할 수 있다(로그인을 권하는 화면에 쓴다).
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "groupName": "제주 가족",
+    "memberCount": 4,
+    "alreadyMember": false
+  }
+}
+```
+
+### 초대 수락
+
+`POST /api/v1/invitations/{tokenOrCode}/accept`
+
+이미 멤버면 아무것도 바꾸지 않고 성공한다.
+
+#### Response `200 OK`
+
+그룹 조회와 같은 객체를 반환한다.
+
+### 그룹 나가기
+
+`DELETE /api/v1/groups/{groupId}/members/me`
+
+- 내가 담은 앨범 항목이 모두 내려간다. 기록은 남는다.
+- 방장이 나가면 가장 먼저 들어온 멤버가 방장이 된다.
+- 마지막 멤버가 나가면 그룹과 앨범, 초대를 지운다.
+
+#### Response `204 No Content`
+
+### 앨범 열기 (따로 올리기)
+
+`POST /api/v1/groups/{groupId}/albums`
+
+내 기록 하나로 새 앨범을 연다. 이름과 지역은 비우면 기록의 제목과 지역을 쓴다.
+
+```json
+{
+  "travelRecordId": 101,
+  "name": "도쿄 3월",
+  "regionId": 392
+}
+```
+
+#### Response `201 Created`
+
+앨범 상세와 같은 객체를 반환한다.
+
+### 앨범에 기록 붙이기
+
+`POST /api/v1/groups/{groupId}/albums/{albumId}/entries`
+
+```json
+{
+  "travelRecordId": 205
+}
+```
+
+앱은 앨범의 지역과 기간으로 미리 채운 화면에서 `POST /travel-records`로 내 기록을 먼저 만들고, 돌아온 기록 id로 이 API를 부른다. 이미 있는 내 기록을 붙여도 된다. 이 앨범에 내 기록이 이미 있으면 `409 ALBUM_ENTRY_CONFLICT`다.
+
+#### Response `201 Created`
+
+앨범 상세와 같은 객체를 반환한다.
+
+### 앨범에서 내리기
+
+`DELETE /api/v1/groups/{groupId}/albums/{albumId}/entries/{travelRecordId}`
+
+내 기록과 앨범의 연결만 끊는다. 기록은 남는다. 남의 항목은 내릴 수 없다.
+
+#### Response `204 No Content`
+
+### 앨범 바꾸기
+
+`PATCH /api/v1/groups/{groupId}/albums/{albumId}`
+
+```json
+{
+  "name": "도쿄 봄",
+  "regionId": 392
+}
+```
+
+보낸 필드만 바꾼다. 성공 시 앨범 상세와 같은 객체를 `200 OK`로 반환한다.
+
+### 앨범 목록
+
+`GET /api/v1/groups/{groupId}/albums`
+
+최근에 연 앨범부터 반환한다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": 7,
+      "name": "도쿄 3월",
+      "region": { "code": "JP", "name": "일본" },
+      "startDate": "2026-03-01",
+      "endDate": "2026-03-04",
+      "coverViewUrl": "https://...signed-url",
+      "contributorNicknames": ["지수", "민호"]
+    }
+  ]
+}
+```
+
+### 앨범 상세
+
+`GET /api/v1/groups/{groupId}/albums/{albumId}`
+
+담긴 기록을 기록 하나처럼 합쳐 보여 준다. 기간은 담긴 기록의 가장 이른 시작일부터 가장 늦은 종료일(없으면 시작일)까지다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "id": 7,
+    "name": "도쿄 3월",
+    "region": { "code": "JP", "name": "일본" },
+    "startDate": "2026-03-01",
+    "endDate": "2026-03-04",
+    "records": [
+      {
+        "travelRecordId": 101,
+        "nickname": "지수",
+        "mine": true,
+        "title": "도쿄 첫날",
+        "content": "",
+        "startDate": "2026-03-01",
+        "endDate": "2026-03-03"
+      }
+    ],
+    "media": [
+      {
+        "travelRecordId": 101,
+        "nickname": "지수",
+        "viewUrl": "https://...signed-url",
+        "viewUrlExpiresIn": 300
+      }
+    ]
+  }
+}
+```
+
+`media`는 담은 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+
+### 앨범 알림
+
+그룹원이 앨범을 열거나 기록을 붙이면, 올린 사람을 뺀 같은 그룹 멤버의 기기에 FCM 푸시를 보낸다. 앨범 쓰기가 커밋된 뒤 따로 보내므로 발송 실패가 올리기를 실패시키지 않는다.
+
+| 항목 | 값 |
+| --- | --- |
+| 제목 | 그룹 이름 (예: `제주 가족`) |
+| 본문 | `민호님이 '도쿄 3월'에 사진을 올렸어요` |
+| data | `{"type": "ALBUM_UPDATED", "groupId": "3", "albumId": "7"}` — 누르면 앨범 상세로 이동 |
+
+### 기기 토큰 등록
+
+`PUT /api/v1/push-tokens`
+
+```json
+{
+  "token": "fcm-registration-token",
+  "platform": "ANDROID"
+}
+```
+
+앱은 로그인 뒤와 FCM이 토큰을 새로 줄 때마다 부른다. 같은 토큰이 이미 있으면 현재 회원으로 옮긴다. `platform`은 `ANDROID` 또는 `IOS`다.
+
+#### Response `204 No Content`
+
+### 기기 토큰 삭제
+
+`DELETE /api/v1/push-tokens`
+
+```json
+{
+  "token": "fcm-registration-token"
+}
+```
+
+로그아웃 전에 부른다. 없는 토큰이어도 `204`다.
+
+#### Response `204 No Content`
+
+### Group 오류
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | 그룹·앨범 이름 길이, 지역 id 형식이 맞지 않음 |
+| `403` | `SOCIAL_LOGIN_REQUIRED` | 게스트가 그룹을 만들거나 초대를 수락함 |
+| `404` | `GROUP_NOT_FOUND` | 그룹이 없거나 내가 멤버가 아님 |
+| `404` | `INVITATION_NOT_FOUND` | 토큰·코드가 없거나 만료됨 |
+| `404` | `ALBUM_NOT_FOUND` | 앨범이 없거나 다른 그룹의 앨범임 |
+| `404` | `ALBUM_ENTRY_NOT_FOUND` | 앨범에 내 그 기록이 없음 |
+| `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 내 기록이 아님 |
+| `404` | `REGION_NOT_FOUND` | 지역 id가 없음 |
+| `409` | `GROUP_FULL` | 그룹이 이미 30명임 |
+| `409` | `ALBUM_ENTRY_CONFLICT` | 이 앨범에 내 기록이 이미 있음 |
 
 ## 서비스 의견 클라이언트 연동 명세
 
