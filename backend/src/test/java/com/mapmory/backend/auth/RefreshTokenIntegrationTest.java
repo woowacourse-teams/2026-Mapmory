@@ -50,6 +50,76 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 소셜_회원은_회전_응답을_받지_못해도_이전_refresh_재사용은_탈취로_보고_모두_폐기한다() throws Exception {
+        String lost = login(300_004L);
+        String unreceived = refresh(lost);
+
+        mockMvc.perform(refreshRequest(lost))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        // 소셜 회원은 다시 로그인하면 되므로, 후속 토큰도 폐기한다.
+        mockMvc.perform(refreshRequest(unreceived))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 게스트가_회전_응답을_받지_못하면_이전_refresh로_재발급받는다() throws Exception {
+        String lost = loginAsGuest();
+        String unreceived = refresh(lost);
+
+        String reissued = refresh(lost);
+
+        // 받지 못한 후속 토큰은 폐기되고, 재발급받은 토큰으로 세션이 이어진다.
+        mockMvc.perform(refreshRequest(reissued))
+                .andExpect(status().isOk());
+        assertThat(refreshTokenRepository.findAll())
+                .filteredOn(token -> !token.isRevoked())
+                .hasSize(1);
+        mockMvc.perform(refreshRequest(unreceived))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 게스트가_회전_응답을_연달아_받지_못해도_이전_refresh로_재발급받는다() throws Exception {
+        String lost = loginAsGuest();
+        refresh(lost);
+        refresh(lost);
+
+        String reissued = refresh(lost);
+
+        mockMvc.perform(refreshRequest(reissued))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 게스트라도_후속_토큰이_이미_쓰였다면_이전_refresh_재사용은_탈취로_보고_모두_폐기한다() throws Exception {
+        String stolen = loginAsGuest();
+        String next = refresh(stolen);
+        String latest = refresh(next);
+
+        mockMvc.perform(refreshRequest(stolen))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        mockMvc.perform(refreshRequest(latest))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 게스트라도_로그아웃한_refresh의_이전_토큰으로는_재발급받지_못한다() throws Exception {
+        String previous = loginAsGuest();
+        String current = refresh(previous);
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(current)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(refreshRequest(previous))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void 로그아웃하면_refresh가_폐기되어_재발급이_401이다() throws Exception {
         String refreshToken = login(300_003L);
 
@@ -78,6 +148,24 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
         String responseBody = mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"kakaoAccessToken\":\"kakao-token\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return JsonPath.read(responseBody, "$.data.refreshToken");
+    }
+
+    private String loginAsGuest() throws Exception {
+        String responseBody = mockMvc.perform(post("/api/v1/auth/login/guest"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return JsonPath.read(responseBody, "$.data.refreshToken");
+    }
+
+    private String refresh(String refreshToken) throws Exception {
+        String responseBody = mockMvc.perform(refreshRequest(refreshToken))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
