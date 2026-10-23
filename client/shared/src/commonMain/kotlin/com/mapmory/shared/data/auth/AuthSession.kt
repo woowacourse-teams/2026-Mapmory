@@ -57,7 +57,6 @@ internal class GuestSessionManager(
     private var didLoadStoredTokens = false
     private var isAuthenticated = false
     private var pendingPersistence = false
-    private var refreshFailure: Throwable? = null
     private var tokens: AuthTokens? = null
     private var didReportRefreshFailure = false
 
@@ -65,7 +64,6 @@ internal class GuestSessionManager(
 
     suspend fun ensureAuthenticated(): Result<Unit> = authenticationMutex.withLock {
         if (pendingPersistence) return@withLock persistTokens()
-        refreshFailure?.let { return@withLock Result.failure(it) }
         if (isAuthenticated) return@withLock Result.success(Unit)
 
         if (!didLoadStoredTokens) {
@@ -84,7 +82,7 @@ internal class GuestSessionManager(
         }
 
         val authentication = tokens
-            ?.let { refreshOnce(it.refreshToken) }
+            ?.let { gateway.refresh(it.refreshToken) }
             ?: gateway.loginAsGuest()
 
         authentication.fold(
@@ -116,9 +114,7 @@ internal class GuestSessionManager(
                 return@withLock Result.success(Unit)
             }
 
-            refreshFailure?.let { return@withLock Result.failure(it) }
-
-            refreshOnce(currentTokens.refreshToken).fold(
+            gateway.refresh(currentTokens.refreshToken).fold(
                 onSuccess = { issuedTokens ->
                     acceptIssuedTokens(issuedTokens)
                 },
@@ -128,21 +124,6 @@ internal class GuestSessionManager(
                 },
             )
         }
-
-    /**
-     * A failed/cancelled refresh may already have rotated the server token. Do not replay it
-     * from queued requests or polling during this app session. Keep the stored identity so
-     * a later app session can recover through the server's response-loss recovery policy.
-     */
-    private suspend fun refreshOnce(refreshToken: String): Result<AuthTokens> = try {
-        gateway.refresh(refreshToken).also { result ->
-            result.exceptionOrNull()?.let { refreshFailure = it }
-        }
-    } catch (error: Exception) {
-        refreshFailure = error
-        if (error is kotlinx.coroutines.CancellationException) throw error
-        Result.failure(error)
-    }
 
     private fun acceptIssuedTokens(issuedTokens: AuthTokens): Result<Unit> {
         // A rotated refresh token must never be replaced by the old in-memory token on disk failure.
