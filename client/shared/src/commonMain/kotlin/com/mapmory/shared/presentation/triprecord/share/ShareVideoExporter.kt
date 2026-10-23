@@ -6,7 +6,7 @@ import androidx.compose.ui.Modifier
 internal data class ShareVideoFile(val path: String)
 
 internal interface ShareVideoExporter {
-    suspend fun download(url: String): ShareVideoFile
+    suspend fun download(url: String, jobId: Long): ShareVideoFile
     suspend fun save(video: ShareVideoFile)
     suspend fun share(video: ShareVideoFile)
 }

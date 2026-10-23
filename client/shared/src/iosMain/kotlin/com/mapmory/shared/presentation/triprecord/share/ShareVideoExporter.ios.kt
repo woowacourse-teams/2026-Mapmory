@@ -85,10 +85,10 @@ internal actual fun rememberShareVideoExporter(): ShareVideoExporter = remember 
 private val iosVideoDownloader by lazy { IosVideoDownloader() }
 
 private class IosShareVideoExporter : ShareVideoExporter {
-    override suspend fun download(url: String): ShareVideoFile {
+    override suspend fun download(url: String, jobId: Long): ShareVideoFile {
         val remoteUrl = checkNotNull(NSURL.URLWithString(url)) { "영상 다운로드 주소가 올바르지 않아요." }
         check(remoteUrl.scheme.equals("https", ignoreCase = true)) { "안전한 영상 다운로드 주소가 아니에요." }
-        return iosVideoDownloader.download(remoteUrl)
+        return iosVideoDownloader.download(remoteUrl, jobId)
     }
 
     override suspend fun save(video: ShareVideoFile) {
@@ -149,11 +149,20 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
         NSOperationQueue.mainQueue(),
     )
 
-    suspend fun download(url: NSURL): ShareVideoFile = withContext(Dispatchers.Main) {
+    suspend fun download(url: NSURL, jobId: Long): ShareVideoFile = withContext(Dispatchers.Main) {
+        val cache = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+            .firstOrNull() as? String ?: error("영상을 저장할 공간을 찾지 못했어요.")
+        val directory = "$cache/shared-videos"
+        val manager = NSFileManager.defaultManager
+        check(manager.createDirectoryAtPath(directory, true, null, null)) {
+            "영상을 저장할 공간을 만들지 못했어요."
+        }
+        val path = "$directory/Mapmory-$jobId.mp4"
+        if (manager.fileExistsAtPath(path)) return@withContext ShareVideoFile(path)
         suspendCancellableCoroutine { continuation ->
             val task = session.downloadTaskWithURL(url)
             val id = NSUUID().UUIDString
-            task.taskDescription = id
+            task.taskDescription = "$id:$jobId"
             waiters[id] = continuation
             continuation.invokeOnCancellation {
                 waiters.remove(id)
@@ -168,7 +177,9 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
         downloadTask: NSURLSessionDownloadTask,
         didFinishDownloadingToURL: NSURL,
     ) {
-        val id = downloadTask.taskDescription ?: return
+        val taskDescription = downloadTask.taskDescription ?: return
+        val id = taskDescription.substringBefore(':')
+        val jobId = taskDescription.substringAfter(':').toLongOrNull() ?: return
         val continuation = waiters.remove(id) ?: return
         val response = downloadTask.response as? NSHTTPURLResponse
         if (response == null || response.statusCode !in 200..299 ||
@@ -177,19 +188,18 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
             continuation.resumeWithException(IllegalStateException("영상을 다운로드하지 못했어요. 다시 시도해 주세요."))
             return
         }
-        val cache = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
-            .firstOrNull() as? String
-        if (cache == null) {
-            continuation.resumeWithException(IllegalStateException("영상을 저장할 공간을 찾지 못했어요."))
-            return
-        }
-        val directory = "$cache/shared-videos"
         val manager = NSFileManager.defaultManager
+        val cache = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+            .firstOrNull() as? String ?: run {
+                continuation.resumeWithException(IllegalStateException("영상을 저장할 공간을 찾지 못했어요."))
+                return
+            }
+        val directory = "$cache/shared-videos"
         if (!manager.createDirectoryAtPath(directory, true, null, null)) {
             continuation.resumeWithException(IllegalStateException("영상을 저장할 공간을 만들지 못했어요."))
             return
         }
-        val path = "$directory/Mapmory-${NSUUID().UUIDString}.mp4"
+        val path = "$directory/Mapmory-$jobId.mp4"
         if (!manager.moveItemAtPath(didFinishDownloadingToURL.path ?: "", path, null)) {
             continuation.resumeWithException(IllegalStateException("다운로드한 영상을 저장하지 못했어요."))
             return
@@ -199,9 +209,9 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
 
     override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: platform.Foundation.NSError?) {
         if (didCompleteWithError == null) return
-        val id = task.taskDescription ?: return
+        val id = task.taskDescription?.substringBefore(':') ?: return
         waiters.remove(id)?.resumeWithException(
-            IllegalStateException("영상을 다운로드하지 못했어요. 다시 시도해 주세요."),
+            IllegalStateException("인터넷 연결이 끊겨 영상을 다운로드하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요."),
         )
     }
 }

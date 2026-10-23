@@ -19,6 +19,8 @@ import com.mapmory.shared.data.settings.IosOnboardingPreference
 import com.mapmory.shared.data.settings.IosShareVideoJobStore
 import com.mapmory.shared.data.settings.IosTeamDevicePreference
 import com.mapmory.shared.data.settings.IosThemePreference
+import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.logging.mapmoryDebugLog
 import kotlin.experimental.ExperimentalNativeApi
 
 private var iosContainer: com.mapmory.shared.app.AppContainer? = null
@@ -46,7 +48,12 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
         teamDevicePreference = IosTeamDevicePreference(),
         shareVideoJobStore = IosShareVideoJobStore(apiBaseUrl),
         onAuthRefreshFailed = { stage, error ->
-            if (!Platform.isDebugBinary) {
+            if (Platform.isDebugBinary) {
+                val reason = (error as? MapmoryApiException)
+                    ?.let { "HTTP ${it.statusCode} ${it.code}" }
+                    ?: (error::class.simpleName ?: "unknown")
+                mapmoryDebugLog("MapmoryAuth", "refresh failed stage=$stage: $reason")
+            } else {
                 iosAnalytics.logEvent(
                     MapmoryAnalyticsEvent.AUTH_SESSION_REFRESH_FAILED,
                     mapOf(

@@ -93,11 +93,13 @@ private class AndroidShareVideoExporter(
     private val context: Context,
     private val requestPermission: suspend (String) -> Boolean,
 ) : ShareVideoExporter {
-    override suspend fun download(url: String): ShareVideoFile = withContext(Dispatchers.IO) {
+    override suspend fun download(url: String, jobId: Long): ShareVideoFile = withContext(Dispatchers.IO) {
         val directory = File(context.cacheDir, "shared-videos").apply { mkdirs() }
         directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000L }
             ?.forEach { it.delete() }
-        val file = File(directory, "Mapmory-${UUID.randomUUID()}.mp4")
+        val file = File(directory, "Mapmory-$jobId.mp4")
+        if (file.isFile && file.length() > 0L) return@withContext ShareVideoFile(file.absolutePath)
+        file.delete()
         val connection = (URL(url).openConnection() as? HttpsURLConnection)
             ?: error("안전한 영상 다운로드 주소가 아니에요.")
         try {

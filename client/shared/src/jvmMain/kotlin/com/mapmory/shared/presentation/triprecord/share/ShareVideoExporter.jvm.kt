@@ -20,7 +20,7 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
 @Composable
 internal actual fun rememberShareVideoExporter(): ShareVideoExporter = remember {
     object : ShareVideoExporter {
-        override suspend fun download(url: String): ShareVideoFile =
+        override suspend fun download(url: String, jobId: Long): ShareVideoFile =
             error("영상 다운로드는 Android와 iOS 앱에서 사용할 수 있어요.")
 
         override suspend fun save(video: ShareVideoFile) {

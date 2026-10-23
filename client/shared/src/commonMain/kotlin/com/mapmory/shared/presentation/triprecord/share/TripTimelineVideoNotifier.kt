@@ -5,7 +5,11 @@ import androidx.compose.runtime.Composable
 internal interface TripTimelineVideoNotifier {
     fun requestPermissionIfNeeded()
 
-    fun showReady(jobId: Long)
+    fun showProgress(jobId: Long)
+
+    fun clearProgress(jobId: Long)
+
+    suspend fun showReady(jobId: Long): Boolean
 }
 
 @Composable

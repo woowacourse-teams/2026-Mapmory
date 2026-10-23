@@ -9,6 +9,10 @@ data class ShareVideoJobState(
     val jobId: Long? = null,
     val status: ShareVideoStatus? = null,
     val notifiedJobId: Long? = null,
+    val statusCheckError: String? = null,
+    val startedAtEpochMillis: Long? = null,
+    val isCreationRequestInProgress: Boolean = false,
+    val statusCheckRetryCount: Int = 0,
 )
 
 interface ShareVideoJobStore {
@@ -16,9 +20,17 @@ interface ShareVideoJobStore {
 
     fun loadJobId(): Long?
 
-    fun saveJobId(jobId: Long)
+    fun saveJobId(jobId: Long, startedAtEpochMillis: Long)
+
+    fun tryStartCreationRequest(): Boolean
+
+    fun finishCreationRequest()
 
     fun updateStatus(status: ShareVideoStatus)
+
+    fun updateStatusCheckError(message: String)
+
+    fun retryStatusCheck()
 
     fun markCompletionNotified(jobId: Long)
 
@@ -33,13 +45,41 @@ class MemoryShareVideoJobStore : ShareVideoJobStore {
 
     override fun loadJobId(): Long? = state.value.jobId
 
-    override fun saveJobId(jobId: Long) {
+    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long) {
         require(jobId > 0L)
-        mutableState.value = state.value.copy(jobId = jobId, status = null)
+        mutableState.value = state.value.copy(
+            jobId = jobId,
+            status = null,
+            statusCheckError = null,
+            startedAtEpochMillis = startedAtEpochMillis,
+            isCreationRequestInProgress = false,
+        )
+    }
+
+    override fun tryStartCreationRequest(): Boolean {
+        while (true) {
+            val current = mutableState.value
+            if (current.isCreationRequestInProgress ||
+                (current.jobId != null && current.status != ShareVideoStatus.FAILED)
+            ) return false
+            if (mutableState.compareAndSet(current, current.copy(isCreationRequestInProgress = true))) return true
+        }
+    }
+
+    override fun finishCreationRequest() {
+        mutableState.value = state.value.copy(isCreationRequestInProgress = false)
     }
 
     override fun updateStatus(status: ShareVideoStatus) {
-        mutableState.value = state.value.copy(status = status)
+        mutableState.value = state.value.copy(status = status, statusCheckError = null)
+    }
+
+    override fun updateStatusCheckError(message: String) {
+        mutableState.value = state.value.copy(statusCheckError = message)
+    }
+
+    override fun retryStatusCheck() {
+        mutableState.value = state.value.copy(statusCheckRetryCount = state.value.statusCheckRetryCount + 1)
     }
 
     override fun markCompletionNotified(jobId: Long) {
@@ -50,6 +90,12 @@ class MemoryShareVideoJobStore : ShareVideoJobStore {
         state.value.notifiedJobId == jobId
 
     override fun clear() {
-        mutableState.value = state.value.copy(jobId = null, status = null)
+        mutableState.value = state.value.copy(
+            jobId = null,
+            status = null,
+            statusCheckError = null,
+            startedAtEpochMillis = null,
+            isCreationRequestInProgress = false,
+        )
     }
 }

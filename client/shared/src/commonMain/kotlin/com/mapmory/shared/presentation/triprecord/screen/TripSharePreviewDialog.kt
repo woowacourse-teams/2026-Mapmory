@@ -165,14 +165,12 @@ internal fun TripRecordSharePoster(
 internal fun TripArchiveSharePreviewDialog(
     statistics: TripStatisticsUiModel,
     onDismiss: () -> Unit,
-    onCreateVideo: (() -> Unit)? = null,
 ) {
     SharePreviewDialog(
         title = "나의 여행 공유",
         pageTitles = listOf("나의 여행 통계"),
+        pageTitleAbovePreview = true,
         onDismiss = onDismiss,
-        secondaryActionLabel = onCreateVideo?.let { "여행 타임라인 영상 만들기" },
-        onSecondaryAction = { onCreateVideo?.invoke() },
     ) { _, modifier ->
         ArchivePoster(statistics, modifier)
     }
@@ -221,8 +219,6 @@ private fun SharePreviewDialog(
     pageTitleAbovePreview: Boolean = false,
     photoSelector: (@Composable () -> Unit)? = null,
     onDismiss: () -> Unit,
-    secondaryActionLabel: String? = null,
-    onSecondaryAction: () -> Unit = {},
     poster: @Composable (Int, Modifier) -> Unit,
 ) {
     val pagerState = rememberPagerState(pageCount = { pageTitles.size })
@@ -362,14 +358,6 @@ private fun SharePreviewDialog(
                     ) {
                         Text("다시 시도", color = Color(0xFF9CC5AB))
                     }
-                }
-            }
-            secondaryActionLabel?.let { label ->
-                TextButton(
-                    onClick = onSecondaryAction,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) {
-                    Text(label, color = Color(0xFFD2DFD7), fontWeight = FontWeight.SemiBold)
                 }
             }
             feedback?.takeIf { currentCapture?.hasFailedPhotos != true }?.let { message ->

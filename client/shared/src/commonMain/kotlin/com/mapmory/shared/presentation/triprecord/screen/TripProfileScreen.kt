@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
@@ -31,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,9 +72,15 @@ fun TripProfileScreen(
 ) {
     var showSharePreview by rememberSaveable { mutableStateOf(false) }
     var showTimelineVideo by rememberSaveable { mutableStateOf(false) }
+    val videoCreationScope = rememberCoroutineScope()
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
-            StatisticsHeader(onShareClick = { showSharePreview = true })
+            StatisticsHeader(
+                onShareClick = { showSharePreview = true },
+                onTimelineVideoClick = if (shareVideoRepository != null) {
+                    { showTimelineVideo = true }
+                } else null,
+            )
 
             when (statisticsUiState) {
                 TripStatisticsUiState.Loading -> TripProfileSkeleton(Modifier.weight(1f))
@@ -119,22 +128,23 @@ fun TripProfileScreen(
         TripArchiveSharePreviewDialog(
             statistics = statistics,
             onDismiss = { showSharePreview = false },
-            onCreateVideo = if (shareVideoRepository != null) {
-                { showSharePreview = false; showTimelineVideo = true }
-            } else null,
         )
     }
     if (showTimelineVideo && shareVideoRepository != null) {
         TripTimelineVideoDialog(
             repository = shareVideoRepository,
             jobStore = shareVideoJobStore ?: remember { MemoryShareVideoJobStore() },
+            creationScope = videoCreationScope,
             onDismiss = { showTimelineVideo = false },
         )
     }
 }
 
 @Composable
-private fun StatisticsHeader(onShareClick: () -> Unit) {
+private fun StatisticsHeader(
+    onShareClick: () -> Unit,
+    onTimelineVideoClick: (() -> Unit)?,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
@@ -156,10 +166,26 @@ private fun StatisticsHeader(onShareClick: () -> Unit) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        TripSharePreviewButton(
-            contentDescription = "나의 여행 공유 미리보기",
-            onClick = onShareClick,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (onTimelineVideoClick != null) {
+                Button(
+                    onClick = onTimelineVideoClick,
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TripRecordPalette.current.primarySoft,
+                        contentColor = TripRecordPalette.current.primary,
+                    ),
+                ) {
+                    Text("영상 만들기", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+            TripSharePreviewButton(
+                contentDescription = "나의 여행 공유 미리보기",
+                onClick = onShareClick,
+            )
+        }
     }
 }
 

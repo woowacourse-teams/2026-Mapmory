@@ -10,24 +10,55 @@ class IosShareVideoJobStore(apiBaseUrl: String) : ShareVideoJobStore {
     private val preferences = NSUserDefaults.standardUserDefaults
     private val key = "mapmory_share_video_job_id:${apiBaseUrl.trimEnd('/')}"
     private val notifiedKey = "mapmory_share_video_notified_job_id:${apiBaseUrl.trimEnd('/')}"
+    private val startedAtKey = "mapmory_share_video_started_at:${apiBaseUrl.trimEnd('/')}"
     private val mutableState = MutableStateFlow(
         ShareVideoJobState(
             jobId = preferences.integerForKey(key).takeIf { it > 0L },
             notifiedJobId = preferences.integerForKey(notifiedKey).takeIf { it > 0L },
+            startedAtEpochMillis = preferences.integerForKey(startedAtKey).takeIf { it > 0L },
         ),
     )
     override val state: StateFlow<ShareVideoJobState> = mutableState.asStateFlow()
 
     override fun loadJobId(): Long? = state.value.jobId
 
-    override fun saveJobId(jobId: Long) {
+    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long) {
         require(jobId > 0L)
         preferences.setInteger(jobId, forKey = key)
-        mutableState.value = state.value.copy(jobId = jobId, status = null)
+        preferences.setInteger(startedAtEpochMillis, forKey = startedAtKey)
+        mutableState.value = state.value.copy(
+            jobId = jobId,
+            status = null,
+            statusCheckError = null,
+            startedAtEpochMillis = startedAtEpochMillis,
+            isCreationRequestInProgress = false,
+        )
+    }
+
+    override fun tryStartCreationRequest(): Boolean {
+        while (true) {
+            val current = mutableState.value
+            if (current.isCreationRequestInProgress ||
+                (current.jobId != null && current.status != ShareVideoStatus.FAILED)
+            ) return false
+            if (mutableState.compareAndSet(current, current.copy(isCreationRequestInProgress = true))) return true
+        }
+    }
+
+    override fun finishCreationRequest() {
+        mutableState.value = state.value.copy(isCreationRequestInProgress = false)
     }
 
     override fun updateStatus(status: ShareVideoStatus) {
-        mutableState.value = state.value.copy(status = status)
+        mutableState.value = state.value.copy(status = status, statusCheckError = null)
+    }
+
+    override fun updateStatusCheckError(message: String) {
+        mutableState.value = state.value.copy(statusCheckError = message)
+    }
+
+    override fun retryStatusCheck() {
+        mutableState.value = state.value.copy(statusCheckRetryCount = state.value.statusCheckRetryCount + 1)
     }
 
     override fun markCompletionNotified(jobId: Long) {
@@ -40,6 +71,13 @@ class IosShareVideoJobStore(apiBaseUrl: String) : ShareVideoJobStore {
 
     override fun clear() {
         preferences.removeObjectForKey(key)
-        mutableState.value = state.value.copy(jobId = null, status = null)
+        preferences.removeObjectForKey(startedAtKey)
+        mutableState.value = state.value.copy(
+            jobId = null,
+            status = null,
+            statusCheckError = null,
+            startedAtEpochMillis = null,
+            isCreationRequestInProgress = false,
+        )
     }
 }
