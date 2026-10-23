@@ -72,6 +72,7 @@ internal fun MapmoryAsyncImage(
     sharedCornerRadius: Dp = 18.dp,
     onClick: (() -> Unit)? = null,
     onReadyChanged: (Boolean) -> Unit = {},
+    onLoadFailed: () -> Unit = {},
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var reportedFailure by remember(imageBytes, imageUri, fallbackBytes, fallbackUri) { mutableStateOf(false) }
@@ -102,7 +103,11 @@ internal fun MapmoryAsyncImage(
     var imageLoaded by remember(model, cacheKey, animateRetainedPhoto) { mutableStateOf(false) }
     val isReady = imageLoaded || animateRetainedPhoto
     val latestOnReadyChanged by rememberUpdatedState(onReadyChanged)
+    val latestOnLoadFailed by rememberUpdatedState(onLoadFailed)
     LaunchedEffect(isReady) { latestOnReadyChanged(isReady) }
+    LaunchedEffect(model) {
+        if (model == null) latestOnLoadFailed()
+    }
     val context = LocalPlatformContext.current
     val request = remember(context, model, cacheKey, useFallback, blackLoadingBackground, decodeOriginalSize) {
         ImageRequest.Builder(context).data(model).apply {
@@ -194,9 +199,12 @@ internal fun MapmoryAsyncImage(
                         showPlaceholder = true
                         if (!useFallback && primaryModel != null && fallbackModel != null && fallbackModel != primaryModel) {
                             useFallback = true
-                        } else if (!reportedFailure) {
-                            reportedFailure = true
-                            analytics.reportFailure("photo_display", state.result.throwable)
+                        } else {
+                            latestOnLoadFailed()
+                            if (!reportedFailure) {
+                                reportedFailure = true
+                                analytics.reportFailure("photo_display", state.result.throwable)
+                            }
                         }
                     },
                 )

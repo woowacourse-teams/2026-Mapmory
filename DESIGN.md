@@ -143,3 +143,14 @@
 - [x] LINE Seed Sans KR Regular/Bold를 Compose Multiplatform 공통 리소스로 적용하고 앱과 랜딩의 기본 서체를 통일
 - [ ] 소개형 온보딩과 지도 코치 마크의 완료 여부 저장 위치 및 다시 보기 제공 여부 결정
 - [ ] 앱의 4개 탭과 웹 프로토타입의 3개 탭 중 최종 정보 구조 확정
+
+## Single-record SNS share cards
+
+- Scope: 일지 상세에서 기록 한 개를 공유하는 4:5 카드. 전체 여행 공유와 구분한다.
+- Evidence: `TripSharePreviewDialog.kt`, `TripShareEditorialPosters.kt`, `.omx/outputs/sns-share-flow-concepts/index.html`.
+- Hierarchy: 실제 여행 사진 → 지역명 → 실제 날짜 → 작은 Mapmory 서명. 제목은 지역명과 다를 때만 보조로 표시한다.
+- Typography: 앱의 LINE Seed Sans KR을 유지한다. 큰 지역명은 최대 두 줄, 날짜는 별도 행으로 두어 사진 수와 경쟁하지 않게 한다.
+- Palette: 사진 색을 보존하고 종이는 `#F8F7F3`, 잉크는 짙은 초록, 포인트는 기존 Mapmory 초록을 작게 사용한다.
+- Decoration: 가짜 도장, 바코드, 회전 프레임, 자동 생성 감성 문구를 넣지 않는다. 티켓은 절취선과 정보 계층으로 표현한다.
+- Photo states: 사진 수에 맞춰 구도를 바꾸고 없는 사진을 복제하지 않는다. 대표 사진은 기존 정렬 순서를 따른다. 일부 사진만 표시할 때 전체 사진 수와 표시 수를 혼동하지 않는다.
+- Export: 미리보기와 내보내기는 같은 Compose 레이아웃을 사용한다. 이미지 저장, 시스템 공유, 인디케이터 선택을 유지한다.

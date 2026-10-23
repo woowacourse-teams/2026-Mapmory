@@ -10,6 +10,7 @@ import com.mapmory.shared.presentation.components.LocalMapmoryImageTransitionSco
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -126,6 +127,7 @@ fun TripRecordDetailScreen(
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     var showDetailActions by rememberSaveable { mutableStateOf(false) }
     var expandedPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var forwardPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -224,6 +226,7 @@ fun TripRecordDetailScreen(
                                 groups = groups,
                                 scrollState = albumScrollState,
                                 onBackClick = onBackClick,
+                                onShareClick = { showSharePreview = true },
                                 onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
@@ -235,6 +238,7 @@ fun TripRecordDetailScreen(
                                 columnCount = photoColumns,
                                 onColumnCountChange = { photoColumns = it },
                                 onBackClick = onBackClick,
+                                onShareClick = { showSharePreview = true },
                                 onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
@@ -243,6 +247,14 @@ fun TripRecordDetailScreen(
                 }
             }
         }
+    }
+
+    val shareRecord = (uiState as? TripRecordDetailUiState.Success)?.record
+    if (showSharePreview && shareRecord != null) {
+        TripRecordSharePreviewDialog(
+            record = shareRecord,
+            onDismiss = { showSharePreview = false },
+        )
     }
 
     if (showDetailActions) {
@@ -297,6 +309,7 @@ private fun TripRecordPhotoAlbum(
     record: TripRecordItemUiState,
     groups: List<TripRecordPhotoGroup>,
     onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
     onActionMenuOpen: () -> Unit,
     scrollState: LazyListState,
     columnCount: Int,
@@ -316,7 +329,15 @@ private fun TripRecordPhotoAlbum(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onClick = onActionMenuOpen) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TripSharePreviewButton(
+                        contentDescription = "여행 기록 공유 미리보기",
+                        onClick = onShareClick,
+                    )
+                    DetailMoreButton(onClick = onActionMenuOpen)
+                }
+            },
         )
         BoxWithConstraints(
             modifier = Modifier
@@ -494,6 +515,7 @@ private fun TripRecordPhotoTimeline(
     groups: List<TripRecordPhotoGroup>,
     scrollState: LazyListState,
     onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
     onActionMenuOpen: () -> Unit,
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
@@ -533,7 +555,15 @@ private fun TripRecordPhotoTimeline(
         TripRecordTopBar(
             title = "",
             onBackClick = onBackClick,
-            trailing = { DetailMoreButton(onClick = onActionMenuOpen) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TripSharePreviewButton(
+                        contentDescription = "여행 기록 공유 미리보기",
+                        onClick = onShareClick,
+                    )
+                    DetailMoreButton(onClick = onActionMenuOpen)
+                }
+            },
         )
         LazyColumn(
             state = scrollState,

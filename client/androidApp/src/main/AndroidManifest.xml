@@ -35,6 +35,15 @@
         android:icon="@drawable/mapmory_icon"
         android:roundIcon="@drawable/mapmory_icon"
         android:theme="@style/Theme.Mapmory">
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.share-images"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_image_paths" />
+        </provider>
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />
         <activity
             android:name=".MainActivity"

@@ -28,7 +28,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,9 +61,10 @@ fun TripProfileScreen(
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
+    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
-            StatisticsHeader()
+            StatisticsHeader(onShareClick = { showSharePreview = true })
 
             when (statisticsUiState) {
                 TripStatisticsUiState.Loading -> TripProfileSkeleton(Modifier.weight(1f))
@@ -101,10 +106,17 @@ fun TripProfileScreen(
             )
         }
     }
+    val statistics = (statisticsUiState as? TripStatisticsUiState.Success)?.statistics
+    if (showSharePreview && statistics != null) {
+        TripArchiveSharePreviewDialog(
+            statistics = statistics,
+            onDismiss = { showSharePreview = false },
+        )
+    }
 }
 
 @Composable
-private fun StatisticsHeader() {
+private fun StatisticsHeader(onShareClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
@@ -126,6 +138,10 @@ private fun StatisticsHeader() {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
+        TripSharePreviewButton(
+            contentDescription = "나의 여행 공유 미리보기",
+            onClick = onShareClick,
+        )
     }
 }
 

@@ -27,6 +27,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -73,6 +75,10 @@ fun TripRecordListScreen(
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    var shareRecords by remember { mutableStateOf<List<TripRecordItemUiState>?>(null) }
+    shareRecords?.let { records ->
+        TripCollectionSharePreviewDialog(records, onDismiss = { shareRecords = null })
+    }
     val hasScrollableRecordList = (uiState as? TripRecordListUiState.Success)
         ?.let { it.records.isNotEmpty() || pendingSaves.isNotEmpty() } == true
     TripRecordBackground(
@@ -84,6 +90,8 @@ fun TripRecordListScreen(
                 recordCount = ((uiState as? TripRecordListUiState.Success)?.records?.size ?: 0) +
                     pendingSaves.size,
                 isTimelineLayout = isTimelineLayout,
+                onShareClick = (uiState as? TripRecordListUiState.Success)?.records
+                    ?.takeIf { it.isNotEmpty() }?.let { records -> { shareRecords = records } },
             )
 
             Box(
@@ -340,7 +348,7 @@ private fun TripRecordLoadError(
 }
 
 @Composable
-private fun JournalHeader(recordCount: Int, isTimelineLayout: Boolean) {
+private fun JournalHeader(recordCount: Int, isTimelineLayout: Boolean, onShareClick: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -374,12 +382,17 @@ private fun JournalHeader(recordCount: Int, isTimelineLayout: Boolean) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Text(
-            text = "${recordCount}개",
-            color = TripRecordPalette.current.secondaryText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "${recordCount}개",
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            if (onShareClick != null) {
+                TripSharePreviewButton("불러온 여행 모음 공유", onShareClick)
+            }
+        }
     }
 }
 
