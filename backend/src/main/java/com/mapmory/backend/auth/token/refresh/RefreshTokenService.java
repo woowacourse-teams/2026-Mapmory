@@ -97,7 +97,7 @@ public class RefreshTokenService {
             refreshToken.revoke(now);
             return Optional.empty();
         }
-        return Optional.of(replace(now, refreshToken));
+        return Optional.of(replace(refreshToken, now));
     }
 
     /**
@@ -116,19 +116,21 @@ public class RefreshTokenService {
         }
         return refreshTokenRepository.findByIdForUpdate(revoked.getReplacedById())
                 .filter(successor -> !successor.isRevoked() && !successor.isExpired(now))
-                .map(unused -> replace(now, unused, revoked));
+                .map(unused -> {
+                    RotatedRefreshToken reissued = replace(unused, now);
+                    revoked.followSuccessorOf(unused);
+                    return reissued;
+                });
     }
 
-    // 새 토큰을 발급하고, 주어진 토큰들이 모두 새 토큰을 후속으로 가리키게 한다.
+    // 새 토큰을 발급하고, current를 폐기해 새 토큰을 후속으로 가리키게 한다.
     // 새 토큰을 먼저 저장해야(IDENTITY) id가 생겨 후속으로 기록할 수 있다.
-    private RotatedRefreshToken replace(LocalDateTime now, RefreshToken... replaced) {
-        Member member = replaced[0].getMember();
+    private RotatedRefreshToken replace(RefreshToken current, LocalDateTime now) {
+        Member member = current.getMember();
         String rawToken = generateRawToken();
         RefreshToken successor = RefreshToken.issue(member, hash(rawToken), now.plus(validityFor(member)));
         refreshTokenRepository.save(successor);
-        for (RefreshToken token : replaced) {
-            token.replaceWith(successor, now);
-        }
+        current.replaceWith(successor, now);
         return new RotatedRefreshToken(member.getId(), rawToken);
     }
 

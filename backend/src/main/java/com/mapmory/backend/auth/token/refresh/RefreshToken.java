@@ -74,13 +74,20 @@ public class RefreshToken {
     }
 
     /**
-     * 회전한다. 이미 폐기된 토큰이면 후속만 바꾼다(응답 유실 재발급 시 새 후속을 가리키게 한다).
+     * 회전한다. 폐기하고 후속 토큰을 가리킨다.
      */
     public void replaceWith(RefreshToken successor, LocalDateTime now) {
-        if (!isRevoked()) {
-            this.revokedAt = now;
-        }
+        this.revokedAt = now;
         this.replacedById = successor.id;
+    }
+
+    /**
+     * other와 같은 후속 토큰을 가리킨다.
+     *
+     * 응답 유실로 재발급할 때, 이전 토큰도 새 후속을 가리키게 해 유실이 반복돼도 이전 토큰으로 이어지게 한다. (ADR 0023)
+     */
+    public void followSuccessorOf(RefreshToken other) {
+        this.replacedById = other.replacedById;
     }
 
     public Long getReplacedById() {
