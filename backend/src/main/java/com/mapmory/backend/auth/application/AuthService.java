@@ -50,10 +50,7 @@ public class AuthService {
         SocialIdentity identity = socialIdentityPorts.verify(provider, token);
         SocialJoin join = memberJoinService.joinWithSocial(
                 provider, identity.providerId(), identity.name(), authenticatedMemberId);
-        if (join.leftGuest() != null) {
-            refreshTokenService.revokeAll(join.leftGuest());
-        }
-        return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED, join.leftGuest() != null);
+        return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED, join.guestAbandoned());
     }
 
     /**

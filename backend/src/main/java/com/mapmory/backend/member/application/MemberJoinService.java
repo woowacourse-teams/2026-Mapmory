@@ -37,7 +37,7 @@ public class MemberJoinService {
      * 탈퇴했거나 버려진 게스트의 남은 access token이 오면 게스트가 없는 것으로 보고 일반 로그인으로 처리한다. (ADR 0021)
      *
      * 이미 같은 소셜 계정으로 가입한 회원이 있으면 한 사람에게 회원 행이 둘인 상황이므로,
-     * 기존 회원을 우선하고 게스트는 leftGuest로 돌려준다. 이때 게스트가 남긴 기록은 이어지지 않는다.
+     * 기존 회원을 우선하고 guestAbandoned로 게스트를 두고 떠났음을 알린다. 이때 게스트가 남긴 기록은 이어지지 않는다.
      * (ADR 0015) 게스트는 버려진 게스트로 표시하고 GuestAbandoned를 발행한다. (ADR 0021)
      */
     @Transactional
@@ -47,13 +47,13 @@ public class MemberJoinService {
         Optional<Member> registered = memberRepository.findByProviderAndProviderId(provider, providerId);
         if (registered.isPresent()) {
             guest.ifPresent(this::abandon);
-            return new SocialJoin(registered.get(), SocialJoinType.EXISTING_ACCOUNT, guest.orElse(null));
+            return new SocialJoin(registered.get(), SocialJoinType.EXISTING_ACCOUNT, guest.isPresent());
         }
 
         if (guest.isPresent()) {
             Member promoted = guest.get();
             promoted.promote(provider, providerId, providerName, LocalDateTime.now(clock));
-            return new SocialJoin(promoted, SocialJoinType.PROMOTED, null);
+            return new SocialJoin(promoted, SocialJoinType.PROMOTED, false);
         }
 
         Member joined = memberRepository.save(Member.ofOAuth(
@@ -62,7 +62,7 @@ public class MemberJoinService {
                 MemberName.fromProvider(providerName),
                 UUID.randomUUID()
         ));
-        return new SocialJoin(joined, SocialJoinType.SOCIAL_JOINED, null);
+        return new SocialJoin(joined, SocialJoinType.SOCIAL_JOINED, false);
     }
 
     /**
