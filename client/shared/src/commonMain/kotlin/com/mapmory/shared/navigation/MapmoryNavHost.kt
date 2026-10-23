@@ -38,6 +38,7 @@ internal fun MapmoryNavHost(
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
+    showTimelineLayoutSwitcher: Boolean,
     isTimelineJournal: Boolean,
     onTimelineLayoutChange: (Boolean) -> Unit,
 ) {
@@ -108,7 +109,7 @@ internal fun MapmoryNavHost(
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
                 isTimelineLayout = isTimelineJournal,
-                showLayoutSwitcher = developerToolsInfo != null,
+                showLayoutSwitcher = showTimelineLayoutSwitcher,
                 onTimelineLayoutChange = onTimelineLayoutChange,
             )
         }

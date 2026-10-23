@@ -42,6 +42,7 @@ fun MapmoryApp(
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
+    showTimelineLayoutSwitcher: Boolean = developerToolsInfo != null,
     updateState: ForceUpdateState? = null,
     onRetryUpdateCheck: () -> Unit = {},
 ) {
@@ -132,6 +133,7 @@ fun MapmoryApp(
                             backHandlerRegistry = backHandlerRegistry,
                             contentWindowInsets = contentWindowInsets,
                             developerToolsInfo = developerToolsInfo,
+                            showTimelineLayoutSwitcher = showTimelineLayoutSwitcher,
                             isTimelineJournal = isTimelineJournal,
                             onTimelineLayoutChange = { isTimelineJournal = it },
                         )

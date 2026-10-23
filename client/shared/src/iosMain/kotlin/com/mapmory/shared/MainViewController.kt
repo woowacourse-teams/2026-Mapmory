@@ -66,7 +66,7 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
     ).also { iosContainer = it }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalNativeApi::class)
 fun MainViewController(
     apiBaseUrl: String,
     onThemeChanged: (Boolean) -> Unit,
@@ -89,6 +89,7 @@ fun MainViewController(
             contentWindowInsets = WindowInsets.safeDrawing,
             onThemeChanged = onThemeChanged,
             analytics = analytics,
+            showTimelineLayoutSwitcher = Platform.isDebugBinary,
         )
     }
 }

@@ -199,6 +199,7 @@ fun TripRecordDetailScreen(
 
             is TripRecordDetailUiState.Success -> {
                 val record = uiState.record
+                var selectedTimelineYear by rememberSaveable(record.id) { mutableStateOf("전체") }
                 val groups = remember(record.id, record.photos, record.startDate) {
                     groupTripRecordPhotosByDate(record.photos)
                 }
@@ -225,6 +226,8 @@ fun TripRecordDetailScreen(
                                 record = record,
                                 groups = groups,
                                 scrollState = albumScrollState,
+                                selectedYear = selectedTimelineYear,
+                                onSelectedYearChange = { selectedTimelineYear = it },
                                 onBackClick = onBackClick,
                                 onShareClick = { showSharePreview = true },
                                 onActionMenuOpen = { showDetailActions = true },
@@ -514,6 +517,8 @@ private fun TripRecordPhotoTimeline(
     record: TripRecordItemUiState,
     groups: List<TripRecordPhotoGroup>,
     scrollState: LazyListState,
+    selectedYear: String,
+    onSelectedYearChange: (String) -> Unit,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onActionMenuOpen: () -> Unit,
@@ -540,9 +545,8 @@ private fun TripRecordPhotoTimeline(
     val yearOptions = remember(availableYears, hasUndatedPhotos) {
         listOf("전체") + availableYears + if (hasUndatedPhotos) listOf("날짜 미정") else emptyList()
     }
-    var selectedYear by rememberSaveable(record.id) { mutableStateOf("전체") }
     LaunchedEffect(record.id, yearOptions) {
-        if (selectedYear !in yearOptions) selectedYear = "전체"
+        if (selectedYear !in yearOptions) onSelectedYearChange("전체")
     }
     val visibleGroups = remember(timelineGroups, selectedYear) {
         when (selectedYear) {
@@ -662,7 +666,7 @@ private fun TripRecordPhotoTimeline(
                                         .selectable(
                                             selected = selected,
                                             role = Role.RadioButton,
-                                            onClick = { selectedYear = year },
+                                            onClick = { onSelectedYearChange(year) },
                                         )
                                         .heightIn(min = 44.dp)
                                         .padding(horizontal = 14.dp),
