@@ -11,6 +11,74 @@ import kotlin.test.assertSame
 
 class GuestSessionManagerTest {
     @Test
+    fun newAppSessionCanRecoverUsingThePreservedIdentity() = runBlocking {
+        val stored = AuthTokens("old", "refresh")
+        val store = FakeAuthTokenStore(stored)
+        val failedGateway = FakeAuthGateway(refreshResult = Result.failure(IllegalStateException("response lost")))
+        GuestSessionManager(failedGateway, store).ensureAuthenticated()
+        val recovered = AuthTokens("new", "new-refresh")
+        val recoveryGateway = FakeAuthGateway(refreshResult = Result.success(recovered))
+        GuestSessionManager(recoveryGateway, store).ensureAuthenticated().getOrThrow()
+        assertEquals(listOf("refresh"), recoveryGateway.refreshTokens)
+        assertEquals(0, recoveryGateway.loginCount)
+        assertEquals(recovered, store.tokens)
+    }
+
+    @Test
+    fun failedStartupRefreshIsSharedByConcurrentAndPeriodicRequests() = runBlocking {
+        val failure = IllegalStateException("response lost")
+        val gateway = FakeAuthGateway(refreshResult = Result.failure(failure))
+        val stored = AuthTokens("old", "refresh")
+        val store = FakeAuthTokenStore(stored)
+        val session = GuestSessionManager(gateway, store)
+        coroutineScope {
+            List(10) { async { assertSame(failure, session.ensureAuthenticated().exceptionOrNull()) } }.awaitAll()
+        }
+        repeat(20) { session.ensureAuthenticated(); session.refreshAfterUnauthorized("old") }
+        assertEquals(1, gateway.refreshCount)
+        assertEquals(0, gateway.loginCount)
+        assertEquals(stored, store.tokens)
+    }
+
+    @Test
+    fun failedUnauthorizedRefreshIsSharedByConcurrentAndPeriodicRequests() = runBlocking {
+        val failure = IllegalStateException("INVALID_REFRESH_TOKEN")
+        val stored = AuthTokens("access", "refresh")
+        val gateway = FakeAuthGateway(loginResult = Result.success(stored), refreshResult = Result.failure(failure))
+        val store = FakeAuthTokenStore()
+        val session = GuestSessionManager(gateway, store)
+        session.ensureAuthenticated().getOrThrow()
+        coroutineScope {
+            List(10) { async { assertSame(failure, session.refreshAfterUnauthorized("access").exceptionOrNull()) } }.awaitAll()
+        }
+        assertSame(failure, session.ensureAuthenticated().exceptionOrNull())
+        assertEquals(1, gateway.refreshCount)
+        assertEquals(1, gateway.loginCount)
+        assertEquals(stored, store.tokens)
+    }
+
+    @Test
+    fun cancelledRefreshIsNotReplayedByTheNextRequest() = runBlocking {
+        var refreshCount = 0
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest() = Result.success(AuthTokens("access", "refresh"))
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                refreshCount++
+                throw kotlinx.coroutines.CancellationException("response lost")
+            }
+        }
+        val session = GuestSessionManager(gateway, FakeAuthTokenStore())
+        session.ensureAuthenticated().getOrThrow()
+        try {
+            session.refreshAfterUnauthorized("access")
+            kotlin.test.fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+        kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+        kotlin.test.assertTrue(session.refreshAfterUnauthorized("access").isFailure)
+        assertEquals(1, refreshCount)
+    }
+
+    @Test
     fun unauthorizedRotationWithFailedDiskWriteRetriesPersistenceNotTheConsumedRefreshToken() = runBlocking {
         var failWrites = false
         var saved: AuthTokens? = null
