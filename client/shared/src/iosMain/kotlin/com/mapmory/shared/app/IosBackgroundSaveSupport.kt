@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.UIKit.UIApplication
 import platform.UIKit.UIBackgroundTaskInvalid
+import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 
 internal var iosBackgroundSaves: kotlinx.coroutines.flow.StateFlow<List<BackgroundTripRecordSave>>? = null
 
@@ -15,7 +16,9 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
     override fun attach(saver: BackgroundTripRecordSaver) { iosBackgroundSaves = saver.saves }
     private var lastNotificationBucket = -1
     override fun onProgress(save: BackgroundTripRecordSave) {
-        if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive) return
+        if (!isPhotoRecordCompletionNotificationEnabled() ||
+            UIApplication.sharedApplication.applicationState == UIApplicationStateActive
+        ) return
         val bucket = save.progressPercent / 20
         if (bucket == lastNotificationBucket) return
         lastNotificationBucket = bucket
@@ -29,13 +32,20 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
     }
     override val store = IosBackgroundSaveStore(namespace)
     override fun onQueued() {
-        UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(
-            UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
-        ) { _, _ -> }
+        if (!isPhotoRecordCompletionNotificationEnabled()) return
+        val center = UNUserNotificationCenter.currentNotificationCenter()
+        center.getNotificationSettingsWithCompletionHandler { settings ->
+            if (settings?.authorizationStatus == UNAuthorizationStatusNotDetermined) {
+                center.requestAuthorizationWithOptions(
+                    UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
+                ) { _, _ -> }
+            }
+        }
     }
     override fun onCompleted(save: BackgroundTripRecordSave) {
         lastNotificationBucket = -1
         UNUserNotificationCenter.currentNotificationCenter().removeDeliveredNotificationsWithIdentifiers(listOf("record-progress"))
+        if (!isPhotoRecordCompletionNotificationEnabled()) return
         val content = UNMutableNotificationContent().apply {
             setTitle("사진 업로드 완료")
             setBody("${save.locationName} 기록이 저장됐어요")

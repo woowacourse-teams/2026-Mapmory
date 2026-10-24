@@ -18,6 +18,7 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
+            entry.destination.hasRoute<TripAchievementsRoute>() -> TripAchievementsRoute
             entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
             else -> return false
         }
@@ -62,6 +63,12 @@ internal class MapmoryNavigator(
 
     fun navigateToProfile() {
         navigateToTab(ProfileRoute)
+    }
+
+    fun navigateToAchievements() {
+        if (navController.currentDestination?.hasRoute<TripAchievementsRoute>() == true) return
+        clearForwardHistory()
+        navController.navigate(TripAchievementsRoute)
     }
 
     fun navigateToSettings() {

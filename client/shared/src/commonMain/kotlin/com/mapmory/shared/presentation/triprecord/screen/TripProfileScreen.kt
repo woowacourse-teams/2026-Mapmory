@@ -63,6 +63,7 @@ fun TripProfileScreen(
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    onOpenAchievements: () -> Unit = {},
     onRetryClick: () -> Unit = {},
     showTravelAchievements: Boolean = false,
     shareVideoRepository: ShareVideoRepository? = null,
@@ -104,6 +105,7 @@ fun TripProfileScreen(
                 is TripStatisticsUiState.Success -> StatisticsContent(
                     statistics = statisticsUiState.statistics,
                     showTravelAchievements = showTravelAchievements,
+                    onOpenAchievements = onOpenAchievements,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -193,6 +195,7 @@ private fun StatisticsHeader(
 private fun StatisticsContent(
     statistics: TripStatisticsUiModel,
     showTravelAchievements: Boolean,
+    onOpenAchievements: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -205,7 +208,7 @@ private fun StatisticsContent(
     ) {
         item { PassportCard(statistics) }
         item { VisitProgressCard(statistics) }
-        if (showTravelAchievements) item { TripAchievementCollection(statistics) }
+        if (showTravelAchievements) item { TripAchievementCollection(statistics, onOpenAchievements) }
         item { RankingCard(statistics.topLocations) }
     }
 }

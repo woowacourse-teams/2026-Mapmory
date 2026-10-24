@@ -58,7 +58,10 @@ class IosShareVideoJobStore(apiBaseUrl: String) : ShareVideoJobStore {
     }
 
     override fun retryStatusCheck() {
-        mutableState.value = state.value.copy(statusCheckRetryCount = state.value.statusCheckRetryCount + 1)
+        mutableState.value = state.value.copy(
+            statusCheckError = null,
+            statusCheckRetryCount = state.value.statusCheckRetryCount + 1,
+        )
     }
 
     override fun markCompletionNotified(jobId: Long) {

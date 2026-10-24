@@ -25,6 +25,7 @@ import com.mapmory.shared.logging.mapmoryDebugLog
 import com.mapmory.shared.presentation.developer.DeveloperToolsScreen
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
+import com.mapmory.shared.presentation.triprecord.route.TripAchievementsScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
@@ -178,8 +179,26 @@ internal fun MapmoryNavHost(
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
+                onOpenAchievements = navigator::navigateToAchievements,
                 showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
             )
+        }
+
+        composable<TripAchievementsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            if (developerToolsInfo != null && isTravelAchievementsEnabled) {
+                val viewModel = viewModel {
+                    container.viewModelFactory.createTripStatisticsViewModel()
+                }
+                TripAchievementsScreenRoute(
+                    modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                    viewModel = viewModel,
+                    tripRecordRevision = tripRecordRevision,
+                    onBack = { navigator.navigateBack() },
+                )
+            } else {
+                LaunchedEffect(Unit) { navigator.navigateBack() }
+            }
         }
 
         composable<SettingsRoute> { backStackEntry ->
