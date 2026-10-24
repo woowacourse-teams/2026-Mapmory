@@ -691,7 +691,6 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 지역 코드 형식이 올바르지 않음, `page < 0`, `size`가 1 미만 또는 100 초과 |
-| `404` | `MEMBER_NOT_FOUND` | Access Token의 회원이 더 이상 존재하지 않음 |
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구 코드가 없음 |
 | `400` | `INVALID_REGION_HIERARCHY` | `provinceCode`에 `countryCode`가 없거나 `districtCode`에 `provinceCode`가 없음, 시도가 선택 국가의 직계 자식이 아니거나 시군구가 선택 시도의 직계 자식이 아님 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
