@@ -135,6 +135,54 @@ class GuestSessionManagerTest {
     }
 
     @Test
+    fun serverErrorsAreRetriedWithTheSameBoundedBackoff() = runBlocking {
+        var calls = 0
+        var now = 0L
+        var online = false
+        val waits = mutableListOf<Long>()
+        val gateway = object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("Must preserve identity")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                calls++
+                return if (online) {
+                    Result.success(AuthTokens("new", "new-refresh"))
+                } else {
+                    Result.failure(
+                        com.mapmory.shared.data.remote.MapmoryApiException(
+                            503,
+                            "SERVICE_UNAVAILABLE",
+                            null,
+                            null,
+                            null,
+                            emptyList(),
+                        ),
+                    )
+                }
+            }
+        }
+        val session = GuestSessionManager(
+            gateway,
+            FakeAuthTokenStore(AuthTokens("old", "refresh")),
+            retryDelay = { waits += it },
+            elapsedMillis = { now },
+        )
+
+        kotlin.test.assertTrue(session.ensureAuthenticated().isFailure)
+        repeat(20) { kotlin.test.assertTrue(session.ensureAuthenticated().isFailure) }
+
+        assertEquals(3, calls)
+        assertEquals(listOf(1_000L, 2_000L), waits)
+
+        online = true
+        now = 60_000L
+        session.ensureAuthenticated().getOrThrow()
+
+        assertEquals(4, calls)
+        assertEquals("new", session.getAccessToken())
+        session.close()
+    }
+
+    @Test
     fun cancellingCallerDoesNotCancelRotationOrOtherWaiters() = runBlocking {
         val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
         val release = kotlinx.coroutines.CompletableDeferred<Unit>()
