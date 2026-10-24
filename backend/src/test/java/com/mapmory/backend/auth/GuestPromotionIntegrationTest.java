@@ -35,7 +35,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @RecordApplicationEvents
 class GuestPromotionIntegrationTest extends IntegrationTest {
 
-    private static final String KAKAO_LOGIN_BODY = "{\"kakaoAccessToken\":\"kakao-token\"}";
+    private static final String KAKAO_LOGIN_BODY = "{\"idToken\":\"kakao-id-token\"}";
 
     @Autowired
     private MockMvc mockMvc;

@@ -5,14 +5,14 @@ import com.mapmory.backend.auth.application.port.SocialIdentityPort;
 import com.mapmory.backend.member.AuthProvider;
 import org.springframework.stereotype.Component;
 
-/** 카카오 access token으로 회원번호와 닉네임을 조회한다. (ADR 0010) */
+/** 카카오 ID token을 검증해 회원번호와 닉네임을 꺼낸다. (ADR 0024) */
 @Component
 public class KakaoIdentityAdapter implements SocialIdentityPort {
 
-    private final KakaoApiClient kakaoApiClient;
+    private final KakaoIdTokenVerifier kakaoIdTokenVerifier;
 
-    KakaoIdentityAdapter(KakaoApiClient kakaoApiClient) {
-        this.kakaoApiClient = kakaoApiClient;
+    KakaoIdentityAdapter(KakaoIdTokenVerifier kakaoIdTokenVerifier) {
+        this.kakaoIdTokenVerifier = kakaoIdTokenVerifier;
     }
 
     @Override
@@ -21,8 +21,8 @@ public class KakaoIdentityAdapter implements SocialIdentityPort {
     }
 
     @Override
-    public SocialIdentity verify(String kakaoAccessToken) {
-        KakaoUserResponse kakaoUser = kakaoApiClient.fetchUser(kakaoAccessToken);
-        return new SocialIdentity(Long.toString(kakaoUser.id()), kakaoUser.nickname());
+    public SocialIdentity verify(String idToken) {
+        KakaoUser kakaoUser = kakaoIdTokenVerifier.verify(idToken);
+        return new SocialIdentity(kakaoUser.subject(), kakaoUser.nickname());
     }
 }

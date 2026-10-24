@@ -175,7 +175,7 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
 
         String responseBody = mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"kakaoAccessToken\":\"kakao-token\"}"))
+                        .content("{\"idToken\":\"kakao-id-token\"}"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

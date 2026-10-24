@@ -22,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 class KakaoLoginIntegrationTest extends IntegrationTest {
 
-    private static final String REQUEST_BODY = "{\"kakaoAccessToken\":\"kakao-token\"}";
+    private static final String REQUEST_BODY = "{\"idToken\":\"kakao-id-token\"}";
 
     @Autowired
     private MockMvc mockMvc;

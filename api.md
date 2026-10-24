@@ -120,7 +120,7 @@
 
 | 방식 | 용도 | 요청 본문 |
 | --- | --- | --- |
-| 카카오 로그인 | 계정을 연결한 사용자 | 카카오 Access Token |
+| 카카오 로그인 | 계정을 연결한 사용자 | 카카오 ID Token |
 | 구글 로그인 | 계정을 연결한 사용자 | 구글 ID Token |
 | 애플 로그인 | 계정을 연결한 사용자 | 애플 identity token |
 | 게스트 로그인 | 로그인 없이 먼저 사용해보는 사용자 | 없음 |
@@ -159,11 +159,13 @@ Authorization: Bearer {accessToken}
 
 `POST /api/v1/auth/login/kakao`
 
-앱이 카카오 SDK로 받은 Access Token을 전달하면, 서버가 카카오에 검증한 뒤 Mapmory 토큰을 발급한다.
+앱이 카카오 SDK로 받은 **ID Token**을 전달하면, 서버가 카카오 공개키로 서명과 `iss`·`aud`·`exp`를 검증한 뒤
+Mapmory 토큰을 발급한다. Access Token이 아니라 ID Token을 보낸다. 카카오 콘솔에서 OpenID Connect가 켜져 있어야
+SDK 로그인 결과에 ID Token이 들어온다. 닉네임 동의항목에 동의하면 ID Token의 `nickname`을 이름으로 쓴다.
 
 ```json
 {
-  "kakaoAccessToken": "kakao-access-token"
+  "idToken": "kakao-id-token"
 }
 ```
 
@@ -314,14 +316,14 @@ Access Token이 아니라 ID Token을 보낸다.
 | --- | --- | --- |
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
-| `401` | `INVALID_KAKAO_TOKEN` | 카카오 Access Token이 유효하지 않음 |
+| `401` | `INVALID_KAKAO_TOKEN` | 카카오 ID Token이 유효하지 않음 (서명·발급자·대상 앱·만료). 서버 `KAKAO_CLIENT_IDS`에 앱 키가 없을 때도 해당 |
 | `401` | `INVALID_GOOGLE_TOKEN` | 구글 ID Token이 유효하지 않음 (서명·발급자·대상 앱·만료). Android가 웹 클라이언트 ID가 아닌 Android 클라이언트 ID로 토큰을 받은 경우도 대상 앱 불일치로 여기에 해당 |
 | `401` | `INVALID_APPLE_TOKEN` | 애플 identity token이 유효하지 않음 (서명·발급자·대상 앱·만료). 서버 `APPLE_CLIENT_IDS`에 번들 ID가 없을 때도 해당 |
 | `401` | `INVALID_REFRESH_TOKEN` | Refresh Token이 유효하지 않거나 폐기됨. 탈퇴한 회원의 토큰도 해당 |
 | `401` | `EXPIRED_REFRESH_TOKEN` | Refresh Token이 만료됨 |
 | `403` | `ACCESS_DENIED` | 리소스 접근 권한 없음 |
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
-| `503` | `KAKAO_UNAVAILABLE` | 카카오 인증 서버를 일시적으로 사용할 수 없음. 카카오가 회원번호 없이 응답하거나 빈 본문을 준 경우도 해당 |
+| `503` | `KAKAO_UNAVAILABLE` | 카카오 공개키를 받아오지 못해 검증할 수 없음 |
 | `503` | `GOOGLE_UNAVAILABLE` | 구글 공개키를 받아오지 못해 검증할 수 없음 |
 | `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음 |
 

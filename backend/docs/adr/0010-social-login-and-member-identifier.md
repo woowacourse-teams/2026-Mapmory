@@ -20,6 +20,8 @@
 - 백엔드는 그 토큰으로 카카오 `GET /v2/user/me`를 호출해 회원번호와 닉네임을 얻는다.
 - 카카오가 4xx/5xx를 반환하면(토큰 만료·위조) `INVALID_KAKAO_TOKEN`으로 처리한다.
 
+> 2026-10-24: ADR 0024로 대체한다. 카카오 OpenID Connect를 켜고, 앱이 보낸 ID token을 JWKS로 검증한다.
+
 ### 회원 식별자를 용도별로 분리한다
 
 - **내부 식별**: `Member`의 Long PK. JWT `sub`와 서버 내부 조회에 사용한다.
@@ -44,6 +46,8 @@
 
 채택하지 않았다(당장). 카카오 API 호출 없이 JWKS로 서명만 검증할 수 있으나,
 카카오 콘솔에서 OpenID Connect 활성화가 선행되어야 한다.
+
+> 2026-10-24: OpenID Connect를 켜고 이 방식으로 바꿨다(ADR 0024).
 
 ### uuid를 제거하고 Long PK로 단일화
 

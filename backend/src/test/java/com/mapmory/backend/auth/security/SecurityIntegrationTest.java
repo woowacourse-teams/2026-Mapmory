@@ -75,7 +75,7 @@ class SecurityIntegrationTest extends IntegrationTest {
         // permitAll 인 로그인 경로에서 요청 검증 오류가 나도 401로 덮이지 않고 400이 유지된다.
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"kakaoAccessToken\":\"\"}"))
+                        .content("{\"idToken\":\"\"}"))
                 .andExpect(status().isBadRequest());
     }
 
