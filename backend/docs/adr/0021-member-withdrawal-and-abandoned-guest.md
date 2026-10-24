@@ -50,7 +50,8 @@
 `MemberService.withdraw`는 처음 탈퇴할 때만 `MemberWithdrawn(memberId, provider, withdrawnAt)`을 발행한다.
 이벤트는 엔티티를 담지 않는다.
 
-- **auth**: `InactiveMemberRefreshTokenRevoker`가 `@EventListener`(동기)로 받아 회원의 refresh를 모두 폐기한다.
+- **auth**: `MemberRefreshTokenRevoker`가 `@EventListener`(동기)로 받아 회원의 refresh를 모두 폐기한다.
+  게스트 승격(`GuestPromoted`, ADR 0015 #460)도 같은 리스너가 받는다.
   같은 트랜잭션이라 폐기가 실패하면 탈퇴도 롤백된다. member가 `RefreshTokenService`를 직접 부르지 않으므로
   의존 방향은 auth → member로 유지된다.
 - **다른 컨텍스트**(그룹·여행 기록·미디어): 아직 받지 않는다. 받을 때는 탈퇴가 커밋된 뒤에 처리하도록
@@ -86,7 +87,7 @@ access token은 무상태라 탈퇴하거나 버려져도 만료까지 유효하
 2. `GuestAbandoned(guestMemberId, abandonedAt)`를 발행한다.
 
 - 행과 기록은 지우지 않는다. 게스트의 이름·`provider_id`는 서버가 만든 값이라 개인정보가 아니므로 비우지 않는다.
-- 게스트의 refresh 폐기는 탈퇴와 같이 `InactiveMemberRefreshTokenRevoker`가 이 이벤트를 동기로 받아 로그인과 같은 트랜잭션에서 한다.
+- 게스트의 refresh 폐기는 탈퇴와 같이 `MemberRefreshTokenRevoker`가 이 이벤트를 동기로 받아 로그인과 같은 트랜잭션에서 한다.
   (처음에는 `AuthService`가 로그인 처리에서 직접 폐기했으나, 탈퇴와 방식을 맞추고 auth가 member의 결과를 해석하지 않도록 옮겼다.)
 - 여행 기록·미디어는 나중에 `AFTER_COMMIT` 리스너로 받아 파기 기간을 정해 지운다.
 - 로그인 응답에 `guestAbandoned`(기존 필드는 그대로)를 추가한다. 로그인 전에는 기존 계정이 있는지 알 수 없으므로,

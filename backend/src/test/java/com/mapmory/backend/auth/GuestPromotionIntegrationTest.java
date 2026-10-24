@@ -233,6 +233,29 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.isNewMember").value(true));
     }
 
+    @Test
+    void 승격하면_게스트일_때의_refresh로는_재발급할_수_없다() throws Exception {
+        String guestLogin = guestLogin();
+        willReturn(kakaoIdentity(200_201L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+
+        kakaoLogin(JsonPath.read(guestLogin, "$.data.accessToken"), "accessToken");
+
+        mockMvc.perform(refreshRequest(JsonPath.read(guestLogin, "$.data.refreshToken")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 승격_응답의_refresh로는_재발급된다() throws Exception {
+        String guestAccessToken = guestLogin("accessToken");
+        willReturn(kakaoIdentity(200_202L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+
+        String promotedRefreshToken = kakaoLogin(guestAccessToken, "refreshToken");
+
+        mockMvc.perform(refreshRequest(promotedRefreshToken))
+                .andExpect(status().isOk());
+    }
+
     private String guestLogin(String field) throws Exception {
         return JsonPath.read(guestLogin(), "$.data." + field);
     }
@@ -286,12 +309,16 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     }
 
     private String refresh(String refreshToken) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/token/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+        MvcResult result = mockMvc.perform(refreshRequest(refreshToken))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.accessToken");
+    }
+
+    private MockHttpServletRequestBuilder refreshRequest(String refreshToken) {
+        return post("/api/v1/auth/token/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}");
     }
 
     private SocialIdentity kakaoIdentity(Long id, String nickname) {
