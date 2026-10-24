@@ -34,7 +34,9 @@ class AuthRetryTest {
                                 request.headers[HttpHeaders.Authorization],
                             )
                             respond(
-                                content = ByteReadChannel(""),
+                                content = ByteReadChannel(
+                                    """{"status":401,"code":"EXPIRED_ACCESS_TOKEN"}""",
+                                ),
                                 status = HttpStatusCode.Unauthorized,
                             )
                         }

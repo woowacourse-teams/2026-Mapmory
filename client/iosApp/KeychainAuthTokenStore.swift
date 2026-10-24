@@ -14,26 +14,29 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
         super.init()
     }
 
-    func load() -> AuthTokens? {
-        if let tokens = loadFromKeychain() {
+    func load() -> AuthTokens? { try? loadChecked() }
+
+    func read_() throws -> AuthTokenRead { AuthTokenRead(tokens: try loadChecked()) }
+
+    private func loadChecked() throws -> AuthTokens? {
+        // An old app version wrote newer rotated tokens here when a Keychain update failed.
+        if let payload = UserDefaults.standard.string(forKey: legacyKey) {
+            guard let tokens = decode(payload) else {
+                throw NSError(domain: "Mapmory.AuthStorage", code: 3,
+                              userInfo: [NSLocalizedDescriptionKey: "저장된 로그인 정보를 읽지 못했습니다."])
+            }
+            if saveToKeychain(tokens) { UserDefaults.standard.removeObject(forKey: legacyKey) }
             return tokens
         }
-
-        guard let payload = UserDefaults.standard.string(forKey: legacyKey),
-              let tokens = decode(payload) else {
-            return nil
-        }
-        if saveToKeychain(tokens) {
-            UserDefaults.standard.removeObject(forKey: legacyKey)
-        }
-        return tokens
+        return try loadFromKeychain()
     }
 
-    func save(tokens: AuthTokens) {
+    func save(tokens: AuthTokens) throws {
         if saveToKeychain(tokens) {
             UserDefaults.standard.removeObject(forKey: legacyKey)
         } else {
-            UserDefaults.standard.set(encode(tokens), forKey: legacyKey)
+            throw NSError(domain: "Mapmory.AuthStorage", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "로그인 정보를 안전하게 저장하지 못했습니다. 다시 시도해 주세요."])
         }
     }
 
@@ -42,18 +45,23 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
         UserDefaults.standard.removeObject(forKey: legacyKey)
     }
 
-    private func loadFromKeychain() -> AuthTokens? {
+    private func loadFromKeychain() throws -> AuthTokens? {
         var query = baseQuery()
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess,
               let data = result as? Data,
-              let payload = String(data: data, encoding: .utf8) else {
-            return nil
+              let payload = String(data: data, encoding: .utf8),
+              let tokens = decode(payload) else {
+            // Locked/unavailable Keychain and corrupt payloads are not an absent identity.
+            throw NSError(domain: "Mapmory.AuthStorage", code: Int(status == errSecSuccess ? errSecDecode : status),
+                          userInfo: [NSLocalizedDescriptionKey: "로그인 정보를 읽지 못했습니다. 잠금을 해제하고 다시 시도해 주세요."])
         }
-        return decode(payload)
+        return tokens
     }
 
     private func saveToKeychain(_ tokens: AuthTokens) -> Bool {
