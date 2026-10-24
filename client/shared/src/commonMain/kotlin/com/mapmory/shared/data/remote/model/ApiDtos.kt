@@ -31,6 +31,19 @@ data class ServiceFeedbackRequestDto(
 )
 
 @Serializable
+data class ShareVideoJobDto(
+    val jobId: Long,
+    val status: String,
+)
+
+@Serializable
+data class ShareVideoDownloadDto(
+    val jobId: Long,
+    val downloadUrl: String,
+    val downloadUrlExpiresIn: Long,
+)
+
+@Serializable
 data class GuestLoginResponseDto(
     val accessToken: String,
     val refreshToken: String,
