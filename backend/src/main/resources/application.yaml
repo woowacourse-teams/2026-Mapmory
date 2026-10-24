@@ -40,7 +40,11 @@ guest-login:
     window: 1h
 
 kakao:
+  # 토큰이 발급된 앱 ID를 확인한다. 다른 카카오 앱이 받은 토큰으로 로그인하지 못하게 한다. (ADR 0010)
+  token-info-uri: https://kapi.kakao.com/v1/user/access_token_info
   user-info-uri: https://kapi.kakao.com/v2/user/me
+  # 카카오 개발자 콘솔의 앱 ID(숫자). 비어 있으면 모든 카카오 로그인을 거부한다.
+  app-id: ${KAKAO_APP_ID:}
 
 google:
   # ID token의 aud로 허용할 OAuth 클라이언트 ID 목록(쉼표 구분). Android Credential Manager는
