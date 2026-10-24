@@ -5,6 +5,7 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberName;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.GuestAbandoned;
+import com.mapmory.backend.member.event.GuestPromoted;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -33,7 +34,7 @@ public class MemberJoinService {
      * 소셜 계정으로 들어온다.
      *
      * 게스트로 사용 중이었다면(guestMemberId가 활동 중인 게스트 회원) 새 회원을 만들지 않고
-     * 그 회원을 승격해, 게스트로 남긴 기록이 그대로 이어지게 한다.
+     * 그 회원을 승격해, 게스트로 남긴 기록이 그대로 이어지게 한다. 게스트일 때의 세션을 끝내도록 GuestPromoted를 발행한다. (#460)
      * 탈퇴했거나 버려진 게스트의 남은 access token이 오면 게스트가 없는 것으로 보고 일반 로그인으로 처리한다. (ADR 0021)
      *
      * 이미 같은 소셜 계정으로 가입한 회원이 있으면 한 사람에게 회원 행이 둘인 상황이므로,
@@ -53,6 +54,7 @@ public class MemberJoinService {
         if (guest.isPresent()) {
             Member promoted = guest.get();
             promoted.promote(provider, providerId, providerName, LocalDateTime.now(clock));
+            eventPublisher.publishEvent(new GuestPromoted(promoted.getId(), promoted.getPromotedAt()));
             return new SocialJoin(promoted, SocialJoinType.PROMOTED, false);
         }
 

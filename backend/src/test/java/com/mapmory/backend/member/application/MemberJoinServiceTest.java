@@ -8,6 +8,7 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.GuestAbandoned;
+import com.mapmory.backend.member.event.GuestPromoted;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -187,7 +188,30 @@ class MemberJoinServiceTest extends IntegrationTest {
     }
 
     @Test
-    void 승격하거나_새로_가입하면_이벤트를_발행하지_않는다() {
+    void 승격하면_GuestPromoted를_발행한다() {
+        Member guest = memberJoinService.joinAsGuest();
+
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300036", "소현", guest.getId());
+
+        assertThat(events.stream(GuestPromoted.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.memberId()).isEqualTo(guest.getId());
+                    assertThat(event.promotedAt()).isNotNull();
+                });
+    }
+
+    @Test
+    void 새로_가입하거나_기존_회원으로_들어오면_GuestPromoted를_발행하지_않는다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300037", "소현", null);
+        Member guest = memberJoinService.joinAsGuest();
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300037", "소현", guest.getId());
+
+        assertThat(events.stream(GuestPromoted.class)).isEmpty();
+    }
+
+    @Test
+    void 승격하거나_새로_가입하면_GuestAbandoned를_발행하지_않는다() {
         Member guest = memberJoinService.joinAsGuest();
 
         memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300034", "소현", guest.getId());
