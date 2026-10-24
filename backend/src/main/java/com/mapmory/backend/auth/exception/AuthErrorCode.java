@@ -23,7 +23,7 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_KAKAO_TOKEN(
             ErrorKind.AUTHENTICATION_REQUIRED,
             "카카오 인증에 실패했습니다.",
-            "카카오 access token이 유효하지 않습니다."
+            "카카오 ID token이 유효하지 않습니다."
     ),
     KAKAO_UNAVAILABLE(
             ErrorKind.SERVICE_UNAVAILABLE,

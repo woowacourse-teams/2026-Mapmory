@@ -40,7 +40,10 @@ guest-login:
     window: 1h
 
 kakao:
-  user-info-uri: https://kapi.kakao.com/v2/user/me
+  # ID token의 aud로 허용할 앱 키 목록(쉼표 구분). 네이티브 SDK로 로그인하면 네이티브 앱 키가 aud로 들어간다.
+  # 비어 있으면 모든 카카오 로그인을 거부한다. (ADR 0024)
+  client-ids: ${KAKAO_CLIENT_IDS:}
+  jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
 
 google:
   # ID token의 aud로 허용할 OAuth 클라이언트 ID 목록(쉼표 구분). Android Credential Manager는

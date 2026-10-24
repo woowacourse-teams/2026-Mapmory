@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @RecordApplicationEvents
 class MemberWithdrawalIntegrationTest extends IntegrationTest {
 
-    private static final String KAKAO_LOGIN_BODY = "{\"kakaoAccessToken\":\"kakao-token\"}";
+    private static final String KAKAO_LOGIN_BODY = "{\"idToken\":\"kakao-id-token\"}";
 
     @Autowired
     private MockMvc mockMvc;
