@@ -306,6 +306,10 @@ Access Token이 아니라 ID Token을 보낸다.
 
 `POST /api/v1/auth/logout`
 
+전달한 Refresh Token을 폐기한다. 그 토큰이 이미 재발급에 쓰였다면 그 뒤에 발급된 Refresh Token까지 폐기한다.
+로그아웃 전에 진행 중인 재발급을 기다리거나 취소한다. 같은 토큰으로 로그아웃 뒤 재발급하면 재사용으로 판단돼
+회원의 Refresh Token이 모두 폐기된다.
+
 ```json
 {
   "refreshToken": "mapmory-refresh-token"

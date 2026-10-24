@@ -151,9 +151,22 @@ public class RefreshTokenService {
         refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now());
     }
 
+    /**
+     * 로그아웃. 제시된 토큰을 폐기하고, 이미 회전된 토큰이면 그 뒤를 이은 토큰까지 폐기해 세션을 끝낸다. (#462)
+     *
+     * 재발급과 겹칠 수 있어 회전처럼 행을 잠그고 읽는다. 잠그지 않으면 회전이 커밋한 replacedById를 읽기 전 값으로
+     * 덮어써 회전 체인이 끊기고, 회전으로 나간 후속 토큰이 로그아웃 뒤에도 남는다.
+     * 잠그는 순서는 회전과 같이 제시된 토큰 → 후속 토큰이다. 후속 토큰의 id는 늘 더 크므로 체인은 끝난다.
+     */
     @Transactional
     public void revoke(String rawToken) {
-        refreshTokenRepository.findByTokenHash(refreshTokenHasher.hash(rawToken))
-                .ifPresent(token -> token.revoke(LocalDateTime.now()));
+        LocalDateTime now = LocalDateTime.now();
+        Optional<RefreshToken> token = refreshTokenRepository.findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken));
+        while (token.isPresent()) {
+            RefreshToken current = token.get();
+            current.revoke(now);
+            token = Optional.ofNullable(current.getReplacedById())
+                    .flatMap(refreshTokenRepository::findByIdForUpdate);
+        }
     }
 }

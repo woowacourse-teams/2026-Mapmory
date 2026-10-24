@@ -14,7 +14,12 @@ import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.token.refresh.RefreshTokenRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -162,6 +167,50 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 이미_회전된_refresh로_로그아웃하면_후속_토큰까지_폐기한다() throws Exception {
+        String previous = login(300_006L);
+        String current = refresh(previous);
+
+        logout(previous);
+
+        mockMvc.perform(refreshRequest(current))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 로그아웃과_재발급이_겹쳐도_로그아웃_뒤_쓸_수_있는_refresh가_남지_않는다() throws Exception {
+        // 로그아웃이 회전 커밋 전에 읽은 값으로 덮어쓰면, 회전으로 나간 후속 토큰이 살아남는다. (#462)
+        // 겹치는 순간이 매번 생기지는 않으므로 여러 번 시도한다.
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (long kakaoId = 300_101L; kakaoId < 300_121L; kakaoId++) {
+                String refreshToken = login(kakaoId);
+                CountDownLatch start = new CountDownLatch(1);
+                Future<MockHttpServletResponse> refreshed = executor.submit(() -> {
+                    start.await();
+                    return mockMvc.perform(refreshRequest(refreshToken)).andReturn().getResponse();
+                });
+                Future<MockHttpServletResponse> loggedOut = executor.submit(() -> {
+                    start.await();
+                    return mockMvc.perform(logoutRequest(refreshToken)).andReturn().getResponse();
+                });
+                start.countDown();
+
+                assertThat(loggedOut.get().getStatus()).isEqualTo(204);
+                MockHttpServletResponse refreshResponse = refreshed.get();
+                if (refreshResponse.getStatus() == 200) {
+                    String successor = JsonPath.read(refreshResponse.getContentAsString(), "$.data.refreshToken");
+                    mockMvc.perform(refreshRequest(successor))
+                            .andExpect(status().isUnauthorized());
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void 유효하지_않은_refresh는_401_ProblemDetails로_응답한다() throws Exception {
         mockMvc.perform(refreshRequest("not-a-real-token"))
                 .andExpect(status().isUnauthorized())
@@ -211,6 +260,17 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
 
     private MockHttpServletRequestBuilder refreshRequest(String refreshToken) {
         return post("/api/v1/auth/token/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(refreshToken));
+    }
+
+    private void logout(String refreshToken) throws Exception {
+        mockMvc.perform(logoutRequest(refreshToken))
+                .andExpect(status().isNoContent());
+    }
+
+    private MockHttpServletRequestBuilder logoutRequest(String refreshToken) {
+        return post("/api/v1/auth/logout")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body(refreshToken));
     }

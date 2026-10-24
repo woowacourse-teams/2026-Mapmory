@@ -69,7 +69,13 @@ public class RefreshToken {
         return !expiresAt.isAfter(now);
     }
 
+    /**
+     * 폐기한다. 이미 폐기됐으면 처음 폐기된 시각을 그대로 둔다.
+     */
     public void revoke(LocalDateTime now) {
+        if (isRevoked()) {
+            return;
+        }
         this.revokedAt = now;
     }
 
