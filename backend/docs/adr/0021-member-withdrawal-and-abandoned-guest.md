@@ -66,9 +66,13 @@ access token은 무상태라 탈퇴하거나 버려져도 만료까지 유효하
 
 | 경로 | 동작 |
 |---|---|
-| `GET /members/me`, `PATCH /members/me/nickname` | 서비스 트랜잭션에서 회원을 조회해 활동 중이 아니면 `404 MEMBER_NOT_FOUND` |
+| `GET /members/me`, `PATCH /members/me/nickname` | 서비스 트랜잭션에서 회원을 조회해 활동 중이 아니면 `401 INACTIVE_MEMBER` |
 | `POST /auth/token/refresh` | refresh는 탈퇴·버려질 때 모두 폐기된다. 폐기와 재발급이 동시에 와도 회원이 활동 중이 아니면 `401 INVALID_REFRESH_TOKEN` |
 | 소셜 로그인 + 탈퇴했거나 버려진 게스트의 access token | 승격하지 않고 게스트 토큰이 없는 로그인으로 처리 |
+
+> 2026-10-24 구현 업데이트(#448): 회원 API의 응답을 `404 MEMBER_NOT_FOUND`에서 `401 INACTIVE_MEMBER`로 바꿨다.
+> "회원이 없다"가 아니라 "이 토큰으로는 더 쓸 수 없다"는 뜻이라, 앱이 다른 인증 오류처럼 로그아웃하게 한다.
+> 관리자가 다른 회원을 찾는 경우는 `404`를 유지한다.
 
 여행 기록 작성처럼 그 밖의 경로는 30분 동안 허용한다. 그 사이 만든 데이터도 `member_id`가 같으므로
 각 컨텍스트가 `MemberWithdrawn`을 받아 지울 때 함께 지워진다. 막아야 할 경로가 생기면

@@ -180,7 +180,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 버려진_게스트의_남은_access_token으로_회원_정보를_조회하면_404다() throws Exception {
+    void 버려진_게스트의_남은_access_token으로_회원_정보를_조회하면_401_INACTIVE_MEMBER다() throws Exception {
         willReturn(kakaoIdentity(200_009L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
         kakaoLogin(null, "accessToken");
         String guestAccessToken = guestLogin("accessToken");
@@ -188,8 +188,8 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
         mockMvc.perform(get("/api/v1/members/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + guestAccessToken))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
     }
 
     @Test
