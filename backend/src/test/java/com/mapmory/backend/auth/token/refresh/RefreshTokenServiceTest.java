@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -29,6 +30,7 @@ class RefreshTokenServiceTest {
             refreshTokenRepository,
             new SecureRandomRefreshTokenGenerator(),
             new Sha256RefreshTokenHasher(),
+            new RefreshTokenReuseMonitor(new SimpleMeterRegistry()),
             new JwtProperties(
                     "test-secret-key-must-be-long-enough-0123456789",
                     Duration.ofMinutes(30),

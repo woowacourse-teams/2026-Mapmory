@@ -90,6 +90,14 @@ public class RefreshToken {
         this.replacedById = other.replacedById;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public LocalDateTime getRevokedAt() {
+        return revokedAt;
+    }
+
     public Long getReplacedById() {
         return replacedById;
     }
