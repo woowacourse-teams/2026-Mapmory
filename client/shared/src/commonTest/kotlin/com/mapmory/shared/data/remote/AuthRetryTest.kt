@@ -9,6 +9,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteReadChannel
@@ -91,6 +92,45 @@ class AuthRetryTest {
         assertEquals(HttpStatusCode.Unauthorized, response.status)
         assertEquals(0, gateway.refreshCount)
         client.close()
+    }
+
+    @Test
+    fun unauthorizedApiRequestWithoutExpiredAccessTokenCodeIsNotRefreshedOrRetried() = runBlocking {
+        val errorBodies = listOf(
+            """{"status":401,"code":"INVALID_REFRESH_TOKEN"}""",
+            """{"status":401}""",
+            "not-json",
+        )
+
+        errorBodies.forEach { errorBody ->
+            val gateway = StubAuthGateway()
+            val session = GuestSessionManager(gateway, MemoryTokenStore())
+            session.ensureAuthenticated().getOrThrow()
+            var requestCount = 0
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler {
+                        requestCount++
+                        respond(
+                            content = ByteReadChannel(errorBody),
+                            status = HttpStatusCode.Unauthorized,
+                        )
+                    }
+                }
+            }
+            client.installMapmoryAuthRetry(session, ApiBaseUrl)
+
+            val response = client.get("$ApiBaseUrl/travel-records") {
+                header(HttpHeaders.Authorization, "Bearer expired-access")
+            }
+
+            assertEquals(HttpStatusCode.Unauthorized, response.status)
+            assertEquals(errorBody, response.bodyAsText())
+            assertEquals(1, requestCount)
+            assertEquals(0, gateway.refreshCount)
+            client.close()
+            session.close()
+        }
     }
 }
 
