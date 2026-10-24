@@ -23,6 +23,7 @@ internal fun TripProfileRoute(
     onOpenEditor: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenAchievements: () -> Unit,
     showTravelAchievements: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -46,6 +47,7 @@ internal fun TripProfileRoute(
         shareVideoRepository = shareVideoRepository,
         shareVideoJobStore = shareVideoJobStore,
         showTravelAchievements = showTravelAchievements,
+        onOpenAchievements = onOpenAchievements,
         onMapClick = onOpenMap,
         onRecordClick = onOpenRecords,
         onCreateClick = onOpenEditor,

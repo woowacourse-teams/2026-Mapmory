@@ -13,6 +13,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.*
 import com.mapmory.shared.app.*
+import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 import kotlinx.coroutines.flow.first
 
 /** The process-wide container is shared by the worker and UI to avoid duplicate upload queues. */
@@ -31,10 +32,12 @@ internal class AndroidBackgroundSaveExecution(private val context: Context, name
     }
     override suspend fun <T> run(block: suspend () -> T): T = block()
     override fun onProgress(save: BackgroundTripRecordSave) {
-        if (canNotify()) manager().notify(UploadNotificationId, notification(context, save.title, "${save.progressPercent}% 업로드 중", save.progressPercent))
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify()) {
+            manager().notify(UploadNotificationId, notification(context, save.title, "${save.progressPercent}% 업로드 중", save.progressPercent))
+        }
     }
     override fun onCompleted(save: BackgroundTripRecordSave) {
-        if (canNotify()) manager().notify(
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify()) manager().notify(
             save.id.hashCode(),
             notification(context, "사진 업로드 완료", "${save.locationName} 기록이 저장됐어요", null),
         )
