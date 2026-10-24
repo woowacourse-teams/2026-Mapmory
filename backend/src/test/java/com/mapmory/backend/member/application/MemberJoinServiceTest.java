@@ -35,7 +35,7 @@ class MemberJoinServiceTest extends IntegrationTest {
         SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300001", "소현", null);
 
         assertThat(join.type()).isEqualTo(SocialJoinType.SOCIAL_JOINED);
-        assertThat(join.leftGuest()).isNull();
+        assertThat(join.guestAbandoned()).isFalse();
         assertThat(join.member().getProvider()).isEqualTo(AuthProvider.KAKAO);
         assertThat(join.member().getProviderId()).isEqualTo("300001");
         assertThat(join.member().getName()).isEqualTo("소현");
@@ -50,7 +50,7 @@ class MemberJoinServiceTest extends IntegrationTest {
         SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.GOOGLE, "google-sub", "소현", guest.getId());
 
         assertThat(join.type()).isEqualTo(SocialJoinType.PROMOTED);
-        assertThat(join.leftGuest()).isNull();
+        assertThat(join.guestAbandoned()).isFalse();
         assertThat(join.member().getId()).isEqualTo(guest.getId());
         assertThat(memberRepository.count()).isEqualTo(memberCountBefore);
         Member promoted = memberRepository.findById(guest.getId()).orElseThrow();
@@ -75,7 +75,7 @@ class MemberJoinServiceTest extends IntegrationTest {
     }
 
     @Test
-    void 이미_가입한_소셜_계정이면_기존_회원으로_들어오고_게스트를_돌려준다() {
+    void 이미_가입한_소셜_계정이면_기존_회원으로_들어오고_게스트를_두고_떠났음을_알린다() {
         Member registered = memberJoinService.joinWithSocial(AuthProvider.APPLE, "apple-sub", null, null).member();
         Member guest = memberJoinService.joinAsGuest();
 
@@ -83,20 +83,20 @@ class MemberJoinServiceTest extends IntegrationTest {
 
         assertThat(join.type()).isEqualTo(SocialJoinType.EXISTING_ACCOUNT);
         assertThat(join.member().getId()).isEqualTo(registered.getId());
-        assertThat(join.leftGuest().getId()).isEqualTo(guest.getId());
+        assertThat(join.guestAbandoned()).isTrue();
         assertThat(memberRepository.findById(guest.getId()).orElseThrow().getProvider())
                 .isEqualTo(AuthProvider.GUEST);
     }
 
     @Test
-    void 게스트_없이_이미_가입한_소셜_계정이면_돌려줄_게스트가_없다() {
+    void 게스트_없이_이미_가입한_소셜_계정이면_두고_떠난_게스트가_없다() {
         Member registered = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300002", "소현", null).member();
 
         SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300002", "소현", null);
 
         assertThat(join.type()).isEqualTo(SocialJoinType.EXISTING_ACCOUNT);
         assertThat(join.member().getId()).isEqualTo(registered.getId());
-        assertThat(join.leftGuest()).isNull();
+        assertThat(join.guestAbandoned()).isFalse();
     }
 
     @Test
@@ -123,7 +123,7 @@ class MemberJoinServiceTest extends IntegrationTest {
 
         assertThat(join.type()).isEqualTo(SocialJoinType.SOCIAL_JOINED);
         assertThat(join.member().getId()).isNotEqualTo(guest.getId());
-        assertThat(join.leftGuest()).isNull();
+        assertThat(join.guestAbandoned()).isFalse();
         Member untouched = memberRepository.findById(guest.getId()).orElseThrow();
         assertThat(untouched.isWithdrawn()).isTrue();
         assertThat(untouched.getProviderId()).isNull();
@@ -167,7 +167,7 @@ class MemberJoinServiceTest extends IntegrationTest {
         SocialJoin join = memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300032", "소현", guest.getId());
 
         assertThat(join.type()).isEqualTo(SocialJoinType.EXISTING_ACCOUNT);
-        assertThat(join.leftGuest()).isNull();
+        assertThat(join.guestAbandoned()).isFalse();
         assertThat(events.stream(GuestAbandoned.class)).hasSize(1);
     }
 

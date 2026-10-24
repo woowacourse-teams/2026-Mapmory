@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * 엔티티를 담지 않는다. 받는 쪽은 guestMemberId로 자기 데이터를 찾는다.
  *
  * 받는 쪽
- *   - auth: 게스트의 refresh 토큰은 로그인 처리(AuthService)에서 바로 폐기하므로 이 이벤트를 받지 않는다.
+ *   - auth: 게스트의 refresh 토큰을 모두 폐기한다. 로그인과 같은 트랜잭션에서 동기로 받는다. (InactiveMemberRefreshTokenRevoker)
  *   - 여행기록·미디어 등 다른 컨텍스트는 파기 기간을 정해 게스트의 데이터를 지운다.
  *     로그인이 커밋된 뒤에 처리하도록 @TransactionalEventListener(phase = AFTER_COMMIT)로 받는다. (아직 없음)
  *

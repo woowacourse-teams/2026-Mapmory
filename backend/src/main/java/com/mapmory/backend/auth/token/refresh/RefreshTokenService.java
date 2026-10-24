@@ -139,11 +139,6 @@ public class RefreshTokenService {
      * 이미 발급된 access는 무상태라 만료까지 남지만, 갱신 경로가 끊겨 세션이 이어지지 않는다.
      */
     @Transactional
-    public void revokeAll(Member member) {
-        refreshTokenRepository.revokeAllActiveByMember(member, LocalDateTime.now());
-    }
-
-    @Transactional
     public void revokeAll(Long memberId) {
         refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now());
     }
