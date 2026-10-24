@@ -13,8 +13,11 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.MemberJoinService;
 import com.mapmory.backend.member.application.SocialJoin;
 import com.mapmory.backend.member.application.SocialJoinType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AuthService {
@@ -23,17 +26,20 @@ public class AuthService {
     private final MemberJoinService memberJoinService;
     private final JwtProvider jwtProvider;
     private final RefreshTokenService refreshTokenService;
+    private final TransactionTemplate transactionTemplate;
 
     public AuthService(
             SocialIdentityPorts socialIdentityPorts,
             MemberJoinService memberJoinService,
             JwtProvider jwtProvider,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            PlatformTransactionManager transactionManager
     ) {
         this.socialIdentityPorts = socialIdentityPorts;
         this.memberJoinService = memberJoinService;
         this.jwtProvider = jwtProvider;
         this.refreshTokenService = refreshTokenService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -44,10 +50,23 @@ public class AuthService {
      * 이때 응답의 guestAbandoned로 게스트 기록이 이어지지 않았음을 알린다. (ADR 0021)
      * 게스트로 이미 앱을 사용했으므로 승격·기존 계정은 온보딩을 반복하지 않도록 신규로 보지 않는다.
      * (ADR 0015)
+     *
+     * 토큰 검증(공개키 조회)은 트랜잭션 밖에서 한다. 안에서 하면 외부를 기다리는 동안 커넥션을 쥐고 있게 된다.
+     *
+     * 같은 소셜 계정의 첫 로그인이 동시에 오면(버튼 연타) 둘 다 회원이 없다고 보고 가입하려 해, 늦은 쪽이
+     * (provider, provider_id) UNIQUE에 걸린다. 위반한 트랜잭션은 되돌릴 수 없으므로 새 트랜잭션에서 한 번 더 들어와,
+     * 먼저 가입된 회원으로 로그인시킨다. 다시 실패하면 같은 계정 충돌이 아니므로 그대로 던진다. (#461)
      */
-    @Transactional
     public LoginResult loginWithSocial(AuthProvider provider, String token, Long authenticatedMemberId) {
         SocialIdentity identity = socialIdentityPorts.verify(provider, token);
+        try {
+            return transactionTemplate.execute(status -> joinWithSocial(provider, identity, authenticatedMemberId));
+        } catch (DataIntegrityViolationException exception) {
+            return transactionTemplate.execute(status -> joinWithSocial(provider, identity, authenticatedMemberId));
+        }
+    }
+
+    private LoginResult joinWithSocial(AuthProvider provider, SocialIdentity identity, Long authenticatedMemberId) {
         SocialJoin join = memberJoinService.joinWithSocial(
                 provider, identity.providerId(), identity.name(), authenticatedMemberId);
         return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED, join.guestAbandoned());
