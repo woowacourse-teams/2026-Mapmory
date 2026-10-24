@@ -1,6 +1,7 @@
 package com.mapmory.backend.member.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.MemberWithdrawn;
@@ -49,6 +50,9 @@ public class MemberService {
      *
      * 이미 탈퇴했으면 아무것도 하지 않는다(멱등). 처음 탈퇴할 때만 MemberWithdrawn을 발행하고,
      * auth가 같은 트랜잭션에서 refresh 토큰을 모두 폐기한다. 이미 발급된 access token(최대 30분)은 남는다. (ADR 0021)
+     *
+     * 애플 회원은 애플 토큰을 먼저 철회해야 하므로 여기서 탈퇴할 수 없다. 재인증을 받는 애플 회원 탈퇴
+     * (POST /auth/apple/withdrawal)로 보낸다. 이 경로로 탈퇴하면 철회를 건너뛰게 된다. (ADR 0025)
      */
     @Transactional
     public void withdraw(Long memberId) {
@@ -56,6 +60,25 @@ public class MemberService {
         if (member.isWithdrawn()) {
             return;
         }
+        if (member.getProvider() == AuthProvider.APPLE) {
+            throw new BusinessException(MemberErrorCode.APPLE_REAUTHENTICATION_REQUIRED);
+        }
+        markWithdrawn(member);
+    }
+
+    /**
+     * 소셜 제공자와의 연결을 이미 끊은 회원을 탈퇴시킨다. 애플 회원 탈퇴가 애플 토큰을 철회한 뒤 부른다. (ADR 0025)
+     */
+    @Transactional
+    public void withdrawUnlinked(Long memberId) {
+        Member member = findMember(memberId);
+        if (member.isWithdrawn()) {
+            return;
+        }
+        markWithdrawn(member);
+    }
+
+    private void markWithdrawn(Member member) {
         member.withdraw(LocalDateTime.now(clock));
         eventPublisher.publishEvent(new MemberWithdrawn(member.getId(), member.getProvider(), member.getWithdrawnAt()));
     }
