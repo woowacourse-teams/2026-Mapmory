@@ -130,15 +130,15 @@ class MemberIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 회원_행이_없는_토큰이면_404다() throws Exception {
+    void 회원_행이_없는_토큰이면_401_INACTIVE_MEMBER다() throws Exception {
         String accessToken = jwtProvider.issueAccessToken(Long.MAX_VALUE);
 
         mockMvc.perform(get("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         changeNickname("Bearer " + accessToken, "지수")
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
     }
 
     private String guestAccessToken() throws Exception {

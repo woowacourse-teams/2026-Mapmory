@@ -165,19 +165,19 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 탈퇴한_회원의_남은_access_token으로_회원_정보를_조회하거나_바꾸면_404다() throws Exception {
+    void 탈퇴한_회원의_남은_access_token으로_회원_정보를_조회하거나_바꾸면_401_INACTIVE_MEMBER다() throws Exception {
         String accessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
         withdraw(accessToken).andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         mockMvc.perform(patch("/api/v1/members/me/nickname")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nickname\":\"지수\"}"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
     }
 
     @Test
@@ -188,12 +188,12 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 회원_행이_없는_토큰이면_404다() throws Exception {
+    void 회원_행이_없는_토큰이면_401_INACTIVE_MEMBER다() throws Exception {
         String accessToken = jwtProvider.issueAccessToken(Long.MAX_VALUE);
 
         withdraw(accessToken)
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
     }
 

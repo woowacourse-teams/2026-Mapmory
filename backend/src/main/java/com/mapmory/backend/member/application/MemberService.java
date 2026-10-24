@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 로그인한 회원 자신의 정보를 다룬다.
  *
  * access token은 회원 존재를 확인하지 않으므로(ADR 0009) 트랜잭션 안에서 회원을 조회하고,
- * 없거나 탈퇴했으면 MEMBER_NOT_FOUND로 응답한다. (ADR 0021)
+ * 없거나 활동 중이 아니면(탈퇴, 버려진 게스트) INACTIVE_MEMBER(401)로 응답한다. (ADR 0021)
+ * 회원을 찾지 못한 것이 아니라 이 토큰으로는 더 쓸 수 없다는 뜻이라, 앱이 로그아웃하도록 401로 둔다. (#448)
+ * 관리자가 다른 회원을 찾는 경우는 MEMBER_NOT_FOUND(404)다.
  */
 @Service
 public class MemberService {
@@ -61,13 +63,13 @@ public class MemberService {
     private Member findActiveMember(Long memberId) {
         Member member = findMember(memberId);
         if (!member.isActive()) {
-            throw new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND);
+            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
         }
         return member;
     }
 
     private Member findMember(Long memberId) {
         return memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
     }
 }
