@@ -11,13 +11,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.GuestAbandoned;
 import org.junit.jupiter.api.Test;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.event.ApplicationEvents;
@@ -48,6 +51,9 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Value("${jwt.secret}")
+    private String secret;
 
     @Test
     void 게스트가_카카오_로그인하면_남긴_기록이_그대로_유지된다() throws Exception {
@@ -186,6 +192,47 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
     }
 
+    @Test
+    void 만료된_게스트_토큰으로_카카오_로그인하면_401_EXPIRED_ACCESS_TOKEN이고_회원이_생기지_않는다() throws Exception {
+        String guestLogin = guestLogin();
+        Long guestId = jwtProvider.parseMemberId(JsonPath.read(guestLogin, "$.data.accessToken"));
+        long memberCountBefore = memberRepository.count();
+        willReturn(kakaoIdentity(200_101L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+
+        mockMvc.perform(kakaoLoginRequest(expiredAccessToken(guestId)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("EXPIRED_ACCESS_TOKEN"));
+
+        assertThat(memberRepository.count()).isEqualTo(memberCountBefore);
+        assertThat(memberRepository.findById(guestId).orElseThrow().getProvider()).isEqualTo(AuthProvider.GUEST);
+    }
+
+    @Test
+    void 만료로_거부된_게스트가_재발급_후_다시_카카오_로그인하면_승격된다() throws Exception {
+        String guestLogin = guestLogin();
+        Long guestId = jwtProvider.parseMemberId(JsonPath.read(guestLogin, "$.data.accessToken"));
+        willReturn(kakaoIdentity(200_102L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+        mockMvc.perform(kakaoLoginRequest(expiredAccessToken(guestId)))
+                .andExpect(status().isUnauthorized());
+
+        String refreshedAccessToken = refresh(JsonPath.read(guestLogin, "$.data.refreshToken"));
+        kakaoLogin(refreshedAccessToken, "accessToken");
+
+        assertThat(memberRepository.findByProviderAndProviderId(AuthProvider.KAKAO, "200102"))
+                .get()
+                .extracting(Member::getId)
+                .isEqualTo(guestId);
+    }
+
+    @Test
+    void 위조된_토큰으로_카카오_로그인하면_게스트_없이_로그인된다() throws Exception {
+        willReturn(kakaoIdentity(200_103L, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+
+        mockMvc.perform(kakaoLoginRequest("forged.token.value"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isNewMember").value(true));
+    }
+
     private String guestLogin(String field) throws Exception {
         return JsonPath.read(guestLogin(), "$.data." + field);
     }
@@ -231,6 +278,20 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated());
+    }
+
+    private String expiredAccessToken(Long memberId) {
+        return new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)))
+                .issueAccessToken(memberId);
+    }
+
+    private String refresh(String refreshToken) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/token/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.accessToken");
     }
 
     private SocialIdentity kakaoIdentity(Long id, String nickname) {

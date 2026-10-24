@@ -192,6 +192,10 @@ Authorization: Bearer {게스트 accessToken}
 
 탈퇴했거나 이미 버려진 게스트의 Access Token을 실어 보내면 게스트가 없는 것으로 보고 위 표의 "게스트 토큰 없음"처럼 처리한다.
 
+**게스트 Access Token이 만료됐으면 `401 EXPIRED_ACCESS_TOKEN`이다.** 토큰을 재발급한 뒤 같은 요청을 다시 보내면 승격된다.
+만료된 토큰을 "게스트 토큰 없음"으로 처리하면 승격 대신 새 회원이 생기기 때문이다. 위조됐거나 형식이 잘못된 토큰은
+재발급으로 복구할 수 없으므로 "게스트 토큰 없음"처럼 처리한다.
+
 #### Response `200 OK`
 
 ```json
@@ -333,7 +337,7 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 
 | 나오는 곳 | `code` | 조건 | 클라이언트 처리 |
 | --- | --- | --- | --- |
-| 보호 API 전체 | `EXPIRED_ACCESS_TOKEN` | Access Token 만료 | **토큰 재발급 후 원래 요청을 한 번 재시도** |
+| 보호 API 전체, 소셜 로그인 | `EXPIRED_ACCESS_TOKEN` | Access Token 만료 | **토큰 재발급 후 원래 요청을 한 번 재시도** |
 | 보호 API 전체 | `INVALID_ACCESS_TOKEN` | 위조·형식 오류, **`Authorization` 헤더 없음** | 로그인 화면으로 |
 | `POST /auth/token/refresh` | `EXPIRED_REFRESH_TOKEN` | Refresh Token 만료 | 로그인 화면으로 |
 | `POST /auth/token/refresh` | `INVALID_REFRESH_TOKEN` | 없는 토큰, 재사용 감지로 전부 폐기, 로그아웃한 토큰, 탈퇴·버려진 게스트 | 로그인 화면으로 |
