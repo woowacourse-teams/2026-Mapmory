@@ -24,6 +24,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final RefreshTokenGenerator refreshTokenGenerator;
     private final RefreshTokenHasher refreshTokenHasher;
+    private final RefreshTokenReuseMonitor reuseMonitor;
     private final Duration refreshTokenValidity;
     private final Duration guestRefreshTokenValidity;
 
@@ -31,11 +32,13 @@ public class RefreshTokenService {
             RefreshTokenRepository refreshTokenRepository,
             RefreshTokenGenerator refreshTokenGenerator,
             RefreshTokenHasher refreshTokenHasher,
+            RefreshTokenReuseMonitor reuseMonitor,
             JwtProperties jwtProperties
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.refreshTokenGenerator = refreshTokenGenerator;
         this.refreshTokenHasher = refreshTokenHasher;
+        this.reuseMonitor = reuseMonitor;
         this.refreshTokenValidity = jwtProperties.refreshTokenValidity();
         this.guestRefreshTokenValidity = jwtProperties.guestRefreshTokenValidity();
     }
@@ -79,11 +82,7 @@ public class RefreshTokenService {
 
         LocalDateTime now = LocalDateTime.now();
         if (refreshToken.isRevoked()) {
-            Optional<RotatedRefreshToken> reissued = reissueLostRotation(refreshToken, now);
-            if (reissued.isEmpty()) {
-                refreshTokenRepository.revokeAllActiveByMember(refreshToken.getMember(), now);
-            }
-            return reissued;
+            return handleReuse(refreshToken, now);
         }
         if (refreshToken.isExpired(now)) {
             throw new BusinessException(AuthErrorCode.EXPIRED_REFRESH_TOKEN);
@@ -99,26 +98,35 @@ public class RefreshTokenService {
     }
 
     /**
-     * 게스트가 회전 응답을 받지 못해(앱 종료·네트워크 끊김) 이전 토큰을 다시 보낸 경우 재발급한다. (ADR 0023)
+     * 폐기된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
      *
      * 게스트는 다시 로그인할 수단이 없어, 탈취로 보고 전체 폐기하면 계정을 영구히 잃는다.
      * 응답 유실이라면 후속 토큰은 경과 시간과 무관하게 아직 쓰이지 않았다(쓰였다면 회전으로 폐기됐다).
      * 그래서 후속 토큰이 유효할 때만 재발급하고, 이전 토큰이 새 후속을 가리키게 해 유실이 반복돼도 이어지게 한다.
      * 직전보다 오래된 토큰은 후속이 이미 폐기됐으므로 여기서 걸러져 탈취로 처리된다.
      *
-     * 소셜 회원은 다시 로그인하면 되므로 예외를 두지 않는다.
+     * 소셜 회원은 다시 로그인하면 되므로 예외를 두지 않는다. 다만 후속 토큰이 쓰이지 않았는지는 로그에 남겨,
+     * 응답 유실로 강제 로그아웃되는 빈도를 볼 수 있게 한다. (#446)
      */
-    private Optional<RotatedRefreshToken> reissueLostRotation(RefreshToken revoked, LocalDateTime now) {
-        if (revoked.getMember().getProvider() != AuthProvider.GUEST || revoked.getReplacedById() == null) {
+    private Optional<RotatedRefreshToken> handleReuse(RefreshToken reused, LocalDateTime now) {
+        Optional<RefreshToken> unusedSuccessor = findUnusedSuccessor(reused, now);
+        if (reused.getMember().getProvider() == AuthProvider.GUEST && unusedSuccessor.isPresent()) {
+            RotatedRefreshToken reissued = replace(unusedSuccessor.get(), now);
+            reused.followSuccessorOf(unusedSuccessor.get());
+            reuseMonitor.reissued(reused);
+            return Optional.of(reissued);
+        }
+        refreshTokenRepository.revokeAllActiveByMember(reused.getMember(), now);
+        reuseMonitor.revokedAll(reused, unusedSuccessor.isPresent());
+        return Optional.empty();
+    }
+
+    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken revoked, LocalDateTime now) {
+        if (revoked.getReplacedById() == null) {
             return Optional.empty();
         }
         return refreshTokenRepository.findByIdForUpdate(revoked.getReplacedById())
-                .filter(successor -> !successor.isRevoked() && !successor.isExpired(now))
-                .map(unused -> {
-                    RotatedRefreshToken reissued = replace(unused, now);
-                    revoked.followSuccessorOf(unused);
-                    return reissued;
-                });
+                .filter(successor -> !successor.isRevoked() && !successor.isExpired(now));
     }
 
     // 새 토큰을 발급하고, current를 폐기해 새 토큰을 후속으로 가리키게 한다.

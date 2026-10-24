@@ -12,6 +12,8 @@ import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.token.refresh.RefreshTokenRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -25,6 +27,9 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @Test
     void 로그인_시_refresh는_원문이_아닌_해시로_저장된다() throws Exception {
@@ -120,6 +125,29 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 재사용으로_전체_폐기하면_재사용_카운터가_오른다() throws Exception {
+        double before = reuseCount("REVOKED_ALL", "KAKAO");
+        String lost = login(300_005L);
+        refresh(lost);
+
+        mockMvc.perform(refreshRequest(lost))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(reuseCount("REVOKED_ALL", "KAKAO")).isEqualTo(before + 1);
+    }
+
+    @Test
+    void 게스트_응답_유실로_재발급하면_재발급_카운터가_오른다() throws Exception {
+        double before = reuseCount("REISSUED", "GUEST");
+        String lost = loginAsGuest();
+        refresh(lost);
+
+        refresh(lost);
+
+        assertThat(reuseCount("REISSUED", "GUEST")).isEqualTo(before + 1);
+    }
+
+    @Test
     void 로그아웃하면_refresh가_폐기되어_재발급이_401이다() throws Exception {
         String refreshToken = login(300_003L);
 
@@ -153,6 +181,14 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
                 .getResponse()
                 .getContentAsString();
         return JsonPath.read(responseBody, "$.data.refreshToken");
+    }
+
+    private double reuseCount(String outcome, String provider) {
+        Counter counter = meterRegistry.find("mapmory.auth.refresh.reuse")
+                .tag("outcome", outcome)
+                .tag("provider", provider)
+                .counter();
+        return counter == null ? 0 : counter.count();
     }
 
     private String loginAsGuest() throws Exception {

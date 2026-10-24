@@ -35,6 +35,7 @@ Mapmory는 Spring Boot 기본 로깅과 Micrometer·Actuator·Prometheus Registr
 | 로그 형식 | 로컬은 사람이 읽는 콘솔 패턴, 운영은 Spring Boot Logstash JSON 형식을 사용한다. | `application.yaml`, `application-prod.yaml` |
 | HTTP 메트릭 | `http.server.requests`의 p95를 애플리케이션에서 계산하고 `uri` 태그 값은 최대 50개까지만 등록한다. | `MetricsConfiguration`, `application.yaml` |
 | 내부 작업 메트릭 | `mapmory.operation.duration`으로 미디어 동기화와 지도 요약 쿼리 시간을 성공·실패별로 기록한다. | `OperationTimer`, `MonitoredOperation` |
+| refresh 재사용 | 폐기된 refresh가 다시 오면 전체 폐기는 `WARN` `REFRESH_TOKEN_REUSE_DETECTED`, 게스트 응답 유실 재발급은 `INFO` `REFRESH_TOKEN_LOST_ROTATION_REISSUED`로 기록하고 `mapmory.auth.refresh.reuse`(`outcome`, `provider`)를 센다. 토큰 값은 남기지 않는다. | `RefreshTokenReuseMonitor` |
 | 메트릭 노출 | `health`, `prometheus`만 읽기 전용으로 노출한다. 운영에서는 `127.0.0.1:8081`로 관리 포트를 분리한다. | `application.yaml`, `application-prod.yaml` |
 | 운영 수집 | EC2의 CloudWatch Agent가 애플리케이션 로그와 Prometheus 메트릭을 CloudWatch로 전송한다. 애플리케이션 로그 그룹은 7일, Prometheus EMF 로그 그룹은 14일간 보관한다. | EC2 CloudWatch Agent, `/mapmory/prod/application`, `/mapmory/prod/prometheus-emf` |
 | 대시보드·알림 | 운영 대시보드, EC2·RDS 인프라 알람과 SNS 알림 채널을 구성한다. | `dashboard-mapmory-prod`, `mapmory-prod-alerts` |
