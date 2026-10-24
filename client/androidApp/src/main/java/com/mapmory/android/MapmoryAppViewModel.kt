@@ -12,8 +12,10 @@ import com.mapmory.shared.data.repository.AndroidTripRecordListCache
 import com.mapmory.shared.data.repository.AndroidMapSummaryCache
 import com.mapmory.shared.data.repository.AndroidTripStatisticsCache
 import com.mapmory.shared.data.settings.AndroidOnboardingPreference
+import com.mapmory.shared.data.settings.AndroidShareVideoJobStore
 import com.mapmory.shared.data.settings.AndroidTeamDevicePreference
 import com.mapmory.shared.data.settings.AndroidThemePreference
+import com.mapmory.shared.data.remote.MapmoryApiException
 
 class MapmoryAppViewModel(application: Application) : AndroidViewModel(application) {
     val forceUpdate = com.mapmory.android.update.AndroidForceUpdateController(application)
@@ -29,6 +31,8 @@ internal object UploadContainer {
     fun get(context: android.content.Context): AppContainer {
         instance?.let { return it }
         val application = context.applicationContext
+        val isDebuggable =
+            (application.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val configuredApiBaseUrl = application.getString(R.string.mapmory_api_base_url)
         val execution = AndroidBackgroundSaveExecution(application, configuredApiBaseUrl)
         return createGuestRemoteAppContainer(
@@ -42,7 +46,16 @@ internal object UploadContainer {
             themePreference = AndroidThemePreference(application),
             onboardingPreference = AndroidOnboardingPreference(application),
             teamDevicePreference = AndroidTeamDevicePreference(application),
+            shareVideoJobStore = AndroidShareVideoJobStore(application, configuredApiBaseUrl),
             backgroundSaveExecution = execution,
+            onAuthRefreshFailed = { stage, error ->
+                if (isDebuggable) {
+                    val reason = (error as? MapmoryApiException)
+                        ?.let { "HTTP ${it.statusCode} ${it.code}" }
+                        ?: (error::class.simpleName ?: "unknown")
+                    android.util.Log.d("MapmoryAuth", "refresh failed stage=$stage: $reason")
+                }
+            },
             analytics = FirebaseAnalyticsLogger(application),
         ).also { instance = it }
     }

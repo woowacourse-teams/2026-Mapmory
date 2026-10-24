@@ -15,18 +15,14 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
     }
 
     func load() -> AuthTokens? {
-        if let tokens = loadFromKeychain() {
+        if let payload = UserDefaults.standard.string(forKey: legacyKey),
+           let tokens = decode(payload) {
+            if saveToKeychain(tokens) {
+                UserDefaults.standard.removeObject(forKey: legacyKey)
+            }
             return tokens
         }
-
-        guard let payload = UserDefaults.standard.string(forKey: legacyKey),
-              let tokens = decode(payload) else {
-            return nil
-        }
-        if saveToKeychain(tokens) {
-            UserDefaults.standard.removeObject(forKey: legacyKey)
-        }
-        return tokens
+        return loadFromKeychain()
     }
 
     func save(tokens: AuthTokens) {

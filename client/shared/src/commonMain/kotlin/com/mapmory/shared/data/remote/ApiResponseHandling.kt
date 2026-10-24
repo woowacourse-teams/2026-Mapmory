@@ -36,11 +36,14 @@ private fun userFacingApiMessage(
     "INVALID_OBJECT_KEY" ->
         "사진을 저장하지 못했습니다. 잠시 후 다시 저장해 주세요."
 
-    "INVALID_ACCESS_TOKEN",
+    "INVALID_REFRESH_TOKEN" -> "로그인 세션을 복구하지 못했습니다. 다시 로그인해 주세요."
+    "INVALID_ACCESS_TOKEN" -> "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
     "EXPIRED_ACCESS_TOKEN",
-    "INVALID_REFRESH_TOKEN",
     "EXPIRED_REFRESH_TOKEN" -> "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
 
     "INVALID_KAKAO_TOKEN" -> "카카오 로그인 정보를 확인하지 못했습니다. 다시 로그인해 주세요."
+    "SHARE_VIDEO_NOT_READY" -> "영상 생성이 완료된 후 다시 다운로드해 주세요."
+    "SHARE_VIDEO_GENERATION_FAILED" -> "영상 생성에 실패했습니다. 다시 생성해 주세요."
+    "SHARE_VIDEO_JOB_NOT_FOUND" -> "영상 작업을 찾을 수 없습니다. 다시 생성해 주세요."
     else -> detail ?: title ?: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
 }
