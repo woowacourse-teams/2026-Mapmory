@@ -152,21 +152,31 @@ public class RefreshTokenService {
     }
 
     /**
-     * 로그아웃. 제시된 토큰을 폐기하고, 이미 회전된 토큰이면 그 뒤를 이은 토큰까지 폐기해 세션을 끝낸다. (#462)
+     * 로그아웃. 제시된 토큰을 폐기하고, 이미 회전된 토큰이면 바로 다음 토큰까지 폐기한다. (#462)
      *
      * 재발급과 겹칠 수 있어 회전처럼 행을 잠그고 읽는다. 잠그지 않으면 회전이 커밋한 replacedById를 읽기 전 값으로
-     * 덮어써 회전 체인이 끊기고, 회전으로 나간 후속 토큰이 로그아웃 뒤에도 남는다.
-     * 잠그는 순서는 회전과 같이 제시된 토큰 → 후속 토큰이다. 후속 토큰의 id는 늘 더 크므로 체인은 끝난다.
+     * 덮어써 회전 체인이 끊기고, 그 재발급으로 나간 후속 토큰이 로그아웃 뒤에도 남는다.
+     * 잠그는 순서는 회전과 같이 제시된 토큰 → 후속 토큰이다.
+     *
+     * 겹친 재발급의 후속 토큰은 바로 다음 하나이므로 한 단계만 본다. 체인을 끝까지 따라가면 오래된 토큰일수록
+     * 잠금이 회전 횟수만큼 쌓인다. 그래서 두 단계 이상 이전 토큰으로 로그아웃하면 그 세션의 최신 토큰은 남는다.
+     * 세션 전체 폐기는 #467에서 다룬다.
      */
     @Transactional
     public void revoke(String rawToken) {
         LocalDateTime now = LocalDateTime.now();
-        Optional<RefreshToken> token = refreshTokenRepository.findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken));
-        while (token.isPresent()) {
-            RefreshToken current = token.get();
-            current.revoke(now);
-            token = Optional.ofNullable(current.getReplacedById())
-                    .flatMap(refreshTokenRepository::findByIdForUpdate);
+        refreshTokenRepository.findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
+                .ifPresent(token -> {
+                    token.revoke(now);
+                    revokeSuccessor(token, now);
+                });
+    }
+
+    private void revokeSuccessor(RefreshToken token, LocalDateTime now) {
+        if (token.getReplacedById() == null) {
+            return;
         }
+        refreshTokenRepository.findByIdForUpdate(token.getReplacedById())
+                .ifPresent(successor -> successor.revoke(now));
     }
 }
