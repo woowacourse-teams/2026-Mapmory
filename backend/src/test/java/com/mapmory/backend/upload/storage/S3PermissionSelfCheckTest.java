@@ -133,7 +133,7 @@ class S3PermissionSelfCheckTest {
     private S3PermissionSelfCheck selfCheck(String keyPrefix) {
         S3StorageProperties properties =
                 new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5), null);
-        return new S3PermissionSelfCheck(s3Client, properties, new ObjectKeyGenerator(properties));
+        return new S3PermissionSelfCheck(s3Client, properties, new S3ObjectKeyGenerator(properties));
     }
 
     private static S3Exception s3Exception(int statusCode) {

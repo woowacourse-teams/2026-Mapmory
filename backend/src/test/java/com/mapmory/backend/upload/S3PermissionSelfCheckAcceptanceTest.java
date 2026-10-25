@@ -10,7 +10,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
+import com.mapmory.backend.upload.storage.S3ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3PermissionSelfCheck;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Duration;
@@ -64,7 +64,7 @@ class S3PermissionSelfCheckAcceptanceTest {
                     Duration.ofMinutes(5),
                     new S3StorageProperties.Client(Duration.ofSeconds(2), Duration.ofSeconds(6), 3)
             ))
-            .withUserConfiguration(ObjectKeyGenerator.class, S3PermissionSelfCheck.class);
+            .withUserConfiguration(S3ObjectKeyGenerator.class, S3PermissionSelfCheck.class);
 
     private ListAppender<ILoggingEvent> logs;
 

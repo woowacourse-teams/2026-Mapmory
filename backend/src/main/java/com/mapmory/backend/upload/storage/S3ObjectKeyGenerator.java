@@ -1,6 +1,7 @@
 package com.mapmory.backend.upload.storage;
 
 import com.mapmory.backend.upload.domain.UploadFileType;
+import com.mapmory.backend.upload.service.port.ObjectKeyGenerator;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -13,16 +14,17 @@ import org.springframework.stereotype.Component;
  * keyPrefix는 공용 버킷에서 우리 객체를 한 곳에 모으기 위한 값으로, 없으면 붙이지 않는다.
  */
 @Component
-public class ObjectKeyGenerator {
+public class S3ObjectKeyGenerator implements ObjectKeyGenerator {
 
     private static final String TRAVEL_RECORDS = "travel-records";
 
     private final String keyPrefix;
 
-    public ObjectKeyGenerator(S3StorageProperties properties) {
+    public S3ObjectKeyGenerator(S3StorageProperties properties) {
         this.keyPrefix = properties.normalizedKeyPrefix();
     }
 
+    @Override
     public String generate(Long memberId, UploadFileType fileType) {
         return travelRecordsDirectory() + "%d/%s.%s".formatted(
                 memberId,

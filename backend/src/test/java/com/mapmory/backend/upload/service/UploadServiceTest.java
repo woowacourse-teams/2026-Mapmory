@@ -7,7 +7,7 @@ import com.mapmory.backend.upload.PresignedUpload;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
-import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
+import com.mapmory.backend.upload.storage.S3ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
@@ -28,7 +28,7 @@ class UploadServiceTest {
         FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 10),
-                new ObjectKeyGenerator(storageProperties()),
+                new S3ObjectKeyGenerator(storageProperties()),
                 provider
         );
         List<UploadFileCommand> files = List.of(

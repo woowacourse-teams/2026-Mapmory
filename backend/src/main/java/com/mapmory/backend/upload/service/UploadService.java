@@ -4,9 +4,9 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
 import com.mapmory.backend.upload.domain.UploadFile;
 import com.mapmory.backend.upload.domain.UploadPolicy;
+import com.mapmory.backend.upload.service.port.ObjectKeyGenerator;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
-import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
 import java.util.List;
 import org.springframework.stereotype.Service;
 

@@ -46,12 +46,12 @@ public class S3PermissionSelfCheck {
 
     private final S3Client s3Client;
     private final String bucket;
-    private final ObjectKeyGenerator objectKeyGenerator;
+    private final S3ObjectKeyGenerator objectKeyGenerator;
 
     public S3PermissionSelfCheck(
             S3Client s3Client,
             S3StorageProperties properties,
-            ObjectKeyGenerator objectKeyGenerator
+            S3ObjectKeyGenerator objectKeyGenerator
     ) {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();

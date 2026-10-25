@@ -14,7 +14,7 @@ import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.service.UploadService;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
-import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
+import com.mapmory.backend.upload.storage.S3ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
@@ -53,7 +53,7 @@ class UploadControllerTest {
                 "mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 100),
-                new ObjectKeyGenerator(storageProperties),
+                new S3ObjectKeyGenerator(storageProperties),
                 new FakePresignedUrlProvider()
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
