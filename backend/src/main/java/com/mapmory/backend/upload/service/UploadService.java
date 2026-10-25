@@ -4,7 +4,7 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
 import com.mapmory.backend.upload.domain.UploadFile;
 import com.mapmory.backend.upload.domain.UploadPolicy;
-import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
+import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3StorageProperties;

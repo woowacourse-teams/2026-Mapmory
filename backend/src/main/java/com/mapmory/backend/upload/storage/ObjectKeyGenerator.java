@@ -1,7 +1,6 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.storage;
 
 import com.mapmory.backend.upload.domain.UploadFileType;
-import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ObjectKeyGenerator {
 
-    private static final String PREFIX = "travel-records";
+    private static final String TRAVEL_RECORDS = "travel-records";
 
     private final String keyPrefix;
 
@@ -25,15 +24,20 @@ public class ObjectKeyGenerator {
     }
 
     public String generate(Long memberId, UploadFileType fileType) {
-        String objectKey = "%s/%d/%s.%s".formatted(
-                PREFIX,
+        return travelRecordsDirectory() + "%d/%s.%s".formatted(
                 memberId,
                 UUID.randomUUID(),
                 fileType.canonicalExtension()
         );
+    }
+
+    /**
+     * 여행 기록 객체가 모이는 경로. 끝에 슬래시가 붙는다.
+     */
+    public String travelRecordsDirectory() {
         if (keyPrefix.isEmpty()) {
-            return objectKey;
+            return TRAVEL_RECORDS + "/";
         }
-        return keyPrefix + "/" + objectKey;
+        return keyPrefix + "/" + TRAVEL_RECORDS + "/";
     }
 }
