@@ -134,6 +134,6 @@ public class S3PermissionSelfCheck {
         log.atWarn()
                 .addKeyValue("event", "S3_PERMISSION_UNKNOWN")
                 .setCause(exception)
-                .log("S3 조회 권한을 확인하지 못했습니다. 저장소가 응답하지 않아 판정을 보류합니다.");
+                .log("S3 조회 권한을 확인하지 못했습니다. 판정을 보류합니다. 원인은 함께 남긴 예외를 확인하세요.");
     }
 }

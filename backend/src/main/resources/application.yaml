@@ -107,7 +107,7 @@ upload:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
       region: ${AWS_REGION:ap-northeast-2}
-      # 공용 버킷에서 우리 객체를 모으기 위한 접두사. 전용 버킷이면 비워 둔다.
+      # 공용 버킷에서 우리 객체를 모으기 위한 접두사. 필수이며, 비어 있으면 기동이 실패한다.
       key-prefix: ${AWS_S3_KEY_PREFIX:}
       # 업로드·조회·다운로드 서명 URL의 유효시간. CloudFront 서명 URL도 같은 값을 쓴다.
       signed-url-expiration: PT5M

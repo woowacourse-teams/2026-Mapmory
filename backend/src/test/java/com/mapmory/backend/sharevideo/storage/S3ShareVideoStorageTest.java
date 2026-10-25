@@ -25,7 +25,7 @@ class S3ShareVideoStorageTest {
 
     @Test
     void 설정한_버킷과_영상_Object_Key로_MP4를_업로드한다() throws IOException {
-        S3ShareVideoStorage storage = storage("");
+        S3ShareVideoStorage storage = storage("mapmory");
         Path videoPath = createVideo();
 
         String result = storage.upload(15L, videoPath);
@@ -33,13 +33,13 @@ class S3ShareVideoStorageTest {
         ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3Client).putObject(request.capture(), any(software.amazon.awssdk.core.sync.RequestBody.class));
         assertThat(request.getValue().bucket()).isEqualTo("mapmory-test");
-        assertThat(request.getValue().key()).isEqualTo("share-videos/15/travel-timeline.mp4");
+        assertThat(request.getValue().key()).isEqualTo("mapmory/share-videos/15/travel-timeline.mp4");
         assertThat(request.getValue().contentType()).isEqualTo("video/mp4");
-        assertThat(result).isEqualTo("share-videos/15/travel-timeline.mp4");
+        assertThat(result).isEqualTo("mapmory/share-videos/15/travel-timeline.mp4");
     }
 
     @Test
-    void S3_prefix가_있으면_Object_Key_앞에_붙인다() throws IOException {
+    void prefix의_앞뒤_슬래시는_떼고_붙인다() throws IOException {
         S3ShareVideoStorage storage = storage("/develop/");
 
         String result = storage.upload(15L, createVideo());

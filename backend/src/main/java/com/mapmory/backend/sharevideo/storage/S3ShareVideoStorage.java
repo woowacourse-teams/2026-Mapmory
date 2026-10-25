@@ -22,7 +22,7 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
     ) {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();
-        this.keyPrefix = properties.normalizedKeyPrefix();
+        this.keyPrefix = properties.keyPrefix();
     }
 
     @Override
@@ -44,12 +44,6 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
     }
 
     private String createObjectKey(final Long jobId) {
-        String videoKey = "share-videos/%d/travel-timeline.mp4".formatted(jobId);
-
-        if (keyPrefix.isBlank()) {
-            return videoKey;
-        }
-
-        return keyPrefix + "/" + videoKey;
+        return keyPrefix + "/share-videos/%d/travel-timeline.mp4".formatted(jobId);
     }
 }

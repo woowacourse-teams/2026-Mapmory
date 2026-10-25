@@ -25,16 +25,9 @@ class S3ObjectKeyGeneratorTest {
             UploadFileType fileType,
             String extension
     ) {
-        String objectKey = objectKeyGenerator("").generate(10L, fileType);
+        String objectKey = objectKeyGenerator("mapmory").generate(10L, fileType);
 
-        assertThat(objectKey).matches("travel-records/10/" + UUID_PATTERN + "\\." + extension);
-    }
-
-    @Test
-    void prefix가_설정되면_Object_Key_앞에_붙인다() {
-        String objectKey = objectKeyGenerator("mapmory").generate(10L, UploadFileType.JPEG);
-
-        assertThat(objectKey).matches("mapmory/travel-records/10/" + UUID_PATTERN + "\\.jpg");
+        assertThat(objectKey).matches("mapmory/travel-records/10/" + UUID_PATTERN + "\\." + extension);
     }
 
     /**
@@ -48,19 +41,11 @@ class S3ObjectKeyGeneratorTest {
         assertThat(objectKey).matches("mapmory/travel-records/10/" + UUID_PATTERN + "\\.jpg");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"", " ", "/"})
-    void prefix가_비어_있으면_붙이지_않는다(String keyPrefix) {
-        String objectKey = objectKeyGenerator(keyPrefix).generate(10L, UploadFileType.JPEG);
-
-        assertThat(objectKey).startsWith("travel-records/");
-    }
-
     @Test
-    void prefix가_설정되지_않아도_동작한다() {
-        String objectKey = objectKeyGenerator(null).generate(10L, UploadFileType.JPEG);
+    void 여러_단계의_prefix도_그대로_붙인다() {
+        String objectKey = objectKeyGenerator("mapmory/dev").generate(10L, UploadFileType.JPEG);
 
-        assertThat(objectKey).startsWith("travel-records/");
+        assertThat(objectKey).matches("mapmory/dev/travel-records/10/" + UUID_PATTERN + "\\.jpg");
     }
 
     private S3ObjectKeyGenerator objectKeyGenerator(String keyPrefix) {

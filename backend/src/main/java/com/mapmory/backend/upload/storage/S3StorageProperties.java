@@ -13,8 +13,10 @@ import org.springframework.validation.annotation.Validated;
 /**
  * S3 저장 위치와 호출 한도.
  *
- * keyPrefix는 공용 버킷에서 우리 객체를 한 곳에 모으기 위한 값이다.
- * 전용 버킷을 쓰는 환경에서는 비워 두면 된다.
+ * keyPrefix는 공용 버킷에서 우리 객체를 한 곳에 모으기 위한 값으로, 반드시 있어야 한다.
+ * 비어 있으면 객체가 공용 버킷 루트에 쌓여 다른 팀 경로와 섞이므로 기동을 실패시킨다.
+ * 운영자가 콘솔의 경로 표기를 그대로 옮겨 적어 "/mapmory" 나 "mapmory/" 가 들어와도
+ * 같은 위치를 가리키도록 앞뒤 공백과 슬래시를 떼어 낸 값을 담는다.
  *
  * signedUrlExpiration은 업로드·조회·다운로드에 내주는 서명 URL의 유효시간이다.
  * 상한 7일(604,800초)은 S3 SigV4 presigned URL이 허용하는 최대치다.
@@ -36,6 +38,22 @@ public record S3StorageProperties(
 
     private static final String TRAVEL_RECORDS = "travel-records/";
 
+    public S3StorageProperties {
+        keyPrefix = normalize(keyPrefix);
+        if (keyPrefix.isEmpty()) {
+            throw new IllegalArgumentException("upload.storage.s3.key-prefix must not be blank");
+        }
+    }
+
+    private static String normalize(String keyPrefix) {
+        if (keyPrefix == null) {
+            return "";
+        }
+        return keyPrefix.strip()
+                .replaceAll("^/+", "")
+                .replaceAll("/+$", "");
+    }
+
     /**
      * S3 호출을 기다리는 한도. S3가 멈춰도 요청 스레드를 오래 쥐지 않게 한다.
      *
@@ -49,28 +67,9 @@ public record S3StorageProperties(
     }
 
     /**
-     * 앞뒤 슬래시를 제거한 prefix. 값이 없으면 빈 문자열이다.
-     *
-     * 운영자가 콘솔의 경로 표기를 그대로 옮겨 적어 "/mapmory" 나 "mapmory/" 가 들어와도
-     * 같은 위치를 가리키게 한다.
-     */
-    public String normalizedKeyPrefix() {
-        if (keyPrefix == null || keyPrefix.isBlank()) {
-            return "";
-        }
-        return keyPrefix.strip()
-                .replaceAll("^/+", "")
-                .replaceAll("/+$", "");
-    }
-
-    /**
      * 여행 기록 객체가 모이는 경로. 끝에 슬래시가 붙는다.
      */
     public String travelRecordsDirectory() {
-        String prefix = normalizedKeyPrefix();
-        if (prefix.isEmpty()) {
-            return TRAVEL_RECORDS;
-        }
-        return prefix + "/" + TRAVEL_RECORDS;
+        return keyPrefix + "/" + TRAVEL_RECORDS;
     }
 }
