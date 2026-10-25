@@ -2,7 +2,6 @@ package com.mapmory.backend.upload.service;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
-import com.mapmory.backend.upload.UploadFileCommand;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.policy.UploadFileType;
 import com.mapmory.backend.upload.policy.UploadPolicy;

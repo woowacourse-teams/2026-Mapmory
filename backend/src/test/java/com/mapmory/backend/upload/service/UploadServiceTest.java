@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
-import com.mapmory.backend.upload.UploadFileCommand;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.policy.UploadPolicy;

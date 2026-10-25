@@ -6,9 +6,9 @@ import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.upload.UploadErrorCode;
 import com.mapmory.backend.upload.storage.UploadedObjectChecker;
 import java.util.List;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class UploadedObjectVerifier {
 
     private final UploadedObjectChecker uploadedObjectChecker;

@@ -1,6 +1,6 @@
 package com.mapmory.backend.upload.dto;
 
-import com.mapmory.backend.upload.UploadFileCommand;
+import com.mapmory.backend.upload.service.UploadFileCommand;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
