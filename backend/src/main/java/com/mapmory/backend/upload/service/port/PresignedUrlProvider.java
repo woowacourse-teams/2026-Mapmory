@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.storage;
+package com.mapmory.backend.upload.service.port;
 
 /**
  * 일정 시간만 열리는 업로드·조회 URL을 서명한다. 유효시간은 구현이 정하고 결과에 담는다.

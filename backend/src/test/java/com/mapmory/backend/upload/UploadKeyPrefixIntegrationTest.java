@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.upload.storage.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;

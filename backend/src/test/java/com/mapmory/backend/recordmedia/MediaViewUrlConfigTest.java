@@ -3,7 +3,7 @@ package com.mapmory.backend.recordmedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;

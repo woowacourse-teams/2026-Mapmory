@@ -1,7 +1,7 @@
 package com.mapmory.backend.sharevideo;
 
-import com.mapmory.backend.upload.storage.PresignedRequest;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import org.springframework.stereotype.Service;
 
 @Service

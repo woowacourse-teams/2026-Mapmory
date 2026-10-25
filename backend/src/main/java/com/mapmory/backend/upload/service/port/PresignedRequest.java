@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.storage;
+package com.mapmory.backend.upload.service.port;
 
 import java.net.URI;
 import java.time.Duration;

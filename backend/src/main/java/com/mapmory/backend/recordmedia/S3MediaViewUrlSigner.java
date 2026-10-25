@@ -1,7 +1,7 @@
 package com.mapmory.backend.recordmedia;
 
-import com.mapmory.backend.upload.storage.PresignedRequest;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 
 /**
  * 앱이 S3에서 바로 받는 presigned GET URL. CloudFront를 끈 환경(로컬·테스트)과 되돌릴 때 쓴다.

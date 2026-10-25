@@ -1,5 +1,7 @@
 package com.mapmory.backend.upload.storage;
 
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import java.net.URI;
 import java.time.Duration;
 import org.springframework.stereotype.Component;

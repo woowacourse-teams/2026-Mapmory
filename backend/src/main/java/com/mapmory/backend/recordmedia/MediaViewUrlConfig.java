@@ -1,6 +1,6 @@
 package com.mapmory.backend.recordmedia;
 
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

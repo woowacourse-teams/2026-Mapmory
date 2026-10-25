@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.upload.UploadErrorCode;
+import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;

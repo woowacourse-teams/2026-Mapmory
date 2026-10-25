@@ -6,8 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.upload.storage.PresignedRequest;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
