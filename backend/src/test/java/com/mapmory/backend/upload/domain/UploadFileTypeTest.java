@@ -35,4 +35,25 @@ class UploadFileTypeTest {
         assertThat(UploadFileType.JPEG.matchesFileName("photo.jpeg")).isTrue();
         assertThat(UploadFileType.JPEG.matchesFileName("photo.png")).isFalse();
     }
+
+    /**
+     * 앱은 이 확장자들을 같은 Content-Type으로 보낸다. (UploadingTripRecordRepository.detectImageContentType)
+     */
+    @ParameterizedTest
+    @CsvSource({
+            "photo.jpe, JPEG",
+            "photo.heics, HEIC",
+            "photo.heif, HEIC",
+            "photo.HEIF, HEIC",
+            "photo.heifs, HEIC"
+    })
+    void 앱이_같은_형식으로_보내는_다른_확장자도_허용한다(String fileName, UploadFileType fileType) {
+        assertThat(fileType.matchesFileName(fileName)).isTrue();
+    }
+
+    @Test
+    void 다른_형식의_확장자는_허용하지_않는다() {
+        assertThat(UploadFileType.PNG.matchesFileName("photo.heif")).isFalse();
+        assertThat(UploadFileType.PNG.matchesFileName("photo.jpe")).isFalse();
+    }
 }

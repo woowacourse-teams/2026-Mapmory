@@ -7,10 +7,10 @@ import java.util.Set;
 
 public enum UploadFileType {
 
-    JPEG("image/jpeg", "jpg", Set.of("jpg", "jpeg")),
+    JPEG("image/jpeg", "jpg", Set.of("jpg", "jpeg", "jpe")),
     PNG("image/png", "png", Set.of("png")),
     WEBP("image/webp", "webp", Set.of("webp")),
-    HEIC("image/heic", "heic", Set.of("heic"));
+    HEIC("image/heic", "heic", Set.of("heic", "heics", "heif", "heifs"));
 
     private final String contentType;
     private final String canonicalExtension;
