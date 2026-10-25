@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.storage;
+package com.mapmory.backend.upload.service.port;
 
 /**
  * 업로드 저장소에 객체가 존재하는지 확인하는 포트.

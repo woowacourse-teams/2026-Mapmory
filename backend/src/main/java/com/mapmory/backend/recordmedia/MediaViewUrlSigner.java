@@ -1,8 +1,5 @@
 package com.mapmory.backend.recordmedia;
 
-import java.net.URI;
-import java.time.Duration;
-
 /**
  * Object Key 하나로 일정 시간만 열리는 조회 URL을 만든다.
  *
@@ -10,5 +7,8 @@ import java.time.Duration;
  */
 public interface MediaViewUrlSigner {
 
-    URI sign(String objectKey, Duration expiration);
+    /**
+     * 유효시간은 구현이 정하고 결과에 담는다.
+     */
+    ExpiringUrl sign(String objectKey);
 }

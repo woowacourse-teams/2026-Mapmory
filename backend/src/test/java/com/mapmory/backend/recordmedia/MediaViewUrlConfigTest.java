@@ -3,8 +3,7 @@ package com.mapmory.backend.recordmedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,17 +12,13 @@ import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.util.unit.DataSize;
 
 class MediaViewUrlConfigTest {
 
     private final MediaViewUrlConfig config = new MediaViewUrlConfig();
     private final S3StorageProperties s3StorageProperties = new S3StorageProperties(
-            "bucket", "ap-northeast-2", "mapmory",
+            "bucket", "ap-northeast-2", "mapmory", Duration.ofMinutes(5),
             new S3StorageProperties.Client(Duration.ofSeconds(2), Duration.ofSeconds(6), 3)
-    );
-    private final UploadPolicyProperties uploadPolicyProperties = new UploadPolicyProperties(
-            DataSize.ofMegabytes(10), 100, Duration.ofMinutes(5)
     );
 
     @TempDir
@@ -34,7 +29,7 @@ class MediaViewUrlConfigTest {
         CloudFrontProperties off = new CloudFrontProperties(false, null, "mapmory", null, null);
 
         MediaViewUrlSigner signer = config.mediaViewUrlSigner(
-                off, s3StorageProperties, uploadPolicyProperties, mock(PresignedUrlProvider.class));
+                off, s3StorageProperties, mock(PresignedUrlProvider.class));
 
         assertThat(signer).isInstanceOf(S3MediaViewUrlSigner.class);
     }
@@ -50,7 +45,7 @@ class MediaViewUrlConfigTest {
         CloudFrontProperties on = new CloudFrontProperties(true, "d123.cloudfront.net", "mapmory", "KTEST", key);
 
         MediaViewUrlSigner signer = config.mediaViewUrlSigner(
-                on, s3StorageProperties, uploadPolicyProperties, mock(PresignedUrlProvider.class));
+                on, s3StorageProperties, mock(PresignedUrlProvider.class));
 
         assertThat(signer).isInstanceOf(CloudFrontMediaViewUrlSigner.class);
     }

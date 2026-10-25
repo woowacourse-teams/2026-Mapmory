@@ -1,14 +1,15 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mapmory.backend.upload.storage.S3StorageProperties;
+import com.mapmory.backend.upload.domain.UploadFileType;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class ObjectKeyGeneratorTest {
+class S3ObjectKeyGeneratorTest {
 
     private static final String UUID_PATTERN =
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -62,8 +63,8 @@ class ObjectKeyGeneratorTest {
         assertThat(objectKey).startsWith("travel-records/");
     }
 
-    private ObjectKeyGenerator objectKeyGenerator(String keyPrefix) {
-        return new ObjectKeyGenerator(
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, null));
+    private S3ObjectKeyGenerator objectKeyGenerator(String keyPrefix) {
+        return new S3ObjectKeyGenerator(
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5), null));
     }
 }

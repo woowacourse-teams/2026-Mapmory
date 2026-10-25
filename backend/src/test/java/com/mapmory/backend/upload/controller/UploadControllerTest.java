@@ -10,12 +10,12 @@ import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.handler.BusinessExceptionHandler;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
-import com.mapmory.backend.upload.storage.S3StorageProperties;
-import com.mapmory.backend.upload.policy.UploadPolicy;
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.service.UploadService;
-import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
+import com.mapmory.backend.upload.storage.S3ObjectKeyGenerator;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
@@ -25,9 +25,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -37,6 +37,8 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 class UploadControllerTest {
 
     private static final long MEMBER_ID = 10L;
+    private static final long TEN_MEGABYTES = DataSize.ofMegabytes(10).toBytes();
+    private static final Duration EXPIRATION = Duration.ofMinutes(5);
     private static final Member MEMBER = Member.of("테스터", UUID.randomUUID());
 
     static {
@@ -47,16 +49,12 @@ class UploadControllerTest {
 
     @BeforeEach
     void setUp() {
-        UploadPolicyProperties properties = new UploadPolicyProperties(
-                DataSize.ofMegabytes(10),
-                100,
-                Duration.ofMinutes(5)
-        );
+        S3StorageProperties storageProperties = new S3StorageProperties(
+                "mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
         UploadService uploadService = new UploadService(
-                new UploadPolicy(properties),
-                new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)),
-                new FakePresignedUrlProvider(),
-                properties
+                new UploadPolicy(TEN_MEGABYTES, 100),
+                new S3ObjectKeyGenerator(storageProperties),
+                new FakePresignedUrlProvider()
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 
@@ -154,18 +152,17 @@ class UploadControllerTest {
     private static class FakePresignedUrlProvider implements PresignedUrlProvider {
 
         @Override
-        public URI createPresignedPutUrl(
+        public PresignedRequest createPresignedPutUrl(
                 String objectKey,
                 String contentType,
-                long contentLength,
-                Duration expiration
+                long contentLength
         ) {
-            return URI.create("https://upload.example/" + objectKey);
+            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT", EXPIRATION);
         }
 
         @Override
-        public URI createPresignedGetUrl(String objectKey, Duration expiration) {
-            return URI.create("https://download.example/" + objectKey);
+        public PresignedRequest createPresignedGetUrl(String objectKey) {
+            return new PresignedRequest(URI.create("https://download.example/" + objectKey), "GET", EXPIRATION);
         }
     }
 }

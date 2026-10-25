@@ -103,13 +103,14 @@ upload:
   policy:
     max-file-size: 10MB
     max-files-per-request: 100
-    presigned-url-expiration: PT5M
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
       region: ${AWS_REGION:ap-northeast-2}
       # 공용 버킷에서 우리 객체를 모으기 위한 접두사. 전용 버킷이면 비워 둔다.
       key-prefix: ${AWS_S3_KEY_PREFIX:}
+      # 업로드·조회·다운로드 서명 URL의 유효시간. CloudFront 서명 URL도 같은 값을 쓴다.
+      signed-url-expiration: PT5M
       # 작은 요청은 보통 수십 ms라 2초가 지나면 다시 시도한다(AWS S3 성능 가이드).
       # 재시도를 합쳐도 호출 하나는 6초 안에 끝나, S3가 멈춰도 요청 스레드를 오래 쥐지 않는다.
       client:
@@ -121,7 +122,7 @@ media:
   view:
     # 사진 조회 URL을 CloudFront 서명 URL로 낸다. 끄면 S3 presigned GET으로 돌아간다.
     # 배포 원본 경로가 공용 버킷의 우리 폴더(mapmory)라, Object Key 앞의 그 값을 빼고 서명한다.
-    # 유효시간은 upload.policy.presigned-url-expiration을 같이 쓴다.
+    # 유효시간은 upload.storage.s3.signed-url-expiration을 같이 쓴다.
     cdn:
       enabled: ${CLOUDFRONT_ENABLED:false}
       domain: ${CLOUDFRONT_DOMAIN:}

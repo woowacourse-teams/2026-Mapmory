@@ -27,8 +27,8 @@ class CloudFrontMediaViewUrlSignerTest {
     private static final Duration FIVE_MINUTES = Duration.ofMinutes(5);
     private static final Instant NOW = Instant.parse("2026-10-21T00:01:30Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
-    private static final MediaViewUrlSigner S3 = (objectKey, expiration) ->
-            URI.create("https://bucket.s3.example/" + objectKey + "?X-Amz-Signature=s3");
+    private static final MediaViewUrlSigner S3 = objectKey ->
+            new ExpiringUrl("https://bucket.s3.example/" + objectKey + "?X-Amz-Signature=s3", 300L);
 
     @TempDir
     Path tempDir;
@@ -48,7 +48,7 @@ class CloudFrontMediaViewUrlSignerTest {
     void 원본_경로를_뺀_CloudFront_주소에_만료_시각과_키_ID를_붙인다() {
         MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory/dev", CLOCK);
 
-        URI url = signer.sign("mapmory/dev/travel-records/15/a.jpg", FIVE_MINUTES);
+        URI url = url(signer.sign("mapmory/dev/travel-records/15/a.jpg"));
 
         assertThat(url.getScheme()).isEqualTo("https");
         assertThat(url.getHost()).isEqualTo("d123.cloudfront.net");
@@ -60,7 +60,7 @@ class CloudFrontMediaViewUrlSignerTest {
     void 만료_시각은_유효시간_단위로_올려_맞춰_설정값_이상_두_배_미만이다() {
         MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory", CLOCK);
 
-        URI url = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI url = url(signer.sign("mapmory/travel-records/12/b.jpg"));
 
         long expires = Long.parseLong(query(url).get("Expires"));
         assertThat(expires).isEqualTo(Instant.parse("2026-10-21T00:10:00Z").getEpochSecond());
@@ -68,10 +68,19 @@ class CloudFrontMediaViewUrlSignerTest {
     }
 
     @Test
+    void 만료까지_남은_시간은_설정한_유효시간으로_알려준다() {
+        MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory", CLOCK);
+
+        ExpiringUrl url = signer.sign("mapmory/travel-records/12/b.jpg");
+
+        assertThat(url.expiresIn()).isEqualTo(FIVE_MINUTES.toSeconds());
+    }
+
+    @Test
     void 서명은_짝이_되는_공개_키로_검증된다() throws Exception {
         MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory", CLOCK);
 
-        URI url = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI url = url(signer.sign("mapmory/travel-records/12/b.jpg"));
 
         assertThat(verifies(url, "https://d123.cloudfront.net/travel-records/12/b.jpg")).isTrue();
     }
@@ -81,7 +90,7 @@ class CloudFrontMediaViewUrlSignerTest {
         privateKeyPath = writePem("pkcs1.pem", "RSA PRIVATE KEY", pkcs1(keyPair.getPrivate().getEncoded()));
         MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory", CLOCK);
 
-        URI url = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI url = url(signer.sign("mapmory/travel-records/12/b.jpg"));
 
         assertThat(verifies(url, "https://d123.cloudfront.net/travel-records/12/b.jpg")).isTrue();
     }
@@ -91,11 +100,11 @@ class CloudFrontMediaViewUrlSignerTest {
         MutableClock clock = new MutableClock(NOW);
         MediaViewUrlSigner signer = signer("d123.cloudfront.net", "mapmory", "mapmory", clock);
 
-        URI first = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI first = url(signer.sign("mapmory/travel-records/12/b.jpg"));
         clock.now = NOW.plusSeconds(60);
-        URI sameWindow = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI sameWindow = url(signer.sign("mapmory/travel-records/12/b.jpg"));
         clock.now = NOW.plus(FIVE_MINUTES);
-        URI nextWindow = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI nextWindow = url(signer.sign("mapmory/travel-records/12/b.jpg"));
 
         assertThat(sameWindow).isEqualTo(first);
         assertThat(nextWindow).isNotEqualTo(first);
@@ -105,7 +114,7 @@ class CloudFrontMediaViewUrlSignerTest {
     void 도메인과_원본_경로의_앞뒤_슬래시와_스킴은_무시한다() {
         MediaViewUrlSigner signer = signer("https://d123.cloudfront.net/", "/mapmory/", "mapmory", CLOCK);
 
-        URI url = signer.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
+        URI url = url(signer.sign("mapmory/travel-records/12/b.jpg"));
 
         assertThat(url.getHost()).isEqualTo("d123.cloudfront.net");
         assertThat(url.getPath()).isEqualTo("/travel-records/12/b.jpg");
@@ -115,8 +124,8 @@ class CloudFrontMediaViewUrlSignerTest {
     void 이_서버의_키_접두사_밖의_키는_S3_presigned_GET으로_낸다() {
         MediaViewUrlSigner devSigner = signer("d123.cloudfront.net", "mapmory", "mapmory/dev", CLOCK);
 
-        URI prodKey = devSigner.sign("mapmory/travel-records/12/b.jpg", FIVE_MINUTES);
-        URI legacyKey = devSigner.sign("travel-records/12/b.jpg", FIVE_MINUTES);
+        URI prodKey = url(devSigner.sign("mapmory/travel-records/12/b.jpg"));
+        URI legacyKey = url(devSigner.sign("travel-records/12/b.jpg"));
 
         assertThat(prodKey.getHost()).isEqualTo("bucket.s3.example");
         assertThat(legacyKey.getHost()).isEqualTo("bucket.s3.example");
@@ -147,6 +156,10 @@ class CloudFrontMediaViewUrlSignerTest {
         assertThatThrownBy(() -> new CloudFrontMediaViewUrlSigner(missingPrivateKey, "mapmory", FIVE_MINUTES, S3, CLOCK))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("private-key-path");
+    }
+
+    private static URI url(ExpiringUrl expiringUrl) {
+        return URI.create(expiringUrl.url());
     }
 
     private MediaViewUrlSigner signer(String domain, String originPath, String keyPrefix, Clock clock) {

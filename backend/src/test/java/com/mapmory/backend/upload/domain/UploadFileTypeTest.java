@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

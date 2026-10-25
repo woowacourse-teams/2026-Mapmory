@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload;
+package com.mapmory.backend.upload.service;
 
 /**
  * presigned 업로드 URL을 받으려는 파일 하나의 정보.

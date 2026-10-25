@@ -4,11 +4,11 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.upload.UploadErrorCode;
-import com.mapmory.backend.upload.storage.UploadedObjectChecker;
+import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import java.util.List;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class UploadedObjectVerifier {
 
     private final UploadedObjectChecker uploadedObjectChecker;

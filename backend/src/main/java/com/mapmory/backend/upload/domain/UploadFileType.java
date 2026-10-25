@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.domain;
 
 import java.util.Arrays;
 import java.util.Locale;

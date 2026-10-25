@@ -43,19 +43,19 @@ public class S3PermissionSelfCheck {
 
     private static final Logger log = LoggerFactory.getLogger(S3PermissionSelfCheck.class);
     private static final int FORBIDDEN = 403;
-    private static final String TRAVEL_RECORDS = "travel-records/";
 
     private final S3Client s3Client;
     private final String bucket;
-    private final String keyPrefix;
+    private final S3ObjectKeyGenerator objectKeyGenerator;
 
     public S3PermissionSelfCheck(
             S3Client s3Client,
-            S3StorageProperties properties
+            S3StorageProperties properties,
+            S3ObjectKeyGenerator objectKeyGenerator
     ) {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();
-        this.keyPrefix = properties.normalizedKeyPrefix();
+        this.objectKeyGenerator = objectKeyGenerator;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -111,19 +111,12 @@ public class S3PermissionSelfCheck {
     private Optional<String> findAnyObjectKey() {
         ListObjectsV2Response response = s3Client.listObjectsV2(ListObjectsV2Request.builder()
                 .bucket(bucket)
-                .prefix(travelRecordsPrefix())
+                .prefix(objectKeyGenerator.travelRecordsDirectory())
                 .maxKeys(1)
                 .build());
         return response.contents().stream()
                 .findFirst()
                 .map(S3Object::key);
-    }
-
-    private String travelRecordsPrefix() {
-        if (keyPrefix.isEmpty()) {
-            return TRAVEL_RECORDS;
-        }
-        return keyPrefix + "/" + TRAVEL_RECORDS;
     }
 
     private void report(S3Exception exception, String permission, String consequence) {

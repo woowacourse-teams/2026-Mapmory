@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.upload.UploadErrorCode;
-import com.mapmory.backend.upload.storage.UploadedObjectChecker;
+import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;

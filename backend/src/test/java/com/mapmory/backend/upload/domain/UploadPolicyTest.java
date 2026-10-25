@@ -1,11 +1,10 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.upload.UploadErrorCode;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,7 +19,7 @@ class UploadPolicyTest {
 
     @BeforeEach
     void setUp() {
-        uploadPolicy = new UploadPolicy(properties());
+        uploadPolicy = new UploadPolicy(TEN_MEGABYTES, 100);
     }
 
     @ParameterizedTest
@@ -37,12 +36,12 @@ class UploadPolicyTest {
             UploadFileType expected
     ) {
         assertThat(uploadPolicy.validateFile(fileName, contentType, TEN_MEGABYTES))
-                .isEqualTo(expected);
+                .isEqualTo(new UploadFile(expected, TEN_MEGABYTES));
     }
 
     @Test
     void 확장자가_없어도_Content_Type으로_이미지_형식을_검증한다() {
-        assertThat(uploadPolicy.validateFile("IMG_1234", "image/jpeg", TEN_MEGABYTES))
+        assertThat(uploadPolicy.validateFile("IMG_1234", "image/jpeg", TEN_MEGABYTES).fileType())
                 .isEqualTo(UploadFileType.JPEG);
     }
 
@@ -82,13 +81,5 @@ class UploadPolicyTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         org.assertj.core.api.Assertions.assertThat(exception.getErrorCode())
                                 .isEqualTo(UploadErrorCode.TOO_MANY_FILES));
-    }
-
-    private static UploadPolicyProperties properties() {
-        return new UploadPolicyProperties(
-                DataSize.ofMegabytes(10),
-                100,
-                Duration.ofMinutes(5)
-        );
     }
 }
