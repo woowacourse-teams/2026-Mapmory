@@ -8,6 +8,8 @@ import com.mapmory.backend.auth.infrastructure.google.GoogleIdentityAdapter;
 import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimitProperties;
 import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimiter;
+import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.place.infrastructure.google.GooglePlacesClient;
 import com.mapmory.backend.place.infrastructure.google.GoogleRequestLimiter;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
@@ -15,6 +17,7 @@ import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.support.SecuredTestController;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -102,10 +105,28 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
     @Autowired
     private GuestLoginRateLimitProperties guestLoginRateLimitProperties;
 
+    @Autowired
+    private MemberRepository integrationTestMemberRepository;
+
+    @Autowired
+    private S3StorageProperties s3StorageProperties;
+
     @BeforeEach
     void startGuestLoginRateLimitFresh() {
         GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(guestLoginRateLimitProperties);
         willAnswer(invocation -> limiter.tryAcquire(invocation.getArgument(0)))
                 .given(guestLoginRateLimiter).tryAcquire(anyString());
+    }
+
+    /**
+     * 가장 최근에 가입한 회원에게 업로드 API가 발급하는 형식의 사진 키.
+     * 기록에는 그 회원 경로의 키만 붙일 수 있으므로, 로그인한 뒤에 부른다.
+     */
+    protected String photoKeyOfLatestMember(String fileName) {
+        Long memberId = integrationTestMemberRepository.findAll().stream()
+                .map(Member::getId)
+                .max(Long::compare)
+                .orElseThrow();
+        return s3StorageProperties.travelRecordsDirectory() + memberId + "/" + fileName;
     }
 }

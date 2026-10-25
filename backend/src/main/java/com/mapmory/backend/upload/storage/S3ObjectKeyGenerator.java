@@ -31,4 +31,17 @@ public class S3ObjectKeyGenerator implements ObjectKeyGenerator {
         );
     }
 
+    /**
+     * 회원 경로 바로 아래의 파일 이름이어야 한다. 그 아래에 다시 경로가 있으면("../" 포함) 받지 않는다.
+     */
+    @Override
+    public boolean isIssuedTo(Long memberId, String objectKey) {
+        String memberDirectory = travelRecordsDirectory + memberId + "/";
+        if (objectKey == null || !objectKey.startsWith(memberDirectory)) {
+            return false;
+        }
+        String fileName = objectKey.substring(memberDirectory.length());
+        return !fileName.isEmpty() && !fileName.contains("/");
+    }
+
 }

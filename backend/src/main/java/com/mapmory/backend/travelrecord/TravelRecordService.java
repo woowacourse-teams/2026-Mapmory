@@ -88,9 +88,10 @@ public class TravelRecordService {
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
         PlaceDetails place = resolvePlace(command);
-        uploadedObjectVerifier.verifyAllUploaded(objectKeys);
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys);
 
         return transactionTemplate.execute(status -> {
+            validateObjectKeysAreAvailable(objectKeys);
             Region region = resolveRegion(command, place);
             TravelRecord travelRecord = TravelRecord.of(
                     member,
@@ -139,7 +140,7 @@ public class TravelRecordService {
             validateObjectKeysAreAvailable(keys);
             return keys;
         });
-        uploadedObjectVerifier.verifyAllUploaded(newObjectKeys);
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys);
 
         return transactionTemplate.execute(status -> {
             TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);

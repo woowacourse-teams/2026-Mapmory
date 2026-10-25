@@ -10,4 +10,9 @@ import com.mapmory.backend.upload.domain.UploadFileType;
 public interface ObjectKeyGenerator {
 
     String generate(Long memberId, UploadFileType fileType);
+
+    /**
+     * 이 회원에게 발급한 형식의 키인가. 다른 회원이나 다른 용도의 경로면 false다.
+     */
+    boolean isIssuedTo(Long memberId, String objectKey);
 }
