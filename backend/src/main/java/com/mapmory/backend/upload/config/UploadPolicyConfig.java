@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.config;
 
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

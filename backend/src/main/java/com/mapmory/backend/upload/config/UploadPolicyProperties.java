@@ -1,4 +1,4 @@
-package com.mapmory.backend.upload.policy;
+package com.mapmory.backend.upload.config;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
