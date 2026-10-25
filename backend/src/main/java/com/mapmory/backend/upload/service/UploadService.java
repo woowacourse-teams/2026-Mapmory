@@ -2,9 +2,9 @@ package com.mapmory.backend.upload.service;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
+import com.mapmory.backend.upload.domain.UploadFile;
+import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
-import com.mapmory.backend.upload.policy.UploadFileType;
-import com.mapmory.backend.upload.policy.UploadPolicy;
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
@@ -36,11 +36,8 @@ public class UploadService {
 
     public List<PresignedUpload> createPresignedUrls(Member member, List<UploadFileCommand> files) {
         uploadPolicy.validateFileCount(files.size());
-        List<ValidatedUploadFile> validatedFiles = files.stream()
-                .map(file -> new ValidatedUploadFile(
-                        file,
-                        uploadPolicy.validateFile(file.fileName(), file.contentType(), file.fileSize())
-                ))
+        List<UploadFile> validatedFiles = files.stream()
+                .map(file -> uploadPolicy.validateFile(file.fileName(), file.contentType(), file.fileSize()))
                 .toList();
 
         return validatedFiles.stream()
@@ -48,28 +45,20 @@ public class UploadService {
                 .toList();
     }
 
-    private PresignedUpload createPresignedUpload(Long memberId, ValidatedUploadFile validatedFile) {
-        UploadFileCommand file = validatedFile.file();
-        UploadFileType fileType = validatedFile.fileType();
-        String objectKey = objectKeyGenerator.generate(memberId, fileType);
+    private PresignedUpload createPresignedUpload(Long memberId, UploadFile file) {
+        String objectKey = objectKeyGenerator.generate(memberId, file.fileType());
         URI presignedUrl = presignedUrlProvider.createPresignedPutUrl(
                 objectKey,
-                fileType.contentType(),
-                file.fileSize(),
+                file.contentType(),
+                file.size(),
                 presignedUrlExpiration
         );
         return new PresignedUpload(
                 objectKey,
                 presignedUrl,
                 UPLOAD_METHOD,
-                fileType.contentType(),
+                file.contentType(),
                 presignedUrlExpiration
         );
-    }
-
-    private record ValidatedUploadFile(
-            UploadFileCommand file,
-            UploadFileType fileType
-    ) {
     }
 }

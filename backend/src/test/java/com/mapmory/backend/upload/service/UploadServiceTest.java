@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.PresignedUpload;
+import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
-import com.mapmory.backend.upload.policy.UploadPolicy;
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
@@ -25,7 +25,7 @@ class UploadServiceTest {
         UploadPolicyProperties properties = properties();
         FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
         UploadService uploadService = new UploadService(
-                new UploadPolicy(properties),
+                new UploadPolicy(properties.maxFileSize().toBytes(), properties.maxFilesPerRequest()),
                 new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)),
                 provider,
                 properties

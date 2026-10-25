@@ -2,6 +2,7 @@ package com.mapmory.backend.upload.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mapmory.backend.upload.domain.UploadFileType;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

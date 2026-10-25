@@ -1,5 +1,6 @@
 package com.mapmory.backend.upload.policy;
 
+import com.mapmory.backend.upload.domain.UploadFileType;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
