@@ -34,6 +34,8 @@ public record S3StorageProperties(
         @NotNull @Valid Client client
 ) {
 
+    private static final String TRAVEL_RECORDS = "travel-records/";
+
     /**
      * S3 호출을 기다리는 한도. S3가 멈춰도 요청 스레드를 오래 쥐지 않게 한다.
      *
@@ -59,5 +61,16 @@ public record S3StorageProperties(
         return keyPrefix.strip()
                 .replaceAll("^/+", "")
                 .replaceAll("/+$", "");
+    }
+
+    /**
+     * 여행 기록 객체가 모이는 경로. 끝에 슬래시가 붙는다.
+     */
+    public String travelRecordsDirectory() {
+        String prefix = normalizedKeyPrefix();
+        if (prefix.isEmpty()) {
+            return TRAVEL_RECORDS;
+        }
+        return prefix + "/" + TRAVEL_RECORDS;
     }
 }

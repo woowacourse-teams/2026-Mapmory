@@ -16,30 +16,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class S3ObjectKeyGenerator implements ObjectKeyGenerator {
 
-    private static final String TRAVEL_RECORDS = "travel-records";
-
-    private final String keyPrefix;
+    private final String travelRecordsDirectory;
 
     public S3ObjectKeyGenerator(S3StorageProperties properties) {
-        this.keyPrefix = properties.normalizedKeyPrefix();
+        this.travelRecordsDirectory = properties.travelRecordsDirectory();
     }
 
     @Override
     public String generate(Long memberId, UploadFileType fileType) {
-        return travelRecordsDirectory() + "%d/%s.%s".formatted(
+        return travelRecordsDirectory + "%d/%s.%s".formatted(
                 memberId,
                 UUID.randomUUID(),
                 fileType.canonicalExtension()
         );
     }
 
-    /**
-     * 여행 기록 객체가 모이는 경로. 끝에 슬래시가 붙는다.
-     */
-    public String travelRecordsDirectory() {
-        if (keyPrefix.isEmpty()) {
-            return TRAVEL_RECORDS + "/";
-        }
-        return keyPrefix + "/" + TRAVEL_RECORDS + "/";
-    }
 }
