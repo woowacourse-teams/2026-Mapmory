@@ -6,16 +6,14 @@ import com.mapmory.backend.upload.domain.UploadFile;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
-import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
 public class UploadService {
-
-    private static final String UPLOAD_METHOD = "PUT";
 
     private final UploadPolicy uploadPolicy;
     private final ObjectKeyGenerator objectKeyGenerator;
@@ -47,7 +45,7 @@ public class UploadService {
 
     private PresignedUpload createPresignedUpload(Long memberId, UploadFile file) {
         String objectKey = objectKeyGenerator.generate(memberId, file.fileType());
-        URI presignedUrl = presignedUrlProvider.createPresignedPutUrl(
+        PresignedRequest presigned = presignedUrlProvider.createPresignedPutUrl(
                 objectKey,
                 file.contentType(),
                 file.size(),
@@ -55,8 +53,8 @@ public class UploadService {
         );
         return new PresignedUpload(
                 objectKey,
-                presignedUrl,
-                UPLOAD_METHOD,
+                presigned.url(),
+                presigned.method(),
                 file.contentType(),
                 presignedUrlExpiration
         );

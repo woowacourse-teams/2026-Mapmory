@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 @Component
@@ -24,7 +25,7 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
     }
 
     @Override
-    public URI createPresignedPutUrl(
+    public PresignedRequest createPresignedPutUrl(
             String objectKey,
             String contentType,
             long contentLength,
@@ -41,7 +42,11 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
                 .putObjectRequest(putObjectRequest)
                 .build();
 
-        return URI.create(s3Presigner.presignPutObject(presignRequest).url().toString());
+        PresignedPutObjectRequest presigned = s3Presigner.presignPutObject(presignRequest);
+        return new PresignedRequest(
+                URI.create(presigned.url().toString()),
+                presigned.httpRequest().method().name()
+        );
     }
 
     @Override

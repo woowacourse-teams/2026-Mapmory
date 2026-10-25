@@ -12,6 +12,8 @@ import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -35,16 +37,21 @@ class S3PresignedUrlProviderTest {
     void Presigned_URL을_생성한다() throws Exception {
         PresignedPutObjectRequest result = mock(PresignedPutObjectRequest.class);
         when(result.url()).thenReturn(URI.create("https://upload.example/object-key").toURL());
+        when(result.httpRequest()).thenReturn(SdkHttpFullRequest.builder()
+                .method(SdkHttpMethod.PUT)
+                .uri(URI.create("https://upload.example/object-key"))
+                .build());
         when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(result);
 
-        URI uri = provider.createPresignedPutUrl(
+        PresignedRequest presigned = provider.createPresignedPutUrl(
                 "object-key",
                 "image/jpeg",
                 1024L,
                 Duration.ofMinutes(5)
         );
 
-        assertThat(uri).isEqualTo(URI.create("https://upload.example/object-key"));
+        assertThat(presigned.url()).isEqualTo(URI.create("https://upload.example/object-key"));
+        assertThat(presigned.method()).isEqualTo("PUT");
     }
 
     @Test

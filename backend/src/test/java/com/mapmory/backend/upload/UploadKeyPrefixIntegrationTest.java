@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,7 @@ class UploadKeyPrefixIntegrationTest extends IntegrationTest {
 
     @Test
     void 발급된_objectKey는_서비스_prefix_아래에_있다() throws Exception {
-        willReturn(URI.create("https://bucket.s3.ap-northeast-2.amazonaws.com/signed"))
+        willReturn(new PresignedRequest(URI.create("https://bucket.s3.ap-northeast-2.amazonaws.com/signed"), "PUT"))
                 .given(presignedUrlProvider).createPresignedPutUrl(anyString(), anyString(), anyLong(), any());
 
         mockMvc.perform(post("/api/v1/uploads/presigned-urls")

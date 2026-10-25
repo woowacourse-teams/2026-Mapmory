@@ -8,6 +8,7 @@ import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
 import java.time.Duration;
@@ -80,14 +81,14 @@ class UploadServiceTest {
         private final List<PresignRequest> requests = new ArrayList<>();
 
         @Override
-        public URI createPresignedPutUrl(
+        public PresignedRequest createPresignedPutUrl(
                 String objectKey,
                 String contentType,
                 long contentLength,
                 Duration expiration
         ) {
             requests.add(new PresignRequest(objectKey, contentType, contentLength, expiration));
-            return URI.create("https://upload.example/" + objectKey);
+            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT");
         }
 
         @Override

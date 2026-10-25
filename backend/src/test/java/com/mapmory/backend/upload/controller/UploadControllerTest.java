@@ -15,6 +15,7 @@ import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.service.UploadService;
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
 import java.time.Duration;
@@ -154,13 +155,13 @@ class UploadControllerTest {
     private static class FakePresignedUrlProvider implements PresignedUrlProvider {
 
         @Override
-        public URI createPresignedPutUrl(
+        public PresignedRequest createPresignedPutUrl(
                 String objectKey,
                 String contentType,
                 long contentLength,
                 Duration expiration
         ) {
-            return URI.create("https://upload.example/" + objectKey);
+            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT");
         }
 
         @Override
