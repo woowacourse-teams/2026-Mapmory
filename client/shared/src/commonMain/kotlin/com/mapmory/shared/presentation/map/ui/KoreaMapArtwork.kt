@@ -519,6 +519,7 @@ fun KoreaMapArtwork(
             }
         }
 
+        // Keep region labels readable with the same background at every map depth.
         preparedLabels.forEach { label ->
             val labelCenter = transformMapPoint(label.center, transform, viewportSize)
             val labelBounds = androidx.compose.ui.geometry.Rect(

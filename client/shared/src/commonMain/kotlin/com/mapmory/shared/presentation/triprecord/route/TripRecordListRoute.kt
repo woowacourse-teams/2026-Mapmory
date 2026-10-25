@@ -25,6 +25,9 @@ internal fun TripRecordListRoute(
     onOpenDetail: (Long, String?, String?, Int?) -> Unit,
     onOpenProfile: () -> Unit,
     onOpenSettings: () -> Unit,
+    isTimelineLayout: Boolean = false,
+    showLayoutSwitcher: Boolean = false,
+    onTimelineLayoutChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -50,6 +53,9 @@ internal fun TripRecordListRoute(
             selectedTagId = viewModel.query.tagId,
         ),
         pendingSaves = pendingSaves,
+        isTimelineLayout = isTimelineLayout,
+        showLayoutSwitcher = showLayoutSwitcher,
+        onTimelineLayoutChange = onTimelineLayoutChange,
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,
         onPreviousPageClick = {
