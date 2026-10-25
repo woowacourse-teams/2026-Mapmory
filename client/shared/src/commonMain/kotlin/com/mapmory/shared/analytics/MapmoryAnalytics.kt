@@ -26,6 +26,11 @@ object MapmoryAnalyticsUserProperty {
 }
 
 object MapmoryAnalyticsEvent {
+    const val SHARE_MEDIA_ACTION = "share_media_action"
+    const val SHARE_MEDIA_OPERATION_STARTED = "share_media_operation_started"
+    const val SHARE_MEDIA_OPERATION_COMPLETED = "share_media_operation_completed"
+    const val SHARE_VIDEO_STATUS_CHANGED = "share_video_status_changed"
+
     const val RECORD_SAVE_RETRY = "record_save_retry"
     const val RECORD_SAVE_DISCARDED = "record_save_discarded"
     const val RECORD_INTRODUCTION_VIEWED = "record_introduction_viewed"

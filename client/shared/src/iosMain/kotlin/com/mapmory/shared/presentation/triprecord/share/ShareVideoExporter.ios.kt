@@ -2,6 +2,19 @@
 
 package com.mapmory.shared.presentation.triprecord.share
 
+import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
+import platform.AVFoundation.rate
+import platform.AVFoundation.AVPlayerItemStatusFailed
+import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
+import platform.CoreMedia.CMTimeGetSeconds
+
+import androidx.compose.runtime.LaunchedEffect
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareVideoPreviewAnalytics
+import kotlinx.coroutines.delay
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
@@ -49,6 +62,12 @@ import kotlinx.coroutines.CancellableContinuation
 
 @Composable
 internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+    val analytics = LocalMapmoryAnalytics.current
+    val previewAnalytics = remember(video.path, analytics) { ShareVideoPreviewAnalytics(analytics) }
+    DisposableEffect(previewAnalytics) {
+        previewAnalytics.opened()
+        onDispose { previewAnalytics.closed() }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val player = remember(video.path) { AVPlayer(uRL = NSURL.fileURLWithPath(video.path)) }
     DisposableEffect(lifecycle, player) {
@@ -62,6 +81,25 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
         }
     }
 
+    LaunchedEffect(player, previewAnalytics, lifecycle) {
+        while (true) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                val item = player.currentItem
+                when (item?.status) {
+                    AVPlayerItemStatusReadyToPlay -> previewAnalytics.ready()
+                    AVPlayerItemStatusFailed -> previewAnalytics.failed(ShareVideoPlaybackException(item.error?.code ?: 0L))
+                }
+                val duration = item?.duration?.let(::CMTimeGetSeconds) ?: 0.0
+                val position = CMTimeGetSeconds(player.currentTime())
+                if (player.rate == 0f && duration.isFinite() && duration > 0 && position > 0 && position >= duration - 0.05) {
+                    previewAnalytics.completed()
+                } else {
+                    previewAnalytics.playbackChanged(player.rate > 0f)
+                }
+            }
+            delay(250)
+        }
+    }
     key(video.path) {
         UIKitViewController(
             factory = {
@@ -102,8 +140,8 @@ private class IosShareVideoExporter : ShareVideoExporter {
                 }
                 else -> status
             }
-            check(permission == PHAuthorizationStatusAuthorized) {
-                "동영상 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요."
+            if (permission != PHAuthorizationStatusAuthorized) {
+                throw ShareMediaPermissionDeniedException("동영상 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요.")
             }
             suspendCancellableCoroutine<Unit> { continuation ->
                 PHPhotoLibrary.sharedPhotoLibrary().performChanges(

@@ -17,7 +17,7 @@ import com.mapmory.shared.data.remote.toUserFriendlyRemoteFailure
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
-import com.mapmory.shared.presentation.triprecord.share.rememberTripTimelineVideoNotifier
+import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
 import kotlinx.coroutines.delay
 
 @Composable
@@ -26,7 +26,7 @@ internal fun TripTimelineVideoJobMonitor(
     jobStore: ShareVideoJobStore,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val notifier = rememberTripTimelineVideoNotifier()
+    val notifier = rememberAnalyticsTripTimelineVideoNotifier()
     val jobState by jobStore.state.collectAsState()
     var foreground by remember(lifecycle) {
         mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))

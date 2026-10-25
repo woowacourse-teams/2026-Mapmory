@@ -1,5 +1,11 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareMediaAnalytics
+import com.mapmory.shared.analytics.ShareMediaSource
+import com.mapmory.shared.analytics.ShareMediaAction
+import com.mapmory.shared.analytics.ShareMediaOperation
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +49,7 @@ import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.share.ShareVideoFile
 import com.mapmory.shared.presentation.triprecord.share.TripTimelineVideoPreview
-import com.mapmory.shared.presentation.triprecord.share.rememberTripTimelineVideoNotifier
+import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
 import com.mapmory.shared.presentation.triprecord.share.rememberShareVideoExporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -58,9 +64,12 @@ internal fun TripTimelineVideoDialog(
     creationScope: CoroutineScope,
     onDismiss: () -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    val telemetry = remember(analytics) { ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE) }
+    LaunchedEffect(telemetry) { telemetry.action(ShareMediaAction.OPENED) }
     val exporter = rememberShareVideoExporter()
     val scope = rememberCoroutineScope()
-    val notifier = rememberTripTimelineVideoNotifier()
+    val notifier = rememberAnalyticsTripTimelineVideoNotifier()
     val jobState by jobStore.state.collectAsState()
     val jobId = jobState.jobId
     val status = jobState.status
@@ -83,6 +92,7 @@ internal fun TripTimelineVideoDialog(
 
     fun dismissDialog() {
         if (activeJob) notifier.showProgress(jobId)
+        telemetry.action(ShareMediaAction.CLOSED)
         onDismiss()
     }
 
@@ -96,6 +106,7 @@ internal fun TripTimelineVideoDialog(
             }
             return
         }
+        telemetry.action(ShareMediaAction.CREATE_CLICKED)
         busy = true
         creationScope.launch {
             message = null
@@ -129,7 +140,9 @@ internal fun TripTimelineVideoDialog(
             video = null
             try {
                 val download = repository.getDownloadUrl(activeJobId).getOrThrow()
-                video = exporter.download(download.downloadUrl, activeJobId)
+                video = telemetry.observe(ShareMediaOperation.DOWNLOAD) {
+                    exporter.download(download.downloadUrl, activeJobId)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -161,15 +174,16 @@ internal fun TripTimelineVideoDialog(
     fun exportVideo(save: Boolean) {
         val downloadedVideo = video ?: return
         if (busy) return
+        telemetry.action(if (save) ShareMediaAction.SAVE_CLICKED else ShareMediaAction.SHARE_CLICKED)
         scope.launch {
             busy = true
             message = null
             try {
                 if (save) {
-                    exporter.save(downloadedVideo)
+                    telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(downloadedVideo) }
                     message = "동영상을 사진 앱에 저장했어요."
                 } else {
-                    exporter.share(downloadedVideo)
+                    telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(downloadedVideo) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -250,7 +264,7 @@ internal fun TripTimelineVideoDialog(
             jobState.statusCheckError?.let {
                 Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
                 OutlinedButton(
-                    onClick = jobStore::retryStatusCheck,
+                    onClick = { telemetry.action(ShareMediaAction.STATUS_RETRY_CLICKED); jobStore.retryStatusCheck() },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                 ) { Text("지금 다시 확인") }
@@ -291,13 +305,14 @@ internal fun TripTimelineVideoDialog(
                     when {
                         busy -> Text("미리보기를 준비하고 있어요.", color = TripRecordPalette.current.secondaryText, fontSize = 13.sp)
                         message != null -> OutlinedButton(
-                            onClick = ::downloadVideo,
+                            onClick = { telemetry.action(ShareMediaAction.DOWNLOAD_RETRY_CLICKED); downloadVideo() },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             shape = RoundedCornerShape(14.dp),
                         ) { Text("미리보기 다시 불러오기") }
                     }
                     TextButton(
                         onClick = {
+                            telemetry.action(ShareMediaAction.REGENERATE_CLICKED)
                             val completedJobId = jobId ?: return@TextButton
                             jobStore.clear()
                             notifier.clearProgress(completedJobId)

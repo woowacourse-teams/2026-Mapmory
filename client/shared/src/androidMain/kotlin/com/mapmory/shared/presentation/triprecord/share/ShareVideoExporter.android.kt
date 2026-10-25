@@ -1,5 +1,10 @@
 package com.mapmory.shared.presentation.triprecord.share
 
+import androidx.compose.runtime.LaunchedEffect
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareVideoPreviewAnalytics
+import kotlinx.coroutines.delay
+
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
@@ -34,6 +39,12 @@ import javax.net.ssl.HttpsURLConnection
 
 @Composable
 internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+    val analytics = LocalMapmoryAnalytics.current
+    val previewAnalytics = remember(video.path, analytics) { ShareVideoPreviewAnalytics(analytics) }
+    DisposableEffect(previewAnalytics) {
+        previewAnalytics.opened()
+        onDispose { previewAnalytics.closed() }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val videoView = remember { arrayOfNulls<VideoView>(1) }
     DisposableEffect(lifecycle) {
@@ -47,6 +58,14 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
         }
     }
 
+    LaunchedEffect(video.path, previewAnalytics, lifecycle) {
+        while (true) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                videoView[0]?.let { previewAnalytics.playbackChanged(it.isPlaying) }
+            }
+            delay(250)
+        }
+    }
     androidx.compose.runtime.key(video.path) {
         AndroidView(
             modifier = modifier,
@@ -55,7 +74,15 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
                     val controller = MediaController(context)
                     setMediaController(controller)
                     controller.setAnchorView(this)
-                    setOnPreparedListener { controller.show(3_000) }
+                    setOnPreparedListener {
+                        previewAnalytics.ready()
+                        controller.show(3_000)
+                    }
+                    setOnCompletionListener { previewAnalytics.completed() }
+                    setOnErrorListener { _, what, extra ->
+                        previewAnalytics.failed(ShareVideoPlaybackException(what.toLong(), extra.toLong()))
+                        false // Keep VideoView's existing error UI/handling.
+                    }
                     setVideoURI(Uri.fromFile(File(video.path)))
                     videoView[0] = this
                 }
@@ -127,8 +154,8 @@ private class AndroidShareVideoExporter(
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            check(requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                "동영상 저장 권한을 허용해 주세요."
+            if (!requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                throw ShareMediaPermissionDeniedException("동영상 저장 권한을 허용해 주세요.")
             }
         }
         withContext(Dispatchers.IO) {
