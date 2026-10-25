@@ -34,8 +34,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class TravelRecordExternalCallTransactionTest extends IntegrationTest {
 
     private static final String GOOGLE_PLACE_ID = "ChIJTokyoTower";
-    private static final String PHOTO_A = "mapmory/travel-records/1/a.jpg";
-    private static final String PHOTO_B = "mapmory/travel-records/1/b.jpg";
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,11 +64,12 @@ class TravelRecordExternalCallTransactionTest extends IntegrationTest {
     @Test
     void 기록을_저장할_때_외부_호출은_트랜잭션_밖에서_한다() throws Exception {
         String accessToken = guestAccessToken();
+        String photoA = photoKeyOfLatestMember("a.jpg");
 
         mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(recordBody(PHOTO_A)))
+                        .content(recordBody(photoA)))
                 .andExpect(status().isCreated());
 
         assertThat(transactionActiveAtExternalCall).containsExactly(false, false);
@@ -79,13 +78,15 @@ class TravelRecordExternalCallTransactionTest extends IntegrationTest {
     @Test
     void 기록을_수정할_때_외부_호출은_트랜잭션_밖에서_한다() throws Exception {
         String accessToken = guestAccessToken();
-        long recordId = createRecord(accessToken, PHOTO_A);
+        String photoA = photoKeyOfLatestMember("a.jpg");
+        String photoB = photoKeyOfLatestMember("b.jpg");
+        long recordId = createRecord(accessToken, photoA);
         transactionActiveAtExternalCall.clear();
 
         mockMvc.perform(put("/api/v1/travel-records/" + recordId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(recordBody(PHOTO_A, PHOTO_B)))
+                        .content(recordBody(photoA, photoB)))
                 .andExpect(status().isOk());
 
         // Google 조회 1번, 새로 추가된 사진(B) 확인 1번
@@ -95,17 +96,19 @@ class TravelRecordExternalCallTransactionTest extends IntegrationTest {
     @Test
     void 사진을_확인하는_사이_기록이_삭제되면_수정은_TRAVEL_RECORD_NOT_FOUND로_끝난다() throws Exception {
         String accessToken = guestAccessToken();
-        long recordId = createRecord(accessToken, PHOTO_A);
+        String photoA = photoKeyOfLatestMember("a.jpg");
+        String photoB = photoKeyOfLatestMember("b.jpg");
+        long recordId = createRecord(accessToken, photoA);
         willAnswer(invocation -> {
             // 다른 기기에서 같은 기록을 지운 상황
             travelRecordService.delete(memberRepository.findAll().getFirst(), recordId);
             return true;
-        }).given(uploadedObjectChecker).exists(PHOTO_B);
+        }).given(uploadedObjectChecker).exists(photoB);
 
         mockMvc.perform(put("/api/v1/travel-records/" + recordId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(recordBody(PHOTO_A, PHOTO_B)))
+                        .content(recordBody(photoA, photoB)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("TRAVEL_RECORD_NOT_FOUND"));
     }

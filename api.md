@@ -613,8 +613,9 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구가 존재하지 않음 |
 | `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않거나, 상위 지역 코드 없이 하위 지역 코드만 옴 |
 | `400` | `INVALID_TRAVEL_DATE_RANGE` | 시작일·종료일이 미래이거나 종료일이 시작일보다 빠름 |
-| `400` | `INVALID_OBJECT_KEY` | Object Key 형식 또는 소유자가 올바르지 않음 |
-| `409` | `OBJECT_NOT_UPLOADED` | S3 업로드가 확인되지 않음 |
+| `400` | `INVALID_OBJECT_KEY` | Object Key가 비었거나 너무 김, 요청 안에서 중복됨, 또는 이미 다른 기록에서 사용 중임 |
+| `400` | `MEDIA_NOT_UPLOADED` | 이 회원에게 발급된 Object Key가 아니거나, S3에 업로드되지 않음 |
+| `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `400` | `TOO_MANY_TAGS` | 임시 기록당 태그 5개 제한 초과 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
 | `400` | `INVALID_PLACE_ID` | `placeId` 형식이 올바르지 않음 |
@@ -794,6 +795,8 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 회원 ID, 여행 기록 ID 또는 요청 본문이 올바르지 않음 |
 | `400` | `INVALID_OBJECT_KEY` | Object Key가 중복되거나 다른 기록에서 사용 중임 |
+| `400` | `MEDIA_NOT_UPLOADED` | 새로 붙인 Object Key가 이 회원에게 발급된 키가 아니거나, S3에 업로드되지 않음 |
+| `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 현재 회원의 기록이 아님 |
 
 날짜와 Region 관련 오류는 생성 API와 동일하게 처리한다.
