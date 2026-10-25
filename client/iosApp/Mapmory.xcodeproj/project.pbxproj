@@ -256,7 +256,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 22YUT65LMV;
 				ENABLE_PREVIEWS = YES;
@@ -268,7 +268,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.4;
+				MARKETING_VERSION = 1.2.5;
 				MAPMORY_API_BASE_URL = "https://dev-api.map-mory.com/api/v1";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -293,7 +293,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 22YUT65LMV;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -304,7 +304,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.4;
+				MARKETING_VERSION = 1.2.5;
 				MAPMORY_API_BASE_URL = "https://api.map-mory.com/api/v1";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -333,7 +333,7 @@
 				EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info.plist";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 22YUT65LMV;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -344,7 +344,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.4;
+				MARKETING_VERSION = 1.2.5;
 				MAPMORY_API_BASE_URL = "https://dev-api.map-mory.com/api/v1";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
