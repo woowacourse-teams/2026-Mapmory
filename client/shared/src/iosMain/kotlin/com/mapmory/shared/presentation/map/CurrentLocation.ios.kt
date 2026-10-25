@@ -15,10 +15,18 @@ import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedAlways
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedWhenInUse
+import platform.CoreLocation.kCLAuthorizationStatusDenied
 import platform.CoreLocation.kCLAuthorizationStatusNotDetermined
+import platform.CoreLocation.kCLAuthorizationStatusRestricted
+import platform.CoreLocation.kCLErrorDenied
+import platform.CoreLocation.kCLErrorLocationUnknown
+import platform.CoreLocation.kCLErrorNetwork
 import platform.CoreLocation.kCLLocationAccuracyHundredMeters
 import platform.Foundation.NSError
+import platform.Foundation.NSURL
 import platform.Foundation.timeIntervalSinceNow
+import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.darwin.NSObject
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CoroutineScope
@@ -36,22 +44,44 @@ actual fun rememberCurrentLocationActions(
 ): CurrentLocationActions {
     val latestLocation = rememberUpdatedState(onLocation)
     val latestError = rememberUpdatedState(onError)
+    var showPermissionSettings by remember { mutableStateOf(false) }
     val controller = remember(cachedLocationMaxAgeMillis) {
         IosCurrentLocationController(
             onLocation = { latestLocation.value(it) },
             onError = { latestError.value(it) },
+            onPermissionRequired = { showPermissionSettings = true },
             cachedLocationMaxAgeMillis = cachedLocationMaxAgeMillis,
         )
     }
     DisposableEffect(controller) {
         onDispose { controller.dispose() }
     }
-    return CurrentLocationActions(controller.isLoading, controller::request, controller::cancel)
+    if (showPermissionSettings) {
+        LocationSettingsDialog(
+            onDismiss = { showPermissionSettings = false },
+            onOpenSettings = {
+                showPermissionSettings = false
+                val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString)
+                if (url != null) {
+                    UIApplication.sharedApplication.openURL(url, emptyMap<Any?, Any>()) { opened ->
+                        if (!opened) latestError.value("앱 설정을 열지 못했어요. 기기 설정에서 Mapmory의 위치 권한을 허용해 주세요.")
+                    }
+                } else {
+                    latestError.value("앱 설정을 열지 못했어요. 기기 설정에서 Mapmory의 위치 권한을 허용해 주세요.")
+                }
+            },
+        )
+    }
+    return CurrentLocationActions(controller.isLoading, controller::request) {
+        showPermissionSettings = false
+        controller.cancel()
+    }
 }
 
 private class IosCurrentLocationController(
     private val onLocation: (GeoPoint) -> Unit,
     private val onError: (String) -> Unit,
+    private val onPermissionRequired: () -> Unit,
     private val cachedLocationMaxAgeMillis: Long,
 ) : NSObject(), CLLocationManagerDelegateProtocol {
     private val manager = CLLocationManager()
@@ -69,6 +99,10 @@ private class IosCurrentLocationController(
     fun request() {
         if (isLoading) return
         isLoading = true
+        if (!CLLocationManager.locationServicesEnabled()) {
+            fail("기기의 위치 서비스가 꺼져 있어요. 설정 앱의 개인정보 보호 및 보안에서 위치 서비스를 켜 주세요.")
+            return
+        }
         when (manager.authorizationStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse,
             kCLAuthorizationStatusAuthorizedAlways -> requestLocation()
@@ -76,6 +110,10 @@ private class IosCurrentLocationController(
                 waitingForPermission = true
                 manager.requestWhenInUseAuthorization()
             }
+            kCLAuthorizationStatusDenied -> {
+                handlePermissionDenied()
+            }
+            kCLAuthorizationStatusRestricted -> fail("이 기기에서는 위치 권한을 변경할 수 없어요. 기기 설정 제한을 확인하거나 장소를 직접 검색해 주세요.")
             else -> fail("현재 위치 권한이 필요해요. 설정에서 권한을 허용하거나 장소를 직접 검색해 주세요.")
         }
     }
@@ -100,6 +138,8 @@ private class IosCurrentLocationController(
         when (manager.authorizationStatus) {
             kCLAuthorizationStatusAuthorizedWhenInUse,
             kCLAuthorizationStatusAuthorizedAlways -> requestLocation()
+            kCLAuthorizationStatusDenied -> handlePermissionDenied()
+            kCLAuthorizationStatusRestricted -> fail("이 기기에서는 위치 권한을 변경할 수 없어요. 기기 설정 제한을 확인하거나 장소를 직접 검색해 주세요.")
             else -> fail("현재 위치 권한이 필요해요. 설정에서 권한을 허용하거나 장소를 직접 검색해 주세요.")
         }
     }
@@ -118,7 +158,13 @@ private class IosCurrentLocationController(
     }
 
     override fun locationManager(manager: CLLocationManager, didFailWithError: NSError) {
-        if (isLoading) fail("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
+        if (!isLoading) return
+        when (didFailWithError.code) {
+            kCLErrorDenied -> handlePermissionDenied()
+            kCLErrorNetwork -> fail("네트워크를 사용할 수 없어 위치를 확인하지 못했어요. 연결을 확인한 뒤 다시 시도하거나 장소를 직접 검색해 주세요.")
+            kCLErrorLocationUnknown -> fail("현재 위치 신호를 아직 찾지 못했어요. 잠시 뒤 다시 시도하거나 장소를 직접 검색해 주세요.")
+            else -> fail("현재 위치를 가져오지 못했어요. 위치 서비스와 권한을 확인하거나 장소를 직접 검색해 주세요.")
+        }
     }
 
     private fun requestLocation() {
@@ -131,7 +177,7 @@ private class IosCurrentLocationController(
         timeout?.cancel()
         timeout = scope.launch {
             delay(15_000L)
-            fail("현재 위치 확인이 지연되고 있어요. 위치 서비스를 확인하거나 장소를 직접 검색해 주세요.")
+            fail("위치 확인이 지연되고 있어요. 실내에서는 GPS 신호가 약할 수 있어요. 네트워크와 위치 서비스를 확인하거나 장소를 직접 검색해 주세요.")
         }
         manager.requestLocation()
     }
@@ -139,5 +185,14 @@ private class IosCurrentLocationController(
     private fun fail(message: String) {
         cancel()
         onError(message)
+    }
+
+    private fun handlePermissionDenied() {
+        cancel()
+        if (CLLocationManager.locationServicesEnabled()) {
+            onPermissionRequired()
+        } else {
+            onError("기기의 위치 서비스가 꺼져 있어요. 설정 앱의 개인정보 보호 및 보안에서 위치 서비스를 켜 주세요.")
+        }
     }
 }

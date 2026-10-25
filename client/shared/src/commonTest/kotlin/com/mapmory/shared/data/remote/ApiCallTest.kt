@@ -124,4 +124,18 @@ class ApiCallTest {
 
         assertEquals("로그인 정보가 만료되었습니다. 다시 로그인해 주세요.", error.message)
     }
+
+    @Test
+    fun `유효하지 않은 refresh 토큰은 만료와 구분해 안내한다`() {
+        val error = MapmoryApiException(
+            statusCode = 401,
+            code = "INVALID_REFRESH_TOKEN",
+            title = "유효하지 않은 refresh 토큰입니다.",
+            detail = "refresh 토큰을 찾을 수 없습니다.",
+            instance = "/api/v1/auth/token/refresh",
+            errors = emptyList(),
+        )
+
+        assertEquals("로그인 세션을 복구하지 못했습니다. 다시 로그인해 주세요.", error.message)
+    }
 }

@@ -19,6 +19,7 @@ import com.mapmory.shared.data.remote.TagRemoteRepository
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
 import com.mapmory.shared.data.remote.TripStatisticsRemoteRepository
 import com.mapmory.shared.data.remote.ServiceFeedbackRemoteRepository
+import com.mapmory.shared.data.remote.ShareVideoRemoteRepository
 import com.mapmory.shared.data.remote.createHttpClient
 import com.mapmory.shared.data.remote.installMapmoryAuthRetry
 import com.mapmory.shared.data.repository.AuthenticatedMapSummaryRepository
@@ -27,6 +28,7 @@ import com.mapmory.shared.data.repository.AuthenticatedTagRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripRecordRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripStatisticsRepository
 import com.mapmory.shared.data.repository.AuthenticatedServiceFeedbackRepository
+import com.mapmory.shared.data.repository.AuthenticatedShareVideoRepository
 import com.mapmory.shared.data.repository.CachedTripRecordRepository
 import com.mapmory.shared.data.repository.TripRecordListCache
 import com.mapmory.shared.data.repository.MemoryTripRecordListCache
@@ -42,6 +44,8 @@ import com.mapmory.shared.data.repository.UploadingTripRecordRepository
 import com.mapmory.shared.data.settings.MemoryOnboardingPreference
 import com.mapmory.shared.data.settings.MemoryTeamDevicePreference
 import com.mapmory.shared.data.settings.MemoryThemePreference
+import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
+import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.data.settings.TeamDevicePreference
 import com.mapmory.shared.data.settings.ThemePreference
@@ -52,6 +56,7 @@ import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
+import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
 import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.DeleteTripRecordUseCase
@@ -83,6 +88,8 @@ interface AppContainer {
     val mapSummaryRepository: MapSummaryRepository
     val tripStatisticsRepository: TripStatisticsRepository
     val serviceFeedbackRepository: ServiceFeedbackRepository?
+    val shareVideoRepository: ShareVideoRepository?
+    val shareVideoJobStore: ShareVideoJobStore
     val tagRepository: TagRepository
     val themePreference: ThemePreference
     val onboardingPreference: OnboardingPreference
@@ -164,6 +171,8 @@ private class DefaultAppContainer(
     override val mapSummaryRepository: MapSummaryRepository,
     override val tripStatisticsRepository: TripStatisticsRepository,
     override val serviceFeedbackRepository: ServiceFeedbackRepository?,
+    override val shareVideoRepository: ShareVideoRepository?,
+    override val shareVideoJobStore: ShareVideoJobStore,
     override val tagRepository: TagRepository,
     private val placeRepository: PlaceRepository?,
     override val themePreference: ThemePreference,
@@ -241,6 +250,8 @@ fun createAppContainer(
     onClose: () -> Unit = {},
     localPhotoDataSource: LocalPhotoDataSource? = null,
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoRepository: ShareVideoRepository? = null,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
@@ -256,6 +267,8 @@ fun createAppContainer(
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
+        shareVideoRepository = shareVideoRepository,
+        shareVideoJobStore = shareVideoJobStore,
         tagRepository = AnalyticsTagRepository(tagRepository, analytics),
         placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
         themePreference = themePreference,
@@ -312,6 +325,11 @@ fun createRemoteAppContainer(
             apiBaseUrl = apiBaseUrl,
             accessTokenProvider = accessTokenProvider,
         ),
+        shareVideoRepository = ShareVideoRemoteRepository(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = accessTokenProvider,
+        ),
         tagRepository = TagRemoteRepository(
             client = client,
             apiBaseUrl = apiBaseUrl,
@@ -343,6 +361,7 @@ fun createGuestRemoteAppContainer(
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -357,6 +376,7 @@ fun createGuestRemoteAppContainer(
         themePreference = themePreference,
         onboardingPreference = onboardingPreference,
         teamDevicePreference = teamDevicePreference,
+        shareVideoJobStore = shareVideoJobStore,
         localPhotoDataSource = localPhotoDataSource,
         backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
@@ -382,6 +402,7 @@ internal fun createGuestRemoteAppContainer(
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
     val discardRecordCache = runCatching { tokenStore.read().tokens == null }.getOrDefault(false)
     if (discardRecordCache) {
@@ -414,6 +435,11 @@ internal fun createGuestRemoteAppContainer(
         accessTokenProvider = session,
     )
     val remoteServiceFeedback = ServiceFeedbackRemoteRepository(
+        client = client,
+        apiBaseUrl = apiBaseUrl,
+        accessTokenProvider = session,
+    )
+    val remoteShareVideos = ShareVideoRemoteRepository(
         client = client,
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
@@ -457,6 +483,8 @@ internal fun createGuestRemoteAppContainer(
         mapSummaryCache = mapSummaryCache,
         tripStatisticsRepository = AuthenticatedTripStatisticsRepository(session, remoteTripStatistics),
         serviceFeedbackRepository = AuthenticatedServiceFeedbackRepository(session, remoteServiceFeedback),
+        shareVideoRepository = AuthenticatedShareVideoRepository(session, remoteShareVideos),
+        shareVideoJobStore = shareVideoJobStore,
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),
         placeRepository = AuthenticatedPlaceRepository(session, remotePlaces),

@@ -19,6 +19,9 @@ import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import com.mapmory.shared.domain.model.ServiceFeedbackCategory
 import com.mapmory.shared.domain.model.ServiceFeedbackPlatform
 import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
+import com.mapmory.shared.domain.model.ShareVideoDownload
+import com.mapmory.shared.domain.model.ShareVideoJob
+import com.mapmory.shared.domain.repository.ShareVideoRepository
 
 internal class AuthenticatedTripRecordRepository(
     private val session: GuestSessionManager,
@@ -114,6 +117,27 @@ internal class AuthenticatedServiceFeedbackRepository(
         platform: ServiceFeedbackPlatform,
     ): Result<Unit> = session.ensureAuthenticated().fold(
         onSuccess = { delegate.submit(category, content, platform) },
+        onFailure = Result.Companion::failure,
+    )
+}
+
+internal class AuthenticatedShareVideoRepository(
+    private val session: GuestSessionManager,
+    private val delegate: ShareVideoRepository,
+) : ShareVideoRepository {
+    override suspend fun createTravelTimeline(): Result<ShareVideoJob> =
+        withAuthenticatedSession(delegate::createTravelTimeline)
+
+    override suspend fun getJob(jobId: Long): Result<ShareVideoJob> =
+        withAuthenticatedSession { delegate.getJob(jobId) }
+
+    override suspend fun getDownloadUrl(jobId: Long): Result<ShareVideoDownload> =
+        withAuthenticatedSession { delegate.getDownloadUrl(jobId) }
+
+    private suspend fun <T> withAuthenticatedSession(
+        request: suspend () -> Result<T>,
+    ): Result<T> = session.ensureAuthenticated().fold(
+        onSuccess = { request() },
         onFailure = Result.Companion::failure,
     )
 }

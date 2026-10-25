@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Status: Active
-- Last refreshed: 2026-10-07
+- Last refreshed: 2026-10-22
 - Primary product surfaces: Android/iOS 모바일 온보딩, 여행 기록, 기록 상세·작성, 대한민국 지도
 - Decision order: Figma → this document → HTML design previews → Compose implementation
 - Evidence reviewed:
@@ -89,6 +89,7 @@
   - 위치·날짜 칩
   - 기록 작성 입력 필드와 미디어 선택 영역
   - 지도 필터, 방문 지역 표현, 지도 확대/축소 또는 범위 제어
+  - 여행 업적 메달과 달성 진행 카드
 - Variants and states:
   - 하단 탭과 필터: 기본/선택
   - 버튼: primary/secondary/disabled
@@ -143,3 +144,22 @@
 - [x] LINE Seed Sans KR Regular/Bold를 Compose Multiplatform 공통 리소스로 적용하고 앱과 랜딩의 기본 서체를 통일
 - [ ] 소개형 온보딩과 지도 코치 마크의 완료 여부 저장 위치 및 다시 보기 제공 여부 결정
 - [ ] 앱의 4개 탭과 웹 프로토타입의 3개 탭 중 최종 정보 구조 확정
+
+## Single-record SNS share cards
+
+- Scope: 일지 상세에서 기록 한 개를 공유하는 4:5 카드. 전체 여행 공유와 구분한다.
+- Evidence: `TripSharePreviewDialog.kt`, `TripShareEditorialPosters.kt`, `.omx/outputs/sns-share-flow-concepts/index.html`.
+- Hierarchy: 실제 여행 사진 → 지역명 → 실제 날짜 → 작은 Mapmory 서명. 제목은 지역명과 다를 때만 보조로 표시한다.
+- Typography: 앱의 LINE Seed Sans KR을 유지한다. 큰 지역명은 최대 두 줄, 날짜는 별도 행으로 두어 사진 수와 경쟁하지 않게 한다.
+- Palette: 사진 색을 보존하고 종이는 `#F8F7F3`, 잉크는 짙은 초록, 포인트는 기존 Mapmory 초록을 작게 사용한다.
+- Decoration: 가짜 도장, 바코드, 회전 프레임, 자동 생성 감성 문구를 넣지 않는다. 티켓은 절취선과 정보 계층으로 표현한다.
+- Photo states: 사진 수에 맞춰 구도를 바꾸고 없는 사진을 복제하지 않는다. 대표 사진은 기존 정렬 순서를 따른다. 일부 사진만 표시할 때 전체 사진 수와 표시 수를 혼동하지 않는다.
+- Export: 미리보기와 내보내기는 같은 Compose 레이아웃을 사용한다. 이미지 저장, 시스템 공유, 인디케이터 선택을 유지한다.
+
+## Experimental travel achievements
+
+- Scope: 실험실에서 켜는 여행 기록 배지와 업적 공유 카드.
+- Visual direction: 배지마다 여행 기록 핀과 지역 간 경로처럼 맵모리만의 상징을 사용한다. 업적 일러스트 안에서는 선명한 색과 메달형 실루엣으로 달성감을 주고, 주변 통계 화면은 기존 차분한 팔레트를 유지한다.
+- States: 획득 여부는 색상만으로 구분하지 않는다. 진행 수치, 요구 조건, 달성 상태를 함께 표시한다.
+- Sharing: 앱 안의 배지와 공유 카드에서 같은 일러스트를 재사용하고, 업적명과 실제 달성 조건을 정확히 담는다.
+- Avoid: Duolingo 캐릭터나 배지 그림을 복제하지 않는다. 단순 숫자 원형을 업적 일러스트 대신 쓰지 않는다.

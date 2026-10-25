@@ -90,9 +90,9 @@ class MapmoryAppNavigationTest {
         composeRule.onNodeWithText("0.1.7").assertIsDisplayed()
         composeRule.onNodeWithText("versionCode").assertIsDisplayed()
         composeRule.onNodeWithText("10").assertIsDisplayed()
-        composeRule.onNodeWithText("com.mapmory.android").assertIsDisplayed()
+        composeRule.onNodeWithText("com.mapmory.android").assertDoesNotExist()
         composeRule.onNodeWithText("개발 서버").assertIsDisplayed()
-        composeRule.onNodeWithText("https://dev-api.map-mory.com/api/v1").assertIsDisplayed()
+        composeRule.onNodeWithText("https://dev-api.map-mory.com/api/v1").assertDoesNotExist()
         composeRule.onNodeWithText("Test device").assertIsDisplayed()
     }
 
