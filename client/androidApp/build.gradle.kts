@@ -34,6 +34,9 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
+        resValue("string", "mapmory_google_web_client_id", localProperties.getProperty("MAPMORY_GOOGLE_WEB_CLIENT_ID", ""))
+        resValue("string", "mapmory_kakao_native_app_key", localProperties.getProperty("MAPMORY_KAKAO_NATIVE_APP_KEY", ""))
+        manifestPlaceholders["kakaoScheme"] = "kakao" + localProperties.getProperty("MAPMORY_KAKAO_NATIVE_APP_KEY", "unconfigured")
         applicationId = "com.mapmory.android"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.compileSdk.get().toInt()
@@ -90,6 +93,10 @@ tasks.matching { it.name == "processInternalGoogleServices" }.configureEach {
 }
 
 dependencies {
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("com.kakao.sdk:v2-user:2.21.7")
     constraints {
         implementation("androidx.fragment:fragment:1.3.6") {
             because("Activity Result permissions require Fragment 1.3+; Play Services pulls in 1.1.0")

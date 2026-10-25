@@ -93,6 +93,8 @@ internal fun TripSettingsScreen(
                     )
                 }
 
+                com.mapmory.shared.presentation.auth.SocialLoginPanel()
+
                 Column(
                     Modifier
                         .fillMaxWidth()

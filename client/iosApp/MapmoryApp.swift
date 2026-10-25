@@ -59,6 +59,7 @@ struct MapmoryApp: App {
                     forceUpdate: forceUpdate,
                 )
             }
+            .onOpenURL { _ = IosSocialLoginLauncher.handle($0) }
             .onAppear { forceUpdate.refresh() }
             .onChange(of: scenePhase) { phase in
                 if phase == .active { forceUpdate.refresh() }
@@ -91,6 +92,7 @@ private struct ComposeView: UIViewControllerRepresentable {
             navigation: navigation,
             updateState: forceUpdate.state,
             onRetryUpdateCheck: { forceUpdate.refresh() },
+            socialLoginLauncher: IosSocialLoginLauncher(),
         )
         let viewController = composeViewController
         applyTheme(to: viewController)
