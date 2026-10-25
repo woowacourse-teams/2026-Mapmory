@@ -32,6 +32,7 @@ public class CloudFrontMediaViewUrlSigner implements MediaViewUrlSigner {
     private final String signablePrefix;
     private final String keyPairId;
     private final PrivateKey privateKey;
+    private final Duration expiration;
     private final MediaViewUrlSigner fallback;
     private final Clock clock;
 
@@ -53,6 +54,7 @@ public class CloudFrontMediaViewUrlSigner implements MediaViewUrlSigner {
         this.signablePrefix = storageKeyPrefix + "/";
         this.keyPairId = properties.keyPairId();
         this.privateKey = loadPrivateKey(properties, baseUrl);
+        this.expiration = expiration;
         this.fallback = fallback;
         this.clock = clock;
         this.signedUrls = Caffeine.newBuilder()
@@ -62,12 +64,13 @@ public class CloudFrontMediaViewUrlSigner implements MediaViewUrlSigner {
     }
 
     @Override
-    public URI sign(String objectKey, Duration expiration) {
+    public ExpiringUrl sign(String objectKey) {
         if (!objectKey.startsWith(signablePrefix)) {
-            return fallback.sign(objectKey, expiration);
+            return fallback.sign(objectKey);
         }
         Instant expiresAt = roundUp(Instant.now(clock).plus(expiration), expiration);
-        return signedUrls.get(new SignedUrlKey(objectKey, expiresAt), key -> signNow(key.objectKey(), expiresAt));
+        URI url = signedUrls.get(new SignedUrlKey(objectKey, expiresAt), key -> signNow(key.objectKey(), expiresAt));
+        return ExpiringUrl.from(url, expiration);
     }
 
     private URI signNow(String objectKey, Instant expiresAt) {

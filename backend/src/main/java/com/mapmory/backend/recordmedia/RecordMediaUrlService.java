@@ -1,7 +1,5 @@
 package com.mapmory.backend.recordmedia;
 
-import com.mapmory.backend.upload.storage.S3StorageProperties;
-import java.time.Duration;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,20 +12,12 @@ import org.springframework.stereotype.Service;
 public class RecordMediaUrlService {
 
     private final MediaViewUrlSigner mediaViewUrlSigner;
-    private final Duration expiration;
 
-    public RecordMediaUrlService(
-            MediaViewUrlSigner mediaViewUrlSigner,
-            S3StorageProperties s3StorageProperties
-    ) {
+    public RecordMediaUrlService(MediaViewUrlSigner mediaViewUrlSigner) {
         this.mediaViewUrlSigner = mediaViewUrlSigner;
-        this.expiration = s3StorageProperties.signedUrlExpiration();
     }
 
     public ExpiringUrl createViewUrl(String objectKey) {
-        return ExpiringUrl.from(
-                mediaViewUrlSigner.sign(objectKey, expiration),
-                expiration
-        );
+        return mediaViewUrlSigner.sign(objectKey);
     }
 }

@@ -21,16 +21,15 @@ import org.springframework.util.unit.DataSize;
 class UploadServiceTest {
 
     private static final long TEN_MEGABYTES = DataSize.ofMegabytes(10).toBytes();
+    private static final Duration EXPIRATION = Duration.ofMinutes(5);
 
     @Test
     void S3_없이_Presigned_URL과_Object_Key를_발급한다() {
-        S3StorageProperties storageProperties = storageProperties();
         FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 10),
-                new ObjectKeyGenerator(storageProperties),
-                provider,
-                storageProperties
+                new ObjectKeyGenerator(storageProperties()),
+                provider
         );
         List<UploadFileCommand> files = List.of(
                 new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
@@ -46,25 +45,23 @@ class UploadServiceTest {
                 .startsWith("https://upload.example/travel-records/10/");
         assertThat(uploads.getFirst().method()).isEqualTo("PUT");
         assertThat(uploads.getFirst().contentType()).isEqualTo("image/jpeg");
-        assertThat(uploads.getFirst().expiration()).isEqualTo(java.time.Duration.ofSeconds(300L));
+        assertThat(uploads.getFirst().expiration()).isEqualTo(EXPIRATION);
         assertThat(provider.requests).containsExactly(
                 new PresignRequest(
                         uploads.getFirst().objectKey(),
                         "image/jpeg",
-                        3_145_728L,
-                        Duration.ofMinutes(5)
+                        3_145_728L
                 ),
                 new PresignRequest(
                         uploads.get(1).objectKey(),
                         "image/webp",
-                        1024L,
-                        Duration.ofMinutes(5)
+                        1024L
                 )
         );
     }
 
     private static S3StorageProperties storageProperties() {
-        return new S3StorageProperties("mapmory-test", "ap-northeast-2", "", Duration.ofMinutes(5), null);
+        return new S3StorageProperties("mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
     }
 
     private static Member member() {
@@ -81,24 +78,22 @@ class UploadServiceTest {
         public PresignedRequest createPresignedPutUrl(
                 String objectKey,
                 String contentType,
-                long contentLength,
-                Duration expiration
+                long contentLength
         ) {
-            requests.add(new PresignRequest(objectKey, contentType, contentLength, expiration));
-            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT");
+            requests.add(new PresignRequest(objectKey, contentType, contentLength));
+            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT", EXPIRATION);
         }
 
         @Override
-        public URI createPresignedGetUrl(String objectKey, Duration expiration) {
-            return URI.create("https://download.example/" + objectKey);
+        public PresignedRequest createPresignedGetUrl(String objectKey) {
+            return new PresignedRequest(URI.create("https://download.example/" + objectKey), "GET", EXPIRATION);
         }
     }
 
     private record PresignRequest(
             String objectKey,
             String contentType,
-            long contentLength,
-            Duration expiration
+            long contentLength
     ) {
     }
 }

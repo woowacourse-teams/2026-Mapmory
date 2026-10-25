@@ -38,6 +38,7 @@ class UploadControllerTest {
 
     private static final long MEMBER_ID = 10L;
     private static final long TEN_MEGABYTES = DataSize.ofMegabytes(10).toBytes();
+    private static final Duration EXPIRATION = Duration.ofMinutes(5);
     private static final Member MEMBER = Member.of("테스터", UUID.randomUUID());
 
     static {
@@ -49,12 +50,11 @@ class UploadControllerTest {
     @BeforeEach
     void setUp() {
         S3StorageProperties storageProperties = new S3StorageProperties(
-                "mapmory-test", "ap-northeast-2", "", Duration.ofMinutes(5), null);
+                "mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 100),
                 new ObjectKeyGenerator(storageProperties),
-                new FakePresignedUrlProvider(),
-                storageProperties
+                new FakePresignedUrlProvider()
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 
@@ -155,15 +155,14 @@ class UploadControllerTest {
         public PresignedRequest createPresignedPutUrl(
                 String objectKey,
                 String contentType,
-                long contentLength,
-                Duration expiration
+                long contentLength
         ) {
-            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT");
+            return new PresignedRequest(URI.create("https://upload.example/" + objectKey), "PUT", EXPIRATION);
         }
 
         @Override
-        public URI createPresignedGetUrl(String objectKey, Duration expiration) {
-            return URI.create("https://download.example/" + objectKey);
+        public PresignedRequest createPresignedGetUrl(String objectKey) {
+            return new PresignedRequest(URI.create("https://download.example/" + objectKey), "GET", EXPIRATION);
         }
     }
 }

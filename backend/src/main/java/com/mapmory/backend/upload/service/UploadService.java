@@ -7,8 +7,6 @@ import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.storage.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
-import com.mapmory.backend.upload.storage.S3StorageProperties;
-import java.time.Duration;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -18,18 +16,15 @@ public class UploadService {
     private final UploadPolicy uploadPolicy;
     private final ObjectKeyGenerator objectKeyGenerator;
     private final PresignedUrlProvider presignedUrlProvider;
-    private final Duration presignedUrlExpiration;
 
     public UploadService(
             UploadPolicy uploadPolicy,
             ObjectKeyGenerator objectKeyGenerator,
-            PresignedUrlProvider presignedUrlProvider,
-            S3StorageProperties storageProperties
+            PresignedUrlProvider presignedUrlProvider
     ) {
         this.uploadPolicy = uploadPolicy;
         this.objectKeyGenerator = objectKeyGenerator;
         this.presignedUrlProvider = presignedUrlProvider;
-        this.presignedUrlExpiration = storageProperties.signedUrlExpiration();
     }
 
     public List<PresignedUpload> createPresignedUrls(Member member, List<UploadFileCommand> files) {
@@ -48,15 +43,14 @@ public class UploadService {
         PresignedRequest presigned = presignedUrlProvider.createPresignedPutUrl(
                 objectKey,
                 file.contentType(),
-                file.size(),
-                presignedUrlExpiration
+                file.size()
         );
         return new PresignedUpload(
                 objectKey,
                 presigned.url(),
                 presigned.method(),
                 file.contentType(),
-                presignedUrlExpiration
+                presigned.expiration()
         );
     }
 }

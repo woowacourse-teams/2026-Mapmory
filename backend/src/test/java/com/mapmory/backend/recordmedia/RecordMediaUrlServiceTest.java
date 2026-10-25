@@ -5,31 +5,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.upload.storage.S3StorageProperties;
-import java.net.URI;
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class RecordMediaUrlServiceTest {
 
     private final MediaViewUrlSigner mediaViewUrlSigner = mock(MediaViewUrlSigner.class);
-    private final S3StorageProperties s3StorageProperties = mock(S3StorageProperties.class);
     private RecordMediaUrlService recordMediaUrlService;
 
     @BeforeEach
     void setUp() {
-        when(s3StorageProperties.signedUrlExpiration()).thenReturn(Duration.ofMinutes(5));
-        recordMediaUrlService = new RecordMediaUrlService(
-                mediaViewUrlSigner,
-                s3StorageProperties
-        );
+        recordMediaUrlService = new RecordMediaUrlService(mediaViewUrlSigner);
     }
 
     @Test
     void 조회_URL과_만료_시간을_값_객체로_반환한다() {
-        when(mediaViewUrlSigner.sign("mapmory/original.jpg", Duration.ofMinutes(5)))
-                .thenReturn(URI.create("https://download.example/mapmory/original.jpg"));
+        when(mediaViewUrlSigner.sign("mapmory/original.jpg"))
+                .thenReturn(new ExpiringUrl("https://download.example/mapmory/original.jpg", 300L));
 
         ExpiringUrl result = recordMediaUrlService.createViewUrl("mapmory/original.jpg");
 

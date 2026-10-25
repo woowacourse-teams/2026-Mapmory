@@ -1,8 +1,8 @@
 package com.mapmory.backend.upload.storage;
 
-import java.net.URI;
-import java.time.Duration;
-
+/**
+ * 일정 시간만 열리는 업로드·조회 URL을 서명한다. 유효시간은 구현이 정하고 결과에 담는다.
+ */
 public interface PresignedUrlProvider {
 
     /**
@@ -11,12 +11,8 @@ public interface PresignedUrlProvider {
     PresignedRequest createPresignedPutUrl(
             String objectKey,
             String contentType,
-            long contentLength,
-            Duration expiration
+            long contentLength
     );
 
-    URI createPresignedGetUrl(
-            String objectKey,
-            Duration expiration
-    );
+    PresignedRequest createPresignedGetUrl(String objectKey);
 }

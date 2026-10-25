@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -15,6 +16,7 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
 
     private final S3Presigner s3Presigner;
     private final String bucket;
+    private final Duration expiration;
 
     public S3PresignedUrlProvider(
             S3Presigner s3Presigner,
@@ -22,14 +24,14 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
     ) {
         this.s3Presigner = s3Presigner;
         this.bucket = properties.bucket();
+        this.expiration = properties.signedUrlExpiration();
     }
 
     @Override
     public PresignedRequest createPresignedPutUrl(
             String objectKey,
             String contentType,
-            long contentLength,
-            Duration expiration
+            long contentLength
     ) {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -45,15 +47,13 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
         PresignedPutObjectRequest presigned = s3Presigner.presignPutObject(presignRequest);
         return new PresignedRequest(
                 URI.create(presigned.url().toString()),
-                presigned.httpRequest().method().name()
+                presigned.httpRequest().method().name(),
+                expiration
         );
     }
 
     @Override
-    public URI createPresignedGetUrl(
-            String objectKey,
-            Duration expiration
-    ) {
+    public PresignedRequest createPresignedGetUrl(String objectKey) {
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucket)
                 .key(objectKey)
@@ -63,6 +63,11 @@ public class S3PresignedUrlProvider implements PresignedUrlProvider {
                 .getObjectRequest(getObjectRequest)
                 .build();
 
-        return URI.create(s3Presigner.presignGetObject(presignRequest).url().toString());
+        PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+        return new PresignedRequest(
+                URI.create(presigned.url().toString()),
+                presigned.httpRequest().method().name(),
+                expiration
+        );
     }
 }

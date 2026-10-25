@@ -6,8 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
-import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,27 +22,20 @@ class ShareVideoDownloadUrlServiceTest {
 
     @BeforeEach
     void setUp() {
-        S3StorageProperties properties = new S3StorageProperties(
-                "mapmory-test",
-                "ap-northeast-2",
-                "",
-                EXPIRATION,
-                null
-        );
-        downloadUrlService = new ShareVideoDownloadUrlService(presignedUrlProvider, properties);
+        downloadUrlService = new ShareVideoDownloadUrlService(presignedUrlProvider);
     }
 
     @Test
     void Object_Key로_다운로드_URL을_생성한다() {
         String objectKey = "share-videos/15/result.mp4";
         URI presignedUrl = URI.create("https://download.example/share-videos/15/result.mp4");
-        when(presignedUrlProvider.createPresignedGetUrl(objectKey, EXPIRATION))
-                .thenReturn(presignedUrl);
+        when(presignedUrlProvider.createPresignedGetUrl(objectKey))
+                .thenReturn(new PresignedRequest(presignedUrl, "GET", EXPIRATION));
 
         ShareVideoDownloadUrl result = downloadUrlService.create(objectKey);
 
         assertThat(result).isEqualTo(new ShareVideoDownloadUrl(presignedUrl.toString(), 300L));
-        verify(presignedUrlProvider).createPresignedGetUrl(objectKey, EXPIRATION);
+        verify(presignedUrlProvider).createPresignedGetUrl(objectKey);
     }
 
     @Test

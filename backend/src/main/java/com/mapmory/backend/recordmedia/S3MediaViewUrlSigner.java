@@ -1,8 +1,7 @@
 package com.mapmory.backend.recordmedia;
 
+import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
-import java.net.URI;
-import java.time.Duration;
 
 /**
  * 앱이 S3에서 바로 받는 presigned GET URL. CloudFront를 끈 환경(로컬·테스트)과 되돌릴 때 쓴다.
@@ -16,7 +15,8 @@ public class S3MediaViewUrlSigner implements MediaViewUrlSigner {
     }
 
     @Override
-    public URI sign(String objectKey, Duration expiration) {
-        return presignedUrlProvider.createPresignedGetUrl(objectKey, expiration);
+    public ExpiringUrl sign(String objectKey) {
+        PresignedRequest presigned = presignedUrlProvider.createPresignedGetUrl(objectKey);
+        return ExpiringUrl.from(presigned.url(), presigned.expiration());
     }
 }
