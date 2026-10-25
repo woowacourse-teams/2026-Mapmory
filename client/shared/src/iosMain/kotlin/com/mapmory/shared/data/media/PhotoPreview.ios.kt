@@ -21,6 +21,7 @@ import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.getBytes
 import platform.Foundation.writeToFile
 import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
+import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
 import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
@@ -131,7 +132,7 @@ internal actual fun createRemotePhotoPreview(originalBytes: ByteArray): ByteArra
     }
     val thumbnail = CGImageSourceCreateThumbnailAtIndex(
         imageSource,
-        0UL,
+        CGImageSourceGetPrimaryImageIndex(imageSource),
         retainedOptions.reinterpret(),
     )
     CFRelease(retainedOptions)

@@ -13,6 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.mapmory.shared.data.media.originalPhotoDate
+import platform.Foundation.NSError
+import platform.Photos.PHImageErrorKey
+import platform.Photos.PHImageCancelledKey
+import platform.Photos.PHImageResultIsDegradedKey
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.media.cacheIosPickerPhoto
 import com.mapmory.shared.data.media.isIosLocalPhotoAvailable
@@ -36,6 +41,7 @@ import platform.Foundation.NSURL
 import platform.Foundation.getBytes
 import platform.Foundation.NSSortDescriptor
 import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
+import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
 import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
@@ -562,16 +568,34 @@ private class IosPhotoLibraryController(
     private fun loadPickerResult(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
         val asset = result.assetIdentifier?.let(::assetForIdentifier)
         if (asset != null) {
-            loadAssetPreview(asset, completion)
+            loadAssetPreview(asset) { photo ->
+                if (photo != null) completion(photo) else loadPickerData(result, completion)
+            }
             return
         }
-        result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, _ ->
+        loadPickerData(result, completion)
+    }
+
+    private fun photoFailure(stage: String, error: NSError? = null) {
+        val parameters = mapOf("stage" to stage, "error_domain" to (error?.domain ?: "mapmory"),
+            "error_code" to (error?.code?.toString() ?: "missing_result"))
+        NSLog("Mapmory photo_load_failed: %s", parameters.toString())
+        onMain { analytics.logEvent("photo_load_failed", parameters) }
+    }
+
+    private fun loadPickerData(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
+        result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, error ->
             if (data == null || data.length == 0UL) {
+                photoFailure("picker_data", error)
                 onMain { completion(null) }
                 return@loadDataRepresentationForTypeIdentifier
             }
+            val date = data.originalPhotoDate()
+            if (date == null) photoFailure("capture_date_missing")
             val localId = cacheIosPickerPhoto(data)
             val previewBytes = data.toPreviewByteArray(RecommendationPreviewSizePx)
+            if (localId == null) photoFailure("original_cache")
+            if (previewBytes == null) photoFailure("picker_thumbnail")
             onMain {
                 completion(
                     if (localId != null && previewBytes != null) SelectedPhoto(
@@ -579,6 +603,7 @@ private class IosPhotoLibraryController(
                         displayName = result.itemProvider.suggestedName ?: "여행 사진",
                         previewBytes = previewBytes,
                         originalBytes = null,
+                        capturedAt = date,
                     ) else null,
                 )
             }
@@ -601,6 +626,10 @@ private class IosPhotoLibraryController(
                 remaining -= 1
                 val available = loaded.filterNotNull()
                 if (remaining == 0) {
+                    analytics.logEvent("photo_load_completed", mapOf(
+                        "requested" to assets.size.toString(), "succeeded" to available.size.toString(),
+                        "failed" to (assets.size - available.size).toString(),
+                    ))
                     completion(available)
                 }
             }
@@ -640,10 +669,16 @@ private class IosPhotoLibraryController(
             ),
             contentMode = PHImageContentModeAspectFit,
             options = options,
-        ) { image, _ ->
+        ) { image, info ->
+            if (info?.get(PHImageResultIsDegradedKey) == true) return@requestImageForAsset
+            val error = info?.get(PHImageErrorKey) as? NSError
+            if (image == null) photoFailure(
+                if (info?.get(PHImageCancelledKey) == true) "preview_cancelled" else "asset_preview", error)
+
             val previewBytes = image
                 ?.let { UIImageJPEGRepresentation(it, PreviewJpegQuality) }
                 ?.toByteArray()
+            if (image != null && previewBytes == null) photoFailure("jpeg_encode")
             onMain {
                 if (didComplete) return@onMain
                 didComplete = true
@@ -691,7 +726,8 @@ private class IosPhotoLibraryController(
         fullResolutionRequestId = PHImageManager.defaultManager().requestImageDataAndOrientationForAsset(
             asset = asset,
             options = options,
-        ) { data, _, _, _ ->
+        ) { data, _, _, info ->
+            if (data == null) photoFailure("full_resolution", info?.get(PHImageErrorKey) as? NSError)
             val bytes = data?.toByteArray()
             onMain { completion(bytes) }
         }
@@ -759,7 +795,7 @@ private fun NSData.toPreviewByteArray(maxDimension: Int): ByteArray? {
     }
     val thumbnail = CGImageSourceCreateThumbnailAtIndex(
         imageSource,
-        0UL,
+        CGImageSourceGetPrimaryImageIndex(imageSource),
         retainedOptions.reinterpret(),
     )
     CFRelease(retainedOptions)
