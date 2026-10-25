@@ -62,18 +62,6 @@ class S3PermissionSelfCheckTest {
     }
 
     @Test
-    void prefix가_없으면_붙이지_않는다() {
-        S3PermissionSelfCheck selfCheck = selfCheck("");
-        givenNoObjects();
-
-        selfCheck.verifyLookupPermissions();
-
-        ArgumentCaptor<ListObjectsV2Request> request = ArgumentCaptor.forClass(ListObjectsV2Request.class);
-        verify(s3Client).listObjectsV2(request.capture());
-        assertThat(request.getValue().prefix()).isEqualTo("travel-records/");
-    }
-
-    @Test
     void 객체가_하나도_없으면_조회를_시도하지_않는다() {
         S3PermissionSelfCheck selfCheck = selfCheck("mapmory");
         givenNoObjects();

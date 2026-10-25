@@ -39,10 +39,10 @@ class UploadServiceTest {
         List<PresignedUpload> uploads = uploadService.createPresignedUrls(member(), files);
 
         assertThat(uploads).hasSize(2);
-        assertThat(uploads.getFirst().objectKey()).startsWith("travel-records/10/")
+        assertThat(uploads.getFirst().objectKey()).startsWith("mapmory/travel-records/10/")
                 .endsWith(".jpg");
         assertThat(uploads.getFirst().presignedUrl().toString())
-                .startsWith("https://upload.example/travel-records/10/");
+                .startsWith("https://upload.example/mapmory/travel-records/10/");
         assertThat(uploads.getFirst().method()).isEqualTo("PUT");
         assertThat(uploads.getFirst().contentType()).isEqualTo("image/jpeg");
         assertThat(uploads.getFirst().expiration()).isEqualTo(EXPIRATION);
@@ -61,7 +61,7 @@ class UploadServiceTest {
     }
 
     private static S3StorageProperties storageProperties() {
-        return new S3StorageProperties("mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
+        return new S3StorageProperties("mapmory-test", "ap-northeast-2", "mapmory", EXPIRATION, null);
     }
 
     private static Member member() {

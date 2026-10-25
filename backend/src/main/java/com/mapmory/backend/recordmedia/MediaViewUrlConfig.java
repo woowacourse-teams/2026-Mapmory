@@ -28,7 +28,7 @@ public class MediaViewUrlConfig {
         }
         return new CloudFrontMediaViewUrlSigner(
                 cloudFrontProperties,
-                s3StorageProperties.normalizedKeyPrefix(),
+                s3StorageProperties.keyPrefix(),
                 s3StorageProperties.signedUrlExpiration(),
                 s3,
                 Clock.systemUTC()

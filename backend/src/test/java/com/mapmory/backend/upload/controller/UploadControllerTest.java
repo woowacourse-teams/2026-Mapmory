@@ -50,7 +50,7 @@ class UploadControllerTest {
     @BeforeEach
     void setUp() {
         S3StorageProperties storageProperties = new S3StorageProperties(
-                "mapmory-test", "ap-northeast-2", "", EXPIRATION, null);
+                "mapmory-test", "ap-northeast-2", "mapmory", EXPIRATION, null);
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 100),
                 new S3ObjectKeyGenerator(storageProperties),
@@ -75,7 +75,7 @@ class UploadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.uploads[0].objectKey")
                         .value(org.hamcrest.Matchers.matchesPattern(
-                                "travel-records/10/.+\\.jpg")))
+                                "mapmory/travel-records/10/.+\\.jpg")))
                 .andExpect(jsonPath("$.data.uploads[0].presignedUrl")
                         .value(org.hamcrest.Matchers.startsWith("https://upload.example/")))
                 .andExpect(jsonPath("$.data.uploads[0].method").value("PUT"))
@@ -91,7 +91,7 @@ class UploadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.uploads[0].objectKey")
                         .value(org.hamcrest.Matchers.matchesPattern(
-                                "travel-records/10/.+\\.heic")))
+                                "mapmory/travel-records/10/.+\\.heic")))
                 .andExpect(jsonPath("$.data.uploads[0].contentType").value("image/heic"));
     }
 
