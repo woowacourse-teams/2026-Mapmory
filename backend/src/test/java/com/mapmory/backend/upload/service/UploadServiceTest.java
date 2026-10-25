@@ -7,7 +7,6 @@ import com.mapmory.backend.upload.PresignedUpload;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.net.URI;
@@ -21,15 +20,17 @@ import org.springframework.util.unit.DataSize;
 
 class UploadServiceTest {
 
+    private static final long TEN_MEGABYTES = DataSize.ofMegabytes(10).toBytes();
+
     @Test
     void S3_없이_Presigned_URL과_Object_Key를_발급한다() {
-        UploadPolicyProperties properties = properties();
+        S3StorageProperties storageProperties = storageProperties();
         FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
         UploadService uploadService = new UploadService(
-                new UploadPolicy(properties.maxFileSize().toBytes(), properties.maxFilesPerRequest()),
-                new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)),
+                new UploadPolicy(TEN_MEGABYTES, 10),
+                new ObjectKeyGenerator(storageProperties),
                 provider,
-                properties
+                storageProperties
         );
         List<UploadFileCommand> files = List.of(
                 new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
@@ -62,12 +63,8 @@ class UploadServiceTest {
         );
     }
 
-    private static UploadPolicyProperties properties() {
-        return new UploadPolicyProperties(
-                DataSize.ofMegabytes(10),
-                10,
-                Duration.ofMinutes(5)
-        );
+    private static S3StorageProperties storageProperties() {
+        return new S3StorageProperties("mapmory-test", "ap-northeast-2", "", Duration.ofMinutes(5), null);
     }
 
     private static Member member() {

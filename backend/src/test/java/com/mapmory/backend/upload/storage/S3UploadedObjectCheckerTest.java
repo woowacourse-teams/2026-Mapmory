@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.upload.UploadErrorCode;
+import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +31,7 @@ class S3UploadedObjectCheckerTest {
     void setUp() {
         checker = new S3UploadedObjectChecker(
                 s3Client,
-                new S3StorageProperties("techcourse-project-2026", "ap-northeast-2", "mapmory", null)
+                new S3StorageProperties("techcourse-project-2026", "ap-northeast-2", "mapmory", Duration.ofMinutes(5), null)
         );
     }
 

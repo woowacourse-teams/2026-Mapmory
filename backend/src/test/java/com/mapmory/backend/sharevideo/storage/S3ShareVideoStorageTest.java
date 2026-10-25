@@ -58,6 +58,7 @@ class S3ShareVideoStorageTest {
                 "mapmory-test",
                 "ap-northeast-2",
                 keyPrefix,
+                Duration.ofMinutes(5),
                 new S3StorageProperties.Client(
                         Duration.ofSeconds(1),
                         Duration.ofSeconds(3),

@@ -6,13 +6,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.util.unit.DataSize;
 
 class ShareVideoDownloadUrlServiceTest {
 
@@ -23,10 +22,12 @@ class ShareVideoDownloadUrlServiceTest {
 
     @BeforeEach
     void setUp() {
-        UploadPolicyProperties properties = new UploadPolicyProperties(
-                DataSize.ofMegabytes(10),
-                100,
-                EXPIRATION
+        S3StorageProperties properties = new S3StorageProperties(
+                "mapmory-test",
+                "ap-northeast-2",
+                "",
+                EXPIRATION,
+                null
         );
         downloadUrlService = new ShareVideoDownloadUrlService(presignedUrlProvider, properties);
     }

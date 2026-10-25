@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.time.Duration;
+import org.hibernate.validator.constraints.time.DurationMax;
 import org.hibernate.validator.constraints.time.DurationMin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -14,6 +15,9 @@ import org.springframework.validation.annotation.Validated;
  *
  * keyPrefix는 공용 버킷에서 우리 객체를 한 곳에 모으기 위한 값이다.
  * 전용 버킷을 쓰는 환경에서는 비워 두면 된다.
+ *
+ * signedUrlExpiration은 업로드·조회·다운로드에 내주는 서명 URL의 유효시간이다.
+ * 상한 7일(604,800초)은 S3 SigV4 presigned URL이 허용하는 최대치다.
  */
 @Validated
 @ConfigurationProperties(prefix = "upload.storage.s3")
@@ -21,6 +25,12 @@ public record S3StorageProperties(
         @NotBlank String bucket,
         @NotBlank String region,
         String keyPrefix,
+
+        @NotNull
+        @DurationMin(seconds = 1)
+        @DurationMax(seconds = 604_800)
+        Duration signedUrlExpiration,
+
         @NotNull @Valid Client client
 ) {
 

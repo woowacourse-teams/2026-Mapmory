@@ -29,7 +29,7 @@ class S3PresignedUrlProviderTest {
     void setUp() {
         provider = new S3PresignedUrlProvider(
                 s3Presigner,
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", "", Duration.ofMinutes(5), null)
         );
     }
 

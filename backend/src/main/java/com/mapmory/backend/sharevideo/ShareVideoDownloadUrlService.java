@@ -1,6 +1,6 @@
 package com.mapmory.backend.sharevideo;
 
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import java.time.Duration;
 import org.springframework.stereotype.Service;
@@ -13,10 +13,10 @@ public class ShareVideoDownloadUrlService {
 
     public ShareVideoDownloadUrlService(
             final PresignedUrlProvider presignedUrlProvider,
-            final UploadPolicyProperties uploadPolicyProperties
+            final S3StorageProperties s3StorageProperties
     ) {
         this.presignedUrlProvider = presignedUrlProvider;
-        this.expiration = uploadPolicyProperties.presignedUrlExpiration();
+        this.expiration = s3StorageProperties.signedUrlExpiration();
     }
 
     public ShareVideoDownloadUrl create(final String resultObjectKey) {

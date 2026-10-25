@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
+import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,15 +14,15 @@ import org.junit.jupiter.api.Test;
 class RecordMediaUrlServiceTest {
 
     private final MediaViewUrlSigner mediaViewUrlSigner = mock(MediaViewUrlSigner.class);
-    private final UploadPolicyProperties uploadPolicyProperties = mock(UploadPolicyProperties.class);
+    private final S3StorageProperties s3StorageProperties = mock(S3StorageProperties.class);
     private RecordMediaUrlService recordMediaUrlService;
 
     @BeforeEach
     void setUp() {
-        when(uploadPolicyProperties.presignedUrlExpiration()).thenReturn(Duration.ofMinutes(5));
+        when(s3StorageProperties.signedUrlExpiration()).thenReturn(Duration.ofMinutes(5));
         recordMediaUrlService = new RecordMediaUrlService(
                 mediaViewUrlSigner,
-                uploadPolicyProperties
+                s3StorageProperties
         );
     }
 

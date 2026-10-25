@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.upload.domain.UploadFileType;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -65,6 +66,6 @@ class ObjectKeyGeneratorTest {
 
     private ObjectKeyGenerator objectKeyGenerator(String keyPrefix) {
         return new ObjectKeyGenerator(
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, null));
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5), null));
     }
 }

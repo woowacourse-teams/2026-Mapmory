@@ -64,7 +64,7 @@ GET /api/v1/share-videos/{jobId}/download-url
 }
 ```
 
-`downloadUrlExpiresIn`의 단위는 초다. 현재 `upload.policy.presigned-url-expiration` 설정을 사용하며 기본값은 5분이다. URL이 만료되어도 저장된 영상 파일은 삭제되지 않으므로 새 URL을 다시 요청할 수 있다.
+`downloadUrlExpiresIn`의 단위는 초다. 현재 `upload.storage.s3.signed-url-expiration` 설정을 사용하며 기본값은 5분이다. URL이 만료되어도 저장된 영상 파일은 삭제되지 않으므로 새 URL을 다시 요청할 수 있다.
 
 작업 상태에 따른 응답은 다음과 같다.
 

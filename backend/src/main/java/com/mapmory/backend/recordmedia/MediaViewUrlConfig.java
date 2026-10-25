@@ -1,6 +1,5 @@
 package com.mapmory.backend.recordmedia;
 
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Clock;
@@ -21,7 +20,6 @@ public class MediaViewUrlConfig {
     public MediaViewUrlSigner mediaViewUrlSigner(
             CloudFrontProperties cloudFrontProperties,
             S3StorageProperties s3StorageProperties,
-            UploadPolicyProperties uploadPolicyProperties,
             PresignedUrlProvider presignedUrlProvider
     ) {
         MediaViewUrlSigner s3 = new S3MediaViewUrlSigner(presignedUrlProvider);
@@ -31,7 +29,7 @@ public class MediaViewUrlConfig {
         return new CloudFrontMediaViewUrlSigner(
                 cloudFrontProperties,
                 s3StorageProperties.normalizedKeyPrefix(),
-                uploadPolicyProperties.presignedUrlExpiration(),
+                s3StorageProperties.signedUrlExpiration(),
                 s3,
                 Clock.systemUTC()
         );

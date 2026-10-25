@@ -13,7 +13,6 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.upload.policy.ObjectKeyGenerator;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import com.mapmory.backend.upload.domain.UploadPolicy;
-import com.mapmory.backend.upload.policy.UploadPolicyProperties;
 import com.mapmory.backend.upload.service.UploadService;
 import com.mapmory.backend.upload.storage.PresignedRequest;
 import com.mapmory.backend.upload.storage.PresignedUrlProvider;
@@ -38,6 +37,7 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 class UploadControllerTest {
 
     private static final long MEMBER_ID = 10L;
+    private static final long TEN_MEGABYTES = DataSize.ofMegabytes(10).toBytes();
     private static final Member MEMBER = Member.of("테스터", UUID.randomUUID());
 
     static {
@@ -48,16 +48,13 @@ class UploadControllerTest {
 
     @BeforeEach
     void setUp() {
-        UploadPolicyProperties properties = new UploadPolicyProperties(
-                DataSize.ofMegabytes(10),
-                100,
-                Duration.ofMinutes(5)
-        );
+        S3StorageProperties storageProperties = new S3StorageProperties(
+                "mapmory-test", "ap-northeast-2", "", Duration.ofMinutes(5), null);
         UploadService uploadService = new UploadService(
-                new UploadPolicy(properties.maxFileSize().toBytes(), properties.maxFilesPerRequest()),
-                new ObjectKeyGenerator(new S3StorageProperties("mapmory-test", "ap-northeast-2", "", null)),
+                new UploadPolicy(TEN_MEGABYTES, 100),
+                new ObjectKeyGenerator(storageProperties),
                 new FakePresignedUrlProvider(),
-                properties
+                storageProperties
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 

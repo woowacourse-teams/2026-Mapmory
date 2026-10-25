@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
@@ -132,7 +133,7 @@ class S3PermissionSelfCheckTest {
     private S3PermissionSelfCheck selfCheck(String keyPrefix) {
         return new S3PermissionSelfCheck(
                 s3Client,
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, null)
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5), null)
         );
     }
 
