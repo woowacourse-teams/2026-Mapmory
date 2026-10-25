@@ -394,6 +394,15 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `files[].contentType` | String | 예 | 허용 이미지 MIME 타입 |
 | `files[].fileSize` | Long | 예 | 바이트 단위 파일 크기 |
 
+허용 형식은 `contentType`으로 정한다. `fileName`에 확장자가 있으면 그 형식의 확장자여야 하고, 없으면 확인하지 않는다. `objectKey`의 확장자는 `fileName`과 관계없이 형식마다 하나로 정해진다.
+
+| `contentType` | `fileName` 확장자 | `objectKey` 확장자 |
+| --- | --- | --- |
+| `image/jpeg` | `jpg`, `jpeg`, `jpe` | `jpg` |
+| `image/png` | `png` | `png` |
+| `image/webp` | `webp` | `webp` |
+| `image/heic` | `heic`, `heics`, `heif`, `heifs` | `heic` |
+
 #### Response `200 OK`
 
 ```json

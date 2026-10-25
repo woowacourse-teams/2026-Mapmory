@@ -46,16 +46,15 @@ public class S3PermissionSelfCheck {
 
     private final S3Client s3Client;
     private final String bucket;
-    private final S3ObjectKeyGenerator objectKeyGenerator;
+    private final String travelRecordsDirectory;
 
     public S3PermissionSelfCheck(
             S3Client s3Client,
-            S3StorageProperties properties,
-            S3ObjectKeyGenerator objectKeyGenerator
+            S3StorageProperties properties
     ) {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();
-        this.objectKeyGenerator = objectKeyGenerator;
+        this.travelRecordsDirectory = properties.travelRecordsDirectory();
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -111,7 +110,7 @@ public class S3PermissionSelfCheck {
     private Optional<String> findAnyObjectKey() {
         ListObjectsV2Response response = s3Client.listObjectsV2(ListObjectsV2Request.builder()
                 .bucket(bucket)
-                .prefix(objectKeyGenerator.travelRecordsDirectory())
+                .prefix(travelRecordsDirectory)
                 .maxKeys(1)
                 .build());
         return response.contents().stream()

@@ -84,6 +84,18 @@ class UploadControllerTest {
     }
 
     @Test
+    void heif_파일은_heic_키로_발급한다() throws Exception {
+        mockMvc.perform(post("/api/v1/uploads/presigned-urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(fileRequest("IMG_0001.heif", "image/heic", 1024L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.uploads[0].objectKey")
+                        .value(org.hamcrest.Matchers.matchesPattern(
+                                "travel-records/10/.+\\.heic")))
+                .andExpect(jsonPath("$.data.uploads[0].contentType").value("image/heic"));
+    }
+
+    @Test
     void 허용되지_않은_파일_형식은_400_ProblemDetails로_응답한다() throws Exception {
         expectUploadError(fileRequest("image/gif", 1024L), "INVALID_FILE_TYPE");
     }
@@ -117,17 +129,21 @@ class UploadControllerTest {
     }
 
     private static String fileRequest(String contentType, long fileSize) {
+        return fileRequest("image.jpg", contentType, fileSize);
+    }
+
+    private static String fileRequest(String fileName, String contentType, long fileSize) {
         return """
                 {
                   "files": [
                     {
-                      "fileName": "image.jpg",
+                      "fileName": "%s",
                       "contentType": "%s",
                       "fileSize": %d
                     }
                   ]
                 }
-                """.formatted(contentType, fileSize);
+                """.formatted(fileName, contentType, fileSize);
     }
 
     private static HandlerMethodArgumentResolver loginMemberResolver() {

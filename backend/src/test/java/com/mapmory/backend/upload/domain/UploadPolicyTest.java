@@ -28,7 +28,9 @@ class UploadPolicyTest {
             "photo.jpeg, image/jpeg, JPEG",
             "photo.png, image/png, PNG",
             "photo.webp, image/webp, WEBP",
-            "photo.heic, image/heic, HEIC"
+            "photo.heic, image/heic, HEIC",
+            "photo.jpe, image/jpeg, JPEG",
+            "photo.heif, image/heic, HEIC"
     })
     void 허용된_이미지_형식을_검증한다(
             String fileName,
