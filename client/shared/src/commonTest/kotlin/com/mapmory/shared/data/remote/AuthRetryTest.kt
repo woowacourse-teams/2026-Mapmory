@@ -7,6 +7,7 @@ import com.mapmory.shared.data.auth.GuestSessionManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
@@ -17,6 +18,47 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class AuthRetryTest {
+    @Test
+    fun nonExpiredOrUnreadableUnauthorizedResponseIsReturnedUnchanged() = runBlocking {
+        val bodies = listOf(
+            """{"status":401,"code":"INVALID_ACCESS_TOKEN"}""",
+            """{"status":401,"code":"INVALID_REFRESH_TOKEN"}""",
+            """{"status":401,"code":"UNKNOWN_AUTH_ERROR"}""",
+            """{"status":401}""",
+            """{"status":401,"code":null}""",
+            """{"code":"EXPIRED_ACCESS_TOKEN""",
+            "<html>Unauthorized</html>",
+            "",
+        )
+        for (body in bodies) {
+            val gateway = StubAuthGateway()
+            val session = GuestSessionManager(gateway, MemoryTokenStore())
+            session.ensureAuthenticated().getOrThrow()
+            var requestCount = 0
+            val client = HttpClient(MockEngine) {
+                engine { addHandler {
+                    requestCount++
+                    respond(content = ByteReadChannel(body), status = HttpStatusCode.Unauthorized,
+                        headers = io.ktor.http.headersOf("X-Auth-Test", "original"))
+                } }
+            }
+            try {
+                client.installMapmoryAuthRetry(session, ApiBaseUrl)
+                val response = client.get("$ApiBaseUrl/travel-records") {
+                    header(HttpHeaders.Authorization, "Bearer expired-access")
+                }
+                assertEquals(HttpStatusCode.Unauthorized, response.status, body)
+                assertEquals("original", response.headers["X-Auth-Test"], body)
+                assertEquals(body, response.bodyAsText(), body)
+                assertEquals(0, gateway.refreshCount, body)
+                assertEquals(1, requestCount, body)
+            } finally {
+                session.close()
+                client.close()
+            }
+        }
+    }
+
     @Test
     fun unauthorizedApiRequestRefreshesAndRetriesOnlyFailedHttpRequest() = runBlocking {
         val gateway = StubAuthGateway()
