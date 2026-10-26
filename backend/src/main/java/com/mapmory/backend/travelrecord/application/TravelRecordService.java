@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
@@ -11,6 +11,15 @@ import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionSuggester;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
+import com.mapmory.backend.travelrecord.TravelRecordErrorCode;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.application.command.TravelRecordCommand;
+import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
@@ -248,7 +257,7 @@ public class TravelRecordService {
     }
 
     private void validateTravelDates(LocalDate startDate, LocalDate endDate) {
-        TravelPeriod.of(startDate, endDate).validateNotAfter(LocalDate.now(clock));
+        TravelRecord.validatePeriod(startDate, endDate, LocalDate.now(clock));
     }
 
     private Pageable createPageable(int page, int size) {

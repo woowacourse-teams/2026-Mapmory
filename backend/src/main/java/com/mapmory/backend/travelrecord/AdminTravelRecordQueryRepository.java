@@ -3,6 +3,8 @@ package com.mapmory.backend.travelrecord;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;

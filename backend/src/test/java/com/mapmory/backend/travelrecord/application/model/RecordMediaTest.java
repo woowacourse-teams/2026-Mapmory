@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;

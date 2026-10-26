@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +27,15 @@ import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionSuggester;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.application.command.TravelRecordCommand;
+import com.mapmory.backend.travelrecord.application.model.RecordMedia;
+import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCacheProperties;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;

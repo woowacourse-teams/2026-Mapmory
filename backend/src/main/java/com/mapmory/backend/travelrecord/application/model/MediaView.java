@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application.model;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 

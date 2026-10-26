@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;

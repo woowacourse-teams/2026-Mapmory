@@ -16,6 +16,8 @@ import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.mapmory.backend.travelrecord.application.TravelRecordService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

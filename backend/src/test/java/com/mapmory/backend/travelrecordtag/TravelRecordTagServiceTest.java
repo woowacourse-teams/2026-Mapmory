@@ -14,7 +14,7 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagRepository;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;

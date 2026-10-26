@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.dto;
+package com.mapmory.backend.travelrecord.web.dto;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;

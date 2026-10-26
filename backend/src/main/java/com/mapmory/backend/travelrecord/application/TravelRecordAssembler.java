@@ -1,8 +1,16 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.travelrecord.application.model.MediaView;
+import com.mapmory.backend.travelrecord.application.model.RecordMedia;
+import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.TravelRecordSummaries;
 import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import java.util.HashMap;
 import java.util.List;

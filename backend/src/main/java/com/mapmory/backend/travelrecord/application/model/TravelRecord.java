@@ -1,10 +1,11 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application.model;
 
 import com.mapmory.backend.common.entity.BaseEntity;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.tag.TagErrorCode;
+import com.mapmory.backend.travelrecord.TravelRecordErrorCode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
@@ -128,6 +129,16 @@ public class TravelRecord extends BaseEntity {
         if (new HashSet<>(objectKeys).size() != objectKeys.size()) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
+    }
+
+    /**
+     * 여행 기간은 기준일(오늘)보다 뒤일 수 없다.
+     *
+     * <p>기준일이 지나도 저장된 기간은 유효하므로 {@link TravelPeriod}가 생성 시점에 검사하지 않는다.
+     * 생성·수정 요청에서만 적용하고, 일지를 만들기 전에 검증해야 해서 정적 메서드다.
+     */
+    public static void validatePeriod(LocalDate startDate, LocalDate endDate, LocalDate today) {
+        TravelPeriod.of(startDate, endDate).validateNotAfter(today);
     }
 
     /**

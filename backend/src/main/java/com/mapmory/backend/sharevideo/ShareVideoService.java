@@ -4,7 +4,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshot;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshotFactory;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;

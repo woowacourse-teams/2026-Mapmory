@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,13 +21,21 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionType;
-import com.mapmory.backend.travelrecord.dto.CreateTravelRecordResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordDetailResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordRequest;
+import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.application.TravelRecordService;
+import com.mapmory.backend.travelrecord.application.command.TravelRecordCommand;
+import com.mapmory.backend.travelrecord.application.model.MediaView;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
+import com.mapmory.backend.travelrecord.web.dto.CreateTravelRecordResponse;
+import com.mapmory.backend.travelrecord.web.dto.TravelRecordDetailResponse;
+import com.mapmory.backend.travelrecord.web.dto.TravelRecordRequest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;

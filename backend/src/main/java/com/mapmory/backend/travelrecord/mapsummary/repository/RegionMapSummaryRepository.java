@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.mapsummary.repository;
 
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;

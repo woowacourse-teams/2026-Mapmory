@@ -1,7 +1,6 @@
-package com.mapmory.backend.travelrecord.dto;
+package com.mapmory.backend.travelrecord.web.dto;
 
-import com.mapmory.backend.travelrecord.TravelRecordCommand;
-import jakarta.validation.constraints.NotBlank;
+import com.mapmory.backend.travelrecord.application.command.TravelRecordCommand;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;

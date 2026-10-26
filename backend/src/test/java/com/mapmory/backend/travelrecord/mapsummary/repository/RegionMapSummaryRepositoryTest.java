@@ -7,7 +7,7 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.tag.Tag;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import com.mapmory.backend.travelrecordtag.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;

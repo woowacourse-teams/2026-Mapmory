@@ -1,7 +1,7 @@
 package com.mapmory.backend.travelrecordtag;
 
 import com.mapmory.backend.tag.Tag;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
