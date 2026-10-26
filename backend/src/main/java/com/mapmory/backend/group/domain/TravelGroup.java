@@ -61,6 +61,13 @@ public class TravelGroup extends BaseEntity {
         return group;
     }
 
+    /**
+     * 멤버 누구나 이름을 바꾼다. 멤버인지는 부르는 쪽이 먼저 확인한다.
+     */
+    public void rename(String name) {
+        this.name = validateName(name);
+    }
+
     public boolean hasMember(Long memberId) {
         return members.stream().anyMatch(member -> member.isMember(memberId));
     }

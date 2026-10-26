@@ -57,10 +57,10 @@
 | 구현됨 | `PATCH` | `/tags/{tagId}` | 내 태그 이름 수정 |
 | 구현됨 | `DELETE` | `/tags/{tagId}` | 내 태그 삭제 |
 | 구현됨 | `POST` | `/waitlist` | 출시 알림 신청 |
-| 구현 전 설계 | `POST` | `/groups` | 그룹 만들기 |
-| 구현 전 설계 | `GET` | `/groups` | 내 그룹 목록 |
-| 구현 전 설계 | `GET` | `/groups/{groupId}` | 그룹 조회(멤버 닉네임) |
-| 구현 전 설계 | `PATCH` | `/groups/{groupId}` | 그룹 이름 바꾸기 |
+| 구현됨 | `POST` | `/groups` | 그룹 만들기 |
+| 구현됨 | `GET` | `/groups` | 내 그룹 목록 |
+| 구현됨 | `GET` | `/groups/{groupId}` | 그룹 조회(멤버 닉네임) |
+| 구현됨 | `PATCH` | `/groups/{groupId}` | 그룹 이름 바꾸기 |
 | 구현 전 설계 | `POST` | `/groups/{groupId}/invitations` | 초대 링크·코드 만들기 |
 | 구현 전 설계 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
 | 구현 전 설계 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
@@ -1331,7 +1331,7 @@ Authorization: Bearer {accessToken}
 
 ## 12. Group API
 
-> 상태: 구현 전 설계 · 결정과 이유는 [ADR 0021](backend/docs/adr/0021-group-sharing-albums.md)
+> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기) 구현됨, 나머지는 구현 전 설계 · 결정과 이유는 [ADR 0021](backend/docs/adr/0021-group-sharing-albums.md)
 
 친구·가족이 같은 여행을 앨범 하나로 함께 본다. **저장은 각자, 보기는 하나로** 한다. 사진은 늘 자기 여행 기록에 저장하고, 앨범은 그 기록들을 id로 묶는다. 앱은 앨범을 기록 하나처럼 보여 준다.
 
