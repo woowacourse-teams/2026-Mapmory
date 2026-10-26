@@ -99,6 +99,14 @@ place:
     searches-per-member-per-minute: 20
     selections-per-member-per-day: 100
 
+group:
+  invitation:
+    # 초대 미리보기·수락을 합쳐 회원별로 센다. 6자리 코드를 아무거나 넣어 보는 시도를 막는다.
+    # 서버마다 메모리에서 센다.
+    rate-limit:
+      per-member-per-minute: 10
+      per-member-per-day: 50
+
 upload:
   policy:
     max-file-size: 10MB

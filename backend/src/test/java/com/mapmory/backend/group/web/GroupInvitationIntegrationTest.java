@@ -178,6 +178,19 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
         assertThat(travelGroupRepository.existsMember(group.getId(), minho.getId())).isFalse();
     }
 
+    @Test
+    void 미리보기와_수락을_합쳐_1분에_10번을_넘으면_429다() throws Exception {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            preview(minho, "ZZZZZZ").andExpect(status().isNotFound());
+            accept(minho, "ZZZZZZ").andExpect(status().isNotFound());
+        }
+
+        preview(minho, "ZZZZZZ")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("INVITATION_RATE_LIMITED"));
+        preview(jisu, "ZZZZZZ").andExpect(status().isNotFound());
+    }
+
     private Member socialMember(String nickname) {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, UUID.randomUUID().toString(), nickname, UUID.randomUUID());
         member.changeNickname(nickname);

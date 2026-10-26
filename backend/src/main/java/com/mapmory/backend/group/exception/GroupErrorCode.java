@@ -14,6 +14,8 @@ public enum GroupErrorCode implements ErrorCode {
             "초대 링크나 코드가 없거나 만료되었습니다."),
     GROUP_FULL(ErrorKind.CONFLICT, "GROUP_FULL", "그룹이 가득 찼습니다.",
             "그룹은 최대 30명까지 들어갈 수 있습니다."),
+    INVITATION_RATE_LIMITED(ErrorKind.TOO_MANY_REQUESTS, "INVITATION_RATE_LIMITED", "초대 확인 한도를 초과했습니다.",
+            "잠시 후 다시 시도해 주세요."),
     INVALID_GROUP_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
             "그룹 이름은 공백을 제외한 1자 이상 30자 이하여야 합니다."),
     INVALID_ALBUM_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
