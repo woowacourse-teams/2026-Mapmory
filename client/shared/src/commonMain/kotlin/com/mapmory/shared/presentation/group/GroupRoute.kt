@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.navigation.LocalNavigationGestureMotion
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.PlatformBackHandler
@@ -31,21 +32,27 @@ internal fun GroupRoute(
     backHandlerOwnerId: String,
     modifier: Modifier = Modifier,
 ) {
-    val state = rememberSaveable(saver = GroupPreviewState.Saver) { GroupPreviewState() }
+    val analytics = LocalMapmoryAnalytics.current
+    val telemetry = remember(analytics) { GroupAnalytics(analytics) }
+    val state = rememberSaveable(saver = GroupPreviewState.saver(analytics)) { GroupPreviewState() }
     val gestureMotion = LocalNavigationGestureMotion.current
+    fun <T> act(action: GroupAction, block: () -> T): T = telemetry.action(action, state::analyticsContext, block)
     with(state) {
+        LaunchedEffect(telemetry, preview, groupId, albumId, photoSession, sheet, pendingDeleteId, saveStage, gestureMotion.isActive) {
+            if (!gestureMotion.isActive) telemetry.viewed(analyticsContext(), viewKey())
+        }
         val group = if (preview && groupId != null) {
             visiblePreviewGroup.copy(name = createdName ?: previewGroup.name,
                 albums = if (emptyPreview) emptyList() else visiblePreviewGroup.albums)
         } else null
         val album = group?.albums?.firstOrNull { it.id == albumId }
         val screenStates = rememberSaveableStateHolder()
-        val back = rememberUpdatedState<() -> Boolean> { run { state.back() } }
+        val back = rememberUpdatedState<() -> Boolean> { act(GroupAction.SYSTEM_BACK) { state.back() } }
         val gestureBack = rememberUpdatedState<() -> Boolean> {
-            run { state.gestureBack() }
+            act(if (backHandlerRegistry.isRestoringGesture) GroupAction.EDGE_FORWARD_CANCELLED else GroupAction.EDGE_BACK) { state.gestureBack() }
         }
         val gestureForward = rememberUpdatedState<() -> Boolean> {
-            run { state.gestureForward() }
+            act(if (backHandlerRegistry.isRestoringGesture) GroupAction.EDGE_BACK_CANCELLED else GroupAction.EDGE_FORWARD) { state.gestureForward() }
         }
         DisposableEffect(backHandlerRegistry, backHandlerOwnerId) {
             val registration = backHandlerRegistry.register(backHandlerOwnerId,
@@ -55,29 +62,29 @@ internal fun GroupRoute(
         }
         PlatformBackHandler(enabled = sheet != null || groupId != null) { clearForward(); back.value() }
         fun previewAction(action: () -> Unit) {
-            if (preview) action() else { error = ServerPending }
+            if (preview) action() else { error = ServerPending; telemetry.blocked(analyticsContext()) }
         }
 
         TripRecordBackground(modifier = modifier) {
             if (album != null && photoIndex != null && album.photos.isNotEmpty()) {
                 screenStates.SaveableStateProvider("photo/${group.id}/${album.id}/$photoSession") {
                     GroupPhotoScreen(album, photoIndex!!,
-                        onBack = { run { clearForward(); photoIndex = null } },
+                        onBack = { act(GroupAction.PHOTO_CLOSED) { clearForward(); photoIndex = null } },
                         currentMemberId = "member-1",
-                        onDelete = { run { pendingDeleteId = it.id } },
-                        onPageChanged = { _, _ -> run {} },
+                        onDelete = { act(GroupAction.PHOTO_DELETE_OPENED) { pendingDeleteId = it.id } },
+                        onPageChanged = { _, _ -> act(GroupAction.PHOTO_PAGE_CHANGED) {} },
                     )
                 }
             } else Column(Modifier.fillMaxSize()) {
                 if (previewEnabled) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(onClick = {
-                            run {
+                            act(GroupAction.PREVIEW_TOGGLED) {
                                 clearForward(); preview = !preview; groupId = null; albumId = null; photoIndex = null
                             }
                         }) { Text(if (preview) "미리보기 종료" else "그룹 UI 미리보기") }
                         if (preview) TextButton(onClick = {
-                            run { clearForward(); emptyPreview = !emptyPreview; albumId = null }
+                            act(GroupAction.EMPTY_PREVIEW_TOGGLED) { clearForward(); emptyPreview = !emptyPreview; albumId = null }
                         }) { Text(if (emptyPreview) "앨범 있는 상태" else "앨범 없는 상태") }
                     }
                 }
@@ -90,18 +97,18 @@ internal fun GroupRoute(
                         when {
                             album != null -> GroupAlbumScreen(
                                 album = album,
-                                onBack = { run { clearForward(); albumId = null } },
-                                onScrolled = { run {} },
-                                onAddPhotos = { run { openSheet(GroupSheet.PHOTOS) } },
-                                onPhoto = { run { clearForward(); photoSession++; photoIndex = it } },
+                                onBack = { act(GroupAction.HEADER_BACK) { clearForward(); albumId = null } },
+                                onScrolled = { act(GroupAction.ALBUM_SCROLLED) {} },
+                                onAddPhotos = { act(GroupAction.PHOTOS_ADD_OPENED) { openSheet(GroupSheet.PHOTOS) } },
+                                onPhoto = { act(GroupAction.PHOTO_OPENED) { clearForward(); photoSession++; photoIndex = it } },
                             )
                             group != null -> GroupHomeScreen(
                                 group = group,
-                                onBack = { run { clearForward(); groupId = null } },
-                                onScrolled = { run {} },
-                                onInvite = { run { openSheet(GroupSheet.INVITE) } },
-                                onAdd = { run { openSheet(GroupSheet.ADD) } },
-                                onAlbum = { run { clearForward(); albumId = it } },
+                                onBack = { act(GroupAction.HEADER_BACK) { clearForward(); groupId = null } },
+                                onScrolled = { act(GroupAction.HOME_SCROLLED) {} },
+                                onInvite = { act(GroupAction.INVITE_OPENED) { openSheet(GroupSheet.INVITE) } },
+                                onAdd = { act(GroupAction.ALBUM_ADD_OPENED) { openSheet(GroupSheet.ADD) } },
+                                onAlbum = { act(GroupAction.ALBUM_OPENED) { clearForward(); albumId = it } },
                             )
                             else -> GroupListScreen(
                                 state = GroupListUiState.Content(
@@ -110,43 +117,50 @@ internal fun GroupRoute(
                                         albums = if (emptyPreview) emptyList() else visiblePreviewGroup.albums,
                                     )) else emptyList(),
                                 ),
-                                onCreate = { run { openSheet(GroupSheet.CREATE) } },
-                                onJoin = { run { openSheet(GroupSheet.JOIN) } },
-                                onGroup = { run { clearForward(); groupId = it } },
-                                onScrolled = { run {} },
-                                onRetry = { run {} },
+                                onCreate = { act(GroupAction.CREATE_OPENED) { openSheet(GroupSheet.CREATE) } },
+                                onJoin = { act(GroupAction.JOIN_OPENED) { openSheet(GroupSheet.JOIN) } },
+                                onGroup = { act(GroupAction.GROUP_OPENED) { clearForward(); groupId = it } },
+                                onScrolled = { act(GroupAction.LIST_SCROLLED) {} },
+                                onRetry = { act(GroupAction.LIST_RETRIED) {} },
                             )
                         }
                     }
                 }
                 TripBottomBar(selected = TripBottomTab.GROUP,
-                    onMapClick = { run { onMapClick() } },
-                    onRecordClick = { run { onRecordClick() } },
-                    onProfileClick = { run { onProfileClick() } },
-                    onSettingsClick = { run { onSettingsClick() } },
+                    onMapClick = { telemetry.guard("group_tab_navigation", analyticsContext()) { onMapClick() } },
+                    onRecordClick = { telemetry.guard("group_tab_navigation", analyticsContext()) { onRecordClick() } },
+                    onProfileClick = { telemetry.guard("group_tab_navigation", analyticsContext()) { onProfileClick() } },
+                    onSettingsClick = { telemetry.guard("group_tab_navigation", analyticsContext()) { onSettingsClick() } },
                     onGroupClick = { clearForward(); groupId = null; albumId = null; photoIndex = null })
             }
             val pendingPhoto = visiblePreviewGroup.albums.flatMap { it.photos }
                 .firstOrNull { it.id == pendingDeleteId && it.uploaderId == "member-1" }
             if (pendingPhoto != null) {
-                val lastPhoto = run {
+                val lastPhoto = telemetry.guard("group_delete_prepare", analyticsContext()) {
                     removalResult(pendingPhoto) is com.mapmory.shared.domain.model.RecordPhotoRemoval.RecordDeleted
                 }
                 AlertDialog(
-                    onDismissRequest = { run { pendingDeleteId = null } },
+                    onDismissRequest = { act(GroupAction.PHOTO_DELETE_DISMISSED) { pendingDeleteId = null } },
                     title = { Text(if (lastPhoto) "마지막 사진을 삭제할까요?" else "사진을 삭제할까요?") },
                     text = { Text(if (lastPhoto)
                         "이 사진을 삭제하면 여행 기록도 함께 삭제돼요.\n샘플 데이터에만 적용되는 미리보기입니다."
                         else "개인 기록과 이 사진을 공유한 앨범에서도 삭제돼요.\n샘플 데이터에만 적용되는 미리보기입니다.") },
                     confirmButton = { TextButton(onClick = {
-                        run { deletePendingPhoto() }
+                        act(GroupAction.PHOTO_DELETE_CONFIRMED) { deletePendingPhoto() }
                     }) { Text("삭제") } },
-                    dismissButton = { TextButton(onClick = { run { pendingDeleteId = null } }) { Text("취소") } },
+                    dismissButton = { TextButton(onClick = { act(GroupAction.PHOTO_DELETE_CANCELLED) { pendingDeleteId = null } }) { Text("취소") } },
                 )
             }
-            if (sheet != null) ModalBottomSheet(onDismissRequest = { run { clearForward(); dismissSheet(); error = null } }) {
+            val editedFields = remember(sheet) { mutableSetOf<GroupAction>() }
+            fun editField(action: GroupAction, update: () -> Unit) {
+                telemetry.guard("group_input_change", analyticsContext(), action) {
+                    if (editedFields.add(action)) act(action) {}
+                    update()
+                }
+            }
+            if (sheet != null) ModalBottomSheet(onDismissRequest = { act(GroupAction.SHEET_DISMISSED) { clearForward(); dismissSheet(); error = null } }) {
                 val scrollState = rememberScrollState()
-                GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }) { run {} }
+                GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }) { act(GroupAction.SHEET_SCROLLED) {} }
                 Column(Modifier.fillMaxWidth().imePadding().verticalScroll(scrollState).padding(horizontal = 24.dp).padding(bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Text(when (sheet) {
@@ -171,10 +185,10 @@ internal fun GroupRoute(
                     when (sheet) {
                         GroupSheet.CREATE -> {
                             GroupMuted("함께할 사람들에게 보여줄 그룹 이름을 입력해 주세요.")
-                            OutlinedTextField(value = name, onValueChange = { value -> run { name = value; error = null } },
+                            OutlinedTextField(value = name, onValueChange = { value -> editField(GroupAction.NAME_EDITED) { name = value; error = null } },
                                 label = { Text("그룹 이름") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                                 isError = error != null)
-                            GroupButton("그룹 만들기", { run { previewAction {
+                            GroupButton("그룹 만들기", { act(GroupAction.CREATE_SUBMITTED) { previewAction {
                                 createdName = name.trim(); emptyPreview = true; groupId = previewGroup.id; dismissSheet()
                             } } }, Modifier.fillMaxWidth(),
                                 enabled = name.isNotBlank(), tall = true)
@@ -182,14 +196,14 @@ internal fun GroupRoute(
                         GroupSheet.JOIN -> {
                             GroupMuted("초대받은 6자리 코드를 입력해 주세요.")
                             OutlinedTextField(value = code, onValueChange = { value ->
-                                run {
+                                editField(GroupAction.CODE_EDITED) {
                                     code = value.filter(Char::isDigit).take(6); error = null
                                 }
                             }, label = { Text("초대 코드") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                                 isError = error != null)
-                            GroupButton("초대 확인", { run { previewAction { openSheet(GroupSheet.JOIN_PREVIEW) } } }, Modifier.fillMaxWidth(),
+                            GroupButton("초대 확인", { act(GroupAction.INVITATION_CHECKED) { previewAction { openSheet(GroupSheet.JOIN_PREVIEW) } } }, Modifier.fillMaxWidth(),
                                 enabled = code.length == 6, tall = true)
                         }
                         GroupSheet.INVITE -> {
@@ -200,38 +214,38 @@ internal fun GroupRoute(
                                 }
                             }
                             GroupMuted("링크나 코드로 멤버를 초대해요.\n멤버 누구나 초대할 수 있고, 초대는 하루 동안 유효해요.")
-                            GroupButton("초대 링크·코드 만들기", { run { previewAction { openSheet(GroupSheet.INVITE_READY) } } }, Modifier.fillMaxWidth(), tall = true)
+                            GroupButton("초대 링크·코드 만들기", { act(GroupAction.INVITE_GENERATED) { previewAction { openSheet(GroupSheet.INVITE_READY) } } }, Modifier.fillMaxWidth(), tall = true)
                         }
                         GroupSheet.JOIN_PREVIEW -> {
                             Text(previewGroup.name, fontWeight = FontWeight.Bold)
                             GroupMuted("멤버 4명 · 소셜 로그인 이름이 그룹에 표시돼요.")
-                            GroupButton("참여하기", { run { groupId = previewGroup.id; emptyPreview = true; openSheet(GroupSheet.JOINED) } }, Modifier.fillMaxWidth())
-                            TextButton(onClick = { run { openSheet(GroupSheet.EXPIRED) } }) { Text("만료 상태 미리보기") }
-                            TextButton(onClick = { run { openSheet(GroupSheet.FULL) } }) { Text("정원 초과 상태 미리보기") }
+                            GroupButton("참여하기", { act(GroupAction.JOIN_CONFIRMED) { groupId = previewGroup.id; emptyPreview = true; openSheet(GroupSheet.JOINED) } }, Modifier.fillMaxWidth())
+                            TextButton(onClick = { act(GroupAction.EXPIRED_SIMULATED) { openSheet(GroupSheet.EXPIRED) } }) { Text("만료 상태 미리보기") }
+                            TextButton(onClick = { act(GroupAction.FULL_SIMULATED) { openSheet(GroupSheet.FULL) } }) { Text("정원 초과 상태 미리보기") }
                         }
                         GroupSheet.JOINED -> {
                             GroupMuted("샘플 그룹 참여가 완료됐어요.")
-                            GroupButton("그룹 보기", { run { dismissSheet() } }, Modifier.fillMaxWidth())
+                            GroupButton("그룹 보기", { act(GroupAction.JOINED_GROUP_OPENED) { dismissSheet() } }, Modifier.fillMaxWidth())
                         }
                         GroupSheet.INVITE_READY -> {
                             Text("284917", fontSize = 32.sp, fontWeight = FontWeight.Bold)
                             GroupMuted("미리보기 전용 코드 · 실제 초대에 사용할 수 없어요.\n발급 후 24시간 동안 유효해요.")
-                            TextButton(onClick = { run { openSheet(GroupSheet.EXPIRED) } }) { Text("만료 상태 미리보기") }
+                            TextButton(onClick = { act(GroupAction.EXPIRED_SIMULATED) { openSheet(GroupSheet.EXPIRED) } }) { Text("만료 상태 미리보기") }
                         }
                         GroupSheet.EXPIRED, GroupSheet.FULL -> {
                             GroupMuted(if (sheet == GroupSheet.EXPIRED) "초대가 만료됐어요. 새 초대를 요청해 주세요." else "최대 30명까지 참여할 수 있어요.")
-                            GroupButton("돌아가기", { run { openSheet(GroupSheet.JOIN) } }, Modifier.fillMaxWidth())
+                            GroupButton("돌아가기", { act(GroupAction.INVITATION_RETURNED) { openSheet(GroupSheet.JOIN) } }, Modifier.fillMaxWidth())
                         }
                         GroupSheet.PLACE -> {
                             GroupMuted("샘플 장소를 선택해 앨범 만들기를 이어가세요.")
-                            GroupCard(onClick = { run { selectedPhotos = emptyList(); openSheet(GroupSheet.PICK) } }) {
+                            GroupCard(onClick = { act(GroupAction.PLACE_SELECTED) { selectedPhotos = emptyList(); openSheet(GroupSheet.PICK) } }) {
                                 Text("제주 · 협재해수욕장", Modifier.padding(20.dp))
                             }
                         }
                         GroupSheet.RECORDS -> {
                             GroupMuted("공유해도 내 여행 기록은 그대로 남아요.")
                             ownRecords.forEach { record ->
-                                GroupCard(onClick = { run { shareRecord(record.recordId) } }) {
+                                GroupCard(onClick = { act(GroupAction.RECORD_SELECTED) { shareRecord(record.recordId) } }) {
                                     Text("내 여행 기록 ${record.recordId}", Modifier.padding(20.dp))
                                 }
                             }
@@ -241,14 +255,14 @@ internal fun GroupRoute(
                             previewGroup.albums.first().photos.forEach { photo ->
                                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                     Checkbox(checked = photo.id in selectedPhotos, onCheckedChange = { checked ->
-                                        run {
+                                        act(if (checked) GroupAction.PHOTO_SELECTED else GroupAction.PHOTO_DESELECTED) {
                                             selectedPhotos = if (checked) selectedPhotos + photo.id else selectedPhotos - photo.id
                                         }
                                     })
                                     Text("샘플 사진 ${photo.id}")
                                 }
                             }
-                            GroupButton("${selectedPhotos.size}장 추가", { run { startUpload() } },
+                            GroupButton("${selectedPhotos.size}장 추가", { act(GroupAction.PHOTO_SAVE_SUBMITTED) { startUpload() } },
                                 Modifier.fillMaxWidth(), enabled = selectedPhotos.isNotEmpty())
                         }
                         GroupSheet.SAVING -> {
@@ -256,11 +270,11 @@ internal fun GroupRoute(
                             Text(when (saveStage) { GroupSaveStage.UPLOAD -> "사진 업로드 중"; GroupSaveStage.RECORD -> "내 기록 저장 중"; else -> "앨범에 연결 중" })
                             GroupMuted("미리보기에서는 아래 버튼으로 처리 상태를 전환해요.")
                             GroupButton("다음 단계", {
-                                run { advanceSave() }
+                                act(GroupAction.SAVE_ADVANCED) { advanceSave() }
                             }, Modifier.fillMaxWidth())
-                            TextButton(onClick = { run { openSheet(GroupSheet.FAILED) } }) { Text("실패 상태 보기") }
-                            TextButton(onClick = { run { openSheet(GroupSheet.UNKNOWN) } }) { Text("연결 끊김 상태 보기") }
-                            TextButton(onClick = { run { dismissSheet() } }) { Text("닫기") }
+                            TextButton(onClick = { act(GroupAction.FAILURE_SIMULATED) { openSheet(GroupSheet.FAILED) } }) { Text("실패 상태 보기") }
+                            TextButton(onClick = { act(GroupAction.UNKNOWN_SIMULATED) { openSheet(GroupSheet.UNKNOWN) } }) { Text("연결 끊김 상태 보기") }
+                            TextButton(onClick = { act(GroupAction.SAVE_CLOSED) { dismissSheet() } }) { Text("닫기") }
                         }
                         GroupSheet.FAILED, GroupSheet.UNKNOWN -> {
                             GroupMuted(if (sheet == GroupSheet.FAILED) when (saveStage) {
@@ -269,24 +283,24 @@ internal fun GroupRoute(
                                 else -> "앨범에 연결하지 못했어요. 네트워크 연결 상태를 확인한 후 다시 시도해 주세요."
                             } else "연결이 끊겨 결과를 확인하고 있어요. 중복 저장하지 않도록 결과를 먼저 확인해요.")
                             GroupButton(if (sheet == GroupSheet.FAILED && saveStage == GroupSaveStage.UPLOAD) "실패한 사진 묶음 다시 시도" else if (sheet == GroupSheet.FAILED) "다시 시도" else "결과 확인", {
-                                run {
+                                act(if (sheet == GroupSheet.FAILED) GroupAction.SAVE_RETRIED else GroupAction.RESULT_CHECKED) {
                                     if (sheet == GroupSheet.FAILED) retrySave() else showPreviewResult()
                                 }
                             }, Modifier.fillMaxWidth())
-                            if (sheet == GroupSheet.FAILED) TextButton(onClick = { run { cancelSave() } }) { Text("선택 취소") }
+                            if (sheet == GroupSheet.FAILED) TextButton(onClick = { act(GroupAction.SAVE_DISCARDED) { cancelSave() } }) { Text("선택 취소") }
                         }
                         GroupSheet.DONE -> {
                             GroupMuted("업로드 · 내 기록 저장 · 앨범 연결이 완료된 상태예요.\n실제 저장은 하지 않는 미리보기입니다.")
-                            GroupButton("앨범 보기", { run { showSavedAlbum() } }, Modifier.fillMaxWidth())
+                            GroupButton("앨범 보기", { act(GroupAction.SAVED_ALBUM_OPENED) { showSavedAlbum() } }, Modifier.fillMaxWidth())
                         }
                         GroupSheet.PHOTOS -> {
                             GroupMuted("내 사진을 이 앨범에 추가해요.\n다른 멤버가 올린 사진과 함께 볼 수 있어요.")
-                            GroupButton("사진 선택", { run { previewAction { selectedPhotos = emptyList(); openSheet(GroupSheet.PICK) } } }, Modifier.fillMaxWidth(), tall = true)
+                            GroupButton("사진 선택", { act(GroupAction.PHOTO_PICKER_OPENED) { previewAction { selectedPhotos = emptyList(); openSheet(GroupSheet.PICK) } } }, Modifier.fillMaxWidth(), tall = true)
                         }
                         GroupSheet.ADD -> {
                             GroupMuted("새 여행의 사진을 모으거나 내 여행 기록을 공유해 보세요.")
-                            GroupButton("새 앨범 만들기", { run { previewAction { openSheet(GroupSheet.PLACE) } } }, Modifier.fillMaxWidth(), tall = true)
-                            GroupButton("내 여행 기록 공유", { run { previewAction { openSheet(GroupSheet.RECORDS) } } }, Modifier.fillMaxWidth(), outlined = true)
+                            GroupButton("새 앨범 만들기", { act(GroupAction.NEW_ALBUM_SELECTED) { previewAction { openSheet(GroupSheet.PLACE) } } }, Modifier.fillMaxWidth(), tall = true)
+                            GroupButton("내 여행 기록 공유", { act(GroupAction.RECORD_PICKER_OPENED) { previewAction { openSheet(GroupSheet.RECORDS) } } }, Modifier.fillMaxWidth(), outlined = true)
                         }
                         null -> Unit
                     }
