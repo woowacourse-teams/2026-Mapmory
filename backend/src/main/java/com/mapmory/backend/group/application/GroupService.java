@@ -41,6 +41,7 @@ public class GroupService {
     @Transactional
     public GroupDetail create(Long memberId, String name) {
         socialMemberGuard.require(memberId);
+        groupMembership.validateCanJoinAnother(memberId);
         TravelGroup group = TravelGroup.create(name, memberId, LocalDateTime.now(clock));
         return toDetail(travelGroupRepository.save(group), memberId);
     }
