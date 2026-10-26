@@ -26,6 +26,7 @@ class TravelGroupTest {
                 .containsExactly(tuple(1L, NOW));
         assertThat(group.hasMember(1L)).isTrue();
         assertThat(group.hasMember(2L)).isFalse();
+        assertThat(group.getMemberCount()).isEqualTo(1);
     }
 
     @Test
@@ -85,6 +86,7 @@ class TravelGroupTest {
         assertThat(group.getMembers())
                 .extracting(GroupMember::getMemberId, GroupMember::getJoinedAt)
                 .containsExactly(tuple(1L, NOW), tuple(2L, NOW.plusHours(1)));
+        assertThat(group.getMemberCount()).isEqualTo(2);
         assertThat(group.getOwnerMemberId()).isEqualTo(1L);
     }
 
@@ -95,6 +97,7 @@ class TravelGroupTest {
         group.join(1L, NOW.plusHours(1));
 
         assertThat(group.getMembers()).hasSize(1);
+        assertThat(group.getMemberCount()).isEqualTo(1);
     }
 
     @Test
@@ -109,6 +112,7 @@ class TravelGroupTest {
                 .extracting("errorCode")
                 .isEqualTo(GroupErrorCode.GROUP_FULL);
         assertThat(group.getMembers()).hasSize(30);
+        assertThat(group.getMemberCount()).isEqualTo(30);
     }
 
     @Test

@@ -10,9 +10,11 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 초대 만들기, 미리보기, 수락(T2).
@@ -31,6 +33,7 @@ public class GroupInvitationService {
     private final SocialMemberGuard socialMemberGuard;
     private final GroupService groupService;
     private final InvitationKeyGenerator invitationKeyGenerator;
+    private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public GroupInvitationService(GroupInvitationRepository groupInvitationRepository,
@@ -39,6 +42,7 @@ public class GroupInvitationService {
                                   SocialMemberGuard socialMemberGuard,
                                   GroupService groupService,
                                   InvitationKeyGenerator invitationKeyGenerator,
+                                  PlatformTransactionManager transactionManager,
                                   Clock clock) {
         this.groupInvitationRepository = groupInvitationRepository;
         this.travelGroupRepository = travelGroupRepository;
@@ -46,6 +50,7 @@ public class GroupInvitationService {
         this.socialMemberGuard = socialMemberGuard;
         this.groupService = groupService;
         this.invitationKeyGenerator = invitationKeyGenerator;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
@@ -66,17 +71,29 @@ public class GroupInvitationService {
         GroupInvitation invitation = findValid(tokenOrCode);
         TravelGroup group = travelGroupRepository.findById(invitation.getGroupId())
                 .orElseThrow(() -> new BusinessException(GroupErrorCode.INVITATION_NOT_FOUND));
-        return new InvitationPreview(group.getName(), group.getMembers().size(), group.hasMember(memberId));
+        return new InvitationPreview(group.getName(), group.getMemberCount(), group.hasMember(memberId));
     }
 
     /**
      * 이미 멤버면 아무것도 바꾸지 않고 그룹을 돌려준다.
      *
-     * <p>그룹 행을 잠근 뒤 멤버를 읽는다. MySQL 기본(REPEATABLE READ)에서는 잠금을 기다린 뒤에도 트랜잭션 처음의
-     * 스냅샷을 읽어 방금 들어온 멤버를 못 보고 30명을 넘긴다. 그래서 이 트랜잭션만 READ COMMITTED로 둔다.
+     * <p>그룹 행을 잠그고 그 행의 인원 수로 30명 제한을 판단한다(TravelGroup.join). 같은 사람이 동시에 수락하면
+     * 늦은 쪽은 멤버 목록(옛 스냅샷)에서 자기를 못 보고 넣으려다 유니크 제약에 걸린다. 그 트랜잭션은 롤백하고,
+     * 이미 멤버가 됐으면 성공으로 그룹을 돌려준다. 그래서 이 메서드는 트랜잭션을 직접 연다.
      */
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public GroupDetail accept(Long memberId, String tokenOrCode) {
+        try {
+            return transactionTemplate.execute(status -> join(memberId, tokenOrCode));
+        } catch (DataIntegrityViolationException exception) {
+            Long groupId = findValid(tokenOrCode).getGroupId();
+            if (!travelGroupRepository.existsMember(groupId, memberId)) {
+                throw exception;
+            }
+            return groupService.get(memberId, groupId);
+        }
+    }
+
+    private GroupDetail join(Long memberId, String tokenOrCode) {
         socialMemberGuard.require(memberId);
         GroupInvitation invitation = findValid(tokenOrCode);
         TravelGroup group = travelGroupRepository.findByIdForUpdate(invitation.getGroupId())
