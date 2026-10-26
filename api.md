@@ -1659,6 +1659,7 @@ Authorization: Bearer {accessToken}
 | `404` | `REGION_NOT_FOUND` | 지역 id가 없음 |
 | `409` | `GROUP_FULL` | 그룹이 이미 30명임 |
 | `409` | `ALBUM_ENTRY_CONFLICT` | 이 앨범에 내 기록이 이미 있음 |
+| `429` | `INVITATION_RATE_LIMITED` | 초대 미리보기·수락을 합쳐 회원별 1분 10번, 하루 50번을 넘김 |
 
 ## 서비스 의견 클라이언트 연동 명세
 
