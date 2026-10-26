@@ -98,6 +98,32 @@ class MemberTest {
     }
 
     @Test
+    void 게스트는_게스트이고_소셜_회원이_아니다() {
+        Member guest = guest();
+
+        assertThat(guest.isGuest()).isTrue();
+        assertThat(guest.isSocial()).isFalse();
+    }
+
+    @Test
+    void 소셜로_가입한_회원은_소셜_회원이다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "500010", "소현", UUID.randomUUID());
+
+        assertThat(member.isGuest()).isFalse();
+        assertThat(member.isSocial()).isTrue();
+    }
+
+    @Test
+    void 승격한_게스트는_소셜_회원이다() {
+        Member guest = guest();
+
+        guest.promote(AuthProvider.KAKAO, "500011", "소현", PROMOTED_AT);
+
+        assertThat(guest.isGuest()).isFalse();
+        assertThat(guest.isSocial()).isTrue();
+    }
+
+    @Test
     void 가입한_회원은_활동_중이다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "500010", "소현", UUID.randomUUID());
 

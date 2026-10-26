@@ -3,7 +3,6 @@ package com.mapmory.backend.auth.token.refresh;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -57,7 +56,7 @@ public class RefreshTokenService {
      * 의미를 갖는다. (ADR 0015)
      */
     private Duration validityFor(Member member) {
-        return member.getProvider() == AuthProvider.GUEST
+        return member.isGuest()
                 ? guestRefreshTokenValidity
                 : refreshTokenValidity;
     }
@@ -110,7 +109,7 @@ public class RefreshTokenService {
      */
     private Optional<RotatedRefreshToken> handleReuse(RefreshToken reused, LocalDateTime now) {
         Optional<RefreshToken> unusedSuccessor = findUnusedSuccessor(reused, now);
-        if (reused.getMember().getProvider() == AuthProvider.GUEST && unusedSuccessor.isPresent()) {
+        if (reused.getMember().isGuest() && unusedSuccessor.isPresent()) {
             RotatedRefreshToken reissued = replace(unusedSuccessor.get(), now);
             reused.followSuccessorOf(unusedSuccessor.get());
             reuseMonitor.reissued(reused);

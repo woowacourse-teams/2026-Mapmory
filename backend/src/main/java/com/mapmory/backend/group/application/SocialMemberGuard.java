@@ -2,7 +2,6 @@ package com.mapmory.backend.group.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.exception.GroupErrorCode;
-import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.exception.MemberErrorCode;
@@ -30,7 +29,7 @@ public class SocialMemberGuard {
         Member member = memberRepository.findById(memberId)
                 .filter(Member::isActive)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
-        if (member.getProvider() == null || member.getProvider() == AuthProvider.GUEST) {
+        if (!member.isSocial()) {
             throw new BusinessException(GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
         }
     }
