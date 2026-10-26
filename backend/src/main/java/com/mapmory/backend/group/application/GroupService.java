@@ -1,11 +1,9 @@
 package com.mapmory.backend.group.application;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.domain.GroupMember;
 import com.mapmory.backend.group.domain.GroupSummary;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
-import com.mapmory.backend.group.exception.GroupErrorCode;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import java.time.Clock;
@@ -28,13 +26,15 @@ public class GroupService {
     private final TravelGroupRepository travelGroupRepository;
     private final MemberRepository memberRepository;
     private final SocialMemberGuard socialMemberGuard;
+    private final GroupMembership groupMembership;
     private final Clock clock;
 
     public GroupService(TravelGroupRepository travelGroupRepository, MemberRepository memberRepository,
-                        SocialMemberGuard socialMemberGuard, Clock clock) {
+                        SocialMemberGuard socialMemberGuard, GroupMembership groupMembership, Clock clock) {
         this.travelGroupRepository = travelGroupRepository;
         this.memberRepository = memberRepository;
         this.socialMemberGuard = socialMemberGuard;
+        this.groupMembership = groupMembership;
         this.clock = clock;
     }
 
@@ -54,21 +54,15 @@ public class GroupService {
     @Transactional(readOnly = true)
     public GroupDetail get(Long memberId, Long groupId) {
         socialMemberGuard.require(memberId);
-        return toDetail(findGroupOf(memberId, groupId), memberId);
+        return toDetail(groupMembership.findGroupOf(groupId, memberId), memberId);
     }
 
     @Transactional
     public GroupDetail rename(Long memberId, Long groupId, String name) {
         socialMemberGuard.require(memberId);
-        TravelGroup group = findGroupOf(memberId, groupId);
+        TravelGroup group = groupMembership.findGroupOf(groupId, memberId);
         group.rename(name);
         return toDetail(group, memberId);
-    }
-
-    private TravelGroup findGroupOf(Long memberId, Long groupId) {
-        return travelGroupRepository.findById(groupId)
-                .filter(group -> group.hasMember(memberId))
-                .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
     }
 
     private GroupDetail toDetail(TravelGroup group, Long myMemberId) {
