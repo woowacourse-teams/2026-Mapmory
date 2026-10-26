@@ -8,21 +8,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** Action completion means the platform API returned, not that an external share was delivered. */
-internal suspend fun <T> MapmoryAnalytics.videoAction(action: String, block: suspend () -> T): T {
-    emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "started"))
-    return try {
-        block().also {
-            emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "success"))
-        }
-    } catch (error: CancellationException) {
-        emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "cancelled"))
-        throw error
-    } catch (error: Exception) {
-        emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "failure"))
-        reportFailure("video_$action", error)
-        throw error
-    }
-}
+internal suspend fun <T> MapmoryAnalytics.videoAction(action: String, block: suspend () -> T): T =
+    trackAction(MapmoryAnalyticsEvent.VIDEO_ACTION, "video_$action", action, block)
 
 internal class AnalyticsShareVideoRepository(
     private val delegate: ShareVideoRepository,

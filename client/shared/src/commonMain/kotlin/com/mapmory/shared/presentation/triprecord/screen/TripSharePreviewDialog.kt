@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -77,6 +78,10 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.localOriginalUri
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.analytics.emit
+import com.mapmory.shared.analytics.trackAction
 import kotlinx.coroutines.launch
 import mapmoryclient.shared.generated.resources.Res
 import mapmoryclient.shared.generated.resources.share_outlined_24px
@@ -119,6 +124,10 @@ internal fun TripRecordSharePreviewDialog(
     record: TripRecordItemUiState,
     onDismiss: () -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    LaunchedEffect(record.id) {
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SHARE_PREVIEW_OPENED)
+    }
     val photos = remember(record.id, record.photos) {
         record.photos.sortedBy(TripRecordPhotoUiState::sortOrder)
     }
@@ -131,6 +140,7 @@ internal fun TripRecordSharePreviewDialog(
         title = "여행 기록 공유",
         pageTitles = pageTitles,
         supportingText = "대표 사진과 공유 디자인을 골라보세요",
+        actionAnalyticsEvent = MapmoryAnalyticsEvent.RECORD_SHARE_ACTION,
         photoSelector = {
             RecordSharePhotoSelector(
                 photos = photos,
@@ -218,9 +228,11 @@ private fun SharePreviewDialog(
     supportingText: String = "내 여행에 어울리는 디자인을 골라보세요",
     pageTitleAbovePreview: Boolean = false,
     photoSelector: (@Composable () -> Unit)? = null,
+    actionAnalyticsEvent: String? = null,
     onDismiss: () -> Unit,
     poster: @Composable (Int, Modifier) -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
     val pagerState = rememberPagerState(pageCount = { pageTitles.size })
     val scope = rememberCoroutineScope()
     val exporter = rememberShareImageExporter()
@@ -245,7 +257,20 @@ private fun SharePreviewDialog(
             try {
                 withFrameNanos { }
                 val image = layer.toImageBitmap()
-                if (save) exporter.save(image) else exporter.share(image)
+                val action = if (save) "save_image" else "share_sheet"
+                val exportImage: suspend () -> Unit = {
+                    if (save) exporter.save(image) else exporter.share(image)
+                }
+                if (actionAnalyticsEvent == null) {
+                    exportImage()
+                } else {
+                    analytics.trackAction(
+                        eventName = actionAnalyticsEvent,
+                        operation = "record_share_$action",
+                        action = action,
+                        block = exportImage,
+                    )
+                }
                 feedback = if (save) "사진 앱에 저장했어요." else null
             } catch (cancelled: CancellationException) {
                 throw cancelled

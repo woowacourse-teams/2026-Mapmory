@@ -48,6 +48,32 @@ class OperationAnalyticsTest {
             override fun setUserProperty(name: String, value: String?) = Unit
         }
         assertEquals(42, analytics.observeOperation("record_create") { Result.success(42) }.getOrThrow())
+        assertEquals("saved", analytics.trackAction("record_share_action", "record_share_save_image", "save_image") { "saved" })
+    }
+
+    @Test fun `tracked action records outcomes without leaking error messages`() = runBlocking {
+        val analytics = RecordingAnalytics()
+        assertEquals("shown", analytics.trackAction("record_share_action", "record_share_share_sheet", "share_sheet") { "shown" })
+        val error = IllegalStateException("private record title")
+        assertSame(error, assertFailsWith<IllegalStateException> {
+            analytics.trackAction("record_share_action", "record_share_save_image", "save_image") { throw error }
+        })
+        assertEquals(listOf("started", "success", "started", "failure"), analytics.events
+            .filter { it.first == "record_share_action" }
+            .map { it.second.getValue("outcome") })
+        assertFalse(analytics.events.toString().contains("private record title"))
+        assertEquals("record_share_save_image", analytics.events.last().second["operation"])
+    }
+
+    @Test fun `tracked action propagates cancellation without classifying it as failure`() = runBlocking {
+        val analytics = RecordingAnalytics()
+        assertFailsWith<CancellationException> {
+            analytics.trackAction("record_share_action", "record_share_share_sheet", "share_sheet") {
+                throw CancellationException()
+            }
+        }
+        assertEquals(listOf("started", "cancelled"), analytics.events.map { it.second.getValue("outcome") })
+        assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.APP_ERROR })
     }
 
     @Test fun `request rejection is not attributed to mobile automatically`() {
