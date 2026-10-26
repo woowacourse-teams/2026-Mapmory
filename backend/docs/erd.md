@@ -318,7 +318,7 @@ CONSTRAINT fk_travel_record_tag_tag
 
 ## 그룹 공유 스키마 — 구현 전 설계
 
-결정과 이유는 [ADR 0021](adr/0021-group-sharing-albums.md)에 있다. 마이그레이션은 `V28__create_travel_group.sql`이다.
+결정과 이유는 [ADR 0022](adr/0022-group-sharing-albums.md)에 있다. 마이그레이션은 `V28__create_travel_group.sql`이다.
 
 ### 핵심 결정
 
@@ -393,7 +393,7 @@ CONSTRAINT fk_travel_record_tag_tag
 
 ### `push_token`
 
-그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0021 결정 7). 마이그레이션은 알림 태스크(T6)에서 따로 추가한다.
+그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0022 결정 7). 마이그레이션은 알림 태스크(T6)에서 따로 추가한다.
 
 | 컬럼 | 타입 | 제약조건 | 설명 |
 | --- | --- | --- | --- |

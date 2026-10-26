@@ -6,7 +6,6 @@ import com.mapmory.backend.group.domain.GroupSummary;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
-import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import java.time.Clock;
@@ -21,56 +20,49 @@ import org.springframework.transaction.annotation.Transactional;
  * 그룹 만들기, 내 그룹 목록, 그룹 조회, 이름 바꾸기(T1).
  *
  * <p>그룹 API는 모두 소셜 로그인 회원만 쓴다. 그룹 밖 회원에게는 그룹이 있어도 GROUP_NOT_FOUND를 준다.
- * 멤버 닉네임은 회원에서 id로 조회만 한다(ADR 0021 결정 5).
+ * 멤버 닉네임은 회원에서 id로 조회만 한다(ADR 0022 결정 5).
  */
 @Service
 public class GroupService {
 
     private final TravelGroupRepository travelGroupRepository;
     private final MemberRepository memberRepository;
+    private final SocialMemberGuard socialMemberGuard;
     private final Clock clock;
 
-    public GroupService(TravelGroupRepository travelGroupRepository, MemberRepository memberRepository, Clock clock) {
+    public GroupService(TravelGroupRepository travelGroupRepository, MemberRepository memberRepository,
+                        SocialMemberGuard socialMemberGuard, Clock clock) {
         this.travelGroupRepository = travelGroupRepository;
         this.memberRepository = memberRepository;
+        this.socialMemberGuard = socialMemberGuard;
         this.clock = clock;
     }
 
     @Transactional
     public GroupDetail create(Long memberId, String name) {
-        requireSocialLogin(memberId);
+        socialMemberGuard.require(memberId);
         TravelGroup group = TravelGroup.create(name, memberId, LocalDateTime.now(clock));
         return toDetail(travelGroupRepository.save(group), memberId);
     }
 
     @Transactional(readOnly = true)
     public List<GroupSummary> findMine(Long memberId) {
-        requireSocialLogin(memberId);
+        socialMemberGuard.require(memberId);
         return travelGroupRepository.findSummariesByMemberId(memberId);
     }
 
     @Transactional(readOnly = true)
     public GroupDetail get(Long memberId, Long groupId) {
-        requireSocialLogin(memberId);
+        socialMemberGuard.require(memberId);
         return toDetail(findGroupOf(memberId, groupId), memberId);
     }
 
     @Transactional
     public GroupDetail rename(Long memberId, Long groupId, String name) {
-        requireSocialLogin(memberId);
+        socialMemberGuard.require(memberId);
         TravelGroup group = findGroupOf(memberId, groupId);
         group.rename(name);
         return toDetail(group, memberId);
-    }
-
-    // @LoginMember로 받은 회원은 id만 가진 프록시라 로그인 방식은 이 트랜잭션 안에서 다시 읽는다.
-    private void requireSocialLogin(Long memberId) {
-        AuthProvider provider = memberRepository.findById(memberId)
-                .map(Member::getProvider)
-                .orElse(AuthProvider.GUEST);
-        if (provider == AuthProvider.GUEST) {
-            throw new BusinessException(GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
-        }
     }
 
     private TravelGroup findGroupOf(Long memberId, Long groupId) {

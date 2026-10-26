@@ -164,6 +164,32 @@ class GroupIntegrationTest extends IntegrationTest {
         assertThat(travelGroupRepository.count()).isZero();
     }
 
+    // 지금은 게스트가 멤버가 될 길이 없지만, 생기더라도 그룹 화면과 이름 바꾸기가 막히는지 본다.
+    @Test
+    void 게스트는_멤버로_들어가_있어도_그룹을_보거나_바꿀_수_없다() throws Exception {
+        Member guest = memberRepository.save(Member.ofGuest(UUID.randomUUID().toString(), "게스트", UUID.randomUUID()));
+        TravelGroup group = groupWith(jisu, guest);
+
+        mockMvc.perform(get("/api/v1/groups/{groupId}", group.getId()).header(HttpHeaders.AUTHORIZATION, bearer(guest)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
+        rename(guest, group.getId(), "게스트 이름")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
+        assertThat(travelGroupRepository.findById(group.getId()).orElseThrow().getName()).isEqualTo("제주 가족");
+    }
+
+    @Test
+    void 탈퇴한_회원의_남은_토큰으로는_그룹을_만들_수_없다() throws Exception {
+        jisu.withdraw(LocalDateTime.now());
+        memberRepository.save(jisu);
+
+        createGroup(jisu, "제주 가족")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        assertThat(travelGroupRepository.count()).isZero();
+    }
+
     private Member socialMember(String nickname) {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, UUID.randomUUID().toString(), nickname, UUID.randomUUID());
         member.changeNickname(nickname);
