@@ -1,11 +1,11 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
 import com.mapmory.backend.region.dto.RegionDetailResponse;
-import com.mapmory.backend.travelrecord.application.model.RecordMedia;
-import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;
-import com.mapmory.backend.travelrecord.application.model.TravelRecord;
-import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
+import com.mapmory.backend.travelrecord.application.TravelRecordDetail;
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
+import com.mapmory.backend.travelrecord.domain.RecordedPlace;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;

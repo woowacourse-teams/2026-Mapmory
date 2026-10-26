@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.listcache;
+package com.mapmory.backend.travelrecord.application.listcache;
 
 import com.mapmory.backend.tag.TagChangedEvent;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;

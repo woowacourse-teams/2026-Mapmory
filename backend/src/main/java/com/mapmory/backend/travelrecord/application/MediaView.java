@@ -1,6 +1,7 @@
-package com.mapmory.backend.travelrecord.application.model;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
 
 /**
  * 미디어와 그 조회용 URL의 조합.

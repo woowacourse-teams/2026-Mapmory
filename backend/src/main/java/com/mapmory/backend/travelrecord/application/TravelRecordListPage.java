@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application;
 
 import java.time.LocalDate;
 import java.util.List;

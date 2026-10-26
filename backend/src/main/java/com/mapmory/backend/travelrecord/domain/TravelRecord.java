@@ -1,11 +1,11 @@
-package com.mapmory.backend.travelrecord.application.model;
+package com.mapmory.backend.travelrecord.domain;
 
 import com.mapmory.backend.common.entity.BaseEntity;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.tag.TagErrorCode;
-import com.mapmory.backend.travelrecord.TravelRecordErrorCode;
+import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;

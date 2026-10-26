@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.application.model;
+package com.mapmory.backend.travelrecord.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -12,7 +12,6 @@ import com.mapmory.backend.region.RegionType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.LongStream;
-
 import org.junit.jupiter.api.Test;
 
 class TravelRecordTest {

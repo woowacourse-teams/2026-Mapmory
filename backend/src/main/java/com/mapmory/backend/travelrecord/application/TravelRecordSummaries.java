@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import java.util.Map;

@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
-import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 
 public record CreateTravelRecordResponse(
         Long id

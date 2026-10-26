@@ -3,29 +3,29 @@ package com.mapmory.backend.travelrecord.web;
 import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.travelrecord.application.model.TravelRecord;
-import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
+import com.mapmory.backend.travelrecord.application.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.application.TravelRecordService;
-import com.mapmory.backend.travelrecord.TravelRecordSummaries;
-import com.mapmory.backend.travelrecord.web.dto.TravelRecordRequest;
+import com.mapmory.backend.travelrecord.application.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.web.dto.CreateTravelRecordResponse;
-import com.mapmory.backend.travelrecord.web.dto.TravelRecordListResponse;
 import com.mapmory.backend.travelrecord.web.dto.TravelRecordDetailResponse;
+import com.mapmory.backend.travelrecord.web.dto.TravelRecordListResponse;
+import com.mapmory.backend.travelrecord.web.dto.TravelRecordRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.validation.annotation.Validated;
 
 @RestController
 @Validated

@@ -1,7 +1,8 @@
-package com.mapmory.backend.travelrecord.application.model;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.tag.Tag;
-
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.util.List;
 
 /**

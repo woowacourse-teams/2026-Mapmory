@@ -1,7 +1,7 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
-import com.mapmory.backend.travelrecord.TravelRecordListPage;
-import com.mapmory.backend.travelrecord.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.application.TravelRecordSummaries;
 import java.util.List;
 
 public record TravelRecordListResponse(

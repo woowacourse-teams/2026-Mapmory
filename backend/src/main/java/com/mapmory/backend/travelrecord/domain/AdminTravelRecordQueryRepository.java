@@ -1,10 +1,8 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.domain;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-
-import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;

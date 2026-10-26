@@ -1,8 +1,8 @@
-package com.mapmory.backend.travelrecord.listcache;
+package com.mapmory.backend.travelrecord.application.listcache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDate;

@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.application.model;
+package com.mapmory.backend.travelrecord.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import java.time.LocalDate;
-
 import org.junit.jupiter.api.Test;
 
 class TravelPeriodTest {

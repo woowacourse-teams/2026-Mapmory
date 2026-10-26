@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.listcache;
+package com.mapmory.backend.travelrecord.application.listcache;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;

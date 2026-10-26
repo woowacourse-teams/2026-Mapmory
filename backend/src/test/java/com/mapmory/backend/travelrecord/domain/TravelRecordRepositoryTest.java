@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,10 +9,6 @@ import com.mapmory.backend.region.RegionRepository;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.tag.Tag;
-import com.mapmory.backend.travelrecord.application.model.RecordMedia;
-import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
-import com.mapmory.backend.travelrecord.application.model.TravelRecord;
-import com.mapmory.backend.travelrecord.application.model.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.UUID;

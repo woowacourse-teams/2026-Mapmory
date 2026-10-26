@@ -1,8 +1,8 @@
-package com.mapmory.backend.travelrecord.listcache;
+package com.mapmory.backend.travelrecord.application.listcache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import java.util.function.Supplier;

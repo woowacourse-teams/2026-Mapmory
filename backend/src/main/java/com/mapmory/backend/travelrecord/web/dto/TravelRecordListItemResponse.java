@@ -2,7 +2,7 @@ package com.mapmory.backend.travelrecord.web.dto;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;
-import com.mapmory.backend.travelrecord.TravelRecordListPage;
+import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import java.time.LocalDate;
 import java.util.List;
 

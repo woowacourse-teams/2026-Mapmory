@@ -1,8 +1,8 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
 import com.mapmory.backend.recordmedia.ExpiringUrl;
-import com.mapmory.backend.travelrecord.application.model.MediaView;
-import com.mapmory.backend.travelrecord.application.model.RecordMedia;
+import com.mapmory.backend.travelrecord.application.MediaView;
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
 
 public record TravelRecordMediaResponse(
         Long id,

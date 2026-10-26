@@ -1,7 +1,6 @@
-package com.mapmory.backend.travelrecord;
+package com.mapmory.backend.travelrecord.domain;
 
 import com.mapmory.backend.tag.Tag;
-import com.mapmory.backend.travelrecord.application.model.TravelRecordTag;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;

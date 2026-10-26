@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
+import com.mapmory.backend.travelrecord.domain.AdminTravelRecordQueryRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
