@@ -1,7 +1,10 @@
 package com.mapmory.backend.group.domain;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,4 +29,12 @@ public interface TravelGroupRepository extends JpaRepository<TravelGroup, Long> 
         ORDER BY me.joinedAt ASC, me.id ASC
     """)
     List<GroupSummary> findSummariesByMemberId(@Param("memberId") Long memberId);
+
+    // 초대 수락이 동시에 들어와도 30명을 넘지 않게 그룹 행을 잠근다. 잠금으로 읽은 행(memberCount 포함)은
+    // 기본 격리 수준(REPEATABLE READ)에서도 최신이라, 앞 사람이 넣은 인원까지 보고 판단한다.
+    // 그룹을 바꾸는 쿼리는 모두 그룹 행을 먼저 잠근다(잠금 순서가 같아야 교착이 없다).
+    // 트랜잭션에서 그룹을 처음 읽는 게 이 메서드여야 한다. 먼저 일반 조회로 불러 두면 1차 캐시의 옛 값을 돌려준다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT g FROM TravelGroup g WHERE g.id = :groupId")
+    Optional<TravelGroup> findByIdForUpdate(@Param("groupId") Long groupId);
 }

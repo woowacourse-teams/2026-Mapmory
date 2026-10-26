@@ -61,9 +61,9 @@
 | 구현됨 | `GET` | `/groups` | 내 그룹 목록 |
 | 구현됨 | `GET` | `/groups/{groupId}` | 그룹 조회(멤버 닉네임) |
 | 구현됨 | `PATCH` | `/groups/{groupId}` | 그룹 이름 바꾸기 |
-| 구현 전 설계 | `POST` | `/groups/{groupId}/invitations` | 초대 링크·코드 만들기 |
-| 구현 전 설계 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
-| 구현 전 설계 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
+| 구현됨 | `POST` | `/groups/{groupId}/invitations` | 초대 링크·코드 만들기 |
+| 구현됨 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
+| 구현됨 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
 | 구현 전 설계 | `DELETE` | `/groups/{groupId}/members/me` | 그룹 나가기 |
 | 구현 전 설계 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
 | 구현 전 설계 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
@@ -1331,7 +1331,7 @@ Authorization: Bearer {accessToken}
 
 ## 12. Group API
 
-> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기) 구현됨, 나머지는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
+> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기)·T2 초대(만들기·미리보기·수락) 구현됨, 나머지는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
 
 친구·가족이 같은 여행을 앨범 하나로 함께 본다. **저장은 각자, 보기는 하나로** 한다. 사진은 늘 자기 여행 기록에 저장하고, 앨범은 그 기록들을 id로 묶는다. 앱은 앨범을 기록 하나처럼 보여 준다.
 
@@ -1451,7 +1451,7 @@ Authorization: Bearer {accessToken}
 
 `GET /api/v1/invitations/{tokenOrCode}`
 
-수락 전에 어느 그룹인지 보여 준다. 링크 토큰과 6자리 코드를 모두 받는다. 게스트도 호출할 수 있다(로그인을 권하는 화면에 쓴다).
+수락 전에 어느 그룹인지 보여 준다. 링크 토큰과 6자리 코드를 모두 받는다(6자리면 코드로 보고 대소문자를 가리지 않는다). 게스트도 호출할 수 있다(로그인을 권하는 화면에 쓴다).
 
 #### Response `200 OK`
 

@@ -91,7 +91,7 @@ public class Member extends BaseEntity {
      * 호출부(MemberJoinService.findGuest)가 먼저 거르므로 여기서는 잘못된 호출을 막기만 한다.
      */
     public void promote(AuthProvider provider, String providerId, String providerName, LocalDateTime now) {
-        if (this.provider != AuthProvider.GUEST || !isActive()) {
+        if (!isGuest() || !isActive()) {
             throw new IllegalStateException("활동 중인 게스트만 승격할 수 있습니다. memberId=" + id);
         }
         this.provider = provider;
@@ -130,13 +130,24 @@ public class Member extends BaseEntity {
      * 행과 기록은 지우지 않는다. 게스트의 이름·providerId는 서버가 만든 값이라 개인정보가 아니다. (ADR 0021)
      */
     public void abandon(LocalDateTime now) {
-        if (this.provider != AuthProvider.GUEST) {
+        if (!isGuest()) {
             throw new IllegalStateException("게스트만 버려진 게스트가 될 수 있습니다. memberId=" + id);
         }
         if (isAbandoned()) {
             return;
         }
         this.abandonedAt = now;
+    }
+
+    public boolean isGuest() {
+        return provider == AuthProvider.GUEST;
+    }
+
+    /**
+     * 소셜 로그인으로 가입한 회원인지. 게스트와 제공자 값이 없는 옛 임시 회원은 아니다.
+     */
+    public boolean isSocial() {
+        return provider != null && !isGuest();
     }
 
     public boolean isWithdrawn() {

@@ -98,6 +98,7 @@ erDiagram
         bigint id PK
         varchar name
         bigint owner_member_id FK
+        int member_count
         datetime created_at
         datetime updated_at
     }
@@ -335,6 +336,7 @@ CONSTRAINT fk_travel_record_tag_tag
 | `id` | `BIGINT` | PK, AUTO_INCREMENT | 그룹 식별자 |
 | `name` | `VARCHAR(30)` | NOT NULL | 그룹 이름, 앞뒤 공백 제거 후 1~30자 |
 | `owner_member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 방장. 나가면 가장 먼저 들어온 멤버에게 넘긴다 |
+| `member_count` | `INT` | NOT NULL, 기본 1 | 멤버 수(최대 30). 초대 수락은 그룹 행을 잠그고 이 값으로 30명 제한을 판단한다 |
 | `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 

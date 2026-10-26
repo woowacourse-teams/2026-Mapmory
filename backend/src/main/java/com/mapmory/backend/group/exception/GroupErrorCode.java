@@ -10,6 +10,10 @@ public enum GroupErrorCode implements ErrorCode {
     // 게스트는 기기를 바꾸면 계정을 잃으므로 그룹을 쓰려면 소셜 로그인이 필요하다(ADR 0022 결정 6).
     SOCIAL_LOGIN_REQUIRED(ErrorKind.ACCESS_DENIED, "SOCIAL_LOGIN_REQUIRED", "소셜 로그인이 필요합니다.",
             "그룹은 소셜 로그인 회원만 쓸 수 있습니다."),
+    INVITATION_NOT_FOUND(ErrorKind.NOT_FOUND, "INVITATION_NOT_FOUND", "초대를 찾을 수 없습니다.",
+            "초대 링크나 코드가 없거나 만료되었습니다."),
+    GROUP_FULL(ErrorKind.CONFLICT, "GROUP_FULL", "그룹이 가득 찼습니다.",
+            "그룹은 최대 30명까지 들어갈 수 있습니다."),
     INVALID_GROUP_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
             "그룹 이름은 공백을 제외한 1자 이상 30자 이하여야 합니다."),
     INVALID_ALBUM_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",

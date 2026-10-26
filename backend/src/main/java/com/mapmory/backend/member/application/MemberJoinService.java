@@ -91,7 +91,7 @@ public class MemberJoinService {
             return Optional.empty();
         }
         return memberRepository.findById(memberId)
-                .filter(member -> member.getProvider() == AuthProvider.GUEST)
+                .filter(Member::isGuest)
                 .filter(Member::isActive);
     }
 }
