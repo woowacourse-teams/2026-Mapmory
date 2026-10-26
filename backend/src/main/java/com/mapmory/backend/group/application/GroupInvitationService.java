@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -70,8 +71,11 @@ public class GroupInvitationService {
 
     /**
      * 이미 멤버면 아무것도 바꾸지 않고 그룹을 돌려준다.
+     *
+     * <p>그룹 행을 잠근 뒤 멤버를 읽는다. MySQL 기본(REPEATABLE READ)에서는 잠금을 기다린 뒤에도 트랜잭션 처음의
+     * 스냅샷을 읽어 방금 들어온 멤버를 못 보고 30명을 넘긴다. 그래서 이 트랜잭션만 READ COMMITTED로 둔다.
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public GroupDetail accept(Long memberId, String tokenOrCode) {
         socialMemberGuard.require(memberId);
         GroupInvitation invitation = findValid(tokenOrCode);
