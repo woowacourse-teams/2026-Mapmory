@@ -2,6 +2,8 @@ package com.mapmory.shared.navigation
 
 internal class MapmoryBackHandlerRegistry {
     private val registrations = mutableListOf<Registration>()
+    var isRestoringGesture: Boolean = false
+        private set
 
     fun register(
         ownerId: String,
@@ -25,13 +27,19 @@ internal class MapmoryBackHandlerRegistry {
             ?.invoke() == true
     }
 
-    fun handleGestureBack(ownerId: String?): Boolean {
-        val registration = registrations.lastOrNull { it.ownerId == ownerId } ?: return false
-        return registration.gestureBack?.invoke() == true
+    fun handleGestureBack(ownerId: String?, restoring: Boolean = false): Boolean = withGestureOrigin(restoring) {
+        registrations.lastOrNull { it.ownerId == ownerId }?.gestureBack?.invoke() == true
     }
 
-    fun handleGestureForward(ownerId: String?): Boolean =
+    fun handleGestureForward(ownerId: String?, restoring: Boolean = false): Boolean = withGestureOrigin(restoring) {
         registrations.lastOrNull { it.ownerId == ownerId }?.gestureForward?.invoke() == true
+    }
+
+    private fun withGestureOrigin(restoring: Boolean, block: () -> Boolean): Boolean {
+        val previous = isRestoringGesture
+        isRestoringGesture = restoring
+        return try { block() } finally { isRestoringGesture = previous }
+    }
 
     class Registration internal constructor(
         internal val ownerId: String,

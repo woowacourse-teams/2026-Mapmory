@@ -35,3 +35,6 @@ internal data class DetailRoute(
 
 @Serializable
 internal data object GroupsRoute
+
+@Serializable
+internal data object GroupPreviewRoute

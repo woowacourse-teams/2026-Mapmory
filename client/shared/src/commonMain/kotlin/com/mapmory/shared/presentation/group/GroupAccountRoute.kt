@@ -24,6 +24,7 @@ internal fun GroupAccountRoute(
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenPreview: (() -> Unit)? = null,
 ) {
     val session = container.accountSession
     val account = session?.state?.collectAsState()?.value
@@ -65,6 +66,11 @@ internal fun GroupAccountRoute(
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Text("그룹", Modifier.padding(24.dp), style = MaterialTheme.typography.headlineMedium)
+                onOpenPreview?.let { open ->
+                    TextButton(onClick = open, modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Text("그룹 앨범 화면 미리보기")
+                    }
+                }
                 when {
                     account?.pendingLogin == true -> SocialLoginPanel(session, container.accountLoginController)
                     restoring -> CircularProgressIndicator(Modifier.padding(24.dp))

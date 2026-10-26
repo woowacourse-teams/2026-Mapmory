@@ -161,7 +161,7 @@ fun MapmoryApp(
                             },
                             onBackCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateForward()
                                 }
@@ -177,7 +177,7 @@ fun MapmoryApp(
                             },
                             onForwardCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateBackKeepingState()
                                 }
