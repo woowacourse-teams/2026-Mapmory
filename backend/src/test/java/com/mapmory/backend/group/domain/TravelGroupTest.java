@@ -55,4 +55,24 @@ class TravelGroupTest {
                 .extracting("errorCode")
                 .isEqualTo(GroupErrorCode.INVALID_GROUP_NAME);
     }
+
+    @Test
+    void 이름을_바꾸면_앞뒤_공백을_지워_저장한다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+
+        group.rename("  제주 가족 ");
+
+        assertThat(group.getName()).isEqualTo("제주 가족");
+    }
+
+    @Test
+    void 규칙에_맞지_않는_이름으로는_바꾸지_않는다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+
+        assertThatThrownBy(() -> group.rename("가".repeat(31)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(GroupErrorCode.INVALID_GROUP_NAME);
+        assertThat(group.getName()).isEqualTo("도쿄 친구들");
+    }
 }
