@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.videoAction
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +60,7 @@ internal fun TripTimelineVideoDialog(
     creationScope: CoroutineScope,
     onDismiss: () -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
     val exporter = rememberShareVideoExporter()
     val scope = rememberCoroutineScope()
     val notifier = rememberTripTimelineVideoNotifier()
@@ -128,8 +131,10 @@ internal fun TripTimelineVideoDialog(
             message = null
             video = null
             try {
-                val download = repository.getDownloadUrl(activeJobId).getOrThrow()
-                video = exporter.download(download.downloadUrl, activeJobId)
+                video = analytics.videoAction("preview_download") {
+                    val download = repository.getDownloadUrl(activeJobId).getOrThrow()
+                    exporter.download(download.downloadUrl, activeJobId)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -166,10 +171,10 @@ internal fun TripTimelineVideoDialog(
             message = null
             try {
                 if (save) {
-                    exporter.save(downloadedVideo)
+                    analytics.videoAction("save") { exporter.save(downloadedVideo) }
                     message = "동영상을 사진 앱에 저장했어요."
                 } else {
-                    exporter.share(downloadedVideo)
+                    analytics.videoAction("share_sheet") { exporter.share(downloadedVideo) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
