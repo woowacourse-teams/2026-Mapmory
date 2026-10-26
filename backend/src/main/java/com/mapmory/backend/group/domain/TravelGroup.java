@@ -29,6 +29,7 @@ public class TravelGroup extends BaseEntity {
 
     // travel_group.name 컬럼 길이(VARCHAR(30))와 같다.
     private static final int MAX_NAME_LENGTH = 30;
+    private static final int MAX_MEMBERS = 30;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,6 +67,19 @@ public class TravelGroup extends BaseEntity {
      */
     public void rename(String name) {
         this.name = validateName(name);
+    }
+
+    /**
+     * 초대를 수락한 회원을 멤버로 넣는다. 이미 멤버면 아무것도 바꾸지 않는다.
+     */
+    public void join(Long memberId, LocalDateTime joinedAt) {
+        if (hasMember(memberId)) {
+            return;
+        }
+        if (members.size() >= MAX_MEMBERS) {
+            throw new BusinessException(GroupErrorCode.GROUP_FULL);
+        }
+        members.add(new GroupMember(this, memberId, joinedAt));
     }
 
     public boolean hasMember(Long memberId) {

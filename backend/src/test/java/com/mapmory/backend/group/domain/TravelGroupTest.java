@@ -75,4 +75,51 @@ class TravelGroupTest {
                 .isEqualTo(GroupErrorCode.INVALID_GROUP_NAME);
         assertThat(group.getName()).isEqualTo("도쿄 친구들");
     }
+
+    @Test
+    void 초대를_수락하면_들어온_시각과_함께_멤버가_된다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+
+        group.join(2L, NOW.plusHours(1));
+
+        assertThat(group.getMembers())
+                .extracting(GroupMember::getMemberId, GroupMember::getJoinedAt)
+                .containsExactly(tuple(1L, NOW), tuple(2L, NOW.plusHours(1)));
+        assertThat(group.getOwnerMemberId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 이미_멤버면_다시_넣지_않는다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+
+        group.join(1L, NOW.plusHours(1));
+
+        assertThat(group.getMembers()).hasSize(1);
+    }
+
+    @Test
+    void 서른_명이면_더_들어올_수_없다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+        for (long memberId = 2; memberId <= 30; memberId++) {
+            group.join(memberId, NOW);
+        }
+
+        assertThatThrownBy(() -> group.join(31L, NOW))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(GroupErrorCode.GROUP_FULL);
+        assertThat(group.getMembers()).hasSize(30);
+    }
+
+    @Test
+    void 서른_명이어도_이미_멤버인_사람의_수락은_통과한다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+        for (long memberId = 2; memberId <= 30; memberId++) {
+            group.join(memberId, NOW);
+        }
+
+        group.join(15L, NOW);
+
+        assertThat(group.getMembers()).hasSize(30);
+    }
 }

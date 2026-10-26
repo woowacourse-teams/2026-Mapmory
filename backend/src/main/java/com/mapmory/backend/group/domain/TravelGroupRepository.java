@@ -1,7 +1,10 @@
 package com.mapmory.backend.group.domain;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,4 +29,9 @@ public interface TravelGroupRepository extends JpaRepository<TravelGroup, Long> 
         ORDER BY me.joinedAt ASC, me.id ASC
     """)
     List<GroupSummary> findSummariesByMemberId(@Param("memberId") Long memberId);
+
+    // 초대 수락이 동시에 들어와도 30명을 넘거나 같은 사람이 두 번 들어가지 않게 그룹 행을 잠근다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT g FROM TravelGroup g WHERE g.id = :groupId")
+    Optional<TravelGroup> findByIdForUpdate(@Param("groupId") Long groupId);
 }

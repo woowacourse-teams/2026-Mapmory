@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -14,11 +15,13 @@ import java.util.Objects;
  * 그룹 초대. 링크용 토큰과 직접 입력용 6자리 코드를 함께 가진다.
  *
  * <p>그룹 하나에 초대가 여러 개 쌓이고 그룹과 수명이 달라 따로 둔 애그리거트다. 그룹은 id로만 가리킨다.
- * 토큰·코드 만들기, 만료 확인, 수락은 초대 태스크에서 채운다.
+ * 발급 뒤 1일이 지나면 만료된다. 만료된 초대는 지우지 않고 찾지 못한 것으로 다룬다.
  */
 @Entity
 @Table(name = "group_invitation")
 public class GroupInvitation extends BaseEntity {
+
+    private static final Duration VALID_FOR = Duration.ofDays(1);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,6 +51,18 @@ public class GroupInvitation extends BaseEntity {
         this.code = Objects.requireNonNull(code, "code must not be null");
         this.inviterMemberId = Objects.requireNonNull(inviterMemberId, "inviterMemberId must not be null");
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt must not be null");
+    }
+
+    /**
+     * 멤버 누구나 초대를 만든다. 멤버인지는 부르는 쪽이 먼저 확인한다.
+     */
+    public static GroupInvitation issue(Long groupId, Long inviterMemberId, String token, String code,
+                                        LocalDateTime issuedAt) {
+        return new GroupInvitation(groupId, token, code, inviterMemberId, issuedAt.plus(VALID_FOR));
+    }
+
+    public boolean isExpired(LocalDateTime now) {
+        return !now.isBefore(expiresAt);
     }
 
     public Long getId() {
