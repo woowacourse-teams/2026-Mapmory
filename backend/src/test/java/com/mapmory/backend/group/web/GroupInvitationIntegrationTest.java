@@ -169,6 +169,7 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
             jdbcTemplate.update("INSERT INTO group_member (group_id, member_id, joined_at) VALUES (?, ?, ?)",
                     group.getId(), member.getId(), joinedAt);
         }
+        jdbcTemplate.update("UPDATE travel_group SET member_count = 30 WHERE id = ?", group.getId());
         String code = JsonPath.read(invitationBody(jisu), "$.data.code");
 
         accept(minho, code)

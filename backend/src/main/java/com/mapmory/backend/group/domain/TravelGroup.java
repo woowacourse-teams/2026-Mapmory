@@ -22,6 +22,10 @@ import java.util.Objects;
  *
  * <p>멤버 수 제한(30명), 같은 사람은 한 번만, 방장 넘기기는 멤버 목록을 다 봐야 지킬 수 있어서 멤버를 이 안에 둔다.
  * 회원은 id로만 가리킨다(ADR 0017 결정 2). 초대와 앨범은 따로 둔 애그리거트이고 이 그룹을 id로 가리킨다.
+ *
+ * <p>인원 수(memberCount)를 그룹 행에 따로 둔다. 동시에 수락할 때 그룹 행을 잠그고 읽으면 이 값은 항상 최신이지만,
+ * 멤버 목록은 따로 읽어서 옛 스냅샷일 수 있다. 그래서 30명 제한은 멤버 목록이 아니라 이 값으로 판단한다.
+ * 멤버 목록을 바꾸는 메서드가 이 값도 함께 바꾼다.
  */
 @Entity
 @Table(name = "travel_group")
@@ -41,6 +45,9 @@ public class TravelGroup extends BaseEntity {
     @Column(name = "owner_member_id", nullable = false)
     private Long ownerMemberId;
 
+    @Column(name = "member_count", nullable = false)
+    private int memberCount;
+
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("joinedAt ASC, id ASC")
     private List<GroupMember> members = new ArrayList<>();
@@ -59,6 +66,7 @@ public class TravelGroup extends BaseEntity {
     public static TravelGroup create(String name, Long creatorMemberId, LocalDateTime createdAt) {
         TravelGroup group = new TravelGroup(name, creatorMemberId);
         group.members.add(new GroupMember(group, creatorMemberId, createdAt));
+        group.memberCount = 1;
         return group;
     }
 
@@ -76,10 +84,11 @@ public class TravelGroup extends BaseEntity {
         if (hasMember(memberId)) {
             return;
         }
-        if (members.size() >= MAX_MEMBERS) {
+        if (memberCount >= MAX_MEMBERS) {
             throw new BusinessException(GroupErrorCode.GROUP_FULL);
         }
         members.add(new GroupMember(this, memberId, joinedAt));
+        memberCount++;
     }
 
     public boolean hasMember(Long memberId) {
@@ -107,6 +116,10 @@ public class TravelGroup extends BaseEntity {
 
     public Long getOwnerMemberId() {
         return ownerMemberId;
+    }
+
+    public int getMemberCount() {
+        return memberCount;
     }
 
     public List<GroupMember> getMembers() {

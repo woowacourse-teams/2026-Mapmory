@@ -48,6 +48,7 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
             jdbcTemplate.update("INSERT INTO group_member (group_id, member_id, joined_at) VALUES (?, ?, ?)",
                     group.getId(), socialMember().getId(), LocalDateTime.now());
         }
+        jdbcTemplate.update("UPDATE travel_group SET member_count = 28 WHERE id = ?", group.getId());
         GroupInvitation invitation = groupInvitationService.create(owner.getId(), group.getId());
         List<Long> joiners = new ArrayList<>();
         for (int i = 0; i < 10; i++) {

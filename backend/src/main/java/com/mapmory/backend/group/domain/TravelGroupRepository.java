@@ -30,9 +30,10 @@ public interface TravelGroupRepository extends JpaRepository<TravelGroup, Long> 
     """)
     List<GroupSummary> findSummariesByMemberId(@Param("memberId") Long memberId);
 
-    // 초대 수락이 동시에 들어와도 30명을 넘거나 같은 사람이 두 번 들어가지 않게 그룹 행을 잠근다.
-    // 멤버는 잠근 뒤에 따로 읽으므로, 부르는 쪽 트랜잭션은 READ COMMITTED여야 먼저 들어온 멤버가 보인다.
-    // (멤버를 fetch join해도 Hibernate가 잠금을 별도 쿼리로 나눠서 소용없다.)
+    // 초대 수락이 동시에 들어와도 30명을 넘지 않게 그룹 행을 잠근다. 잠금으로 읽은 행(memberCount 포함)은
+    // 기본 격리 수준(REPEATABLE READ)에서도 최신이라, 앞 사람이 넣은 인원까지 보고 판단한다.
+    // 그룹을 바꾸는 쿼리는 모두 그룹 행을 먼저 잠근다(잠금 순서가 같아야 교착이 없다).
+    // 트랜잭션에서 그룹을 처음 읽는 게 이 메서드여야 한다. 먼저 일반 조회로 불러 두면 1차 캐시의 옛 값을 돌려준다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT g FROM TravelGroup g WHERE g.id = :groupId")
     Optional<TravelGroup> findByIdForUpdate(@Param("groupId") Long groupId);
