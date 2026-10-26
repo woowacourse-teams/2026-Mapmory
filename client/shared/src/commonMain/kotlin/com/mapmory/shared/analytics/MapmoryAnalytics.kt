@@ -26,6 +26,9 @@ object MapmoryAnalyticsUserProperty {
 }
 
 object MapmoryAnalyticsEvent {
+    const val SOCIAL_LOGIN_VIEWED = "social_login_viewed"
+    const val SOCIAL_LOGIN_STARTED = "social_login_started"
+    const val SOCIAL_LOGIN_COMPLETED = "social_login_completed"
     const val VIDEO_OPENED = "video_opened"
     const val VIDEO_ACTION = "video_action"
     const val VIDEO_GENERATION_RESULT = "video_generation_result"

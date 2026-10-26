@@ -40,8 +40,20 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
         }
     }
 
-    func clear() {
-        SecItemDelete(baseQuery() as CFDictionary)
+    func pendingProvider() throws -> AuthPendingRead {
+        AuthPendingRead(provider: UserDefaults.standard.string(forKey: legacyKey + "_pending_provider"))
+    }
+
+    func markPendingProvider(provider: String?) throws {
+        UserDefaults.standard.set(provider, forKey: legacyKey + "_pending_provider")
+    }
+
+    func clear() throws {
+        let status = SecItemDelete(baseQuery() as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw NSError(domain: "Mapmory.AuthStorage", code: Int(status),
+                          userInfo: [NSLocalizedDescriptionKey: "로그인 정보를 삭제하지 못했습니다. 다시 시도해 주세요."])
+        }
         UserDefaults.standard.removeObject(forKey: legacyKey)
     }
 

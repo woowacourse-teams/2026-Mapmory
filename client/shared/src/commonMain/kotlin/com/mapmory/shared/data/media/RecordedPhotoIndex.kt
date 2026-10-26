@@ -15,6 +15,13 @@ class RecordedPhotoIndex(private val storage: PhotoPreviewCache?) {
     private val mutableIds = MutableStateFlow<Set<String>>(emptySet())
     val ids = mutableIds.asStateFlow()
 
+    suspend fun clearForAccountChange() = mutex.withLock {
+        storage?.writeRecordedPhotoIndex("{}")
+        records = emptyMap()
+        mutableIds.value = emptySet()
+        initialized = true
+    }
+
     suspend fun initialize() = mutex.withLock { load() }
 
     suspend fun replace(recordId: Long, photoIds: Set<String>) = mutex.withLock {

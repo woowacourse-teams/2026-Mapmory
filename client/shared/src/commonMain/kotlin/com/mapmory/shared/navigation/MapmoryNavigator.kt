@@ -17,6 +17,7 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<EditorRoute>() -> entry.toRoute<EditorRoute>()
             entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
+            entry.destination.hasRoute<GroupsRoute>() -> GroupsRoute
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
             entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
             else -> return false
@@ -58,6 +59,10 @@ internal class MapmoryNavigator(
         navigateToTab(RecordsRoute(locationId))
         // Restoring an entry also restores its old route arguments. Honor this navigation request.
         navController.currentBackStackEntry?.savedStateHandle?.set(RecordsLocationKey, locationId)
+    }
+
+    fun navigateToGroups() {
+        navigateToTab(GroupsRoute)
     }
 
     fun navigateToProfile() {

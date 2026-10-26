@@ -36,3 +36,7 @@ Firebase Console에 `com.mapmory.ios` Apple 앱을 등록한 뒤 해당 앱에�
 
 Xcode의 Build Phase가 Gradle `:shared:embedAndSignAppleFrameworkForXcode` 작업을 실행해 공통 Compose UI를
 `Shared.framework`로 연결한다.
+
+## 소셜 로그인 설정
+
+Debug/Release/Internal의 공개 카카오 앱 식별자는 `SocialLogin.xcconfig`에서 관리한다. Google iOS Client ID와 URL scheme, 플랫폼별 콘솔 등록 및 서버 audience는 [소셜 제공자 설정](../docs/auth/social-provider-setup.md), [카카오 플랫폼 설정](../docs/auth/kakao-platform-setup.md)을 따른다. Client Secret·사용자 토큰·서명 개인키는 빌드 설정에 넣지 않는다.

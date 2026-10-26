@@ -46,6 +46,7 @@ internal fun MapRoute(
     onOpenRecords: (Long?) -> Unit,
     onOpenEditor: (Long?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -265,6 +266,7 @@ internal fun MapRoute(
             onCreateClick = { onOpenEditor(null) },
             onProfileClick = onOpenProfile,
             onSettingsClick = onOpenSettings,
+            onGroupClick = onOpenGroups,
         )
         if (showRecordIntroduction) {
             FirstRecordIntroduction(

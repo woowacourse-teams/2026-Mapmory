@@ -16,11 +16,14 @@ internal fun TripSettingsRoute(
     onOpenMap: () -> Unit,
     onOpenRecords: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     onOpenDeveloperTools: () -> Unit,
     serviceFeedbackRepository: ServiceFeedbackRepository?,
     modifier: Modifier = Modifier,
+    accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
+    accountController: com.mapmory.shared.presentation.auth.AccountLoginController? = null,
 ) {
     val analytics = LocalMapmoryAnalytics.current
     LaunchedEffect(Unit) {
@@ -37,11 +40,17 @@ internal fun TripSettingsRoute(
         onRecordClick = onOpenRecords,
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
+        onGroupClick = onOpenGroups,
         developerToolsInfo = developerToolsInfo,
         onOpenDeveloperTools = onOpenDeveloperTools,
         onSubmitFeedback = { category: ServiceFeedbackCategory, content: String ->
             serviceFeedbackRepository?.submit(category, content, currentServiceFeedbackPlatform())
                 ?: Result.failure(IllegalStateException("의견 보내기를 사용할 수 없습니다."))
+        },
+        accountContent = {
+            if (accountSession != null && accountController != null) {
+                com.mapmory.shared.presentation.auth.AccountSettingsPanel(accountSession, accountController)
+            }
         },
     )
 }

@@ -15,7 +15,9 @@ internal fun MapmoryAnalytics.emit(name: String, parameters: Map<String, String>
     }
 }
 
-internal fun MapmoryAnalytics.reportFailure(operation: String, error: Throwable) {
+internal fun MapmoryAnalytics.reportFailure(
+    operation: String, error: Throwable, context: Map<String, String> = emptyMap(),
+) {
     if (error is CancellationException) return
     val category = when (error) {
         is MapmoryApiException -> when (error.statusCode) {
@@ -30,6 +32,7 @@ internal fun MapmoryAnalytics.reportFailure(operation: String, error: Throwable)
         else -> "unknown"
     }
     emit(MapmoryAnalyticsEvent.APP_ERROR, buildMap {
+        putAll(context)
         put("operation", operation)
         put("error_category", category)
         // A triage hint, not a claim that responsibility has been established.

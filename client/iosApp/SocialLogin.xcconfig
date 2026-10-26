@@ -1,0 +1,3 @@
+// Public native app identifier, shared by Debug, Internal and App Store builds.
+// Never put tokens, admin keys or client secrets in this file.
+MAPMORY_KAKAO_NATIVE_APP_KEY = a5125976d5b1e29e6319da61940dbfd7

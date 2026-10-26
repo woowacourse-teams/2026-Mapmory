@@ -24,6 +24,7 @@ internal fun TripRecordListRoute(
     onOpenEditor: () -> Unit,
     onOpenDetail: (Long, String?, String?, Int?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
     isTimelineLayout: Boolean = false,
     showLayoutSwitcher: Boolean = false,
@@ -82,5 +83,6 @@ internal fun TripRecordListRoute(
         },
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
+        onGroupClick = onOpenGroups,
     )
 }
