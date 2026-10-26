@@ -267,7 +267,7 @@ fun createAppContainer(
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
-        shareVideoRepository = shareVideoRepository,
+        shareVideoRepository = shareVideoRepository?.let { com.mapmory.shared.analytics.AnalyticsShareVideoRepository(it, analytics) },
         shareVideoJobStore = shareVideoJobStore,
         tagRepository = AnalyticsTagRepository(tagRepository, analytics),
         placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
