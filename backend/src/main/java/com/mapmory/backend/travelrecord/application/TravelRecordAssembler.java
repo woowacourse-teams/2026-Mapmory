@@ -11,7 +11,6 @@ import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.TravelRecordListPage;
 import com.mapmory.backend.travelrecord.TravelRecordRepository;
 import com.mapmory.backend.travelrecord.TravelRecordSummaries;
-import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

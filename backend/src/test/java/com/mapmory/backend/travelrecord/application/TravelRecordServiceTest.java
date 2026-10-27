@@ -38,7 +38,6 @@ import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import com.mapmory.backend.travelrecord.application.model.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCacheProperties;
-import com.mapmory.backend.travelrecordtag.TravelRecordTagService;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;

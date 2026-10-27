@@ -1,10 +1,10 @@
-package com.mapmory.backend.travelrecordtag;
+package com.mapmory.backend.travelrecord.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +14,7 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagRepository;
+import com.mapmory.backend.travelrecord.TravelRecordTagRepository;
 import com.mapmory.backend.travelrecord.application.model.TravelRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

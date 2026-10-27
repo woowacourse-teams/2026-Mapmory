@@ -1,11 +1,13 @@
-package com.mapmory.backend.travelrecordtag;
+package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagErrorCode;
 import com.mapmory.backend.tag.TagRepository;
+import com.mapmory.backend.travelrecord.TravelRecordTagRepository;
 import com.mapmory.backend.travelrecord.application.model.TravelRecord;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordTag;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;

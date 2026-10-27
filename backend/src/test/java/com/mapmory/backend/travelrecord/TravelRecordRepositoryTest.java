@@ -12,7 +12,7 @@ import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.application.model.RecordMedia;
 import com.mapmory.backend.travelrecord.application.model.RecordedPlace;
 import com.mapmory.backend.travelrecord.application.model.TravelRecord;
-import com.mapmory.backend.travelrecordtag.TravelRecordTag;
+import com.mapmory.backend.travelrecord.application.model.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.UUID;
