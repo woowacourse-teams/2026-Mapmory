@@ -34,6 +34,7 @@ public class PlaceController {
         this.placeSelectionService = placeSelectionService;
     }
 
+    // 검색은 sessionToken이 필수다. 토큰을 보내지 않는 이전 앱은 출처를 Geoapify로 그려 Google 표기 정책을 지킬 수 없다.
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PlaceCandidateResponse>>> search(
             @RequestParam @NotBlank @Size(max = SearchQuery.MAX_LENGTH) String query,
