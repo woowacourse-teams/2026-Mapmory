@@ -42,7 +42,7 @@ class KoreanAddressRegionMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new KoreanAddressRegionMatcher(regionResolver);
-        when(regionResolver.resolve("KR", null, null)).thenReturn(korea);
+        when(regionResolver.resolveCountry("KR")).thenReturn(korea);
         when(regionResolver.children(korea, RegionType.PROVINCE))
                 .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong));
         when(regionResolver.children(seoul, RegionType.DISTRICT)).thenReturn(List.of(jongno));

@@ -36,7 +36,7 @@ public class PlaceSelectionService {
         }
         try {
             if (!"KR".equals(place.countryCode())) {
-                return regionResolver.resolve(place.countryCode(), null, null);
+                return regionResolver.resolveCountry(place.countryCode());
             }
             return addressRegionMatcher.match(place.addressAreas()).orElse(null);
         } catch (BusinessException ignored) {

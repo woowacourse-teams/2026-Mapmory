@@ -54,7 +54,7 @@ class PlaceSelectionServiceTest {
     void 해외_장소는_국가를_추천한다() {
         Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
         when(placeLookupPort.findForSelection("ChIJ-tokyo", null)).thenReturn(place("JP", List.of()));
-        when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
+        when(regionResolver.resolveCountry("JP")).thenReturn(japan);
 
         SelectedPlace result = service.select("ChIJ-tokyo", null);
 

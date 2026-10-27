@@ -40,7 +40,7 @@ public class KoreanAddressRegionMatcher {
             return Optional.empty();
         }
         String provinceName = names.getFirst();
-        Region country = regionResolver.resolve(KOREA, null, null);
+        Region country = regionResolver.resolveCountry(KOREA);
         return regionResolver.children(country, RegionType.PROVINCE).stream()
                 .filter(province -> sameProvince(province.getName(), provinceName))
                 .findFirst()
