@@ -40,6 +40,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -266,6 +267,20 @@ class TravelRecordServiceTest {
         TravelRecord result = travelRecordService.create(member, command);
 
         assertThat(result.getStartDate()).isEqualTo(TODAY);
+        assertThat(result.getEndDate()).isEqualTo(TODAY);
+    }
+
+    // 운영의 Clock 빈은 UTC다. 한국 날짜로 오늘(UTC로는 어제)이 끝나는 여행도 받는다. (#502)
+    @Test
+    void 서버_Clock이_UTC여도_한국_오늘이_끝나는_여행_일지를_생성한다() {
+        Clock utcClock = Clock.fixed(TODAY.atTime(0, 30).atZone(SERVICE_ZONE).toInstant(), ZoneOffset.UTC);
+        ReflectionTestUtils.setField(travelRecordService, "clock", utcClock);
+        when(regionResolver.resolve("JP", null, null)).thenReturn(mock(Region.class));
+        when(travelRecordRepository.save(any(TravelRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TravelRecord result = travelRecordService.create(member, createCommand(TODAY, TODAY));
+
         assertThat(result.getEndDate()).isEqualTo(TODAY);
     }
 

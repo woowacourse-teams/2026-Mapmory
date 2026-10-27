@@ -201,6 +201,20 @@ class MemberJoinServiceTest extends IntegrationTest {
                 });
     }
 
+    // promoted_at - created_at으로 승격까지 걸린 시간을 센다(V30). 두 시각이 같은 기준(UTC)이어야 한다. (#502)
+    @Test
+    void 승격_시각과_버려진_시각은_가입_시각과_같은_기준으로_저장한다() {
+        Member guest = memberJoinService.joinAsGuest();
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300037", "소현", guest.getId());
+        Member abandonedGuest = memberJoinService.joinAsGuest();
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300037", "소현", abandonedGuest.getId());
+
+        Member promoted = memberRepository.findById(guest.getId()).orElseThrow();
+        Member abandoned = memberRepository.findById(abandonedGuest.getId()).orElseThrow();
+        assertThat(promoted.getPromotedAt()).isCloseTo(promoted.getCreatedAt(), within(1, ChronoUnit.MINUTES));
+        assertThat(abandoned.getAbandonedAt()).isCloseTo(abandoned.getCreatedAt(), within(1, ChronoUnit.MINUTES));
+    }
+
     @Test
     void 새로_가입하거나_기존_회원으로_들어오면_GuestPromoted를_발행하지_않는다() {
         memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300037", "소현", null);
