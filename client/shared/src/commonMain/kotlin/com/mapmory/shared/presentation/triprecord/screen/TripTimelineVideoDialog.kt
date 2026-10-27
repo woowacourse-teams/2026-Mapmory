@@ -6,6 +6,7 @@ import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.videoAction
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,9 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -34,6 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +50,7 @@ import com.mapmory.shared.data.remote.MapmoryConnectionException
 import com.mapmory.shared.data.remote.toUserFriendlyRemoteFailure
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.share.ShareVideoFile
 import com.mapmory.shared.presentation.triprecord.share.TripTimelineVideoPreview
@@ -80,6 +87,7 @@ internal fun TripTimelineVideoDialog(
     var message by remember { mutableStateOf<String?>(null) }
     var previewAttemptedJobId by remember { mutableStateOf<Long?>(null) }
     var videoJobId by remember { mutableStateOf<Long?>(null) }
+    var selectedStyle by remember { mutableStateOf(ShareVideoStyle.CLASSIC) }
     val startedAtEpochMillis = jobState.startedAtEpochMillis
     val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
     val expanded = shouldExpandTripTimelineVideoDialog(video != null, status)
@@ -118,7 +126,7 @@ internal fun TripTimelineVideoDialog(
             try {
                 notifier.requestPermissionIfNeeded()
                 val requestStartedAt = Clock.System.now().toEpochMilliseconds()
-                val job = repository.createTravelTimeline().getOrThrow()
+                val job = repository.createTravelTimeline(selectedStyle).getOrThrow()
                 jobStore.saveJobId(job.jobId, requestStartedAt)
                 jobStore.updateStatus(job.status)
                 if (job.status == ShareVideoStatus.FAILED) {
@@ -259,6 +267,17 @@ internal fun TripTimelineVideoDialog(
                     Text(if (creationInProgress) "요청 중…" else "닫기", color = TripRecordPalette.current.secondaryText)
                 }
             }
+            if (!creationInProgress && !activeJob &&
+                status != ShareVideoStatus.PENDING && status != ShareVideoStatus.RENDERING &&
+                !(jobId != null && status == null)
+            ) {
+                ShareVideoStyleSelector(
+                    selectedStyle = selectedStyle,
+                    enabled = !busy,
+                    onSelect = { selectedStyle = it },
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             ) {
@@ -360,8 +379,8 @@ internal fun TripTimelineVideoDialog(
                             when {
                                 busy -> "요청 중…"
                                 creationInProgress -> "요청 중…"
-                                status == ShareVideoStatus.FAILED -> "다시 만들기"
-                                jobId == null -> "영상 만들기"
+                                status == ShareVideoStatus.FAILED -> "선택한 스타일로 다시 만들기"
+                                jobId == null -> "선택한 스타일로 영상 만들기"
                                 else -> "다시 시도"
                             },
                             color = Color.White,
@@ -379,8 +398,65 @@ internal fun TripTimelineVideoDialog(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TripRecordPalette.current.primary),
                     border = BorderStroke(1.dp, TripRecordPalette.current.border),
-                ) { Text("최신 기록으로 다시 만들기") }
+                ) { Text("선택한 스타일로 다시 만들기") }
             }
         }
+    }
+}
+
+@Composable
+private fun ShareVideoStyleSelector(
+    selectedStyle: ShareVideoStyle,
+    enabled: Boolean,
+    onSelect: (ShareVideoStyle) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("영상 스타일 선택", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("스타일을 고른 뒤 다시 만들기를 누르면 새 영상에 적용돼요.", color = TripRecordPalette.current.secondaryText, fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShareVideoStyleOption(ShareVideoStyle.CLASSIC, selectedStyle, enabled, onSelect, Modifier.weight(1f))
+            ShareVideoStyleOption(ShareVideoStyle.ZOOM, selectedStyle, enabled, onSelect, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShareVideoStyleOption(ShareVideoStyle.ORBIT, selectedStyle, enabled, onSelect, Modifier.weight(1f))
+            ShareVideoStyleOption(ShareVideoStyle.HORIZON, selectedStyle, enabled, onSelect, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ShareVideoStyleOption(
+    style: ShareVideoStyle,
+    selectedStyle: ShareVideoStyle,
+    enabled: Boolean,
+    onSelect: (ShareVideoStyle) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val selected = style == selectedStyle
+    Box(
+        modifier = modifier.height(48.dp)
+            .clip(shape)
+            .background(if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.surface)
+            .border(
+                BorderStroke(1.dp, if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.border),
+                shape,
+            )
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = { onSelect(style) },
+            )
+            .semantics { contentDescription = "${style.label} 영상 스타일 선택" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            style.label,
+            color = if (selected) Color.White else TripRecordPalette.current.headingText,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }
