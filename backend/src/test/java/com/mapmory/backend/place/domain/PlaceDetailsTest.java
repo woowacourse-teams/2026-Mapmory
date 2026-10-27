@@ -2,7 +2,7 @@ package com.mapmory.backend.place.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import org.junit.jupiter.api.Test;
 
 class PlaceDetailsTest {

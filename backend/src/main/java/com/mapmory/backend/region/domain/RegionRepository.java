@@ -1,4 +1,4 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.domain;
 
 import java.util.List;
 import java.util.Optional;

@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.mapsummary;
 
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 
 /**

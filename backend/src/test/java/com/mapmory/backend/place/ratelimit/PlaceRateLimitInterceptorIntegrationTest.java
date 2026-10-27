@@ -15,7 +15,7 @@ import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

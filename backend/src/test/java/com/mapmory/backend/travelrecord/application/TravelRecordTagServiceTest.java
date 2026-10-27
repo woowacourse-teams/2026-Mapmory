@@ -10,8 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;

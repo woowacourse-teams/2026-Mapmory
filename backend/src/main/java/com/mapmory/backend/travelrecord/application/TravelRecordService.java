@@ -8,9 +8,9 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionSuggester;
+import com.mapmory.backend.region.application.RegionResolver;
+import com.mapmory.backend.region.application.RegionSuggester;
+import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
@@ -222,21 +222,10 @@ public class TravelRecordService {
         }
 
         Page<TravelRecord> travelRecords = regionResolver.resolveIfPresent(countryCode, provinceCode, districtCode)
-                .map(region -> findInRegion(memberId, region, tagId, pageable))
+                .map(region -> travelRecordRepository.findByMemberIdInRegion(memberId, region, tagId, pageable))
                 .orElseGet(() -> travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable));
 
         return travelRecordAssembler.assembleListPage(travelRecords);
-    }
-
-    private Page<TravelRecord> findInRegion(Long memberId, Region region, Long tagId, Pageable pageable) {
-        return switch (region.getRegionType()) {
-            case COUNTRY -> travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
-                    memberId, region.getId(), tagId, pageable);
-            case PROVINCE -> travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
-                    memberId, region.getId(), tagId, pageable);
-            case DISTRICT -> travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
-                    memberId, region.getId(), tagId, pageable);
-        };
     }
 
     private TravelRecord findOwnedTravelRecord(Member member, Long travelRecordId) {

@@ -3,7 +3,7 @@ package com.mapmory.backend.place.infrastructure.google;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

@@ -7,8 +7,8 @@ import static org.mockito.Mockito.mock;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.LongStream;

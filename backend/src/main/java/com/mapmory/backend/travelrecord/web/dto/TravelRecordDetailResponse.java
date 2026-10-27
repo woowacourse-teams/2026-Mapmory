@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
-import com.mapmory.backend.region.dto.RegionDetailResponse;
+import com.mapmory.backend.region.web.dto.RegionDetailResponse;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;
 import com.mapmory.backend.travelrecord.application.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.domain.RecordMedia;

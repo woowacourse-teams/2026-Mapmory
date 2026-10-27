@@ -24,11 +24,11 @@ import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionAddress;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionSuggester;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.application.RegionResolver;
+import com.mapmory.backend.region.application.RegionSuggester;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
@@ -689,43 +689,15 @@ class TravelRecordServiceTest {
     }
 
     @Test
-    void 국가로_일지_목록을_조회한다() {
-        Region korea = region(1L, RegionType.COUNTRY);
-        Page<TravelRecord> expected = Page.empty();
-        when(regionResolver.resolveIfPresent("KR", null, null)).thenReturn(Optional.of(korea));
-        when(travelRecordRepository.findByMemberIdAndCountryIdAndOptionalTagId(
-                eq(10L), eq(1L), eq(null), any(Pageable.class)))
-                .thenReturn(expected);
-
-        assertThat(travelRecordService.findAll(member, "KR", null, null, null, 0, 20).listPage().entries()).isEmpty();
-        verify(travelRecordRepository, never()).findMediaByTravelRecordIdIn(anyList());
-    }
-
-    @Test
-    void 시도로_일지_목록을_조회한다() {
-        Region korea = mock(Region.class);
-        Region jeju = region(2L, RegionType.PROVINCE);
+    void 지역을_고르면_그_지역_안의_일지_목록을_조회한다() {
+        Region jeju = mock(Region.class);
         Page<TravelRecord> expected = Page.empty();
         when(regionResolver.resolveIfPresent("KR", "49", null)).thenReturn(Optional.of(jeju));
-        when(travelRecordRepository.findByMemberIdAndProvinceIdAndOptionalTagId(
-                eq(10L), eq(2L), eq(null), any(Pageable.class)))
+        when(travelRecordRepository.findByMemberIdInRegion(eq(10L), eq(jeju), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
 
         assertThat(travelRecordService.findAll(member, "KR", "49", null, null, 0, 20).listPage().entries()).isEmpty();
-    }
-
-    @Test
-    void 시군구로_일지_목록을_조회한다() {
-        Region korea = mock(Region.class);
-        Region jeju = mock(Region.class);
-        Region jejuCity = region(3L, RegionType.DISTRICT);
-        Page<TravelRecord> expected = Page.empty();
-        when(regionResolver.resolveIfPresent("KR", "49", "50110")).thenReturn(Optional.of(jejuCity));
-        when(travelRecordRepository.findByMemberIdAndRegionIdAndOptionalTagId(
-                eq(10L), eq(3L), eq(null), any(Pageable.class)))
-                .thenReturn(expected);
-
-        assertThat(travelRecordService.findAll(member, "KR", "49", "50110", null, 0, 20).listPage().entries()).isEmpty();
+        verify(travelRecordRepository, never()).findMediaByTravelRecordIdIn(anyList());
     }
 
     @Test
@@ -826,13 +798,6 @@ class TravelRecordServiceTest {
         lenient().when(recordMedia.travelRecordId()).thenReturn(travelRecordId);
         lenient().when(recordMedia.getThumbnailObjectKey()).thenReturn(thumbnailObjectKey);
         return recordMedia;
-    }
-
-    private Region region(Long id, RegionType regionType) {
-        Region region = mock(Region.class);
-        when(region.getId()).thenReturn(id);
-        when(region.getRegionType()).thenReturn(regionType);
-        return region;
     }
 
     private void assertError(Runnable action, String errorCode) {

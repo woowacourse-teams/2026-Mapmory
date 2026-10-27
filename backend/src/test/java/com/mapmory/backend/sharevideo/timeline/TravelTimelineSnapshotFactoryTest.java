@@ -3,8 +3,8 @@ package com.mapmory.backend.sharevideo.timeline;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.time.LocalDate;
 import java.util.List;

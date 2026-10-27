@@ -1,4 +1,4 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,6 +6,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,28 @@ class RegionResolverTest {
                 .thenReturn(Optional.empty());
 
         assertError(() -> regionResolver.resolve("ZZ", null, null), "REGION_NOT_FOUND");
+    }
+
+    @Test
+    void acceptsExistingRegionId() {
+        when(regionRepository.existsById(1L)).thenReturn(true);
+
+        regionResolver.validateExists(1L);
+    }
+
+    @Test
+    void rejectsNonexistentRegionId() {
+        when(regionRepository.existsById(999L)).thenReturn(false);
+
+        assertError(() -> regionResolver.validateExists(999L), "REGION_NOT_FOUND");
+    }
+
+    @Test
+    void returnsEmptyForNonexistentCountryWhenOptional() {
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "ZZ"))
+                .thenReturn(Optional.empty());
+
+        assertThat(regionResolver.findCountryIfPresent("ZZ")).isEmpty();
     }
 
     @Test

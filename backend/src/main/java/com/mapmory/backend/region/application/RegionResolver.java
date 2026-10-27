@@ -1,6 +1,10 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.region.exception.RegionErrorCode;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -32,10 +36,6 @@ public class RegionResolver {
         return findChild(province, RegionType.DISTRICT, districtCode);
     }
 
-    public Region resolveCountry(String countryCode) {
-        return resolve(countryCode, null, null);
-    }
-
     /**
      * 코드가 하나도 없으면 빈 값이다. 목록 필터처럼 지역을 고르지 않아도 되는 곳에서 쓴다.
      */
@@ -52,16 +52,29 @@ public class RegionResolver {
         }
     }
 
+    /** 지역 ID가 DB에 없으면 REGION_NOT_FOUND다. */
+    public void validateExists(Long regionId) {
+        if (!regionRepository.existsById(regionId)) {
+            throw new BusinessException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+    }
+
     public List<Region> children(Region parent, RegionType regionType) {
         return regionRepository.findByParentIdAndRegionType(parent.getId(), regionType);
     }
 
-    private Region findCountry(String countryCode) {
+    /** DB에 없는 국가는 빈 값이다. 장소 주소로 지역을 추천할 때처럼 없으면 사용자가 고르게 하는 곳에서 쓴다. */
+    public Optional<Region> findCountryIfPresent(String countryCode) {
         return regionRepository.findByParentIdAndRegionTypeAndRegionCode(
                 null,
                 RegionType.COUNTRY,
                 countryCode
-        ).orElseThrow(() -> new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
+        );
+    }
+
+    private Region findCountry(String countryCode) {
+        return findCountryIfPresent(countryCode)
+                .orElseThrow(() -> new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
     private Region findChild(Region parent, RegionType regionType, String regionCode) {

@@ -1,4 +1,4 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.domain;
 
 import com.mapmory.backend.common.entity.BaseEntity;
 import jakarta.persistence.Column;

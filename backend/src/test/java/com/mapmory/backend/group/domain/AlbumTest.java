@@ -6,8 +6,8 @@ import static org.assertj.core.groups.Tuple.tuple;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.exception.GroupErrorCode;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;

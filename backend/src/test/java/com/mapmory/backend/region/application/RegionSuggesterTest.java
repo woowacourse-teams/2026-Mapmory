@@ -1,10 +1,12 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -42,7 +44,7 @@ class RegionSuggesterTest {
     @Test
     void 해외는_국가를_추천한다() {
         Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
-        when(regionResolver.resolveCountry("JP")).thenReturn(japan);
+        when(regionResolver.findCountryIfPresent("JP")).thenReturn(Optional.of(japan));
 
         assertThat(suggester.suggest(new RegionAddress("JP", null, List.of()))).contains(japan);
         verifyNoInteractions(addressRegionMatcher);
@@ -50,8 +52,7 @@ class RegionSuggesterTest {
 
     @Test
     void DB에_없는_국가는_빈_값이다() {
-        when(regionResolver.resolveCountry("ZZ"))
-                .thenThrow(new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
+        when(regionResolver.findCountryIfPresent("ZZ")).thenReturn(Optional.empty());
 
         assertThat(suggester.suggest(new RegionAddress("ZZ", null, List.of()))).isEmpty();
     }
