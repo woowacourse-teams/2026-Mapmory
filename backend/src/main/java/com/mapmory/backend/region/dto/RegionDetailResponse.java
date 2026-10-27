@@ -1,4 +1,4 @@
-package com.mapmory.backend.travelrecord.dto;
+package com.mapmory.backend.region.dto;
 
 import com.mapmory.backend.region.Region;
 
