@@ -25,11 +25,14 @@ class ShareVideoJobStoreTest {
     @Test
     fun manualStatusRetryIncrementsTheMonitorTrigger() {
         val store = MemoryShareVideoJobStore()
+        store.saveJobId(15L, startedAtEpochMillis = 1_792_752_000_000L)
+        store.updateStatusCheckError("일시적인 오류")
 
         store.retryStatusCheck()
-        store.retryStatusCheck()
 
-        assertEquals(2, store.state.value.statusCheckRetryCount)
+        assertEquals(1, store.state.value.statusCheckRetryCount)
+        assertNull(store.state.value.statusCheckError)
+        assertEquals(15L, store.loadJobId())
     }
 
     @Test

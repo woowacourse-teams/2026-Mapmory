@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
+import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -93,13 +96,14 @@ internal fun tripAchievementBadges(statistics: TripStatisticsUiModel): List<Trip
 }
 
 @Composable
-internal fun TripAchievementCollection(statistics: TripStatisticsUiModel) {
+internal fun TripAchievementCollection(
+    statistics: TripStatisticsUiModel,
+    onShowAll: () -> Unit,
+) {
     val badges = tripAchievementBadges(statistics)
     var selectedBadgeId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showAllBadges by rememberSaveable { mutableStateOf(false) }
-    val visibleBadges = if (showAllBadges) badges else {
-        badges.filter { it.progressUnit == "개" }.take(2) + badges.filter { it.progressUnit == "곳" }.take(2)
-    }
+    val visibleBadges = badges.filter { it.progressUnit == "개" }.take(2) +
+        badges.filter { it.progressUnit == "곳" }.take(2)
 
     StatsCard {
         Row(
@@ -143,8 +147,8 @@ internal fun TripAchievementCollection(statistics: TripStatisticsUiModel) {
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = { showAllBadges = !showAllBadges }) {
-                Text(if (showAllBadges) "접기" else "전체 보기 (${badges.size})", fontSize = 12.sp)
+            TextButton(onClick = onShowAll) {
+                Text("전체 업적 보기 (${badges.size})  →", fontSize = 12.sp)
             }
         }
     }
@@ -152,6 +156,95 @@ internal fun TripAchievementCollection(statistics: TripStatisticsUiModel) {
     badges.firstOrNull { it.id == selectedBadgeId }?.let { badge ->
         if (badge.earned) {
             TripAchievementSharePreviewDialog(badge) { selectedBadgeId = null }
+        }
+    }
+}
+
+@Composable
+internal fun TripAchievementScreen(
+    statisticsUiState: TripStatisticsUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var selectedBadgeId by rememberSaveable { mutableStateOf<String?>(null) }
+    TripRecordBackground(modifier, TripRecordPalette.current.pageBackground) {
+        Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TripIconButton(label = "←", contentDescription = "뒤로가기", onClick = onBack)
+                Text(
+                    "여행 업적",
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
+            when (statisticsUiState) {
+                TripStatisticsUiState.Loading -> Box(
+                    Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("여행 업적을 불러오고 있어요.", color = TripRecordPalette.current.secondaryText)
+                }
+
+                is TripStatisticsUiState.Error -> Box(
+                    Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(statisticsUiState.message, color = TripRecordPalette.current.secondaryText)
+                        TextButton(onClick = onRetry) {
+                            Text("다시 시도", color = TripRecordPalette.current.primary)
+                        }
+                    }
+                }
+
+                is TripStatisticsUiState.Success -> {
+                    val statistics = statisticsUiState.statistics
+                    val badges = tripAchievementBadges(statistics)
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                        Text(
+                            "여행 기록으로 배지를 모아요",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 13.sp,
+                        )
+                        Text(
+                            "${badges.count { it.earned }} / ${badges.size} 획득",
+                            color = TripRecordPalette.current.primary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 5.dp),
+                        )
+                    }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(badges.chunked(2)) { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                row.forEach { badge ->
+                                    AchievementTile(
+                                        badge = badge,
+                                        onShareClick = { selectedBadgeId = badge.id },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    badges.firstOrNull { it.id == selectedBadgeId }?.let { badge ->
+                        if (badge.earned) {
+                            TripAchievementSharePreviewDialog(badge) { selectedBadgeId = null }
+                        }
+                    }
+                }
+            }
         }
     }
 }
