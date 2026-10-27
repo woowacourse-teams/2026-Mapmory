@@ -1,7 +1,7 @@
 package com.mapmory.backend.sharevideo.timeline;
 
 import com.mapmory.backend.region.Region;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;

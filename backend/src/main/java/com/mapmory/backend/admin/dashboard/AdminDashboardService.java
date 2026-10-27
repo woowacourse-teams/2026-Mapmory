@@ -1,14 +1,14 @@
 package com.mapmory.backend.admin.dashboard;
 
-import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.MemberStatistics;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.Period;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.PhotoStatistics;
 import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse.TravelRecordStatistics;
+import com.mapmory.backend.admin.dashboard.dto.AdminDashboardResponse;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
+import com.mapmory.backend.travelrecord.domain.AdminTravelRecordQueryRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
