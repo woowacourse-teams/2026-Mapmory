@@ -39,7 +39,23 @@
       "at": "2026-10-27T12:45:54.524Z",
       "report": "gates/reports/stage-5.md",
       "forced": false
+    },
+    "6": {
+      "key": "qa",
+      "name": "검수",
+      "passed": false,
+      "at": "2026-10-27T17:10:43.362Z",
+      "report": "gates/reports/stage-6.md",
+      "forced": true
+    },
+    "7": {
+      "key": "launch",
+      "name": "출시·측정",
+      "passed": false,
+      "at": "2026-10-27T17:10:48.918Z",
+      "report": "gates/reports/stage-7.md",
+      "forced": true
     }
   },
-  "current": 5
+  "current": 7
 }

@@ -3,11 +3,69 @@
   "key": "qa",
   "name": "검수",
   "url": "http://localhost:4173/",
-  "at": "2026-10-27T11:46:47.392Z",
-  "complete": false,
+  "at": "2026-10-27T17:10:43.362Z",
+  "complete": true,
   "passed": false,
   "forced": true,
   "rows": [
+    {
+      "id": "6.1",
+      "name": "기기·테마 매트릭스",
+      "pass": true,
+      "expected": "320/360/390/768/1440 × 라이트·다크 × 동작 줄이기: 겹침·잘림·가로 스크롤 0",
+      "value": "120칸 중 문제 0칸 (5폭 × 2테마 × 동작 줄이기 2 × 6장면)",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-6/matrix.json",
+        "gates/reports/evidence/stage-6/matrix-320-light.png",
+        "gates/reports/evidence/stage-6/matrix-320-light-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-320-dark.png",
+        "gates/reports/evidence/stage-6/matrix-320-dark-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-360-light.png",
+        "gates/reports/evidence/stage-6/matrix-360-light-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-360-dark.png",
+        "gates/reports/evidence/stage-6/matrix-360-dark-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-390-light.png",
+        "gates/reports/evidence/stage-6/matrix-390-light-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-390-dark.png",
+        "gates/reports/evidence/stage-6/matrix-390-dark-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-768-light.png",
+        "gates/reports/evidence/stage-6/matrix-768-light-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-768-dark.png",
+        "gates/reports/evidence/stage-6/matrix-768-dark-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-1440-light.png",
+        "gates/reports/evidence/stage-6/matrix-1440-light-reduce.png",
+        "gates/reports/evidence/stage-6/matrix-1440-dark.png",
+        "gates/reports/evidence/stage-6/matrix-1440-dark-reduce.png"
+      ],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "Clique Studios, 7 stages of the web design process",
+        "WCAG 2.2 SC 1.4.10 Reflow"
+      ],
+      "derived": null,
+      "ms": 141654
+    },
+    {
+      "id": "6.2",
+      "name": "키보드",
+      "pass": true,
+      "expected": "조작 요소 전부 Tab 도달, Enter/Space 동작, 포커스 보임",
+      "value": "조작 요소 51개 중 Tab 도달 51, 포커스 표시 51, 키로 동작 51",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-6/keyboard.json"
+      ],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "WCAG 2.2 SC 2.1.1 Keyboard",
+        "WCAG 2.2 SC 2.4.7 Focus Visible"
+      ],
+      "derived": null,
+      "ms": 23433
+    },
     {
       "id": "6.3",
       "name": "터치 시나리오",
@@ -24,7 +82,39 @@
         "Ramotion, web design process"
       ],
       "derived": null,
-      "ms": 35906
+      "ms": 33901
+    },
+    {
+      "id": "6.4",
+      "name": "실기기",
+      "pass": false,
+      "expected": "iPhone Safari와 Android Chrome에서 6장면과 mp4 재생 확인",
+      "value": "기록 없음",
+      "detail": "gates/manual/6.4.json 에 사람이 확인한 결과를 적어야 함",
+      "evidence": [],
+      "kind": "manual",
+      "purpose": "E",
+      "sources": [
+        "Clique Studios, 7 stages of the web design process"
+      ],
+      "derived": null,
+      "ms": 2
+    },
+    {
+      "id": "6.5",
+      "name": "출시 규칙",
+      "pass": false,
+      "expected": "공유 앱 기능(#436) 출시 전엔 TECH_SHARE.enabled=false로 내보냄",
+      "value": "enabled=true인데 앱 공유 기능(#436) 출시 기록 없음",
+      "detail": "출시 빌드 전에 src/techStory.js TECH_SHARE.enabled를 false로 두거나, 앱이 스토어에 나간 뒤 gates/manual/6.5.json에 appShipped: true를 기록",
+      "evidence": [],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "landing/AGENTS.md (문구는 앱 코드로 확인, 공유 장면 출시 규칙)"
+      ],
+      "derived": null,
+      "ms": 1
     }
   ]
 }

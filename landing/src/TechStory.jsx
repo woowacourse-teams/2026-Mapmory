@@ -142,7 +142,7 @@ function TechStoryInner() {
 
                 <div className="ts-screen" data-scene="">
                   <p className="ts-hint" data-hint-flip="">{scenes[0].hint}</p>
-                  <div className="ts-roll-view"><div className="ts-roll" data-roll="" /></div>
+                  <div className="ts-roll-view" tabIndex={0} role="button" aria-label="사진 두루마리, 누르면 가운데 사진이 뒤집혀요" data-roll-view=""><div className="ts-roll" data-roll="" /></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
@@ -168,7 +168,7 @@ function TechStoryInner() {
 
                 <div className="ts-screen" data-scene="">
                   <p className="ts-hint">{scenes[4].hint}</p>
-                  <canvas className="ts-globe" data-globe="" aria-label="다녀온 곳이 찍힌 지구본, 옆으로 끌어 돌려 보세요" />
+                  <canvas className="ts-globe" data-globe="" tabIndex={0} aria-label="다녀온 곳이 찍힌 지구본, 옆으로 끌거나 화살표 키로 돌려 보세요" />
                 </div>
 
                 {TECH_SHARE.enabled && <ShareScreen hint={scenes[5].hint} />}

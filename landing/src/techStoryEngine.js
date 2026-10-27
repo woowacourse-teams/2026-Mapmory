@@ -64,14 +64,29 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // a finger stops the roll for a moment, so the photo it opened stays under it
   const hold = (ms) => { rollView.classList.add("is-held"); clearTimeout(holdTimer); timers.delete(holdTimer); holdTimer = later(() => rollView.classList.remove("is-held"), ms); };
   on(rollView, "pointerdown", (e) => { if (e.pointerType !== "mouse") hold(3000); });
+  const nearestMiddle = () => {
+    const v = rollView.getBoundingClientRect(), cx = v.left + v.width / 2, cy = v.top + v.height * 0.4;
+    let tile = null, best = Infinity;
+    for (const f of roll.children) { const r = f.getBoundingClientRect(); const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy); if (d < best) { best = d; tile = f; } }
+    return tile;
+  };
+  // keyboard: the roll is one tab stop (72 photos would be 72 stops); Enter or Space turns over the photo nearest
+  // the middle and holds the roll so it stays in reach
+  on(rollView, "keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    const tile = nearestMiddle();
+    if (!tile) return;
+    hold(3000);
+    tile.classList.toggle("is-open");
+    flipTried();
+  });
   // once per visit until tried: the photo nearest the middle turns over by itself, so the back is seen once
   function demoFlip() {
     if (done.has(0)) return;
     flipDemo.push(later(() => {
       if (active !== 0) return;
-      const v = rollView.getBoundingClientRect(), cx = v.left + v.width / 2, cy = v.top + v.height * 0.4;
-      let tile = null, best = Infinity;
-      for (const f of roll.children) { const r = f.getBoundingClientRect(); const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy); if (d < best) { best = d; tile = f; } }
+      const tile = nearestMiddle();
       if (!tile) return;
       hold(1900);
       tile.classList.add("is-open");
@@ -283,6 +298,15 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (!globeRaf) drawGlobe5();
   });
   ["pointerup", "pointercancel"].forEach((type) => on(globe, type, () => { dragX = null; dragStart = null; }));
+  // keyboard: the arrow keys turn the globe a step at a time
+  on(globe, "keydown", (e) => {
+    const step = e.key === "ArrowRight" ? 15 : e.key === "ArrowLeft" ? -15 : 0;
+    if (!step) return;
+    e.preventDefault();
+    rot += step;
+    tried(4);
+    if (!globeRaf) drawGlobe5();
+  });
 
   // ── scene 6: the share video's look; the drawn preview flies country to country, a year replays its leg
   const timeline = share.enabled && !share.media ? mountTimeline() : null;

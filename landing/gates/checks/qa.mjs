@@ -53,56 +53,77 @@ export async function matrix(ctx) {
 // phone screen is reached by Tab from the section title, shows a focus ring, and reacts to Enter or Space (the
 // globe to an arrow key).
 export async function keyboard(ctx) {
+  // Scroll decides the scene, so a keyboard visitor scrolls to a scene and then tabs into the phone: the walk starts
+  // from the scene's own screen (focused without scrolling), the hidden screens' controls are visibility: hidden and
+  // not tabbable, and a Tab that scrolled the page and switched the scene would count as leaving the screen.
   const b = await launch({ ...VIEWPORTS.desktop, reduce: true, touch: false });
   const rows = [];
   try {
     await gotoSection(b.page, ctx.url);
     const n = await beatCount(b.page);
     for (let i = 0; i < n; i++) {
-      await scrollToBeat(b.page, i, 0.5, 600);
+      await scrollToBeat(b.page, i, 0.5, 900);
       const targets = await b.page.evaluate(() => {
-        const sel = ".ts-screen.is-on button, .ts-screen.is-on [role=button], .ts-screen.is-on [tabindex], .ts-screen.is-on video, .ts-screen.is-on canvas, .ts-screen.is-on .ts-flip";
+        // the photo roll is one composite widget (its own tab stop), not 72 stops; the scene's other controls are real buttons
+        const sel = ".ts-screen.is-on button, .ts-screen.is-on [role=button], .ts-screen.is-on [tabindex], .ts-screen.is-on video, .ts-screen.is-on canvas";
+        document.querySelectorAll("[data-gate-k]").forEach((el) => { delete el.dataset.gateK; }); // the earlier scenes' marks
         return [...document.querySelectorAll(sel)].filter((el) => !el.hidden && !el.disabled && el.getClientRects().length).map((el, k) => { el.dataset.gateK = String(k); return { k, tag: el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || el.className).trim().slice(0, 24) }; });
       });
-      await b.page.evaluate(() => { const h = document.getElementById("tech-title"); h.tabIndex = -1; h.focus(); });
+      const startAtScreen = () => b.page.evaluate(() => { const s = document.querySelector(".ts-screen.is-on"); s.tabIndex = -1; s.focus({ preventScroll: true }); });
+      await startAtScreen();
       const reached = new Map();
+      let sceneChanged = false;
       for (let t = 0; t < 120; t++) {
         await b.page.keyboard.press("Tab");
-        const f = await b.page.evaluate(() => {
+        const f = await b.page.evaluate((i) => {
           const el = document.activeElement;
-          if (!el || !el.closest("#how")) return { out: true };
+          const on = [...document.querySelectorAll("[data-scene]")].findIndex((s) => s.classList.contains("is-on"));
+          // leaving the section (the next link scrolls the page) is fine; a Tab inside the stage that moved the scene is not
+          if (on !== i) return { out: true, sceneChanged: Boolean(el?.closest(".ts-stage")) };
+          if (!el || !el.closest(".ts-screen.is-on")) return { out: true };
           const style = () => { const cs = getComputedStyle(el); return `${cs.outlineStyle}|${cs.outlineWidth}|${cs.boxShadow}|${cs.borderColor}|${cs.backgroundColor}`; };
-          const focused = style(); el.blur(); const blurred = style(); el.focus();
+          const focused = style(); el.blur(); const blurred = style(); el.focus({ preventScroll: true });
           return { k: el.dataset.gateK, ring: focused !== blurred };
-        });
+        }, i);
+        if (f.sceneChanged) sceneChanged = true;
         if (f.out) break;
         if (f.k !== undefined && !reached.has(f.k)) reached.set(f.k, f);
+        if (reached.size === targets.length) break;
       }
+      // the walk may have left the section (and scrolled the page): come back to the scene for the key tests
+      await scrollToBeat(b.page, i, 0.5, 600);
       for (const target of targets) {
         const r = reached.get(String(target.k));
         let works = false, how = "";
         if (r) {
-          const snap = () => b.page.evaluate((k) => { const el = document.querySelector(`[data-gate-k="${k}"]`); const s = document.querySelector(".ts-screen.is-on"); const v = s.querySelector("video"); const c = s.querySelector("canvas"); return JSON.stringify({ cls: el.className, pressed: el.getAttribute("aria-pressed"), screen: s.className, text: s.innerText, paused: v?.paused, canvas: c ? c.toDataURL().length + c.toDataURL().slice(-80) : null }); }, target.k);
-          await b.page.evaluate((k) => document.querySelector(`[data-gate-k="${k}"]`).focus(), target.k);
+          // anything the key changed in the screen counts: a class anywhere in it, its text, the video playing, the globe's pixels
+          const snap = () => b.page.evaluate((k) => { const el = document.querySelector(`[data-gate-k="${k}"]`); const s = document.querySelector(".ts-screen.is-on"); const v = s.querySelector("video"); const c = s.querySelector("canvas"); return JSON.stringify({ cls: [...s.querySelectorAll("[class]")].map((e) => e.className).join("|"), pressed: el.getAttribute("aria-pressed"), text: s.innerText, paused: v?.paused, time: v && Math.round(v.currentTime), canvas: c ? c.toDataURL().length + c.toDataURL().slice(-80) : null }); }, target.k);
+          // a button whose click fires on Enter/Space works even when the screen looks the same (the place was already gathered)
+          const focused = await b.page.evaluate((k) => { const el = document.querySelector(`[data-gate-k="${k}"]`); window.__gateClicks = 0; el.addEventListener("click", () => { window.__gateClicks++; }); el.focus({ preventScroll: true }); return document.activeElement === el; }, target.k);
+          if (!focused) { rows.push({ scene: i + 1, target: `${target.tag} ${target.label}`, reached: true, ring: Boolean(r.ring), works: false, how: "포커스 안 됨", sceneChanged }); continue; }
           const keys = target.tag === "canvas" ? ["ArrowRight", "ArrowLeft"] : ["Enter", "Space"];
           for (const key of keys) {
             const before = await snap();
             await b.page.keyboard.press(key);
-            await b.page.waitForTimeout(350);
-            if ((await snap()) !== before) { works = true; how = key; break; }
-            if (await b.page.evaluate((k) => document.querySelector(`[data-gate-k="${k}"]`)?.disabled, target.k)) { works = true; how = `${key} (끝난 뒤 비활성)`; break; }
+            // a seek in the share video can take a moment on a slow machine: wait up to 1.5 s for any change
+            for (let w = 0; w < 10 && !works; w++) {
+              await b.page.waitForTimeout(150);
+              if ((await snap()) !== before || (target.tag === "button" && await b.page.evaluate(() => window.__gateClicks > 0))) { works = true; how = key; }
+              else if (await b.page.evaluate((k) => document.querySelector(`[data-gate-k="${k}"]`)?.disabled, target.k)) { works = true; how = `${key} (끝난 뒤 비활성)`; }
+            }
+            if (works) break;
           }
         }
-        rows.push({ scene: i + 1, target: `${target.tag} ${target.label}`, reached: Boolean(r), ring: Boolean(r?.ring), works, how });
+        rows.push({ scene: i + 1, target: `${target.tag} ${target.label}`, reached: Boolean(r), ring: Boolean(r?.ring), works, how, sceneChanged });
       }
-      if (!targets.length) rows.push({ scene: i + 1, target: "(조작 요소 없음)", reached: false, ring: false, works: false, how: "" });
+      if (!targets.length) rows.push({ scene: i + 1, target: "(조작 요소 없음)", reached: false, ring: false, works: false, how: "", sceneChanged });
     }
   } finally { await b.close(); }
-  const bad = rows.filter((r) => !(r.reached && r.ring && r.works));
+  const bad = rows.filter((r) => !(r.reached && r.ring && r.works) || r.sceneChanged);
   const file = ctx.evidence("keyboard.json");
   await fs.writeFile(file, JSON.stringify(rows, null, 2));
-  return { pass: bad.length === 0, value: `조작 요소 ${rows.length}개 중 Tab 도달 ${rows.filter((r) => r.reached).length}, 포커스 표시 ${rows.filter((r) => r.ring).length}, 키로 동작 ${rows.filter((r) => r.works).length}`,
-    detail: bad.slice(0, 8).map((r) => `장면 ${r.scene} ${r.target}: ${[!r.reached && "Tab 도달 못 함", r.reached && !r.ring && "포커스 표시 없음", r.reached && !r.works && "Enter/Space 반응 없음"].filter(Boolean).join(", ")}`).join("; "), evidence: [file] };
+  return { pass: bad.length === 0, value: `조작 요소 ${rows.length}개 중 Tab 도달 ${rows.filter((r) => r.reached).length}, 포커스 표시 ${rows.filter((r) => r.ring).length}, 키로 동작 ${rows.filter((r) => r.works).length}${rows.some((r) => r.sceneChanged) ? ", Tab이 장면을 바꿈" : ""}`,
+    detail: bad.slice(0, 8).map((r) => `장면 ${r.scene} ${r.target}: ${[r.sceneChanged && "Tab 중 장면이 바뀜", !r.reached && "Tab 도달 못 함", r.reached && !r.ring && "포커스 표시 없음", r.reached && !r.works && "Enter/Space 반응 없음"].filter(Boolean).join(", ")}`).join("; "), evidence: [file] };
 }
 
 // 6.3 The six touch scenarios on a 390 px phone (see lib/interact.mjs).

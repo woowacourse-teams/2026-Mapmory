@@ -118,6 +118,14 @@ test("the engine follows the scroll and never steers it", () => {
   assert.match(css, /:root\[data-theme="dark"\] \.ts \{/);
 });
 
+test("keyboard: the photo roll is one tab stop, and the globe turns with the arrow keys (6.2)", () => {
+  assert.match(component, /<div className="ts-roll-view" tabIndex=\{0\} role="button" aria-label="[^"]+" data-roll-view="">/);
+  assert.match(engine, /on\(rollView, "keydown", \(e\) => \{\s*if \(e\.key !== "Enter" && e\.key !== " "\) return;/);
+  assert.match(component, /<canvas className="ts-globe" data-globe="" tabIndex=\{0\}/);
+  assert.match(engine, /on\(globe, "keydown", \(e\) => \{\s*const step = e\.key === "ArrowRight"/);
+  for (const ring of [/\.ts-roll-view:focus-visible \{ outline/, /\.ts-globe:focus-visible \{ outline/, /\.ts-regions:focus-visible/, /\.ts-media:focus-visible/]) assert.match(css, ring);
+});
+
 test("every scene's touchable element is one measured interaction, and the plan describes the loop", () => {
   assert.deepEqual(TECH_SCENES.map((scene) => scene.interaction), ["flip", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
   assert.deepEqual([...TECH_STORY_INTERACTIONS], TECH_SCENES.map((scene) => scene.interaction));
