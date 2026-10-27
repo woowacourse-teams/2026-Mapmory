@@ -7,6 +7,10 @@ import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.app.BackgroundTripRecordSave
+import com.mapmory.shared.data.settings.ShareVideoJobStore
+import com.mapmory.shared.domain.repository.ShareVideoRepository
+import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordListScreen
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordListViewModel
@@ -25,9 +29,13 @@ internal fun TripRecordListRoute(
     onOpenDetail: (Long, String?, String?, Int?) -> Unit,
     onOpenProfile: () -> Unit,
     onOpenSettings: () -> Unit,
-    isTimelineLayout: Boolean = false,
+    shareVideoRepository: ShareVideoRepository?,
+    shareVideoJobStore: ShareVideoJobStore,
+    backHandlerRegistry: MapmoryBackHandlerRegistry,
+    backHandlerOwnerId: String,
+    layout: TripRecordListLayout = TripRecordListLayout.PHOTO,
     showLayoutSwitcher: Boolean = false,
-    onTimelineLayoutChange: (Boolean) -> Unit = {},
+    onLayoutChange: (TripRecordListLayout) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -46,6 +54,8 @@ internal fun TripRecordListRoute(
 
     TripRecordListScreen(
         modifier = modifier,
+        shareVideoRepository = shareVideoRepository,
+        shareVideoJobStore = shareVideoJobStore,
         uiState = viewModel.uiState,
         filter = TripRecordFilterUiState(
             locationId = viewModel.query.locationId,
@@ -53,9 +63,15 @@ internal fun TripRecordListRoute(
             selectedTagId = viewModel.query.tagId,
         ),
         pendingSaves = pendingSaves,
-        isTimelineLayout = isTimelineLayout,
+        layout = layout,
         showLayoutSwitcher = showLayoutSwitcher,
-        onTimelineLayoutChange = onTimelineLayoutChange,
+        onLayoutChange = onLayoutChange,
+        backHandlerRegistry = backHandlerRegistry,
+        backHandlerOwnerId = backHandlerOwnerId,
+        photoCollectionLoadState = viewModel.photoCollectionLoadState,
+        onLoadPhotoCollection = { locationName ->
+            scope.launch { viewModel.loadPhotoCollection(locationName) }
+        },
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,
         onPreviousPageClick = {

@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
+import com.mapmory.shared.data.settings.isTravelVideoCompletionNotificationEnabled
 
 @Composable
 internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifier {
@@ -33,7 +34,7 @@ private class AndroidTripTimelineVideoNotifier(
     private val permissionLauncher: ActivityResultLauncher<String>,
 ) : TripTimelineVideoNotifier {
     override fun requestPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= 33 &&
+        if (isTravelVideoCompletionNotificationEnabled(context) && Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -41,6 +42,7 @@ private class AndroidTripTimelineVideoNotifier(
     }
 
     override suspend fun showReady(jobId: Long): Boolean {
+        if (!isTravelVideoCompletionNotificationEnabled(context)) return false
         val manager = context.getSystemService(NotificationManager::class.java)
         if (!canPostNotifications(manager)) return false
         ensureChannel(manager)
@@ -57,6 +59,7 @@ private class AndroidTripTimelineVideoNotifier(
     }
 
     override fun showProgress(jobId: Long) {
+        if (!isTravelVideoCompletionNotificationEnabled(context)) return
         val manager = context.getSystemService(NotificationManager::class.java)
         if (!canPostNotifications(manager)) return
         ensureChannel(manager)

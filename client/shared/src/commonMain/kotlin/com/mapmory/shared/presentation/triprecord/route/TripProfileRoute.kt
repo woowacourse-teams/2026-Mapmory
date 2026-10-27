@@ -6,8 +6,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
-import com.mapmory.shared.data.settings.ShareVideoJobStore
-import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.screen.TripProfileScreen
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripStatisticsViewModel
 import kotlinx.coroutines.launch
@@ -16,13 +14,12 @@ import kotlinx.coroutines.launch
 internal fun TripProfileRoute(
     viewModel: TripStatisticsViewModel,
     tripRecordRevision: Long,
-    shareVideoRepository: ShareVideoRepository?,
-    shareVideoJobStore: ShareVideoJobStore,
     onOpenMap: () -> Unit,
     onOpenRecords: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenAchievements: () -> Unit,
     showTravelAchievements: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -43,9 +40,8 @@ internal fun TripProfileRoute(
     TripProfileScreen(
         modifier = modifier,
         statisticsUiState = viewModel.uiState,
-        shareVideoRepository = shareVideoRepository,
-        shareVideoJobStore = shareVideoJobStore,
         showTravelAchievements = showTravelAchievements,
+        onOpenAchievements = onOpenAchievements,
         onMapClick = onOpenMap,
         onRecordClick = onOpenRecords,
         onCreateClick = onOpenEditor,

@@ -7,6 +7,7 @@ import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
@@ -44,7 +45,11 @@ class TripRecordListViewModelTest {
                 return Result.success(emptyList())
             }
         }
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), getTags = GetTagsUseCase(tags))
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+            getTags = GetTagsUseCase(tags),
+        )
         val job = launch { viewModel.refreshIfNeeded(null, 0) }
         yield()
         val local = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
@@ -73,7 +78,7 @@ class TripRecordListViewModelTest {
                 return Result.success(cached.copy(records = emptyList(), totalElements = 0, totalPages = 0))
             }
         }
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
         val job = launch { viewModel.load() }
         yield()
         assertEquals(1, assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.size)
@@ -88,6 +93,7 @@ class TripRecordListViewModelTest {
         var thumbnailRequests = 0
         val viewModel = TripRecordListViewModel(
             GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
             thumbnailLoader = TripRecordThumbnailLoader {
                 thumbnailRequests++
                 TripRecordThumbnailLoadResult.Success(byteArrayOf(1))
@@ -134,6 +140,7 @@ class TripRecordListViewModelTest {
         )
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             getTags = GetTagsUseCase(repository),
         )
 
@@ -151,6 +158,7 @@ class TripRecordListViewModelTest {
         val repository = ThumbnailListRepository()
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             thumbnailLoader = TripRecordThumbnailLoader {
                 thumbnailGate.await()
                 TripRecordThumbnailLoadResult.Success(byteArrayOf(0x01, 0x02))
@@ -179,6 +187,7 @@ class TripRecordListViewModelTest {
         val repository = ThumbnailListRepository(recordCount = 2, expiresFirstResponse = true)
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             thumbnailLoader = TripRecordThumbnailLoader { record ->
                 if ("expired" in requireNotNull(record.thumbnailUrl)) {
                     TripRecordThumbnailLoadResult.UrlExpired
@@ -208,7 +217,7 @@ class TripRecordListViewModelTest {
                 mediaObjectKeys = listOf("before.jpg"),
             ),
         ).getOrThrow()
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
         viewModel.initialize(locationId = 101)
 
         repository.updateTripRecord(
@@ -244,7 +253,7 @@ class TripRecordListViewModelTest {
         ).getOrThrow()
         val refreshGate = CompletableDeferred<Boolean>()
         val repository = BlockingRefreshRepository(source, refreshGate)
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
         viewModel.load()
 
         val refreshJob = launch { viewModel.load() }
@@ -278,7 +287,7 @@ class TripRecordListViewModelTest {
         ).getOrThrow()
         val refreshGate = CompletableDeferred<Boolean>()
         val repository = BlockingRefreshRepository(source, refreshGate)
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
         viewModel.load()
 
         val refreshJob = launch { viewModel.load() }
@@ -295,7 +304,7 @@ class TripRecordListViewModelTest {
     @Test
     fun `경로를_반복_초기화해도_현재_필터를_유지한다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
 
         viewModel.initialize(locationId = 101)
         viewModel.initialize(locationId = 101)
@@ -329,7 +338,7 @@ class TripRecordListViewModelTest {
                     mediaObjectKeys = listOf("busan.jpg"),
                 ),
             )
-            val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+            val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
 
             viewModel.load(TripRecordQuery(size = 1))
 
