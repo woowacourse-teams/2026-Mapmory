@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 @Table(name = "travel_record")
 public class TravelRecord extends BaseEntity {
     private static final int MAX_TAGS = 5;
-    private static final String KOREA_COUNTRY_CODE = "KR";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -108,7 +107,7 @@ public class TravelRecord extends BaseEntity {
      * 대한민국 전체에는 붙이지 않는다. 지도와 통계가 시·도부터 칠하기 때문이다.
      */
     private static Region validateRegion(Region region) {
-        if (region.isCountry(KOREA_COUNTRY_CODE)) {
+        if (region.isCountry(Region.KOREA)) {
             throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
                     "대한민국 여행은 시도나 시군구를 골라야 합니다.");
         }

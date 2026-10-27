@@ -10,8 +10,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class TravelTimelineSnapshotFactory {
 
-    private static final String KOREA_COUNTRY_CODE = "KR";
-
     public TravelTimelineSnapshot create(final List<TravelRecord> travelRecords) {
         final List<TravelTimelineStop> stops = new ArrayList<>();
 
@@ -53,13 +51,13 @@ public class TravelTimelineSnapshotFactory {
             return false;
         }
 
-        if (!KOREA_COUNTRY_CODE.equals(country.getRegionCode())) {
+        if (!Region.KOREA.equals(country.getRegionCode())) {
             return false;
         }
 
         final TravelTimelineStop previousStop = stops.get(stops.size() - 1);
 
-        return KOREA_COUNTRY_CODE.equals(previousStop.countryCode());
+        return Region.KOREA.equals(previousStop.countryCode());
     }
 
     private void appendToPreviousStop(final List<TravelTimelineStop> stops, final TravelTimelineVisit visit) {

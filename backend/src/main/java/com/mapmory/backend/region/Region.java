@@ -17,6 +17,8 @@ import jakarta.persistence.Table;
 @Table(name = "region")
 public class Region extends BaseEntity {
 
+    public static final String KOREA = "KR";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

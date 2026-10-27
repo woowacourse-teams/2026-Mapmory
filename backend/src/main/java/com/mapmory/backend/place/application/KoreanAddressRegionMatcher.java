@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class KoreanAddressRegionMatcher {
 
-    private static final String KOREA = "KR";
     private static final Map<String, String> PROVINCE_SHORT_NAMES = Map.of(
             "충청북", "충북", "충청남", "충남", "전라북", "전북",
             "전라남", "전남", "경상북", "경북", "경상남", "경남");
@@ -40,7 +39,7 @@ public class KoreanAddressRegionMatcher {
             return Optional.empty();
         }
         String provinceName = names.getFirst();
-        Region country = regionResolver.resolveCountry(KOREA);
+        Region country = regionResolver.resolveCountry(Region.KOREA);
         return regionResolver.children(country, RegionType.PROVINCE).stream()
                 .filter(province -> sameProvince(province.getName(), provinceName))
                 .findFirst()
