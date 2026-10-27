@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.application;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
+import com.mapmory.backend.common.time.ServiceTime;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
@@ -252,7 +253,7 @@ public class TravelRecordService {
     }
 
     private void validateTravelDates(LocalDate startDate, LocalDate endDate) {
-        TravelRecord.validatePeriod(startDate, endDate, LocalDate.now(clock));
+        TravelRecord.validatePeriod(startDate, endDate, ServiceTime.today(clock));
     }
 
     private Pageable createPageable(int page, int size) {

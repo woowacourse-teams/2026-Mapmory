@@ -104,6 +104,21 @@ class GroupIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data[1].albumCount").value(0));
     }
 
+    // 그룹의 created_at(@CreationTimestamp)과 방장의 joined_at(Clock)은 같은 순간이라 DB에도 같은 값이어야 한다. (#502)
+    @Test
+    void 그룹_생성_시각과_방장이_들어간_시각은_같은_기준으로_저장한다() throws Exception {
+        Long groupId = createdGroupId(jisu, "제주 가족");
+
+        Long diffMinutes = jdbcTemplate.queryForObject("""
+                SELECT TIMESTAMPDIFF(MINUTE, g.created_at, m.joined_at)
+                FROM travel_group g
+                JOIN group_member m ON m.group_id = g.id AND m.member_id = g.owner_member_id
+                WHERE g.id = ?
+                """, Long.class, groupId);
+
+        assertThat(diffMinutes).isZero();
+    }
+
     @Test
     void 그룹이_없으면_빈_목록이다() throws Exception {
         mockMvc.perform(get("/api/v1/groups").header(HttpHeaders.AUTHORIZATION, bearer(jisu)))
@@ -210,9 +225,10 @@ class GroupIntegrationTest extends IntegrationTest {
     }
 
     // 초대(T2)가 아직 없어서 멤버는 저장소로 바로 넣는다.
+    // 방장부터 1분 간격으로 들어온 것으로 넣는다. 테스트에서 이어서 API로 들어가는 그룹보다 앞서도록 지난 시각을 쓴다.
     private TravelGroup groupWith(Member owner, Member... others) {
-        TravelGroup group = travelGroupRepository.save(TravelGroup.create("제주 가족", owner.getId(), LocalDateTime.now()));
-        LocalDateTime joinedAt = LocalDateTime.now();
+        LocalDateTime joinedAt = LocalDateTime.now().minusMinutes(others.length + 1);
+        TravelGroup group = travelGroupRepository.save(TravelGroup.create("제주 가족", owner.getId(), joinedAt));
         for (Member other : others) {
             joinedAt = joinedAt.plusMinutes(1);
             jdbcTemplate.update("INSERT INTO group_member (group_id, member_id, joined_at) VALUES (?, ?, ?)",

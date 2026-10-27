@@ -55,6 +55,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // CI와 같게 UTC로 둔다. hibernate.jdbc.time_zone=UTC라 JVM이 KST면 JPA로 쓴 시각만 9시간 밀려 jdbcTemplate으로 넣은 값과 어긋난다.
+    systemProperty 'user.timezone', 'UTC'
     systemProperty 'logging.level.org.springframework.test.context.cache', 'DEBUG'
 }
 
