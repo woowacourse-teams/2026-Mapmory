@@ -17,6 +17,16 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Mapmory Landing Decisions
 
+### Tech section `#tech` (2026-10-27)
+
+Sprint 3 "기술 소개" section, between the interactive globe and trust + FAQ (`src/TechStory.jsx`, engine `src/techStoryEngine.js`, copy and config `src/techStory.js`, CSS `src/tech-story.css` scoped under `.ts`). 티온's approved sketch v8 (https://claude.ai/artifact/LsLYMmovbVjMZeEE6hvY63) is the source of truth.
+
+- Built for users, around the core feature, Polarsteps-like: simplified app-like phone screens (not real screenshots), one highlight per screen, motion, no scroll hijack. One phone in a sticky stage; step 1 `사진 찾기` keeps it on the left, step 2 `지도 모으기` on the right, and it slides only between steps. Phones: the phone is pinned on top below the header and the words fade through the band below it.
+- Each scene shows only the wobbling hand-written step label and one title. No small explanatory text under titles (티온, 10-23); the one exception is the `3만 장도 30초` footnote, kept at the section's end as the copy rules require.
+- One thing to touch per screen; untried elements glow with a one-line Nanum Pen hint: hover flips a roll photo to its place and month (tap without hover); tapping any photo lifts every photo of that place in place and a popup says `<장소> 사진 N장을 모았어요`; picked photos fold into one record card on `기록하기`; tapping the map fills 경주시 → 경상북도 → 대한민국 and tapping again clears it (시·군·구 thin lines, 시·도 borders thick, like the app; data from `scripts/generate-tech-korea-map.py`); drag spins the globe; a year dot replays that year's flight (great-circle line, same path in flight and after).
+- The share scene is configured only in `TECH_SHARE` (`src/techStory.js`): example `stops`, `media` to swap the drawn preview for a real video or image in `public/assets/tech/`, and `enabled` to drop the scene. The share feature (app #436) must be in the released app before this scene goes to production; turn it off for a release before that.
+- Measurement and the feedback loop: `tech_story_view`, `tech_story_scene` (1-6) and `tech_story_interact` (first try per element), defined with the loop in ANALYTICS_MEASUREMENT_PLAN.md (`기술 소개 피드백 루프`).
+
 ### Photo-roll landing: hero wall, #roll, #rec (2026-10-18)
 
 The approved sketch v11 (hero wall "A", then the phone roll and the record/globe stories, then stores, 무료, trust line and FAQ) replaced the photo-finder hero and the travel replay. It supersedes the 2026-10-07 hero bullets (search-and-fly demo, trust line beside the hero CTA, one-colour headings for these sections) and the 2026-10-15/16 travel replay bullets below, which stay as history. The header (brand, nav, theme toggle, store menu), the interactive globe section, the trust panel and the footer stay as they were.

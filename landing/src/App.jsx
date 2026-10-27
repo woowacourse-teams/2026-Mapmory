@@ -24,6 +24,7 @@ import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoWallHero } from "./PhotoWallHero.jsx";
 import { PhotoStory } from "./PhotoStory.jsx";
+import { TechStory } from "./TechStory.jsx";
 import { FAQ_ITEMS, FREE_LINE, TRUST_LINE } from "./photoStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
@@ -988,6 +989,10 @@ function App() {
         </div>,
         document.body,
       )}
+
+      <section className="tech-section" id="tech" aria-labelledby="tech-title">
+        <TechStory />
+      </section>
 
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
