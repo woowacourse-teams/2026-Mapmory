@@ -1,7 +1,6 @@
 package com.mapmory.backend.sharevideo.timeline;
 
 import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.travelrecord.TravelRecord;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +13,7 @@ public class TravelTimelineSnapshotFactory {
         final List<TravelTimelineStop> stops = new ArrayList<>();
 
         for (final TravelRecord travelRecord : travelRecords) {
-            final Region country = findCountry(travelRecord.getRegion());
+            final Region country = travelRecord.getRegion().country();
 
             final TravelTimelineVisit visit = new TravelTimelineVisit(
                     travelRecord.getId(),
@@ -37,13 +36,6 @@ public class TravelTimelineSnapshotFactory {
         }
 
         return TravelTimelineSnapshot.of(stops);
-    }
-
-    private Region findCountry(final Region region) {
-        if (region.getRegionType() == RegionType.COUNTRY) {
-            return region;
-        }
-        return region.getRoot();
     }
 
     private boolean canMergeWithPreviousKorea(final List<TravelTimelineStop> stops, final Region country) {
