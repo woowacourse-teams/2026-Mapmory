@@ -184,6 +184,40 @@ class GooglePlacesClientTest {
         assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
     }
 
+    // 4xx는 서킷이 실패로 세지 않아, 키 거절은 여기서 ERROR로 알린다. 응답의 PLACE_PROVIDER_UNAVAILABLE은 WARN이다.
+    @Test
+    void Google이_키를_거절하면_ERROR로_알린다() {
+        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "status") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_REJECTED:403:ERROR");
+    }
+
+    @Test
+    void 없는_장소_ID는_ERROR로_알리지_않는다() {
+        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.findById("ChIJ-missing"), "PLACE_NOT_FOUND"));
+
+        assertThat(logs).isEmpty();
+    }
+
+    @Test
+    void API_키가_없으면_시작할_때_한_번만_ERROR로_알린다() {
+        List<ILoggingEvent> logs = captureLogs(() -> {
+            GooglePlacesClient unconfigured = unconfiguredClient();
+            assertError(() -> unconfigured.search("경복", "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
+            assertError(() -> unconfigured.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
+        });
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_NOT_CONFIGURED:ERROR");
+    }
+
     @Test
     void 검색_요청이_거절되면_제공자_장애로_처리한다() {
         server.expect(method(HttpMethod.POST)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
@@ -384,6 +418,19 @@ class GooglePlacesClientTest {
         for (int i = 0; i < count; i++) {
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
         }
+    }
+
+    private static List<ILoggingEvent> captureLogs(Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
     }
 
     private GooglePlacesClient unconfiguredClient() {

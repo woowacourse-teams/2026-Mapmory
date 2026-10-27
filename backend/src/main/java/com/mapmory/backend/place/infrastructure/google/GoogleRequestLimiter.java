@@ -75,6 +75,10 @@ public class GoogleRequestLimiter {
             probe = bucketManager.getProxy(budget.key(), budget::configuration).tryConsumeAndReturnRemaining(1);
         } catch (BucketExecutionException exception) {
             // 한도 저장소가 장애일 때 외부 API를 호출하면 사용량을 통제할 수 없다.
+            log.atError()
+                    .addKeyValue("event", "PLACE_RATE_LIMIT_STORE_UNAVAILABLE")
+                    .setCause(exception)
+                    .log("장소 한도 저장소를 쓰지 못했다");
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }
         if (!probe.isConsumed()) {
