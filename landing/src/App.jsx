@@ -23,7 +23,6 @@ import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoWallHero } from "./PhotoWallHero.jsx";
-import { PhotoStory } from "./PhotoStory.jsx";
 import { TechStory } from "./TechStory.jsx";
 import { FAQ_ITEMS, FREE_LINE, TRUST_LINE } from "./photoStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
@@ -944,8 +943,9 @@ function App() {
         )}
       />
 
-      <section className="how-section" id="how" aria-labelledby="how-title">
-        <PhotoStory />
+      {/* 2026-10-27 (티온): the tech section takes #how's place, between the hero and the 3D globe (draft) */}
+      <section className="how-section" id="how" aria-labelledby="tech-title">
+        <TechStory />
         <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
@@ -989,10 +989,6 @@ function App() {
         </div>,
         document.body,
       )}
-
-      <section className="tech-section" id="tech" aria-labelledby="tech-title">
-        <TechStory />
-      </section>
 
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">

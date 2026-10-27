@@ -47,8 +47,9 @@ test("the share scene is configured in one place and can be swapped or turned of
   assert.match(component, /TECH_SHARE\.enabled && <ShareScreen/);
 });
 
-test("the section sits between the globe and trust, and loads its engine lazily", () => {
-  assert.ok(app.indexOf('id="experience"') < app.indexOf('id="tech"') && app.indexOf('id="tech"') < app.indexOf('id="privacy"'));
+test("the section takes #how's place between the hero and the 3D globe, and loads its engine lazily", () => {
+  assert.ok(app.indexOf("<PhotoWallHero") < app.indexOf("<TechStory />") && app.indexOf("<TechStory />") < app.indexOf('id="experience"'));
+  assert.doesNotMatch(app, /<PhotoStory \/>/);
   assert.match(component, /import\("\.\/techStoryEngine\.js"\)/);
   assert.doesNotMatch(component, /from "\.\/techStoryEngine\.js"/);
 });

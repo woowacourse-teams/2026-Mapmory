@@ -19,7 +19,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 ### Tech section `#tech` (2026-10-27)
 
-Sprint 3 "기술 소개" section, between the interactive globe and trust + FAQ (`src/TechStory.jsx`, engine `src/techStoryEngine.js`, copy and config `src/techStory.js`, CSS `src/tech-story.css` scoped under `.ts`). 티온's approved sketch v8 (https://claude.ai/artifact/LsLYMmovbVjMZeEE6hvY63) is the source of truth.
+Sprint 3 "기술 소개" section. 티온 (10-27): it replaces the photo story in `#how`, between the hero and the 3D globe; this is a composition draft to develop further before release (`src/TechStory.jsx`, engine `src/techStoryEngine.js`, copy and config `src/techStory.js`, CSS `src/tech-story.css` scoped under `.ts`). 티온's approved sketch v8 (https://claude.ai/artifact/LsLYMmovbVjMZeEE6hvY63) is the source of truth.
 
 - Built for users, around the core feature, Polarsteps-like: simplified app-like phone screens (not real screenshots), one highlight per screen, motion, no scroll hijack. One phone in a sticky stage; step 1 `사진 찾기` keeps it on the left, step 2 `지도 모으기` on the right, and it slides only between steps. Phones: the phone is pinned on top below the header and the words fade through the band below it.
 - Each scene shows only the wobbling hand-written step label and one title. No small explanatory text under titles (티온, 10-23); the one exception is the `3만 장도 30초` footnote, kept at the section's end as the copy rules require.
