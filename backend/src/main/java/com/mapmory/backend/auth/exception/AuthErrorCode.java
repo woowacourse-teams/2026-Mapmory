@@ -2,6 +2,7 @@ package com.mapmory.backend.auth.exception;
 
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.ErrorKind;
+import org.slf4j.event.Level;
 
 public enum AuthErrorCode implements ErrorCode {
 
@@ -94,5 +95,14 @@ public enum AuthErrorCode implements ErrorCode {
     @Override
     public String detail() {
         return detail;
+    }
+
+    // refresh 토큰 실패는 기본 로그 레벨(INFO)에서도 보이게 남긴다.
+    @Override
+    public Level logLevel() {
+        return switch (this) {
+            case EXPIRED_REFRESH_TOKEN, INVALID_REFRESH_TOKEN -> Level.INFO;
+            default -> ErrorCode.super.logLevel();
+        };
     }
 }
