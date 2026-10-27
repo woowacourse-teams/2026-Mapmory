@@ -10,8 +10,10 @@ class AndroidAuthTokenStore(context: Context, apiBaseUrl: String) : AuthTokenSto
         Context.MODE_PRIVATE,
     )
 
-    override fun load(): AuthTokens? = preferences.getString(TokensKey, null)
-        ?.toAuthTokensOrNull()
+    override fun load(): AuthTokens? {
+        val payload = preferences.getString(TokensKey, null) ?: return null
+        return checkNotNull(payload.toAuthTokensOrNull()) { "저장된 로그인 정보를 읽지 못했습니다." }
+    }
 
     override fun save(tokens: AuthTokens) {
         check(preferences.edit().putString(TokensKey, tokens.toPayload()).commit()) {

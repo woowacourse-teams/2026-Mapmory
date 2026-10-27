@@ -1,5 +1,8 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.analytics.emit
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.mapmory.shared.presentation.components.ScrollToTopEffect
 
@@ -71,6 +74,7 @@ fun TripProfileScreen(
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
     var showSharePreview by rememberSaveable { mutableStateOf(false) }
     var showTimelineVideo by rememberSaveable { mutableStateOf(false) }
     val videoCreationScope = rememberCoroutineScope()
@@ -79,7 +83,10 @@ fun TripProfileScreen(
             StatisticsHeader(
                 onShareClick = { showSharePreview = true },
                 onTimelineVideoClick = if (shareVideoRepository != null) {
-                    { showTimelineVideo = true }
+                    {
+                        analytics.emit(MapmoryAnalyticsEvent.VIDEO_OPENED, mapOf("source" to "statistics"))
+                        showTimelineVideo = true
+                    }
                 } else null,
             )
 
