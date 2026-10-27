@@ -18,6 +18,7 @@ import com.mapmory.backend.support.SecuredTestController;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
+import java.time.Clock;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -103,6 +104,9 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
     protected RecordMediaUrlService recordMediaUrlService;
 
     @Autowired
+    protected Clock clock;
+
+    @Autowired
     private GuestLoginRateLimitProperties guestLoginRateLimitProperties;
 
     @Autowired
@@ -113,7 +117,7 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
 
     @BeforeEach
     void startGuestLoginRateLimitFresh() {
-        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(guestLoginRateLimitProperties);
+        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(guestLoginRateLimitProperties, clock);
         willAnswer(invocation -> limiter.tryAcquire(invocation.getArgument(0)))
                 .given(guestLoginRateLimiter).tryAcquire(anyString());
     }

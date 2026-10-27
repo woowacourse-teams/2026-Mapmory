@@ -5,8 +5,8 @@ import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.BucketExceptions.BucketExecutionException;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
+import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,15 +27,18 @@ class MemberPlaceRateLimiter {
     private final ProxyManager<String> bucketManager;
     private final BucketConfiguration searchLimit;
     private final BucketConfiguration selectionLimit;
+    private final Clock clock;
 
     MemberPlaceRateLimiter(
             ProxyManager<String> bucketManager,
             @Qualifier(PlaceRateLimitConfig.MEMBER_SEARCH_LIMIT) BucketConfiguration searchLimit,
-            @Qualifier(PlaceRateLimitConfig.MEMBER_SELECTION_LIMIT) BucketConfiguration selectionLimit
+            @Qualifier(PlaceRateLimitConfig.MEMBER_SELECTION_LIMIT) BucketConfiguration selectionLimit,
+            Clock clock
     ) {
         this.bucketManager = bucketManager;
         this.searchLimit = searchLimit;
         this.selectionLimit = selectionLimit;
+        this.clock = clock;
     }
 
     public void checkSearch(Long memberId) {
@@ -44,7 +47,7 @@ class MemberPlaceRateLimiter {
 
     public void checkSelection(Long memberId) {
         // 날짜를 키에 넣어 UTC 날짜가 바뀌면 새로 센다.
-        consume(SELECTION + requireMemberId(memberId) + ":" + LocalDate.now(ZoneOffset.UTC), selectionLimit);
+        consume(SELECTION + requireMemberId(memberId) + ":" + LocalDate.now(clock), selectionLimit);
     }
 
     private void consume(String key, BucketConfiguration configuration) {

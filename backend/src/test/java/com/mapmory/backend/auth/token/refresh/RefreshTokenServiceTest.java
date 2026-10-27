@@ -9,8 +9,11 @@ import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +27,8 @@ class RefreshTokenServiceTest {
 
     private static final Duration MEMBER_VALIDITY = Duration.ofDays(14);
     private static final Duration GUEST_VALIDITY = Duration.ofDays(365);
+    private static final Instant NOW = Instant.parse("2026-10-28T03:00:00Z");
+    private static final LocalDateTime NOW_UTC = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
 
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final RefreshTokenService refreshTokenService = new RefreshTokenService(
@@ -36,7 +41,8 @@ class RefreshTokenServiceTest {
                     Duration.ofMinutes(30),
                     MEMBER_VALIDITY,
                     GUEST_VALIDITY
-            )
+            ),
+            Clock.fixed(NOW, ZoneOffset.UTC)
     );
 
     @Test
@@ -45,9 +51,7 @@ class RefreshTokenServiceTest {
 
         refreshTokenService.issue(guest);
 
-        assertThat(savedToken().getExpiresAt())
-                .isAfter(LocalDateTime.now().plus(GUEST_VALIDITY).minusMinutes(1))
-                .isBefore(LocalDateTime.now().plus(GUEST_VALIDITY).plusMinutes(1));
+        assertThat(savedToken().getExpiresAt()).isEqualTo(NOW_UTC.plus(GUEST_VALIDITY));
     }
 
     @Test
@@ -56,9 +60,7 @@ class RefreshTokenServiceTest {
 
         refreshTokenService.issue(member);
 
-        assertThat(savedToken().getExpiresAt())
-                .isAfter(LocalDateTime.now().plus(MEMBER_VALIDITY).minusMinutes(1))
-                .isBefore(LocalDateTime.now().plus(MEMBER_VALIDITY).plusMinutes(1));
+        assertThat(savedToken().getExpiresAt()).isEqualTo(NOW_UTC.plus(MEMBER_VALIDITY));
     }
 
     private RefreshToken savedToken() {

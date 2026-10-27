@@ -1,10 +1,10 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker.StateTransition;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import java.time.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +32,8 @@ class GoogleCircuitBreakerConfig {
     private static final Logger log = LoggerFactory.getLogger(GoogleCircuitBreakerConfig.class);
 
     @Bean
-    CircuitBreaker googlePlacesCircuitBreaker(GoogleCircuitBreakerProperties properties) {
-        return circuitBreaker(properties, Clock.systemUTC());
+    CircuitBreaker googlePlacesCircuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock) {
+        return circuitBreaker(properties, clock);
     }
 
     static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock) {
