@@ -20,6 +20,6 @@ public record PlaceSelectionResponse(
         return new PlaceSelectionResponse(
                 place.id().value(), place.name(), place.address().countryCode(),
                 region == null ? null : RegionDetailResponse.from(region),
-                region == null, place.provider().attribution(), place.provider().attributionUrl());
+                selected.manualRegionRequired(), place.provider().attribution(), place.provider().attributionUrl());
     }
 }

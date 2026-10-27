@@ -38,6 +38,7 @@ class PlaceSelectionServiceTest {
         SelectedPlace result = service.select("ChIJ-gyeong", "session-1");
 
         assertThat(result.suggestedRegion()).isEqualTo(district);
+        assertThat(result.manualRegionRequired()).isFalse();
     }
 
     @Test
@@ -48,6 +49,7 @@ class PlaceSelectionServiceTest {
         SelectedPlace result = service.select("ChIJ-island", null);
 
         assertThat(result.suggestedRegion()).isNull();
+        assertThat(result.manualRegionRequired()).isTrue();
     }
 
     private static PlaceDetails place(RegionAddress address) {

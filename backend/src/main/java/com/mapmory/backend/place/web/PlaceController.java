@@ -3,6 +3,7 @@ package com.mapmory.backend.place.web;
 import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
+import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import jakarta.validation.constraints.NotBlank;
@@ -35,7 +36,7 @@ public class PlaceController {
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PlaceCandidateResponse>>> search(
-            @RequestParam @NotBlank @Size(max = 100) String query,
+            @RequestParam @NotBlank @Size(max = SearchQuery.MAX_LENGTH) String query,
             @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
         return ResponseEntity.ok(ApiResponse.from(

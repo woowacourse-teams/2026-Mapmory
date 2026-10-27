@@ -6,6 +6,7 @@ import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -79,10 +80,10 @@ public class GooglePlacesClient implements PlaceLookupPort {
     }
 
     @Override
-    public List<PlaceCandidate> search(String query, String sessionToken) {
+    public List<PlaceCandidate> search(SearchQuery query, String sessionToken) {
         requireConfigured();
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("input", query);
+        body.put("input", query.value());
         body.put("languageCode", LANGUAGE);
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);

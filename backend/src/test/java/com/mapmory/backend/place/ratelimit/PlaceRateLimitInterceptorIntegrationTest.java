@@ -37,7 +37,7 @@ class PlaceRateLimitInterceptorIntegrationTest extends IntegrationTest {
 
     @Test
     void 회원별_검색_한도를_넘으면_Google을_부르지_않고_거절한다() throws Exception {
-        willReturn(List.of()).given(googlePlacesClient).search(anyString(), anyString());
+        willReturn(List.of()).given(googlePlacesClient).search(any(), anyString());
         String accessToken = guestAccessToken();
         int limit = properties.searchesPerMemberPerMinute();
 
@@ -48,14 +48,14 @@ class PlaceRateLimitInterceptorIntegrationTest extends IntegrationTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("PLACE_RATE_LIMITED"));
 
-        verify(googlePlacesClient, times(limit)).search(anyString(), anyString());
+        verify(googlePlacesClient, times(limit)).search(any(), anyString());
         // 다른 회원은 따로 센다.
         search(guestAccessToken()).andExpect(status().isOk());
     }
 
     @Test
     void 선택_한도는_검색_한도와_따로_센다() throws Exception {
-        willReturn(List.of()).given(googlePlacesClient).search(anyString(), anyString());
+        willReturn(List.of()).given(googlePlacesClient).search(any(), anyString());
         willReturn(new PlaceDetails(PlaceId.from("ChIJ-tokyo"), null, RegionAddress.UNKNOWN,
                 new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps")))
                 .given(googlePlacesClient).findDetails(any(), any());
