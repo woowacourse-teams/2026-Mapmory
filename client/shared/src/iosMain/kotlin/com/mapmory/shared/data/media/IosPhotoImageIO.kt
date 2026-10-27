@@ -12,6 +12,7 @@ import platform.CoreGraphics.CGImageRelease
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
+import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.Foundation.getBytes
 import platform.ImageIO.*
@@ -44,14 +45,17 @@ internal fun <T> NSData.withPhotoImageSource(block: (CGImageSourceRef) -> T): T?
     }
 }
 
-internal fun NSData.photoProperties(): Map<*, *>? = withPhotoImageSource { source ->
-    CGImageSourceCopyPropertiesAtIndex(source, CGImageSourceGetPrimaryImageIndex(source), null)
+internal fun NSData.photoProperties(): Map<*, *>? = withPhotoImageSource { it.photoProperties() }
+
+private fun CGImageSourceRef.photoProperties(): Map<*, *>? =
+    CGImageSourceCopyPropertiesAtIndex(this, CGImageSourceGetPrimaryImageIndex(this), null)
         ?.let { CFBridgingRelease(it) as? Map<*, *> }
-}
 
 /** Dimensions after applying the EXIF orientation, as used by the display JPEG. */
-internal fun NSData.photoDimensions(): Pair<Int, Int>? {
-    val properties = photoProperties() ?: return null
+internal fun NSData.photoDimensions(): Pair<Int, Int>? = photoProperties()?.photoDimensions()
+
+private fun Map<*, *>.photoDimensions(): Pair<Int, Int>? {
+    val properties = this
     val width = (properties[imageIoKey(kCGImagePropertyPixelWidth)] as? Number)?.toInt() ?: return null
     val height = (properties[imageIoKey(kCGImagePropertyPixelHeight)] as? Number)?.toInt() ?: return null
     if (width <= 0 || height <= 0) return null
@@ -60,27 +64,44 @@ internal fun NSData.photoDimensions(): Pair<Int, Int>? {
 }
 
 /** Generate an oriented JPEG without relying on an embedded thumbnail. Null size preserves pixels. */
-internal fun NSData.photoDisplayJpeg(maxDimension: Int? = null): ByteArray? {
-    val dimension = maxDimension ?: photoDimensions()?.let { maxOf(it.first, it.second) } ?: return null
+internal fun NSData.photoDisplayJpeg(maxDimension: Int? = null): ByteArray? =
+    withPhotoImageSource { it.photoDisplayJpeg(maxDimension) }
+
+/** Decode the preview directly from disk, without loading original bytes into Kotlin memory. */
+internal fun iosPhotoFileDisplayJpeg(path: String, maxDimension: Int): ByteArray? {
+    val retainedUrl = CFBridgingRetain(NSURL.fileURLWithPath(path)) ?: return null
+    val source = try {
+        CGImageSourceCreateWithURL(retainedUrl.reinterpret(), null)
+    } finally {
+        CFRelease(retainedUrl)
+    } ?: return null
+    return try {
+        source.photoDisplayJpeg(maxDimension)
+    } finally {
+        CFRelease(source.reinterpret())
+    }
+}
+
+private fun CGImageSourceRef.photoDisplayJpeg(maxDimension: Int?): ByteArray? {
+    val dimension = maxDimension ?: photoProperties()?.photoDimensions()?.let { maxOf(it.first, it.second) }
+        ?: return null
     if (dimension <= 0) return null
-    return withPhotoImageSource { source ->
-        val options = mapOf(
-            imageIoKey(kCGImageSourceCreateThumbnailFromImageAlways) to true,
-            imageIoKey(kCGImageSourceCreateThumbnailWithTransform) to true,
-            imageIoKey(kCGImageSourceThumbnailMaxPixelSize) to dimension,
+    val options = mapOf(
+        imageIoKey(kCGImageSourceCreateThumbnailFromImageAlways) to true,
+        imageIoKey(kCGImageSourceCreateThumbnailWithTransform) to true,
+        imageIoKey(kCGImageSourceThumbnailMaxPixelSize) to dimension,
+    )
+    val retainedOptions = CFBridgingRetain(options) ?: return null
+    val thumbnail = try {
+        CGImageSourceCreateThumbnailAtIndex(
+            this, CGImageSourceGetPrimaryImageIndex(this), retainedOptions.reinterpret(),
         )
-        val retainedOptions = CFBridgingRetain(options) ?: return@withPhotoImageSource null
-        val thumbnail = try {
-            CGImageSourceCreateThumbnailAtIndex(
-                source, CGImageSourceGetPrimaryImageIndex(source), retainedOptions.reinterpret(),
-            )
-        } finally {
-            CFRelease(retainedOptions)
-        } ?: return@withPhotoImageSource null
-        try {
-            UIImageJPEGRepresentation(UIImage.imageWithCGImage(thumbnail), 0.85)?.photoBytes()
-        } finally {
-            CGImageRelease(thumbnail)
-        }
+    } finally {
+        CFRelease(retainedOptions)
+    } ?: return null
+    return try {
+        UIImageJPEGRepresentation(UIImage.imageWithCGImage(thumbnail), 0.85)?.photoBytes()
+    } finally {
+        CGImageRelease(thumbnail)
     }
 }

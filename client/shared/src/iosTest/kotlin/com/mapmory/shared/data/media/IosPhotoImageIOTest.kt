@@ -46,6 +46,13 @@ class IosPhotoImageIOTest {
     }
 
     @Test
+    fun missingCaptureDateDoesNotPreventPhotoPreview() {
+        val withoutExif = assertNotNull(IosPhotoFixtures.jpeg.iosPhotoData().photoDisplayJpeg(640)).iosPhotoData()
+        assertNull(withoutExif.originalPhotoDate())
+        assertNotNull(withoutExif.photoDisplayJpeg(640))
+    }
+
+    @Test
     fun invalidAndEmptyPhotosDoNotProducePreviewOrDate() {
         for (bytes in listOf(byteArrayOf(), byteArrayOf(1, 2, 3))) {
             val data = bytes.iosPhotoData()

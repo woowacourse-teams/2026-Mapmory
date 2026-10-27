@@ -15,7 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.mapmory.shared.data.media.originalPhotoDate
 import com.mapmory.shared.data.media.photoDisplayJpeg
-import com.mapmory.shared.data.media.iosPhotoData
+import com.mapmory.shared.data.media.loadIosAssetPhotoPreview
 import com.mapmory.shared.data.media.IosLocalPhotoDataSource
 import com.mapmory.shared.data.media.LocalPhotoDataSource
 import platform.Foundation.NSError
@@ -580,7 +580,7 @@ internal class IosPhotoLibraryController(
     private fun photoFailure(stage: String, error: NSError? = null) {
         val parameters = mapOf("stage" to stage, "error_domain" to (error?.domain ?: "mapmory"),
             "error_code" to (error?.code?.toString() ?: "missing_result"))
-        NSLog("Mapmory photo_load_failed: %s", parameters.toString())
+        println("Mapmory photo_load_failed: $parameters")
         onMain { analytics.logEvent("photo_load_failed", parameters) }
     }
 
@@ -697,8 +697,7 @@ internal class IosPhotoLibraryController(
 
     private suspend fun loadAssetOriginalPreview(asset: PHAsset): ByteArray? = try {
         withContext(Dispatchers.Default) {
-            localPhotoDataSource.read(asset.localIdentifier)
-                ?.iosPhotoData()?.photoDisplayJpeg(RecommendationPreviewSizePx)
+            loadIosAssetPhotoPreview(asset, RecommendationPreviewSizePx)
         }.also { if (it == null) photoFailure("asset_original_preview") }
     } catch (error: CancellationException) {
         throw error
