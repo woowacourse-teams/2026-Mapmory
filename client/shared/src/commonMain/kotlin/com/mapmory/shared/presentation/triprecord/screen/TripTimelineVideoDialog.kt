@@ -1,6 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.videoAction
 import androidx.compose.foundation.background
@@ -54,6 +55,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
+internal fun shouldExpandTripTimelineVideoDialog(
+    hasPreview: Boolean,
+    status: ShareVideoStatus?,
+): Boolean = hasPreview || status == ShareVideoStatus.COMPLETED
+
 @Composable
 internal fun TripTimelineVideoDialog(
     repository: ShareVideoRepository,
@@ -76,6 +82,11 @@ internal fun TripTimelineVideoDialog(
     var videoJobId by remember { mutableStateOf<Long?>(null) }
     val startedAtEpochMillis = jobState.startedAtEpochMillis
     val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
+    val expanded = shouldExpandTripTimelineVideoDialog(video != null, status)
+    val dialogHeightFraction by animateFloatAsState(
+        targetValue = if (expanded) 0.96f else 0.56f,
+        label = "trip timeline video dialog height",
+    )
     var nowEpochMillis by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
 
     LaunchedEffect(startedAtEpochMillis, activeJob) {
@@ -133,6 +144,9 @@ internal fun TripTimelineVideoDialog(
         if (busy || creationInProgress || activeJob) return
         jobStore.clear()
         notifier.clearProgress(completedJobId)
+        video = null
+        videoJobId = null
+        previewAttemptedJobId = null
         message = null
         createVideo()
     }
@@ -231,7 +245,7 @@ internal fun TripTimelineVideoDialog(
         ),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.96f)
+            modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(dialogHeightFraction)
                 .background(TripRecordPalette.current.surface, RoundedCornerShape(28.dp))
                 .padding(horizontal = 16.dp, vertical = 18.dp),
         ) {
@@ -293,7 +307,7 @@ internal fun TripTimelineVideoDialog(
                 }
                 if (status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING) {
                     Text(
-                        "화면을 닫아도 서버 생성은 계속돼요. 알림을 허용하면 알림 센터에 진행 중 상태가 남아요. 앱이 백그라운드에 있으면 완료 여부는 다시 열었을 때 확인돼요.",
+                        "화면을 닫아도 서버 생성은 계속돼요.\n알림을 허용하면 알림 센터에 진행 중 상태가 남아요.\n앱이 백그라운드에 있으면 완료 여부는 다시 열었을 때 확인돼요.",
                         color = TripRecordPalette.current.secondaryText,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp),
