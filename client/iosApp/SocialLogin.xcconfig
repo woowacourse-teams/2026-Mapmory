@@ -5,10 +5,9 @@ MAPMORY_KAKAO_NATIVE_APP_KEY = a5125976d5b1e29e6319da61940dbfd7
 // Backend audience: the existing Web OAuth client, NOT an Android/iOS client.
 MAPMORY_GOOGLE_WEB_CLIENT_ID = 601411744421-fdic8ohcmsifv36dbpmk2shf0up1hplj.apps.googleusercontent.com
 
-// Google Cloud must first issue an iOS OAuth client for com.mapmory.ios.
+// iOS OAuth client for com.mapmory.ios (Debug and Release).
 // Paste only the part BEFORE .apps.googleusercontent.com here.
-// Keeping it empty intentionally blocks login until a real client is registered.
-MAPMORY_GOOGLE_IOS_CLIENT_ID_PREFIX =
+MAPMORY_GOOGLE_IOS_CLIENT_ID_PREFIX = 601411744421-eps3fftej7393f7ss42feqhb3iucth0j
 MAPMORY_GOOGLE_IOS_CLIENT_ID = $(MAPMORY_GOOGLE_IOS_CLIENT_ID_PREFIX).apps.googleusercontent.com
 MAPMORY_GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.$(MAPMORY_GOOGLE_IOS_CLIENT_ID_PREFIX)
 

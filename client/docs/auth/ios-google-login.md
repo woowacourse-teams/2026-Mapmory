@@ -46,6 +46,8 @@ swiftc iosApp/IosSocialLoginLauncher.swift iosApp/tests/GoogleLoginConfiguration
 /tmp/mapmory-google-config-tests
 ```
 
-Xcode 빌드 성공과 실제 Google 로그인 성공은 별개다. 아직 실제 iOS OAuth 클라이언트가 없으므로 실계정 성공은 미검증이다. 등록 후 iPhone에서 Google 인증창 → 서버 교환 → 재시작 유지 → 로그아웃 → 재로그인 복원을 확인한다. Internal과 TestFlight는 각각 해당 번들·서버 설정으로 확인한다.
+이후 사용자가 생성한 iOS Client ID `601411744421-eps3fftej7393f7ss42feqhb3iucth0j.apps.googleusercontent.com`을 Debug/Release 설정에 반영했다. callback scheme은 `com.googleusercontent.apps.601411744421-eps3fftej7393f7ss42feqhb3iucth0j`이다. Internal용 클라이언트는 아직 미설정이다.
+
+Xcode 빌드 성공과 실제 Google 로그인 성공은 별개다. iPhone에서 Google 인증창 → 서버 교환 → 재시작 유지 → 로그아웃 → 재로그인 복원을 확인해야 한다. Internal과 TestFlight는 각각 해당 번들·서버 설정으로 확인한다.
 
 공식 문서: [iOS 설정](https://developers.google.com/identity/sign-in/ios/start-integrating), [백엔드 인증](https://developers.google.com/identity/sign-in/ios/backend-auth).
