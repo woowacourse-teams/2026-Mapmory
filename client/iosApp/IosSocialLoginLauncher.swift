@@ -1,4 +1,9 @@
+import Foundation
+
+// The provider launcher is iOS-only; its configuration validation is also tested on macOS.
+#if canImport(UIKit)
 import UIKit
+import OSLog
 import AuthenticationServices
 import CryptoKit
 import GoogleSignIn
@@ -25,16 +30,23 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
         anchor = window
         completion = onResult
         if provider == .google {
-            guard let clientID = configured("MAPMORY_GOOGLE_IOS_CLIENT_ID"),
-                  let serverID = configured("MAPMORY_GOOGLE_WEB_CLIENT_ID") else {
-                finish(SocialLoginFailure(message: "Google 로그인 설정을 준비 중이에요.")); return
+            let configuration: GoogleLoginConfiguration
+            do {
+                configuration = try GoogleLoginConfiguration(info: Bundle.main.infoDictionary ?? [:])
+            } catch {
+                // Only a fixed failure category is logged. Never log credentials or SDK userInfo.
+                let reason = (error as? GoogleLoginConfiguration.Failure)?.rawValue ?? "configuration_invalid"
+                Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.mapmory.ios", category: "SocialLogin")
+                    .error("Google sign-in configuration: \(reason, privacy: .public)")
+                finish(SocialLoginFailure(message: "이 앱 버전의 Google 로그인 설정이 완료되지 않았어요.")); return
             }
-            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID, serverClientID: serverID)
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: configuration.clientID, serverClientID: configuration.serverClientID)
             GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { [weak self] result, error in
                 guard let self else { return }
-                if (error as NSError?)?.code == GIDSignInError.canceled.rawValue {
+                if let error = error as NSError?, error.domain == kGIDSignInErrorDomain,
+                   error.code == GIDSignInError.canceled.rawValue {
                     finish(SocialLoginCancelled.shared)
-                } else if let token = result?.user.idToken?.tokenString {
+                } else if error == nil, let token = result?.user.idToken?.tokenString, !token.isEmpty {
                     finish(SocialLoginSuccess(credential: SocialCredential(provider: .google, idToken: token,
                         accessToken: nil, authorizationCode: result?.serverAuthCode, displayName: result?.user.profile?.name, rawNonce: nil)))
                 } else { finish(SocialLoginFailure(message: "Google 인증에 실패했어요.")) }
@@ -101,5 +113,44 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
     static func handle(_ url: URL) -> Bool {
         if AuthApi.isKakaoTalkLoginUrl(url) { return AuthController.handleOpenUrl(url: url) }
         return GIDSignIn.sharedInstance.handle(url)
+    }
+}
+#endif
+
+/// Reject incomplete configuration before GoogleSignIn raises an Objective-C URL-scheme exception.
+struct GoogleLoginConfiguration {
+    enum Failure: String, Error {
+        case invalidIOSClient = "ios_client_missing_or_invalid"
+        case invalidServerClient = "web_client_missing_or_invalid"
+        case sameClient = "ios_and_web_clients_identical"
+        case missingCallbackScheme = "google_callback_scheme_missing"
+    }
+
+    let clientID: String
+    let serverClientID: String
+
+    init(info: [String: Any]) throws {
+        guard let clientID = Self.clientID(info["MAPMORY_GOOGLE_IOS_CLIENT_ID"]) else {
+            throw Failure.invalidIOSClient
+        }
+        guard let serverClientID = Self.clientID(info["MAPMORY_GOOGLE_WEB_CLIENT_ID"]) else {
+            throw Failure.invalidServerClient
+        }
+        guard clientID != serverClientID else { throw Failure.sameClient }
+        let callbackScheme = clientID.split(separator: ".").reversed().joined(separator: ".")
+        let urlTypes = info["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        let schemes = urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        guard schemes.contains(where: { $0.caseInsensitiveCompare(callbackScheme) == .orderedSame }) else {
+            throw Failure.missingCallbackScheme
+        }
+        self.clientID = clientID
+        self.serverClientID = serverClientID
+    }
+
+    private static func clientID(_ value: Any?) -> String? {
+        guard let value = value as? String,
+              value.range(of: #"^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$"#,
+                          options: .regularExpression) != nil else { return nil }
+        return value
     }
 }
