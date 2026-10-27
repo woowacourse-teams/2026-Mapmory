@@ -1,8 +1,5 @@
-package com.mapmory.backend.place.application;
+package com.mapmory.backend.region;
 
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionType;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +13,7 @@ import org.springframework.stereotype.Component;
  * 일반구가 있는 시는 시 단위로 저장하므로(V18) "성남시 분당구"는 "성남시"로 맞춘다.
  */
 @Component
-public class KoreanAddressRegionMatcher {
+class KoreanAddressRegionMatcher {
 
     private static final Map<String, String> PROVINCE_SHORT_NAMES = Map.of(
             "충청북", "충북", "충청남", "충남", "전라북", "전북",

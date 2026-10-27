@@ -1,11 +1,8 @@
-package com.mapmory.backend.place.application;
+package com.mapmory.backend.region;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionType;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -18,13 +18,13 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
+import com.mapmory.backend.region.RegionSuggester;
 import com.mapmory.backend.region.RegionType;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
@@ -83,7 +83,7 @@ class TravelRecordServiceTest {
     @Mock
     private PlaceLookupPort placeLookupPort;
     @Mock
-    private PlaceSelectionService placeSelectionService;
+    private RegionSuggester regionSuggester;
     @Mock
     private ApplicationEventPublisher eventPublisher;
     @Spy
@@ -121,7 +121,7 @@ class TravelRecordServiceTest {
                 FIXED_CLOCK,
                 uploadedObjectVerifier,
                 placeLookupPort,
-                placeSelectionService,
+                regionSuggester,
                 mock(PlatformTransactionManager.class),
                 eventPublisher,
                 travelRecordListCache
@@ -180,7 +180,7 @@ class TravelRecordServiceTest {
                 "Google Maps", "https://www.google.com/maps", List.of("서울특별시", "영등포구"));
         when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
         when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
-        when(placeSelectionService.suggestedRegion(place)).thenReturn(district);
+        when(regionSuggester.suggest("KR", List.of("서울특별시", "영등포구"))).thenReturn(Optional.of(district));
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 

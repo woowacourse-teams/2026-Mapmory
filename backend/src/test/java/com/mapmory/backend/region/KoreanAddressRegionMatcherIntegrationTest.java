@@ -1,9 +1,8 @@
-package com.mapmory.backend.place.application;
+package com.mapmory.backend.region;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.dto.RegionDetailResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
