@@ -1,8 +1,5 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
-import com.mapmory.shared.analytics.LocalMapmoryAnalytics
-import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
-import com.mapmory.shared.analytics.emit
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.mapmory.shared.presentation.components.ScrollToTopEffect
 
@@ -26,8 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
@@ -36,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,9 +46,6 @@ import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
-import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
-import com.mapmory.shared.data.settings.ShareVideoJobStore
-import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewStatistics
 import kotlin.math.abs
@@ -69,25 +60,13 @@ fun TripProfileScreen(
     onOpenAchievements: () -> Unit = {},
     onRetryClick: () -> Unit = {},
     showTravelAchievements: Boolean = false,
-    shareVideoRepository: ShareVideoRepository? = null,
-    shareVideoJobStore: ShareVideoJobStore? = null,
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
-    val analytics = LocalMapmoryAnalytics.current
-    var showSharePreview by rememberSaveable { mutableStateOf(false) }
-    var showTimelineVideo by rememberSaveable { mutableStateOf(false) }
-    val videoCreationScope = rememberCoroutineScope()
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
             StatisticsHeader(
-                onShareClick = { showSharePreview = true },
-                onTimelineVideoClick = if (shareVideoRepository != null) {
-                    {
-                        analytics.emit(MapmoryAnalyticsEvent.VIDEO_OPENED, mapOf("source" to "statistics"))
-                        showTimelineVideo = true
-                    }
-                } else null,
+                statistics = (statisticsUiState as? TripStatisticsUiState.Success)?.statistics,
             )
 
             when (statisticsUiState) {
@@ -132,28 +111,13 @@ fun TripProfileScreen(
             )
         }
     }
-    val statistics = (statisticsUiState as? TripStatisticsUiState.Success)?.statistics
-    if (showSharePreview && statistics != null) {
-        TripArchiveSharePreviewDialog(
-            statistics = statistics,
-            onDismiss = { showSharePreview = false },
-        )
-    }
-    if (showTimelineVideo && shareVideoRepository != null) {
-        TripTimelineVideoDialog(
-            repository = shareVideoRepository,
-            jobStore = shareVideoJobStore ?: remember { MemoryShareVideoJobStore() },
-            creationScope = videoCreationScope,
-            onDismiss = { showTimelineVideo = false },
-        )
-    }
 }
 
 @Composable
 private fun StatisticsHeader(
-    onShareClick: () -> Unit,
-    onTimelineVideoClick: (() -> Unit)?,
+    statistics: TripStatisticsUiModel?,
 ) {
+    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
@@ -175,26 +139,16 @@ private fun StatisticsHeader(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (onTimelineVideoClick != null) {
-                Button(
-                    onClick = onTimelineVideoClick,
-                    modifier = Modifier.height(48.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = TripRecordPalette.current.primarySoft,
-                        contentColor = TripRecordPalette.current.primary,
-                    ),
-                ) {
-                    Text("영상 만들기", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
-            TripSharePreviewButton(
-                contentDescription = "나의 여행 공유 미리보기",
-                onClick = onShareClick,
-            )
-        }
+        TripSharePreviewButton(
+            contentDescription = "나의 여행 공유 미리보기",
+            onClick = { showSharePreview = true },
+        )
+    }
+    if (showSharePreview && statistics != null) {
+        TripArchiveSharePreviewDialog(
+            statistics = statistics,
+            onDismiss = { showSharePreview = false },
+        )
     }
 }
 

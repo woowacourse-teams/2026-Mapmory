@@ -71,6 +71,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
@@ -319,6 +320,9 @@ private fun TripRecordPhotoAlbum(
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
     var isPinching by remember { mutableStateOf(false) }
+    val representativePhoto = remember(record.photos) {
+        record.photos.minByOrNull(TripRecordPhotoUiState::sortOrder)
+    }
     val photoRows = remember(groups, columnCount) {
         groups.map { group -> group.photos.chunked(columnCount) }
     }
@@ -339,7 +343,7 @@ private fun TripRecordPhotoAlbum(
                 .weight(1f),
         ) {
             val photoSize = animateDpAsState(
-                targetValue = ((maxWidth - 56.dp - 8.dp * (columnCount - 1)) / columnCount)
+                targetValue = ((maxWidth - 56.dp - 1.dp * (columnCount - 1)) / columnCount)
                     .coerceAtLeast(1.dp),
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                 label = "albumPhotoSize",
@@ -354,11 +358,58 @@ private fun TripRecordPhotoAlbum(
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item(key = "editorial-heading", contentType = "heading") {
-                    AlbumHeading(
-                        locationName = record.locationName,
-                        modifier = Modifier.padding(horizontal = 20.dp).padding(top = 24.dp),
-                    )
+                if (representativePhoto != null) {
+                    item(key = "editorial-hero", contentType = "hero") {
+                        val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
+                        Box(Modifier.fillMaxWidth().height(heroHeight)) {
+                            MapmoryAsyncImage(
+                                imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
+                                    ?: representativePhoto.originalBytes?.bytesForDecoding(),
+                                imageUri = representativePhoto.previewUri ?: representativePhoto.localOriginalUri
+                                    ?: representativePhoto.fullResolutionUri,
+                                cacheKey = "trip-preview:${representativePhoto.id}",
+                                fallbackUri = representativePhoto.fullResolutionUri,
+                                fallbackBytes = representativePhoto.originalBytes?.bytesForDecoding(),
+                                contentDescription = "${record.locationName} 대표 사진 확대",
+                                modifier = Modifier.fillMaxSize(),
+                                shape = RoundedCornerShape(0.dp),
+                            )
+                            Box(
+                                Modifier.fillMaxSize().background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
+                                    ),
+                                ),
+                            )
+                            Column(
+                                Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    "${record.locationName} · ${recordDateRange(record)}",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    record.title,
+                                    color = Color.White,
+                                    fontSize = 25.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    item(key = "editorial-heading", contentType = "heading") {
+                        AlbumHeading(
+                            locationName = record.locationName,
+                            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 24.dp),
+                        )
+                    }
                 }
                 if (record.content.isNotBlank()) {
                     item(key = "editorial-note", contentType = "note") {
@@ -690,7 +741,7 @@ private fun TripRecordPhotoTimeline(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(
                                         androidx.compose.foundation.rememberScrollState(),
                                     ),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp),
                                 ) {
                                     group.photos.forEach { photo ->
                                         MapmoryAsyncImage(
@@ -703,10 +754,10 @@ private fun TripRecordPhotoTimeline(
                                             fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                                             contentDescription = "${group.displayDate} 여행 사진 확대",
                                             sharedImageKey = photo.id,
-                                            sharedCornerRadius = 10.dp,
+                                            sharedCornerRadius = 0.dp,
                                             onClick = { onPhotoClick(photo) },
                                             modifier = Modifier.size(width = 64.dp, height = 64.dp),
-                                            shape = RoundedCornerShape(10.dp),
+                                            shape = RectangleShape,
                                         )
                                     }
                                 }
@@ -774,7 +825,7 @@ private fun AlbumPhotoRow(
 ) {
     Row(
         modifier = modifier.fillMaxWidth().clipToBounds(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
     ) {
         photos.forEach { photo ->
             MapmoryAsyncImage(
@@ -786,7 +837,7 @@ private fun AlbumPhotoRow(
                 fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                 contentDescription = "$displayDate 여행 사진 확대",
                 sharedImageKey = photo.id,
-                sharedCornerRadius = 14.dp,
+                sharedCornerRadius = 0.dp,
                 onClick = { onPhotoClick(photo) },
                 modifier = Modifier
                     .layout { measurable, _ ->
@@ -797,7 +848,7 @@ private fun AlbumPhotoRow(
                     .semantics {
                         contentDescription = "$displayDate 여행 사진 확대"
                     },
-                shape = RoundedCornerShape(14.dp),
+                shape = RectangleShape,
             )
         }
         repeat(columnCount - photos.size) {

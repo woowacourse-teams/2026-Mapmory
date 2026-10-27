@@ -31,6 +31,7 @@ import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 
 @Composable
 internal fun MapmoryNavHost(
@@ -41,8 +42,8 @@ internal fun MapmoryNavHost(
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     showTimelineLayoutSwitcher: Boolean,
-    isTimelineJournal: Boolean,
-    onTimelineLayoutChange: (Boolean) -> Unit,
+    journalLayout: TripRecordListLayout,
+    onJournalLayoutChange: (TripRecordListLayout) -> Unit,
     isTravelAchievementsEnabled: Boolean,
     onTravelAchievementsEnabledChange: (Boolean) -> Unit,
     isMascotPreviewEnabled: Boolean,
@@ -117,9 +118,13 @@ internal fun MapmoryNavHost(
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
-                isTimelineLayout = isTimelineJournal,
+                shareVideoRepository = container.shareVideoRepository,
+                shareVideoJobStore = container.shareVideoJobStore,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+                layout = journalLayout,
                 showLayoutSwitcher = showTimelineLayoutSwitcher,
-                onTimelineLayoutChange = onTimelineLayoutChange,
+                onLayoutChange = onJournalLayoutChange,
             )
         }
 
@@ -172,8 +177,6 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 tripRecordRevision = tripRecordRevision,
-                shareVideoRepository = container.shareVideoRepository,
-                shareVideoJobStore = container.shareVideoJobStore,
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
@@ -270,7 +273,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
-                isTimelineLayout = isTimelineJournal,
+                isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
         }
         }
