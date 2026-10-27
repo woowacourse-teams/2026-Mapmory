@@ -127,7 +127,6 @@ fun TripRecordDetailScreen(
 ) {
     val analytics = LocalMapmoryAnalytics.current
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     var showDetailActions by rememberSaveable { mutableStateOf(false) }
     var expandedPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var forwardPhotoIndex by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -229,7 +228,6 @@ fun TripRecordDetailScreen(
                                 selectedYear = selectedTimelineYear,
                                 onSelectedYearChange = { selectedTimelineYear = it },
                                 onBackClick = onBackClick,
-                                onShareClick = { showSharePreview = true },
                                 onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
@@ -241,7 +239,6 @@ fun TripRecordDetailScreen(
                                 columnCount = photoColumns,
                                 onColumnCountChange = { photoColumns = it },
                                 onBackClick = onBackClick,
-                                onShareClick = { showSharePreview = true },
                                 onActionMenuOpen = { showDetailActions = true },
                                 onPhotoClick = openPhoto,
                             )
@@ -250,14 +247,6 @@ fun TripRecordDetailScreen(
                 }
             }
         }
-    }
-
-    val shareRecord = (uiState as? TripRecordDetailUiState.Success)?.record
-    if (showSharePreview && shareRecord != null) {
-        TripRecordSharePreviewDialog(
-            record = shareRecord,
-            onDismiss = { showSharePreview = false },
-        )
     }
 
     if (showDetailActions) {
@@ -308,11 +297,22 @@ fun TripRecordDetailScreen(
 }
 
 @Composable
+private fun RecordSharePreviewAction(record: TripRecordItemUiState) {
+    var showPreview by rememberSaveable(record.id) { mutableStateOf(false) }
+    TripSharePreviewButton(
+        contentDescription = "여행 기록 공유 미리보기",
+        onClick = { showPreview = true },
+    )
+    if (showPreview) {
+        TripRecordSharePreviewDialog(record = record, onDismiss = { showPreview = false })
+    }
+}
+
+@Composable
 private fun TripRecordPhotoAlbum(
     record: TripRecordItemUiState,
     groups: List<TripRecordPhotoGroup>,
     onBackClick: () -> Unit,
-    onShareClick: () -> Unit,
     onActionMenuOpen: () -> Unit,
     scrollState: LazyListState,
     columnCount: Int,
@@ -320,13 +320,11 @@ private fun TripRecordPhotoAlbum(
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
     var isPinching by remember { mutableStateOf(false) }
-    val heroPhoto = remember(record.photos) { record.photos.minByOrNull { it.sortOrder } }
-    val galleryGroups = remember(groups, heroPhoto) {
-        groups.map { group -> group.copy(photos = group.photos.filterNot { it.id == heroPhoto?.id }) }
-            .filter { it.photos.isNotEmpty() }
+    val representativePhoto = remember(record.photos) {
+        record.photos.minByOrNull(TripRecordPhotoUiState::sortOrder)
     }
-    val photoRows = remember(galleryGroups, columnCount) {
-        galleryGroups.map { group -> group.photos.chunked(columnCount) }
+    val photoRows = remember(groups, columnCount) {
+        groups.map { group -> group.photos.chunked(columnCount) }
     }
     Column(Modifier.fillMaxSize()) {
         TripRecordTopBar(
@@ -334,10 +332,7 @@ private fun TripRecordPhotoAlbum(
             onBackClick = onBackClick,
             trailing = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TripSharePreviewButton(
-                        contentDescription = "여행 기록 공유 미리보기",
-                        onClick = onShareClick,
-                    )
+                    RecordSharePreviewAction(record)
                     DetailMoreButton(onClick = onActionMenuOpen)
                 }
             },
@@ -348,7 +343,7 @@ private fun TripRecordPhotoAlbum(
                 .weight(1f),
         ) {
             val photoSize = animateDpAsState(
-                targetValue = ((maxWidth - 56.dp - 8.dp * (columnCount - 1)) / columnCount)
+                targetValue = ((maxWidth - 56.dp - 1.dp * (columnCount - 1)) / columnCount)
                     .coerceAtLeast(1.dp),
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                 label = "albumPhotoSize",
@@ -363,22 +358,19 @@ private fun TripRecordPhotoAlbum(
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                if (heroPhoto != null) {
+                if (representativePhoto != null) {
                     item(key = "editorial-hero", contentType = "hero") {
                         val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
                         Box(Modifier.fillMaxWidth().height(heroHeight)) {
                             MapmoryAsyncImage(
-                                imageBytes = heroPhoto.previewBytes?.bytesForDecoding()
-                                    ?: heroPhoto.originalBytes?.bytesForDecoding(),
-                                imageUri = heroPhoto.previewUri ?: heroPhoto.localOriginalUri
-                                    ?: heroPhoto.fullResolutionUri,
-                                cacheKey = "trip-preview:${heroPhoto.id}",
-                                fallbackUri = heroPhoto.fullResolutionUri,
-                                fallbackBytes = heroPhoto.originalBytes?.bytesForDecoding(),
+                                imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
+                                    ?: representativePhoto.originalBytes?.bytesForDecoding(),
+                                imageUri = representativePhoto.previewUri ?: representativePhoto.localOriginalUri
+                                    ?: representativePhoto.fullResolutionUri,
+                                cacheKey = "trip-preview:${representativePhoto.id}",
+                                fallbackUri = representativePhoto.fullResolutionUri,
+                                fallbackBytes = representativePhoto.originalBytes?.bytesForDecoding(),
                                 contentDescription = "${record.locationName} 대표 사진 확대",
-                                sharedImageKey = heroPhoto.id,
-                                sharedCornerRadius = 0.dp,
-                                onClick = { onPhotoClick(heroPhoto) },
                                 modifier = Modifier.fillMaxSize(),
                                 shape = RoundedCornerShape(0.dp),
                             )
@@ -413,7 +405,10 @@ private fun TripRecordPhotoAlbum(
                     }
                 } else {
                     item(key = "editorial-heading", contentType = "heading") {
-                        AlbumHeading(record.locationName)
+                        AlbumHeading(
+                            locationName = record.locationName,
+                            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 24.dp),
+                        )
                     }
                 }
                 if (record.content.isNotBlank()) {
@@ -461,17 +456,8 @@ private fun TripRecordPhotoAlbum(
                 }
                 if (record.photos.isEmpty()) {
                     item(key = "empty") { EmptyPhotoAlbum() }
-                } else if (galleryGroups.isEmpty()) {
-                    item(key = "single-hero-caption") {
-                        Text(
-                            "대표 사진을 눌러 전체 화면으로 볼 수 있어요.",
-                            color = TripRecordPalette.current.secondaryText,
-                            fontSize = 12.sp,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        )
-                    }
                 } else {
-                    galleryGroups.forEachIndexed { index, group ->
+                    groups.forEachIndexed { index, group ->
                         item(key = "date:${group.displayDate}", contentType = "date") {
                             Text(
                                 text = group.displayDate,
@@ -498,10 +484,10 @@ private fun TripRecordPhotoAlbum(
                     }
                 }
             }
-            if (galleryGroups.isNotEmpty()) {
+            if (groups.isNotEmpty()) {
                 PhotoListScrollBar(
                     listState = scrollState,
-                    contentKey = galleryGroups to columnCount,
+                    contentKey = groups to columnCount,
                     testTag = "album-scrollbar",
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -520,7 +506,6 @@ private fun TripRecordPhotoTimeline(
     selectedYear: String,
     onSelectedYearChange: (String) -> Unit,
     onBackClick: () -> Unit,
-    onShareClick: () -> Unit,
     onActionMenuOpen: () -> Unit,
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
 ) {
@@ -561,10 +546,7 @@ private fun TripRecordPhotoTimeline(
             onBackClick = onBackClick,
             trailing = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TripSharePreviewButton(
-                        contentDescription = "여행 기록 공유 미리보기",
-                        onClick = onShareClick,
-                    )
+                    RecordSharePreviewAction(record)
                     DetailMoreButton(onClick = onActionMenuOpen)
                 }
             },
@@ -759,7 +741,7 @@ private fun TripRecordPhotoTimeline(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(
                                         androidx.compose.foundation.rememberScrollState(),
                                     ),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp),
                                 ) {
                                     group.photos.forEach { photo ->
                                         MapmoryAsyncImage(
@@ -772,10 +754,10 @@ private fun TripRecordPhotoTimeline(
                                             fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                                             contentDescription = "${group.displayDate} 여행 사진 확대",
                                             sharedImageKey = photo.id,
-                                            sharedCornerRadius = 10.dp,
+                                            sharedCornerRadius = 0.dp,
                                             onClick = { onPhotoClick(photo) },
                                             modifier = Modifier.size(width = 64.dp, height = 64.dp),
-                                            shape = RoundedCornerShape(10.dp),
+                                            shape = RectangleShape,
                                         )
                                     }
                                 }
@@ -791,17 +773,19 @@ private fun TripRecordPhotoTimeline(
 @Composable
 internal fun AlbumHeading(
     locationName: String,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "$locationName 사진첩",
+                text = "${locationName.takeIf { it.isNotBlank() } ?: "여행"} 사진첩",
                 color = TripRecordPalette.current.headingText,
                 fontSize = 28.sp,
+                lineHeight = 36.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
@@ -841,7 +825,7 @@ private fun AlbumPhotoRow(
 ) {
     Row(
         modifier = modifier.fillMaxWidth().clipToBounds(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
     ) {
         photos.forEach { photo ->
             MapmoryAsyncImage(
@@ -853,7 +837,7 @@ private fun AlbumPhotoRow(
                 fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                 contentDescription = "$displayDate 여행 사진 확대",
                 sharedImageKey = photo.id,
-                sharedCornerRadius = 14.dp,
+                sharedCornerRadius = 0.dp,
                 onClick = { onPhotoClick(photo) },
                 modifier = Modifier
                     .layout { measurable, _ ->
@@ -864,7 +848,7 @@ private fun AlbumPhotoRow(
                     .semantics {
                         contentDescription = "$displayDate 여행 사진 확대"
                     },
-                shape = RoundedCornerShape(14.dp),
+                shape = RectangleShape,
             )
         }
         repeat(columnCount - photos.size) {
