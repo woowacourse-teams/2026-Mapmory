@@ -17,6 +17,9 @@ fun MapArtwork(
     koreaRegions: List<ProvincePolygon>? = null,
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
+    searchFocusCountryCode: String? = null,
+    searchFocusRegionCode: String? = null,
+    searchFocusRequest: Int = 0,
     currentLocation: GeoPoint? = null,
     currentLocationFocusRequest: Int = 0,
     onCountryClick: (String) -> Unit = {},
@@ -26,6 +29,8 @@ fun MapArtwork(
     when (scope) {
         MapScope.WORLD -> WorldGlobe(
             visitedCountryCodes = visitedCountryCodes,
+            searchFocusCountryCode = searchFocusCountryCode,
+            searchFocusRequest = searchFocusRequest,
             currentLocation = currentLocation,
             currentLocationFocusRequest = currentLocationFocusRequest,
             onCountryClick = onCountryClick,
@@ -37,6 +42,8 @@ fun MapArtwork(
             visitedRegionCodes = visitedRegionCodes,
             showRegionLabels = showRegionLabels,
             isProvinceOverview = isProvinceOverview,
+            searchFocusRegionCode = searchFocusRegionCode,
+            searchFocusRequest = searchFocusRequest,
             currentLocation = currentLocation,
             currentLocationFocusRequest = currentLocationFocusRequest,
             onRegionClick = onRegionClick,

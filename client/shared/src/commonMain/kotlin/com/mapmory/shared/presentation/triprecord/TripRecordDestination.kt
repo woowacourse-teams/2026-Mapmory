@@ -5,16 +5,18 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 
 /**
- * 여행 기록 API가 저장할 수 있는 지역 단계와 화면의 선택지를 일치시킨다.
- * 국내는 시·군·구와 특별시·광역시·세종·제주, 해외는 국가까지 기록할 수 있다.
+ * 새 기록에서 선택할 수 있는 지역 단계다. 제주도 전체 대신 제주시 또는 서귀포시를 고른다.
  */
 internal fun Location.isSelectableTripRecordDestination(): Boolean = when (type) {
     LocationType.DISTRICT -> countryId == KoreaCountryId
     LocationType.PROVINCE ->
-        isSelectableKoreanProvince() || (countryId != KoreaCountryId &&
+        (isSelectableKoreanProvince() && !isJejuProvince()) || (countryId != KoreaCountryId &&
             regionCode != KoreaCountryCode &&
             regionCode.length == CountryCodeLength)
 }
+
+internal fun Location.isJejuProvince(): Boolean =
+    countryId == KoreaCountryId && type == LocationType.PROVINCE && regionCode == JejuProvinceCode
 
 // 기록 지역의 국가 코드. 국내 시·군·구는 KR, 해외는 국가 코드 자체다.
 internal fun Location.tripRecordCountryCode(): String =
@@ -27,3 +29,4 @@ internal fun List<Location>.selectableTripRecordDestinations(): List<Location> =
 private const val KoreaCountryId = 1L
 private const val KoreaCountryCode = "KR"
 private const val CountryCodeLength = 2
+private const val JejuProvinceCode = "KR-49"

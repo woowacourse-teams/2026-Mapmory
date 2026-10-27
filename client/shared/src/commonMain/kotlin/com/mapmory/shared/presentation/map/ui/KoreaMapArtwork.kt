@@ -68,6 +68,8 @@ fun KoreaMapArtwork(
     visitedRegionCodes: Set<String> = emptySet(),
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
+    searchFocusRegionCode: String? = null,
+    searchFocusRequest: Int = 0,
     currentLocation: GeoPoint? = null,
     currentLocationFocusRequest: Int = 0,
     onRegionClick: (String) -> Unit = {},
@@ -234,6 +236,7 @@ fun KoreaMapArtwork(
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
     var lastLocationFocusRequest by rememberSaveable { mutableStateOf(0) }
+    var lastSearchFocusRequest by rememberSaveable { mutableStateOf(0) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(currentLocation, currentLocationFocusRequest, projection, viewportSize) {
         if (currentLocation == null || currentLocationFocusRequest == 0 ||
@@ -247,6 +250,29 @@ fun KoreaMapArtwork(
             viewportSize = viewportSize,
         )
         lastLocationFocusRequest = currentLocationFocusRequest
+    }
+    LaunchedEffect(
+        searchFocusRegionCode,
+        searchFocusRequest,
+        displayedRegions,
+        projection,
+        viewportSize,
+        isProvinceOverview,
+    ) {
+        if (searchFocusRequest == 0 || searchFocusRequest == lastSearchFocusRequest || !projection.isValid) {
+            return@LaunchedEffect
+        }
+        val point = displayedRegions.firstOrNull { it.code == searchFocusRegionCode }?.labelPoint()
+            ?: return@LaunchedEffect
+        val targetZoom = if (isProvinceOverview) ProvinceSearchFocusZoom else DistrictSearchFocusZoom
+        val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+        zoom = targetZoom
+        pan = projection.clampPan(
+            pan = (center - projection.project(point)) * targetZoom,
+            zoom = targetZoom,
+            viewportSize = viewportSize,
+        )
+        lastSearchFocusRequest = searchFocusRequest
     }
     val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
@@ -439,7 +465,8 @@ fun KoreaMapArtwork(
         }) {
             preparedRegions.forEach { prepared ->
                 val isVisited = prepared.region.code in visitedRegionCodes
-                val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
+                val isSearchFocused = prepared.region.code == searchFocusRegionCode
+                val fillColor = if (isVisited || isSearchFocused) visitedFillColor else unvisitedFillColor
                 drawPath(path = prepared.fillPath, color = fillColor)
                 if (transform.zoom >= OverviewIslandRevealZoom) {
                     prepared.smallIslandPath?.let { islandPath ->
@@ -480,7 +507,9 @@ fun KoreaMapArtwork(
 
             preparedRegions.forEach { prepared ->
                 val isVisited = prepared.region.code in visitedRegionCodes
+                val isSearchFocused = prepared.region.code == searchFocusRegionCode
                 val outlineColor = when {
+                    isSearchFocused -> visitedOutlineColor
                     isProvinceOverview -> overviewProvinceOutlineColor
                     isVisited -> visitedOutlineColor
                     else -> unvisitedOutlineColor
@@ -488,7 +517,7 @@ fun KoreaMapArtwork(
                 drawPath(
                     path = prepared.outlinePath,
                     color = outlineColor,
-                    style = Stroke(width = outlineWidth / transform.zoom),
+                    style = Stroke(width = (if (isSearchFocused) outlineWidth * 2.5f else outlineWidth) / transform.zoom),
                 )
                 if (transform.zoom >= OverviewIslandRevealZoom) {
                     prepared.smallIslandPath?.let { islandPath ->
@@ -612,6 +641,8 @@ private data class PreparedKoreaLabel(
 private const val MinZoom = 1f
 private const val MaxZoom = 18f
 private const val MaxLabelZoomScaleIncrease = 1.2f
+private const val ProvinceSearchFocusZoom = 2.2f
+private const val DistrictSearchFocusZoom = 2.8f
 private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f

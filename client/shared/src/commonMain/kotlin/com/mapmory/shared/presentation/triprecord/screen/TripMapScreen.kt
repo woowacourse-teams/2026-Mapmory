@@ -23,34 +23,48 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.domain.model.PlaceAttribution
+import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 import com.mapmory.shared.presentation.map.ui.MapViewport
+import com.mapmory.shared.presentation.map.viewmodel.MapPlaceSearchState
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.math.roundToInt
@@ -61,6 +75,10 @@ fun TripMapScreen(
     mapScope: MapScope = MapScope.WORLD,
     visitedCount: Int = 0,
     onMapScopeChange: (MapScope) -> Unit = {},
+    placeSearch: MapPlaceSearchState = MapPlaceSearchState(),
+    onPlaceSearchQueryChange: (String) -> Unit = {},
+    onPlaceSearchSubmit: () -> Unit = {},
+    onPlaceSearchResultClick: (PlaceCandidate) -> Unit = {},
     showRegionLabels: Boolean = false,
     onRegionLabelsToggle: () -> Unit = {},
     isCurrentLocationLoading: Boolean = false,
@@ -138,11 +156,10 @@ fun TripMapScreen(
 
                 Column(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().height(34.dp),
+                        modifier = Modifier.fillMaxWidth().height(38.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (mapScope == MapScope.KOREA && mapDetailTitle != null) {
@@ -152,10 +169,21 @@ fun TripMapScreen(
                                 label = "$mapDetailTitle 지도에서 뒤로가기",
                                 modifier = Modifier.size(34.dp),
                             )
+                            Spacer(Modifier.width(8.dp))
                         }
-                        Spacer(Modifier.weight(1f))
+                        MapPlaceSearchField(
+                            state = placeSearch,
+                            onQueryChange = onPlaceSearchQueryChange,
+                            onSubmit = onPlaceSearchSubmit,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
                         MapScopeToggle(selected = mapScope, onSelected = onMapScopeChange)
                     }
+                    MapPlaceSearchResults(
+                        state = placeSearch,
+                        onResultClick = onPlaceSearchResultClick,
+                    )
                     if (mapScope == MapScope.KOREA) {
                         TripTagChip(
                             text = if (showRegionLabels) "지역명 숨기기" else "지역명 표시",
@@ -179,6 +207,204 @@ fun TripMapScreen(
                 selectedLabelColor = TripRecordPalette.current.navigationSelectedLabel,
                 unselectedColor = TripRecordPalette.current.navigationUnselected,
             )
+        }
+    }
+}
+
+@Composable
+private fun MapPlaceSearchField(
+    state: MapPlaceSearchState,
+    onQueryChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = TripRecordPalette.current
+    Row(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(palette.surface)
+            .border(1.dp, palette.border, RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(17.dp)) {
+            val center = Offset(size.width * 0.42f, size.height * 0.42f)
+            val radius = size.minDimension * 0.27f
+            val stroke = 1.8.dp.toPx()
+            drawCircle(palette.secondaryText, radius, center, style = Stroke(stroke))
+            drawLine(
+                palette.secondaryText,
+                Offset(center.x + radius * 0.7f, center.y + radius * 0.7f),
+                Offset(size.width * 0.9f, size.height * 0.9f),
+                stroke,
+                cap = StrokeCap.Round,
+            )
+        }
+        Box(
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (state.query.isBlank()) {
+                Text(
+                    text = "장소 검색",
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                )
+            }
+            BasicTextField(
+                value = state.query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = palette.headingText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                cursorBrush = SolidColor(palette.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "장소 검색" },
+            )
+        }
+        when {
+            state.isSearching || state.isSelecting -> CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = palette.primary,
+                strokeWidth = 2.dp,
+            )
+            state.query.isNotBlank() -> Text(
+                text = "×",
+                color = palette.secondaryText,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button) { onQueryChange("") }
+                    .semantics { contentDescription = "검색어 지우기" },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapPlaceSearchResults(
+    state: MapPlaceSearchState,
+    onResultClick: (PlaceCandidate) -> Unit,
+) {
+    if (state.query.isBlank() ||
+        (!state.isSearching && !state.isSelecting && state.results.isEmpty() &&
+            !state.hasSearched && state.errorMessage == null)
+    ) return
+
+    val palette = TripRecordPalette.current
+    val uriHandler = LocalUriHandler.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.surface)
+            .border(1.dp, palette.border, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        when {
+            state.isSearching || state.isSelecting -> Row(
+                modifier = Modifier.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(Modifier.size(16.dp), color = palette.primary, strokeWidth = 2.dp)
+                Text(
+                    text = if (state.isSelecting) "지역 정보를 확인하고 있어요." else "장소를 찾고 있어요.",
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 9.dp),
+                )
+            }
+            state.errorMessage != null -> Text(
+                text = state.errorMessage,
+                color = palette.danger,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+            state.results.isEmpty() && state.hasSearched -> Text(
+                text = "장소 검색 결과가 없어요.",
+                color = palette.secondaryText,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+            else -> {
+                Column(
+                    modifier = Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                ) {
+                    state.results.forEachIndexed { index, candidate ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(9.dp))
+                                .clickable(
+                                    enabled = !state.isSelecting,
+                                    role = Role.Button,
+                                    onClick = { onResultClick(candidate) },
+                                )
+                                .padding(vertical = 8.dp),
+                        ) {
+                            Text(
+                                text = candidate.name,
+                                color = palette.headingText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                            )
+                            candidate.address?.let { address ->
+                                Text(
+                                    text = address,
+                                    color = palette.secondaryText,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        if (index < state.results.lastIndex) {
+                            Spacer(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
+                        }
+                    }
+                }
+                state.results.firstOrNull()?.let { candidate ->
+                    val attribution = candidate.attribution ?: "© OpenStreetMap contributors"
+                    val isGoogle = PlaceAttribution.isGoogleMaps(candidate.attribution, candidate.attributionUrl)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 5.dp)
+                            .then(
+                                if (candidate.attributionUrl.isNullOrBlank()) Modifier
+                                else Modifier.clickable { runCatching { uriHandler.openUri(candidate.attributionUrl) } },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (isGoogle) PlaceAttribution.GoogleMaps else attribution,
+                            color = if (isGoogle && LocalMapmoryTheme.current.isDark) Color.White
+                            else if (isGoogle) Color(0xFF5E5E5E) else palette.secondaryText,
+                            fontSize = if (isGoogle) 12.sp else 10.sp,
+                            maxLines = 1,
+                        )
+                        if (!isGoogle) {
+                            Text(
+                                text = "Powered by Geoapify",
+                                color = palette.primary,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 10.dp),
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -129,6 +129,7 @@ private class DefaultMapmoryViewModelFactory(
         mapSummaryRepository = mapSummaryRepository,
         regionCatalog = regionCatalog,
         getTags = GetTagsUseCase(tagRepository),
+        placeRepository = placeRepository,
     )
 
     override fun createTripRecordListViewModel(): TripRecordListViewModel =
