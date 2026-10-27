@@ -5,7 +5,7 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.exception.MemberErrorCode;
-import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
+import com.mapmory.backend.travelrecord.domain.AdminTravelRecordQueryRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

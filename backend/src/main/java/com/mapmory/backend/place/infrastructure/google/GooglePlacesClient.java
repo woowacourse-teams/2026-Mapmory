@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -33,6 +35,8 @@ import tools.jackson.databind.JsonNode;
  */
 @Component
 public class GooglePlacesClient implements PlaceLookupPort {
+
+    private static final Logger log = LoggerFactory.getLogger(GooglePlacesClient.class);
 
     static final String PROVIDER_CODE = "GOOGLE";
     static final String ATTRIBUTION = "Google Maps";
@@ -60,6 +64,11 @@ public class GooglePlacesClient implements PlaceLookupPort {
         this.apiKey = apiKey;
         this.requestLimiter = requestLimiter;
         this.circuitBreaker = circuitBreaker;
+        if (apiKey == null || apiKey.isBlank()) {
+            log.atError()
+                    .addKeyValue("event", "GOOGLE_PLACES_NOT_CONFIGURED")
+                    .log("GOOGLE_PLACES_API_KEY가 없어 장소 검색과 선택이 실패한다");
+        }
     }
 
     @Override
@@ -147,6 +156,14 @@ public class GooglePlacesClient implements PlaceLookupPort {
             }
             if (placeLookup && exception instanceof RestClientResponseException response && isUnknownPlace(response)) {
                 throw new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND);
+            }
+            if (exception instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError()) {
+                // 4xx는 서킷이 실패로 세지 않는다. 키 거절처럼 고칠 때까지 계속되는 실패라 여기서 ERROR로 알린다.
+                log.atError()
+                        .addKeyValue("event", "GOOGLE_PLACES_REJECTED")
+                        .addKeyValue("status", response.getStatusCode().value())
+                        .setCause(exception)
+                        .log("Google Places가 요청을 거절했다: {}", response.getStatusCode().value());
             }
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }

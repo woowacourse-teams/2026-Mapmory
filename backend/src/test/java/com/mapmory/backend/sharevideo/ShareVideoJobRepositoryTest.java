@@ -6,6 +6,8 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import jakarta.persistence.EntityManager;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,8 +63,13 @@ class ShareVideoJobRepositoryTest extends MySqlTestContainerSupport {
     void 완료_상태와_결과_Object_Key를_저장한다() {
         Member member = memberRepository.save(Member.of("완료 작업 회원", UUID.randomUUID()));
         ShareVideoJob job = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson());
-        job.startRendering();
-        job.complete("share-videos/15/result.mp4");
+        job.startRendering(LocalDateTime.now(Clock.systemUTC()));
+        job.complete(
+                "share-videos/15/result.mp4",
+                LocalDateTime.now(Clock.systemUTC()),
+                1_500L,
+                250L
+        );
         ShareVideoJob saved = shareVideoJobRepository.saveAndFlush(job);
         Long jobId = saved.getId();
 
@@ -111,7 +118,7 @@ class ShareVideoJobRepositoryTest extends MySqlTestContainerSupport {
     void RENDERING_작업은_다음_선점_대상에서_제외한다() {
         Member member = memberRepository.save(Member.of("상태 필터 회원", UUID.randomUUID()));
         ShareVideoJob rendering = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson());
-        rendering.startRendering();
+        rendering.startRendering(LocalDateTime.now(Clock.systemUTC()));
         shareVideoJobRepository.saveAndFlush(rendering);
         ShareVideoJob pending = shareVideoJobRepository.saveAndFlush(
                 ShareVideoJob.pending(member, "TRAVEL_TIMELINE", snapshotJson())

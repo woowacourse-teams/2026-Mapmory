@@ -10,12 +10,13 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.travelrecord.AdminTravelRecordQueryRepository;
+import com.mapmory.backend.travelrecord.domain.AdminTravelRecordQueryRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 class AdminDashboardServiceTest {
@@ -41,6 +42,20 @@ class AdminDashboardServiceTest {
         var response = service.getDashboard(null, null);
 
         assertThat(response.period().from()).isEqualTo(LocalDate.of(2026, 10, 8));
+        assertThat(response.period().to()).isEqualTo(LocalDate.of(2026, 10, 14));
+        verify(members).countCreatedBetween(
+                LocalDateTime.of(2026, 10, 7, 15, 0), LocalDateTime.of(2026, 10, 14, 15, 0)
+        );
+    }
+
+    // 운영의 Clock 빈은 UTC다. "오늘"은 Clock의 시간대가 아니라 한국 날짜로 정한다. (#502)
+    @Test
+    void 서버_Clock이_UTC여도_한국_오늘을_포함한_최근_7일을_조회한다() {
+        Clock utcClock = Clock.fixed(Instant.parse("2026-10-13T15:30:00Z"), ZoneOffset.UTC);
+        AdminDashboardService utcService = new AdminDashboardService(members, records, utcClock);
+
+        var response = utcService.getDashboard(null, null);
+
         assertThat(response.period().to()).isEqualTo(LocalDate.of(2026, 10, 14));
         verify(members).countCreatedBetween(
                 LocalDateTime.of(2026, 10, 7, 15, 0), LocalDateTime.of(2026, 10, 14, 15, 0)

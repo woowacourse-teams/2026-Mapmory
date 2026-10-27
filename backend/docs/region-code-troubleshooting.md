@@ -153,7 +153,7 @@ ORDER BY r.region_code;
 - Region 통합 마이그레이션: `src/main/resources/db/migration/V10__unify_country_and_location_as_region.sql`
 - 일반구 통합 마이그레이션: `src/main/resources/db/migration/V18__canonicalize_city_district_regions.sql`
 - 지역 탐색: `src/main/java/com/mapmory/backend/region/RegionResolver.java`
-- 여행 기록 지역 검증: `src/main/java/com/mapmory/backend/travelrecord/TravelRecordService.java`
+- 여행 기록 지역 검증: `src/main/java/com/mapmory/backend/travelrecord/application/TravelRecordService.java`
 - [전체 Region 코드표](region-code-all.md)
 - [지역 코드 체계 ADR](adr/0004-region-code-system.md)
 - [Region 통합 ADR](adr/0008-unify-country-and-location-as-region.md)

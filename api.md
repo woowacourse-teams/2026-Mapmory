@@ -1347,6 +1347,7 @@ Authorization: Bearer {accessToken}
 - 그룹 멤버가 아니면 그룹이 있어도 `404 GROUP_NOT_FOUND`를 돌려준다.
 - 그룹 이름은 앞뒤 공백 제거 후 1~30자, 앨범 이름은 1~200자다. 이름은 멤버 누구나 바꾼다.
 - 그룹은 최대 30명이다. 초대는 멤버 누구나 만들고 1일 뒤 만료된다.
+- 한 회원은 그룹에 최대 10개까지 속한다. 만들기와 초대 수락 모두 이미 10개면 `409 TOO_MANY_GROUPS`다.
 - 한 기록을 여러 앨범에 담을 수 있다. 한 앨범에는 멤버당 기록 하나다.
 - 앨범에 담는 기록은 내 기록이어야 한다. 남의 기록 id면 `404 TRAVEL_RECORD_NOT_FOUND`다.
 
@@ -1658,6 +1659,7 @@ Authorization: Bearer {accessToken}
 | `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 내 기록이 아님 |
 | `404` | `REGION_NOT_FOUND` | 지역 id가 없음 |
 | `409` | `GROUP_FULL` | 그룹이 이미 30명임 |
+| `409` | `TOO_MANY_GROUPS` | 내가 이미 그룹 10개에 속해 있어 더 만들거나 들어갈 수 없음 |
 | `409` | `ALBUM_ENTRY_CONFLICT` | 이 앨범에 내 기록이 이미 있음 |
 | `429` | `INVITATION_RATE_LIMITED` | 초대 미리보기·수락을 합쳐 회원별 1분 10번, 하루 50번을 넘김 |
 

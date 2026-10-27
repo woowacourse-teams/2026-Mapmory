@@ -16,6 +16,9 @@ public interface TravelGroupRepository extends JpaRepository<TravelGroup, Long> 
     """)
     boolean existsMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
+    @Query("SELECT COUNT(gm) FROM GroupMember gm WHERE gm.memberId = :memberId")
+    long countGroupsOf(@Param("memberId") Long memberId);
+
     // 목록 화면 하나를 그리려고 그룹을 다 불러오지 않게 개수만 센다. 앨범 수는 읽기 전용으로 album을 함께 센다.
     @Query("""
         SELECT new com.mapmory.backend.group.domain.GroupSummary(

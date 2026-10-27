@@ -75,7 +75,7 @@ public class GroupInvitationService {
     }
 
     /**
-     * 이미 멤버면 아무것도 바꾸지 않고 그룹을 돌려준다.
+     * 이미 멤버면 아무것도 바꾸지 않고 그룹을 돌려준다. 새로 들어가는 거면 내가 속한 그룹이 10개를 넘지 않는지 먼저 본다.
      *
      * <p>그룹 행을 잠그고 그 행의 인원 수로 30명 제한을 판단한다(TravelGroup.join). 같은 사람이 동시에 수락하면
      * 늦은 쪽은 멤버 목록(옛 스냅샷)에서 자기를 못 보고 넣으려다 유니크 제약에 걸린다. 그 트랜잭션은 롤백하고,
@@ -98,6 +98,9 @@ public class GroupInvitationService {
         GroupInvitation invitation = findValid(tokenOrCode);
         TravelGroup group = travelGroupRepository.findByIdForUpdate(invitation.getGroupId())
                 .orElseThrow(() -> new BusinessException(GroupErrorCode.INVITATION_NOT_FOUND));
+        if (!group.hasMember(memberId)) {
+            groupMembership.validateCanJoinAnother(memberId);
+        }
         group.join(memberId, LocalDateTime.now(clock));
         return groupService.get(memberId, group.getId());
     }

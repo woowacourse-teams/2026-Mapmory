@@ -136,6 +136,29 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         }
     }
 
+    // 응답의 PLACE_PROVIDER_UNAVAILABLE은 WARN이라, 저장소 장애는 여기서 ERROR로 알린다.
+    @Test
+    void 한도_저장소가_장애면_Google을_부르지_않고_ERROR로_알린다() throws SQLException {
+        GoogleRequestLimiter limiter = limiter(2, 1, 10_000);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        List<Connection> held = holdAllConnections();
+        try {
+            assertError(limiter::reserveAutocomplete, "PLACE_PROVIDER_UNAVAILABLE");
+        } finally {
+            for (Connection connection : held) {
+                connection.close();
+            }
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).extracting(event -> field(event, "event") + ":" + event.getLevel())
+                .containsExactly("PLACE_RATE_LIMIT_STORE_UNAVAILABLE:ERROR");
+    }
+
     private GoogleRequestLimiter limiter(int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute) {
         GoogleRateLimitProperties properties =
                 new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, requestsPerMinute);
