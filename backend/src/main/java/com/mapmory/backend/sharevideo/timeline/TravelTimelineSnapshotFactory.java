@@ -4,6 +4,7 @@ import com.mapmory.backend.region.Region;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,7 +22,7 @@ public class TravelTimelineSnapshotFactory {
                     travelRecord.getEndDate()
             );
 
-            if (canMergeWithPreviousKorea(stops, country)) {
+            if (canMergeWithPreviousCountry(stops, country)) {
                 appendToPreviousStop(stops, visit);
                 continue;
             }
@@ -38,18 +39,14 @@ public class TravelTimelineSnapshotFactory {
         return TravelTimelineSnapshot.of(stops);
     }
 
-    private boolean canMergeWithPreviousKorea(final List<TravelTimelineStop> stops, final Region country) {
+    private boolean canMergeWithPreviousCountry(final List<TravelTimelineStop> stops, final Region country) {
         if (stops.isEmpty()) {
-            return false;
-        }
-
-        if (!Region.KOREA.equals(country.getRegionCode())) {
             return false;
         }
 
         final TravelTimelineStop previousStop = stops.get(stops.size() - 1);
 
-        return Region.KOREA.equals(previousStop.countryCode());
+        return Objects.equals(country.getRegionCode(), previousStop.countryCode());
     }
 
     private void appendToPreviousStop(final List<TravelTimelineStop> stops, final TravelTimelineVisit visit) {

@@ -171,7 +171,12 @@ export const WorldGlobe: React.FC<WorldGlobeProps> = ({
         )
       : clamp(cameraGeo.latitude, -68, 68),
   };
-  const visitedIndex = new Map(stops.map((stop, index) => [stop.countryCode, index]));
+  const visitedIndex = new Map<string, number>();
+  stops.forEach((stop, index) => {
+    if (!visitedIndex.has(stop.countryCode)) {
+      visitedIndex.set(stop.countryCode, index);
+    }
+  });
   const currentCountryProgress = easeInOutCubic((progress - 0.68) / 0.28);
 
   const routeEntries = stops.slice(0, segmentIndex + 1).map((stop, index) => ({
