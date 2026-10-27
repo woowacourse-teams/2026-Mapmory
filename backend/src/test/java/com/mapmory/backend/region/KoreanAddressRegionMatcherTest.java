@@ -52,42 +52,46 @@ class KoreanAddressRegionMatcherTest {
 
     @Test
     void 서울의_구를_찾는다() {
-        assertThat(matcher.match(List.of("서울특별시", "종로구"))).contains(jongno);
+        assertThat(matcher.match(korea("서울특별시", "종로구"))).contains(jongno);
     }
 
     @Test
     void 일반구가_있는_시는_시_단위로_찾는다() {
-        assertThat(matcher.match(List.of("경기도", "성남시", "분당구"))).contains(seongnam);
+        assertThat(matcher.match(korea("경기도", "성남시", "분당구"))).contains(seongnam);
     }
 
     @Test
     void 시군구_이름이_다른_시도와_겹쳐도_주소의_시도_안에서_찾는다() {
-        assertThat(matcher.match(List.of("경기도", "광주시"))).contains(gyeonggiGwangju);
+        assertThat(matcher.match(korea("경기도", "광주시"))).contains(gyeonggiGwangju);
     }
 
     @Test
     void 시도_이름이_예전_명칭이어도_찾는다() {
-        assertThat(matcher.match(List.of("강원도", "양양군"))).contains(yangyang);
+        assertThat(matcher.match(korea("강원도", "양양군"))).contains(yangyang);
     }
 
     @Test
     void 시군구가_하나뿐인_세종은_시도만으로_찾는다() {
-        assertThat(matcher.match(List.of("세종특별자치시"))).contains(sejongCity);
+        assertThat(matcher.match(korea("세종특별자치시"))).contains(sejongCity);
     }
 
     @Test
     void 시군구_없이_시도만_있는_주소는_시도로_찾는다() {
-        assertThat(matcher.match(List.of("부산광역시"))).contains(busan);
+        assertThat(matcher.match(korea("부산광역시"))).contains(busan);
     }
 
     @Test
     void 시군구를_찾지_못하면_시도로_찾는다() {
-        assertThat(matcher.match(List.of("경기도", "없는시"))).contains(gyeonggi);
+        assertThat(matcher.match(korea("경기도", "없는시"))).contains(gyeonggi);
     }
 
     @Test
     void 시도를_찾지_못하면_직접_선택하도록_빈_값을_준다() {
-        assertThat(matcher.match(List.of("없는도", "없는시"))).isEmpty();
-        assertThat(matcher.match(List.of())).isEmpty();
+        assertThat(matcher.match(korea("없는도", "없는시"))).isEmpty();
+        assertThat(matcher.match(new RegionAddress("KR", null, List.of()))).isEmpty();
+    }
+
+    private static RegionAddress korea(String province, String... subAreas) {
+        return new RegionAddress("KR", province, List.of(subAreas));
     }
 }

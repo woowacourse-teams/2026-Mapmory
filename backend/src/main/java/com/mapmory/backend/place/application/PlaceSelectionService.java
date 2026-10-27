@@ -20,6 +20,6 @@ public class PlaceSelectionService {
     public SelectedPlace select(String placeId, String sessionToken) {
         PlaceDetails place = placeLookupPort.findForSelection(placeId, sessionToken);
         return new SelectedPlace(place,
-                regionSuggester.suggest(place.countryCode(), place.addressAreas()).orElse(null));
+                regionSuggester.suggest(place.address()).orElse(null));
     }
 }

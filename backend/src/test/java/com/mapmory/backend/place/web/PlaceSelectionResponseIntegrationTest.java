@@ -7,6 +7,7 @@ import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.model.SelectedPlace;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.RegionAddress;
 import com.mapmory.backend.region.RegionResolver;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class PlaceSelectionResponseIntegrationTest extends IntegrationTest {
     void 트랜잭션이_없는_API_계층에서도_추천_지역_계층을_응답한다() {
         Region district = regionResolver.resolve("KR", "11", "11560");
         SelectedPlace selected = new SelectedPlace(
-                new PlaceDetails("ChIJ-park", null, "KR", null, null, List.of("서울특별시", "영등포구")), district);
+                new PlaceDetails("ChIJ-park", null, new RegionAddress("KR", "서울특별시", List.of("영등포구")), null, null), district);
 
         PlaceSelectionResponse response = PlaceSelectionResponse.from(selected);
 

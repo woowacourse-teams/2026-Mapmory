@@ -13,6 +13,7 @@ import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.region.RegionAddress;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,7 @@ class PlaceControllerTest {
         when(searchService.search("경복", token)).thenReturn(List.of());
         when(selectionService.select("ChIJ-gyeong", token))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("ChIJ-gyeong", null, "KR", null, null, List.of()), null));
+                        new PlaceDetails("ChIJ-gyeong", null, new RegionAddress("KR", null, List.of()), null, null), null));
 
         mockMvc.perform(get("/api/v1/places/search").param("query", "경복").param("sessionToken", token))
                 .andExpect(status().isOk());
@@ -97,7 +98,7 @@ class PlaceControllerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         when(selectionService.select("ChIJ-park", null))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("ChIJ-park", null, "KR", null, null, List.of()), null));
+                        new PlaceDetails("ChIJ-park", null, new RegionAddress("KR", null, List.of()), null, null), null));
 
         mockMvc.perform(get("/api/v1/places/ChIJ-park"))
                 .andExpect(status().isOk())

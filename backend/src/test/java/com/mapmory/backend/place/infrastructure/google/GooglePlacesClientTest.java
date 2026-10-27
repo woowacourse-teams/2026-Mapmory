@@ -27,6 +27,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.PlaceErrorCode;
 import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.region.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
 import java.net.http.HttpConnectTimeoutException;
@@ -105,9 +106,9 @@ class GooglePlacesClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         assertThat(client.findForSelection("ChIJ-gyeong", "session-1"))
-                .isEqualTo(new PlaceDetails("ChIJ-gyeong", null, "KR",
-                        GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL,
-                        List.of("서울특별시", "종로구")));
+                .isEqualTo(new PlaceDetails("ChIJ-gyeong", null,
+                        new RegionAddress("KR", "서울특별시", List.of("종로구")),
+                        GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL));
         server.verify();
     }
 
@@ -126,8 +127,7 @@ class GooglePlacesClientTest {
         PlaceDetails place = client.findById("ChIJ-bundang");
 
         assertThat(place.name()).isNull();
-        assertThat(place.countryCode()).isEqualTo("KR");
-        assertThat(place.addressAreas()).containsExactly("경기도", "성남시", "분당구");
+        assertThat(place.address()).isEqualTo(new RegionAddress("KR", "경기도", List.of("성남시", "분당구")));
         server.verify();
         verify(limiter).reserveDetails();
     }
@@ -138,7 +138,7 @@ class GooglePlacesClientTest {
 
         assertThat(place.placeId()).isEqualTo("ChIJ-bundang");
         assertThat(place.name()).isNull();
-        assertThat(place.countryCode()).isNull();
+        assertThat(place.address()).isEqualTo(RegionAddress.UNKNOWN);
         assertThat(place.attribution()).isEqualTo("Google Maps");
         assertThat(place.attributionUrl()).isEqualTo("https://www.google.com/maps");
         server.verify();
@@ -162,7 +162,7 @@ class GooglePlacesClientTest {
                         {"id":"ChIJ-tumon","addressComponents":[{"shortText":"GU","types":["country","political"]}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.findById("ChIJ-tumon").countryCode()).isEqualTo("GU");
+        assertThat(client.findById("ChIJ-tumon").address().countryCode()).isEqualTo("GU");
     }
 
     @Test

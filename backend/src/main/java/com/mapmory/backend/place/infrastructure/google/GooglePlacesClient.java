@@ -5,6 +5,7 @@ import com.mapmory.backend.place.application.PlaceErrorCode;
 import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.region.RegionAddress;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.net.ConnectException;
@@ -117,7 +118,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     public PlaceDetails findForRecord(String placeId) {
         validatePlaceId(placeId);
         requireConfigured();
-        return new PlaceDetails(placeId, null, null, ATTRIBUTION, ATTRIBUTION_URL, List.of());
+        return new PlaceDetails(placeId, null, RegionAddress.UNKNOWN, ATTRIBUTION, ATTRIBUTION_URL);
     }
 
     private PlaceDetails details(String placeId, String sessionToken) {
