@@ -18,22 +18,22 @@ public class RegionResolver {
      * 국가 > 시·도 > 시·군·구 코드 중 가장 작은 단위의 지역을 찾는다. 하위 코드는 상위 코드와 함께 와야 한다.
      */
     public Region resolve(String countryCode, String provinceCode, String districtCode) {
-        if ((countryCode == null && provinceCode != null) || (provinceCode == null && districtCode != null)) {
-            throw new BusinessException(RegionErrorCode.INVALID_REGION_HIERARCHY);
-        }
-        Region country = findCountry(countryCode);
+        validateHierarchy(countryCode, provinceCode, districtCode);
 
+        // 코드가 끝나는 단위에서 멈춘다. 해외는 국가, 시·도만 고른 기록은 시·도에서 끝난다.
+        Region country = findCountry(countryCode);
         if (provinceCode == null) {
             return country;
         }
-
         Region province = findChild(country, RegionType.PROVINCE, provinceCode);
-
         if (districtCode == null) {
             return province;
         }
-
         return findChild(province, RegionType.DISTRICT, districtCode);
+    }
+
+    public Region resolveCountry(String countryCode) {
+        return resolve(countryCode, null, null);
     }
 
     /**
@@ -44,6 +44,12 @@ public class RegionResolver {
             return Optional.empty();
         }
         return Optional.of(resolve(countryCode, provinceCode, districtCode));
+    }
+
+    private static void validateHierarchy(String countryCode, String provinceCode, String districtCode) {
+        if ((countryCode == null && provinceCode != null) || (provinceCode == null && districtCode != null)) {
+            throw new BusinessException(RegionErrorCode.INVALID_REGION_HIERARCHY);
+        }
     }
 
     public List<Region> children(Region parent, RegionType regionType) {

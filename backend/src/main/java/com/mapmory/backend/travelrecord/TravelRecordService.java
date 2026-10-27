@@ -4,11 +4,11 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
+import com.mapmory.backend.region.RegionSuggester;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.listcache.TravelRecordListCache;
@@ -41,7 +41,7 @@ public class TravelRecordService {
     private final Clock clock;
     private final UploadedObjectVerifier uploadedObjectVerifier;
     private final PlaceLookupPort placeLookupPort;
-    private final PlaceSelectionService placeSelectionService;
+    private final RegionSuggester regionSuggester;
     private final TransactionTemplate transactionTemplate;
     private final TransactionTemplate readOnlyTransactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
@@ -57,7 +57,7 @@ public class TravelRecordService {
             Clock clock,
             UploadedObjectVerifier uploadedObjectVerifier,
             PlaceLookupPort placeLookupPort,
-            PlaceSelectionService placeSelectionService,
+            RegionSuggester regionSuggester,
             PlatformTransactionManager transactionManager,
             ApplicationEventPublisher eventPublisher,
             TravelRecordListCache travelRecordListCache
@@ -71,7 +71,7 @@ public class TravelRecordService {
         this.clock = clock;
         this.uploadedObjectVerifier = uploadedObjectVerifier;
         this.placeLookupPort = placeLookupPort;
-        this.placeSelectionService = placeSelectionService;
+        this.regionSuggester = regionSuggester;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
         this.eventPublisher = eventPublisher;
@@ -264,12 +264,9 @@ public class TravelRecordService {
             if (place == null) {
                 throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
             }
-            Region suggestion = placeSelectionService.suggestedRegion(place);
-            if (suggestion == null) {
-                throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
-                        "장소의 지역을 자동으로 찾지 못했습니다. 지역을 직접 선택해 주세요.");
-            }
-            return suggestion;
+            return regionSuggester.suggest(place.countryCode(), place.addressAreas())
+                    .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
+                            "장소의 지역을 자동으로 찾지 못했습니다. 지역을 직접 선택해 주세요."));
         }
         return regionResolver.resolve(command.countryCode(), command.provinceCode(), command.districtCode());
     }

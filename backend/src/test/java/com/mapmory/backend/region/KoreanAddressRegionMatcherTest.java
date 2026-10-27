@@ -1,11 +1,8 @@
-package com.mapmory.backend.place.application;
+package com.mapmory.backend.region;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionType;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +39,7 @@ class KoreanAddressRegionMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new KoreanAddressRegionMatcher(regionResolver);
-        when(regionResolver.resolve("KR", null, null)).thenReturn(korea);
+        when(regionResolver.resolveCountry("KR")).thenReturn(korea);
         when(regionResolver.children(korea, RegionType.PROVINCE))
                 .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong));
         when(regionResolver.children(seoul, RegionType.DISTRICT)).thenReturn(List.of(jongno));

@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.dto;
 
 import com.mapmory.backend.travelrecord.RecordMedia;
 import com.mapmory.backend.travelrecord.RecordedPlace;
+import com.mapmory.backend.region.dto.RegionDetailResponse;
 import com.mapmory.backend.tag.dto.TagSummaryResponse;
 import com.mapmory.backend.travelrecord.TravelRecord;
 import com.mapmory.backend.travelrecord.TravelRecordDetail;

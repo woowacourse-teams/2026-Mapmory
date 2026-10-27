@@ -17,6 +17,8 @@ import jakarta.persistence.Table;
 @Table(name = "region")
 public class Region extends BaseEntity {
 
+    public static final String KOREA = "KR";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -80,5 +82,24 @@ public class Region extends BaseEntity {
 
     public boolean isCountry(String countryCode) {
         return regionType == RegionType.COUNTRY && regionCode.equals(countryCode);
+    }
+
+    /** 이 지역이 속한 국가. 국가면 자기 자신이다. */
+    public Region country() {
+        return regionType == RegionType.COUNTRY ? this : root;
+    }
+
+    /** 이 지역이 속한 시·도. 국가면 null이다. */
+    public Region province() {
+        return switch (regionType) {
+            case COUNTRY -> null;
+            case PROVINCE -> this;
+            case DISTRICT -> parent;
+        };
+    }
+
+    /** 시·군·구면 자기 자신이고, 아니면 null이다. */
+    public Region district() {
+        return regionType == RegionType.DISTRICT ? this : null;
     }
 }
