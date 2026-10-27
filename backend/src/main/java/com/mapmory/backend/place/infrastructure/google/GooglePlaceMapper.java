@@ -2,6 +2,7 @@ package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.region.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,17 +25,17 @@ class GooglePlaceMapper {
             if (name == null) {
                 name = text(prediction.path("text").path("text"));
             }
-            if (placeId == null || name == null) {
+            // 고를 수 없는 후보는 뺀다. 형식이 맞지 않는 ID는 선택 API가 거절한다.
+            if (!PlaceId.isValid(placeId) || name == null) {
                 continue;
             }
             String address = text(prediction.path("structuredFormat").path("secondaryText").path("text"));
-            candidates.add(new PlaceCandidate(placeId, name, address,
-                    GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL));
+            candidates.add(new PlaceCandidate(PlaceId.from(placeId), name, address, GooglePlacesClient.PROVIDER));
         }
         return List.copyOf(candidates);
     }
 
-    Optional<PlaceDetails> details(JsonNode response, String placeId) {
+    Optional<PlaceDetails> details(JsonNode response, PlaceId placeId) {
         JsonNode components = response.path("addressComponents");
         if (!components.isArray()) {
             return Optional.empty();
@@ -45,8 +46,7 @@ class GooglePlaceMapper {
                 placeId,
                 null,
                 address(components),
-                GooglePlacesClient.ATTRIBUTION,
-                GooglePlacesClient.ATTRIBUTION_URL));
+                GooglePlacesClient.PROVIDER));
     }
 
     private static RegionAddress address(JsonNode components) {

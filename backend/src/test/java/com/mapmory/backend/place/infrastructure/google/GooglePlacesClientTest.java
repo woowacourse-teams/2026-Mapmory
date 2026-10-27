@@ -26,6 +26,8 @@ import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
@@ -83,12 +85,26 @@ class GooglePlacesClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         assertThat(client.search("경복", "session-1")).containsExactly(
-                new PlaceCandidate("ChIJ-gyeong", "경복궁", "서울특별시 종로구",
-                        GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL),
-                new PlaceCandidate("ChIJ-station", "경복궁역", null,
-                        GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL));
+                new PlaceCandidate(PlaceId.from("ChIJ-gyeong"), "경복궁", "서울특별시 종로구", GooglePlacesClient.PROVIDER),
+                new PlaceCandidate(PlaceId.from("ChIJ-station"), "경복궁역", null, GooglePlacesClient.PROVIDER));
         server.verify();
         verify(limiter).reserveAutocomplete();
+    }
+
+    @Test
+    void 고를_수_없는_후보는_뺀다() {
+        server.expect(requestTo(AUTOCOMPLETE_URL))
+                .andRespond(withSuccess("""
+                        {"suggestions":[
+                          {"placePrediction":{"placeId":"../places","text":{"text":"잘못된 ID"}}},
+                          {"placePrediction":{"placeId":"ChIJ-nameless"}},
+                          {"placePrediction":{"placeId":"ChIJ-gyeong","text":{"text":"경복궁"}}}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.search("경복", "session-1"))
+                .extracting(PlaceCandidate::id)
+                .containsExactly(PlaceId.from("ChIJ-gyeong"));
     }
 
     @Test
@@ -105,10 +121,9 @@ class GooglePlacesClientTest {
                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.findForSelection("ChIJ-gyeong", "session-1"))
-                .isEqualTo(new PlaceDetails("ChIJ-gyeong", null,
-                        new RegionAddress("KR", "서울특별시", List.of("종로구")),
-                        GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL));
+        assertThat(client.findDetails(PlaceId.from("ChIJ-gyeong"), "session-1"))
+                .isEqualTo(new PlaceDetails(PlaceId.from("ChIJ-gyeong"), null,
+                        new RegionAddress("KR", "서울특별시", List.of("종로구")), GooglePlacesClient.PROVIDER));
         server.verify();
     }
 
@@ -124,7 +139,7 @@ class GooglePlacesClientTest {
                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
                         """, MediaType.APPLICATION_JSON));
 
-        PlaceDetails place = client.findById("ChIJ-bundang");
+        PlaceDetails place = client.findDetails(PlaceId.from("ChIJ-bundang"), null);
 
         assertThat(place.name()).isNull();
         assertThat(place.address()).isEqualTo(new RegionAddress("KR", "경기도", List.of("성남시", "분당구")));
@@ -133,26 +148,15 @@ class GooglePlacesClientTest {
     }
 
     @Test
-    void 기록에_붙일_장소는_Google을_부르지_않고_출처_표기와_함께_만든다() {
-        PlaceDetails place = client.findForRecord("ChIJ-bundang");
-
-        assertThat(place.placeId()).isEqualTo("ChIJ-bundang");
-        assertThat(place.name()).isNull();
-        assertThat(place.address()).isEqualTo(RegionAddress.UNKNOWN);
-        assertThat(place.attribution()).isEqualTo("Google Maps");
-        assertThat(place.attributionUrl()).isEqualTo("https://www.google.com/maps");
+    void 제공자는_Google을_부르지_않고_출처_표기와_함께_돌려준다() {
+        assertThat(client.provider()).isEqualTo(new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps"));
         server.verify();
         verifyNoInteractions(limiter);
     }
 
     @Test
-    void 기록에_붙일_장소_ID_형식이_틀리면_거절한다() {
-        assertError(() -> client.findForRecord("../places"), "INVALID_PLACE_ID");
-    }
-
-    @Test
     void API_키를_뺀_뒤에는_Google_장소를_기록에_붙이지_않는다() {
-        assertError(() -> unconfiguredClient().findForRecord("ChIJ-bundang"), "PLACE_PROVIDER_UNAVAILABLE");
+        assertError(() -> unconfiguredClient().provider(), "PLACE_PROVIDER_UNAVAILABLE");
     }
 
     @Test
@@ -162,14 +166,14 @@ class GooglePlacesClientTest {
                         {"id":"ChIJ-tumon","addressComponents":[{"shortText":"GU","types":["country","political"]}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.findById("ChIJ-tumon").address().countryCode()).isEqualTo("GU");
+        assertThat(client.findDetails(PlaceId.from("ChIJ-tumon"), null).address().countryCode()).isEqualTo("GU");
     }
 
     @Test
     void 없는_장소_ID는_장소_없음으로_처리한다() {
         server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
-        assertError(() -> client.findById("ChIJ-missing"), "PLACE_NOT_FOUND");
+        assertError(() -> client.findDetails(PlaceId.from("ChIJ-missing"), null), "PLACE_NOT_FOUND");
     }
 
     @Test
@@ -181,7 +185,7 @@ class GooglePlacesClientTest {
                           "details":[{"reason":"API_KEY_INVALID"}]}}
                         """));
 
-        assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
+        assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
     }
 
     // 4xx는 서킷이 실패로 세지 않아, 키 거절은 여기서 ERROR로 알린다. 응답의 PLACE_PROVIDER_UNAVAILABLE은 WARN이다.
@@ -190,7 +194,7 @@ class GooglePlacesClientTest {
         server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN));
 
         List<ILoggingEvent> logs = captureLogs(() ->
-                assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE"));
+                assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE"));
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "status") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_REJECTED:403:ERROR");
@@ -201,7 +205,7 @@ class GooglePlacesClientTest {
         server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         List<ILoggingEvent> logs = captureLogs(() ->
-                assertError(() -> client.findById("ChIJ-missing"), "PLACE_NOT_FOUND"));
+                assertError(() -> client.findDetails(PlaceId.from("ChIJ-missing"), null), "PLACE_NOT_FOUND"));
 
         assertThat(logs).isEmpty();
     }
@@ -211,7 +215,7 @@ class GooglePlacesClientTest {
         List<ILoggingEvent> logs = captureLogs(() -> {
             GooglePlacesClient unconfigured = unconfiguredClient();
             assertError(() -> unconfigured.search("경복", "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
-            assertError(() -> unconfigured.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
+            assertError(() -> unconfigured.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
         });
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
@@ -374,7 +378,7 @@ class GooglePlacesClientTest {
             server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
-            assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
+            assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
             verify(limiter).refundAutocomplete();
             verify(limiter).refundDetails();
@@ -391,7 +395,7 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
-            assertError(() -> client.findById("ChIJ-gyeong"), "PLACE_PROVIDER_UNAVAILABLE");
+            assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
             verify(limiter, times(2)).refundAutocomplete();
             verify(limiter).refundDetails();
@@ -407,7 +411,7 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.search("경복", null), "PLACE_PROVIDER_UNAVAILABLE");
-            assertError(() -> client.findById("ChIJ-missing"), "PLACE_NOT_FOUND");
+            assertError(() -> client.findDetails(PlaceId.from("ChIJ-missing"), null), "PLACE_NOT_FOUND");
 
             verify(limiter, never()).refundAutocomplete();
             verify(limiter, never()).refundDetails();

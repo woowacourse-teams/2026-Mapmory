@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.place.application.SelectedPlace;
 import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionAddress;
@@ -22,7 +24,8 @@ class PlaceSelectionResponseIntegrationTest extends IntegrationTest {
     void 트랜잭션이_없는_API_계층에서도_추천_지역_계층을_응답한다() {
         Region district = regionResolver.resolve("KR", "11", "11560");
         SelectedPlace selected = new SelectedPlace(
-                new PlaceDetails("ChIJ-park", null, new RegionAddress("KR", "서울특별시", List.of("영등포구")), null, null), district);
+                new PlaceDetails(PlaceId.from("ChIJ-park"), null, new RegionAddress("KR", "서울특별시", List.of("영등포구")),
+                        new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps")), district);
 
         PlaceSelectionResponse response = PlaceSelectionResponse.from(selected);
 

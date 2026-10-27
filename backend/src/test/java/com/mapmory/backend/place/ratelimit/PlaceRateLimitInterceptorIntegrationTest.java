@@ -13,6 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.region.RegionAddress;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -54,8 +56,9 @@ class PlaceRateLimitInterceptorIntegrationTest extends IntegrationTest {
     @Test
     void 선택_한도는_검색_한도와_따로_센다() throws Exception {
         willReturn(List.of()).given(googlePlacesClient).search(anyString(), anyString());
-        willReturn(new PlaceDetails("ChIJ-tokyo", null, RegionAddress.UNKNOWN, "Google Maps", "https://www.google.com/maps"))
-                .given(googlePlacesClient).findForSelection(anyString(), any());
+        willReturn(new PlaceDetails(PlaceId.from("ChIJ-tokyo"), null, RegionAddress.UNKNOWN,
+                new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps")))
+                .given(googlePlacesClient).findDetails(any(), any());
         String accessToken = guestAccessToken();
         int limit = properties.selectionsPerMemberPerDay();
 
@@ -66,7 +69,7 @@ class PlaceRateLimitInterceptorIntegrationTest extends IntegrationTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("PLACE_RATE_LIMITED"));
 
-        verify(googlePlacesClient, times(limit)).findForSelection(anyString(), any());
+        verify(googlePlacesClient, times(limit)).findDetails(any(), any());
         // 선택 한도를 다 써도 검색 한도는 그대로 남아 있다. 선택 요청이 검색 한도를 쓰지 않았다.
         for (int i = 0; i < properties.searchesPerMemberPerMinute(); i++) {
             search(accessToken).andExpect(status().isOk());

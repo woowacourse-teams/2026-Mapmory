@@ -7,7 +7,7 @@ public record PlaceCandidateResponse(
         String attribution, String attributionUrl
 ) {
     public static PlaceCandidateResponse from(PlaceCandidate candidate) {
-        return new PlaceCandidateResponse(candidate.placeId(), candidate.name(), candidate.address(),
-                candidate.attribution(), candidate.attributionUrl());
+        return new PlaceCandidateResponse(candidate.id().value(), candidate.name(), candidate.address(),
+                candidate.provider().attribution(), candidate.provider().attributionUrl());
     }
 }

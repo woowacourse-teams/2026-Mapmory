@@ -20,6 +20,8 @@ import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.region.Region;
@@ -62,6 +64,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 @ExtendWith(MockitoExtension.class)
 class TravelRecordServiceTest {
 
+    private static final PlaceProvider GOOGLE =
+            new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 27);
     private static final Clock FIXED_CLOCK = Clock.fixed(
@@ -161,10 +165,7 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
         when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
-        when(placeLookupPort.findForRecord("ChIJ-park"))
-                .thenReturn(new PlaceDetails("ChIJ-park", null, RegionAddress.UNKNOWN,
-                        "Google Maps", "https://www.google.com/maps"));
-        when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
+        when(placeLookupPort.provider()).thenReturn(GOOGLE);
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -173,6 +174,7 @@ class TravelRecordServiceTest {
         assertThat(result.getRegion()).isEqualTo(district);
         assertThat(result.getPlace()).isEqualTo(new RecordedPlace(
                 "GOOGLE", "ChIJ-park", null, "Google Maps", "https://www.google.com/maps"));
+        verify(placeLookupPort, never()).findDetails(any(), any());
     }
 
     @Test
@@ -183,10 +185,8 @@ class TravelRecordServiceTest {
                 LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
         RegionAddress address = new RegionAddress("KR", "서울특별시", List.of("영등포구"));
-        PlaceDetails place = new PlaceDetails("ChIJ-park", null, address,
-                "Google Maps", "https://www.google.com/maps");
-        when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
-        when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
+        PlaceDetails place = new PlaceDetails(PlaceId.from("ChIJ-park"), null, address, GOOGLE);
+        when(placeLookupPort.findDetails(PlaceId.from("ChIJ-park"), null)).thenReturn(place);
         when(regionSuggester.suggest(address)).thenReturn(Optional.of(district));
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -203,9 +203,9 @@ class TravelRecordServiceTest {
                 null, null, null, "한강 산책", "",
                 LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
-        PlaceDetails place = new PlaceDetails("ChIJ-park", null, new RegionAddress("KR", null, List.of()),
-                "Google Maps", "https://www.google.com/maps");
-        when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
+        PlaceDetails place = new PlaceDetails(PlaceId.from("ChIJ-park"), null,
+                new RegionAddress("KR", null, List.of()), GOOGLE);
+        when(placeLookupPort.findDetails(PlaceId.from("ChIJ-park"), null)).thenReturn(place);
 
         assertThatThrownBy(() -> travelRecordService.create(member, command))
                 .isInstanceOf(BusinessException.class)
