@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.group
 
+import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -229,9 +231,16 @@ internal class GroupPreviewState private constructor(initial: GroupPreviewSnapsh
     }
 
     companion object {
-        val Saver: Saver<GroupPreviewState, String> = Saver(
-            save = { state -> Json.encodeToString(state.data) },
-            restore = { encoded -> GroupPreviewState(Json.decodeFromString<GroupPreviewSnapshot>(encoded)) },
-        )
+        val Saver = saver(NoOpMapmoryAnalytics)
+
+        fun saver(analytics: MapmoryAnalytics): Saver<GroupPreviewState, String> {
+            val telemetry = GroupAnalytics(analytics)
+            return Saver(
+                save = { state -> telemetry.guard("group_state_save", state.analyticsContext()) { Json.encodeToString(state.data) } },
+                restore = { encoded -> telemetry.guard("group_state_restore", GroupAnalyticsContext()) {
+                    GroupPreviewState(Json.decodeFromString<GroupPreviewSnapshot>(encoded))
+                } },
+            )
+        }
     }
 }

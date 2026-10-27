@@ -133,3 +133,14 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 | `logout` | 서버 폐기와 기기 토큰·캐시 정리 완료 | source=settings, provider |
 
 표식 저장 실패/통신 실패/삭제 실패는 로그아웃 성공으로 처리하지 않는다. 취소는 서버 요청과 logout 이벤트를 발생시키지 않는다. 실제 토큰·회원명·이메일·원본 오류 메시지는 수집하지 않는다.
+
+## 그룹 미리보기 행동·오류 계측 (2026-10-23)
+
+현재 그룹 화면의 54개 행동, 화면/시트 표시, 정책 거절, 실제 Exception을 추가했다. 상세 콜백 목록과 제외 범위는 [그룹 계측 점검표](design/group-analytics-coverage.md)에 있다.
+
+- 신규 이벤트: `group_action(action)`, `group_viewed`, `group_action_rejected(reason)`, `group_preview_result(outcome)`.
+- 모든 신규 그룹 이벤트는 `execution_mode=preview/unavailable`, `data_origin=sample`로 구분한다. 샘플 성공·실패를 기존 기록 저장 성공·삭제 성공·운영 작업 실패 이벤트로 발행하지 않는다.
+- 그룹 행동·삭제 준비·입력 갱신·상태 저장/복원의 실제 Exception은 기존 `app_error` 계약에 `feature=group`, 화면·행동·실행 모드 문맥을 추가한다. 기존 호출의 파라미터는 변하지 않는다.
+- 취소와 정책 거절은 앱 오류로 집계하지 않는다. 이미지 표시 실패와 하단 탭 클릭은 기존 공통 이벤트를 재사용하며 중복 발행하지 않는다.
+- 그룹/회원/기록/사진 식별자와 입력값·예외 메시지는 전송하지 않는다. 기존 기록 이벤트의 record_id 계약은 유지한다.
+- 수신/GA4 맞춤 정의 등록은 별도다. 새 필드가 필요하면 `action`, `screen`, `overlay`, `execution_mode`, `data_origin`, `stage`, `target_type`, `input_type`, `reason`, `feature`를 분석 목적에 맞게 등록한다.
