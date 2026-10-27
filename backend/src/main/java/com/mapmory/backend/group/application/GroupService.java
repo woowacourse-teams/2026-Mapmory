@@ -4,13 +4,11 @@ import com.mapmory.backend.group.domain.GroupMember;
 import com.mapmory.backend.group.domain.GroupSummary;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
-import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.api.MemberQuery;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,15 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class GroupService {
 
     private final TravelGroupRepository travelGroupRepository;
-    private final MemberRepository memberRepository;
+    private final MemberQuery memberQuery;
     private final SocialMemberGuard socialMemberGuard;
     private final GroupMembership groupMembership;
     private final Clock clock;
 
-    public GroupService(TravelGroupRepository travelGroupRepository, MemberRepository memberRepository,
+    public GroupService(TravelGroupRepository travelGroupRepository, MemberQuery memberQuery,
                         SocialMemberGuard socialMemberGuard, GroupMembership groupMembership, Clock clock) {
         this.travelGroupRepository = travelGroupRepository;
-        this.memberRepository = memberRepository;
+        this.memberQuery = memberQuery;
         this.socialMemberGuard = socialMemberGuard;
         this.groupMembership = groupMembership;
         this.clock = clock;
@@ -69,8 +67,7 @@ public class GroupService {
     private GroupDetail toDetail(TravelGroup group, Long myMemberId) {
         List<GroupMember> members = group.getMembers();
         List<Long> memberIds = members.stream().map(GroupMember::getMemberId).toList();
-        Map<Long, String> nicknames = memberRepository.findAllById(memberIds).stream()
-                .collect(Collectors.toMap(Member::getId, Member::getNickname));
+        Map<Long, String> nicknames = memberQuery.nicknamesOf(memberIds);
         List<GroupDetail.MemberView> views = memberIds.stream()
                 .map(memberId -> new GroupDetail.MemberView(
                         nicknames.get(memberId),

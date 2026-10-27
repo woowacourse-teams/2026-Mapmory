@@ -215,6 +215,13 @@ public class TravelRecord extends BaseEntity {
         return id;
     }
 
+    /**
+     * getMemberId로 지으면 Spring Data가 findByIdAndMemberId의 MemberId를 member.id가 아닌 이 속성으로 읽는다.
+     */
+    public Long memberId() {
+        return member.getId();
+    }
+
     public String getTitle() {
         return title;
     }
