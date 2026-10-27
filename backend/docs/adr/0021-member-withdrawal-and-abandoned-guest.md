@@ -145,7 +145,8 @@ access token은 무상태라 탈퇴하거나 버려져도 만료까지 유효하
 - 관리자 화면의 회원 수 집계에는 탈퇴 회원이 포함된다.
 - `withdrawn_at`은 기존 `Clock` 빈(Asia/Seoul)으로 정하고, refresh의 `revoked_at`은 `LocalDateTime.now()`(서버 기본 시간대)로
   정한다. 서버 시간대가 UTC면 두 값이 9시간 차이 난다.
-  > 2026-10-28 구현 업데이트: 더는 차이 나지 않는다. `Clock` 빈이 UTC가 됐고(#501), `revoked_at`도 같은 `Clock`으로 정한다(#521).
+  > 2026-10-28 구현 업데이트: 더는 차이 나지 않는다. `Clock` 빈이 UTC가 됐다(#501). `revoked_at`은 원래 UTC였다.
+  > 앱의 `main()`이 JVM 기본 시간대를 UTC로 고정하기 때문이다. #521부터는 `revoked_at`도 같은 `Clock`으로 정한다.
 
 ### 남은 일
 
