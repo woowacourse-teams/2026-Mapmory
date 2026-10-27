@@ -55,7 +55,7 @@ class TravelTimelineSnapshotFactoryTest {
     }
 
     @Test
-    void 다른_국가는_연속되어도_방문마다_정류장을_만든다() {
+    void 연속된_다른_국가_기록도_하나의_정류장으로_합친다() {
         TravelTimelineSnapshot snapshot = factory.create(List.of(
                 record(1L, unitedKingdom, LocalDate.of(2026, 3, 10), null),
                 record(2L, unitedKingdom, LocalDate.of(2026, 4, 10), null)
@@ -63,13 +63,10 @@ class TravelTimelineSnapshotFactoryTest {
 
         assertThat(snapshot.stops())
                 .extracting(TravelTimelineStop::countryCode)
-                .containsExactly("GB", "GB");
-        assertThat(snapshot.stops().get(0).visits())
+                .containsExactly("GB");
+        assertThat(snapshot.stops().getFirst().visits())
                 .extracting(TravelTimelineVisit::visitId)
-                .containsExactly(1L);
-        assertThat(snapshot.stops().get(1).visits())
-                .extracting(TravelTimelineVisit::visitId)
-                .containsExactly(2L);
+                .containsExactly(1L, 2L);
     }
 
     @Test

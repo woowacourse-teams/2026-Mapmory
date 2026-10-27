@@ -22,7 +22,12 @@ npm run render:fixture
 
 # 입력·출력 경로를 지정해 MP4 생성
 npm run render:worker -- ./fixtures/travel-timeline-snapshot.json ./out/custom.mp4
+
+# 스타일을 지정해 MP4 생성 (CLASSIC, ZOOM, ORBIT, HORIZON)
+npm run render:worker -- ./fixtures/travel-timeline-snapshot.json ./out/horizon.mp4 HORIZON
 ```
+
+스타일 생략 시 `CLASSIC`을 사용합니다. 스타일은 각각 `TravelTimeline`, `TravelTimelineZoom`, `TravelTimelineOrbit`, `TravelTimelineHorizon` 구성으로 연결됩니다.
 
 ## 백엔드 스냅샷
 

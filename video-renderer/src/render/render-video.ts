@@ -7,26 +7,49 @@ import {createRenderInput} from "./create-render-input";
 
 const rendererDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultOutputLocation = path.join(rendererDir, "out", "travel-timeline.mp4");
+const compositionIds = {
+  CLASSIC: "TravelTimeline",
+  ZOOM: "TravelTimelineZoom",
+  ORBIT: "TravelTimelineOrbit",
+  HORIZON: "TravelTimelineHorizon",
+} as const;
+
+type ShareVideoStyle = keyof typeof compositionIds;
+
+const resolveCompositionId = (styleArgument: string | undefined): string => {
+  let styleId = "CLASSIC";
+  if (styleArgument !== undefined) {
+    styleId = styleArgument;
+  }
+  if (!(styleId in compositionIds)) {
+    throw new Error(`지원하지 않는 영상 스타일입니다: ${styleId}`);
+  }
+  return compositionIds[styleId as ShareVideoStyle];
+};
 
 const resolveArguments = () => {
-  const [inputArgument, outputArgument] = process.argv.slice(2);
+  const [inputArgument, outputArgument, styleArgument] = process.argv.slice(2);
 
   if (!inputArgument) {
     throw new Error(
-      "Usage: npm run render:worker -- <snapshot.json> [output.mp4]",
+      "Usage: npm run render:worker -- <snapshot.json> [output.mp4] [styleId]",
     );
+  }
+
+  let outputLocation = defaultOutputLocation;
+  if (outputArgument) {
+    outputLocation = path.resolve(process.cwd(), outputArgument);
   }
 
   return {
     inputLocation: path.resolve(process.cwd(), inputArgument),
-    outputLocation: outputArgument
-      ? path.resolve(process.cwd(), outputArgument)
-      : defaultOutputLocation,
+    outputLocation,
+    compositionId: resolveCompositionId(styleArgument),
   };
 };
 
 const main = async () => {
-  const {inputLocation, outputLocation} = resolveArguments();
+  const {inputLocation, outputLocation, compositionId} = resolveArguments();
   const snapshotJson = await readFile(inputLocation, "utf8");
   const inputProps = createRenderInput(JSON.parse(snapshotJson));
 
@@ -38,7 +61,7 @@ const main = async () => {
 
   const composition = await selectComposition({
     serveUrl,
-    id: "TravelTimeline",
+    id: compositionId,
     inputProps,
     port: 3001,
   });

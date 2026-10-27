@@ -56,8 +56,9 @@ public class ShareVideoWorker {
 
         try {
             log.info(
-                    "공유 영상 렌더링을 시작합니다. jobId={}",
-                    task.jobId()
+                    "공유 영상 렌더링을 시작합니다. jobId={}, styleId={}",
+                    task.jobId(),
+                    task.styleId()
             );
 
             failureCode = ShareVideoFailureCode.RENDER_FAILED;
