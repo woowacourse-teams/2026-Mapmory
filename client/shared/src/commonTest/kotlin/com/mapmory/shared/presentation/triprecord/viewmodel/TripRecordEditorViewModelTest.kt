@@ -675,6 +675,88 @@ class TripRecordEditorViewModelTest {
     }
 
     @Test
+    fun `제주도_전체는_장소와_기록_지역으로_선택할_수_없고_제주시는_저장할_수_있다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val candidate = PlaceCandidate("jeju-island", "제주도", "제주특별자치도", null, null)
+        val places = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.success(listOf(candidate))
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.success(
+                PlaceSelection(
+                    place = PlaceReference(placeId, "제주도"),
+                    countryCode = "KR",
+                    suggestedRegion = if (placeId == candidate.placeId) {
+                        PlaceRegionSuggestion("KR", "49")
+                    } else {
+                        null
+                    },
+                    manualRegionRequired = false,
+                ),
+            )
+        }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            placeRepository = places,
+            regionCatalog = catalog,
+        )
+        viewModel.startCreating(catalog.requireByCode("KR-49"))
+
+        assertNull(viewModel.uiState.selectedLocation)
+        assertNull(viewModel.selectPlace(candidate))
+        assertNull(viewModel.uiState.selectedPlace)
+        assertTrue(viewModel.uiState.manualRegionRequired)
+        assertEquals(
+            "제주도 전체는 기록 지역으로 선택할 수 없어요. 제주시 또는 서귀포시를 검색해 주세요.",
+            viewModel.uiState.placeSelectionErrorMessage,
+        )
+        assertNull(
+            viewModel.selectPlace(candidate.copy(placeId = "jeju-province-name", name = "제주특별자치도")),
+        )
+        assertNull(viewModel.uiState.selectedPlace)
+
+        viewModel.selectLocation(catalog.requireByCode("KR-49"))
+        assertNull(viewModel.uiState.selectedLocation)
+        val jejuCity = catalog.requireByCode("50110")
+        viewModel.selectLocation(jejuCity)
+        viewModel.addPhotos(listOf(selectedPhoto("content://photo/jeju")))
+        viewModel.updateStartDate("2026-10-01")
+
+        assertTrue(viewModel.save())
+        val savedRecord = repository.getTripRecord(1).getOrThrow()
+        assertEquals(jejuCity.id, savedRecord.locationId)
+        assertNull(savedRecord.place)
+    }
+
+    @Test
+    fun `기존_제주도_전체_기록은_수정할_수_있다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val jejuProvince = catalog.requireByCode("KR-49")
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val existingRecord = repository.createTripRecord(
+            TripRecordDraft(
+                locationId = jejuProvince.id,
+                title = "제주 여행",
+                content = "",
+                startDate = "2026-09-01",
+                endDate = null,
+                mediaObjectKeys = listOf("records/1/jeju.jpg"),
+            ),
+        ).getOrThrow()
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+            regionCatalog = catalog,
+        )
+        viewModel.startEditing(existingRecord, jejuProvince)
+        viewModel.updateTitle("제주 여행 기록 수정")
+
+        assertTrue(viewModel.save())
+        assertEquals("제주 여행 기록 수정", repository.getTripRecord(existingRecord.id).getOrThrow().title)
+        assertEquals(jejuProvince.id, repository.getTripRecord(existingRecord.id).getOrThrow().locationId)
+    }
+
+    @Test
     fun `미디어_Object_Key를_추가하고_삭제할_수_있다`() {
         val viewModel = TripRecordEditorViewModel(
             createTripRecord = CreateTripRecordUseCase(FakeTripRecordRepository { "2026-08-07T00:00:00Z" }),
