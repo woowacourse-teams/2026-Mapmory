@@ -7,3 +7,5 @@ qa/
 design-qa/**/
 .DS_Store
 *.log
+# Gate evidence (screenshots, Lighthouse/axe JSON) stays local; the tables in gates/reports/*.md summarize it.
+gates/reports/evidence/

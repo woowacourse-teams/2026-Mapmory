@@ -7,8 +7,15 @@
 export const TECH_COPY = Object.freeze({
   eyebrow: "기술 소개",
   title: ["사진은 빨리 찾아 기록하고,", "기록은 3D 지도에 모아요"],
-  footnote: "* 팀 테스트 폰에서 사진 3만 장을 잰 시간이에요. 기기에 따라 달라질 수 있어요.",
+  // the first full read; later syncs reuse stored coordinates (PhotoMetadataSync.shouldReuseCoordinates)
+  footnote: "* 팀 테스트 폰에서 사진 3만 장을 처음 훑는 데 걸린 시간이에요. 다음부터는 새 사진만 읽어요. 기기에 따라 달라질 수 있어요.",
 });
+
+// Layout variant (4단계 시안, gates/variants.json): "base" words under the phone in a phone frame, "above" the words
+// above the phone on phones, "bare" the screen as a plain card with no phone frame. `?tsv=<key>` on the URL shows
+// another one for a side-by-side check; the chosen one is the default here.
+export const TECH_VARIANTS = Object.freeze(["base", "above", "bare"]);
+export const TECH_VARIANT = "base";
 
 export const TECH_STEPS = Object.freeze([
   { key: "find", label: "사진 찾기", side: "left" },
@@ -21,8 +28,10 @@ export const TECH_STEPS = Object.freeze([
 // a phrase on one line where a 360px phone would split it.
 export const TECH_SCENES = Object.freeze([
   { step: "find", title: "사진마다 찍은 곳이 담겨 있어요", hint: "사진에 올려 보세요", hintTouch: "사진을 눌러 보세요", interaction: "flip" },
-  { step: "find", title: "3만 장도 30초면 고른\u00a0곳 사진만 모여요", footnote: true, hint: "아무 사진이나 눌러 보세요", interaction: "gather" },
-  { step: "find", title: "고른 사진으로 바로 기록해요", hint: "사진을 골라 기록해 보세요", interaction: "save" },
+  // "누른 곳": the place of the photo you press, in the hint's own verb (cold readers asked how a place gets "chosen")
+  { step: "find", title: "3만 장도 30초면 누른\u00a0곳 사진만 모여요", footnote: true, hint: "아무 사진이나 눌러 보세요", interaction: "gather" },
+  // the safety line (brief C): the UT sessions asked where the photos go; only the picked ones are uploaded
+  { step: "find", title: "고른 사진만 앱에 올라가고 나머지는 폰에 남아요", hint: "사진을 골라 기록해 보세요", interaction: "save" },
   { step: "map", title: "다녀온 곳이 지도에 칠해져요", hint: "지도를 눌러 보세요", interaction: "map_toggle" },
   { step: "map", title: "모은 기록을 3D 지구본에서 돌려 봐요", hint: "끌어서 돌려 보세요", hintTouch: "손가락으로 돌려 보세요", interaction: "globe_drag" },
   { step: "map", title: "다녀온 곳을 타임라인\u00a0영상으로 공유해요", hint: "연도를 눌러 보세요", interaction: "year_pick", share: true },

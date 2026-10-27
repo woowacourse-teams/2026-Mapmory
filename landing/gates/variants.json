@@ -1,0 +1,156 @@
+{
+  "writtenAt": "2026-10-27",
+  "rule": "4.8: 4.1~4.5를 모두 넘은 안 중 4.7 인식률(장면별 최솟값)이 가장 높은 안. 동점이면 motionMs(예외를 뺀 전환 길이 합)가 적은 안, 그래도 동점이면 4.6 시선 일치(장면별 최솟값)가 높은 안, 그래도 동점이면 먼저 적힌 안(승인 스케치 v8 = 기준안, 바꿀 근거가 없으면 유지)",
+  "variants": [
+    {
+      "key": "base",
+      "name": "기준안",
+      "axis": "글이 폰 아래 (폰 틀)",
+      "description": "폰 틀 안의 화면이 위, 손글씨 라벨과 제목이 그 아래 띠에",
+      "url": "http://localhost:4173/",
+      "auto": {
+        "4.1": true,
+        "4.2": true,
+        "4.3": true,
+        "4.4": true,
+        "4.5": true
+      },
+      "autoValues": {
+        "4.1": "위반 0 (라이트·다크 × 6장면), 판정 불가 132곳",
+        "4.2": "117개 중 44px 미만 0개, 최소 44px",
+        "4.3": "최소 폰 밖 22px, 폰 안 13px",
+        "4.4": "전환 28개 중 범위 밖 0개 (예외 4개)",
+        "4.5": "위치·크기 전환 0개, 단계 전환 중 폰 변환값 1가지"
+      },
+      "motionMs": 7100,
+      "recognition": 1.0,
+      "recognitionPerScene": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "focusMin": 0.8,
+      "focusPerScene": [
+        1.0,
+        1.0,
+        0.8,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "judgments": "judgments/visual-base.json",
+      "screenshots": [
+        "gates/reports/evidence/stage-4/base/scene-1.png",
+        "gates/reports/evidence/stage-4/base/scene-2.png",
+        "gates/reports/evidence/stage-4/base/scene-3.png",
+        "gates/reports/evidence/stage-4/base/scene-4.png",
+        "gates/reports/evidence/stage-4/base/scene-5.png",
+        "gates/reports/evidence/stage-4/base/scene-6.png"
+      ]
+    },
+    {
+      "key": "above",
+      "name": "글 먼저",
+      "axis": "글이 폰 위",
+      "description": "손글씨 라벨과 제목이 헤더 아래 띠에 먼저, 폰은 그 아래",
+      "url": "http://localhost:4173/?tsv=above",
+      "auto": {
+        "4.1": true,
+        "4.2": true,
+        "4.3": true,
+        "4.4": true,
+        "4.5": true
+      },
+      "autoValues": {
+        "4.1": "위반 0 (라이트·다크 × 6장면), 판정 불가 132곳",
+        "4.2": "106개 중 44px 미만 0개, 최소 44px",
+        "4.3": "최소 폰 밖 22px, 폰 안 13px",
+        "4.4": "전환 28개 중 범위 밖 0개 (예외 4개)",
+        "4.5": "위치·크기 전환 0개, 단계 전환 중 폰 변환값 2가지"
+      },
+      "motionMs": 7100,
+      "recognition": 1.0,
+      "recognitionPerScene": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "focusMin": 0.6,
+      "focusPerScene": [
+        1.0,
+        1.0,
+        0.6,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "judgments": "judgments/visual-above.json",
+      "screenshots": [
+        "gates/reports/evidence/stage-4/above/scene-1.png",
+        "gates/reports/evidence/stage-4/above/scene-2.png",
+        "gates/reports/evidence/stage-4/above/scene-3.png",
+        "gates/reports/evidence/stage-4/above/scene-4.png",
+        "gates/reports/evidence/stage-4/above/scene-5.png",
+        "gates/reports/evidence/stage-4/above/scene-6.png"
+      ]
+    },
+    {
+      "key": "bare",
+      "name": "화면만",
+      "axis": "폰 틀 없음",
+      "description": "폰 몸체와 노치 없이 화면만 둥근 카드로, 글은 그 아래",
+      "url": "http://localhost:4173/?tsv=bare",
+      "auto": {
+        "4.1": true,
+        "4.2": true,
+        "4.3": true,
+        "4.4": true,
+        "4.5": true
+      },
+      "autoValues": {
+        "4.1": "위반 0 (라이트·다크 × 6장면), 판정 불가 132곳",
+        "4.2": "114개 중 44px 미만 0개, 최소 44px",
+        "4.3": "최소 폰 밖 22px, 폰 안 13px",
+        "4.4": "전환 28개 중 범위 밖 0개 (예외 4개)",
+        "4.5": "위치·크기 전환 0개, 단계 전환 중 폰 변환값 1가지"
+      },
+      "motionMs": 7100,
+      "recognition": 1.0,
+      "recognitionPerScene": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "focusMin": 0.8,
+      "focusPerScene": [
+        1.0,
+        1.0,
+        0.8,
+        1.0,
+        1.0,
+        0.8
+      ],
+      "judgments": "judgments/visual-bare.json",
+      "screenshots": [
+        "gates/reports/evidence/stage-4/bare/scene-1.png",
+        "gates/reports/evidence/stage-4/bare/scene-2.png",
+        "gates/reports/evidence/stage-4/bare/scene-3.png",
+        "gates/reports/evidence/stage-4/bare/scene-4.png",
+        "gates/reports/evidence/stage-4/bare/scene-5.png",
+        "gates/reports/evidence/stage-4/bare/scene-6.png"
+      ]
+    }
+  ],
+  "chosen": "base",
+  "reason": "세 안 모두 4.1~4.5 통과, 4.7 인식률 6장면 100%로 동점, motionMs 7100으로 동점(레이아웃 축만 달라 움직임은 같다). 4.6 시선 일치 최솟값: 기준안 0.8, 화면만 0.8, 글 먼저 0.6(장면 3에서 판정자 2명이 '기록하기' 버튼을 먼저 봄) → 글 먼저 탈락. 기준안과 화면만이 끝까지 동점이라 승인 스케치인 기준안을 유지한다. 판정자의 남은 궁금증은 세 안에서 같았다(각주 안 보임, 눌러 보세요가 실제로 되는지, '앱에 올라간다'의 뜻, 지도 농도의 뜻, 공유 버튼 없음) → 설계 메모로 넘김",
+  "judgeNotes": "15명 공통: (1) 장면 2의 * 각주가 장면 안에서 안 보인다 15/15 (2) 폰 안 '눌러 보세요'가 이 페이지에서 되는지 모르겠다 13/15 — 정지 화면의 한계, 실기기 6.4에서 확인 (3) '앱에 올라가고'가 서버 업로드인지 12/15 (4) 지도 농도 3단계의 뜻 10/15 — 시연 끝 상태(나라 단위까지 칠해짐)를 찍어서 (5) 장면 6 공유 버튼이 안 보이고 왜 어두운지 12/15 (6) 단계 라벨이 둘뿐·번호 없음 7/15 (7) 헤더 다운로드 아이콘에 글자 없음 12/15 (8) 앱 한 줄 소개가 없다 7/15 — 히어로의 몫, 판정자는 섹션만 봤다"
+}

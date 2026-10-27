@@ -1,0 +1,45 @@
+{
+  "stages": {
+    "1": {
+      "key": "brief",
+      "name": "브리프",
+      "passed": true,
+      "at": "2026-10-27T11:21:42.721Z",
+      "report": "gates/reports/stage-1.md",
+      "forced": false
+    },
+    "2": {
+      "key": "copy",
+      "name": "문구",
+      "passed": true,
+      "at": "2026-10-27T11:48:12.537Z",
+      "report": "gates/reports/stage-2.md",
+      "forced": false
+    },
+    "3": {
+      "key": "structure",
+      "name": "구조",
+      "passed": true,
+      "at": "2026-10-27T11:51:24.753Z",
+      "report": "gates/reports/stage-3.md",
+      "forced": false
+    },
+    "4": {
+      "key": "design",
+      "name": "시안",
+      "passed": true,
+      "at": "2026-10-27T12:28:16.392Z",
+      "report": "gates/reports/stage-4.md",
+      "forced": false
+    },
+    "5": {
+      "key": "build",
+      "name": "구현",
+      "passed": false,
+      "at": "2026-10-27T12:45:54.524Z",
+      "report": "gates/reports/stage-5.md",
+      "forced": false
+    }
+  },
+  "current": 5
+}

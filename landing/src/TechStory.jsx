@@ -1,17 +1,19 @@
 import { memo, useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { createPassiveViewTracker, createSceneReachTracker } from "./howStoryAnalytics.js";
-import { TECH_COPY, TECH_SHARE, TECH_STEPS, techScenes } from "./techStory.js";
+import { TECH_COPY, TECH_SHARE, TECH_STEPS, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
 
 const EXPERIENCE_TYPE = "tech_story";
 const PIN = "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z";
 const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={PIN} /></svg>;
 
-// Wobbling hand-written step label: one span per letter, each on its own beat of the boil animation.
+// Wobbling hand-written step label: one span per letter, each on its own beat of the boil animation. Assistive
+// tech reads the whole word once from the visually hidden span (aria-label is not allowed on a <p>, axe 5.5).
 function StepLabel({ text }) {
   return (
-    <p className="ts-label" aria-label={text}>
-      {[...text].map((ch, i) => <span aria-hidden="true" style={{ "--i": i }} key={i}>{ch}</span>)}
+    <p className="ts-label">
+      <span className="sr-only">{text}</span>
+      {[...text].map((ch, i) => <span className="ts-ch" aria-hidden="true" style={{ "--i": i }} key={i}>{ch}</span>)}
     </p>
   );
 }
@@ -62,6 +64,9 @@ function TechStoryInner() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
+    // `?tsv=above` (or another key in TECH_VARIANTS) shows a layout variant for a side-by-side check
+    const variant = new URLSearchParams(window.location.search).get("tsv");
+    if (TECH_VARIANTS.includes(variant)) root.dataset.variant = variant;
     let destroy = null;
     let cancelled = false;
     let state = { inView: false, scene: 0 };
@@ -122,7 +127,7 @@ function TechStoryInner() {
 
   let lastStep = null;
   return (
-    <div className="ts" ref={rootRef}>
+    <div className="ts" data-variant={TECH_VARIANT} ref={rootRef}>
       <header className="ts-head">
         <p className="ts-eyebrow">{TECH_COPY.eyebrow}</p>
         <h2 id="tech-title">{TECH_COPY.title[0]}<br />{TECH_COPY.title[1]}</h2>

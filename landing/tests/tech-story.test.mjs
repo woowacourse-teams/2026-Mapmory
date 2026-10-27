@@ -19,8 +19,8 @@ test("two steps, six scenes, one title each, in the approved words", () => {
   // 10-27 mobile pass: "그곳" became "고른 곳" so a first-time visitor knows which place
   assert.deepEqual(TECH_SCENES.map(({ step, title }) => [step, plain(title)]), [
     ["find", "사진마다 찍은 곳이 담겨 있어요"],
-    ["find", "3만 장도 30초면 고른 곳 사진만 모여요"],
-    ["find", "고른 사진으로 바로 기록해요"],
+    ["find", "3만 장도 30초면 누른 곳 사진만 모여요"],
+    ["find", "고른 사진만 앱에 올라가고 나머지는 폰에 남아요"],
     ["map", "다녀온 곳이 지도에 칠해져요"],
     ["map", "모은 기록을 3D 지구본에서 돌려 봐요"],
     ["map", "다녀온 곳을 타임라인 영상으로 공유해요"],
@@ -31,7 +31,7 @@ test("two steps, six scenes, one title each, in the approved words", () => {
 });
 
 test("`3만 장도 30초` keeps its footnote, and no other small text sits under the titles", () => {
-  assert.equal(TECH_SCENES.filter((scene) => scene.footnote).map((scene) => plain(scene.title)).join(), "3만 장도 30초면 고른 곳 사진만 모여요");
+  assert.equal(TECH_SCENES.filter((scene) => scene.footnote).map((scene) => plain(scene.title)).join(), "3만 장도 30초면 누른 곳 사진만 모여요");
   assert.match(TECH_COPY.footnote, /팀 테스트 폰/);
   assert.match(component, /<p className="ts-footnote">\{TECH_COPY\.footnote\}<\/p>/);
   // a beat is the step label and the title only

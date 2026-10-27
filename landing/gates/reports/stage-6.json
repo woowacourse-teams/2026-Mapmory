@@ -1,0 +1,30 @@
+{
+  "stage": 6,
+  "key": "qa",
+  "name": "검수",
+  "url": "http://localhost:4173/",
+  "at": "2026-10-27T11:46:47.392Z",
+  "complete": false,
+  "passed": false,
+  "forced": true,
+  "rows": [
+    {
+      "id": "6.3",
+      "name": "터치 시나리오",
+      "pass": true,
+      "expected": "6/6 (뒤집기, 모으기, 기록, 지도, 지구본 끌기 vs 세로 스크롤, 영상)",
+      "value": "6/6 (뒤집기 O, 모으기 O, 기록 O, 지도 O, 지구본 O, 영상 O)",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-6/touch.json"
+      ],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "Ramotion, web design process"
+      ],
+      "derived": null,
+      "ms": 35906
+    }
+  ]
+}

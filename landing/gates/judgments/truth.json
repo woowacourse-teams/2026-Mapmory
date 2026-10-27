@@ -1,0 +1,21 @@
+{
+  "criterion": "2.4",
+  "judgedAt": "2026-10-27T11:30:00Z",
+  "material": ["brief.json (scenes[].truth)", "landing/AGENTS.md 문구 규칙 (코드로 확인된 항목)", "앱 저장소 client/shared/src"],
+  "question": "장면의 주장이 앱 코드에서 사실인가? 근거 경로를 열어 확인한다. 출시 전 꺼 두는 장면은 그 앱 PR 기준.",
+  "how": "한 명이 경로를 직접 열어 확인. 각 답에 확인한 파일과 줄의 내용을 적는다.",
+  "judges": [
+    {
+      "id": "code-check", "context": "repo",
+      "product": { "answer": "앱은 폰 사진의 위치로 여행 기록을 만들고 지도·지구본에 모은다 (AGENTS.md 문구 규칙: photo search runs on the device by location; only the photos picked when saving are uploaded)", "correct": true },
+      "scenes": [
+        { "scene": 1, "answer": "PhotoLibrary.android.kt: androidx.exifinterface ExifInterface import(32행), syncPhotoMetadata(402행)이 PhotoMetadataDatabase(폰 안 Room)에 저장, readCoordinates로 사진별 좌표를 읽음. PhotoMetadataSync.kt: exifReadCount. → '사진마다 찍은 곳이 담겨 있고 앱이 폰 안에서 읽는다' 사실", "correct": true },
+        { "scene": 2, "answer": "AGENTS.md 39행: '3만 장도 30초'는 팀 테스트 폰의 측정이며 항상 각주를 단다 (코드 확인된 규칙). PhotoMetadataSync.kt: readPrevious/readCurrent/writeSnapshot으로 이미 읽은 사진은 건너뜀. 페이지는 각주(TECH_COPY.footnote)를 단다 → 사실(각주 조건부)", "correct": true },
+        { "scene": 3, "answer": "UploadingTripRecordRepository.kt prepareDraft(78행~): draft.mediaObjectKeys 중 아직 안 올린 것만 pendingSources로 PhotoUploader.upload(111행). PhotoUploadRemoteRepository.kt upload(sources)(45행). 위치 읽기는 폰 안 Room(scene 1). AGENTS.md 규칙과 일치 → '고른 사진만 올라가고 나머지는 폰에 남는다' 사실", "correct": true },
+        { "scene": 4, "answer": "KoreaMapArtwork.kt 52행 visitedRegionCodes, 180~184행 isVisited → visitedFillColor로 drawPath. KoreaMapUiState.kt DistrictDetail(시·도 → 시·군·구). → '다녀온 곳이 지도에 칠해진다' 사실", "correct": true },
+        { "scene": 5, "answer": "WorldGlobe.kt 39행 WorldGlobe composable, 197행 countryAtScreenPoint (화면 위 나라 판별), MapArtwork.kt. → '3D 지구본에서 돌려 본다' 사실", "correct": true },
+        { "scene": 6, "answer": "앱 PR #436 '여행 업적과 타임라인 영상 공유를 추가한다' merged → and/feat/journal-layout-ab (main·develop에는 없음: ls-tree로 확인). 장면은 share: true로 표시되어 6.5 규칙(TECH_SHARE.enabled=false)으로 출시 전엔 꺼짐. 그 앱 PR 기준으로 사실", "correct": true }
+      ]
+    }
+  ]
+}

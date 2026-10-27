@@ -175,17 +175,21 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     const top = Math.max(0, (pick.clientHeight - (pw * 3 + gap * 2)) / 2);
     pick.style.setProperty("--pw", `${pw}px`);
     const folded = pick.classList.contains("is-folded");
+    const picked = pTiles.filter((t) => t.classList.contains("is-sel"));
+    const count = picked.length;
     let s = 0;
     pTiles.forEach((t, i) => {
-      if (folded && t.classList.contains("is-sel")) {
+      const sel = t.classList.contains("is-sel");
+      if (folded && sel) {
         t.style.transform = `translate(${w / 2 - pw / 2 + (s - 1.5) * 10}px,${top + pw * 0.45 + s * 4}px) rotate(${(s - 1.5) * 6}deg)`;
         s++;
       } else {
         t.style.transform = `translate(${(i % 3) * (pw + gap)}px,${top + Math.floor(i / 3) * (pw + gap)}px)`;
       }
+      // folded: the stack's top photo (last in the DOM, painted on top) stays a button that unfolds it; the photos
+      // under it are covered and the unpicked ones invisible, so they leave the tab order (axe target-size, 5.5)
+      t.disabled = folded && t !== picked[count - 1];
     });
-    const picked = pTiles.filter((t) => t.classList.contains("is-sel"));
-    const count = picked.length;
     pick.style.setProperty("--rt", `${top + pw * 1.45 + 30}px`);
     // the card is named after the place most of the picked photos come from
     const tally = {};
@@ -450,8 +454,9 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   function frame() {
     frameRaf = 0;
     const vh = innerHeight;
-    const pb = narrow.matches ? wrap.getBoundingClientRect().bottom : 0;
-    const focus = narrow.matches ? pb + (vh - pb) / 2 : vh / 2;
+    // the focus line: the middle of the band the words sit in (the viewport middle on desktop; on phones the middle
+    // of the room under the phone, or above it when the words come first)
+    const focus = narrow.matches ? (() => { const r = captionsEl.getBoundingClientRect(); return r.top + r.height / 2; })() : vh / 2;
     let best = 0, bestD = Infinity;
     beats.forEach((b) => { const r = b.getBoundingClientRect(); const d = Math.abs(r.top + r.height / 2 - focus); if (d < bestD) { bestD = d; best = +b.dataset.beat; } });
     setActive(best);
