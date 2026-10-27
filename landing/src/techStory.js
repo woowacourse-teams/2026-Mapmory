@@ -16,27 +16,46 @@ export const TECH_STEPS = Object.freeze([
 ]);
 
 // scene_index for analytics is the position here + 1 (1-6). `hint` is the hand-written line on the phone screen;
-// `hintTouch` replaces it on devices without hover.
+// `hintTouch` replaces it on devices without hover. Phones (10-27 mobile pass): text in the phone is 13px or larger,
+// everything to tap is about 44px or larger, and a first-time visitor sees one thing to do per screen. A \u00a0 keeps
+// a phrase on one line where a 360px phone would split it.
 export const TECH_SCENES = Object.freeze([
   { step: "find", title: "사진마다 찍은 곳이 담겨 있어요", hint: "사진에 올려 보세요", hintTouch: "사진을 눌러 보세요", interaction: "flip" },
-  { step: "find", title: "3만 장도 30초면 그곳 사진만 모여요", footnote: true, hint: "아무 사진이나 눌러 보세요", interaction: "gather" },
+  { step: "find", title: "3만 장도 30초면 고른\u00a0곳 사진만 모여요", footnote: true, hint: "아무 사진이나 눌러 보세요", interaction: "gather" },
   { step: "find", title: "고른 사진으로 바로 기록해요", hint: "사진을 골라 기록해 보세요", interaction: "save" },
   { step: "map", title: "다녀온 곳이 지도에 칠해져요", hint: "지도를 눌러 보세요", interaction: "map_toggle" },
-  { step: "map", title: "모은 기록을 3D 지구본에서 돌려 봐요", hint: "손가락으로 돌려 보세요", interaction: "globe_drag" },
-  { step: "map", title: "다녀온 곳을 타임라인 영상으로 공유해요", hint: "연도를 눌러 보세요", interaction: "year_pick", share: true },
+  { step: "map", title: "모은 기록을 3D 지구본에서 돌려 봐요", hint: "끌어서 돌려 보세요", hintTouch: "손가락으로 돌려 보세요", interaction: "globe_drag" },
+  { step: "map", title: "다녀온 곳을 타임라인\u00a0영상으로 공유해요", hint: "연도를 눌러 보세요", interaction: "year_pick", share: true },
 ]);
 
 // The share scene (the app's timeline video, app PR #436). Change it here, nothing else needs to move:
-// - `stops` are the example countries the drawn preview flies through, in date order (at least two, like the app).
-// - `media` swaps the drawn preview for a real capture once the share design is final, e.g.
-//   { type: "video", src: "/assets/tech/share.mp4", poster: "/assets/tech/share.webp" } or { type: "image", src: "/assets/tech/share.webp" }.
-//   The file goes in public/assets/tech/ and is shown inside the phone (9:19.5 or taller fits best).
+// - `media` is the real share video shown in the phone (10-27, 티온's captures; the "classic" style). Another style:
+//   run scripts/encode-tech-share-video.sh on its capture (it crops off the video's own year bar and date line, which
+//   are about 6px at phone-mockup size) and point `sources`/`poster` at the new files in public/assets/tech/.
+//   For a still image instead: { type: "image", src, alt }.
+//   `years` are the year buttons drawn under the video and the second each year starts in it (the same in all four
+//   captures); a button seeks there, and the playing year lights up.
+//   `media: null` falls back to the drawn preview, which flies through `stops` (example countries in date order).
 // - `enabled: false` drops the share scene and its title (the section ends on the globe), for example while the
 //   share feature is not in the released app.
 export const TECH_SHARE = Object.freeze({
   enabled: true,
   button: "영상 공유하기",
-  media: null,
+  media: Object.freeze({
+    type: "video",
+    // the browser plays the first it can: VP9 (Chrome, Firefox, Android), then H.264 (Safari)
+    sources: Object.freeze([
+      { src: "/assets/tech/share-classic.webm", type: "video/webm" },
+      { src: "/assets/tech/share-classic.mp4", type: "video/mp4" },
+    ]),
+    poster: "/assets/tech/share-classic.webp",
+    years: Object.freeze([
+      { label: "2023", at: 0 },
+      { label: "2024", at: 1.6 },
+      { label: "2025", at: 5.8 },
+      { label: "2026", at: 16.1 },
+    ]),
+  }),
   stops: Object.freeze([
     { lon: 127.8, lat: 36.4, name: "대한민국", date: "2023. 05. 12" },
     { lon: 138.5, lat: 36.2, name: "일본", date: "2024. 03. 02" },

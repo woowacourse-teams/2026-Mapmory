@@ -22,9 +22,21 @@ function ShareScreen({ hint }) {
   if (media) {
     return (
       <div className="ts-screen is-dark is-media" data-scene="">
-        {media.type === "video"
-          ? <video className="ts-media" src={media.src} poster={media.poster} muted loop playsInline preload="none" data-share-video="" aria-label="타임라인 공유 영상 예시" />
-          : <img className="ts-media" src={media.src} alt="타임라인 공유 영상 예시" loading="lazy" decoding="async" />}
+        <p className="ts-hint">{hint}</p>
+        <div className="ts-media-box" data-share-box="">
+          {media.type === "video"
+            ? (
+              <video className="ts-media" poster={media.poster} muted loop playsInline preload="none" data-share-video="" tabIndex={0} aria-label="타임라인 공유 영상 예시, 누르면 멈추거나 다시 재생">
+                {media.sources.map((source) => <source src={source.src} type={source.type} key={source.src} />)}
+              </video>
+            )
+            : <img className="ts-media" src={media.src} alt={media.alt ?? "타임라인 공유 영상 예시"} loading="lazy" decoding="async" />}
+        </div>
+        {media.type === "video" && media.years?.length > 0 && (
+          <div className="ts-years" data-share-years="" role="group" aria-label="연도로 넘기기">
+            {media.years.map((year, i) => <button type="button" data-at={year.at} aria-pressed={i === 0} key={year.label}>{year.label}</button>)}
+          </div>
+        )}
       </div>
     );
   }
@@ -147,6 +159,7 @@ function TechStoryInner() {
                 <div className="ts-screen" data-scene="">
                   <p className="ts-hint">{scenes[3].hint}</p>
                   <div className="ts-regions" data-regions="" role="button" tabIndex={0} aria-label="지도 칠하기, 다시 누르면 지우기" aria-pressed="true" />
+                  <div className="ts-region-chip" data-region-chip="" aria-hidden="true"><Pin /><span data-region-chip-text="" /></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">

@@ -46,7 +46,7 @@
 .ts-roll-view { flex: 1; min-height: 0; overflow: hidden; border-radius: 8px; }
 .ts-roll { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; animation: ts-roll 40s linear infinite paused; }
 .is-on .ts-roll { animation-play-state: running; }
-.ts-roll-view:hover .ts-roll { animation-play-state: paused; }
+.ts-roll-view:hover .ts-roll, .ts-roll-view.is-held .ts-roll { animation-play-state: paused; }
 @keyframes ts-roll { to { transform: translateY(-50%); } }
 .ts-flip { aspect-ratio: 1; perspective: 400px; cursor: pointer; }
 .ts-flip-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 450ms cubic-bezier(0.3, 1.3, 0.5, 1); }
@@ -85,9 +85,10 @@
 .ts-pick.is-folded .ts-ph:not(.is-sel) { opacity: 0; pointer-events: none; }
 .ts-rec-card { position: absolute; top: var(--rt, 60%); left: 8%; right: 8%; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
   background: var(--ts-screen); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35); pointer-events: none; opacity: 0; transform: translateY(12px);
-  transition: opacity 350ms 450ms, transform 350ms 450ms; }
+  transition: opacity 200ms, transform 200ms; }
 .ts-rec-card svg { flex: none; width: 16px; height: 16px; color: var(--ts-accent); }
-.ts-pick.is-folded .ts-rec-card { opacity: 1; transform: none; }
+/* the card comes in after the photos have folded, and leaves at once when they spread again */
+.ts-pick.is-folded .ts-rec-card { opacity: 1; transform: none; transition: opacity 350ms 450ms, transform 350ms 450ms; }
 .ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ts-accent); color: #fff; font: inherit; text-align: center; cursor: pointer; }
 .ts-save:disabled { background: var(--ts-accent-soft); color: var(--accent-ink); cursor: default; }
 .ts-save:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
@@ -111,21 +112,33 @@
 .is-filled .ts-tag.is-t1 { transition-delay: 350ms; }
 .is-filled .ts-tag.is-t2 { transition-delay: 1050ms; }
 .is-filled .ts-tag.is-t3 { transition-delay: 1750ms; }
+/* phones name the level being filled in one chip instead (the names on the map would be about 9px there) */
+.ts-region-chip { position: absolute; left: 50%; bottom: 16px; z-index: 3; display: none; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px;
+  background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 15px; white-space: nowrap; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
+  opacity: 0; transform: translate(-50%, 8px); transition: opacity 250ms, transform 300ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+.ts-region-chip.is-shown { opacity: 1; transform: translate(-50%, 0); }
+.ts-region-chip svg { width: 15px; height: 15px; color: var(--ts-accent); }
 
 /* ── scenes 5 and 6: globes; scene 6 is the share video's dark look (or a real capture, see TECH_SHARE.media) */
 .ts-globe { flex: 1; width: 100%; min-height: 0; touch-action: pan-y; cursor: grab; }
 .ts-globe:active { cursor: grabbing; }
 .ts-screen.is-dark { background: var(--ts-tl-bg); color: #f2f4f6; }
 .ts-screen.is-dark .ts-hint { color: #7fe0b8; }
-.ts-screen.is-media { padding: 0; }
-.ts-media { width: 100%; height: 100%; object-fit: cover; }
+/* the real share video (TECH_SHARE.media): the capture's own dark blue and blue, cropped to the globe and the country
+   name; the year buttons under it replace the capture's year bar (scripts/encode-tech-share-video.sh) */
+.ts-screen.is-media { --ts-accent: #2f80f3; padding-left: 0; padding-right: 0; background: #0e131b; }
+.ts-media-box { position: relative; flex: 1; min-height: 0; }
+.ts-media { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+.ts-media:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: -2px; }
+.ts-media-box.is-paused::after { content: ""; position: absolute; top: 50%; left: 50%; width: 0; height: 0; border-style: solid; border-width: 14px 0 14px 24px;
+  border-color: transparent transparent transparent rgba(255, 255, 255, 0.85); transform: translate(-35%, -50%); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); pointer-events: none; }
 .ts-tl-label { min-height: 40px; text-align: center; }
 .ts-tl-label b { display: block; font-size: 19px; letter-spacing: -0.02em; }
 .ts-tl-label span { color: #8b95a1; font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .ts-years { position: relative; display: flex; justify-content: space-between; padding: 0 4px; }
-.ts-years::before { content: ""; position: absolute; left: 16px; right: 16px; bottom: 15px; height: 2px; background: #333d4b; }
-.ts-years button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 40px; min-height: 40px; padding: 4px; border: 0; background: none;
-  color: #8b95a1; font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ts-years::before { content: ""; position: absolute; left: 24px; right: 24px; bottom: 12px; height: 2px; background: #333d4b; }
+.ts-years button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; min-width: 48px; min-height: 48px; padding: 6px 4px 8px;
+  border: 0; background: none; color: #8b95a1; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .ts-years button::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #333d4b; transition: background 300ms, box-shadow 300ms; }
 .ts-years button.is-on { color: #d6e8ff; }
 .ts-years button.is-on::after { background: var(--ts-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ts-accent) 22%, transparent); }
@@ -150,10 +163,10 @@
 .ts-footnote { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 8px 0 64px; color: var(--muted); font-size: 13px; }
 
 @media (max-width: 760px) {
-  .ts { --ph: min(48svh, 540px); }
+  /* the phone as big as fits between the floating header (about 70px) and a band for the words (about 150px), and
+     no wider than the page minus 60px a side: about 560 x 259 on a 390 x 844 phone, 500 x 231 on 360 x 740 */
+  .ts { --ts-top: 84px; --ph: min(560px, calc(100svh - var(--ts-top) - 156px), calc((100vw - 120px) / 0.462)); }
   .ts-head { padding-top: 72px; }
-  /* clear the floating header (about 70px) so the notch and the hint stay visible */
-  .ts { --ts-top: 84px; }
   .ts-phone-wrap { top: calc(var(--ts-top) + var(--ph) / 2); transform: translate(-50%, -50%); }
   .ts-beats { padding-top: calc(var(--ts-top) + var(--ph) - 10svh); }
   .ts-beat { min-height: 44svh; }
@@ -161,13 +174,32 @@
   /* the words pass over the phone while they fade, so they never take its taps */
   .ts-copy { width: 100%; max-width: 420px; text-align: center; pointer-events: none; }
   .ts-copy h3 { font-size: 22px; }
-  .ts-found { padding: 7px 11px; font-size: 11px; bottom: 56px; }
+  .ts-fn { font-size: 0.6em; }
   .ts-label { margin-bottom: 2px; font-size: 32px; }
   .ts-bridge { height: 12svh; }
+
+  /* in the phone: one hint, 13px or larger text, photos and buttons a finger can hit (about 44px or more) */
+  .ts-screen { padding: 34px 8px 10px; }
+  .ts-hint { font-size: 22px; }
+  .ts-roll { grid-template-columns: repeat(3, 1fr); animation-duration: 56s; }
+  .ts-flip-back { gap: 3px; font-size: 15px; }
+  .ts-flip-back svg { width: 16px; height: 16px; }
+  .ts-flip-back small { display: none; }
+  .ts-counter { display: none; }
+  .ts-found { bottom: 14px; max-width: calc(100% - 8px); padding: 8px 12px; font-size: 14px; }
+  .ts-pick .ts-ph::after { top: 6px; right: 6px; width: 22px; height: 22px; }
+  .ts-rec-card { font-size: 15px; }
+  .ts-save { min-height: 48px; font-size: 15px; }
+  .ts-tag { display: none; }
+  .ts-region-chip { display: flex; }
+  .ts-years button { font-size: 14px; }
+}
+@media (max-width: 380px) {
+  .ts-found { gap: 4px; padding: 8px 10px; font-size: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ts-screen, .ts-gather .ts-ph, .ts-pick .ts-ph, .ts-lv, .ts-flip-in, .ts-rec-card, .ts-found { transition: none; }
+  .ts-screen, .ts-gather .ts-ph, .ts-pick .ts-ph, .ts-lv, .ts-flip-in, .ts-rec-card, .ts-found, .ts-region-chip { transition: none; }
   .ts-roll, .ts-label span, .ts .is-try, .ts-years.is-try button::after { animation: none; }
 }
 
