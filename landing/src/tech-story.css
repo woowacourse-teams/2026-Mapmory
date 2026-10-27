@@ -31,6 +31,8 @@
 .ts-phone-wrap { position: absolute; top: 50%; left: 50%; perspective: 1400px; transform: translate(calc(-50% - min(100vw - 32px, 1120px) * 0.26), -50%); will-change: transform; }
 .ts-phone { width: calc(var(--ph) * 0.462); height: var(--ph); padding: calc(var(--ph) * 0.018); border-radius: calc(var(--ph) * 0.07); background: var(--ts-phone-body);
   box-shadow: 0 30px 60px -20px rgba(10, 30, 20, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset; will-change: transform; }
+/* the second phone, for the swipe between the steps on phones */
+.ts-phone-wrap.is-next { display: none; }
 .ts-screen-box { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: calc(var(--ph) * 0.055); background: var(--ts-screen); color: var(--ts-screen-fg); }
 .ts-notch { position: absolute; top: 8px; left: 50%; z-index: 5; width: 30%; height: 18px; border-radius: 12px; background: var(--ts-phone-body); transform: translateX(-50%); }
 .ts-screen { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 38px 10px 12px; font-size: 13px; font-weight: 700;
@@ -148,17 +150,35 @@
 .ts-share-btn { padding: 11px; border-radius: 12px; background: #ffffff1a; color: #f2f4f6; text-align: center; transition: background 300ms, transform 200ms; }
 .ts-share-btn.is-pressed { background: var(--ts-accent); color: #062b1d; transform: scale(0.96); }
 
-/* ── the words: one step label (hand-written, wobbling) and one title per scene */
-.ts-beats { position: relative; width: min(1120px, calc(100% - 32px)); margin: -100vh auto 0; margin-top: -100svh; pointer-events: none; }
-.ts-beat { display: flex; align-items: center; min-height: 92vh; min-height: 92svh; }
-.ts-beat.is-right { justify-content: flex-end; }
-.ts-beat.is-left { justify-content: flex-start; }
-.ts-copy { width: min(420px, 42%); pointer-events: auto; }
-.ts-bridge { height: 45vh; height: 45svh; }
-.ts-label { display: inline-flex; margin: 0 0 6px; color: var(--accent-ink); font: 400 42px/1 var(--ts-hand); }
+/* ── the words: the step (number + hand-written label), one title, and where you are (a dot per scene). They stay in
+   the sticky stage and change in place with the scene, so a quick scroll never waits for words to pass (티온, 10-27). */
+.ts-captions { position: absolute; inset: 0; width: min(1120px, calc(100% - 32px)); margin: 0 auto; pointer-events: none; }
+.ts-copy { position: absolute; top: 50%; width: min(420px, 42%); opacity: 0; transform: translateY(calc(-50% + 6px));
+  transition: opacity 90ms ease, transform 90ms ease; }
+.ts-copy.is-right { right: 0; }
+.ts-copy.is-left { left: 0; }
+.ts-copy.is-on, .ts:not(.is-live) .ts-copy[data-caption="0"] { opacity: 1; transform: translateY(-50%);
+  transition: opacity 150ms ease, transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+.ts-label { display: inline-flex; align-items: center; margin: 0 0 6px; color: var(--accent-ink); font: 400 42px/1 var(--ts-hand); transform-origin: left center; }
 .ts-label span { display: inline-block; white-space: pre; animation: ts-boil 0.9s steps(1) infinite; animation-delay: calc(var(--i) * -0.17s); }
 @keyframes ts-boil { 0% { transform: rotate(-5deg) translateY(0); } 33% { transform: rotate(4deg) translateY(-2px); } 66% { transform: rotate(-1deg) translateY(1px); } }
+.ts-step-no { display: inline-grid; place-items: center; flex: none; width: 30px; height: 30px; margin-right: 10px; border-radius: 50%; background: var(--ts-accent);
+  color: #fff; font: 700 16px/1 "LINE Seed Sans KR", sans-serif; }
+/* the first scene of a step: the label pops and the number rings once */
+.ts-copy.is-chapter .ts-label { animation: ts-chapter 650ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.ts-copy.is-chapter .ts-step-no { animation: ts-ring 1s ease-out 200ms; }
+@keyframes ts-chapter { 0% { transform: scale(1.5) rotate(-4deg); opacity: 0.4; } 100% { transform: none; opacity: 1; } }
+@keyframes ts-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ts-accent) 60%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
 .ts-copy h3 { margin: 0; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ts-dots { display: flex; gap: 14px; margin: 16px 0 0; }
+.ts-dots-step { display: flex; gap: 5px; }
+.ts-dots i { width: 7px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 40%, transparent); }
+.ts-dots i.is-done { background: color-mix(in srgb, var(--ts-accent) 45%, transparent); }
+.ts-dots i.is-on { width: 22px; background: var(--ts-accent); }
+/* the scroll room under the stage: a spacer per scene and one between the steps */
+.ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
+.ts-beat { min-height: 92vh; min-height: 92svh; }
+.ts-bridge { height: 45vh; height: 45svh; }
 .ts-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
 .ts-footnote { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 8px 0 64px; color: var(--muted); font-size: 13px; }
 
@@ -168,15 +188,20 @@
   .ts { --ts-top: 84px; --ph: min(560px, calc(100svh - var(--ts-top) - 156px), calc((100vw - 120px) / 0.462)); }
   .ts-head { padding-top: 72px; }
   .ts-phone-wrap { top: calc(var(--ts-top) + var(--ph) / 2); transform: translate(-50%, -50%); }
+  .ts-phone-wrap.is-next { display: block; visibility: hidden; }
+  .ts-phone-wrap.is-next.is-on { visibility: visible; }
   .ts-beats { padding-top: calc(var(--ts-top) + var(--ph) - 10svh); }
   .ts-beat { min-height: 44svh; }
-  .ts-beat.is-right, .ts-beat.is-left { justify-content: center; }
-  /* the words pass over the phone while they fade, so they never take its taps */
-  .ts-copy { width: 100%; max-width: 420px; text-align: center; pointer-events: none; }
+  /* the words sit in the band under the phone */
+  .ts-captions { top: calc(var(--ts-top) + var(--ph)); width: 100%; }
+  .ts-copy.is-right, .ts-copy.is-left { left: 16px; right: 16px; width: auto; text-align: center; }
+  .ts-label { margin-bottom: 4px; font-size: 32px; transform-origin: center; }
+  .ts-step-no { width: 26px; height: 26px; margin-right: 8px; font-size: 15px; }
   .ts-copy h3 { font-size: 22px; }
+  .ts-dots { justify-content: center; margin-top: 12px; }
   .ts-fn { font-size: 0.6em; }
-  .ts-label { margin-bottom: 2px; font-size: 32px; }
-  .ts-bridge { height: 12svh; }
+  /* room for the swipe between the steps */
+  .ts-bridge { height: 40svh; }
 
   /* in the phone: one hint, 13px or larger text, photos and buttons a finger can hit (about 44px or more) */
   .ts-screen { padding: 34px 8px 10px; }
@@ -200,7 +225,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ts-screen, .ts-gather .ts-ph, .ts-pick .ts-ph, .ts-lv, .ts-flip-in, .ts-rec-card, .ts-found, .ts-region-chip { transition: none; }
-  .ts-roll, .ts-label span, .ts .is-try, .ts-years.is-try button::after { animation: none; }
+  .ts-roll, .ts-label span, .ts .is-try, .ts-years.is-try button::after, .ts-copy.is-chapter .ts-label, .ts-copy.is-chapter .ts-step-no { animation: none; }
+  .ts-copy, .ts-copy.is-on { transition: none; }
 }
 
 :root[data-theme="dark"] .ts {

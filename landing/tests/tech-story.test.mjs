@@ -79,8 +79,26 @@ test("phones: text in the phone is 13px or larger and what is tapped is about 44
   // gather photos: 3-4 columns of about 46px or more on phones; the moving roll stops under a finger
   assert.match(engine, /narrow\.matches \? Math\.max\(3, Math\.min\(4, Math\.floor\(\(w \+ gap\) \/ \(46 \+ gap\)\)\)\) : 6/);
   assert.match(css, /\.ts-roll-view\.is-held \.ts-roll \{ animation-play-state: paused; \}/);
-  // the phone is flat at rest on phones; it turns only between steps
-  assert.match(engine, /phone\.style\.transform = dip > 0\.001 \?/);
+});
+
+test("a quick scroll never waits for words, and the turn between the steps is felt, not read (티온, 10-27)", () => {
+  // the words live in the sticky stage and change in place; the beats are empty scroll room
+  const stage = component.slice(component.indexOf('data-tech-stage=""'), component.indexOf('className="ts-beats"'));
+  assert.match(stage, /<div className="ts-captions">/);
+  assert.match(stage, /data-caption=\{i\}/);
+  assert.match(stage, /<StepLabel n=\{n\} text=\{step\.label\} \/>/);
+  assert.match(stage, /<Progress scenes=\{scenes\} at=\{i\} \/>/);
+  assert.match(component, /<div className="ts-beats" aria-hidden="true">/);
+  assert.match(component, /<div className="ts-beat" data-beat=\{i\} key=\{scene\.title\} \/>/);
+  assert.match(css, /\.ts-copy\.is-on, \.ts:not\(\.is-live\) \.ts-copy\[data-caption="0"\] \{ opacity: 1;/);
+  assert.match(engine, /showCaption\(captions\[best\]\)/);
+  // desktop: the phone crosses from left to right; phones: the step-1 phone is swiped out to the left while a second
+  // phone brings step 2 in from the right, and the phone is flat and centred at rest
+  assert.match(component, /data-phone-next=""/);
+  assert.match(css, /\.ts-phone-wrap\.is-next \{ display: none; \}/);
+  assert.match(engine, /const turning = narrow\.matches && !reduce && raw > 0 && raw < 1;/);
+  assert.match(engine, /nextBox\.appendChild\(screen\)/);
+  assert.match(engine, /wrap\.style\.transform = "translate\(-50%,-50%\)";/);
 });
 
 test("the section takes #how's place between the hero and the 3D globe, and loads its engine lazily", () => {
