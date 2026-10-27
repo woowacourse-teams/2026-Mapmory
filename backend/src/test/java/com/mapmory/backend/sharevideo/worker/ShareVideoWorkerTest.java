@@ -5,7 +5,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 
+import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.render.RenderedShareVideo;
 import com.mapmory.backend.sharevideo.render.ShareVideoRenderer;
 import com.mapmory.backend.sharevideo.storage.ShareVideoStorage;
@@ -63,7 +67,12 @@ class ShareVideoWorkerTest {
         InOrder order = inOrder(renderer, storage, jobUpdater);
         order.verify(renderer).render(TASK);
         order.verify(storage).upload(1L, RENDERED_VIDEO.videoPath());
-        order.verify(jobUpdater).complete(1L, "share-videos/1/travel-timeline.mp4");
+        order.verify(jobUpdater).complete(
+                eq(1L),
+                eq("share-videos/1/travel-timeline.mp4"),
+                anyLong(),
+                anyLong()
+        );
         order.verify(renderer).cleanup(RENDERED_VIDEO);
     }
 
@@ -75,7 +84,13 @@ class ShareVideoWorkerTest {
 
         worker.processNext();
 
-        verify(jobUpdater).fail(1L, failure);
+        verify(jobUpdater).fail(
+                eq(1L),
+                eq(ShareVideoFailureCode.RENDER_FAILED),
+                eq(failure),
+                anyLong(),
+                isNull()
+        );
         verifyNoInteractions(storage);
         verify(renderer, never()).cleanup(RENDERED_VIDEO);
     }
@@ -89,8 +104,19 @@ class ShareVideoWorkerTest {
 
         worker.processNext();
 
-        verify(jobUpdater).fail(1L, failure);
-        verify(jobUpdater, never()).complete(1L, "share-videos/1/travel-timeline.mp4");
+        verify(jobUpdater).fail(
+                eq(1L),
+                eq(ShareVideoFailureCode.UPLOAD_FAILED),
+                eq(failure),
+                anyLong(),
+                anyLong()
+        );
+        verify(jobUpdater, never()).complete(
+                eq(1L),
+                eq("share-videos/1/travel-timeline.mp4"),
+                anyLong(),
+                anyLong()
+        );
         verify(renderer).cleanup(RENDERED_VIDEO);
     }
 }
