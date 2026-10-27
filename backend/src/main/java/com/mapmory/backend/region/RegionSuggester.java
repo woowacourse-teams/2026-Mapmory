@@ -1,6 +1,5 @@
 package com.mapmory.backend.region;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -24,14 +23,11 @@ public class RegionSuggester {
         if (countryCode == null) {
             return Optional.empty();
         }
-        try {
-            if (!Region.KOREA.equals(countryCode)) {
-                return Optional.of(regionResolver.resolveCountry(countryCode));
-            }
-            return addressRegionMatcher.match(address);
-        } catch (BusinessException ignored) {
-            // DB에 국가가 없으면 사용자가 지역을 직접 선택한다.
-            return Optional.empty();
+
+        if (!Region.KOREA.equals(countryCode)) {
+            return regionResolver.findCountryIfPresent(countryCode);
         }
+
+        return addressRegionMatcher.match(address);
     }
 }

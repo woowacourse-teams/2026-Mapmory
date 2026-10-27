@@ -30,17 +30,17 @@ class KoreanAddressRegionMatcher {
     }
 
     /**
-     * 시·도를 찾지 못하면 빈 값이다. 시·군·구를 찾지 못하면("부산광역시"만 있는 주소) 시·도를 돌려준다.
+     * 시·도를 찾지 못하면 빈 값이다. DB에 대한민국이 없어도 빈 값이다. 시·군·구를 찾지 못하면("부산광역시"만 있는 주소) 시·도를 돌려준다.
      * 시·군·구는 시·도 안에서만 찾는다. "광주시"(경기도)처럼 시·군·구 이름이 다른 시·도와 겹칠 수 있기 때문이다.
      */
     public Optional<Region> match(RegionAddress address) {
         if (address.province() == null) {
             return Optional.empty();
         }
-        Region country = regionResolver.resolveCountry(Region.KOREA);
-        return regionResolver.children(country, RegionType.PROVINCE).stream()
-                .filter(province -> sameProvince(province.getName(), address.province()))
-                .findFirst()
+        return regionResolver.findCountryIfPresent(Region.KOREA)
+                .flatMap(country -> regionResolver.children(country, RegionType.PROVINCE).stream()
+                        .filter(province -> sameProvince(province.getName(), address.province()))
+                        .findFirst())
                 .flatMap(province -> district(province, address.subAreas()));
     }
 

@@ -40,6 +40,14 @@ class RegionResolverTest {
     }
 
     @Test
+    void returnsEmptyForNonexistentCountryWhenOptional() {
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "ZZ"))
+                .thenReturn(Optional.empty());
+
+        assertThat(regionResolver.findCountryIfPresent("ZZ")).isEmpty();
+    }
+
+    @Test
     void resolvesProvinceByItsDirectParent() {
         Region korea = parent(1L);
         Region jeju = mock(Region.class);

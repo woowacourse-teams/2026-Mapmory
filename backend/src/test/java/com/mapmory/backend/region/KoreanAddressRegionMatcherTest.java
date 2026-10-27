@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +40,7 @@ class KoreanAddressRegionMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new KoreanAddressRegionMatcher(regionResolver);
-        when(regionResolver.resolveCountry("KR")).thenReturn(korea);
+        when(regionResolver.findCountryIfPresent("KR")).thenReturn(Optional.of(korea));
         when(regionResolver.children(korea, RegionType.PROVINCE))
                 .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong));
         when(regionResolver.children(seoul, RegionType.DISTRICT)).thenReturn(List.of(jongno));
@@ -89,6 +90,13 @@ class KoreanAddressRegionMatcherTest {
     void 시도를_찾지_못하면_직접_선택하도록_빈_값을_준다() {
         assertThat(matcher.match(korea("없는도", "없는시"))).isEmpty();
         assertThat(matcher.match(new RegionAddress("KR", null, List.of()))).isEmpty();
+    }
+
+    @Test
+    void DB에_대한민국이_없으면_빈_값을_준다() {
+        when(regionResolver.findCountryIfPresent("KR")).thenReturn(Optional.empty());
+
+        assertThat(matcher.match(korea("서울특별시", "종로구"))).isEmpty();
     }
 
     private static RegionAddress korea(String province, String... subAreas) {
