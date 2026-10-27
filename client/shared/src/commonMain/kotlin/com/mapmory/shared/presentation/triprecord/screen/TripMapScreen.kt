@@ -156,6 +156,7 @@ fun TripMapScreen(
 
                 Column(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
+                    horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Row(
