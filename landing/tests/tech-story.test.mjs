@@ -81,24 +81,24 @@ test("phones: text in the phone is 13px or larger and what is tapped is about 44
   assert.match(css, /\.ts-roll-view\.is-held \.ts-roll \{ animation-play-state: paused; \}/);
 });
 
-test("a quick scroll never waits for words, and the turn between the steps is felt, not read (티온, 10-27)", () => {
+test("a quick scroll never waits for words, and the steps are told apart by the angle of the phone (티온, 10-27)", () => {
   // the words live in the sticky stage and change in place; the beats are empty scroll room
   const stage = component.slice(component.indexOf('data-tech-stage=""'), component.indexOf('className="ts-beats"'));
   assert.match(stage, /<div className="ts-captions">/);
   assert.match(stage, /data-caption=\{i\}/);
-  assert.match(stage, /<StepLabel n=\{n\} text=\{step\.label\} \/>/);
-  assert.match(stage, /<Progress scenes=\{scenes\} at=\{i\} \/>/);
+  assert.match(stage, /<StepLabel text=\{step\.label\} \/>/);
   assert.match(component, /<div className="ts-beats" aria-hidden="true">/);
   assert.match(component, /<div className="ts-beat" data-beat=\{i\} key=\{scene\.title\} \/>/);
   assert.match(css, /\.ts-copy\.is-on, \.ts:not\(\.is-live\) \.ts-copy\[data-caption="0"\] \{ opacity: 1;/);
   assert.match(engine, /showCaption\(captions\[best\]\)/);
-  // desktop: the phone crosses from left to right; phones: the step-1 phone is swiped out to the left while a second
-  // phone brings step 2 in from the right, and the phone is flat and centred at rest
-  assert.match(component, /data-phone-next=""/);
-  assert.match(css, /\.ts-phone-wrap\.is-next \{ display: none; \}/);
-  assert.match(engine, /const turning = narrow\.matches && !reduce && raw > 0 && raw < 1;/);
-  assert.match(engine, /nextBox\.appendChild\(screen\)/);
-  assert.match(engine, /wrap\.style\.transform = "translate\(-50%,-50%\)";/);
+  // nothing extra to read: no step numbers, progress dots or second phone
+  for (const gone of [/<Progress/, /data-phone-next/, /StepLabel n=/]) assert.doesNotMatch(component, gone);
+  for (const gone of [/\.ts-dots/, /\.is-next/, /\.ts-step-n/]) assert.doesNotMatch(css, gone);
+  // desktop: the phone crosses from left to right; phones: it stays centred and only its angle turns,
+  // one way for step 1 and the other way for step 2, through the room between the steps
+  assert.match(engine, /wrap\.style\.transform = "translate\(-50%,-50%\)";\s*phone\.style\.transform = `rotateY\(\$\{\(-14 \* side\)/);
+  assert.match(engine, /wrap\.style\.transform = `translate\(calc\(-50% \+ \$\{0\.26 \* side \* span\}px\),-50%\)`;/);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.ts-bridge \{ height: 26svh; \}/);
 });
 
 test("the section takes #how's place between the hero and the 3D globe, and loads its engine lazily", () => {

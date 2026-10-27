@@ -7,26 +7,11 @@ const EXPERIENCE_TYPE = "tech_story";
 const PIN = "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z";
 const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={PIN} /></svg>;
 
-// Wobbling hand-written step label with the step's number: one span per letter, each on its own beat of the boil
-// animation.
-function StepLabel({ n, text }) {
+// Wobbling hand-written step label: one span per letter, each on its own beat of the boil animation.
+function StepLabel({ text }) {
   return (
-    <p className="ts-label" aria-label={`${n}단계 ${text}`}>
-      <b className="ts-step-no" aria-hidden="true">{n}</b>
+    <p className="ts-label" aria-label={text}>
       {[...text].map((ch, i) => <span aria-hidden="true" style={{ "--i": i }} key={i}>{ch}</span>)}
-    </p>
-  );
-}
-
-// Where the visitor is: one dot per scene in a group per step, the current one long, the steps apart.
-function Progress({ scenes, at }) {
-  return (
-    <p className="ts-dots" aria-hidden="true">
-      {TECH_STEPS.map((step) => (
-        <span className="ts-dots-step" key={step.key}>
-          {scenes.map((scene, i) => scene.step === step.key && <i className={i === at ? "is-on" : i < at ? "is-done" : undefined} key={i} />)}
-        </span>
-      ))}
     </p>
   );
 }
@@ -186,23 +171,15 @@ function TechStoryInner() {
             </div>
           </div>
 
-          {/* phones: the second phone that brings step 2 in from the right (src/techStoryEngine.js, swipe) */}
-          <div className="ts-phone-wrap is-next" data-phone-next="" aria-hidden="true">
-            <div className="ts-phone"><div className="ts-screen-box"><div className="ts-notch" /></div></div>
-          </div>
-
           {/* The words stay in one place and change with the scene, so a quick scroll never has to wait for them to
               pass by (티온, 10-27). Only the current scene's words show; all six stay in the page for screen readers. */}
           <div className="ts-captions">
             {scenes.map((scene, i) => {
               const step = TECH_STEPS.find((s) => s.key === scene.step);
-              const n = TECH_STEPS.indexOf(step) + 1;
-              const side = `is-${step.side === "left" ? "right" : "left"}`;
               return (
-                <div className={`ts-copy ${side}`} data-caption={i} data-step={n} key={scene.title}>
-                  <StepLabel n={n} text={step.label} />
+                <div className={`ts-copy is-${step.side === "left" ? "right" : "left"}`} data-caption={i} key={scene.title}>
+                  <StepLabel text={step.label} />
                   <h3>{scene.title}{scene.footnote && <sup className="ts-fn">*</sup>}</h3>
-                  <Progress scenes={scenes} at={i} />
                 </div>
               );
             })}

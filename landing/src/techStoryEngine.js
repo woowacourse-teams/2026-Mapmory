@@ -401,33 +401,11 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const captions = $$("[data-caption]");
   const bridges = $$("[data-bridge]");
   const wrap = $("[data-phone-wrap]"), phone = $("[data-phone]"), captionsEl = $(".ts-captions");
-  let active = -1, frameRaf = 0, visible = false, shownStep = 0, shownCaption = null;
-  // Phones turn between the steps with a swipe, like the desktop phone crossing from left to right: the step-1 phone is
-  // pushed out to the left while a second phone carrying the first step-2 screen comes in from the right. The screen
-  // moves into that phone for the swipe and back afterwards (the two sit in the same place when it ends).
-  const nextWrap = $("[data-phone-next]"), nextPhone = nextWrap?.firstElementChild, nextBox = nextWrap?.querySelector(".ts-screen-box");
-  const mainBox = phone.querySelector(".ts-screen-box");
-  const turnIn = captions.findIndex((c, k) => k > 0 && c.dataset.step !== captions[k - 1].dataset.step), turnOut = turnIn - 1;
-  let swiping = false, swipeAnchor = null;
-  function swipe(on) {
-    if (on === swiping || turnIn < 1 || !nextBox) return;
-    swiping = on;
-    const screen = screens[turnIn];
-    if (on) { swipeAnchor = screen.nextSibling; nextBox.appendChild(screen); } else mainBox.insertBefore(screen, swipeAnchor);
-    nextWrap.classList.toggle("is-on", on);
-    if (!on) {
-      screens.forEach((el, k) => el.classList.toggle("is-on", k === active));
-      nextWrap.style.transform = "";
-      nextPhone.style.transform = "";
-    }
-  }
-  // the words change in place; when the step changes too, its label pops so the turn is noticed
+  let active = -1, frameRaf = 0, visible = false, shownCaption = null;
+  // the words change in place with the scene
   function showCaption(el) {
     if (el === shownCaption) return;
-    captions.forEach((c) => { c.classList.toggle("is-on", c === el); c.classList.remove("is-chapter"); });
-    const step = +el.dataset.step;
-    if (step !== shownStep && !reduce) { void el.offsetWidth; el.classList.add("is-chapter"); }
-    shownStep = step;
+    captions.forEach((c) => c.classList.toggle("is-on", c === el));
     shownCaption = el;
   }
   const onEnter = [
@@ -482,22 +460,12 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     const p = reduce ? (raw > 0.5 ? 1 : 0) : ease(raw);
     // side: -1 = phone on the left (step 1), +1 = on the right (step 2)
     const side = -1 + 2 * p;
-    const turning = narrow.matches && !reduce && raw > 0 && raw < 1;
-    swipe(turning);
-    if (turning) {
-      // both screens show, each in its phone; the phones are a phone's width and a little apart, so at rest neither
-      // peeks in from the side
-      screens[turnOut].classList.add("is-on");
-      screens[turnIn].classList.add("is-on");
-      const pitch = innerWidth / 2 + phone.offsetWidth / 2 + 8, e = p;
-      wrap.style.transform = `translate(calc(-50% - ${(pitch * e).toFixed(1)}px),-50%)`;
-      phone.style.transform = `rotate(${(-6 * e).toFixed(2)}deg)`;
-      nextWrap.style.transform = `translate(calc(-50% + ${(pitch * (1 - e)).toFixed(1)}px),-50%)`;
-      nextPhone.style.transform = `rotate(${(6 * (1 - e)).toFixed(2)}deg)`;
-    } else if (narrow.matches) {
-      // flat and centred at rest
+    if (narrow.matches) {
+      // Phones tell the steps apart by the angle the phone is seen from (티온, 10-27): it stays centred and turns a
+      // little toward one side for step 1 and the other for step 2 (the same way round as on desktop), and the turn
+      // between them follows the scroll through the room between the steps.
       wrap.style.transform = "translate(-50%,-50%)";
-      phone.style.transform = "";
+      phone.style.transform = `rotateY(${(-14 * side).toFixed(2)}deg) rotateZ(${(side * 1.2).toFixed(2)}deg)`;
     } else {
       const span = Math.min(captionsEl.clientWidth, 1120);
       wrap.style.transform = `translate(calc(-50% + ${0.26 * side * span}px),-50%)`;
@@ -524,7 +492,6 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   layoutPick();
 
   return () => {
-    swipe(false);
     cleanups.forEach((fn) => fn());
     timers.forEach((id) => clearTimeout(id));
     cancelAnimationFrame(frameRaf);
