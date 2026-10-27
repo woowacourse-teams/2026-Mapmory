@@ -83,6 +83,10 @@ import kotlinx.coroutines.flow.update
 const val MAPMORY_API_BASE_URL = "https://api.map-mory.com/api/v1"
 
 interface AppContainer {
+    val accountLoginController: com.mapmory.shared.presentation.auth.AccountLoginController? get() = null
+    val accountSession: com.mapmory.shared.data.auth.AccountSession? get() = null
+    val groupRepository: com.mapmory.shared.data.remote.GroupRepository? get() = null
+
     val regionCatalog: RegionCatalog
     val tripRecordRepository: TripRecordRepository
     val mapSummaryRepository: MapSummaryRepository
@@ -185,16 +189,23 @@ private class DefaultAppContainer(
     private val onClose: () -> Unit,
     localPhotoDataSource: LocalPhotoDataSource?,
     analytics: MapmoryAnalytics,
+    override val accountSession: com.mapmory.shared.data.auth.AccountSession?,
+    override val groupRepository: com.mapmory.shared.data.remote.GroupRepository?,
+    private val invalidateSummaryCaches: () -> Unit,
 ) : AppContainer {
+    override val accountLoginController = accountSession?.let {
+        com.mapmory.shared.presentation.auth.AccountLoginController(it, analytics)
+    }
     private val recordedPhotoIndex = com.mapmory.shared.data.media.RecordedPhotoIndex(photoPreviewCache)
-    override val tripRecordRepository: TripRecordRepository =
-        com.mapmory.shared.data.repository.PhotoUsageTripRecordRepository(tripRecordRepository, recordedPhotoIndex)
+    override val tripRecordRepository: TripRecordRepository = run {
+        val indexed = com.mapmory.shared.data.repository.PhotoUsageTripRecordRepository(tripRecordRepository, recordedPhotoIndex)
+        (accountSession as? GuestSessionManager)?.let { AuthenticatedTripRecordRepository(it, indexed) } ?: indexed
+    }
     private val backgroundSaveScope = CoroutineScope(SupervisorJob() + backgroundSaveDispatcher())
     private val mutableTripRecordRevision = MutableStateFlow(0L)
     override val tripRecordRevision: StateFlow<Long> = mutableTripRecordRevision.asStateFlow()
     private val notifyTripRecordsChanged = {
-        (mapSummaryRepository as? CachedMapSummaryRepository)?.invalidate()
-        (tripStatisticsRepository as? CachedTripStatisticsRepository)?.invalidate()
+        invalidateSummaryCaches()
         mutableTripRecordRevision.update { revision -> revision + 1 }
     }
     override val backgroundTripRecordSaver = BackgroundTripRecordSaver(
@@ -205,7 +216,20 @@ private class DefaultAppContainer(
         onSaved = notifyTripRecordsChanged,
         localPhotoDataSource = localPhotoDataSource,
         analytics = analytics,
+        canEnqueue = { accountSession?.state?.value?.let { !it.transitioning && !it.pendingLogin && !it.pendingLogout } != false },
     )
+
+    init {
+        (accountSession as? GuestSessionManager)?.apply {
+            val clearOtherCaches = onAccountChanged
+            onAccountChanged = {
+                clearOtherCaches()
+                recordedPhotoIndex.clearForAccountChange()
+            }
+            canChangeAccount = { backgroundTripRecordSaver.saves.value.isEmpty() &&
+                shareVideoJobStore.state.value.isCreationRequestInProgress.not() }
+        }
+    }
 
     override val viewModelFactory: MapmoryViewModelFactory = DefaultMapmoryViewModelFactory(
         recordedPhotoIndex = recordedPhotoIndex,
@@ -221,6 +245,7 @@ private class DefaultAppContainer(
     )
 
     override fun close() {
+        accountLoginController?.close()
         backgroundSaveScope.cancel()
         onClose()
     }
@@ -253,6 +278,8 @@ fun createAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
+    accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
+    groupRepository: com.mapmory.shared.data.remote.GroupRepository? = null,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
@@ -262,11 +289,20 @@ fun createAppContainer(
         delegate = AnalyticsMapSummaryRepository(mapSummaryRepository, analytics),
         cache = mapSummaryCache,
     )
+    val session = accountSession as? GuestSessionManager
+    session?.let {
+        val clearRemoteCaches = it.onAccountChanged
+        it.onAccountChanged = {
+            clearRemoteCaches()
+            cachedMapSummary.invalidate()
+            cachedTripStatistics.invalidate()
+        }
+    }
     return DefaultAppContainer(
         regionCatalog = regionCatalog,
         tripRecordRepository = AnalyticsTripRecordRepository(tripRecordRepository, analytics),
-        mapSummaryRepository = cachedMapSummary,
-        tripStatisticsRepository = cachedTripStatistics,
+        mapSummaryRepository = session?.let { AuthenticatedMapSummaryRepository(it, cachedMapSummary) } ?: cachedMapSummary,
+        tripStatisticsRepository = session?.let { AuthenticatedTripStatisticsRepository(it, cachedTripStatistics) } ?: cachedTripStatistics,
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
         shareVideoRepository = shareVideoRepository?.let { com.mapmory.shared.analytics.AnalyticsShareVideoRepository(it, analytics) },
         shareVideoJobStore = shareVideoJobStore,
@@ -281,6 +317,9 @@ fun createAppContainer(
         localPhotoDataSource = localPhotoDataSource,
         onClose = onClose,
         analytics = analytics,
+        accountSession = accountSession,
+        groupRepository = groupRepository,
+        invalidateSummaryCaches = { cachedMapSummary.invalidate(); cachedTripStatistics.invalidate() },
     )
 }
 
@@ -405,7 +444,7 @@ internal fun createGuestRemoteAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
-    val discardRecordCache = runCatching { tokenStore.read().tokens == null }.getOrDefault(false)
+    val discardRecordCache = runCatching { tokenStore.read().tokens == null || tokenStore.pendingProvider().provider != null }.getOrDefault(false)
     if (discardRecordCache) {
         mapSummaryCache.clear()
         tripStatisticsCache.clear()
@@ -474,15 +513,20 @@ internal fun createGuestRemoteAppContainer(
         localPhotoDataSource = localPhotoDataSource,
     )
 
+    val cachedTripRecords = CachedTripRecordRepository(cachedMediaTripRecords, tripRecordListCache, discardRecordCache)
+    session.onAccountChanged = {
+        cachedTripRecords.clearForAccountChange()
+        mapSummaryCache.clear()
+        tripStatisticsCache.clear()
+        shareVideoJobStore.clear()
+    }
     return createAppContainer(
-        tripRecordRepository = CachedTripRecordRepository(
-            delegate = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
-            cache = tripRecordListCache,
-            discardExistingCache = discardRecordCache,
-        ),
-        mapSummaryRepository = AuthenticatedMapSummaryRepository(session, remoteMapSummary),
+        accountSession = session,
+        groupRepository = com.mapmory.shared.data.remote.GroupRemoteRepository(client, apiBaseUrl, session),
+        tripRecordRepository = AuthenticatedTripRecordRepository(session, cachedTripRecords),
+        mapSummaryRepository = remoteMapSummary,
         mapSummaryCache = mapSummaryCache,
-        tripStatisticsRepository = AuthenticatedTripStatisticsRepository(session, remoteTripStatistics),
+        tripStatisticsRepository = remoteTripStatistics,
         serviceFeedbackRepository = AuthenticatedServiceFeedbackRepository(session, remoteServiceFeedback),
         shareVideoRepository = AuthenticatedShareVideoRepository(session, remoteShareVideos),
         shareVideoJobStore = shareVideoJobStore,

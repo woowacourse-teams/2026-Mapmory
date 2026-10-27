@@ -95,16 +95,22 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
-                    MapmoryApp(
-                        container = appViewModel.container,
-                        navigation = navigation,
-                        analytics = analyticsLogger,
-                        contentWindowInsets = WindowInsets.safeDrawing,
-                        onThemeChanged = { isDarkTheme = it },
-                        developerToolsInfo = developerToolsInfo,
-                        updateState = appViewModel.forceUpdate.state,
-                        onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
-                    )
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
+                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
+                    ) {
+                        MapmoryApp(
+                            container = appViewModel.container,
+                            navigation = navigation,
+                            analytics = analyticsLogger,
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            onThemeChanged = { isDarkTheme = it },
+                            developerToolsInfo = developerToolsInfo,
+                            updateState = appViewModel.forceUpdate.state,
+                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
+                        )
+                    }
+
                     BackHandler {
                         if (navigation.popBackStack()) {
                             lastBackPressedAt = 0L

@@ -35,3 +35,6 @@ internal data class DetailRoute(
     val latestDate: String? = null,
     val photoCount: Int? = null,
 )
+
+@Serializable
+internal data object GroupsRoute

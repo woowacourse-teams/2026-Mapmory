@@ -45,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.LocalMapmoryTheme
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
@@ -219,6 +220,8 @@ internal fun TripSectionLabel(
     )
 }
 
+internal val LocalGroupFeatureEnabled = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 @Composable
 internal fun TripBottomBar(
     selected: TripBottomTab,
@@ -227,6 +230,7 @@ internal fun TripBottomBar(
     onCreateClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onGroupClick: () -> Unit = {},
     backgroundColor: Color = TripRecordPalette.current.background,
     dividerColor: Color = TripRecordPalette.current.line,
     selectedIconColor: Color = TripRecordPalette.current.accent,
@@ -254,7 +258,7 @@ internal fun TripBottomBar(
             tab = TripBottomTab.MAP,
             selected = selected == TripBottomTab.MAP,
             onClick = {
-                analytics.logEvent(
+                analytics.emit(
                     MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
                     mapOf(
                         "from_tab" to selected.name.lowercase(),
@@ -272,7 +276,7 @@ internal fun TripBottomBar(
             tab = TripBottomTab.RECORD,
             selected = selected == TripBottomTab.RECORD,
             onClick = {
-                analytics.logEvent(
+                analytics.emit(
                     MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
                     mapOf(
                         "from_tab" to selected.name.lowercase(),
@@ -286,11 +290,26 @@ internal fun TripBottomBar(
             unselectedColor = unselectedColor,
             modifier = Modifier.weight(1f),
         )
+        if (LocalGroupFeatureEnabled.current) TripBottomItem(
+            tab = TripBottomTab.GROUP,
+            selected = selected == TripBottomTab.GROUP,
+            onClick = {
+                analytics.emit(
+                    MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
+                    mapOf("from_tab" to selected.name.lowercase(), "to_tab" to "group"),
+                )
+                onGroupClick()
+            },
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            modifier = Modifier.weight(1f),
+        )
         TripBottomItem(
             tab = TripBottomTab.PROFILE,
             selected = selected == TripBottomTab.PROFILE,
             onClick = {
-                analytics.logEvent(
+                analytics.emit(
                     MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
                     mapOf(
                         "from_tab" to selected.name.lowercase(),
@@ -308,7 +327,7 @@ internal fun TripBottomBar(
             tab = TripBottomTab.SETTINGS,
             selected = selected == TripBottomTab.SETTINGS,
             onClick = {
-                analytics.logEvent(
+                analytics.emit(
                     MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
                     mapOf(
                         "from_tab" to selected.name.lowercase(),
@@ -328,6 +347,7 @@ internal fun TripBottomBar(
 internal enum class TripBottomTab(val label: String) {
     MAP("지도"),
     RECORD("일지"),
+    GROUP("그룹"),
     PROFILE("통계"),
     SETTINGS("설정"),
 }
@@ -436,6 +456,15 @@ private fun TripBottomIcon(
                 }
             }
 
+            TripBottomTab.GROUP -> {
+                listOf(0.30f, 0.70f).forEach { x ->
+                    drawCircle(color, radius = size.width * 0.13f,
+                        center = Offset(size.width * x, size.height * 0.27f), style = stroke)
+                    drawArc(color, startAngle = 180f, sweepAngle = 180f, useCenter = false,
+                        topLeft = Offset(size.width * (x - 0.23f), size.height * 0.52f),
+                        size = Size(size.width * 0.46f, size.height * 0.58f), style = stroke)
+                }
+            }
             TripBottomTab.PROFILE -> {
                 drawLine(
                     color = color,

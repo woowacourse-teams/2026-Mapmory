@@ -27,6 +27,9 @@ internal class AuthenticatedTripRecordRepository(
     private val session: GuestSessionManager,
     private val delegate: TripRecordRepository,
 ) : ProgressReportingTripRecordRepository {
+    override suspend fun getCachedTripRecords(query: TripRecordQuery): TripRecordPage? =
+        session.withAuthenticatedSession { Result.success(delegate.getCachedTripRecords(query)) }.getOrNull()
+
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         withAuthenticatedSession { delegate.getTripRecords(query) }
 
@@ -54,16 +57,15 @@ internal class AuthenticatedTripRecordRepository(
 
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
-    ): Result<T> = session.ensureAuthenticated().fold(
-        onSuccess = { request() },
-        onFailure = Result.Companion::failure,
-    )
+    ): Result<T> = session.withAuthenticatedSession(request)
 }
 
 internal class AuthenticatedMapSummaryRepository(
     private val session: GuestSessionManager,
     private val delegate: MapSummaryRepository,
 ) : MapSummaryRepository {
+    override fun getCachedRootRegions(tagId: Long?) = if (session.state.value.pendingLogin || session.state.value.pendingLogout) null else delegate.getCachedRootRegions(tagId)
+    override fun getCachedChildRegions(regionId: Long, tagId: Long?) = if (session.state.value.pendingLogin || session.state.value.pendingLogout) null else delegate.getCachedChildRegions(regionId, tagId)
     override suspend fun getRootRegions(tagId: Long?): Result<List<MapRegionSummary>> =
         withAuthenticatedSession { delegate.getRootRegions(tagId) }
 
@@ -72,10 +74,7 @@ internal class AuthenticatedMapSummaryRepository(
 
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
-    ): Result<T> = session.ensureAuthenticated().fold(
-        onSuccess = { request() },
-        onFailure = Result.Companion::failure,
-    )
+    ): Result<T> = session.withAuthenticatedSession(request)
 }
 
 internal class AuthenticatedTagRepository(
@@ -90,21 +89,16 @@ internal class AuthenticatedTagRepository(
 
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
-    ): Result<T> = session.ensureAuthenticated().fold(
-        onSuccess = { request() },
-        onFailure = Result.Companion::failure,
-    )
+    ): Result<T> = session.withAuthenticatedSession(request)
 }
 
 internal class AuthenticatedTripStatisticsRepository(
     private val session: GuestSessionManager,
     private val delegate: TripStatisticsRepository,
 ) : TripStatisticsRepository {
+    override fun getCachedStatistics() = if (session.state.value.pendingLogin || session.state.value.pendingLogout) null else delegate.getCachedStatistics()
     override suspend fun getStatistics(): Result<TripStatistics> =
-        session.ensureAuthenticated().fold(
-            onSuccess = { delegate.getStatistics() },
-            onFailure = Result.Companion::failure,
-        )
+        session.withAuthenticatedSession { delegate.getStatistics() }
 }
 
 internal class AuthenticatedServiceFeedbackRepository(
@@ -115,10 +109,7 @@ internal class AuthenticatedServiceFeedbackRepository(
         category: ServiceFeedbackCategory,
         content: String,
         platform: ServiceFeedbackPlatform,
-    ): Result<Unit> = session.ensureAuthenticated().fold(
-        onSuccess = { delegate.submit(category, content, platform) },
-        onFailure = Result.Companion::failure,
-    )
+    ): Result<Unit> = session.withAuthenticatedSession { delegate.submit(category, content, platform) }
 }
 
 internal class AuthenticatedShareVideoRepository(
@@ -136,10 +127,7 @@ internal class AuthenticatedShareVideoRepository(
 
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
-    ): Result<T> = session.ensureAuthenticated().fold(
-        onSuccess = { request() },
-        onFailure = Result.Companion::failure,
-    )
+    ): Result<T> = session.withAuthenticatedSession(request)
 }
 
 internal class AuthenticatedPlaceRepository(
@@ -147,14 +135,8 @@ internal class AuthenticatedPlaceRepository(
     private val delegate: PlaceRepository,
 ) : PlaceRepository {
     override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> =
-        session.ensureAuthenticated().fold(
-            onSuccess = { delegate.searchPlaces(query, sessionToken) },
-            onFailure = Result.Companion::failure,
-        )
+        session.withAuthenticatedSession { delegate.searchPlaces(query, sessionToken) }
 
     override suspend fun selectPlace(placeId: String, sessionToken: String): Result<PlaceSelection> =
-        session.ensureAuthenticated().fold(
-            onSuccess = { delegate.selectPlace(placeId, sessionToken) },
-            onFailure = Result.Companion::failure,
-        )
+        session.withAuthenticatedSession { delegate.selectPlace(placeId, sessionToken) }
 }

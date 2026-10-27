@@ -30,6 +30,7 @@
         android:name="android.hardware.camera.any"
         android:required="false" />
 
+    <queries><package android:name="com.kakao.talk" /></queries>
     <application
         android:label="Mapmory"
         android:icon="@drawable/mapmory_icon"
@@ -45,6 +46,14 @@
                 android:resource="@xml/share_image_paths" />
         </provider>
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />
+        <activity android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${kakaoScheme}" android:host="oauth" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true"

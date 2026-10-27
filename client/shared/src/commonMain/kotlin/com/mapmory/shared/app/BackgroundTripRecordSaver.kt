@@ -58,6 +58,7 @@ class BackgroundTripRecordSaver internal constructor(
     private val automaticRetryDelayMillis: Long = AutomaticRetryDelayMillis,
     private val localPhotoDataSource: com.mapmory.shared.data.media.LocalPhotoDataSource? = null,
     private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    private val canEnqueue: () -> Boolean = { true },
 ) {
     private val queueMutex = Mutex()
     private val serverSaveStarted = mutableSetOf<Long>()
@@ -102,6 +103,7 @@ class BackgroundTripRecordSaver internal constructor(
     }
 
     fun enqueue(draft: TripRecordDraft, locationName: String): Long {
+        check(canEnqueue()) { "계정 연결을 마친 후 사진을 저장해 주세요." }
         val id = ++nextId
         drafts[id] = draft
         queuedAt[id] = TimeSource.Monotonic.markNow()

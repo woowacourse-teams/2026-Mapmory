@@ -21,6 +21,14 @@ class AndroidAuthTokenStore(context: Context, apiBaseUrl: String) : AuthTokenSto
         }
     }
 
+    override fun pendingProvider(): AuthPendingRead = AuthPendingRead(preferences.getString("pending_provider", null))
+
+    override fun markPendingProvider(provider: String?) {
+        check(preferences.edit().putString("pending_provider", provider).commit()) {
+            "계정 연결 상태를 저장하지 못했습니다."
+        }
+    }
+
     override fun clear() {
         check(preferences.edit().remove(TokensKey).commit()) {
             "인증 토큰을 삭제하지 못했습니다."
