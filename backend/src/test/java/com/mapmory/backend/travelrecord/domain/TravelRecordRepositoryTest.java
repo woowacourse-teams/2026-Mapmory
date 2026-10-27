@@ -22,6 +22,8 @@ import org.springframework.data.domain.Sort;
 @DataJpaTest
 class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
     @Autowired
     private TravelRecordRepository travelRecordRepository;
 
@@ -48,7 +50,8 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         "테스트 여행",
                         "",
                         LocalDate.of(2026, 8, 11),
-                        null
+                        null,
+                        TODAY
                 )
         );
 
@@ -67,7 +70,7 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                 Region.of(null, null, "ZP", "장소 테스트 국가", RegionType.COUNTRY)
         );
         TravelRecord travelRecord = TravelRecord.of(
-                member, country, "공원 방문", "", LocalDate.of(2026, 8, 11), null
+                member, country, "공원 방문", "", LocalDate.of(2026, 8, 11), null, TODAY
         );
         RecordedPlace place = new RecordedPlace(
                 "GEOAPIFY", "park-1", "여의도한강공원",
@@ -100,7 +103,8 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         "첫 번째 기록",
                         "",
                         LocalDate.of(2026, 8, 10),
-                        null
+                        null,
+                        TODAY
                 )
         );
 
@@ -128,10 +132,10 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         Tag tag = Tag.of(member, "연인");
         entityManager.persist(tag);
         TravelRecord taggedRecord = travelRecordRepository.save(TravelRecord.of(
-                member, country, "태그 기록", "", LocalDate.of(2026, 8, 10), null
+                member, country, "태그 기록", "", LocalDate.of(2026, 8, 10), null, TODAY
         ));
         travelRecordRepository.save(TravelRecord.of(
-                member, country, "태그 없는 기록", "", LocalDate.of(2026, 8, 11), null
+                member, country, "태그 없는 기록", "", LocalDate.of(2026, 8, 11), null, TODAY
         ));
         entityManager.persist(TravelRecordTag.of(taggedRecord, tag));
         entityManager.flush();
@@ -162,7 +166,8 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         "상세 조회 기록",
                         "본문",
                         LocalDate.of(2026, 8, 11),
-                        null
+                        null,
+                        TODAY
                 )
         );
         travelRecord.synchronizeMedia(
@@ -207,7 +212,8 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         "삭제할 기록",
                         "본문",
                         LocalDate.of(2026, 8, 16),
-                        null
+                        null,
+                        TODAY
                 )
         );
         travelRecord.synchronizeMedia(java.util.List.of("mapmory/delete/a.jpg"));
@@ -253,7 +259,7 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
 
     private TravelRecord save(Member member, Region region, String title) {
         return travelRecordRepository.save(
-                TravelRecord.of(member, region, title, "", LocalDate.of(2026, 8, 11), null));
+                TravelRecord.of(member, region, title, "", LocalDate.of(2026, 8, 11), null, TODAY));
     }
 
     private java.util.List<Long> idsInRegion(Member member, Region region) {

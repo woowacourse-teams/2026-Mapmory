@@ -29,6 +29,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class TravelRecordTagServiceTest {
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
     @Mock
     private TagRepository tagRepository;
 
@@ -53,7 +55,8 @@ class TravelRecordTagServiceTest {
                 "일본 여행",
                 "본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 100L);
     }
