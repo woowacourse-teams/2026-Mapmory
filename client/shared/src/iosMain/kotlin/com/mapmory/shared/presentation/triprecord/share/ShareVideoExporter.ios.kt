@@ -4,6 +4,7 @@ package com.mapmory.shared.presentation.triprecord.share
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -11,14 +12,25 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
 import platform.AVFoundation.pause
+import platform.AVFoundation.play
+import platform.AVFoundation.rate
+import platform.AVFoundation.seekToTime
 import platform.AVKit.AVPlayerViewController
+import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.NSDate
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
@@ -48,7 +60,11 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
 
 @Composable
-internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+internal actual fun TripTimelineVideoSurface(
+    video: ShareVideoFile,
+    controller: TripTimelineVideoPlaybackController,
+    modifier: Modifier,
+) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val player = remember(video.path) { AVPlayer(uRL = NSURL.fileURLWithPath(video.path)) }
     DisposableEffect(lifecycle, player) {
@@ -61,12 +77,46 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
             player.pause()
         }
     }
+    LaunchedEffect(video.path, controller, player) {
+        controller.connect(
+            toggle = {
+                if (player.rate > 0f) {
+                    player.pause()
+                } else {
+                    val current = CMTimeGetSeconds(player.currentTime())
+                    val duration = player.currentItem?.duration?.let(::CMTimeGetSeconds) ?: 0.0
+                    if (duration.isFinite() && current >= duration) player.seekToTime(CMTimeMake(0, 1_000))
+                    player.play()
+                }
+            },
+            seek = { position ->
+                player.seekToTime(CMTimeMake(position, 1_000))
+            },
+        )
+        while (true) {
+            val item = player.currentItem
+            val durationSeconds = item?.duration?.let(::CMTimeGetSeconds) ?: 0.0
+            val positionSeconds = CMTimeGetSeconds(player.currentTime())
+            val durationMillis = if (durationSeconds.isFinite() && durationSeconds > 0.0) {
+                (durationSeconds * 1_000).toLong()
+            } else {
+                0L
+            }
+            val positionMillis = if (positionSeconds.isFinite() && positionSeconds > 0.0) {
+                (positionSeconds * 1_000).toLong()
+            } else {
+                0L
+            }
+            controller.update(player.rate > 0f, positionMillis, durationMillis)
+            delay(250)
+        }
+    }
 
     key(video.path) {
         UIKitViewController(
             factory = {
                 AVPlayerViewController().apply {
-                    showsPlaybackControls = true
+                    showsPlaybackControls = false
                     this.player = player
                 }
             },
@@ -85,10 +135,10 @@ internal actual fun rememberShareVideoExporter(): ShareVideoExporter = remember 
 private val iosVideoDownloader by lazy { IosVideoDownloader() }
 
 private class IosShareVideoExporter : ShareVideoExporter {
-    override suspend fun download(url: String, jobId: Long): ShareVideoFile {
+    override suspend fun download(url: String, jobId: Long, protectedJobId: Long?): ShareVideoFile {
         val remoteUrl = checkNotNull(NSURL.URLWithString(url)) { "영상 다운로드 주소가 올바르지 않아요." }
         check(remoteUrl.scheme.equals("https", ignoreCase = true)) { "안전한 영상 다운로드 주소가 아니에요." }
-        return iosVideoDownloader.download(remoteUrl, jobId)
+        return iosVideoDownloader.download(remoteUrl, jobId, protectedJobId)
     }
 
     override suspend fun save(video: ShareVideoFile) {
@@ -149,7 +199,7 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
         NSOperationQueue.mainQueue(),
     )
 
-    suspend fun download(url: NSURL, jobId: Long): ShareVideoFile = withContext(Dispatchers.Main) {
+    suspend fun download(url: NSURL, jobId: Long, protectedJobId: Long?): ShareVideoFile = withContext(Dispatchers.Main) {
         val cache = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
             .firstOrNull() as? String ?: error("영상을 저장할 공간을 찾지 못했어요.")
         val directory = "$cache/shared-videos"
@@ -157,6 +207,17 @@ private class IosVideoDownloader : NSObject(), NSURLSessionDownloadDelegateProto
         check(manager.createDirectoryAtPath(directory, true, null, null)) {
             "영상을 저장할 공간을 만들지 못했어요."
         }
+        manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()
+            ?.filter { filename ->
+                val cachedJobId = filename.removePrefix("Mapmory-").removeSuffix(".mp4").toLongOrNull()
+                filename.startsWith("Mapmory-") && filename.endsWith(".mp4") && cachedJobId != protectedJobId
+            }
+            ?.forEach { filename ->
+                val path = "$directory/$filename"
+                val modifiedAt = (manager.attributesOfItemAtPath(path, null)?.get(NSFileModificationDate) as? NSDate)
+                    ?.timeIntervalSinceReferenceDate ?: return@forEach
+                if (NSDate().timeIntervalSinceReferenceDate - modifiedAt > 86_400.0) manager.removeItemAtPath(path, null)
+            }
         val path = "$directory/Mapmory-$jobId.mp4"
         if (manager.fileExistsAtPath(path)) return@withContext ShareVideoFile(path)
         suspendCancellableCoroutine { continuation ->
