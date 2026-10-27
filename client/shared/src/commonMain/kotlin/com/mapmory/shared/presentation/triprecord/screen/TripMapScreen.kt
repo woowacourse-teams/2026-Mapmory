@@ -222,7 +222,7 @@ private fun MapPlaceSearchField(
     val palette = TripRecordPalette.current
     Row(
         modifier = modifier
-            .height(38.dp)
+            .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(palette.surface)
             .border(1.dp, palette.border, RoundedCornerShape(12.dp))
