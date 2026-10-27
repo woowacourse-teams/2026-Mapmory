@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.application;
+package com.mapmory.backend.place.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

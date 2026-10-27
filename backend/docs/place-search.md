@@ -2,13 +2,13 @@
 
 ## 사용 흐름
 
-1. 로그인한 사용자가 `GET /api/v1/places/search?query=한강공원`을 호출한다. `data`는 `placeId`, `name`, `address`, `attribution`, `attributionUrl`이 담긴 후보 배열이다.
+1. 로그인한 사용자가 `GET /api/v1/places/search?query=한강공원`을 호출한다. `data`는 `placeId`, `name`, `address`, `attribution`, `attributionUrl`이 담긴 후보 배열이다. 이름이 없거나 ID 형식이 맞지 않는 후보는 고를 수 없어 빼고 응답한다.
 2. 후보를 고르면 `GET /api/v1/places/{placeId}`를 호출한다. 응답의 `suggestedRegion`에 국가·시도·시군구 코드와 이름이 있다. 주소로 지역을 찾지 못하면 `suggestedRegion`은 `null`, `manualRegionRequired`는 `true`다.
 3. 기존 `POST /api/v1/travel-records` 요청에 `placeId`만 추가하면 서버가 추천 지역을 자동 적용한다. 사용자가 추천 지역을 수정한 경우 `countryCode`, `provinceCode`, `districtCode`를 함께 보낸다. 국외 장소는 국가 코드를 자동 적용한다.
-4. 서버가 장소 ID와 출처를 저장한다. Google 장소는 약관상 이름을 저장하지 않는다(`placeName`이 `null`). 요청에 지역이 있으면 다시 조회하지 않는다. 다시 받을 값이 국가뿐이고 출처는 상수이기 때문이다. 이때 장소 국가를 모르므로 요청 지역과 맞는지 확인하지 않는다. 요청에 지역이 없으면 3번처럼 다시 조회해 지역을 정한다. 상세 응답에는 `placeProvider`, `placeId`, `placeName`, `placeAttribution`, `placeAttributionUrl`이 포함된다.
+4. 서버가 장소 ID와 출처를 저장한다. Google 장소는 약관상 이름을 저장하지 않는다(`placeName`이 `null`). 요청에 지역이 있으면 다시 조회하지 않고 ID와 출처만 붙인다(`PlaceDetails.withoutLookup`). 다시 받을 값이 국가뿐이고 출처는 상수이기 때문이다. 이때 장소 국가를 모르므로 요청 지역과 맞는지 확인하지 않는다. 요청에 지역이 없으면 3번처럼 다시 조회해 지역을 정한다. 상세 응답에는 `placeProvider`, `placeId`, `placeName`, `placeAttribution`, `placeAttributionUrl`이 포함된다.
 
 `TravelRecord`는 이 다섯 값을 `RecordedPlace` 값 객체 하나로 다룬다. DB 컬럼과 API 응답 필드는 기존 형태를 유지한다.
-`place/application`에는 검색·선택 서비스와 제공자 중립 모델이 있고, 장소 조회 계약은 `application/port`에 있다. `infrastructure/google`의 `GooglePlacesClient`가 이 포트를 구현한다. `web`은 API와 응답 변환을 담당한다. 회원별 호출 한도는 인터셉터부터 DB 버킷까지 기능 루트의 `ratelimit` 한 패키지에 있다. 여행 기록 서비스는 application의 포트와 모델만 참조한다. 예전 Geoapify 장소로 저장된 기록은 `placeProvider`가 `GEOAPIFY`로 남는다.
+`place/domain`에는 제공자와 무관한 장소 규칙이 있다. 장소 ID 형식(`PlaceId`), 제공자와 출처(`PlaceProvider`), 검색어(`SearchQuery`), 후보와 상세(`PlaceCandidate`, `PlaceDetails`)다. `place/application`에는 검색·선택 서비스가 있고, 장소 조회 계약은 `application/port`에 있다. 포트는 제공자(`provider()`), 검색(`search`), 상세 조회(`findDetails`)만 내준다. `infrastructure/google`의 `GooglePlacesClient`가 이 포트를 구현하고, 약관·과금·응답 형식 같은 Google 규칙은 여기에만 둔다. `web`은 API와 응답 변환을 담당한다. 회원별 호출 한도는 인터셉터부터 DB 버킷까지 기능 루트의 `ratelimit` 한 패키지에 있다. 여행 기록 서비스는 application의 포트와 모델만 참조한다. 예전 Geoapify 장소로 저장된 기록은 `placeProvider`가 `GEOAPIFY`로 남는다.
 
 예시 저장 요청의 장소·지역 부분:
 

@@ -5,8 +5,9 @@ import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.common.time.ServiceTime;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionSuggester;
@@ -280,17 +281,18 @@ public class TravelRecordService {
         if (command.placeId() == null) {
             return null;
         }
-        // 지역이 없으면 장소로 지역을 정해야 해서 제공자에 다시 조회한다. 있으면 기록에 붙일 값만 받는다.
-        // 지역이 있으면 장소 국가를 모르므로 요청 지역과 맞는지 확인하지 않는다.
+        // 지역이 없으면 장소로 지역을 정해야 해서 제공자에 다시 조회한다. 있으면 다시 조회하지 않고 ID와 출처만 붙인다.
+        // 이때 장소 국가를 모르므로 요청 지역과 맞는지 확인하지 않는다. 앱을 고쳐 다른 나라 장소를 붙여도 그 회원의 기록에만 영향이 간다.
+        PlaceId placeId = PlaceId.from(command.placeId());
         return !command.hasRegion()
-                ? placeLookupPort.findById(command.placeId())
-                : placeLookupPort.findForRecord(command.placeId());
+                ? placeLookupPort.findDetails(placeId, null)
+                : PlaceDetails.withoutLookup(placeId, placeLookupPort.provider());
     }
 
     private void setPlace(TravelRecord travelRecord, PlaceDetails place) {
         travelRecord.setPlace(place == null ? null : new RecordedPlace(
-                placeLookupPort.providerCode(), place.placeId(), place.name(),
-                place.attribution(), place.attributionUrl()));
+                place.provider().code(), place.id().value(), place.name(),
+                place.provider().attribution(), place.provider().attributionUrl()));
     }
 
     private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
