@@ -85,7 +85,7 @@ const val MAPMORY_API_BASE_URL = "https://api.map-mory.com/api/v1"
 interface AppContainer {
     val accountLoginController: com.mapmory.shared.presentation.auth.AccountLoginController? get() = null
     val accountSession: com.mapmory.shared.data.auth.AccountSession? get() = null
-    val groupRepository: com.mapmory.shared.data.remote.GroupRepository? get() = null
+    val groupRepository: com.mapmory.shared.domain.repository.GroupRepository? get() = null
 
     val regionCatalog: RegionCatalog
     val tripRecordRepository: TripRecordRepository
@@ -189,7 +189,7 @@ private class DefaultAppContainer(
     localPhotoDataSource: LocalPhotoDataSource?,
     analytics: MapmoryAnalytics,
     override val accountSession: com.mapmory.shared.data.auth.AccountSession?,
-    override val groupRepository: com.mapmory.shared.data.remote.GroupRepository?,
+    override val groupRepository: com.mapmory.shared.domain.repository.GroupRepository?,
     private val invalidateSummaryCaches: () -> Unit,
 ) : AppContainer {
     override val accountLoginController = accountSession?.let {
@@ -278,7 +278,7 @@ fun createAppContainer(
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
     accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
-    groupRepository: com.mapmory.shared.data.remote.GroupRepository? = null,
+    groupRepository: com.mapmory.shared.domain.repository.GroupRepository? = null,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
