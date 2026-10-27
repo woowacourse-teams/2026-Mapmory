@@ -34,7 +34,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const rows = Math.ceil(n / SPRITE.cols);
   const placeOf = (k) => SPRITE.tiles[k][1];
   const cellStyle = (k) => `background-position:${((k % SPRITE.cols) / (SPRITE.cols - 1)) * 100}% ${(Math.floor(k / SPRITE.cols) / (rows - 1)) * 100}%;background-color:${SPRITE.colors[k]}`;
-  root.style.setProperty("--ts-atlas", `url(${SPRITE_URL})`);
+  // resolved against the page: a url() inside a custom property resolves against the stylesheet that uses it
+  root.style.setProperty("--ts-atlas", `url("${new URL(SPRITE_URL, document.baseURI).href}")`);
   root.style.setProperty("--ts-bs", `${SPRITE.cols * 100}% ${rows * 100}%`);
   const shuffled = (seed) => {
     const a = [...Array(n).keys()];

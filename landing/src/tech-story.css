@@ -68,6 +68,8 @@
 .ts-found { position: absolute; left: 50%; bottom: 64px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px;
   background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 13px; white-space: nowrap; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
   opacity: 0; transform: translate(-50%, 10px) scale(0.92); transition: opacity 250ms, transform 350ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+.ts-found { max-width: calc(100% - 16px); }
+.ts-found span { overflow: hidden; text-overflow: ellipsis; }
 .ts-found.is-shown { opacity: 1; transform: translate(-50%, 0) scale(1); }
 .ts-found svg { width: 14px; height: 14px; color: var(--ts-accent); }
 .ts-counter { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border-radius: 12px; background: var(--ts-accent-soft); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
@@ -159,6 +161,7 @@
   /* the words pass over the phone while they fade, so they never take its taps */
   .ts-copy { width: 100%; max-width: 420px; text-align: center; pointer-events: none; }
   .ts-copy h3 { font-size: 22px; }
+  .ts-found { padding: 7px 11px; font-size: 11px; bottom: 56px; }
   .ts-label { margin-bottom: 2px; font-size: 32px; }
   .ts-bridge { height: 12svh; }
 }
