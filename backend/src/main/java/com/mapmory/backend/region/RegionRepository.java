@@ -7,11 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RegionRepository extends JpaRepository<Region, Long> {
 
-    Optional<Region> findByParentIsNullAndRegionTypeAndRegionCode(
-            RegionType regionType,
-            String regionCode
-    );
-
+    // parentId가 null이면 parent_id IS NULL로 조회하므로 국가도 이 메서드로 찾는다.
     @EntityGraph(attributePaths = {"parent", "root"})
     Optional<Region> findByParentIdAndRegionTypeAndRegionCode(
             Long parentId,

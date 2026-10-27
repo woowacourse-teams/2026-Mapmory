@@ -121,6 +121,6 @@ class GroupRepositoryTest extends MySqlTestContainerSupport {
     }
 
     private Region japan() {
-        return regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "JP").orElseThrow();
+        return regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "JP").orElseThrow();
     }
 }
