@@ -8,6 +8,7 @@ import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPairGenerator;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class MediaViewUrlConfigTest {
         CloudFrontProperties off = new CloudFrontProperties(false, null, "mapmory", null, null);
 
         MediaViewUrlSigner signer = config.mediaViewUrlSigner(
-                off, s3StorageProperties, mock(PresignedUrlProvider.class));
+                off, s3StorageProperties, mock(PresignedUrlProvider.class), Clock.systemUTC());
 
         assertThat(signer).isInstanceOf(S3MediaViewUrlSigner.class);
     }
@@ -45,7 +46,7 @@ class MediaViewUrlConfigTest {
         CloudFrontProperties on = new CloudFrontProperties(true, "d123.cloudfront.net", "mapmory", "KTEST", key);
 
         MediaViewUrlSigner signer = config.mediaViewUrlSigner(
-                on, s3StorageProperties, mock(PresignedUrlProvider.class));
+                on, s3StorageProperties, mock(PresignedUrlProvider.class), Clock.systemUTC());
 
         assertThat(signer).isInstanceOf(CloudFrontMediaViewUrlSigner.class);
     }

@@ -20,7 +20,8 @@ public class MediaViewUrlConfig {
     public MediaViewUrlSigner mediaViewUrlSigner(
             CloudFrontProperties cloudFrontProperties,
             S3StorageProperties s3StorageProperties,
-            PresignedUrlProvider presignedUrlProvider
+            PresignedUrlProvider presignedUrlProvider,
+            Clock clock
     ) {
         MediaViewUrlSigner s3 = new S3MediaViewUrlSigner(presignedUrlProvider);
         if (!cloudFrontProperties.enabled()) {
@@ -31,7 +32,7 @@ public class MediaViewUrlConfig {
                 s3StorageProperties.keyPrefix(),
                 s3StorageProperties.signedUrlExpiration(),
                 s3,
-                Clock.systemUTC()
+                clock
         );
     }
 }

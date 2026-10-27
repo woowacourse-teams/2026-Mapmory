@@ -17,8 +17,8 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.GuestAbandoned;
-import org.junit.jupiter.api.Test;
 import java.time.Duration;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -304,7 +304,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     }
 
     private String expiredAccessToken(Long memberId) {
-        return new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)))
+        return new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)), clock)
                 .issueAccessToken(memberId);
     }
 

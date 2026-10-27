@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -21,14 +22,16 @@ public class JwtProvider {
 
     private final SecretKey key;
     private final Duration accessTokenValidity;
+    private final Clock clock;
 
-    public JwtProvider(JwtProperties properties) {
+    public JwtProvider(JwtProperties properties, Clock clock) {
         this.key = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
         this.accessTokenValidity = properties.accessTokenValidity();
+        this.clock = clock;
     }
 
     public String issueAccessToken(Long memberId) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
                 .issuedAt(Date.from(now))
@@ -38,7 +41,9 @@ public class JwtProvider {
     }
 
     public Long parseMemberId(String token) {
+        // 만료 확인도 발급과 같은 시계로 한다.
         Claims claims = Jwts.parser()
+                .clock(() -> Date.from(clock.instant()))
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
