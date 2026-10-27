@@ -14,11 +14,11 @@ public record PlaceDetails(
         String attribution, String attributionUrl, List<String> addressAreas
 ) {
     public PlaceDetails {
-        addressAreas = di(addressAreas);
+        addressAreas = copyOrEmpty(addressAreas);
     }
 
-    private List<String> di(List<String> addressAreas) {
-        if(Objects.isNull(addressAreas)) {
+    private static List<String> copyOrEmpty(List<String> addressAreas) {
+        if (Objects.isNull(addressAreas)) {
             return List.of();
         }
         return List.copyOf(addressAreas);
