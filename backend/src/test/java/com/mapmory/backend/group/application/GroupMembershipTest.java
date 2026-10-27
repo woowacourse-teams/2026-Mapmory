@@ -37,6 +37,23 @@ class GroupMembershipTest {
     }
 
     @Test
+    void 속한_그룹이_9개면_하나_더_들어갈_수_있다() {
+        when(travelGroupRepository.countGroupsOf(1L)).thenReturn(9L);
+
+        assertThatCode(() -> groupMembership.validateCanJoinAnother(1L)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 속한_그룹이_10개면_더_들어갈_수_없다() {
+        when(travelGroupRepository.countGroupsOf(1L)).thenReturn(10L);
+
+        assertThatThrownBy(() -> groupMembership.validateCanJoinAnother(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(GroupErrorCode.TOO_MANY_GROUPS);
+    }
+
+    @Test
     void 멤버면_그룹을_돌려준다() {
         TravelGroup group = TravelGroup.create("제주 가족", 1L, LocalDateTime.now());
         when(travelGroupRepository.findById(10L)).thenReturn(Optional.of(group));

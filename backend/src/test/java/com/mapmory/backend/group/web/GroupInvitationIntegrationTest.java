@@ -179,6 +179,29 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 그룹_10개에_속해_있으면_수락을_막는다() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            travelGroupRepository.save(TravelGroup.create("민호 그룹" + i, minho.getId(), LocalDateTime.now()));
+        }
+        String code = JsonPath.read(invitationBody(jisu), "$.data.code");
+
+        accept(minho, code)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_GROUPS"));
+        assertThat(travelGroupRepository.existsMember(group.getId(), minho.getId())).isFalse();
+    }
+
+    @Test
+    void 그룹_10개에_속해_있어도_이미_멤버인_그룹의_수락은_통과한다() throws Exception {
+        for (int i = 0; i < 9; i++) {
+            travelGroupRepository.save(TravelGroup.create("지수 그룹" + i, jisu.getId(), LocalDateTime.now()));
+        }
+        String code = JsonPath.read(invitationBody(jisu), "$.data.code");
+
+        accept(jisu, code).andExpect(status().isOk());
+    }
+
+    @Test
     void 미리보기와_수락을_합쳐_1분에_10번을_넘으면_429다() throws Exception {
         for (int attempt = 0; attempt < 5; attempt++) {
             preview(minho, "ZZZZZZ").andExpect(status().isNotFound());

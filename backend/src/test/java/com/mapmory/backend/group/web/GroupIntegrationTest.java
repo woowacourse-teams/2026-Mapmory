@@ -180,6 +180,19 @@ class GroupIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 그룹_10개에_속해_있으면_더_만들_수_없다() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            createdGroupId(jisu, "그룹" + i);
+        }
+
+        createGroup(jisu, "열한째")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_GROUPS"));
+        assertThat(travelGroupRepository.countGroupsOf(jisu.getId())).isEqualTo(10);
+        createdGroupId(minho, "민호네");
+    }
+
+    @Test
     void 탈퇴한_회원의_남은_토큰으로는_그룹을_만들_수_없다() throws Exception {
         jisu.withdraw(LocalDateTime.now());
         memberRepository.save(jisu);

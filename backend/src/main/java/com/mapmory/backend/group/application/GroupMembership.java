@@ -16,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class GroupMembership {
 
+    // 한 회원이 속할 수 있는 그룹 수. 만든 수가 아니라 속한 수로 센다(ADR 0022 결정 6).
+    static final int MAX_GROUPS_PER_MEMBER = 10;
+
     private final TravelGroupRepository travelGroupRepository;
 
     public GroupMembership(TravelGroupRepository travelGroupRepository) {
@@ -26,6 +29,18 @@ public class GroupMembership {
     public void validateMember(Long groupId, Long memberId) {
         if (!travelGroupRepository.existsMember(groupId, memberId)) {
             throw new BusinessException(GroupErrorCode.GROUP_NOT_FOUND);
+        }
+    }
+
+    /**
+     * 그룹을 하나 더 만들거나 들어갈 수 있는지 확인한다.
+     *
+     * <p>같은 사람이 동시에 만들거나 수락하면 한두 개 넘을 수 있다. 자기 요청끼리의 경쟁이라 잠금을 더 걸지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public void validateCanJoinAnother(Long memberId) {
+        if (travelGroupRepository.countGroupsOf(memberId) >= MAX_GROUPS_PER_MEMBER) {
+            throw new BusinessException(GroupErrorCode.TOO_MANY_GROUPS);
         }
     }
 
