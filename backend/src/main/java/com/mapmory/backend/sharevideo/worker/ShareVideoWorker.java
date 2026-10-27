@@ -1,5 +1,6 @@
 package com.mapmory.backend.sharevideo.worker;
 
+import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.render.RenderedShareVideo;
 import com.mapmory.backend.sharevideo.render.ShareVideoRenderer;
 import com.mapmory.backend.sharevideo.storage.ShareVideoStorage;
@@ -49,6 +50,9 @@ public class ShareVideoWorker {
 
     private void process(final ShareVideoRenderTask task) {
         RenderedShareVideo renderedVideo = null;
+        Long renderDurationMs = null;
+        Long uploadDurationMs = null;
+        ShareVideoFailureCode failureCode = ShareVideoFailureCode.WORKER_FAILED;
 
         try {
             log.info(
@@ -56,31 +60,50 @@ public class ShareVideoWorker {
                     task.jobId()
             );
 
-            renderedVideo = renderer.render(task);
+            failureCode = ShareVideoFailureCode.RENDER_FAILED;
+            long renderStartedNanos = System.nanoTime();
 
-            String objectKey = storage.upload(
-                    task.jobId(),
-                    renderedVideo.videoPath()
-            );
+            try {
+                renderedVideo = renderer.render(task);
+            } finally {
+                renderDurationMs = elapsedMillis(renderStartedNanos);
+            }
 
+            failureCode = ShareVideoFailureCode.UPLOAD_FAILED;
+            long uploadStartedNanos = System.nanoTime();
+            String objectKey;
+            try {
+                objectKey = storage.upload(task.jobId(), renderedVideo.videoPath());
+            } finally {
+                uploadDurationMs = elapsedMillis(uploadStartedNanos);
+            }
+
+            failureCode = ShareVideoFailureCode.WORKER_FAILED;
             jobUpdater.complete(
                     task.jobId(),
-                    objectKey
+                    objectKey,
+                    renderDurationMs,
+                    uploadDurationMs
             );
 
             log.info(
-                    "공유 영상 생성을 완료했습니다. jobId={}, objectKey={}",
+                    "공유 영상 생성을 완료했습니다. jobId={}, renderDurationMs={}, uploadDurationMs={}, objectKey={}",
                     task.jobId(),
+                    renderDurationMs,
+                    uploadDurationMs,
                     objectKey
             );
         } catch (Exception exception) {
             log.error(
-                    "공유 영상 생성에 실패했습니다. jobId={}",
+                    "공유 영상 생성에 실패했습니다. jobId={}, failureCode={}, renderDurationMs={}, uploadDurationMs={}",
                     task.jobId(),
+                    failureCode,
+                    renderDurationMs,
+                    uploadDurationMs,
                     exception
             );
 
-            markFailed(task.jobId(), exception);
+            markFailed(task.jobId(), failureCode, exception, renderDurationMs, uploadDurationMs);
         } finally {
             if (renderedVideo != null) {
                 renderer.cleanup(renderedVideo);
@@ -88,9 +111,15 @@ public class ShareVideoWorker {
         }
     }
 
-    private void markFailed(final Long jobId, final Exception cause) {
+    private void markFailed(
+            final Long jobId,
+            final ShareVideoFailureCode failureCode,
+            final Exception cause,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
         try {
-            jobUpdater.fail(jobId, cause);
+            jobUpdater.fail(jobId, failureCode, cause, renderDurationMs, uploadDurationMs);
         } catch (Exception updateException) {
             log.error(
                     "공유 영상 작업의 실패 상태를 저장하지 못했습니다. jobId={}",
@@ -98,5 +127,9 @@ public class ShareVideoWorker {
                     updateException
             );
         }
+    }
+
+    private long elapsedMillis(final long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000;
     }
 }

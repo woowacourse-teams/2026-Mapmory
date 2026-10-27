@@ -1,7 +1,11 @@
 package com.mapmory.backend.sharevideo.worker;
 
 import com.mapmory.backend.sharevideo.ShareVideoJob;
+import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.ShareVideoJobRepository;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,21 +15,48 @@ public class ShareVideoJobUpdater {
     private static final int MAX_FAILURE_REASON_LENGTH = 1000;
 
     private final ShareVideoJobRepository shareVideoJobRepository;
+    private final Clock clock;
 
-    public ShareVideoJobUpdater(final ShareVideoJobRepository shareVideoJobRepository) {
+    public ShareVideoJobUpdater(
+            final ShareVideoJobRepository shareVideoJobRepository,
+            final Clock clock
+    ) {
         this.shareVideoJobRepository = shareVideoJobRepository;
+        this.clock = clock.withZone(ZoneOffset.UTC);
     }
 
     @Transactional
-    public void complete(final Long jobId, final String resultObjectKey) {
+    public void complete(
+            final Long jobId,
+            final String resultObjectKey,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
         ShareVideoJob job = findJob(jobId);
-        job.complete(resultObjectKey);
+        job.complete(
+                resultObjectKey,
+                LocalDateTime.now(clock),
+                renderDurationMs,
+                uploadDurationMs
+        );
     }
 
     @Transactional
-    public void fail(final Long jobId, final Throwable throwable) {
+    public void fail(
+            final Long jobId,
+            final ShareVideoFailureCode failureCode,
+            final Throwable throwable,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
         ShareVideoJob job = findJob(jobId);
-        job.fail(failureReason(throwable));
+        job.fail(
+                failureCode,
+                failureReason(throwable),
+                LocalDateTime.now(clock),
+                renderDurationMs,
+                uploadDurationMs
+        );
     }
 
     private ShareVideoJob findJob(final Long jobId) {

@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "share_video_job")
@@ -42,6 +43,22 @@ public class ShareVideoJob extends BaseEntity {
     @Column(name = "failure_reason", length = 1000)
     private String failureReason;
 
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
+    @Column(name = "finished_at")
+    private LocalDateTime finishedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_code", length = 50)
+    private ShareVideoFailureCode failureCode;
+
+    @Column(name = "render_duration_ms")
+    private Long renderDurationMs;
+
+    @Column(name = "upload_duration_ms")
+    private Long uploadDurationMs;
+
     protected ShareVideoJob() {
     }
 
@@ -70,19 +87,39 @@ public class ShareVideoJob extends BaseEntity {
         );
     }
 
-    public void startRendering() {
+    public void startRendering(final LocalDateTime startedAt) {
         status = ShareVideoStatus.RENDERING;
+        this.startedAt = startedAt;
     }
 
-    public void complete(final String resultObjectKey) {
+    public void complete(
+            final String resultObjectKey,
+            final LocalDateTime finishedAt,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
         status = ShareVideoStatus.COMPLETED;
         this.resultObjectKey = resultObjectKey;
         failureReason = null;
+        failureCode = null;
+        this.finishedAt = finishedAt;
+        this.renderDurationMs = renderDurationMs;
+        this.uploadDurationMs = uploadDurationMs;
     }
 
-    public void fail(final String failureReason) {
+    public void fail(
+            final ShareVideoFailureCode failureCode,
+            final String failureReason,
+            final LocalDateTime finishedAt,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
         status = ShareVideoStatus.FAILED;
+        this.failureCode = failureCode;
         this.failureReason = failureReason;
+        this.finishedAt = finishedAt;
+        this.renderDurationMs = renderDurationMs;
+        this.uploadDurationMs = uploadDurationMs;
     }
 
     public Long getId() {
@@ -103,5 +140,17 @@ public class ShareVideoJob extends BaseEntity {
 
     public String getFailureReason() {
         return failureReason;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+
+    public LocalDateTime getFinishedAt() {
+        return finishedAt;
+    }
+
+    public ShareVideoFailureCode getFailureCode() {
+        return failureCode;
     }
 }
