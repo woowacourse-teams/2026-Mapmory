@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.application.model;
+package com.mapmory.backend.place.domain;
 
 import com.mapmory.backend.region.RegionAddress;
 

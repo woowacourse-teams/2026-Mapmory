@@ -1,8 +1,7 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.region.RegionSuggester;
 import org.springframework.stereotype.Service;
 

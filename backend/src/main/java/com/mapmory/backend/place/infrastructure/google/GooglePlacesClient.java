@@ -1,10 +1,10 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.place.application.PlaceErrorCode;
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.RegionAddress;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;

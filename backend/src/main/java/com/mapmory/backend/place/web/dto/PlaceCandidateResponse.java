@@ -1,6 +1,6 @@
 package com.mapmory.backend.place.web.dto;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceCandidate;
 
 public record PlaceCandidateResponse(
         String placeId, String name, String address,

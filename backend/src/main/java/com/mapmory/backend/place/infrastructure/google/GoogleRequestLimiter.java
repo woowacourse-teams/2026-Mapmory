@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.place.application.PlaceErrorCode;
+import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.BucketExceptions.BucketExecutionException;

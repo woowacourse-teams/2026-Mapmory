@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceCandidate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 

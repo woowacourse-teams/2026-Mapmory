@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.web.dto;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.dto.RegionDetailResponse;
 

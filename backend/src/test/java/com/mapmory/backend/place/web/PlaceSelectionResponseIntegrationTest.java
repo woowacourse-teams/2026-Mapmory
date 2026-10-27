@@ -3,8 +3,8 @@ package com.mapmory.backend.place.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionAddress;

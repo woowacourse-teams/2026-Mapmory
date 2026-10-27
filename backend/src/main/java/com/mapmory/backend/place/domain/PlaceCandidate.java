@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.application.model;
+package com.mapmory.backend.place.domain;
 
 public record PlaceCandidate(
         String placeId, String name, String address,

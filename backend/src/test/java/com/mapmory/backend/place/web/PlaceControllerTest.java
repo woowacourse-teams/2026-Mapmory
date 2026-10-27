@@ -10,9 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.region.RegionAddress;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;

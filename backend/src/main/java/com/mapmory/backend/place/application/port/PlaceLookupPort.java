@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.application.port;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import java.util.List;
 
 /** 장소 제공자에서 후보와 상세 정보를 조회하는 포트. */

@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.RegionAddress;
 import java.util.ArrayList;

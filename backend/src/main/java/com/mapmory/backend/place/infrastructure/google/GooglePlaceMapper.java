@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.region.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;

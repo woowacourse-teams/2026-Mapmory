@@ -3,9 +3,9 @@ package com.mapmory.backend.place.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.region.Region;
 import com.mapmory.backend.region.RegionAddress;
 import com.mapmory.backend.region.RegionSuggester;
