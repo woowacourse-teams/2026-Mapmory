@@ -30,7 +30,7 @@ import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
 import java.net.http.HttpConnectTimeoutException;

@@ -3,8 +3,8 @@ package com.mapmory.backend.travelrecord.mapsummary.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;

@@ -3,7 +3,7 @@ package com.mapmory.backend.group.domain;
 import com.mapmory.backend.common.entity.BaseEntity;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.exception.GroupErrorCode;
-import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.domain.Region;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

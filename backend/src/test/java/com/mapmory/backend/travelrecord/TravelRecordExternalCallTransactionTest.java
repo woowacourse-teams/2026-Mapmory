@@ -16,7 +16,7 @@ import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;
 

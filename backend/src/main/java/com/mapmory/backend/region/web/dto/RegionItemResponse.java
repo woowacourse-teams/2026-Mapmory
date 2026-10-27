@@ -1,6 +1,6 @@
-package com.mapmory.backend.region.dto;
+package com.mapmory.backend.region.web.dto;
 
-import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.domain.Region;
 
 public record RegionItemResponse(
         String code,

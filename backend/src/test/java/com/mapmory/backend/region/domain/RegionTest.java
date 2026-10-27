@@ -1,4 +1,4 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

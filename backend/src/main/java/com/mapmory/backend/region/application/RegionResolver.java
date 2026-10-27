@@ -1,6 +1,10 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.region.exception.RegionErrorCode;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;

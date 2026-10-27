@@ -1,5 +1,8 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

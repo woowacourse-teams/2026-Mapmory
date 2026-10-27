@@ -1,5 +1,7 @@
-package com.mapmory.backend.region;
+package com.mapmory.backend.region.application;
 
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 

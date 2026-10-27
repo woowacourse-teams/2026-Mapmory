@@ -1,7 +1,7 @@
 package com.mapmory.backend.travelrecord.statistics.service;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 import com.mapmory.backend.travelrecord.statistics.model.TravelStatistics;
 import com.mapmory.backend.travelrecord.statistics.repository.TopRegionQueryResult;

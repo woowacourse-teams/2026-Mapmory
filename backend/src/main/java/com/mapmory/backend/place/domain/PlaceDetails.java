@@ -1,6 +1,6 @@
 package com.mapmory.backend.place.domain;
 
-import com.mapmory.backend.region.RegionAddress;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.Objects;
 
 /**

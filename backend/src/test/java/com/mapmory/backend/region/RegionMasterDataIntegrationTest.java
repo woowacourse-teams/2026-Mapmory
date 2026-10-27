@@ -3,6 +3,10 @@ package com.mapmory.backend.region;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.region.application.RegionResolver;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
