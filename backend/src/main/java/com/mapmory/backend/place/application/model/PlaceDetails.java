@@ -1,6 +1,7 @@
 package com.mapmory.backend.place.application.model;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 제공자가 돌려준 장소 상세.
@@ -13,6 +14,13 @@ public record PlaceDetails(
         String attribution, String attributionUrl, List<String> addressAreas
 ) {
     public PlaceDetails {
-        addressAreas = addressAreas == null ? List.of() : List.copyOf(addressAreas);
+        addressAreas = di(addressAreas);
+    }
+
+    private List<String> di(List<String> addressAreas) {
+        if(Objects.isNull(addressAreas)) {
+            return List.of();
+        }
+        return List.copyOf(addressAreas);
     }
 }
