@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 기록은 자신의 지역, 바로 위 지역(parent), 국가(root)에 함께 센다.
+ * 목록 필터(TravelRecordRepository.findByMemberIdInRegion)와 같은 포함 관계다.
+ */
 public interface RegionMapSummaryRepository extends Repository<TravelRecord, Long> {
 
     @Query(value = """

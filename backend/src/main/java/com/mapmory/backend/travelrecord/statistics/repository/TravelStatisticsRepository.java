@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 기록의 국가는 COALESCE(root_id, id)로 구한다. 국가는 root가 없어 자기 자신이고, 하위 지역의 root는 국가다
+ * (Region.country()와 같은 규칙). 상위 지역은 대한민국이면 시·도, 해외면 국가로 묶는다.
+ */
 public interface TravelStatisticsRepository extends Repository<TravelRecord, Long> {
 
     @Query(value = """

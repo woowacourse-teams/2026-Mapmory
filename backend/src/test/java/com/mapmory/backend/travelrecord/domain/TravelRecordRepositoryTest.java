@@ -227,4 +227,38 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                 java.util.List.of(travelRecordId)
         )).isEmpty();
     }
+
+    @Test
+    void 지역_안의_기록은_그_아래_지역의_기록까지_포함한다() {
+        Member member = memberRepository.save(Member.of("지역 필터 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(Region.of(null, null, "XR", "필터 국가", RegionType.COUNTRY));
+        Region province = regionRepository.save(Region.of(country, country, "X1", "필터 시도", RegionType.PROVINCE));
+        Region otherProvince = regionRepository.save(
+                Region.of(country, country, "X2", "다른 시도", RegionType.PROVINCE));
+        Region district = regionRepository.save(
+                Region.of(province, country, "X1001", "필터 시군구", RegionType.DISTRICT));
+        TravelRecord inCountry = save(member, country, "국가 기록");
+        TravelRecord inProvince = save(member, province, "시도 기록");
+        TravelRecord inOtherProvince = save(member, otherProvince, "다른 시도 기록");
+        TravelRecord inDistrict = save(member, district, "시군구 기록");
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(idsInRegion(member, country))
+                .containsExactlyInAnyOrder(inCountry.getId(), inProvince.getId(), inOtherProvince.getId(),
+                        inDistrict.getId());
+        assertThat(idsInRegion(member, province)).containsExactlyInAnyOrder(inProvince.getId(), inDistrict.getId());
+        assertThat(idsInRegion(member, district)).containsExactly(inDistrict.getId());
+    }
+
+    private TravelRecord save(Member member, Region region, String title) {
+        return travelRecordRepository.save(
+                TravelRecord.of(member, region, title, "", LocalDate.of(2026, 8, 11), null));
+    }
+
+    private java.util.List<Long> idsInRegion(Member member, Region region) {
+        return travelRecordRepository.findByMemberIdInRegion(member.getId(), region, null, PageRequest.of(0, 20))
+                .map(TravelRecord::getId)
+                .getContent();
+    }
 }

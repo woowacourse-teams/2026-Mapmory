@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.domain;
 
+import com.mapmory.backend.region.domain.Region;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -74,6 +75,19 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
             @Param("tagId") Long tagId,
             Pageable pageable
     );
+
+    /**
+     * 지역 안의 기록을 찾는다. 국가는 그 아래 모든 지역, 시·도는 그 아래 시·군·구, 시·군·구는 자신만 포함한다.
+     * 하위 지역의 parent는 바로 위 지역이고 root는 국가라서, 단위마다 조건 두 개로 찾도록 쿼리를 나눈다.
+     * 지도 요약(RegionMapSummaryRepository)도 같은 포함 관계로 센다.
+     */
+    default Page<TravelRecord> findByMemberIdInRegion(Long memberId, Region region, Long tagId, Pageable pageable) {
+        return switch (region.getRegionType()) {
+            case COUNTRY -> findByMemberIdAndCountryIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+            case PROVINCE -> findByMemberIdAndProvinceIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+            case DISTRICT -> findByMemberIdAndRegionIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+        };
+    }
 
     @Query("""
         SELECT tr
