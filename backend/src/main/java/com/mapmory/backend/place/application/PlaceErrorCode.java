@@ -2,6 +2,7 @@ package com.mapmory.backend.place.application;
 
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.ErrorKind;
+import org.slf4j.event.Level;
 
 public enum PlaceErrorCode implements ErrorCode {
     INVALID_PLACE_ID(ErrorKind.INVALID_INPUT, "INVALID_PLACE_ID", "장소 ID가 올바르지 않습니다.", "장소 ID를 확인해 주세요."),
@@ -27,4 +28,16 @@ public enum PlaceErrorCode implements ErrorCode {
     @Override public String code() { return code; }
     @Override public String title() { return title; }
     @Override public String detail() { return detail; }
+
+    /**
+     * 장소 제공자 장애와 한도 소진은 요청마다 WARN으로 남긴다. 장애 하나에 알람이 한 번 울리도록 ERROR는 원인이 난 곳에서
+     * 따로 남긴다: 서킷이 열릴 때, 월 한도의 80%·100%를 쓸 때, Google이 키를 거절할 때, 한도 저장소가 실패할 때, 키가 없을 때.
+     */
+    @Override
+    public Level logLevel() {
+        return switch (this) {
+            case PLACE_PROVIDER_UNAVAILABLE, PLACE_PROVIDER_BUDGET_EXHAUSTED -> Level.WARN;
+            default -> ErrorCode.super.logLevel();
+        };
+    }
 }
