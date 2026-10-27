@@ -98,7 +98,6 @@ fun MainViewController(
             contentWindowInsets = WindowInsets.safeDrawing,
             onThemeChanged = onThemeChanged,
             analytics = analytics,
-            showTimelineLayoutSwitcher = Platform.isDebugBinary,
         )
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
@@ -120,11 +121,7 @@ fun TripMapScreen(
                 )
 
                 currentLocationError?.let { message ->
-                    Text(
-                        text = message,
-                        color = TripRecordPalette.current.headingText,
-                        fontSize = 10.sp,
-                        textAlign = TextAlign.Center,
+                    Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 146.dp)
@@ -132,8 +129,24 @@ fun TripMapScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(TripRecordPalette.current.surface)
                             .border(1.dp, TripRecordPalette.current.border, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                    )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = message,
+                            color = TripRecordPalette.current.headingText,
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = onCurrentLocationClick) {
+                                Text("다시 시도", color = TripRecordPalette.current.primary)
+                            }
+                            TextButton(onClick = onCreateClick) {
+                                Text("장소 직접 선택", color = TripRecordPalette.current.secondaryText)
+                            }
+                        }
+                    }
                 }
 
                 Column(
