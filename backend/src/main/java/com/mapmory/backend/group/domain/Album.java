@@ -18,6 +18,7 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 같은 여행 하나를 보여 주는 묶음. 저장은 각자 여행 기록에 하고, 앨범은 그 기록을 id로 가리키기만 한다.
@@ -72,6 +73,50 @@ public class Album extends BaseEntity {
         Album album = new Album(groupId, name, region, openerMemberId);
         album.entries.add(new AlbumEntry(album, travelRecordId, openerMemberId));
         return album;
+    }
+
+    /**
+     * 사진 붙이기: 내 기록을 이 앨범에 담는다. 멤버인지와 내 기록인지는 부르는 쪽이 먼저 확인한다.
+     *
+     * <p>같은 기록을 다시 담으면 아무것도 바꾸지 않고 false다. 응답을 못 받은 앱이 그대로 다시 보내도 되게 한다.
+     * 한 앨범에는 멤버당 기록 하나라 다른 기록을 이미 담았으면 거절한다(ADR 0022 결정 2).
+     *
+     * @return 새로 담았으면 true
+     */
+    public boolean addEntry(Long memberId, Long travelRecordId) {
+        Optional<Long> added = travelRecordIdOf(memberId);
+        if (added.isPresent()) {
+            if (added.get().equals(travelRecordId)) {
+                return false;
+            }
+            throw new BusinessException(GroupErrorCode.ALBUM_ENTRY_ALREADY_EXISTS);
+        }
+        entries.add(new AlbumEntry(this, travelRecordId, memberId));
+        return true;
+    }
+
+    /**
+     * 멤버 누구나 이름을 바꾼다. 멤버인지는 부르는 쪽이 먼저 확인한다.
+     */
+    public void rename(String name) {
+        this.name = validateName(name);
+    }
+
+    /**
+     * 멤버 누구나 지역을 바꾼다. 앨범 카드에만 쓰므로 담긴 기록의 지역은 그대로다.
+     */
+    public void changeRegion(Region region) {
+        this.region = Objects.requireNonNull(region, "region must not be null");
+    }
+
+    /**
+     * 이 멤버가 담은 기록.
+     */
+    public Optional<Long> travelRecordIdOf(Long memberId) {
+        return entries.stream()
+                .filter(entry -> entry.getMemberId().equals(memberId))
+                .map(AlbumEntry::getTravelRecordId)
+                .findFirst();
     }
 
     public List<Long> travelRecordIds() {

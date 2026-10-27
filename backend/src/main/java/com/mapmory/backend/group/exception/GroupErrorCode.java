@@ -21,7 +21,14 @@ public enum GroupErrorCode implements ErrorCode {
     INVALID_GROUP_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
             "그룹 이름은 공백을 제외한 1자 이상 30자 이하여야 합니다."),
     INVALID_ALBUM_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
-            "앨범 이름은 공백을 제외한 1자 이상 200자 이하여야 합니다.");
+            "앨범 이름은 공백을 제외한 1자 이상 200자 이하여야 합니다."),
+    EMPTY_ALBUM_UPDATE(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
+            "바꿀 앨범 이름이나 지역을 하나 이상 보내야 합니다."),
+    // 다른 그룹의 앨범도 같은 응답을 준다. 그룹 경로로 남의 앨범이 있는지 알려 주지 않기 위해서다.
+    ALBUM_NOT_FOUND(ErrorKind.NOT_FOUND, "ALBUM_NOT_FOUND", "앨범을 찾을 수 없습니다.",
+            "요청한 앨범이 없거나 이 그룹의 앨범이 아닙니다."),
+    ALBUM_ENTRY_ALREADY_EXISTS(ErrorKind.CONFLICT, "ALBUM_ENTRY_ALREADY_EXISTS", "이미 기록을 담았습니다.",
+            "앨범에는 멤버당 기록 하나만 담을 수 있습니다. 사진을 더 넣으려면 담은 기록을 고쳐 주세요.");
 
     private final ErrorKind kind;
     private final String code;
