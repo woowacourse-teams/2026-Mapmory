@@ -6,11 +6,7 @@
 package com.mapmory.shared.data.media
 
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
-import platform.CoreFoundation.CFRelease
-import platform.CoreGraphics.CGImageRelease
-import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
@@ -20,13 +16,6 @@ import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.getBytes
 import platform.Foundation.writeToFile
-import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
-import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
-import platform.ImageIO.CGImageSourceCreateWithData
-import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
-import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
-import platform.ImageIO.kCGImageSourceThumbnailMaxPixelSize
-import platform.UIKit.UIImageJPEGRepresentation
 
 class IosPhotoPreviewCache : PhotoPreviewCache {
     override suspend fun capturedAt(objectKey: String): String? =
@@ -115,35 +104,8 @@ class IosPhotoPreviewCache : PhotoPreviewCache {
     }
 }
 
-internal actual fun createRemotePhotoPreview(originalBytes: ByteArray): ByteArray? {
-    val retainedData = CFBridgingRetain(originalBytes.toNSData()) ?: return null
-    val imageSource = CGImageSourceCreateWithData(retainedData.reinterpret(), null)
-    CFRelease(retainedData)
-    if (imageSource == null) return null
-
-    val options = mapOf(
-        kCGImageSourceCreateThumbnailFromImageAlways to true,
-        kCGImageSourceCreateThumbnailWithTransform to true,
-        kCGImageSourceThumbnailMaxPixelSize to PreviewSizePx,
-    )
-    val retainedOptions = CFBridgingRetain(options) ?: run {
-        CFRelease(imageSource.reinterpret())
-        return null
-    }
-    val thumbnail = CGImageSourceCreateThumbnailAtIndex(
-        imageSource,
-        CGImageSourceGetPrimaryImageIndex(imageSource),
-        retainedOptions.reinterpret(),
-    )
-    CFRelease(retainedOptions)
-    CFRelease(imageSource.reinterpret())
-    if (thumbnail == null) return null
-
-    val image = platform.UIKit.UIImage.imageWithCGImage(thumbnail)
-    val preview = UIImageJPEGRepresentation(image, PreviewJpegQuality)
-    CGImageRelease(thumbnail)
-    return preview?.toByteArray()
-}
+internal actual fun createRemotePhotoPreview(originalBytes: ByteArray): ByteArray? =
+    originalBytes.iosPhotoData().photoDisplayJpeg(PreviewSizePx)
 
 private fun ByteArray.toNSData(): NSData {
     if (isEmpty()) return NSData()
@@ -162,6 +124,5 @@ private fun NSData.toByteArray(): ByteArray {
 private const val CacheDirectoryName = "mapmory-photo-previews"
 private const val MaxPreviewCacheEntryBytes = 5 * 1024 * 1024
 private const val PreviewSizePx = 1280
-private const val PreviewJpegQuality = 0.85
 private const val LocalSourceSuffix = ".source"
 private const val MaxLocalSourceKeyBytes = 4_096UL
