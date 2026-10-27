@@ -38,6 +38,7 @@ public class ShareVideoJobClaimer {
 
         return new ShareVideoRenderTask(
                 job.getId(),
+                job.getStyleId(),
                 job.getSnapshotJson()
         );
     }

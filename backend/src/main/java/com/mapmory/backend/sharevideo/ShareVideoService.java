@@ -36,6 +36,20 @@ public class ShareVideoService {
 
     @Transactional
     public ShareVideoJob createTravelTimeline(final Member member) {
+        return createTravelTimeline(member, ShareVideoStyle.defaultStyle());
+    }
+
+    @Transactional
+    public ShareVideoJob createTravelTimeline(
+            final Member member,
+            final ShareVideoStyle styleId
+    ) {
+        final ShareVideoStyle resolvedStyle;
+        if (styleId == null) {
+            resolvedStyle = ShareVideoStyle.defaultStyle();
+        } else {
+            resolvedStyle = styleId;
+        }
         final List<TravelRecord> records = travelRecordRepository.findAllForTravelTimeline(member.getId());
         final TravelTimelineSnapshot snapshot = snapshotFactory.create(records);
 
@@ -48,6 +62,7 @@ public class ShareVideoService {
         final ShareVideoJob job = ShareVideoJob.pending(
                 member,
                 "TRAVEL_TIMELINE",
+                resolvedStyle,
                 snapshotJson
         );
 

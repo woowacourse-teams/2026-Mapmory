@@ -10,6 +10,25 @@
 POST /api/v1/share-videos/travel-timeline
 ```
 
+생성 요청은 `styleId`를 받을 수 있다. 생략하면 `CLASSIC`을 사용한다.
+
+```json
+{
+  "styleId": "HORIZON"
+}
+```
+
+허용 값과 렌더러 구성은 다음과 같다. 클라이언트는 안정적인 `styleId`만 보내고, Remotion 구성 ID는 서버 렌더러가 선택한다.
+
+| `styleId` | 화면 이름 | 렌더러 구성 |
+| --- | --- | --- |
+| `CLASSIC` | 현재 버전 | `TravelTimeline` |
+| `ZOOM` | 확대 지구본 | `TravelTimelineZoom` |
+| `ORBIT` | 우주 배경 | `TravelTimelineOrbit` |
+| `HORIZON` | 지평선 지구본 | `TravelTimelineHorizon` |
+
+선택한 스타일은 작업에 고정 저장되어 이후 상태 조회와 재시도에서도 유지된다. 기존 작업과 스타일을 생략한 요청에는 `CLASSIC`을 적용한다.
+
 로그인 회원의 여행 기록을 시작일과 ID 순서로 조회한다. 국가 정류장이 두 개보다 적으면 `INSUFFICIENT_TIMELINE_STOPS` 오류를 반환한다.
 
 성공 시 `202 Accepted`를 반환한다.
@@ -18,7 +37,8 @@ POST /api/v1/share-videos/travel-timeline
 {
   "data": {
     "jobId": 15,
-    "status": "PENDING"
+    "status": "PENDING",
+    "styleId": "HORIZON"
   }
 }
 ```
@@ -37,7 +57,8 @@ GET /api/v1/share-videos/{jobId}
 {
   "data": {
     "jobId": 15,
-    "status": "RENDERING"
+    "status": "RENDERING",
+    "styleId": "HORIZON"
   }
 }
 ```
@@ -165,9 +186,9 @@ sequenceDiagram
     Worker->>Claimer: claimNext()
     Claimer->>DB: 가장 오래된 PENDING 작업 잠금 조회
     Claimer->>DB: 상태를 RENDERING으로 변경
-    Claimer-->>Worker: jobId + snapshotJson
+    Claimer-->>Worker: jobId + styleId + snapshotJson
     Worker->>Renderer: render(task)
-    Renderer->>Remotion: npm run render:worker -- snapshot.json result.mp4
+    Renderer->>Remotion: npm run render:worker -- snapshot.json result.mp4 styleId
     Remotion-->>Renderer: result.mp4
     Renderer-->>Worker: 영상 파일 경로
     Worker->>S3: upload(jobId, videoPath)

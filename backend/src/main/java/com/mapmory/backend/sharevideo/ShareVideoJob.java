@@ -31,6 +31,10 @@ public class ShareVideoJob extends BaseEntity {
     private String videoType;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "style_id", nullable = false, length = 20)
+    private ShareVideoStyle styleId;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ShareVideoStatus status;
 
@@ -65,11 +69,13 @@ public class ShareVideoJob extends BaseEntity {
     private ShareVideoJob(
             final Member member,
             final String videoType,
+            final ShareVideoStyle styleId,
             final ShareVideoStatus status,
             final String snapshotJson
     ) {
         this.member = member;
         this.videoType = videoType;
+        this.styleId = styleId;
         this.status = status;
         this.snapshotJson = snapshotJson;
     }
@@ -77,14 +83,24 @@ public class ShareVideoJob extends BaseEntity {
     public static ShareVideoJob pending(
             final Member member,
             final String videoType,
+            final ShareVideoStyle styleId,
             final String snapshotJson
     ) {
         return new ShareVideoJob(
                 member,
                 videoType,
+                styleId,
                 ShareVideoStatus.PENDING,
                 snapshotJson
         );
+    }
+
+    public static ShareVideoJob pending(
+            final Member member,
+            final String videoType,
+            final String snapshotJson
+    ) {
+        return pending(member, videoType, ShareVideoStyle.defaultStyle(), snapshotJson);
     }
 
     public void startRendering(final LocalDateTime startedAt) {
@@ -128,6 +144,10 @@ public class ShareVideoJob extends BaseEntity {
 
     public ShareVideoStatus getStatus() {
         return status;
+    }
+
+    public ShareVideoStyle getStyleId() {
+        return styleId;
     }
 
     public String getSnapshotJson() {

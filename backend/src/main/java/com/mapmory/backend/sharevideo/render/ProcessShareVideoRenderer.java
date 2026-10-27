@@ -3,6 +3,7 @@ package com.mapmory.backend.sharevideo.render;
 import static java.util.Comparator.reverseOrder;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import com.mapmory.backend.sharevideo.ShareVideoStyle;
 import com.mapmory.backend.sharevideo.worker.ShareVideoRenderTask;
 import com.mapmory.backend.sharevideo.worker.ShareVideoWorkerProperties;
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class ProcessShareVideoRenderer implements ShareVideoRenderer {
 
             Files.writeString(inputPath, task.snapshotJson(), StandardCharsets.UTF_8);
 
-            Process process = startProcess(inputPath, outputPath);
+            Process process = startProcess(inputPath, outputPath, task.styleId());
 
             waitForCompletion(process, task.jobId());
             validateOutput(outputPath);
@@ -81,7 +82,8 @@ public class ProcessShareVideoRenderer implements ShareVideoRenderer {
 
     private Process startProcess(
             final Path inputPath,
-            final Path outputPath
+            final Path outputPath,
+            final ShareVideoStyle styleId
     ) throws IOException {
         Path rendererDirectory = properties.rendererDirectory()
                 .toAbsolutePath()
@@ -99,7 +101,8 @@ public class ProcessShareVideoRenderer implements ShareVideoRenderer {
                 "render:worker",
                 "--",
                 inputPath.toString(),
-                outputPath.toString()
+                outputPath.toString(),
+                styleId.name()
         )
                 .directory(rendererDirectory.toFile())
                 .redirectErrorStream(true)
