@@ -1,12 +1,10 @@
 package com.mapmory.backend.travelrecord.mapsummary.service;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.application.RegionResolver;
 import com.mapmory.backend.region.domain.RegionType;
-import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCache;
@@ -19,7 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RegionMapSummaryService {
 
-    private final RegionRepository regionRepository;
+    private final RegionResolver regionResolver;
     private final RegionMapSummaryRepository regionMapSummaryRepository;
     private final LevelPolicy levelPolicy;
     private final TagService tagService;
@@ -27,14 +25,14 @@ public class RegionMapSummaryService {
     private final MapSummaryCache mapSummaryCache;
 
     public RegionMapSummaryService(
-            RegionRepository regionRepository,
+            RegionResolver regionResolver,
             RegionMapSummaryRepository regionMapSummaryRepository,
             LevelPolicy levelPolicy,
             TagService tagService,
             OperationTimer operationTimer,
             MapSummaryCache mapSummaryCache
     ) {
-        this.regionRepository = regionRepository;
+        this.regionResolver = regionResolver;
         this.regionMapSummaryRepository = regionMapSummaryRepository;
         this.levelPolicy = levelPolicy;
         this.tagService = tagService;
@@ -78,8 +76,8 @@ public class RegionMapSummaryService {
     }
 
     private void validateParentRegion(Long parentRegionId) {
-        if (parentRegionId != null && !regionRepository.existsById(parentRegionId)) {
-            throw new BusinessException(RegionErrorCode.REGION_NOT_FOUND);
+        if (parentRegionId != null) {
+            regionResolver.validateExists(parentRegionId);
         }
     }
 }

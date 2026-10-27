@@ -43,6 +43,20 @@ class RegionResolverTest {
     }
 
     @Test
+    void acceptsExistingRegionId() {
+        when(regionRepository.existsById(1L)).thenReturn(true);
+
+        regionResolver.validateExists(1L);
+    }
+
+    @Test
+    void rejectsNonexistentRegionId() {
+        when(regionRepository.existsById(999L)).thenReturn(false);
+
+        assertError(() -> regionResolver.validateExists(999L), "REGION_NOT_FOUND");
+    }
+
+    @Test
     void returnsEmptyForNonexistentCountryWhenOptional() {
         when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "ZZ"))
                 .thenReturn(Optional.empty());

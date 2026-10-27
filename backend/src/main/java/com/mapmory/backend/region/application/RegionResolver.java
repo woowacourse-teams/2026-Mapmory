@@ -52,6 +52,13 @@ public class RegionResolver {
         }
     }
 
+    /** 지역 ID가 DB에 없으면 REGION_NOT_FOUND다. */
+    public void validateExists(Long regionId) {
+        if (!regionRepository.existsById(regionId)) {
+            throw new BusinessException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+    }
+
     public List<Region> children(Region parent, RegionType regionType) {
         return regionRepository.findByParentIdAndRegionType(parent.getId(), regionType);
     }
