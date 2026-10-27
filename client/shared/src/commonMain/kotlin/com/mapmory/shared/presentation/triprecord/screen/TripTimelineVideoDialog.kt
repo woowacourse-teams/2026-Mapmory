@@ -1,5 +1,6 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.analytics.videoAction
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.ShareMediaAnalytics
 import com.mapmory.shared.analytics.ShareMediaSource
@@ -139,9 +140,11 @@ internal fun TripTimelineVideoDialog(
             message = null
             video = null
             try {
-                val download = repository.getDownloadUrl(activeJobId).getOrThrow()
-                video = telemetry.observe(ShareMediaOperation.DOWNLOAD) {
-                    exporter.download(download.downloadUrl, activeJobId)
+                video = analytics.videoAction("preview_download", reportErrors = false) {
+                    val download = repository.getDownloadUrl(activeJobId).getOrThrow()
+                    telemetry.observe(ShareMediaOperation.DOWNLOAD) {
+                        exporter.download(download.downloadUrl, activeJobId)
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -180,10 +183,14 @@ internal fun TripTimelineVideoDialog(
             message = null
             try {
                 if (save) {
-                    telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(downloadedVideo) }
+                    analytics.videoAction("save", reportErrors = false) {
+                        telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(downloadedVideo) }
+                    }
                     message = "동영상을 사진 앱에 저장했어요."
                 } else {
-                    telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(downloadedVideo) }
+                    analytics.videoAction("share_sheet", reportErrors = false) {
+                        telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(downloadedVideo) }
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled

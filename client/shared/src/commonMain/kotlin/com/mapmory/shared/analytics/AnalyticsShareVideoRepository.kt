@@ -20,12 +20,15 @@ internal class AnalyticsShareVideoRepository(
     private val telemetry = ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE)
     private val mutex = Mutex()
     private val statuses = linkedMapOf<Long, ShareVideoStatus>()
+    private val reportedTerminalJobs = mutableSetOf<Long>()
     private val startedHere = mutableMapOf<Long, Long>()
     private val queryFailures = mutableMapOf<Long, String>()
 
     override suspend fun createTravelTimeline(): Result<ShareVideoJob> {
         val started = nowMillis()
-        return telemetry.observeResult(ShareMediaOperation.CREATE_REQUEST, delegate::createTravelTimeline)
+        return telemetry.observeResult(ShareMediaOperation.CREATE_REQUEST) {
+            analytics.videoActionResult("create_request", delegate::createTravelTimeline)
+        }
             .onSuccess { job ->
                 mutex.withLock { startedHere[job.jobId] = started }
                 observeStatus(job)
@@ -61,6 +64,13 @@ internal class AnalyticsShareVideoRepository(
     }
 
     private suspend fun observeStatus(job: ShareVideoJob) = mutex.withLock {
+        if ((job.status == ShareVideoStatus.COMPLETED || job.status == ShareVideoStatus.FAILED) &&
+            reportedTerminalJobs.add(job.jobId)
+        ) {
+            analytics.emit(MapmoryAnalyticsEvent.VIDEO_GENERATION_RESULT, mapOf(
+                "outcome" to if (job.status == ShareVideoStatus.COMPLETED) "success" else "failure",
+            ))
+        }
         if (statuses[job.jobId] == job.status) return@withLock
         statuses[job.jobId] = job.status
         val started = startedHere[job.jobId] ?: jobStore.state.value

@@ -404,7 +404,7 @@ internal fun createGuestRemoteAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
-    val discardRecordCache = tokenStore.load() == null
+    val discardRecordCache = runCatching { tokenStore.read().tokens == null }.getOrDefault(false)
     if (discardRecordCache) {
         mapSummaryCache.clear()
         tripStatisticsCache.clear()
@@ -496,7 +496,7 @@ internal fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
-        onClose = onClose,
+        onClose = { session.close(); onClose() },
         analytics = analytics,
     )
 }

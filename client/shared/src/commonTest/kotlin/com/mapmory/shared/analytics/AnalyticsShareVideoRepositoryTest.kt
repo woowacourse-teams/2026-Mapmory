@@ -45,6 +45,9 @@ class AnalyticsShareVideoRepositoryTest {
         assertEquals("created_here", analytics.statuses().last().second["origin"])
         assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED })
         assertTrue(analytics.errors().isEmpty())
+        assertEquals(listOf("started", "success"), analytics.events
+            .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
+        assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.VIDEO_GENERATION_RESULT })
         assertFalse(analytics.events.toString().contains("987654321"))
     }
 
@@ -92,6 +95,8 @@ class AnalyticsShareVideoRepositoryTest {
         backend.throwCreateError = true
         assertSame(error, assertFailsWith<IllegalStateException> { repository.createTravelTimeline() })
         assertEquals(2, analytics.errors().size)
+        assertEquals(listOf("started", "failure", "started", "failure"), analytics.events
+            .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
         assertTrue(analytics.statuses().isEmpty())
     }
 
@@ -100,10 +105,24 @@ class AnalyticsShareVideoRepositoryTest {
         backend.createError = CancellationException()
         val repository = AnalyticsShareVideoRepository(backend, analytics, MemoryShareVideoJobStore())
         assertFailsWith<CancellationException> { repository.createTravelTimeline() }
+        assertEquals(listOf("started", "cancelled"), analytics.events
+            .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
         backend.current = Result.failure(CancellationException())
         assertFailsWith<CancellationException> { repository.getJob(987654321) }
         assertTrue(analytics.errors().isEmpty())
         assertTrue(analytics.statuses().isEmpty())
+    }
+
+    @Test fun `legacy terminal result stays deduplicated after detailed history eviction`() = runBlocking {
+        val backend = Backend(); val analytics = RecordingAnalytics()
+        val repository = AnalyticsShareVideoRepository(backend, analytics, MemoryShareVideoJobStore())
+        for (id in 1L..34L) {
+            backend.current = Result.success(ShareVideoJob(id, ShareVideoStatus.COMPLETED))
+            repository.getJob(id)
+        }
+        backend.current = Result.success(ShareVideoJob(1, ShareVideoStatus.COMPLETED))
+        repository.getJob(1)
+        assertEquals(34, analytics.events.count { it.first == MapmoryAnalyticsEvent.VIDEO_GENERATION_RESULT })
     }
 
     @Test fun `actual app container decorates video repository and preserves private download URL`() = runBlocking {

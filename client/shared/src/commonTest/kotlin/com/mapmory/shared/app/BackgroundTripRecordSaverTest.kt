@@ -1,5 +1,7 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.observeOperation
+import com.mapmory.shared.data.auth.*
 import com.mapmory.shared.analytics.MapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.data.media.MemoryPhotoPreviewCache
@@ -19,6 +21,39 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BackgroundTripRecordSaverTest {
+    @Test
+    fun internalAuthCancellationFinishesSaveAsFailure() = runBlocking {
+        var refreshCalls = 0
+        val session = GuestSessionManager(object : AuthGateway {
+            override suspend fun loginAsGuest(): Result<AuthTokens> = error("Must preserve guest")
+            override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
+                refreshCalls++
+                throw kotlinx.coroutines.CancellationException("internal refresh cancellation")
+            }
+        }, object : AuthTokenStore {
+            override fun load() = AuthTokens("old", "refresh")
+            override fun save(tokens: AuthTokens) = Unit
+            override fun clear() = error("Must preserve identity")
+        }, elapsedMillis = { 0L })
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
+                    com.mapmory.shared.analytics.NoOpMapmoryAnalytics.observeOperation("record_create") {
+                        session.ensureAuthenticated().map { draft.toRecord() }
+                    }
+            },
+            scope = CoroutineScope(coroutineContext),
+            automaticRetryDelayMillis = 0,
+        )
+        saver.enqueue(draft(), "서울")
+        val failed = kotlinx.coroutines.withTimeout(5_000) {
+            saver.saves.first { it.singleOrNull()?.status == BackgroundSaveStatus.FAILED }
+        }
+        assertEquals(BackgroundSaveStatus.FAILED, failed.single().status)
+        assertEquals(1, refreshCalls)
+        session.close()
+    }
+
     @Test
     fun `폐기한_실패_작업의_원본은_마지막_참조가_사라진_뒤_정리한다`() = runBlocking {
         val released = mutableListOf<String>()

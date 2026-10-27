@@ -31,6 +31,9 @@ object MapmoryAnalyticsEvent {
     const val SHARE_MEDIA_OPERATION_COMPLETED = "share_media_operation_completed"
     const val SHARE_VIDEO_STATUS_CHANGED = "share_video_status_changed"
 
+    const val VIDEO_OPENED = "video_opened"
+    const val VIDEO_ACTION = "video_action"
+    const val VIDEO_GENERATION_RESULT = "video_generation_result"
     const val RECORD_SAVE_RETRY = "record_save_retry"
     const val RECORD_SAVE_DISCARDED = "record_save_discarded"
     const val RECORD_INTRODUCTION_VIEWED = "record_introduction_viewed"

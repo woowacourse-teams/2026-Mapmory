@@ -126,3 +126,27 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 - JVM 테스트 371개(공유 계측 신규 18개 포함), Android Host 테스트 347개: 실패·오류·스킵 없음. 두 실행은 공통 테스트가 겹치므로 합산한 고유 테스트 수로 해석하지 않는다.
 - Android `assembleDebug`, `lint`, iOS `compileKotlinIosSimulatorArm64`, Xcode Debug iOS Simulator 전체 앱 빌드 통과.
 - 실제 영상·이미지의 기기 재생/저장/외부 공유와 Release Firebase 수신은 미검증.
+
+## 통계의 영상 만들기 (Android/iOS 공통)
+
+| 이벤트 | 파라미터 | 의미 |
+| --- | --- | --- |
+| `video_opened` | `source=statistics` | 통계 헤더의 영상 만들기 클릭 |
+| `video_action` | `action=create_request/preview_download/save/share_sheet`, `outcome=started/success/failure/cancelled` | 생성 요청, 미리보기 파일 다운로드, 사진 앱 저장, 공유창 표시 시도와 결과 |
+| `video_generation_result` | `outcome=success/failure` | 생성 응답 또는 상태 조회에서 관측한 서버 생성 완료/실패 |
+
+생성 요청 성공은 서버 생성 완료가 아니다. `share_sheet` 성공은 공유 UI 표시 API가 반환했음을 의미하며 실제 전달·게시 완료나 공유창에서의 사용자 취소 여부를 의미하지 않는다. `cancelled`는 코루틴 취소다. `save` 성공은 플랫폼 저장 API 완료를 의미한다.
+
+생성 결과는 컨테이너 수명 내 작업별 한 번만 기록한다. 다이얼로그를 닫아도 공통 상태 모니터의 조회 결과가 기록된다. 프로세스 재시작 후 서버에서 다시 관측하면 중복될 수 있으며, 앱이 결과를 조회하지 못하면 이벤트가 없다. 정확한 서버 작업 성공률은 서버 집계가 필요하다. 폴링 요청마다 이벤트를 기록하지 않는다.
+
+작업 ID·회원 ID·파일 경로·다운로드 URL·여행 내용은 이벤트 파라미터로 전송하지 않는다. 기존 플랫폼 Firebase 수집 활성화 설정을 따르며, Debug/Internal에서의 실제 수신은 별도 확인해야 한다.
+
+### 기존 영상 이벤트와의 호환성 (PR #487 통합)
+
+`video_opened`, `video_action`, `video_generation_result`와 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 같은 실제 작업을 두 관점으로 기록하므로 두 이벤트 체계의 건수를 합산하지 않는다.
+
+- `video_opened`는 통계 헤더 클릭, `share_media_action/action=opened`는 다이얼로그가 열린 시점이다.
+- 기존 `preview_download`는 URL 요청부터 파일 확보까지 포함한다. 상세 계측은 `download_url`과 `download`를 분리한다.
+- 공유 API 반환은 기존 `video_action`에서는 `success`, 상세 `share_sheet`에서는 `handoff`다. 외부 게시 완료를 뜻하지 않는다.
+- 최종 생성 결과는 기존 계약대로 컨테이너 수명 내 작업별 한 번 기록한다. 상세 상태 이력의 크기 제한과 별도로 중복을 억제한다.
+- 기존 작업 결과 이벤트도 발행하지만 실제 오류의 `app_error` 보고는 상세 계측에서 담당하여 중복을 막는다. 권한 거절·미완료·기록 부족의 상세 분류는 유지한다.
