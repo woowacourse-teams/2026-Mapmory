@@ -38,6 +38,7 @@ internal fun TripRecordDetailRoute(
     initialLocationName: String? = null,
     initialLatestDate: String? = null,
     initialPhotoCount: Int? = null,
+    isTimelineLayout: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -90,6 +91,7 @@ internal fun TripRecordDetailRoute(
         initialLocationName = initialLocationName,
         initialLatestDate = initialLatestDate,
         initialPhotoCount = initialPhotoCount,
+        isTimelineLayout = isTimelineLayout,
         onBackClick = onBack,
         onEditClick = {
             analytics.emit(MapmoryAnalyticsEvent.RECORD_EDIT_STARTED, mapOf("record_id" to recordId.toString()))

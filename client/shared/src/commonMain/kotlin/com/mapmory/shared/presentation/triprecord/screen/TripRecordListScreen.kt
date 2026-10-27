@@ -31,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,9 +65,14 @@ fun TripRecordListScreen(
     onRetryClick: () -> Unit,
     onProfileClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    isTimelineLayout: Boolean = false,
+    showLayoutSwitcher: Boolean = false,
+    onTimelineLayoutChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    val hasScrollableRecordList = (uiState as? TripRecordListUiState.Success)
+        ?.let { it.records.isNotEmpty() || pendingSaves.isNotEmpty() } == true
     TripRecordBackground(
         modifier = modifier.then(rememberDismissKeyboardOnTapModifier()),
         backgroundColor = TripRecordPalette.current.pageBackground,
@@ -73,6 +81,7 @@ fun TripRecordListScreen(
             JournalHeader(
                 recordCount = ((uiState as? TripRecordListUiState.Success)?.records?.size ?: 0) +
                     pendingSaves.size,
+                isTimelineLayout = isTimelineLayout,
             )
 
             Box(
@@ -85,7 +94,18 @@ fun TripRecordListScreen(
                         .fillMaxSize()
                         .padding(horizontal = 18.dp),
                 ) {
-                    Spacer(Modifier.height(14.dp))
+                    if (showLayoutSwitcher && !hasScrollableRecordList) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            JournalLayoutSwitcher(
+                                isTimelineLayout = isTimelineLayout,
+                                onTimelineLayoutChange = onTimelineLayoutChange,
+                            )
+                        }
+                    }
+                    if (!hasScrollableRecordList) Spacer(Modifier.height(14.dp))
 
                     when (uiState) {
                         TripRecordListUiState.Idle,
@@ -132,17 +152,38 @@ fun TripRecordListScreen(
                                     modifier = Modifier.weight(1f),
                                 )
                             } else {
-                                TripRecordList(
-                                    records = uiState.records,
-                                    pendingSaves = pendingSaves,
-                                    onRetryPendingSave = onRetryPendingSave,
-                                    onDismissPendingSave = onDismissPendingSave,
-                                    onRecordClick = { recordId ->
-                                        analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED, mapOf("record_id" to recordId.toString(), "source" to "journal"))
-                                        onRecordClick(recordId)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                )
+                                val openRecord: (Long) -> Unit = { recordId ->
+                                    analytics.logEvent(
+                                        MapmoryAnalyticsEvent.JOURNAL_RECORD_OPENED,
+                                        mapOf("record_id" to recordId.toString(), "source" to "journal"),
+                                    )
+                                    onRecordClick(recordId)
+                                }
+                                if (isTimelineLayout) {
+                                    TripRecordTimelineList(
+                                        records = uiState.records,
+                                        pendingSaves = pendingSaves,
+                                        onRetryPendingSave = onRetryPendingSave,
+                                        onDismissPendingSave = onDismissPendingSave,
+                                        onRecordClick = openRecord,
+                                        showLayoutSwitcher = showLayoutSwitcher && hasScrollableRecordList,
+                                        isTimelineLayout = isTimelineLayout,
+                                        onTimelineLayoutChange = onTimelineLayoutChange,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                } else {
+                                    TripRecordPhotoList(
+                                        records = uiState.records,
+                                        pendingSaves = pendingSaves,
+                                        onRetryPendingSave = onRetryPendingSave,
+                                        onDismissPendingSave = onDismissPendingSave,
+                                        onRecordClick = openRecord,
+                                        showLayoutSwitcher = showLayoutSwitcher && hasScrollableRecordList,
+                                        isTimelineLayout = isTimelineLayout,
+                                        onTimelineLayoutChange = onTimelineLayoutChange,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                             if (uiState.totalPages > 1) {
                                 PageControls(
@@ -186,6 +227,35 @@ fun TripRecordListScreen(
                 selectedIconColor = TripRecordPalette.current.primary,
                 selectedLabelColor = TripRecordPalette.current.navigationSelectedLabel,
                 unselectedColor = TripRecordPalette.current.navigationUnselected,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun JournalLayoutSwitcher(
+    isTimelineLayout: Boolean,
+    onTimelineLayoutChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(11.dp))
+            .background(TripRecordPalette.current.surfaceElevated)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        listOf(false to "A 사진", true to "B 시간").forEach { (timeline, label) ->
+            val selected = isTimelineLayout == timeline
+            Text(
+                text = label,
+                color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.secondaryText,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selected) TripRecordPalette.current.surface else TripRecordPalette.current.surfaceElevated)
+                    .clickable(role = Role.Button) { onTimelineLayoutChange(timeline) }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
     }
@@ -268,7 +338,7 @@ private fun TripRecordLoadError(
 }
 
 @Composable
-private fun JournalHeader(recordCount: Int) {
+private fun JournalHeader(recordCount: Int, isTimelineLayout: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -279,33 +349,35 @@ private fun JournalHeader(recordCount: Int) {
     ) {
         Column {
             Text(
-                text = "TRAVEL ARCHIVE",
+                text = "MY TRAVEL JOURNAL",
                 color = TripRecordPalette.current.primary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 1.2.sp,
             )
             Text(
-                text = "모든 여행 기록",
+                text = "나의 여행",
                 color = TripRecordPalette.current.headingText,
                 fontSize = 25.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp),
             )
-        }
-        Box(
-            modifier = Modifier
-                .size(35.dp)
-                .background(TripRecordPalette.current.primarySoft, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
             Text(
-                text = recordCount.toString(),
-                color = TripRecordPalette.current.primary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                text = when {
+                    isTimelineLayout -> "언제, 어디서 남긴 기록인지 차례로"
+                    else -> "사진을 따라 그날의 기억으로"
+                },
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
+        Text(
+            text = "${recordCount}개",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -339,6 +411,397 @@ private fun TripRecordList(
                 onClick = { onRecordClick(record.id) },
             )
         }
+    }
+}
+
+@Composable
+private fun TripRecordPhotoList(
+    records: List<TripRecordItemUiState>,
+    pendingSaves: List<BackgroundTripRecordSave>,
+    onRetryPendingSave: (Long) -> Unit,
+    onDismissPendingSave: (Long) -> Unit,
+    onRecordClick: (Long) -> Unit,
+    showLayoutSwitcher: Boolean,
+    isTimelineLayout: Boolean,
+    onTimelineLayoutChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    ScrollToTopEffect(listState)
+    val featuredRecord = records.firstOrNull()
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            top = if (showLayoutSwitcher) 0.dp else 14.dp,
+            bottom = 18.dp,
+        ),
+    ) {
+        val switcherWithFeaturedRecord = showLayoutSwitcher && pendingSaves.isEmpty() && featuredRecord != null
+        if (showLayoutSwitcher && !switcherWithFeaturedRecord) {
+            item(key = "journal-layout-switcher") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    JournalLayoutSwitcher(
+                        isTimelineLayout = isTimelineLayout,
+                        onTimelineLayoutChange = onTimelineLayoutChange,
+                    )
+                }
+            }
+        }
+        items(pendingSaves, key = { save -> "pending-${save.id}" }) { save ->
+            PendingTripRecordCard(
+                save = save,
+                onRetry = { onRetryPendingSave(save.id) },
+                onDismiss = { onDismissPendingSave(save.id) },
+            )
+        }
+        if (featuredRecord != null) {
+            item(key = "featured-${featuredRecord.id}") {
+                Column {
+                    if (switcherWithFeaturedRecord) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            JournalLayoutSwitcher(
+                                isTimelineLayout = isTimelineLayout,
+                                onTimelineLayoutChange = onTimelineLayoutChange,
+                            )
+                        }
+                        Spacer(Modifier.height(14.dp))
+                    }
+                    FeaturedTripRecordCard(
+                        record = featuredRecord,
+                        onClick = { onRecordClick(featuredRecord.id) },
+                    )
+                }
+            }
+            if (records.size > 1) {
+                item(key = "recent-heading") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "최근에 남긴 기록",
+                            color = TripRecordPalette.current.headingText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "${records.size - 1}개",
+                            color = TripRecordPalette.current.secondaryText,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+                items(records.drop(1).chunked(2), key = { row -> "recent-${row.first().id}" }) { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        row.forEach { record ->
+                            CompactPhotoTripRecordCard(
+                                record = record,
+                                onClick = { onRecordClick(record.id) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeaturedTripRecordCard(
+    record: TripRecordItemUiState,
+    onClick: () -> Unit,
+) {
+    val photo = record.photos.minByOrNull { it.sortOrder }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(258.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick),
+    ) {
+        if (photo != null) {
+            MapmoryAsyncImage(
+                imageBytes = photo.previewBytes?.bytesForDecoding(),
+                imageUri = photo.previewUri,
+                fallbackUri = photo.fullResolutionUri,
+                contentDescription = "${record.locationName} ${record.title} 대표 사진",
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(20.dp),
+            )
+        } else {
+            Box(Modifier.fillMaxSize().background(TripRecordPalette.current.primarySoft))
+        }
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))),
+            ),
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                "${record.locationName} · ${recordDateRange(record)}",
+                color = Color.White.copy(alpha = 0.88f),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (record.title.isNotBlank()) {
+                Text(
+                    record.title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                "사진 ${record.photoCount ?: record.photos.size}장  ›",
+                color = Color.White.copy(alpha = 0.92f),
+                fontSize = 11.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactPhotoTripRecordCard(
+    record: TripRecordItemUiState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val photo = record.photos.minByOrNull { it.sortOrder }
+    Card(
+        modifier = modifier.clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
+    ) {
+        Column {
+            Box(
+                Modifier.fillMaxWidth().height(96.dp).background(TripRecordPalette.current.imagePlaceholder),
+            ) {
+                if (photo != null) {
+                    MapmoryAsyncImage(
+                        imageBytes = photo.previewBytes?.bytesForDecoding(),
+                        imageUri = photo.previewUri,
+                        fallbackUri = photo.fullResolutionUri,
+                        contentDescription = "${record.locationName} 여행 사진",
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(0.dp),
+                    )
+                }
+                Text(
+                    "사진 ${record.photoCount ?: record.photos.size}장",
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(7.dp)
+                        .background(TripRecordPalette.current.mediaScrim, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 7.dp, vertical = 4.dp),
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                )
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (record.title.isNotBlank()) {
+                    Text(
+                        record.title,
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    "${record.locationName} · ${record.endDate ?: record.startDate ?: "날짜 미정"}",
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripRecordTimelineList(
+    records: List<TripRecordItemUiState>,
+    pendingSaves: List<BackgroundTripRecordSave>,
+    onRetryPendingSave: (Long) -> Unit,
+    onDismissPendingSave: (Long) -> Unit,
+    onRecordClick: (Long) -> Unit,
+    showLayoutSwitcher: Boolean,
+    isTimelineLayout: Boolean,
+    onTimelineLayoutChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    ScrollToTopEffect(listState)
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            top = if (showLayoutSwitcher) 0.dp else 14.dp,
+            bottom = 18.dp,
+        ),
+    ) {
+        if (showLayoutSwitcher) {
+            item(key = "journal-layout-switcher") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    JournalLayoutSwitcher(
+                        isTimelineLayout = isTimelineLayout,
+                        onTimelineLayoutChange = onTimelineLayoutChange,
+                    )
+                }
+            }
+        }
+        items(pendingSaves, key = { save -> "pending-${save.id}" }) { save ->
+            PendingTripRecordCard(
+                save = save,
+                onRetry = { onRetryPendingSave(save.id) },
+                onDismiss = { onDismissPendingSave(save.id) },
+            )
+        }
+        records.groupBy(::recordMonthLabel).forEach { (month, monthRecords) ->
+            item(key = "month-$month") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.size(8.dp).background(TripRecordPalette.current.primary, CircleShape))
+                    Text(
+                        text = month,
+                        color = TripRecordPalette.current.primary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(TripRecordPalette.current.border),
+                    )
+                }
+            }
+            items(monthRecords, key = { record -> "record-${record.id}" }) { record ->
+                TimelineTripRecordCard(record, onClick = { onRecordClick(record.id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineTripRecordCard(
+    record: TripRecordItemUiState,
+    onClick: () -> Unit,
+) {
+    val photo = record.photos.minByOrNull { it.sortOrder }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(width = 94.dp, height = 83.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(TripRecordPalette.current.imagePlaceholder),
+            ) {
+                if (photo != null) {
+                    MapmoryAsyncImage(
+                        imageBytes = photo.previewBytes?.bytesForDecoding(),
+                        imageUri = photo.previewUri,
+                        fallbackUri = photo.fullResolutionUri,
+                        contentDescription = "${record.locationName} 대표 사진",
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(9.dp),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(end = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    recordDateRange(record),
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    record.title,
+                    color = TripRecordPalette.current.headingText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${record.locationName} · 사진 ${record.photoCount ?: record.photos.size}장${if (record.content.isNotBlank()) " · 메모" else ""}",
+                    color = TripRecordPalette.current.bodyText,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text("›", color = TripRecordPalette.current.secondaryText, fontSize = 22.sp)
+        }
+    }
+}
+
+private fun recordMonthLabel(record: TripRecordItemUiState): String {
+    val date = record.endDate?.takeIf(String::isNotBlank)
+        ?: record.startDate?.takeIf(String::isNotBlank)
+        ?: return "날짜 미정"
+    val parts = date.split('-')
+    val month = parts.getOrNull(1)?.toIntOrNull() ?: return "날짜 미정"
+    return "${parts.first()}년 ${month}월"
+}
+
+internal fun recordDateRange(record: TripRecordItemUiState): String {
+    val start = record.startDate?.replace('-', '.')
+    val end = record.endDate?.replace('-', '.')
+    return when {
+        start != null && end != null && start != end -> "$start – $end"
+        start != null -> start
+        end != null -> end
+        else -> "날짜 미정"
     }
 }
 

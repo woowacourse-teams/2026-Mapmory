@@ -141,7 +141,11 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        completionHandler(
+            notification.request.identifier.hasPrefix("share-video-progress-")
+                ? [.banner]
+                : [.banner, .sound]
+        )
     }
 
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {

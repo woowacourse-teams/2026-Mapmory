@@ -29,6 +29,7 @@ import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
+import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
 
 @Composable
 internal fun MapmoryNavHost(
@@ -38,11 +39,21 @@ internal fun MapmoryNavHost(
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
+    showTimelineLayoutSwitcher: Boolean,
+    isTimelineJournal: Boolean,
+    onTimelineLayoutChange: (Boolean) -> Unit,
+    isTravelAchievementsEnabled: Boolean,
+    onTravelAchievementsEnabledChange: (Boolean) -> Unit,
+    isMascotPreviewEnabled: Boolean,
+    onMascotPreviewEnabledChange: (Boolean) -> Unit,
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
     val gestureMotion = LocalNavigationGestureMotion.current
     Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
+        container.shareVideoRepository?.let { repository ->
+            TripTimelineVideoJobMonitor(repository, container.shareVideoJobStore)
+        }
         NavHost(
             navController = navController,
             startDestination = MapRoute,
@@ -105,6 +116,9 @@ internal fun MapmoryNavHost(
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
+                isTimelineLayout = isTimelineJournal,
+                showLayoutSwitcher = showTimelineLayoutSwitcher,
+                onTimelineLayoutChange = onTimelineLayoutChange,
             )
         }
 
@@ -157,11 +171,14 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 tripRecordRevision = tripRecordRevision,
+                shareVideoRepository = container.shareVideoRepository,
+                shareVideoJobStore = container.shareVideoJobStore,
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
             )
         }
 
@@ -187,6 +204,10 @@ internal fun MapmoryNavHost(
             if (developerToolsInfo != null) {
                 DeveloperToolsScreen(
                     info = developerToolsInfo,
+                    isTravelAchievementsEnabled = isTravelAchievementsEnabled,
+                    onTravelAchievementsEnabledChange = onTravelAchievementsEnabledChange,
+                    isMascotPreviewEnabled = isMascotPreviewEnabled,
+                    onMascotPreviewEnabledChange = onMascotPreviewEnabledChange,
                     onBack = { navigator.navigateBack() },
                     modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 )
@@ -230,6 +251,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                isTimelineLayout = isTimelineJournal,
             )
         }
         }
