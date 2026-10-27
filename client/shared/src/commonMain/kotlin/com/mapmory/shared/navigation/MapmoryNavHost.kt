@@ -25,11 +25,13 @@ import com.mapmory.shared.logging.mapmoryDebugLog
 import com.mapmory.shared.presentation.developer.DeveloperToolsScreen
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
+import com.mapmory.shared.presentation.triprecord.route.TripAchievementsScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 
 @Composable
 internal fun MapmoryNavHost(
@@ -40,8 +42,8 @@ internal fun MapmoryNavHost(
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     showTimelineLayoutSwitcher: Boolean,
-    isTimelineJournal: Boolean,
-    onTimelineLayoutChange: (Boolean) -> Unit,
+    journalLayout: TripRecordListLayout,
+    onJournalLayoutChange: (TripRecordListLayout) -> Unit,
     isTravelAchievementsEnabled: Boolean,
     onTravelAchievementsEnabledChange: (Boolean) -> Unit,
     isMascotPreviewEnabled: Boolean,
@@ -119,9 +121,13 @@ internal fun MapmoryNavHost(
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
-                isTimelineLayout = isTimelineJournal,
+                shareVideoRepository = container.shareVideoRepository,
+                shareVideoJobStore = container.shareVideoJobStore,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+                layout = journalLayout,
                 showLayoutSwitcher = showTimelineLayoutSwitcher,
-                onTimelineLayoutChange = onTimelineLayoutChange,
+                onLayoutChange = onJournalLayoutChange,
             )
         }
 
@@ -186,16 +192,32 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 tripRecordRevision = tripRecordRevision,
-                shareVideoRepository = container.shareVideoRepository,
-                shareVideoJobStore = container.shareVideoJobStore,
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
+                onOpenAchievements = navigator::navigateToAchievements,
                 showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
             )
+        }
+
+        composable<TripAchievementsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            if (developerToolsInfo != null && isTravelAchievementsEnabled) {
+                val viewModel = viewModel {
+                    container.viewModelFactory.createTripStatisticsViewModel()
+                }
+                TripAchievementsScreenRoute(
+                    modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                    viewModel = viewModel,
+                    tripRecordRevision = tripRecordRevision,
+                    onBack = { navigator.navigateBack() },
+                )
+            } else {
+                LaunchedEffect(Unit) { navigator.navigateBack() }
+            }
         }
 
         composable<SettingsRoute> { backStackEntry ->
@@ -270,7 +292,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
-                isTimelineLayout = isTimelineJournal,
+                isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
         }
         }

@@ -143,6 +143,8 @@ internal fun TripSettingsScreen(
                 }
 
                 Spacer(Modifier.height(12.dp))
+                NotificationSettingsSection()
+                Spacer(Modifier.height(12.dp))
                 SettingsAction(
                     title = "의견 보내기",
                     description = "불편한 점이나 의견을 알려주세요.",

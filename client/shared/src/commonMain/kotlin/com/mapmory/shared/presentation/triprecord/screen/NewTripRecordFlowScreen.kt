@@ -33,9 +33,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -139,6 +141,7 @@ internal enum class NewRecordFlowStep {
     LOCATION,
     PHOTO_LOADING,
     PHOTO_PICKER,
+    COVER_SELECTION,
 }
 
 internal enum class NewRecordBackAction {
@@ -360,6 +363,7 @@ internal fun NewTripRecordFlowScreen(
     var isRecommendationLoading by remember { mutableStateOf(false) }
     var photoPermissionIssue by remember { mutableStateOf<PhotoLibraryPermissionIssue?>(null) }
     var recommendationPagingState by retainedState.paging
+    var selectedCoverPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
     var forwardStep by retainedState.forwardStep
     var forwardPreview by retainedState.forwardPreview
     var lastAutoLoadTriggerKey by remember { mutableStateOf<RecommendationLoadKey?>(null) }
@@ -447,6 +451,9 @@ internal fun NewTripRecordFlowScreen(
     val photoListState = rememberLazyListState()
     ScrollToTopEffect(photoListState, enabled = step == NewRecordFlowStep.PHOTO_PICKER && previewPhotoId == null)
     var photoGridColumns by rememberSaveable { mutableStateOf(DefaultPhotoGridColumns) }
+    val selectedPhotos = remember(recommendationPagingState.photos, recommendationPagingState.selectedIds) {
+        recommendationPagingState.photos.filter { it.id in recommendationPagingState.selectedIds }
+    }
     val preselectedLocalPhotoIds = remember(
         startWithPhotoSearch,
         uiState.recordId,
@@ -478,6 +485,7 @@ internal fun NewTripRecordFlowScreen(
             NewRecordFlowStep.LOCATION -> "location"
             NewRecordFlowStep.PHOTO_LOADING -> "photo_loading"
             NewRecordFlowStep.PHOTO_PICKER -> "photo_picker"
+            NewRecordFlowStep.COVER_SELECTION -> "cover_selection"
         }
         analytics.logEvent(
             MapmoryAnalyticsEvent.RECORD_FLOW_STEP_VIEWED,
@@ -531,8 +539,8 @@ internal fun NewTripRecordFlowScreen(
                         photos = acceptedPhotos,
                         selectedIds = acceptedPhotos.mapTo(mutableSetOf()) { it.id },
                     )
-                    replaceEditorPhotos(acceptedPhotos)
-                    pendingSave = true
+                    selectedCoverPhotoId = acceptedPhotos.first().id
+                    stepName = NewRecordFlowStep.COVER_SELECTION.name
                 }
                 photoMessage = null
             }
@@ -729,6 +737,10 @@ internal fun NewTripRecordFlowScreen(
     }
 
     fun returnToPreviousStep() {
+        if (step == NewRecordFlowStep.COVER_SELECTION) {
+            if (!uiState.isSaving && !pendingSave) stepName = NewRecordFlowStep.PHOTO_PICKER.name
+            return
+        }
         when (
             newRecordBackAction(
                 step = step,
@@ -865,6 +877,10 @@ internal fun NewTripRecordFlowScreen(
     val latestGestureBack by rememberUpdatedState<() -> Boolean> {
         when {
             uiState.isSaving || pendingSave || isPreparingPhotoPreviews -> true
+            step == NewRecordFlowStep.COVER_SELECTION -> {
+                stepName = NewRecordFlowStep.PHOTO_PICKER.name
+                true
+            }
             previewPhotoId != null -> {
                 forwardPreview = previewPhotoId
                 previewPhotoId = null
@@ -941,16 +957,13 @@ internal fun NewTripRecordFlowScreen(
     LaunchedEffect(pendingSave, uiState.isPhotoLoading, uiState.selectedPhotos) {
         if (pendingSave && !uiState.isPhotoLoading && uiState.selectedPhotos.isNotEmpty()) {
             pendingSave = false
-            stepName = NewRecordFlowStep.PHOTO_PICKER.name
+            if (startWithPhotoSearch) stepName = NewRecordFlowStep.PHOTO_PICKER.name
             onSaveClick()
         }
     }
 
     fun completePhotoSelection() {
         if (uiState.isSaving || pendingSave) return
-        val selectedPhotos = recommendationPagingState.photos.filter { photo ->
-            photo.id in recommendationPagingState.selectedIds
-        }
         if (selectedPhotos.isEmpty()) {
             photoMessage = "앨범에 넣을 사진을 한 장 이상 선택해 주세요."
             return
@@ -971,9 +984,27 @@ internal fun NewTripRecordFlowScreen(
                 .forEach { photo -> onPhotoRemoved(photo.id) }
             onPhotosAdded(selectedPhotos.filterNot { photo -> photo.id in retainedLocalPhotoIds })
         } else {
-            replaceEditorPhotos(selectedPhotos)
+            val coverPhoto = selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId }
+                ?: selectedPhotos.first()
+            selectedCoverPhotoId = coverPhoto.id
+            stepName = NewRecordFlowStep.COVER_SELECTION.name
+            photoMessage = null
+            return
         }
         photoMessage = null
+        pendingSave = true
+    }
+
+    fun confirmCoverPhotoSelection() {
+        if (uiState.isSaving || pendingSave) return
+        val coverPhoto = selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId }
+            ?: selectedPhotos.firstOrNull()
+        if (coverPhoto == null) {
+            stepName = NewRecordFlowStep.PHOTO_PICKER.name
+            photoMessage = "앨범에 넣을 사진을 한 장 이상 선택해 주세요."
+            return
+        }
+        replaceEditorPhotos(listOf(coverPhoto) + selectedPhotos.filterNot { it.id == coverPhoto.id })
         pendingSave = true
     }
 
@@ -1100,7 +1131,7 @@ internal fun NewTripRecordFlowScreen(
                             isPreparing = uiState.isSaving || pendingSave,
                             isSelectingAll = isSelectingAllPhotos,
                             isRefreshingFilter = isRefreshingRecordedPhotoFilter,
-                            actionLabel = saveActionLabel,
+                            actionLabel = if (startWithPhotoSearch) saveActionLabel else "대표 사진 선택",
                             recordedPhotoIds = recordedPhotoIds,
                             excludeRecordedPhotos = excludeRecordedPhotos,
                             showRecordedFilter = !startWithPhotoSearch,
@@ -1172,6 +1203,15 @@ internal fun NewTripRecordFlowScreen(
                                     )
                                 }
                             },
+                        )
+
+                        NewRecordFlowStep.COVER_SELECTION -> CoverPhotoSelectionStep(
+                            photos = selectedPhotos,
+                            selectedPhotoId = selectedCoverPhotoId,
+                            isSaving = uiState.isSaving || pendingSave,
+                            onBackClick = ::returnToPreviousStep,
+                            onPhotoSelected = { selectedCoverPhotoId = it },
+                            onConfirm = ::confirmCoverPhotoSelection,
                         )
 
                     }
@@ -1743,6 +1783,7 @@ private val GoogleMapsAttributionColor = Color(0xFF5E5E5E)
 @Composable
 private fun FlowTopBar(
     title: String = "",
+    titleAlignedStart: Boolean = false,
     onBackClick: () -> Unit,
     actionLabel: String? = null,
     actionStatusLabel: String? = null,
@@ -1753,6 +1794,7 @@ private fun FlowTopBar(
     Column {
         TripRecordTopBar(
             title = title,
+            titleAlignedStart = titleAlignedStart,
             onBackClick = onBackClick,
             trailing = actionLabel?.let { label ->
                 {
@@ -2323,6 +2365,7 @@ private fun PhotoPickerStep(
     Column(Modifier.fillMaxSize()) {
         FlowTopBar(
             title = "사진 고르기",
+            titleAlignedStart = true,
             onBackClick = onBackClick,
             actionLabel = actionLabel,
             actionStatusLabel = when {
@@ -2508,6 +2551,139 @@ private fun PhotoPickerStep(
                     .align(Alignment.CenterEnd)
                     .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
             )
+        }
+    }
+}
+
+
+@Composable
+private fun CoverPhotoSelectionStep(
+    photos: List<SelectedPhoto>,
+    selectedPhotoId: String?,
+    isSaving: Boolean,
+    onBackClick: () -> Unit,
+    onPhotoSelected: (String) -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val selectedPhoto = photos.firstOrNull { it.id == selectedPhotoId } ?: photos.firstOrNull()
+    Column(Modifier.fillMaxSize()) {
+        FlowTopBar(
+            title = "대표 사진 선택",
+            onBackClick = onBackClick,
+            actionLabel = "기록하기",
+            actionStatusLabel = if (isSaving) "저장 중" else null,
+            reserveActionStatusSlot = true,
+            actionEnabled = selectedPhoto != null && !isSaving,
+            onActionClick = onConfirm,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "여행 기록 일지에 표시할 대표 사진을 선택해 주세요.",
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 15.sp,
+            )
+            if (selectedPhoto != null) {
+                MapmoryAsyncImage(
+                    imageBytes = selectedPhoto.previewBytes ?: selectedPhoto.originalBytes,
+                    imageUri = selectedPhoto.previewUri,
+                    fallbackUri = selectedPhoto.fullResolutionUri,
+                    contentDescription = "대표 사진 미리보기: ${selectedPhoto.displayName}",
+                    cacheKey = "cover-selection:${selectedPhoto.id}",
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    shape = RoundedCornerShape(22.dp),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "선택한 사진",
+                        color = TripRecordPalette.current.headingText,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${photos.size}장 중 선택",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 13.sp,
+                    )
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(photos, key = { it.id }) { photo ->
+                        val isSelected = photo.id == selectedPhoto.id
+                        val shape = RoundedCornerShape(13.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(76.dp)
+                                .clip(shape)
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) TripRecordPalette.current.primary
+                                    else TripRecordPalette.current.border,
+                                    shape = shape,
+                                )
+                                .selectable(
+                                    selected = isSelected,
+                                    role = Role.RadioButton,
+                                    onClick = { onPhotoSelected(photo.id) },
+                                ),
+                            contentAlignment = Alignment.TopEnd,
+                        ) {
+                            MapmoryAsyncImage(
+                                imageBytes = photo.previewBytes ?: photo.originalBytes,
+                                imageUri = photo.previewUri,
+                                fallbackUri = photo.fullResolutionUri,
+                                contentDescription = "대표 사진 후보: ${photo.displayName}",
+                                cacheKey = "cover-candidate:${photo.id}",
+                                modifier = Modifier.fillMaxSize(),
+                                shape = shape,
+                            )
+                            if (isSelected) {
+                                val checkColor = TripRecordPalette.current.contentOnMedia
+                                Box(
+                                    modifier = Modifier
+                                        .padding(5.dp)
+                                        .size(20.dp)
+                                        .background(TripRecordPalette.current.primary, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Canvas(Modifier.size(12.dp)) {
+                                        val check = androidx.compose.ui.graphics.Path().apply {
+                                            moveTo(size.width * 0.18f, size.height * 0.5f)
+                                            lineTo(size.width * 0.42f, size.height * 0.74f)
+                                            lineTo(size.width * 0.82f, size.height * 0.26f)
+                                        }
+                                        drawPath(
+                                            check,
+                                            checkColor,
+                                            style = Stroke(
+                                                width = 1.8.dp.toPx(),
+                                                cap = StrokeCap.Round,
+                                                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = "선택된 사진이 없어요. 사진을 다시 골라주세요.",
+                    color = TripRecordPalette.current.secondaryText,
+                    fontSize = 14.sp,
+                )
+            }
         }
     }
 }

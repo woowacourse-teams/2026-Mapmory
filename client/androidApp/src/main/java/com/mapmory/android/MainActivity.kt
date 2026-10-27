@@ -33,6 +33,7 @@ import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
+import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -53,7 +54,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             appViewModel.container.backgroundTripRecordSaver.saves.collect { saves ->
                 val preferences = getSharedPreferences("upload-notifications", MODE_PRIVATE)
-                if (Build.VERSION.SDK_INT >= 33 && saves.isNotEmpty() &&
+                if (isPhotoRecordCompletionNotificationEnabled(applicationContext) &&
+                    Build.VERSION.SDK_INT >= 33 && saves.isNotEmpty() &&
                     checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
                     android.content.pm.PackageManager.PERMISSION_GRANTED &&
                     !preferences.getBoolean("requested", false)

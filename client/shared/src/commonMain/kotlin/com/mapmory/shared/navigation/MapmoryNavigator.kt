@@ -19,6 +19,7 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
             entry.destination.hasRoute<GroupsRoute>() -> GroupsRoute
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
+            entry.destination.hasRoute<TripAchievementsRoute>() -> TripAchievementsRoute
             entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
             else -> return false
         }
@@ -41,11 +42,13 @@ internal class MapmoryNavigator(
     }
 
     fun navigateBack(): Boolean {
+        val currentDestination = navController.currentDestination ?: return false
         clearForwardHistory()
-        if (navController.currentDestination?.id == navController.graph.startDestinationId) {
+        if (currentDestination.id == navController.graph.startDestinationId) {
             return false
         }
         if (navController.popBackStack()) return true
+        if (navController.currentDestination == null) return false
 
         navigateToMap()
         return true
@@ -67,6 +70,12 @@ internal class MapmoryNavigator(
 
     fun navigateToProfile() {
         navigateToTab(ProfileRoute)
+    }
+
+    fun navigateToAchievements() {
+        if (navController.currentDestination?.hasRoute<TripAchievementsRoute>() == true) return
+        clearForwardHistory()
+        navController.navigate(TripAchievementsRoute)
     }
 
     fun navigateToSettings() {
