@@ -25,7 +25,7 @@ class RegionResolverTest {
     @Test
     void findsCountry() {
         Region korea = mock(Region.class);
-        when(regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "KR"))
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "KR"))
                 .thenReturn(Optional.of(korea));
 
         assertThat(regionResolver.resolve("KR", null, null)).isEqualTo(korea);
@@ -33,7 +33,7 @@ class RegionResolverTest {
 
     @Test
     void rejectsNonexistentCountry() {
-        when(regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "ZZ"))
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "ZZ"))
                 .thenReturn(Optional.empty());
 
         assertError(() -> regionResolver.resolve("ZZ", null, null), "REGION_NOT_FOUND");
@@ -43,7 +43,7 @@ class RegionResolverTest {
     void resolvesProvinceByItsDirectParent() {
         Region korea = parent(1L);
         Region jeju = mock(Region.class);
-        when(regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "KR"))
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "KR"))
                 .thenReturn(Optional.of(korea));
         when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(1L, RegionType.PROVINCE, "49"))
                 .thenReturn(Optional.of(jeju));
@@ -54,7 +54,7 @@ class RegionResolverTest {
     @Test
     void distinguishesMissingChildFromInvalidHierarchy() {
         Region korea = parent(1L);
-        when(regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "KR"))
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "KR"))
                 .thenReturn(Optional.of(korea));
         when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(1L, RegionType.PROVINCE, "99"))
                 .thenReturn(Optional.empty());
@@ -74,7 +74,7 @@ class RegionResolverTest {
         Region korea = parent(1L);
         Region jeju = parent(2L);
         Region jejuCity = mock(Region.class);
-        when(regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "KR"))
+        when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "KR"))
                 .thenReturn(Optional.of(korea));
         when(regionRepository.findByParentIdAndRegionTypeAndRegionCode(1L, RegionType.PROVINCE, "49"))
                 .thenReturn(Optional.of(jeju));

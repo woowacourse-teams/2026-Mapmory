@@ -23,6 +23,7 @@ import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.region.Region;
+import com.mapmory.backend.region.RegionAddress;
 import com.mapmory.backend.region.RegionResolver;
 import com.mapmory.backend.region.RegionSuggester;
 import com.mapmory.backend.region.RegionType;
@@ -161,8 +162,8 @@ class TravelRecordServiceTest {
         );
         when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
         when(placeLookupPort.findForRecord("ChIJ-park"))
-                .thenReturn(new PlaceDetails("ChIJ-park", null, null,
-                        "Google Maps", "https://www.google.com/maps", List.of()));
+                .thenReturn(new PlaceDetails("ChIJ-park", null, RegionAddress.UNKNOWN,
+                        "Google Maps", "https://www.google.com/maps"));
         when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -181,11 +182,12 @@ class TravelRecordServiceTest {
                 null, null, null, "한강 산책", "",
                 LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
-        PlaceDetails place = new PlaceDetails("ChIJ-park", null, "KR",
-                "Google Maps", "https://www.google.com/maps", List.of("서울특별시", "영등포구"));
+        RegionAddress address = new RegionAddress("KR", "서울특별시", List.of("영등포구"));
+        PlaceDetails place = new PlaceDetails("ChIJ-park", null, address,
+                "Google Maps", "https://www.google.com/maps");
         when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
         when(placeLookupPort.providerCode()).thenReturn("GOOGLE");
-        when(regionSuggester.suggest("KR", List.of("서울특별시", "영등포구"))).thenReturn(Optional.of(district));
+        when(regionSuggester.suggest(address)).thenReturn(Optional.of(district));
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -201,8 +203,8 @@ class TravelRecordServiceTest {
                 null, null, null, "한강 산책", "",
                 LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
         );
-        PlaceDetails place = new PlaceDetails("ChIJ-park", null, "KR",
-                "Google Maps", "https://www.google.com/maps", List.of());
+        PlaceDetails place = new PlaceDetails("ChIJ-park", null, new RegionAddress("KR", null, List.of()),
+                "Google Maps", "https://www.google.com/maps");
         when(placeLookupPort.findById("ChIJ-park")).thenReturn(place);
 
         assertThatThrownBy(() -> travelRecordService.create(member, command))

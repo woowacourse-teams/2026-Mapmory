@@ -269,7 +269,7 @@ public class TravelRecordService {
             if (place == null) {
                 throw new BusinessException(TravelRecordErrorCode.REGION_REQUIRED);
             }
-            return regionSuggester.suggest(place.countryCode(), place.addressAreas())
+            return regionSuggester.suggest(place.address())
                     .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.REGION_REQUIRED,
                             "장소의 지역을 자동으로 찾지 못했습니다. 지역을 직접 선택해 주세요."));
         }

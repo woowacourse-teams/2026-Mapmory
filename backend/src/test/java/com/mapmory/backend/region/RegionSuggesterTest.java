@@ -25,16 +25,18 @@ class RegionSuggesterTest {
         Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
         Region province = Region.of(country, country, "11", "서울특별시", RegionType.PROVINCE);
         Region district = Region.of(province, country, "11110", "종로구", RegionType.DISTRICT);
-        when(addressRegionMatcher.match(List.of("서울특별시", "종로구"))).thenReturn(Optional.of(district));
+        RegionAddress address = new RegionAddress("KR", "서울특별시", List.of("종로구"));
+        when(addressRegionMatcher.match(address)).thenReturn(Optional.of(district));
 
-        assertThat(suggester.suggest("KR", List.of("서울특별시", "종로구"))).contains(district);
+        assertThat(suggester.suggest(address)).contains(district);
     }
 
     @Test
     void 주소로_시군구를_찾지_못하면_빈_값이다() {
-        when(addressRegionMatcher.match(List.of())).thenReturn(Optional.empty());
+        RegionAddress address = new RegionAddress("KR", null, List.of());
+        when(addressRegionMatcher.match(address)).thenReturn(Optional.empty());
 
-        assertThat(suggester.suggest("KR", List.of())).isEmpty();
+        assertThat(suggester.suggest(address)).isEmpty();
     }
 
     @Test
@@ -42,7 +44,7 @@ class RegionSuggesterTest {
         Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
         when(regionResolver.resolveCountry("JP")).thenReturn(japan);
 
-        assertThat(suggester.suggest("JP", List.of())).contains(japan);
+        assertThat(suggester.suggest(new RegionAddress("JP", null, List.of()))).contains(japan);
         verifyNoInteractions(addressRegionMatcher);
     }
 
@@ -51,12 +53,12 @@ class RegionSuggesterTest {
         when(regionResolver.resolveCountry("ZZ"))
                 .thenThrow(new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
 
-        assertThat(suggester.suggest("ZZ", List.of())).isEmpty();
+        assertThat(suggester.suggest(new RegionAddress("ZZ", null, List.of()))).isEmpty();
     }
 
     @Test
     void 국가_코드가_없으면_빈_값이다() {
-        assertThat(suggester.suggest(null, List.of())).isEmpty();
+        assertThat(suggester.suggest(RegionAddress.UNKNOWN)).isEmpty();
         verifyNoInteractions(regionResolver, addressRegionMatcher);
     }
 }

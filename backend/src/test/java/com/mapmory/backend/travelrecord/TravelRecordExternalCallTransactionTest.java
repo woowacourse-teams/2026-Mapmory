@@ -14,6 +14,7 @@ import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
+import com.mapmory.backend.region.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +53,7 @@ class TravelRecordExternalCallTransactionTest extends IntegrationTest {
     void setUp() {
         willAnswer(invocation -> {
             recordTransactionState();
-            return new PlaceDetails(GOOGLE_PLACE_ID, null, "JP", null, null, List.of());
+            return new PlaceDetails(GOOGLE_PLACE_ID, null, new RegionAddress("JP", null, List.of()), null, null);
         }).given(googlePlacesClient).findById(GOOGLE_PLACE_ID);
         willReturn("GOOGLE").given(googlePlacesClient).providerCode();
         willAnswer(invocation -> {

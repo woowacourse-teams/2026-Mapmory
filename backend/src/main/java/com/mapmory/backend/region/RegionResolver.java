@@ -57,7 +57,8 @@ public class RegionResolver {
     }
 
     private Region findCountry(String countryCode) {
-        return regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(
+        return regionRepository.findByParentIdAndRegionTypeAndRegionCode(
+                null,
                 RegionType.COUNTRY,
                 countryCode
         ).orElseThrow(() -> new BusinessException(RegionErrorCode.REGION_NOT_FOUND));
