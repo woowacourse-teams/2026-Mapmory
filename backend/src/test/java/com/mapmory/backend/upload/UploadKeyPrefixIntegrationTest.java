@@ -1,6 +1,5 @@
 package com.mapmory.backend.upload;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willReturn;
@@ -10,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
 import java.net.URI;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -39,8 +40,9 @@ class UploadKeyPrefixIntegrationTest extends IntegrationTest {
 
     @Test
     void 발급된_objectKey는_서비스_prefix_아래에_있다() throws Exception {
-        willReturn(URI.create("https://bucket.s3.ap-northeast-2.amazonaws.com/signed"))
-                .given(presignedUrlProvider).createPresignedPutUrl(anyString(), anyString(), anyLong(), any());
+        willReturn(new PresignedRequest(
+                URI.create("https://bucket.s3.ap-northeast-2.amazonaws.com/signed"), "PUT", Duration.ofMinutes(5)))
+                .given(presignedUrlProvider).createPresignedPutUrl(anyString(), anyString(), anyLong());
 
         mockMvc.perform(post("/api/v1/uploads/presigned-urls")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())

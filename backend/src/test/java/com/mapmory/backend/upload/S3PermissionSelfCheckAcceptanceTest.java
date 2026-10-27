@@ -60,6 +60,7 @@ class S3PermissionSelfCheckAcceptanceTest {
                     "mapmory-test",
                     "ap-northeast-2",
                     "mapmory",
+                    Duration.ofMinutes(5),
                     new S3StorageProperties.Client(Duration.ofSeconds(2), Duration.ofSeconds(6), 3)
             ))
             .withUserConfiguration(S3PermissionSelfCheck.class);

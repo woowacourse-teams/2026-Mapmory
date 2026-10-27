@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
@@ -58,18 +59,6 @@ class S3PermissionSelfCheckTest {
         ArgumentCaptor<ListObjectsV2Request> request = ArgumentCaptor.forClass(ListObjectsV2Request.class);
         verify(s3Client).listObjectsV2(request.capture());
         assertThat(request.getValue().prefix()).isEqualTo("mapmory/travel-records/");
-    }
-
-    @Test
-    void prefix가_없으면_붙이지_않는다() {
-        S3PermissionSelfCheck selfCheck = selfCheck("");
-        givenNoObjects();
-
-        selfCheck.verifyLookupPermissions();
-
-        ArgumentCaptor<ListObjectsV2Request> request = ArgumentCaptor.forClass(ListObjectsV2Request.class);
-        verify(s3Client).listObjectsV2(request.capture());
-        assertThat(request.getValue().prefix()).isEqualTo("travel-records/");
     }
 
     @Test
@@ -130,10 +119,9 @@ class S3PermissionSelfCheckTest {
     }
 
     private S3PermissionSelfCheck selfCheck(String keyPrefix) {
-        return new S3PermissionSelfCheck(
-                s3Client,
-                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, null)
-        );
+        S3StorageProperties properties =
+                new S3StorageProperties("mapmory-test", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5), null);
+        return new S3PermissionSelfCheck(s3Client, properties);
     }
 
     private static S3Exception s3Exception(int statusCode) {

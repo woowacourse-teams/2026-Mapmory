@@ -80,7 +80,7 @@ class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .header("X-Forwarded-For", "203.0.113.5")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"kakaoAccessToken\":\"kakao-token\"}"))
+                        .content("{\"idToken\":\"kakao-id-token\"}"))
                 .andExpect(status().isUnauthorized());
     }
 

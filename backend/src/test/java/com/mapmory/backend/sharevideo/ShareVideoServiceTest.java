@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshotFactory;
-import com.mapmory.backend.travelrecord.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

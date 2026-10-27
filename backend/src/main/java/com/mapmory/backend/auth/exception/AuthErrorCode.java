@@ -2,6 +2,7 @@ package com.mapmory.backend.auth.exception;
 
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.ErrorKind;
+import org.slf4j.event.Level;
 
 public enum AuthErrorCode implements ErrorCode {
 
@@ -23,7 +24,7 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_KAKAO_TOKEN(
             ErrorKind.AUTHENTICATION_REQUIRED,
             "카카오 인증에 실패했습니다.",
-            "카카오 access token이 유효하지 않습니다."
+            "카카오 ID token이 유효하지 않습니다."
     ),
     KAKAO_UNAVAILABLE(
             ErrorKind.SERVICE_UNAVAILABLE,
@@ -94,5 +95,14 @@ public enum AuthErrorCode implements ErrorCode {
     @Override
     public String detail() {
         return detail;
+    }
+
+    // refresh 토큰 실패는 기본 로그 레벨(INFO)에서도 보이게 남긴다.
+    @Override
+    public Level logLevel() {
+        return switch (this) {
+            case EXPIRED_REFRESH_TOKEN, INVALID_REFRESH_TOKEN -> Level.INFO;
+            default -> ErrorCode.super.logLevel();
+        };
     }
 }

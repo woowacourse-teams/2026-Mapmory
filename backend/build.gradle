@@ -23,6 +23,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
@@ -39,6 +40,7 @@ dependencies {
 
     implementation platform('software.amazon.awssdk:bom:2.32.29')
     implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:cloudfront'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 
@@ -53,6 +55,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // CI와 같게 UTC로 둔다. hibernate.jdbc.time_zone=UTC라 JVM이 KST면 JPA로 쓴 시각만 9시간 밀려 jdbcTemplate으로 넣은 값과 어긋난다.
+    systemProperty 'user.timezone', 'UTC'
     systemProperty 'logging.level.org.springframework.test.context.cache', 'DEBUG'
 }
 

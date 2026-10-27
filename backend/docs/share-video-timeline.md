@@ -85,7 +85,7 @@ GET /api/v1/share-videos/{jobId}/download-url
 }
 ```
 
-`downloadUrlExpiresIn`의 단위는 초다. 현재 `upload.policy.presigned-url-expiration` 설정을 사용하며 기본값은 5분이다. URL이 만료되어도 저장된 영상 파일은 삭제되지 않으므로 새 URL을 다시 요청할 수 있다.
+`downloadUrlExpiresIn`의 단위는 초다. 현재 `upload.storage.s3.signed-url-expiration` 설정을 사용하며 기본값은 5분이다. URL이 만료되어도 저장된 영상 파일은 삭제되지 않으므로 새 URL을 다시 요청할 수 있다.
 
 작업 상태에 따른 응답은 다음과 같다.
 
@@ -304,7 +304,7 @@ classDiagram
 | --- | --- | --- |
 | `SHARE_VIDEO_WORKER_ENABLED` | `false` | 스케줄러와 워커 실행 여부 |
 | `SHARE_VIDEO_WORKER_POLL_DELAY` | `3s` | 앞 실행이 끝난 후 다음 작업을 확인하기까지의 대기 시간 |
-| `SHARE_VIDEO_RENDERER_DIRECTORY` | `../video-renderer` | `package.json`이 있는 Video Renderer 경로 |
+| `SHARE_VIDEO_RENDERER_DIRECTORY` | `${user.dir}/../video-renderer` | `package.json`이 있는 Video Renderer 경로. 기본값은 실행 디렉터리를 기준으로 절대 경로가 되며, 배포 환경에서는 실제 렌더러 경로를 설정한다. |
 | `SHARE_VIDEO_WORK_DIRECTORY` | 운영체제 임시 폴더 아래 `mapmory/share-videos` | 스냅샷 JSON과 결과 MP4 임시 저장 위치 |
 | `SHARE_VIDEO_RENDER_TIMEOUT` | `10m` | 영상 하나의 최대 렌더링 시간 |
 | `SHARE_VIDEO_NPM_COMMAND` | `npm` | Video Renderer를 실행할 명령 |
@@ -327,6 +327,7 @@ flowchart LR
 - API EC2는 영상 작업을 `PENDING`으로 저장하고 상태 조회 및 다운로드 API를 제공한다.
 - Renderer EC2는 외부 HTTP 요청을 받지 않고 DB의 작업을 하나씩 처리한다.
 - Renderer EC2에서는 `SPRING_MAIN_WEB_APPLICATION_TYPE=none`으로 웹 서버를 실행하지 않는다.
+- Servlet 웹 보안 설정은 Servlet 애플리케이션에서만 활성화한다. 세션 보안 컨텍스트 저장소는 관리자 인증 서비스도 사용하므로 공통 설정으로 제공한다.
 - 렌더링 임시 파일은 메모리 기반 `/tmp` 대신 `/var/lib/mapmory-renderer` 아래 EBS 경로에 저장한다.
 - 렌더러 전용 배포에는 `buildspec-renderer.yml`, `appspec-renderer.yml`, `scripts/renderer/`를 사용한다.
 - 렌더러 프로세스는 `mapmory-render-worker.service`가 관리한다.

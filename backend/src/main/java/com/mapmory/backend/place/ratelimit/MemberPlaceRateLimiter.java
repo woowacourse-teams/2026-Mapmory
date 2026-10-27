@@ -7,6 +7,8 @@ import io.github.bucket4j.BucketExceptions.BucketExecutionException;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class MemberPlaceRateLimiter {
+
+    private static final Logger log = LoggerFactory.getLogger(MemberPlaceRateLimiter.class);
 
     private static final String SEARCH = "place:search:member:";
     private static final String SELECTION = "place:selection:member:";
@@ -50,6 +54,10 @@ class MemberPlaceRateLimiter {
             }
         } catch (BucketExecutionException exception) {
             // 한도 저장소가 장애일 때 외부 API를 호출하면 사용량을 통제할 수 없다.
+            log.atError()
+                    .addKeyValue("event", "PLACE_RATE_LIMIT_STORE_UNAVAILABLE")
+                    .setCause(exception)
+                    .log("장소 한도 저장소를 쓰지 못했다");
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }
     }

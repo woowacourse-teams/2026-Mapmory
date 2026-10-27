@@ -31,6 +31,7 @@ public class AuthController {
     /**
      * 인증이 필요 없는 경로지만, 게스트가 계정을 연결하는 경우에는 게스트 토큰이 함께 온다.
      * 토큰이 없거나 익명이면 principal 타입이 맞지 않아 null로 해석되고, 일반 로그인으로 처리된다.
+     * 앱은 카카오 SDK로 받은 ID token을 보낸다. (ADR 0024)
      */
     @PostMapping("/login/kakao")
     public ApiResponse<LoginResponse> loginWithKakao(
@@ -38,7 +39,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.KAKAO, request.kakaoAccessToken(), authenticatedMemberId)));
+                authService.loginWithSocial(AuthProvider.KAKAO, request.idToken(), authenticatedMemberId)));
     }
 
     /**

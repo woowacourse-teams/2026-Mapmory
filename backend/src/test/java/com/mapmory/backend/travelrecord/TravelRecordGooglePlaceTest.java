@@ -90,10 +90,10 @@ class TravelRecordGooglePlaceTest extends IntegrationTest {
                   "title": "도쿄 여행",
                   "content": "기록 본문",
                   "startDate": "2026-08-01",
-                  "objectKeys": ["mapmory/travel-records/1/a.jpg"],
+                  "objectKeys": ["%s"],
                   "placeId": "%s"
                 }
-                """.formatted(countryCode, GOOGLE_PLACE_ID);
+                """.formatted(countryCode, photoKeyOfLatestMember("a.jpg"), GOOGLE_PLACE_ID);
     }
 
     private String guestAccessToken() throws Exception {

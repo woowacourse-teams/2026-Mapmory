@@ -2,6 +2,7 @@ package com.mapmory.backend.upload.storage;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.upload.UploadErrorCode;
+import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
