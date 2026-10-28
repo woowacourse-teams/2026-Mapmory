@@ -22,7 +22,7 @@ public record AlbumPage(
      * 앨범 카드 하나. 기간·기록 수·사진 수는 지워지지 않은 기록들로 계산한다.
      *
      * @param cover        연 사람 기록의 첫 사진. 없으면 먼저 담긴 기록 중 사진이 있는 기록의 첫 사진, 그것도 없으면 null이다
-     * @param contributors 기록을 담은 멤버들. 담은 순서다
+     * @param contributors 기록을 담은 멤버들. 처음 담은 순서이고 멤버마다 한 번이다
      * @param lastAddedAt  마지막으로 기록이 담긴 시각. 목록 정렬 기준과 같다
      */
     public record Card(

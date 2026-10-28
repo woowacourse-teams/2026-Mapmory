@@ -385,6 +385,23 @@ class AlbumIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 기록을_여럿_담은_멤버는_담은_사람에_한_번만_나온다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "j1.jpg"));
+        addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 1), null, "m1.jpg").getId())
+                .andExpect(status().isCreated());
+        addEntry(jisu, group.getId(), albumId, record(jisu, LocalDate.of(2026, 3, 2), null, "j2.jpg").getId())
+                .andExpect(status().isCreated());
+
+        list(jisu, group.getId(), "")
+                .andExpect(jsonPath("$.data.items[0].recordCount").value(3))
+                .andExpect(jsonPath("$.data.items[0].photoCount").value(3))
+                .andExpect(jsonPath("$.data.items[0].contributors.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].contributors[0].nickname").value("지수"))
+                .andExpect(jsonPath("$.data.items[0].contributors[1].nickname").value("민호"))
+                .andExpect(jsonPath("$.data.items[0].coverPhoto.viewUrl").value(endsWith("j1.jpg")));
+    }
+
+    @Test
     void 대표_사진은_연_사람_기록의_첫_사진이다() throws Exception {
         Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "j1.jpg"));
         addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 1), null, "m1.jpg").getId())
