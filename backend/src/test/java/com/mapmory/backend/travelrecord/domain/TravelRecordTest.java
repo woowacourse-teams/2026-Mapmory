@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 
 class TravelRecordTest {
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
     private static final String KEY_A = "travel-records/10/a.jpg";
     private static final String KEY_B = "travel-records/10/b.jpg";
     private static final String KEY_C = "travel-records/10/c.jpg";
@@ -127,7 +129,8 @@ class TravelRecordTest {
                 null,
                 "본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         TravelRecord blankTitleRecord = TravelRecord.of(
                 mock(Member.class),
@@ -135,7 +138,8 @@ class TravelRecordTest {
                 "   ",
                 "본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
 
         assertThat(nullTitleRecord.getTitle()).isEmpty();
@@ -148,7 +152,7 @@ class TravelRecordTest {
         Region busan = Region.of(korea, korea, "26", "부산광역시", RegionType.PROVINCE);
 
         TravelRecord travelRecord = TravelRecord.of(
-                mock(Member.class), busan, "부산 여행", "본문", LocalDate.of(2026, 8, 11), null);
+                mock(Member.class), busan, "부산 여행", "본문", LocalDate.of(2026, 8, 11), null, TODAY);
 
         assertThat(travelRecord.getRegion()).isEqualTo(busan);
     }
@@ -158,13 +162,47 @@ class TravelRecordTest {
         Region korea = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
 
         assertThatThrownBy(() -> TravelRecord.of(
-                mock(Member.class), korea, "여행", "본문", LocalDate.of(2026, 8, 11), null))
+                mock(Member.class), korea, "여행", "본문", LocalDate.of(2026, 8, 11), null, TODAY))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode().code()).isEqualTo("REGION_REQUIRED"));
         TravelRecord travelRecord = travelRecord();
         assertThatThrownBy(() -> travelRecord.update(
-                korea, "여행", "본문", LocalDate.of(2026, 8, 11), null))
+                korea, "여행", "본문", LocalDate.of(2026, 8, 11), null, TODAY))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 오늘까지의_기간으로는_일지를_만든다() {
+        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
+
+        TravelRecord travelRecord = TravelRecord.of(
+                mock(Member.class), japan, "여행", "본문", TODAY, TODAY, TODAY);
+
+        assertThat(travelRecord.getStartDate()).isEqualTo(TODAY);
+        assertThat(travelRecord.getEndDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    void 오늘보다_뒤의_기간으로는_일지를_만들지_않는다() {
+        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
+        LocalDate tomorrow = TODAY.plusDays(1);
+
+        assertDateError(() -> TravelRecord.of(
+                mock(Member.class), japan, "여행", "본문", tomorrow, null, TODAY));
+        assertDateError(() -> TravelRecord.of(
+                mock(Member.class), japan, "여행", "본문", TODAY, tomorrow, TODAY));
+    }
+
+    @Test
+    void 오늘보다_뒤의_기간으로는_일지를_고치지_않는다() {
+        TravelRecord travelRecord = travelRecord();
+        Region region = travelRecord.getRegion();
+        LocalDate tomorrow = TODAY.plusDays(1);
+
+        assertDateError(() -> travelRecord.update(region, "바뀐 제목", "본문", tomorrow, null, TODAY));
+        assertDateError(() -> travelRecord.update(region, "바뀐 제목", "본문", TODAY, tomorrow, TODAY));
+        assertThat(travelRecord.getTitle()).isEqualTo("일본 여행");
+        assertThat(travelRecord.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 11));
     }
 
     private TravelRecord travelRecord() {
@@ -176,12 +214,20 @@ class TravelRecordTest {
                 "일본 여행",
                 "본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
     }
 
     private List<Long> tagIds(int count) {
         return LongStream.rangeClosed(1, count).boxed().toList();
+    }
+
+    private void assertDateError(Runnable action) {
+        assertThatThrownBy(action::run)
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
+                .isEqualTo("INVALID_TRAVEL_DATE_RANGE");
     }
 
     private void assertTagError(Runnable action, String errorCode) {

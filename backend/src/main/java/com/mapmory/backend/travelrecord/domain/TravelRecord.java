@@ -70,24 +70,29 @@ public class TravelRecord extends BaseEntity {
             String title,
             String content,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            LocalDate today
     ) {
         this.member = member;
         this.region = validateRegion(region);
         this.title = normalizeTitle(title);
         this.content = normalizeContent(content);
-        this.period = TravelPeriod.of(startDate, endDate);
+        this.period = periodNotAfter(startDate, endDate, today);
     }
 
+    /**
+     * today는 한국 기준 오늘({@code ServiceTime.today})이다. 기간이 그보다 뒤면 만들지 않는다.
+     */
     public static TravelRecord of(
             Member member,
             Region region,
             String title,
             String content,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            LocalDate today
     ) {
-        return new TravelRecord(member, region, title, content, startDate, endDate);
+        return new TravelRecord(member, region, title, content, startDate, endDate, today);
     }
 
     public void update(
@@ -95,12 +100,16 @@ public class TravelRecord extends BaseEntity {
             String title,
             String content,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            LocalDate today
     ) {
-        this.region = validateRegion(region);
+        // 검증이 실패하면 아무 필드도 바뀌지 않도록 먼저 검증한다.
+        Region validRegion = validateRegion(region);
+        TravelPeriod validPeriod = periodNotAfter(startDate, endDate, today);
+        this.region = validRegion;
         this.title = normalizeTitle(title);
         this.content = normalizeContent(content);
-        this.period = TravelPeriod.of(startDate, endDate);
+        this.period = validPeriod;
     }
 
     /**
@@ -135,10 +144,17 @@ public class TravelRecord extends BaseEntity {
      * 여행 기간은 기준일(오늘)보다 뒤일 수 없다.
      *
      * <p>기준일이 지나도 저장된 기간은 유효하므로 {@link TravelPeriod}가 생성 시점에 검사하지 않는다.
-     * 생성·수정 요청에서만 적용하고, 일지를 만들기 전에 검증해야 해서 정적 메서드다.
+     * 생성({@link #of})과 수정({@link #update})이 이 규칙을 지킨다. 정적 메서드로도 열어 두는 것은
+     * 응용 서비스가 외부 호출 전에 먼저 거절할 수 있게 하기 위해서다. ({@link #validateObjectKeys}와 같다)
      */
     public static void validatePeriod(LocalDate startDate, LocalDate endDate, LocalDate today) {
-        TravelPeriod.of(startDate, endDate).validateNotAfter(today);
+        periodNotAfter(startDate, endDate, today);
+    }
+
+    private static TravelPeriod periodNotAfter(LocalDate startDate, LocalDate endDate, LocalDate today) {
+        TravelPeriod period = TravelPeriod.of(startDate, endDate);
+        period.validateNotAfter(today);
+        return period;
     }
 
     /**

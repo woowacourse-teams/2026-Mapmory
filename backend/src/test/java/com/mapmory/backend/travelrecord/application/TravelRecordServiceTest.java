@@ -339,7 +339,8 @@ class TravelRecordServiceTest {
                 "제주 여행",
                 "제주시를 걸었다.",
                 LocalDate.of(2026, 8, 11),
-                LocalDate.of(2026, 8, 13)
+                LocalDate.of(2026, 8, 13),
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 101L);
         travelRecord.synchronizeMedia(List.of(
@@ -435,7 +436,8 @@ class TravelRecordServiceTest {
                 "일본 여행",
                 "도쿄 여행",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 102L);
         when(travelRecordRepository.findByIdAndMemberId(102L, 10L))
@@ -469,7 +471,8 @@ class TravelRecordServiceTest {
                 "기존 제목",
                 "기존 본문",
                 LocalDate.of(2026, 8, 1),
-                null
+                null,
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 101L);
         travelRecord.synchronizeMedia(List.of("travel-records/10/a.jpg", "travel-records/10/b.jpg"));
@@ -536,7 +539,8 @@ class TravelRecordServiceTest {
                 "일본 여행",
                 "본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         TravelRecordCommand command = new TravelRecordCommand(
                 "JP",
@@ -568,7 +572,8 @@ class TravelRecordServiceTest {
                 "기존 제목",
                 "기존 본문",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         travelRecord.synchronizeMedia(List.of("travel-records/10/a.jpg"));
         TravelRecordCommand command = new TravelRecordCommand(

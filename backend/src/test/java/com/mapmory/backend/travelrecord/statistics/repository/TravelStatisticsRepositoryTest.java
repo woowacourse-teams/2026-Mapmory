@@ -21,6 +21,8 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 @DisplayName("여행 통계 Repository")
 class TravelStatisticsRepositoryTest extends MySqlTestContainerSupport {
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
     @Autowired
     private EntityManager entityManager;
 
@@ -128,7 +130,8 @@ class TravelStatisticsRepositoryTest extends MySqlTestContainerSupport {
                     "통계 기록 " + UUID.randomUUID(),
                     "내용",
                     LocalDate.of(2026, 8, 31),
-                    null
+                    null,
+                    TODAY
             )));
         }
         return records;

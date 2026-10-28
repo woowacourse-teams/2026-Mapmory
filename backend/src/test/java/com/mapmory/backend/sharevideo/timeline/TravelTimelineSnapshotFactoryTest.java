@@ -14,6 +14,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 class TravelTimelineSnapshotFactoryTest {
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
     private final TravelTimelineSnapshotFactory factory = new TravelTimelineSnapshotFactory();
     private final Member member = Member.of("타임라인 테스트 회원", UUID.randomUUID());
     private final Region korea = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
@@ -94,7 +96,8 @@ class TravelTimelineSnapshotFactoryTest {
                 "여행 기록",
                 "",
                 startDate,
-                endDate
+                endDate,
+                TODAY
         );
         ReflectionTestUtils.setField(record, "id", id);
         return record;

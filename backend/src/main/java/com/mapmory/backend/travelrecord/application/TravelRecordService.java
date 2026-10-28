@@ -96,7 +96,8 @@ public class TravelRecordService {
      * <p>탈퇴 뒤 남은 access token으로는 만들지 못한다. 회원 확인은 커넥션을 더 빌리지 않도록 트랜잭션 안에서 한다.
      */
     public TravelRecord create(Member member, TravelRecordCommand command) {
-        validateTravelDates(command.startDate(), command.endDate());
+        LocalDate today = ServiceTime.today(clock);
+        TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
         PlaceDetails place = resolvePlace(command);
@@ -112,7 +113,8 @@ public class TravelRecordService {
                     command.title(),
                     command.content(),
                     command.startDate(),
-                    command.endDate()
+                    command.endDate(),
+                    today
             );
             setPlace(travelRecord, place);
             travelRecord.synchronizeMedia(objectKeys);
@@ -142,7 +144,8 @@ public class TravelRecordService {
             Long travelRecordId,
             TravelRecordCommand command
     ) {
-        validateTravelDates(command.startDate(), command.endDate());
+        LocalDate today = ServiceTime.today(clock);
+        TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         List<String> objectKeys = command.objectKeys();
         TravelRecord.validateObjectKeys(objectKeys);
         PlaceDetails place = resolvePlace(command);
@@ -165,7 +168,8 @@ public class TravelRecordService {
                     command.title(),
                     command.content(),
                     command.startDate(),
-                    command.endDate()
+                    command.endDate(),
+                    today
             );
             setPlace(travelRecord, place);
             List<Tag> tags = travelRecordTagService.replace(member, travelRecord, command.tagIds());
@@ -247,10 +251,6 @@ public class TravelRecordService {
                     "page는 0 이상이고 size는 1 이상 %d 이하여야 합니다.".formatted(MAX_PAGE_SIZE)
             );
         }
-    }
-
-    private void validateTravelDates(LocalDate startDate, LocalDate endDate) {
-        TravelRecord.validatePeriod(startDate, endDate, ServiceTime.today(clock));
     }
 
     private Pageable createPageable(int page, int size) {
