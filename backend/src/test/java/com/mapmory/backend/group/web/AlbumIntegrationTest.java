@@ -299,7 +299,7 @@ class AlbumIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 앨범_상세는_담긴_기록을_담은_순서로_보여_준다() throws Exception {
+    void 앨범_상세는_담긴_기록을_시작일_순으로_보여_준다() throws Exception {
         TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3), "a.jpg");
         Long albumId = openedAlbumId(jisu, jisuRecord);
         TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg", "c.jpg");
