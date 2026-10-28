@@ -41,15 +41,22 @@ public class RecordMedia {
     protected RecordMedia() {
     }
 
-    private RecordMedia(TravelRecord travelRecord, String objectKey, String thumbKey, int sortOrder) {
+    private RecordMedia(TravelRecord travelRecord, ObjectKey objectKey, String thumbKey, int sortOrder) {
         this.travelRecord = travelRecord;
-        this.objectKey = ObjectKey.from(objectKey);
+        this.objectKey = objectKey;
         this.thumbKey = thumbKey;
         this.sortOrder = sortOrder;
     }
 
     public static RecordMedia of(TravelRecord travelRecord, String objectKey, String thumbKey, int sortOrder) {
-        return new RecordMedia(travelRecord, objectKey, thumbKey, sortOrder);
+        return new RecordMedia(travelRecord, ObjectKey.from(objectKey), thumbKey, sortOrder);
+    }
+
+    /**
+     * 애그리거트 안에서 쓰는 생성 경로. 키는 {@link ObjectKeys}가 이미 검증했다.
+     */
+    static RecordMedia of(TravelRecord travelRecord, ObjectKey objectKey, int sortOrder) {
+        return new RecordMedia(travelRecord, objectKey, null, sortOrder);
     }
 
     public void updateSortOrder(int sortOrder) {
@@ -58,6 +65,10 @@ public class RecordMedia {
 
     public Long getId() {
         return id;
+    }
+
+    ObjectKey objectKey() {
+        return objectKey;
     }
 
     public String getObjectKey() {

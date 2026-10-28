@@ -794,7 +794,7 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 회원 ID, 여행 기록 ID 또는 요청 본문이 올바르지 않음 |
-| `400` | `INVALID_OBJECT_KEY` | Object Key가 중복되거나 다른 기록에서 사용 중임 |
+| `400` | `INVALID_OBJECT_KEY` | Object Key가 비었거나 너무 김, 요청 안에서 중복됨, 또는 이미 다른 기록에서 사용 중임 |
 | `400` | `MEDIA_NOT_UPLOADED` | 새로 붙인 Object Key가 이 회원에게 발급된 키가 아니거나, S3에 업로드되지 않음 |
 | `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 현재 회원의 기록이 아님 |

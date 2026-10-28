@@ -37,6 +37,7 @@ import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCacheProperties;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -179,6 +180,31 @@ class TravelRecordServiceTest {
                 .isEqualTo("TOO_MANY_TAGS");
         verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
         verifyNoInteractions(tagRepository, travelRecordRepository);
+    }
+
+    @Test
+    void 빈_Object_Key는_사진_확인_전에_형식_오류로_거절한다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null,
+                List.of("mapmory/travel-records/10/a.jpg", " "), List.of(), null
+        );
+
+        assertError(() -> travelRecordService.create(member, command), "INVALID_OBJECT_KEY");
+        verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
+        verifyNoInteractions(travelRecordRepository);
+    }
+
+    @Test
+    void 중복_Object_Key로_고치면_사진_확인과_조회_전에_거절한다() {
+        String key = "mapmory/travel-records/10/a.jpg";
+        TravelRecordCommand command = new TravelRecordCommand(
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null,
+                List.of(key, key), List.of(), null
+        );
+
+        assertError(() -> travelRecordService.update(member, 101L, command), "INVALID_OBJECT_KEY");
+        verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
+        verifyNoInteractions(travelRecordRepository);
     }
 
     @Test
@@ -378,10 +404,10 @@ class TravelRecordServiceTest {
                 TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 101L);
-        travelRecord.synchronizeMedia(List.of(
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(
                 "mapmory/travel-records/a.jpg",
                 "mapmory/travel-records/b.jpg"
-        ));
+        )));
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
                 .thenReturn(Optional.of(travelRecord));
 
@@ -516,7 +542,7 @@ class TravelRecordServiceTest {
                 TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 101L);
-        travelRecord.synchronizeMedia(List.of("travel-records/10/a.jpg", "travel-records/10/b.jpg"));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of("travel-records/10/a.jpg", "travel-records/10/b.jpg")));
         RecordMedia mediaB = travelRecord.getMedia().getLast();
         TravelRecordCommand command = new TravelRecordCommand(
                 "KR",
@@ -616,7 +642,7 @@ class TravelRecordServiceTest {
                 null,
                 TODAY
         );
-        travelRecord.synchronizeMedia(List.of("travel-records/10/a.jpg"));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of("travel-records/10/a.jpg")));
         TravelRecordCommand command = new TravelRecordCommand(
                 "JP",
                 null,

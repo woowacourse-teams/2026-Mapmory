@@ -171,9 +171,9 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         TODAY
                 )
         );
-        travelRecord.synchronizeMedia(
+        travelRecord.synchronizeMedia(ObjectKeys.from(
                 java.util.List.of("mapmory/detail/a.jpg", "mapmory/detail/b.jpg")
-        );
+        ));
 
         entityManager.flush();
         entityManager.clear();
@@ -217,7 +217,7 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
                         TODAY
                 )
         );
-        travelRecord.synchronizeMedia(java.util.List.of("mapmory/delete/a.jpg"));
+        travelRecord.synchronizeMedia(ObjectKeys.from(java.util.List.of("mapmory/delete/a.jpg")));
         entityManager.flush();
         entityManager.clear();
 
