@@ -46,6 +46,19 @@ class AlbumTest {
     }
 
     @Test
+    void 보낸_이름이_있으면_그_이름으로_연다() {
+        assertThat(Album.nameFor("도쿄 3월", "시부야", JAPAN)).isEqualTo("도쿄 3월");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" "})
+    void 이름을_비우면_기록_제목이고_제목도_비었으면_지역_이름이다(String blank) {
+        assertThat(Album.nameFor(blank, "시부야", JAPAN)).isEqualTo("시부야");
+        assertThat(Album.nameFor(blank, blank, JAPAN)).isEqualTo(JAPAN.getName());
+    }
+
+    @Test
     void 이름이_200자를_넘으면_거절한다() {
         assertThatThrownBy(() -> Album.open(10L, "가".repeat(201), JAPAN, 1L, 101L))
                 .isInstanceOf(BusinessException.class)
