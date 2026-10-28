@@ -62,7 +62,8 @@ public class AlbumService {
         lockGroupOf(groupId, memberId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         Region region = findRegion(regionId == null ? record.regionId() : regionId);
-        Album album = albumRepository.save(Album.open(groupId, name, region, memberId, record.id()));
+        String albumName = Album.nameFor(name, record.title(), region);
+        Album album = albumRepository.save(Album.open(groupId, albumName, region, memberId, record.id()));
         return albumQueryService.detailOf(album, memberId);
     }
 

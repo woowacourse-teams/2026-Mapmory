@@ -1496,7 +1496,7 @@ Authorization: Bearer {accessToken}
 
 `POST /api/v1/groups/{groupId}/albums`
 
-내 기록 하나로 새 앨범을 연다. 이름과 지역은 비우면 기록의 제목과 지역을 쓴다.
+내 기록 하나로 새 앨범을 연다. `name`은 보내지 않거나 비우면 기록의 제목이고, 기록 제목도 비었으면 앨범 지역의 이름이다. `regionId`는 보내지 않으면 기록의 지역이다.
 
 ```json
 {
@@ -1610,7 +1610,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-`media`는 담은 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+항목은 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `media`는 그 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
 
 ### 앨범 알림
 
