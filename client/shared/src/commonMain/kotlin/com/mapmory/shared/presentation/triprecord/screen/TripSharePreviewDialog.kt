@@ -1,5 +1,12 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareMediaAnalytics
+import com.mapmory.shared.analytics.ShareMediaSource
+import com.mapmory.shared.analytics.ShareMediaAction
+import com.mapmory.shared.analytics.ShareMediaOperation
+import androidx.compose.runtime.LaunchedEffect
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -119,6 +126,8 @@ internal fun TripRecordSharePreviewDialog(
     record: TripRecordItemUiState,
     onDismiss: () -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    val telemetry = remember(analytics) { ShareMediaAnalytics(analytics, ShareMediaSource.RECORD) }
     val photos = remember(record.id, record.photos) {
         record.photos.sortedBy(TripRecordPhotoUiState::sortOrder)
     }
@@ -128,6 +137,7 @@ internal fun TripRecordSharePreviewDialog(
     val selectedPhoto = photos.firstOrNull { it.id == selectedPhotoId } ?: photos.firstOrNull()
     val pageTitles = listOf("여행 매거진", "여행 엽서", "여행 티켓", "사진 에디토리얼", "사진 위 여행 정보")
     SharePreviewDialog(
+        source = ShareMediaSource.RECORD,
         title = "여행 기록 공유",
         pageTitles = pageTitles,
         supportingText = "대표 사진과 공유 디자인을 골라보세요",
@@ -135,7 +145,12 @@ internal fun TripRecordSharePreviewDialog(
             RecordSharePhotoSelector(
                 photos = photos,
                 selectedPhotoId = selectedPhoto?.id,
-                onSelect = { selectedPhotoId = it },
+                onSelect = { id ->
+                    if (id != selectedPhoto?.id) {
+                        telemetry.action(ShareMediaAction.PHOTO_SELECTED, photos.indexOfFirst { it.id == id })
+                        selectedPhotoId = id
+                    }
+                },
             )
         },
         onDismiss = onDismiss,
@@ -167,6 +182,7 @@ internal fun TripArchiveSharePreviewDialog(
     onDismiss: () -> Unit,
 ) {
     SharePreviewDialog(
+        source = ShareMediaSource.STATISTICS,
         title = "나의 여행 공유",
         pageTitles = listOf("나의 여행 통계"),
         pageTitleAbovePreview = true,
@@ -182,6 +198,7 @@ internal fun TripAchievementSharePreviewDialog(
     onDismiss: () -> Unit,
 ) {
     SharePreviewDialog(
+        source = ShareMediaSource.ACHIEVEMENT,
         title = "여행 업적 공유",
         pageTitles = listOf(achievement.title),
         onDismiss = onDismiss,
@@ -213,6 +230,7 @@ private val LocalPosterCapture = staticCompositionLocalOf<PosterCapture?> { null
 
 @Composable
 private fun SharePreviewDialog(
+    source: ShareMediaSource,
     title: String,
     pageTitles: List<String>,
     supportingText: String = "내 여행에 어울리는 디자인을 골라보세요",
@@ -221,7 +239,14 @@ private fun SharePreviewDialog(
     onDismiss: () -> Unit,
     poster: @Composable (Int, Modifier) -> Unit,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    val telemetry = remember(analytics, source) { ShareMediaAnalytics(analytics, source) }
+    LaunchedEffect(telemetry) { telemetry.action(ShareMediaAction.OPENED) }
+    fun dismissPreview() { telemetry.action(ShareMediaAction.CLOSED); onDismiss() }
     val pagerState = rememberPagerState(pageCount = { pageTitles.size })
+    LaunchedEffect(pagerState.settledPage, telemetry) {
+        telemetry.action(ShareMediaAction.DESIGN_VIEWED, pagerState.settledPage)
+    }
     val scope = rememberCoroutineScope()
     val exporter = rememberShareImageExporter()
     val captures = remember { mutableStateMapOf<Int, PosterCapture>() }
@@ -231,21 +256,27 @@ private fun SharePreviewDialog(
         if (exporting || pagerState.isScrollInProgress) return
         val capture = captures[pagerState.currentPage]
         if (capture?.hasFailedPhotos == true) {
+            telemetry.action(ShareMediaAction.EXPORT_BLOCKED_FAILED)
             feedback = null
             return
         }
         if (capture == null || !capture.canExport) {
+            telemetry.action(ShareMediaAction.EXPORT_BLOCKED_LOADING)
             feedback = "사진을 불러오는 중이에요. 잠시 후 다시 눌러주세요."
             return
         }
         val layer = capture.layer ?: return
+        telemetry.action(if (save) ShareMediaAction.SAVE_CLICKED else ShareMediaAction.SHARE_CLICKED)
         exporting = true
         feedback = null
         scope.launch {
             try {
-                withFrameNanos { }
-                val image = layer.toImageBitmap()
-                if (save) exporter.save(image) else exporter.share(image)
+                val image = telemetry.observe(ShareMediaOperation.IMAGE_CAPTURE) {
+                    withFrameNanos { }
+                    layer.toImageBitmap()
+                }
+                if (save) telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(image) }
+                else telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(image) }
                 feedback = if (save) "사진 앱에 저장했어요." else null
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -258,7 +289,7 @@ private fun SharePreviewDialog(
     }
 
     Dialog(
-        onDismissRequest = { if (!exporting) onDismiss() },
+        onDismissRequest = { if (!exporting) dismissPreview() },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Column(
@@ -284,7 +315,7 @@ private fun SharePreviewDialog(
                 } else {
                     Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onDismiss, enabled = !exporting) {
+                IconButton(onClick = ::dismissPreview, enabled = !exporting) {
                     Box(
                         Modifier.size(36.dp).background(Color(0xFF2A3C32), RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center,
@@ -340,6 +371,9 @@ private fun SharePreviewDialog(
                 )
             }
             val currentCapture = captures[pagerState.currentPage]
+            LaunchedEffect(pagerState.currentPage, currentCapture?.hasFailedPhotos, currentCapture?.retryAttempt) {
+                if (currentCapture?.hasFailedPhotos == true) telemetry.imageLoadFailed()
+            }
             if (currentCapture?.hasFailedPhotos == true) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp),
@@ -353,7 +387,7 @@ private fun SharePreviewDialog(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
-                        onClick = { feedback = null; currentCapture.retryPhotos() },
+                        onClick = { telemetry.action(ShareMediaAction.PHOTO_RETRY_CLICKED); feedback = null; currentCapture.retryPhotos() },
                         enabled = !exporting && !pagerState.isScrollInProgress,
                     ) {
                         Text("다시 시도", color = Color(0xFF9CC5AB))
