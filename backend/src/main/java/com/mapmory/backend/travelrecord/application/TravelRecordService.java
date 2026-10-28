@@ -5,6 +5,7 @@ import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.common.time.ServiceTime;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
@@ -52,6 +53,7 @@ public class TravelRecordService {
     private final TransactionTemplate readOnlyTransactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
     private final TravelRecordListCache travelRecordListCache;
+    private final ActiveMemberGuard activeMemberGuard;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -66,7 +68,8 @@ public class TravelRecordService {
             RegionSuggester regionSuggester,
             PlatformTransactionManager transactionManager,
             ApplicationEventPublisher eventPublisher,
-            TravelRecordListCache travelRecordListCache
+            TravelRecordListCache travelRecordListCache,
+            ActiveMemberGuard activeMemberGuard
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -82,12 +85,15 @@ public class TravelRecordService {
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
         this.eventPublisher = eventPublisher;
         this.travelRecordListCache = travelRecordListCache;
+        this.activeMemberGuard = activeMemberGuard;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
     /**
      * 외부 호출(Google 장소 조회, S3 업로드 확인)은 트랜잭션 밖에서 먼저 하고, DB 일만 트랜잭션으로 묶는다.
      * 트랜잭션은 시작할 때 커넥션을 빌려 끝날 때 돌려주므로, 안에서 외부를 기다리면 그동안 커넥션을 쥐고 있게 된다.
+     *
+     * <p>탈퇴 뒤 남은 access token으로는 만들지 못한다. 회원 확인은 커넥션을 더 빌리지 않도록 트랜잭션 안에서 한다.
      */
     public TravelRecord create(Member member, TravelRecordCommand command) {
         LocalDate today = ServiceTime.today(clock);
@@ -98,6 +104,7 @@ public class TravelRecordService {
         uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys);
 
         return transactionTemplate.execute(status -> {
+            activeMemberGuard.require(member.getId());
             validateObjectKeysAreAvailable(objectKeys);
             Region region = resolveRegion(command, place);
             TravelRecord travelRecord = TravelRecord.of(

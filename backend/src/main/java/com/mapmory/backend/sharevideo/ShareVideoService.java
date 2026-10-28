@@ -2,6 +2,7 @@ package com.mapmory.backend.sharevideo;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshot;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshotFactory;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -19,19 +20,22 @@ public class ShareVideoService {
     private final ShareVideoJobRepository shareVideoJobRepository;
     private final ShareVideoDownloadUrlService downloadUrlService;
     private final JsonMapper jsonMapper;
+    private final ActiveMemberGuard activeMemberGuard;
 
     public ShareVideoService(
             TravelRecordRepository travelRecordRepository,
             TravelTimelineSnapshotFactory snapshotFactory,
             ShareVideoJobRepository shareVideoJobRepository,
             ShareVideoDownloadUrlService downloadUrlService,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            ActiveMemberGuard activeMemberGuard
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.snapshotFactory = snapshotFactory;
         this.shareVideoJobRepository = shareVideoJobRepository;
         this.downloadUrlService = downloadUrlService;
         this.jsonMapper = jsonMapper;
+        this.activeMemberGuard = activeMemberGuard;
     }
 
     @Transactional
@@ -44,6 +48,8 @@ public class ShareVideoService {
             final Member member,
             final ShareVideoStyle styleId
     ) {
+        // 탈퇴 뒤 남은 access token으로 렌더링을 맡기지 못하게 한다.
+        activeMemberGuard.require(member.getId());
         final ShareVideoStyle resolvedStyle;
         if (styleId == null) {
             resolvedStyle = ShareVideoStyle.defaultStyle();
