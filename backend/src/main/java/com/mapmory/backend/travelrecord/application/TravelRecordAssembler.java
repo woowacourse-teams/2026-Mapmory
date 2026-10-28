@@ -7,9 +7,11 @@ import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
+import com.mapmory.backend.travelrecord.domain.TravelRecordTag;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
@@ -23,23 +25,20 @@ import org.springframework.stereotype.Component;
 public class TravelRecordAssembler {
 
     private final TravelRecordRepository travelRecordRepository;
-    private final TravelRecordTagService travelRecordTagService;
     private final RecordMediaUrlService recordMediaUrlService;
 
     public TravelRecordAssembler(
             TravelRecordRepository travelRecordRepository,
-            TravelRecordTagService travelRecordTagService,
             RecordMediaUrlService recordMediaUrlService
     ) {
         this.travelRecordRepository = travelRecordRepository;
-        this.travelRecordTagService = travelRecordTagService;
         this.recordMediaUrlService = recordMediaUrlService;
     }
 
     public TravelRecordDetail assembleDetail(TravelRecord travelRecord) {
         return assembleDetail(
                 travelRecord,
-                travelRecordTagService.findByTravelRecordId(travelRecord.getId())
+                travelRecordRepository.findTagsByTravelRecordId(travelRecord.getId())
         );
     }
 
@@ -59,7 +58,7 @@ public class TravelRecordAssembler {
                 .toList();
 
         List<RecordMedia> media = findMedia(travelRecordIds);
-        Map<Long, List<Tag>> tags = travelRecordTagService.findByTravelRecordIds(travelRecordIds);
+        Map<Long, List<Tag>> tags = findTags(travelRecordIds);
         Map<Long, String> thumbnailObjectKeys = findThumbnailObjectKeys(media);
         Map<Long, Integer> photoCounts = countPhotos(media);
 
@@ -134,6 +133,20 @@ public class TravelRecordAssembler {
             return List.of();
         }
         return travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds);
+    }
+
+    /**
+     * 일지별 태그. 목록 한 페이지에 태그 조회는 한 번뿐이다.
+     */
+    private Map<Long, List<Tag>> findTags(List<Long> travelRecordIds) {
+        if (travelRecordIds.isEmpty()) {
+            return Map.of();
+        }
+        return travelRecordRepository.findTagLinksByTravelRecordIdIn(travelRecordIds).stream()
+                .collect(Collectors.groupingBy(
+                        TravelRecordTag::getTravelRecordId,
+                        Collectors.mapping(TravelRecordTag::getTag, Collectors.toList())
+                ));
     }
 
     private Map<Long, String> findThumbnailObjectKeys(List<RecordMedia> media) {

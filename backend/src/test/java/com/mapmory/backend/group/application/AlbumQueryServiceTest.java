@@ -14,6 +14,7 @@ import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionRepository;
 import com.mapmory.backend.support.SqlStatementCounter;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import jakarta.persistence.EntityManagerFactory;
@@ -31,6 +32,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 앨범 조회의 SQL 수가 기록·앨범 수와 상관없이 일정한지 확인한다.
  */
 class AlbumQueryServiceTest extends IntegrationTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     @Autowired
     private AlbumQueryService albumQueryService;
@@ -130,8 +133,9 @@ class AlbumQueryServiceTest extends IntegrationTest {
     }
 
     private TravelRecord record(Member member) {
-        TravelRecord record = TravelRecord.of(member, region, "도쿄", "본문", LocalDate.of(2026, 3, 1), null);
-        record.synchronizeMedia(List.of("travel-records/" + member.getId() + "/" + UUID.randomUUID() + ".jpg"));
+        TravelRecord record = TravelRecord.of(member, region, "도쿄", "본문", LocalDate.of(2026, 3, 1), null, TODAY);
+        record.synchronizeMedia(ObjectKeys.from(
+                List.of("travel-records/" + member.getId() + "/" + UUID.randomUUID() + ".jpg")));
         return travelRecordRepository.save(record);
     }
 }

@@ -60,8 +60,8 @@ class AlbumTest {
         assertThat(album.addEntry(2L, 202L)).isTrue();
 
         assertThat(album.travelRecordIds()).containsExactly(101L, 202L);
-        assertThat(album.travelRecordIdOf(2L)).contains(202L);
-        assertThat(album.travelRecordIdOf(3L)).isEmpty();
+        assertThat(album.travelRecordIdsOf(2L)).containsExactly(202L);
+        assertThat(album.travelRecordIdsOf(3L)).isEmpty();
     }
 
     @Test
@@ -74,13 +74,15 @@ class AlbumTest {
     }
 
     @Test
-    void 같은_멤버가_다른_기록을_담으면_거절한다() {
+    void 같은_멤버가_기록을_여럿_담는다() {
         Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
 
-        assertThatThrownBy(() -> album.addEntry(1L, 102L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(GroupErrorCode.ALBUM_ENTRY_ALREADY_EXISTS);
+        assertThat(album.addEntry(1L, 102L)).isTrue();
+        assertThat(album.addEntry(2L, 201L)).isTrue();
+
+        assertThat(album.travelRecordIdsOf(1L)).containsExactly(101L, 102L);
+        assertThat(album.travelRecordIdsOf(2L)).containsExactly(201L);
+        assertThat(album.travelRecordIds()).containsExactly(101L, 102L, 201L);
     }
 
     @Test

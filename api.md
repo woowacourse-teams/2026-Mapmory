@@ -571,7 +571,9 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
   "content": "",
   "startDate": "2026-08-11",
   "endDate": null,
-  "objectKeys": [],
+  "objectKeys": [
+    "travel-records/10/7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg"
+  ],
   "tagIds": [8]
 }
 ```
@@ -581,15 +583,15 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `countryCode` | String | 조건부 | `placeId`가 없으면 필수. 대문자 2자리이며 존재하는 ISO 3166-1 alpha-2 코드 |
 | `provinceCode` | String | 조건부 | `KR`이면 필수, 입력 시 공백 없이 최대 20자 |
 | `districtCode` | String | 아니요 | 입력 시 `provinceCode` 필수, 공백 없이 최대 20자 |
-| `title` | String | 예 | 공백이 아닌 문자를 포함해야 하며 최대 200자 |
+| `title` | String | 아니요 | 최대 200자. `null`이거나 비었거나 공백뿐이면 빈 제목(`""`)으로 저장 |
 | `content` | String | 아니요 | `null`, 빈 문자열·공백 허용 |
 | `startDate` | LocalDate | 예 | `YYYY-MM-DD`, 오늘 또는 과거 |
 | `endDate` | LocalDate | 아니요 | 오늘 또는 과거이며 시작일과 같거나 이후 |
-| `objectKeys` | String[] | 아니요 | 업로드 완료된 Object Key 목록 |
+| `objectKeys` | String[] | 예 | 업로드 완료된 Object Key 목록. 1장 이상 100장 이하 |
 | `tagIds` | Long[] | 아니요 | 빈 배열 허용, 최대 5개, 중복 불가, 모두 현재 회원 소유 |
 | `placeId` | String | 아니요 | `GET /places/search` 후보의 장소 ID, 최대 255자. 지역 코드가 없으면 이 장소로 지역을 정함 |
 
-`objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 값이 없거나 `null`이면 미디어를 생성하지 않는다.
+`objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 사진은 1장 이상 100장 이하여야 하며, 값이 없거나 `null`·빈 배열이면 `PHOTO_REQUIRED`로 거절한다.
 
 `content`가 없거나 `null`이면 서버는 빈 문자열로 정규화해 저장한다.
 
@@ -613,6 +615,8 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `404` | `REGION_NOT_FOUND` | 요청한 국가·시도·시군구가 존재하지 않음 |
 | `400` | `INVALID_REGION_HIERARCHY` | 요청 지역의 부모 관계가 맞지 않거나, 상위 지역 코드 없이 하위 지역 코드만 옴 |
 | `400` | `INVALID_TRAVEL_DATE_RANGE` | 시작일·종료일이 미래이거나 종료일이 시작일보다 빠름 |
+| `400` | `PHOTO_REQUIRED` | 사진(`objectKeys`)이 없음 |
+| `400` | `TOO_MANY_PHOTOS` | 사진이 100장을 넘음 |
 | `400` | `INVALID_OBJECT_KEY` | Object Key가 비었거나 너무 김, 요청 안에서 중복됨, 또는 이미 다른 기록에서 사용 중임 |
 | `400` | `MEDIA_NOT_UPLOADED` | 이 회원에게 발급된 Object Key가 아니거나, S3에 업로드되지 않음 |
 | `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
@@ -782,7 +786,7 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 - 기존 Object Key가 요청에도 있으면 미디어를 유지하고 순서만 변경한다.
 - 요청에서 빠진 기존 Object Key는 `record_media` 연결을 삭제한다.
 - 새 Object Key는 미디어로 추가한다.
-- `objectKeys`가 `null`이거나 빈 배열이면 모든 미디어 연결을 삭제한다.
+- `objectKeys`가 `null`이거나 빈 배열이면 `PHOTO_REQUIRED`로 거절한다. 사진은 수정 후에도 1장 이상 100장 이하여야 한다.
 - S3 실제 객체 삭제와 Presigned URL 변환은 후속 작업으로 처리한다.
 
 #### Response `200 OK`
@@ -794,7 +798,9 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 회원 ID, 여행 기록 ID 또는 요청 본문이 올바르지 않음 |
-| `400` | `INVALID_OBJECT_KEY` | Object Key가 중복되거나 다른 기록에서 사용 중임 |
+| `400` | `PHOTO_REQUIRED` | 사진(`objectKeys`)이 없음 |
+| `400` | `TOO_MANY_PHOTOS` | 사진이 100장을 넘음 |
+| `400` | `INVALID_OBJECT_KEY` | Object Key가 비었거나 너무 김, 요청 안에서 중복됨, 또는 이미 다른 기록에서 사용 중임 |
 | `400` | `MEDIA_NOT_UPLOADED` | 새로 붙인 Object Key가 이 회원에게 발급된 키가 아니거나, S3에 업로드되지 않음 |
 | `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 현재 회원의 기록이 아님 |
@@ -1348,7 +1354,7 @@ Authorization: Bearer {accessToken}
 - 그룹 이름은 앞뒤 공백 제거 후 1~30자, 앨범 이름은 1~200자다. 이름은 멤버 누구나 바꾼다.
 - 그룹은 최대 30명이다. 초대는 멤버 누구나 만들고 1일 뒤 만료된다.
 - 한 회원은 그룹에 최대 10개까지 속한다. 만들기와 초대 수락 모두 이미 10개면 `409 TOO_MANY_GROUPS`다.
-- 한 기록을 여러 앨범에 담을 수 있다. 한 앨범에는 멤버당 기록 하나다.
+- 한 기록을 여러 앨범에 담을 수 있다. 한 앨범에 한 멤버가 기록을 여럿 담을 수 있고, 같은 기록은 한 번만 담긴다.
 - 앨범에 담는 기록은 내 기록이어야 한다. 남의 기록 id면 `404 TRAVEL_RECORD_NOT_FOUND`다.
 
 | 태스크 | API |
@@ -1514,7 +1520,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-앱은 앨범의 지역과 기간으로 미리 채운 화면에서 `POST /travel-records`로 내 기록을 먼저 만들고, 돌아온 기록 id로 이 API를 부른다. 이미 있는 내 기록을 붙여도 된다. 이 앨범에 내 기록이 이미 있으면 `409 ALBUM_ENTRY_CONFLICT`다.
+앱은 앨범의 지역과 기간으로 미리 채운 화면에서 `POST /travel-records`로 내 기록을 먼저 만들고, 돌아온 기록 id로 이 API를 부른다. 이미 있는 내 기록을 붙여도 된다. 한 멤버가 기록을 여럿 붙일 수 있다. 이미 붙인 같은 기록을 다시 보내면 아무것도 바꾸지 않고 `200 OK`로 앨범 상세를 돌려준다(응답을 못 받은 앱이 다시 보내도 된다).
 
 #### Response `201 Created`
 

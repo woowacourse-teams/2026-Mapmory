@@ -325,7 +325,7 @@ CONSTRAINT fk_travel_record_tag_tag
 
 - 사진은 각자 자기 `travel_record`에 저장한다. 앨범은 기록을 id로만 가리키고 내용을 복사하지 않는다.
 - `album_entry.travel_record_id`에는 FK를 걸지 않는다(ADR 0017 결정 2, 애그리거트 사이는 id 참조). 기록 삭제는 이벤트로 받아 그룹이 항목을 지운다.
-- 한 기록을 여러 앨범에 담을 수 있고, 한 앨범에는 멤버당 기록 하나다.
+- 한 기록을 여러 앨범에 담을 수 있고, 한 앨범에 한 멤버가 기록을 여럿 담을 수 있다. 같은 기록은 한 번만 담긴다(V36).
 - 앨범 기간은 저장하지 않고 담긴 기록의 기간으로 계산한다.
 - `group`은 MySQL 예약어라 `travel_group`으로 둔다.
 
@@ -391,7 +391,7 @@ CONSTRAINT fk_travel_record_tag_tag
 | `created_at` | `DATETIME` | NOT NULL | 담은 시각. 연 사람을 넘길 순서 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 
-`UNIQUE(album_id, member_id)`로 한 앨범에 멤버당 기록 하나만 담는다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
+`UNIQUE(album_id, travel_record_id)`로 한 앨범에 같은 기록을 한 번만 담는다. 처음에는 `UNIQUE(album_id, member_id)`(멤버당 기록 하나)였고 V36에서 바꿨다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
 
 ### `push_token`
 
