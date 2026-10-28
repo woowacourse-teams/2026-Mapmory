@@ -22,6 +22,7 @@ import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import java.time.LocalDate;
@@ -42,6 +43,8 @@ import org.springframework.test.web.servlet.ResultActions;
  * 앨범 열기·담기·이름과 지역 바꾸기(T4)를 HTTP부터 DB까지 확인한다.
  */
 class AlbumIntegrationTest extends IntegrationTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     @Autowired
     private MockMvc mockMvc;
@@ -289,11 +292,14 @@ class AlbumIntegrationTest extends IntegrationTest {
         return created;
     }
 
+    // 사진 없는 기록은 이제 새로 만들 수 없지만(사진 1장 이상) 예전 기록으로 남아 있다. 그래서 사진이 없으면 붙이지 않는다.
     private TravelRecord record(Member member, LocalDate startDate, LocalDate endDate, String... fileNames) {
-        TravelRecord record = TravelRecord.of(member, seoul, "도쿄", "본문", startDate, endDate);
-        record.synchronizeMedia(Arrays.stream(fileNames)
-                .map(fileName -> "travel-records/" + member.getId() + "/" + UUID.randomUUID() + "-" + fileName)
-                .toList());
+        TravelRecord record = TravelRecord.of(member, seoul, "도쿄", "본문", startDate, endDate, TODAY);
+        if (fileNames.length > 0) {
+            record.synchronizeMedia(ObjectKeys.from(Arrays.stream(fileNames)
+                    .map(fileName -> "travel-records/" + member.getId() + "/" + UUID.randomUUID() + "-" + fileName)
+                    .toList()));
+        }
         return travelRecordRepository.save(record);
     }
 
