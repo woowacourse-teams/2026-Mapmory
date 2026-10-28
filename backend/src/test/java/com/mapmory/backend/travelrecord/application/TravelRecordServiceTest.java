@@ -73,6 +73,8 @@ class TravelRecordServiceTest {
             new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 27);
+    // 기록에는 사진이 1장 이상 있어야 한다. 사진 자체를 보지 않는 테스트가 쓰는 한 장이다.
+    private static final List<String> PHOTOS = List.of("mapmory/travel-records/10/photo.jpg");
     private static final Clock FIXED_CLOCK = Clock.fixed(
             TODAY.atStartOfDay(SERVICE_ZONE).toInstant(),
             SERVICE_ZONE
@@ -150,7 +152,7 @@ class TravelRecordServiceTest {
     void 국가_단위_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L), null
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(1L), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -210,7 +212,7 @@ class TravelRecordServiceTest {
     @Test
     void 남의_태그로는_여행_일지를_만들지_않는다() {
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L), null
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(1L), null
         );
         when(regionResolver.resolve("JP", null, null)).thenReturn(mock(Region.class));
         when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L)))
@@ -228,7 +230,7 @@ class TravelRecordServiceTest {
         Region district = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
                 "KR", "11", "11560", "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
+                LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(), "ChIJ-park"
         );
         when(regionResolver.resolve("KR", "11", "11560")).thenReturn(district);
         when(placeLookupPort.provider()).thenReturn(GOOGLE);
@@ -248,7 +250,7 @@ class TravelRecordServiceTest {
         Region district = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
                 null, null, null, "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
+                LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(), "ChIJ-park"
         );
         RegionAddress address = new RegionAddress("KR", "서울특별시", List.of("영등포구"));
         PlaceDetails place = new PlaceDetails(PlaceId.from("ChIJ-park"), null, address, GOOGLE);
@@ -267,7 +269,7 @@ class TravelRecordServiceTest {
     void 장소로_지역을_찾지_못하면_직접_지역을_고르게_한다() {
         TravelRecordCommand command = new TravelRecordCommand(
                 null, null, null, "한강 산책", "",
-                LocalDate.of(2026, 8, 11), null, List.of(), List.of(), "ChIJ-park"
+                LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(), "ChIJ-park"
         );
         PlaceDetails place = new PlaceDetails(PlaceId.from("ChIJ-park"), null,
                 new RegionAddress("KR", null, List.of()), GOOGLE);
@@ -284,7 +286,7 @@ class TravelRecordServiceTest {
     void 본문이_null이면_빈_문자열로_정규화해_여행_일지를_생성한다() {
         Region japan = mock(Region.class);
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, List.of(), List.of(), null
+                "JP", null, null, "일본 여행", null, LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(), null
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
@@ -456,7 +458,7 @@ class TravelRecordServiceTest {
                 "",
                 startDate,
                 endDate,
-                List.of(),
+                PHOTOS,
                 List.of(), null
         );
     }
@@ -474,7 +476,7 @@ class TravelRecordServiceTest {
                 "",
                 TODAY,
                 null,
-                List.of(),
+                PHOTOS,
                 List.of(), null
         );
     }
@@ -631,11 +633,10 @@ class TravelRecordServiceTest {
     }
 
     @Test
-    void Object_Key가_null이면_모든_미디어를_삭제한다() {
-        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
+    void 사진을_모두_빼는_수정은_사진을_지우지_않고_거절한다() {
         TravelRecord travelRecord = TravelRecord.of(
                 mock(Member.class),
-                japan,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
                 "기존 제목",
                 "기존 본문",
                 LocalDate.of(2026, 8, 11),
@@ -644,26 +645,26 @@ class TravelRecordServiceTest {
         );
         travelRecord.synchronizeMedia(ObjectKeys.from(List.of("travel-records/10/a.jpg")));
         TravelRecordCommand command = new TravelRecordCommand(
-                "JP",
-                null,
-                null,
-                "수정된 제목",
-                "수정된 본문",
-                LocalDate.of(2026, 8, 12),
-                null,
-                null,
-                List.of(), null
-            );
-        when(travelRecordRepository.findByIdAndMemberId(101L, 10L))
-                .thenReturn(Optional.of(travelRecord));
-        when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
+                "JP", null, null, "수정된 제목", "수정된 본문", LocalDate.of(2026, 8, 12), null, null, List.of(), null
+        );
 
+        assertError(() -> travelRecordService.update(member, 101L, command), "PHOTO_REQUIRED");
+        assertThat(travelRecord.getMedia()).extracting(RecordMedia::getObjectKey)
+                .containsExactly("travel-records/10/a.jpg");
+        assertThat(travelRecord.getTitle()).isEqualTo("기존 제목");
+        verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
+        verifyNoInteractions(travelRecordRepository);
+    }
 
-        TravelRecordDetail result = travelRecordService.update(member, 101L, command);
+    @Test
+    void 사진이_없으면_사진_확인_전에_거절한다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(), null
+        );
 
-        assertThat(result.recordMedia()).isEmpty();
-        assertThat(travelRecord.getMedia()).isEmpty();
-        verify(travelRecordRepository, never()).existsMediaByObjectKeyIn(anyList());
+        assertError(() -> travelRecordService.create(member, command), "PHOTO_REQUIRED");
+        verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
+        verifyNoInteractions(travelRecordRepository);
     }
 
     @Test
@@ -676,7 +677,7 @@ class TravelRecordServiceTest {
                 "본문",
                 LocalDate.of(2026, 8, 11),
                 null,
-                List.of(),
+                PHOTOS,
                 List.of(), null
             );
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L))

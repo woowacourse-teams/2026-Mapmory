@@ -65,23 +65,21 @@ class TravelRecordTest {
     }
 
     @Test
-    void 빈_Object_Key_목록은_모든_미디어를_떼어낸다() {
-        TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
-
-        travelRecord.synchronizeMedia(ObjectKeys.from(List.of()));
-
-        assertThat(travelRecord.getMedia()).isEmpty();
-    }
-
-    @Test
     void 이미_가진_Object_Key는_새_키가_아니다() {
         TravelRecord travelRecord = travelRecord();
         travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
 
-        ObjectKeys newObjectKeys = travelRecord.newObjectKeys(ObjectKeys.from(List.of(KEY_A, KEY_C)));
+        List<String> newObjectKeys = travelRecord.newObjectKeys(ObjectKeys.from(List.of(KEY_A, KEY_C)));
 
-        assertThat(newObjectKeys.values()).containsExactly(KEY_C);
+        assertThat(newObjectKeys).containsExactly(KEY_C);
+    }
+
+    @Test
+    void 사진을_그대로_두는_수정이면_새_키가_없다() {
+        TravelRecord travelRecord = travelRecord();
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A, KEY_B)));
+
+        assertThat(travelRecord.newObjectKeys(ObjectKeys.from(List.of(KEY_B, KEY_A)))).isEmpty();
     }
 
     @Test

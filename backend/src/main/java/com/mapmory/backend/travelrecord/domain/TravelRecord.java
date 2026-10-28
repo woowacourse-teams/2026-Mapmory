@@ -166,12 +166,17 @@ public class TravelRecord extends BaseEntity {
 
     /**
      * 요청된 Object Key 중 이 일지가 아직 가지고 있지 않은 것들. 수정할 때 S3로 확인할 대상이다.
+     *
+     * <p>사진을 그대로 두는 수정이면 비어 있다. {@link ObjectKeys}는 1장 이상을 약속하므로 문자열 목록으로 돌려준다.
      */
-    public ObjectKeys newObjectKeys(ObjectKeys requested) {
+    public List<String> newObjectKeys(ObjectKeys requested) {
         Set<ObjectKey> currentObjectKeys = media.stream()
                 .map(RecordMedia::objectKey)
                 .collect(Collectors.toSet());
-        return requested.excluding(currentObjectKeys);
+        return requested.keys().stream()
+                .filter(objectKey -> !currentObjectKeys.contains(objectKey))
+                .map(ObjectKey::value)
+                .toList();
     }
 
     /**

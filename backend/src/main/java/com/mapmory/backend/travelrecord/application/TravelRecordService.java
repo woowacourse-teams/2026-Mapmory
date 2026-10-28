@@ -108,7 +108,7 @@ public class TravelRecordService {
 
         return transactionTemplate.execute(status -> {
             activeMemberGuard.require(member.getId());
-            validateObjectKeysAreAvailable(objectKeys);
+            validateObjectKeysAreAvailable(objectKeys.values());
             Region region = resolveRegion(command, place);
             TravelRecord travelRecord = TravelRecord.of(
                     member,
@@ -153,13 +153,13 @@ public class TravelRecordService {
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
 
-        ObjectKeys newObjectKeys = readOnlyTransactionTemplate.execute(status -> {
+        List<String> newObjectKeys = readOnlyTransactionTemplate.execute(status -> {
             TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
-            ObjectKeys keys = travelRecord.newObjectKeys(objectKeys);
+            List<String> keys = travelRecord.newObjectKeys(objectKeys);
             validateObjectKeysAreAvailable(keys);
             return keys;
         });
-        uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys.values());
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys);
 
         return transactionTemplate.execute(status -> {
             TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
@@ -306,9 +306,9 @@ public class TravelRecordService {
         return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
     }
 
-    private void validateObjectKeysAreAvailable(ObjectKeys newObjectKeys) {
+    private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
         if (!newObjectKeys.isEmpty()
-                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys.values())) {
+                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }

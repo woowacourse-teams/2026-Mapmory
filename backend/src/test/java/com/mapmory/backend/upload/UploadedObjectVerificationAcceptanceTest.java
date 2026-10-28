@@ -77,14 +77,15 @@ class UploadedObjectVerificationAcceptanceTest extends IntegrationTest {
     }
 
     @Test
-    void 사진이_없는_기록은_저장소를_확인하지_않고_저장된다() throws Exception {
+    void 사진이_없는_기록은_저장소를_확인하지_않고_거절한다() throws Exception {
         String accessToken = guestAccessToken();
 
         mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(recordBody()))
-                .andExpect(status().isCreated());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PHOTO_REQUIRED"));
 
         verify(uploadedObjectChecker, never()).exists(anyString());
     }
