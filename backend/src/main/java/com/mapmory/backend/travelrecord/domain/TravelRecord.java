@@ -49,8 +49,8 @@ public class TravelRecord extends BaseEntity {
     @Embedded
     private RecordedPlace place;
 
-    @Column(nullable = false, length = 200)
-    private String title;
+    @Embedded
+    private TravelTitle title;
 
     @Column(nullable = false, columnDefinition = "text")
     private String content;
@@ -84,7 +84,7 @@ public class TravelRecord extends BaseEntity {
     ) {
         this.member = member;
         this.region = validateRegion(region);
-        this.title = normalizeTitle(title);
+        this.title = TravelTitle.from(title);
         this.content = normalizeContent(content);
         this.period = periodNotAfter(startDate, endDate, today);
     }
@@ -114,9 +114,10 @@ public class TravelRecord extends BaseEntity {
     ) {
         // 검증이 실패하면 아무 필드도 바뀌지 않도록 먼저 검증한다.
         Region validRegion = validateRegion(region);
+        TravelTitle validTitle = TravelTitle.from(title);
         TravelPeriod validPeriod = periodNotAfter(startDate, endDate, today);
         this.region = validRegion;
-        this.title = normalizeTitle(title);
+        this.title = validTitle;
         this.content = normalizeContent(content);
         this.period = validPeriod;
     }
@@ -237,16 +238,12 @@ public class TravelRecord extends BaseEntity {
         return content == null ? "" : content;
     }
 
-    private static String normalizeTitle(String title) {
-        return title == null || title.isBlank() ? "" : title;
-    }
-
     public Long getId() {
         return id;
     }
 
     public String getTitle() {
-        return title;
+        return title.value();
     }
 
     public String getContent() {
