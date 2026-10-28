@@ -1,0 +1,129 @@
+{
+  "stage": 3,
+  "key": "structure",
+  "name": "구조",
+  "url": "http://localhost:4173/",
+  "at": "2026-10-28T08:28:54.688Z",
+  "complete": true,
+  "passed": true,
+  "forced": false,
+  "rows": [
+    {
+      "id": "3.1",
+      "name": "페이지 스크롤을 조종하지 않는다",
+      "pass": true,
+      "expected": "금지 호출 0 (scrollTo/scrollBy/scrollIntoView, wheel·touch 가로채기, scroll-snap)",
+      "value": "금지 호출 0, passive 스크롤 리스너",
+      "detail": "",
+      "evidence": [],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "NN/g, Scrolljacking 101"
+      ],
+      "derived": null,
+      "ms": 319
+    },
+    {
+      "id": "3.2",
+      "name": "가로 스크롤이 없다",
+      "pass": true,
+      "expected": "320, 360, 390, 1440px에서 scrollWidth = 뷰포트 폭",
+      "value": "320/360/390/1440 모두 scrollWidth = 뷰포트",
+      "detail": "",
+      "evidence": [],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "WCAG 2.2 SC 1.4.10 Reflow",
+        "NN/g, Scrolljacking 101"
+      ],
+      "derived": null,
+      "ms": 23063
+    },
+    {
+      "id": "3.3",
+      "name": "어디에 멈춰도 제목이 화면 안에 온전히 있다",
+      "pass": true,
+      "expected": "섹션 안 멈춤 지점 40곳 중 100% (양 끝 10% 제외)",
+      "value": "80/80 멈춤 지점에서 제목이 온전히 보임 (390·360px)",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-3/fling-stops.json"
+      ],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "NN/g, Scrolljacking 101",
+        "티온 10-27: 휙휙 내려도 글이 읽혀야 하고, 한 화면에 한 가지"
+      ],
+      "derived": null,
+      "ms": 38184
+    },
+    {
+      "id": "3.4",
+      "name": "보통 속도로 내리면 6장면이 모두 한 번씩 활성화된다",
+      "pass": true,
+      "expected": "6/6",
+      "value": "6/6 장면 활성화 (1,2,3,4,5,6)",
+      "detail": "",
+      "evidence": [],
+      "kind": "auto",
+      "purpose": "E",
+      "sources": [
+        "NN/g, Scrolljacking 101"
+      ],
+      "derived": null,
+      "ms": 29703
+    },
+    {
+      "id": "3.5",
+      "name": "장면에 멈췄을 때 폰, 라벨, 제목이 겹침 없이 한 화면에 보인다",
+      "pass": true,
+      "expected": "360·390px 장면 6개 모두",
+      "value": "390·360px 6장면 모두 폰·라벨·제목이 한 화면에, 겹침 없음",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-3/scene-390-1.png",
+        "gates/reports/evidence/stage-3/scene-390-2.png",
+        "gates/reports/evidence/stage-3/scene-390-3.png",
+        "gates/reports/evidence/stage-3/scene-390-4.png",
+        "gates/reports/evidence/stage-3/scene-390-5.png",
+        "gates/reports/evidence/stage-3/scene-390-6.png",
+        "gates/reports/evidence/stage-3/scene-360-1.png",
+        "gates/reports/evidence/stage-3/scene-360-2.png",
+        "gates/reports/evidence/stage-3/scene-360-3.png",
+        "gates/reports/evidence/stage-3/scene-360-4.png",
+        "gates/reports/evidence/stage-3/scene-360-5.png",
+        "gates/reports/evidence/stage-3/scene-360-6.png"
+      ],
+      "kind": "auto",
+      "purpose": "D",
+      "sources": [
+        "8 things from Apple's product pages",
+        "티온 10-27: 휙휙 내려도 글이 읽혀야 하고, 한 화면에 한 가지"
+      ],
+      "derived": "스크롤에 따라 기능을 하나씩 보여 주기를 '한 화면에 다 보임'으로 옮김",
+      "ms": 18716
+    },
+    {
+      "id": "3.6",
+      "name": "휙 내려도 장면마다 변화가 보인다",
+      "pass": true,
+      "expected": "390px에서 2,000px/s로 내리는 동안 프레임마다 표본, 장면 6개 모두 서로 다른 상태 2개 이상",
+      "value": "장면별 상태 7/6/6/4/16/6개 (프레임 23/11/17/17/76/43)",
+      "detail": "",
+      "evidence": [
+        "gates/reports/evidence/stage-3/flick.json"
+      ],
+      "kind": "auto",
+      "purpose": "A",
+      "sources": [
+        "티온 10-27: 휙휙 내려도 글이 읽혀야 하고, 한 화면에 한 가지",
+        "NN/g, Scrolljacking 101"
+      ],
+      "derived": "티온 10-28: 글자를 안 보고 휙휙 넘기는 사람에게도 장면의 변화가 보여야 한다 → 변화를 스크롤 위치에 묶고, 빠른 스크롤에서도 상태가 바뀌는지 잰다",
+      "ms": 8983
+    }
+  ]
+}

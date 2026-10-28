@@ -49,6 +49,9 @@ test("declares the agreed landing funnel events", () => {
       "hero_demo_select",
       "how_story_view",
       "how_story_scene",
+      "tech_story_view",
+      "tech_story_scene",
+      "tech_story_interact",
     ]),
   );
 });

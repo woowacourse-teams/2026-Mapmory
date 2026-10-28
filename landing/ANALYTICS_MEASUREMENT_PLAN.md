@@ -40,6 +40,9 @@
 | `hero_demo_select` | 히어로 장소 칩(제주·일본·미국) 탭으로 그 장소가 선택될 때 (2026-10-18부터 사진 벽 히어로; 같은 칩을 다시 눌러 선택을 끄는 탭은 보내지 않음) | `experience_type=hero_demo`, `demo_place=jeju\|japan\|usa`; 선택마다. 4.5초 자동 선택(제주)은 기록하지 않음. `demo_place`는 how_story 배포 전 `how_play_save`와 공유했으며 값은 겹치지 않음 |
 | `how_story_view` | 사용 방법 섹션(`#how`)이 활성 탭에서 화면에 보이는 상태로 1초 연속 | `experience_type=how_story`, `story_mode=scroll\|static`(보낼 때의 방식); 페이지당 1회. 첫 `how_story_scene`이 먼저 오게 되면(장면 한가운데로 복원된 새로고침 등) 그 장면 바로 앞에 보내므로 늘 장면보다 먼저 온다. `static`은 동작 줄이기, 높이 500px 미만 화면(가로로 든 폰), 그림이 너무 작아지는 큰 글씨 |
 | `how_story_scene` | 한 장면에 0.7초 머묾(탭 활성). 스크롤 방식: 그 장면이 고정된 화면에 떠 있을 때. 정적 목록: 그 장면 글이 절반 이상 보이고 화면 가운데에 가장 가까울 때 | `experience_type=how_story`, `scene_index=1-6`(2026-10-18 콘텐츠 교체부터; 그 전은 1-5); 장면별 페이지당 1회. 스크롤 방식에서는 `#roll` 또는 `#rec` 화면이 고정되어 있을 때 그 이야기의 장면(1-3, 4-6). 두 이야기 사이를 지나는 동안은 장면이 아님. 빠르게 지나친 장면은 세지 않고(0.7초 타이머가 울리면 다음 프레임에서 그 장면이 아직 멈춰 있는지 다시 확인하므로, 메인 스레드가 잠시 멈춰 타이머가 늦게 울려도 이미 지나친 장면은 세지 않음), 되감아 다시 봐도 재전송 안 함 |
+| `tech_story_view` | 기술 소개 섹션(`#how`, 2026-10-27부터 사진 이야기 대신 이 섹션이 그 자리에 있어 `how_story_*`는 더 나가지 않는다) 고정 화면이 활성 탭에서 35% 이상 보이는 상태로 1초 연속 (2026-10-27 섹션 추가부터) | `experience_type=tech_story`; 페이지당 1회. 첫 `tech_story_scene`·`tech_story_interact` 앞에 늘 먼저 온다 |
+| `tech_story_scene` | 기술 소개 한 장면이 폰 화면에 0.7초 머묾(탭 활성) | `experience_type=tech_story`, `scene_index=1-6` (1 사진 뒷면, 2 같은 장소 모으기, 3 골라서 기록, 4 지도 칠하기, 5 지구본, 6 공유 영상. `TECH_SHARE.enabled=false`면 5까지); 장면별 페이지당 1회 |
+| `tech_story_interact` | 기술 소개 폰 화면의 요소를 처음 직접 조작함 | `experience_type=tech_story`, `scene_index=1-6`, `interaction_type=flip\|gather\|save\|map_toggle\|globe_drag\|year_pick`; 종류별 페이지당 1회. 자동 시연(제주 모으기, 접기, 칠하기, 연도 재생)은 보내지 않음 |
 | `how_play_save` (how_story 배포 전) | 저장 후 칠해진 지도가 화면에 반영된 뒤 | `experience_type=how_play`, `demo_place=busan\|gangwon\|gyeongbuk`, `save_index=1-3`, `selected_photos`; 페이지당 장소별 1회. 2026-10-08부터 how_story 배포일까지의 데이터에만 있음 |
 
 체험 유형: `globe`. (`how_play`는 2026-10-08부터 how_story 배포일까지. `how_story`는 `experience_*`를 보내지 않고 `experience_cta_click`·`how_story_*`에만 붙음. `korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)
@@ -52,6 +55,17 @@
 첫 연속 체험 종료 후 재진입한 탐색은 깊이·시간에 추가하지 않는다. 진단 보고서에 이 제한을 표시한다.
 **2026-10-18 콘텐츠 교체:** 사진 벽 히어로와 `#roll`·`#rec` 6장면으로 바뀌었다. 이벤트 이름·속성·머묾 기준은 그대로지만 각 `scene_index` 뒤의 내용과 장면 수(5→6)가 바뀌었으므로 장면별 이탈은 배포일부터만 비교하고, 그 전 기간과 합치지 않는다. `analytics.js`는 이제 `scene_index` 1-6을 받는다.
 `how_story_view`·`how_story_scene`은 체험이 아니라 도달 측정이다. 페이지 로드당 각 1회(장면은 장면별 1회)만 보내므로 "어디까지 멈춰서 봤나"(가장 큰 `scene_index`)는 볼 수 있지만 체류 시간이나 재시청은 알 수 없다. 스크롤 방식과 정적 목록은 머묾의 기준이 달라 `story_mode`로 나눠 본다. (how_story 배포 전 `how_play_save`는 체험 종료 후 재진입 저장도 기록했다.)
+
+### 기술 소개 피드백 루프 (2026-10-27)
+
+기술 소개(`#how`)는 "장면마다 하나씩 만져 보게 한다"가 가설이다. 바꿀 때마다 아래를 한 바퀴 돈다.
+
+1. **재기** (PostHog, `experience_type=tech_story`, `traffic_type=external`): 도달 퍼널 `tech_story_view → tech_story_scene(1) → … → (6)`과 장면별 시도율 = 그 장면 `tech_story_interact` 사용자 ÷ 그 장면 `tech_story_scene` 사용자. 섹션을 본 사용자의 `download_click`(`cta_placement=final`) 비율도 함께 본다.
+2. **판단** (주 1회, 외부 방문 50명 이상 쌓인 뒤): 장면 도달이 바로 앞 장면보다 30%p 넘게 떨어지면 그 장면 글이나 길이를, 시도율은 참고로만 본다(10-28부터 장면은 스크롤로 재생되고 탭은 선택이다). 장면 도달이 떨어지면 그 장면의 스크롤 길이나 변화의 크기를 고칠 후보로 둔다. 표본이 작으면 결론 대신 "관찰"로만 적는다.
+3. **바꾸기**: 한 번에 한 장면만 바꾸고, 바꾼 날짜와 내용을 아래 기록에 남긴다. 공유 장면은 `src/techStory.js`의 `TECH_SHARE`(예시 나라, 실제 영상·이미지 `media`, `enabled`)만 고친다.
+4. **다시 재기**: 바꾼 날 이후 데이터만 이전과 비교한다.
+
+기록: 2026-10-27 섹션 추가(6장면, 공유 장면은 그린 미리보기). 2026-10-28 모든 장면을 스크롤 위치로 재생(힌트·글로우·자동 재생 제거), 장면 5·6을 하나의 지구본 여행으로(기록한 15곳을 날짜순으로, 공유 영상은 눌러야 재생).
 
 ## Recap 이벤트 사전
 
