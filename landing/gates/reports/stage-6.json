@@ -3,9 +3,9 @@
   "key": "qa",
   "name": "검수",
   "url": "http://localhost:4173/",
-  "at": "2026-10-28T06:41:14.733Z",
+  "at": "2026-10-28T08:08:47.237Z",
   "complete": true,
-  "passed": false,
+  "passed": true,
   "forced": true,
   "rows": [
     {
@@ -45,7 +45,7 @@
         "WCAG 2.2 SC 1.4.10 Reflow"
       ],
       "derived": null,
-      "ms": 150981
+      "ms": 153487
     },
     {
       "id": "6.2",
@@ -64,7 +64,7 @@
         "WCAG 2.2 SC 2.4.7 Focus Visible"
       ],
       "derived": null,
-      "ms": 25371
+      "ms": 25182
     },
     {
       "id": "6.3",
@@ -82,7 +82,7 @@
         "Ramotion, web design process"
       ],
       "derived": null,
-      "ms": 21294
+      "ms": 21211
     },
     {
       "id": "6.4",
@@ -100,15 +100,15 @@
         "Clique Studios, 7 stages of the web design process"
       ],
       "derived": null,
-      "ms": 3
+      "ms": 4
     },
     {
       "id": "6.5",
       "name": "출시 규칙",
-      "pass": false,
+      "pass": true,
       "expected": "공유 앱 기능(#436) 출시 전엔 TECH_SHARE.enabled=false로 내보냄",
-      "value": "enabled=true인데 앱 공유 기능(#436) 출시 기록 없음",
-      "detail": "출시 빌드 전에 src/techStory.js TECH_SHARE.enabled를 false로 두거나, 앱이 스토어에 나간 뒤 gates/manual/6.5.json에 appShipped: true를 기록",
+      "value": "enabled=true, 앱 공유 기능 출시 확인 (티온 2026-10-28)",
+      "detail": "",
       "evidence": [],
       "kind": "auto",
       "purpose": "E",
@@ -116,7 +116,7 @@
         "landing/AGENTS.md (문구는 앱 코드로 확인, 공유 장면 출시 규칙)"
       ],
       "derived": null,
-      "ms": 2
+      "ms": 1
     }
   ]
 }
