@@ -367,3 +367,70 @@ group/
 - 결정 2를 그대로 따른다. 그룹은 회원과 여행 기록을 id로만 가리킨다. 지역은 참조 데이터라 `Region`을 직접 가진다.
 - 여행 기록은 여행기록이 열어 둔 조회 창구로만 읽는다. 여행기록은 그룹을 import하지 않고, 기록 삭제는 이벤트로만 알린다.
 - `travelrecord`, `tag`는 결정 6대로 평평하게 둔다. 이 보완은 `group`에만 적용한다.
+
+## 2026-10-28 보완: `TravelRecordTag` 쓰기도 애그리거트가 맡는다 (결정 3 단서 철회)
+
+결정 3은 `TravelRecordTag`의 쓰기를 리포지토리에 남겼다. ADR 0013이 고른 벌크 DELETE 한 문장을
+컬렉션 cascade의 행 단위 DELETE N개로 바꾸면 "근거 없이 되돌리게 된다"는 이유였다. 이번에 근거를 재고 되돌린다.
+
+### 바꾸는 이유: 규칙이 애그리거트 밖에 있었다
+
+- 기록당 태그 5개·중복 금지는 `TravelRecord.validateTagIds`에 있었지만, 기록의 상태를 쓰지 않는 메서드를
+  `TravelRecordTagService`가 대신 불렀다. 서비스가 부르지 않으면 지켜지지 않는다.
+- "그 회원의 태그만"은 조회 결과의 개수 비교에 숨어 있었다.
+- 생성할 때도 연결을 비우는 DELETE가 나갔다. 새 기록이라 지울 것이 없다.
+
+이제 `TravelRecord`가 연결 컬렉션을 갖고 `retag(RecordTagIds, List<Tag>)`로 바꾼다.
+`RecordTagIds`가 5개·중복을 요청을 받자마자(외부 호출 전에) 거르고, `retag`가 소유를 확인한 뒤 기존 연결과 비교해
+빠진 것만 떼고 새것만 붙인다. 한꺼번에 비우고 다시 붙이면 Hibernate가 INSERT를 DELETE보다 먼저 내보내
+남아야 할 태그가 UNIQUE(tag_id, travel_record_id)에 걸리므로 차이로 바꾼다(`synchronizeMedia`와 같다).
+MySQL에서 실제로 비우고 다시 붙여 `Duplicate entry … uk_travel_record_tag_tag_record`가 나는 것을 확인했다.
+`TravelRecordTagService`와 `TravelRecordTagRepository`는 없애고, 읽기 쿼리 두 개는 `TravelRecordRepository`로 옮긴다.
+
+### 실측
+
+`TravelRecordService`를 서비스 호출 단위로 부르고 Hibernate `StatementInspector`로 나가는 SQL을 모두 셌다.
+MySQL 8.4(Testcontainers), Hibernate 7.4.1, 사진 0장, 지역은 국가(JP)다.
+JDBC 배치를 쓰지 않고 IDENTITY라 INSERT도 묶이지 않으므로 **문장 수가 곧 DB 왕복 수**다.
+
+| 경우 | 이전(벌크) 전체 / 연결 | 이후(컬렉션) 전체 / 연결 |
+|---|---|---|
+| 생성, 태그 3개 | 8 / 4 | **7 / 3** |
+| 수정, 태그 3개 그대로 | 10 / 4 | **7 / 1** |
+| 수정, 3개 중 1개 교체 | 10 / 4 | **9 / 3** |
+| 수정, 5개 모두 교체 | 12 / 6 | 17 / 11 |
+| 수정, 5개 모두 제거 | 7 / 1 | 11 / 6 |
+| 삭제, 태그 3개 | 3 / 0 | 4 / 1 |
+
+"연결"은 `travel_record_tag`를 건드린 문장이다. 나머지는 두 버전이 같다(기록·미디어·지역·회원 조회).
+
+```sql
+-- 수정, 태그 그대로. 이전: 매번 지우고 다시 넣는다
+delete from travel_record_tag where travel_record_id=?
+insert into travel_record_tag (...) values (...)   -- 태그마다
+
+-- 이후: 연결을 읽고 바뀐 것이 없으면 쓰지 않는다
+select ... from travel_record_tag where travel_record_id=?
+```
+
+**앱은 기록을 고칠 때마다 태그 전체를 다시 보낸다.** 그래서 제목·본문·사진만 고치는 수정도 연결을 다시 쓴다.
+이 경로의 연결 쓰기가 4문장에서 0문장이 된다. 이런 수정이 가장 흔할 것으로 보지만 사용 데이터로 확인하지는 않았다. 반대로 태그를 모두 바꾸거나 모두 빼면 DELETE가 연결마다 나가
+최대 5개만큼 늘어난다. 결정 3이 우려한 N은 기록당 태그 상한(5)으로 묶여 있다.
+
+### 삭제 경로
+
+2026-09-01 보완의 교훈대로 삭제도 쟀다. 컬렉션만 두면 일지 삭제가 3문장에서 **7문장**(연결 조회 + 연결마다
+DELETE + 기록 DELETE)이 됐다. 그래서 연결 컬렉션에 `@OnDelete(action = CASCADE)`를 붙여 연결 삭제를 DB의
+`ON DELETE CASCADE`(V16)에 맡긴다. 그 결과가 위 표의 4문장이다(연결 조회 1문장만 남는다).
+
+```sql
+select ... from travel_record_tag where travel_record_id=?   -- 컬렉션 로딩은 남는다
+delete from travel_record where id=?                          -- 연결은 DB가 지운다
+```
+
+`record_media`도 같은 방법으로 미디어마다 나가는 DELETE를 줄일 수 있는지는 따로 잰다.
+
+### 다시 검토할 때
+
+- 기록당 태그 상한이 크게 늘 때(행 단위 DELETE가 상한만큼 늘어난다)
+- 태그를 한꺼번에 바꾸는 기능(일괄 태그 교체 등)이 생길 때

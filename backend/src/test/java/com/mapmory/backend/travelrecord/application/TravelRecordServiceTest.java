@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -30,6 +31,8 @@ import com.mapmory.backend.region.application.RegionSuggester;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
@@ -81,7 +84,7 @@ class TravelRecordServiceTest {
     private RegionResolver regionResolver;
 
     @Mock
-    private TravelRecordTagService travelRecordTagService;
+    private TagRepository tagRepository;
 
     @Mock
     private TagService tagService;
@@ -124,12 +127,11 @@ class TravelRecordServiceTest {
         travelRecordService = new TravelRecordService(
                 travelRecordRepository,
                 regionResolver,
-                travelRecordTagService,
+                tagRepository,
                 tagService,
                 operationTimer,
                 new TravelRecordAssembler(
                         travelRecordRepository,
-                        travelRecordTagService,
                         recordMediaUrlService
                 ),
                 FIXED_CLOCK,
@@ -151,6 +153,8 @@ class TravelRecordServiceTest {
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
+        when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L)))
+                .thenReturn(List.of(tag(1L)));
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -159,7 +163,38 @@ class TravelRecordServiceTest {
         assertThat(result).isNotNull();
         verify(regionResolver).resolve("JP", null, null);
         verify(travelRecordRepository).save(any(TravelRecord.class));
-        verify(travelRecordTagService).replace(member, result, List.of(1L));
+        verify(tagRepository).findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L));
+    }
+
+    @Test
+    void 태그가_다섯_개를_넘으면_사진_확인과_태그_조회_전에_거절한다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null,
+                List.of("mapmory/travel-records/10/a.jpg"), List.of(1L, 2L, 3L, 4L, 5L, 6L), null
+        );
+
+        assertThatThrownBy(() -> travelRecordService.create(member, command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
+                .isEqualTo("TOO_MANY_TAGS");
+        verify(uploadedObjectVerifier, never()).verifyAllUploaded(anyLong(), anyList());
+        verifyNoInteractions(tagRepository, travelRecordRepository);
+    }
+
+    @Test
+    void 남의_태그로는_여행_일지를_만들지_않는다() {
+        TravelRecordCommand command = new TravelRecordCommand(
+                "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, List.of(), List.of(1L), null
+        );
+        when(regionResolver.resolve("JP", null, null)).thenReturn(mock(Region.class));
+        when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> travelRecordService.create(member, command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
+                .isEqualTo("TAG_NOT_FOUND");
+        verify(travelRecordRepository, never()).save(any(TravelRecord.class));
     }
 
     @Test
@@ -378,6 +413,12 @@ class TravelRecordServiceTest {
                 .containsExactly(0, 1);
         verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/a.jpg");
         verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/b.jpg");
+    }
+
+    private Tag tag(Long id) {
+        Tag tag = Tag.of(member, "태그" + id);
+        ReflectionTestUtils.setField(tag, "id", id);
+        return tag;
     }
 
     private TravelRecordCommand createCommand(LocalDate startDate, LocalDate endDate) {

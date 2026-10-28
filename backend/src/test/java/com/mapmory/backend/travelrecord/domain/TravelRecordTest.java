@@ -1,22 +1,24 @@
 package com.mapmory.backend.travelrecord.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.tag.Tag;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class TravelRecordTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+    private static final Member OWNER = member(10L);
 
     private static final String KEY_A = "travel-records/10/a.jpg";
     private static final String KEY_B = "travel-records/10/b.jpg";
@@ -101,24 +103,58 @@ class TravelRecordTest {
     }
 
     @Test
-    void 태그를_다섯_개까지_붙일_수_있다() {
-        TravelRecord travelRecord = travelRecord();
+    void 요청한_태그를_붙인다() {
+        TravelRecord travelRecord = travelRecordOf(OWNER);
 
-        assertThatCode(() -> travelRecord.validateTagIds(tagIds(5))).doesNotThrowAnyException();
+        travelRecord.retag(RecordTagIds.from(List.of(2L, 1L)), List.of(tag(OWNER, 1L), tag(OWNER, 2L)));
+
+        assertThat(travelRecord.getTags()).extracting(TravelRecordTag::tagId).containsExactly(2L, 1L);
     }
 
     @Test
-    void 태그가_다섯_개를_넘으면_거부한다() {
-        TravelRecord travelRecord = travelRecord();
+    void 남아_있는_태그의_연결은_그대로_두고_빠진_것만_떼고_새것만_붙인다() {
+        TravelRecord travelRecord = travelRecordOf(OWNER);
+        travelRecord.retag(RecordTagIds.from(List.of(1L, 2L)), List.of(tag(OWNER, 1L), tag(OWNER, 2L)));
+        TravelRecordTag kept = travelRecord.getTags().getFirst();
 
-        assertTagError(() -> travelRecord.validateTagIds(tagIds(6)), "TOO_MANY_TAGS");
+        travelRecord.retag(RecordTagIds.from(List.of(1L, 3L)), List.of(tag(OWNER, 1L), tag(OWNER, 3L)));
+
+        assertThat(travelRecord.getTags()).extracting(TravelRecordTag::tagId).containsExactly(1L, 3L);
+        assertThat(travelRecord.getTags().getFirst()).isSameAs(kept);
     }
 
     @Test
-    void 같은_태그를_두_번_붙이면_거부한다() {
-        TravelRecord travelRecord = travelRecord();
+    void 빈_태그로_바꾸면_모든_연결을_뗀다() {
+        TravelRecord travelRecord = travelRecordOf(OWNER);
+        travelRecord.retag(RecordTagIds.from(List.of(1L)), List.of(tag(OWNER, 1L)));
 
-        assertTagError(() -> travelRecord.validateTagIds(List.of(1L, 1L)), "VALIDATION_ERROR");
+        travelRecord.retag(RecordTagIds.from(List.of()), List.of());
+
+        assertThat(travelRecord.getTags()).isEmpty();
+    }
+
+    @Test
+    void 남의_태그는_붙이지_않는다() {
+        TravelRecord travelRecord = travelRecordOf(OWNER);
+        Member other = member(20L);
+
+        assertTagError(
+                () -> travelRecord.retag(RecordTagIds.from(List.of(1L)), List.of(tag(other, 1L))),
+                "TAG_NOT_FOUND"
+        );
+        assertThat(travelRecord.getTags()).isEmpty();
+    }
+
+    @Test
+    void 조회되지_않은_태그는_붙이지_않는다() {
+        TravelRecord travelRecord = travelRecordOf(OWNER);
+        travelRecord.retag(RecordTagIds.from(List.of(1L)), List.of(tag(OWNER, 1L)));
+
+        assertTagError(
+                () -> travelRecord.retag(RecordTagIds.from(List.of(1L, 2L)), List.of(tag(OWNER, 1L))),
+                "TAG_NOT_FOUND"
+        );
+        assertThat(travelRecord.getTags()).extracting(TravelRecordTag::tagId).containsExactly(1L);
     }
 
     @Test
@@ -219,8 +255,28 @@ class TravelRecordTest {
         );
     }
 
-    private List<Long> tagIds(int count) {
-        return LongStream.rangeClosed(1, count).boxed().toList();
+    private TravelRecord travelRecordOf(Member owner) {
+        return TravelRecord.of(
+                owner,
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
+                "일본 여행",
+                "본문",
+                LocalDate.of(2026, 8, 11),
+                null,
+                TODAY
+        );
+    }
+
+    private static Member member(Long id) {
+        Member member = mock(Member.class);
+        when(member.getId()).thenReturn(id);
+        return member;
+    }
+
+    private Tag tag(Member owner, Long id) {
+        Tag tag = Tag.of(owner, "태그" + id);
+        ReflectionTestUtils.setField(tag, "id", id);
+        return tag;
     }
 
     private void assertDateError(Runnable action) {

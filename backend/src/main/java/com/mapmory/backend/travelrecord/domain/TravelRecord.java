@@ -4,6 +4,7 @@ import com.mapmory.backend.common.entity.BaseEntity;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagErrorCode;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
 import jakarta.persistence.CascadeType;
@@ -26,13 +27,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(name = "travel_record")
 public class TravelRecord extends BaseEntity {
-    private static final int MAX_TAGS = 5;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -60,6 +62,11 @@ public class TravelRecord extends BaseEntity {
     @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<RecordMedia> media = new ArrayList<>();
+
+    // 일지를 지울 때 연결은 DB의 ON DELETE CASCADE(V16)가 지운다. 없으면 Hibernate가 연결마다 DELETE를 낸다.
+    @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private List<TravelRecordTag> tags = new ArrayList<>();
 
     protected TravelRecord() {
     }
@@ -208,15 +215,36 @@ public class TravelRecord extends BaseEntity {
     }
 
     /**
-     * 한 일지에 붙일 수 있는 태그는 최대 {@value #MAX_TAGS}개이며 중복될 수 없다.
+     * 이 일지의 태그를 requested로 바꾼다. found는 응용 서비스가 requested로 조회한 태그다.
+     *
+     * <p>모든 id가 이 일지 회원의 태그여야 한다. 없는 태그와 남의 태그는 구분하지 않는다.
+     * 이미 붙은 태그는 그대로 두고 빠진 것만 떼고 새것만 붙인다. 한꺼번에 비우고 다시 붙이면
+     * Hibernate가 INSERT를 DELETE보다 먼저 내보내, 남아야 할 태그가 UNIQUE(tag_id, travel_record_id)에 걸린다.
+     * ({@link #synchronizeMedia}와 같은 이유)
      */
-    public void validateTagIds(List<Long> tagIds) {
-        if (tagIds.size() > MAX_TAGS) {
-            throw new BusinessException(TagErrorCode.TOO_MANY_TAGS);
+    public void retag(RecordTagIds requested, List<Tag> found) {
+        Map<Long, Tag> ownedById = found.stream()
+                .filter(tag -> tag.isOwnedBy(member.getId()))
+                .collect(Collectors.toMap(Tag::getId, Function.identity()));
+        if (!ownedById.keySet().containsAll(requested.values())) {
+            throw new BusinessException(TagErrorCode.TAG_NOT_FOUND);
         }
-        if (new HashSet<>(tagIds).size() != tagIds.size()) {
-            throw new BusinessException(TagErrorCode.INVALID_TAG_IDS);
-        }
+
+        tags.removeIf(link -> !requested.contains(link.tagId()));
+        Set<Long> linkedTagIds = tags.stream()
+                .map(TravelRecordTag::tagId)
+                .collect(Collectors.toSet());
+        requested.values().stream()
+                .filter(tagId -> !linkedTagIds.contains(tagId))
+                .map(ownedById::get)
+                .forEach(tag -> tags.add(TravelRecordTag.of(this, tag)));
+    }
+
+    /**
+     * 화면에 보일 태그는 루트 리포지토리가 만든 순서로 읽는다. 이 목록은 애그리거트 안에서만 쓴다.
+     */
+    List<TravelRecordTag> getTags() {
+        return List.copyOf(tags);
     }
 
     private static String normalizeContent(String content) {
