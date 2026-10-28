@@ -59,12 +59,15 @@ public class TravelRecord extends BaseEntity {
     @Embedded
     private TravelPeriod period;
 
-    @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.ALL, orphanRemoval = true)
+    // 사진과 태그 연결은 이 일지와 생명주기가 같은 애그리거트 내부 엔티티다. 그래서 cascade는 여기에만 둔다.
+    // 새 자식은 함께 저장하고(PERSIST), 컬렉션에서 빠지면 지운다(orphanRemoval). 다른 cascade 동작은 쓰지 않는다.
+    // 일지를 지울 때 자식은 DB의 ON DELETE CASCADE(V5, V16)가 지운다. 없으면 Hibernate가 자식마다 DELETE를 낸다.
+    @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.PERSIST, orphanRemoval = true)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @OrderBy("sortOrder ASC")
     private List<RecordMedia> media = new ArrayList<>();
 
-    // 일지를 지울 때 연결은 DB의 ON DELETE CASCADE(V16)가 지운다. 없으면 Hibernate가 연결마다 DELETE를 낸다.
-    @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "travelRecord", cascade = CascadeType.PERSIST, orphanRemoval = true)
     @OnDelete(action = OnDeleteAction.CASCADE)
     private List<TravelRecordTag> tags = new ArrayList<>();
 
