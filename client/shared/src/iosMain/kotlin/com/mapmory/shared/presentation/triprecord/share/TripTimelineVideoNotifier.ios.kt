@@ -7,12 +7,14 @@ import androidx.compose.runtime.remember
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
+import platform.UserNotifications.UNAuthorizationStatusNotDetermined
 import platform.UserNotifications.UNAuthorizationStatusProvisional
 import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNUserNotificationCenter
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
+import com.mapmory.shared.data.settings.isTravelVideoCompletionNotificationEnabled
 
 @Composable
 internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifier =
@@ -22,12 +24,18 @@ private class IosTripTimelineVideoNotifier : TripTimelineVideoNotifier {
     private val center = UNUserNotificationCenter.currentNotificationCenter()
 
     override fun requestPermissionIfNeeded() {
-        center.requestAuthorizationWithOptions(
-            UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
-        ) { _, _ -> }
+        if (!isTravelVideoCompletionNotificationEnabled()) return
+        center.getNotificationSettingsWithCompletionHandler { settings ->
+            if (settings?.authorizationStatus == UNAuthorizationStatusNotDetermined) {
+                center.requestAuthorizationWithOptions(
+                    UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
+                ) { _, _ -> }
+            }
+        }
     }
 
     override fun showProgress(jobId: Long) {
+        if (!isTravelVideoCompletionNotificationEnabled()) return
         clearProgress(jobId)
         val content = UNMutableNotificationContent().apply {
             setTitle("여행 영상 생성 중")
@@ -44,25 +52,28 @@ private class IosTripTimelineVideoNotifier : TripTimelineVideoNotifier {
         center.removePendingNotificationRequestsWithIdentifiers(listOf(identifier))
     }
 
-    override suspend fun showReady(jobId: Long): Boolean = suspendCancellableCoroutine { continuation ->
-        center.getNotificationSettingsWithCompletionHandler { settings ->
-            val authorized = settings?.authorizationStatus == UNAuthorizationStatusAuthorized ||
-                settings?.authorizationStatus == UNAuthorizationStatusProvisional
-            if (!authorized) {
-                continuation.resume(false)
-                return@getNotificationSettingsWithCompletionHandler
-            }
+    override suspend fun showReady(jobId: Long): Boolean {
+        if (!isTravelVideoCompletionNotificationEnabled()) return false
+        return suspendCancellableCoroutine { continuation ->
+            center.getNotificationSettingsWithCompletionHandler { settings ->
+                val authorized = settings?.authorizationStatus == UNAuthorizationStatusAuthorized ||
+                    settings?.authorizationStatus == UNAuthorizationStatusProvisional
+                if (!authorized) {
+                    continuation.resume(false)
+                    return@getNotificationSettingsWithCompletionHandler
+                }
 
-            clearProgress(jobId)
-            val content = UNMutableNotificationContent().apply {
-                setTitle("여행 영상이 준비됐어요")
-                setBody("앱에서 미리 보고 저장하거나 공유해 보세요.")
-                setSound(platform.UserNotifications.UNNotificationSound.defaultSound())
-            }
-            center.addNotificationRequest(
-                UNNotificationRequest.requestWithIdentifier("share-video-$jobId", content, null),
-            ) { error ->
-                if (continuation.isActive) continuation.resume(error == null)
+                clearProgress(jobId)
+                val content = UNMutableNotificationContent().apply {
+                    setTitle("여행 영상이 준비됐어요")
+                    setBody("앱에서 미리 보고 저장하거나 공유해 보세요.")
+                    setSound(platform.UserNotifications.UNNotificationSound.defaultSound())
+                }
+                center.addNotificationRequest(
+                    UNNotificationRequest.requestWithIdentifier("share-video-$jobId", content, null),
+                ) { error ->
+                    if (continuation.isActive) continuation.resume(error == null)
+                }
             }
         }
     }
