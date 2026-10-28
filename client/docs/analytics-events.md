@@ -45,7 +45,8 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 
 | error_category | owner_hint | 의미 |
 | --- | --- | --- |
-| client_logic | mobile | IllegalState/IllegalArgument 계열. 모바일 조사 우선이며 확정 귀책은 아님 |
+| client_logic | mobile | 별도 분류가 없는 IllegalState/IllegalArgument 계열. 모바일 조사 우선이며 확정 귀책은 아님 |
+| media_playback | undetermined | Android/iOS 네이티브 플레이어 오류. 앱·파일·코덱·OS 중 원인을 단정하지 않으며 플랫폼 숫자 코드와 함께 조사 |
 | data_contract | shared_contract | 역직렬화 계약 불일치. 앱/서버 공동 확인 |
 | server | server | HTTP 5xx |
 | authentication | undetermined | HTTP 401/403 |
@@ -97,7 +98,7 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 |---|---|---|
 | `share_media_action` | 다이얼로그 열기/닫기, 생성·재생성·재조회·다운로드 재시도·저장·공유 선택, 이미지 디자인 표시·대표 사진 선택·재시도·내보내기 차단, 네이티브 재생 상태 관측 | `action`, 선택 시 `selection_index` |
 | `share_media_operation_started` | 생성 요청, 다운로드 URL 요청, 파일 다운로드/캐시 확보, 이미지 캡처, 네이티브 미리보기 준비, 사진 앱 저장, 공유 시트 열기, 완료 알림 발행 시작 | `operation` |
-| `share_media_operation_completed` | 위 시도의 반환/예외/취소. 상태 조회는 실패만, 이미지 로딩 실패와 서버 생성 실패도 여기서 구분 | `operation`, `outcome`, 실제 시작을 측정한 경우 `duration_ms` |
+| `share_media_operation_completed` | 측정한 시도의 반환/예외/취소와 아래 실패 전용 관측. 모든 completed에 started가 대응하지 않음 | `operation`, `outcome`, 실제 시작을 측정한 경우 `duration_ms` |
 | `share_video_status_changed` | 같은 앱 컨테이너에서 작업 상태가 달라진 경우와 복원된 작업의 최초 조회 결과 | `status`, `origin`, 종료 상태에서 시작 시각을 아는 경우 `elapsed_ms` |
 | 기존 `app_error` | 생성 요청·서버 렌더링·상태 조회·다운로드 URL·파일·이미지 캡처·미리보기/재생·저장·공유 시트·알림의 실제 오류 | `operation=share_video_*` 또는 `share_image_*`, `feature`, `share_type`, `media_type`, `stage`, 오류 종류/분류/HTTP 상태. 재생 오류에는 숫자 `platform_code`, Android는 `platform_extra_code` 추가 |
 
@@ -113,6 +114,24 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 - `notification_ready/posted`는 알림 발행 요청이 OS에 접수된 경우이며 알림 노출·클릭을 보장하지 않는다. 권한/채널 때문에 발행하지 못하면 `not_posted`로 기록한다.
 - 권한 거절(`permission_denied`), 취소(`cancelled`), 영상 미완료(`not_ready`), 경로 부족(`insufficient_records`)은 실제 앱 오류 `app_error`에 포함하지 않는다. 기존 `photo_display`가 보고하는 이미지 로딩 Exception은 공유 화면에서 다시 `app_error`로 중복 보고하지 않는다.
 - 영상 상태 조회를 포함한 API의 `MapmoryConnectionException`은 네트워크 오류인 `io`로 분류한다. 로거의 Exception은 비즈니스 성공/실패·재시도·상태 저장을 바꾸지 않는다.
+
+### 시작 이벤트 없이 실패만 기록하는 관측
+
+`recordObservedFailure()`는 시작부터 종료까지 측정한 시도가 아니라, 아래 단계에서 관측한 실패를 기록한다. 이 이벤트에는 대응하는 `share_media_operation_started`와 `duration_ms`가 없다. 호출자가 같은 오류의 중복 억제를 담당한다. 취소는 기록하지 않고, 예상된 권한 거절은 `permission_denied` 결과로만 기록하며 `app_error`에서는 제외한다.
+
+| operation | 기록 범위 |
+| --- | --- |
+| `status_check` | 상태 조회 오류 구간별 실패. 정상 폴링은 기록하지 않음 |
+| `generation` | 서버의 생성 실패 상태 관측. 작업 접수의 `create_request` 시도와 구분 |
+| `preview_playback` | 준비 완료 이후 네이티브 재생 오류. 준비 과정의 `preview_load`는 시작/종료를 측정 |
+| `notification_permission` | 권한 요청 API의 예외. 정상 반환은 기록하지 않음 |
+| `notification_progress` | 진행 알림 API의 예외. 정상 반환은 기록하지 않음 |
+| `notification_clear` | 진행 알림 정리 API의 예외. 정상 반환은 기록하지 않음 |
+| `image_load` | 공유 이미지 로딩 실패. 별도 `imageLoadFailed()` 경로이며 실제 예외는 기존 `photo_display`가 보고 |
+
+`notification_ready`는 별도로 시작/종료를 측정하고 `posted/not_posted`를 기록한다. 준비 완료 이후 재생 오류도 `media_playback/undetermined`로 분류하며 `platform_code`와 Android의 `platform_extra_code`를 보존한다.
+
+위 실패 전용 관측은 전체 시도 수를 수집하지 않으므로 성공률·평균 소요 시간을 계산할 수 없다. **모든 operation을 합친 completed/started 비율을 성공률로 쓰지 않는다.** 시도 단위 분석은 시작/종료를 모두 수집하는 동일 operation 안에서 수행하고, 실패 전용 관측은 오류 건수·영향 사용자로 분석한다.
 
 ### 데이터와 출시 확인
 

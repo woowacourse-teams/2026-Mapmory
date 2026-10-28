@@ -2,6 +2,7 @@ package com.mapmory.shared.analytics
 
 import com.mapmory.shared.data.remote.MapmoryConnectionException
 import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.presentation.triprecord.share.ShareVideoPlaybackException
 import kotlinx.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
@@ -30,6 +31,7 @@ internal fun MapmoryAnalytics.reportFailure(
         is MapmoryConnectionException -> "io"
         is SerializationException -> "data_contract"
         is IOException -> "io"
+        is ShareVideoPlaybackException -> "media_playback"
         is IllegalArgumentException, is IllegalStateException -> "client_logic"
         else -> "unknown"
     }

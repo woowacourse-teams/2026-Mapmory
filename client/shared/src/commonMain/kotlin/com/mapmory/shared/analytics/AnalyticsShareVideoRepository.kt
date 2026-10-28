@@ -58,7 +58,7 @@ internal class AnalyticsShareVideoRepository(
             val signature = "${error::class.simpleName}:${(error as? MapmoryApiException)?.statusCode}:${(error as? MapmoryApiException)?.code}"
             if (queryFailures[jobId] == signature) return@withLock
             queryFailures[jobId] = signature
-            telemetry.failure(ShareMediaOperation.STATUS_CHECK, error)
+            telemetry.recordObservedFailure(ShareMediaOperation.STATUS_CHECK, error)
             trim()
         }
     }
@@ -83,7 +83,7 @@ internal class AnalyticsShareVideoRepository(
             }
         })
         if (job.status == ShareVideoStatus.FAILED) {
-            telemetry.failure(ShareMediaOperation.GENERATION, ShareVideoGenerationFailedException())
+            telemetry.recordObservedFailure(ShareMediaOperation.GENERATION, ShareVideoGenerationFailedException())
         }
         trim()
     }

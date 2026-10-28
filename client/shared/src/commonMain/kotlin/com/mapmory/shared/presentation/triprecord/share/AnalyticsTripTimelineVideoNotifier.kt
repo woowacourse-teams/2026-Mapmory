@@ -36,7 +36,7 @@ internal class AnalyticsTripTimelineVideoNotifier(
     }
     private inline fun guard(operation: ShareMediaOperation, block: () -> Unit) {
         try { block() } catch (error: Exception) {
-            telemetry.failure(operation, error)
+            telemetry.recordObservedFailure(operation, error)
             throw error
         }
     }

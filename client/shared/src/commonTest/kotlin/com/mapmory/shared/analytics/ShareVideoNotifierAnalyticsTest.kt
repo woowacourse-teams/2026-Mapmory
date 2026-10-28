@@ -37,4 +37,26 @@ class ShareVideoNotifierAnalyticsTest {
             .filter { it.first == MapmoryAnalyticsEvent.APP_ERROR }.map { it.second["stage"] })
         assertFalse(analytics.events.toString().contains("private"))
     }
+
+    @Test fun `permission progress and cleanup record only observed failures without attempts`() {
+        val analytics = RecordingAnalytics()
+        val delegate = Notifier()
+        val notifier = AnalyticsTripTimelineVideoNotifier(delegate, ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE))
+        notifier.requestPermissionIfNeeded()
+        notifier.showProgress(1)
+        notifier.clearProgress(1)
+        assertTrue(analytics.events.isEmpty(), "Successful observations have no denominator events")
+
+        val error = IllegalStateException("private platform description")
+        delegate.error = error
+        assertSame(error, assertFailsWith<IllegalStateException> { notifier.requestPermissionIfNeeded() })
+        assertSame(error, assertFailsWith<IllegalStateException> { notifier.showProgress(1) })
+        assertSame(error, assertFailsWith<IllegalStateException> { notifier.clearProgress(1) })
+        assertTrue(analytics.events.none { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_STARTED })
+        val failures = analytics.events.filter { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED }
+        assertEquals(listOf("notification_permission", "notification_progress", "notification_clear"), failures.map { it.second["operation"] })
+        assertTrue(failures.all { it.second["outcome"] == "failure" && "duration_ms" !in it.second })
+        assertEquals(3, analytics.events.count { it.first == MapmoryAnalyticsEvent.APP_ERROR })
+        assertFalse(analytics.events.toString().contains("private"))
+    }
 }

@@ -88,6 +88,15 @@ class ShareMediaAnalyticsTest {
         assertEquals(listOf("preview_started", "preview_completed", "preview_started", "preview_paused"), actions)
         assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.APP_ERROR })
         assertEquals("100", analytics.events.single { it.first == MapmoryAnalyticsEvent.APP_ERROR }.second["platform_code"])
+        val playbackError = analytics.events.single { it.first == MapmoryAnalyticsEvent.APP_ERROR }.second
+        assertEquals("media_playback", playbackError["error_category"])
+        assertEquals("undetermined", playbackError["owner_hint"])
+        assertEquals("-1", playbackError["platform_extra_code"])
+        val playbackEvents = analytics.events.filter { it.second["operation"] == "preview_playback" }
+        assertTrue(playbackEvents.none { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_STARTED })
+        val playbackFailure = playbackEvents.single { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED }.second
+        assertEquals("failure", playbackFailure["outcome"])
+        assertFalse("duration_ms" in playbackFailure)
         assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED && it.second["operation"] == "preview_load" })
     }
 

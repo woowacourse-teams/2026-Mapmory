@@ -86,8 +86,13 @@ internal class ShareMediaAnalytics(
         return result
     }
 
-    /** Used once per status-query error episode; successful polls emit no operation events. */
-    fun failure(operation: ShareMediaOperation, error: Throwable) {
+    /**
+     * Record an observed failure without a measured attempt (no started event or duration).
+     * Used for status-query error episodes, server generation, playback after readiness,
+     * and notification permission/progress/clear failures. Successful observations are silent;
+     * callers own any deduplication. Use start/observe when measuring a whole attempt.
+     */
+    fun recordObservedFailure(operation: ShareMediaOperation, error: Throwable) {
         if (error is CancellationException) return
         analytics.emit(MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED, context + mapOf(
             "operation" to operation.name.lowercase(), "outcome" to shareMediaOutcome(error),
@@ -150,7 +155,7 @@ internal class ShareVideoPreviewAnalytics(analytics: MapmoryAnalytics) {
     fun failed(error: Throwable) {
         if (disposed || failed) return
         failed = true; opened()
-        if (ready) telemetry.failure(ShareMediaOperation.PREVIEW_PLAYBACK, error) else loading?.failed(error)
+        if (ready) telemetry.recordObservedFailure(ShareMediaOperation.PREVIEW_PLAYBACK, error) else loading?.failed(error)
     }
     fun closed() {
         disposed = true
