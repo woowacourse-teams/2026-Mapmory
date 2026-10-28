@@ -185,13 +185,16 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
     void 탈퇴한_회원의_남은_access_token으로_기록_업로드_공유_영상을_만들면_401_INACTIVE_MEMBER다() throws Exception {
         String accessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
         withdraw(accessToken).andExpect(status().isNoContent());
+        // 사진 검사와 S3 확인을 지나야 회원 확인까지 간다.
+        willReturn(true).given(uploadedObjectChecker).exists(anyString());
+        String photoKey = photoKeyOfLatestMember("tokyo.jpg");
 
         mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"countryCode":"JP","title":"도쿄","content":"","startDate":"2026-08-11","objectKeys":[]}
-                                """))
+                                {"countryCode":"JP","title":"도쿄","content":"","startDate":"2026-08-11","objectKeys":["%s"]}
+                                """.formatted(photoKey)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         mockMvc.perform(post("/api/v1/uploads/presigned-urls")
