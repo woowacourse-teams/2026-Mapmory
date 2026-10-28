@@ -1,5 +1,6 @@
 package com.mapmory.backend.upload.controller;
 
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,6 +11,7 @@ import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.handler.BusinessExceptionHandler;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.service.UploadService;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
@@ -54,7 +56,8 @@ class UploadControllerTest {
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 100),
                 new S3ObjectKeyGenerator(storageProperties),
-                new FakePresignedUrlProvider()
+                new FakePresignedUrlProvider(),
+                mock(ActiveMemberGuard.class)
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 
