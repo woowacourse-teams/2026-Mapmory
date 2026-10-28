@@ -52,7 +52,7 @@ public class Album extends BaseEntity {
     private Long openerMemberId;
 
     // 항목은 이 앨범과 생명주기가 같은 애그리거트 내부 엔티티다. 새 항목은 함께 저장하고(PERSIST), 빠지면 지운다(orphanRemoval).
-    // 앨범 삭제는 아직 없다. 생기면 album_entry FK에 ON DELETE CASCADE를 더하고 @OnDelete로 맡긴다(ADR 0017 cascade 규칙).
+    // 빈 앨범만 지우므로(ADR 0022 2026-10-29 보완) 지울 때 남은 항목이 없다.
     @OneToMany(mappedBy = "album", cascade = CascadeType.PERSIST, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<AlbumEntry> entries = new ArrayList<>();
@@ -127,6 +127,20 @@ public class Album extends BaseEntity {
      */
     public boolean removeEntriesOf(Long travelRecordId) {
         return entries.removeIf(entry -> entry.getTravelRecordId().equals(travelRecordId));
+    }
+
+    /**
+     * 그룹을 나간 멤버의 항목을 뗀다. 앨범을 연 사람이 나가고 항목이 남으면 가장 먼저 담은 멤버가 연 사람이 된다.
+     *
+     * @return 뗀 항목이 있으면 true
+     */
+    public boolean removeEntriesBy(Long memberId) {
+        boolean removed = entries.removeIf(entry -> entry.getMemberId().equals(memberId));
+        // 항목은 담은 순서다(@OrderBy id). 저장 전 항목은 id가 없어 목록 순서로 고른다.
+        if (openerMemberId.equals(memberId) && !entries.isEmpty()) {
+            openerMemberId = entries.getFirst().getMemberId();
+        }
+        return removed;
     }
 
     /**

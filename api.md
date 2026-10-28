@@ -1487,9 +1487,11 @@ Authorization: Bearer {accessToken}
 
 `DELETE /api/v1/groups/{groupId}/members/me`
 
-- 내가 담은 앨범 항목이 모두 내려간다. 기록은 남는다.
+- 내가 담은 앨범 항목이 모두 내려간다. 기록은 남는다. 항목이 없어진 앨범은 지운다.
+- 내가 연 앨범에 다른 멤버의 항목이 남으면 가장 먼저 담은 멤버가 연 사람이 된다.
 - 방장이 나가면 가장 먼저 들어온 멤버가 방장이 된다.
 - 마지막 멤버가 나가면 그룹과 앨범, 초대를 지운다.
+- 멤버가 아니거나 그룹이 없으면 `404 GROUP_NOT_FOUND`다.
 
 #### Response `204 No Content`
 

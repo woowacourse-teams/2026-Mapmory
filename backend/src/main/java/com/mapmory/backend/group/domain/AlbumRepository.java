@@ -62,6 +62,18 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
     List<Album> findAllByGroupIdContainingRecord(@Param("groupId") Long groupId,
                                                  @Param("travelRecordId") Long travelRecordId);
 
+    // 그룹을 나갈 때 그 멤버의 항목이 있는 앨범들. 그룹 잠금 뒤에 부른다. 연 사람을 넘기고 비었는지 보려고 항목을 모두 읽는다.
+    @Query("""
+        SELECT DISTINCT a FROM Album a
+        LEFT JOIN FETCH a.entries
+        WHERE a.groupId = :groupId
+          AND EXISTS (SELECT 1 FROM AlbumEntry e WHERE e.album = a AND e.memberId = :memberId)
+    """)
+    List<Album> findAllByGroupIdContainingMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // 그룹을 지울 때 남은 앨범들. 마지막 멤버의 항목을 뗀 뒤라 보통 비어 있다.
+    List<Album> findAllByGroupId(Long groupId);
+
     // 순서는 정하지 않는다. 부르는 쪽이 findIdsByGroupIdOrderByLastAdded의 순서로 맞춘다.
     @Query("""
         SELECT DISTINCT a FROM Album a
