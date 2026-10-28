@@ -1,6 +1,7 @@
 package com.mapmory.shared.data.remote
 
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -32,7 +33,11 @@ class ShareVideoRemoteRepositoryTest {
                     assertEquals(expected.third, request.url.encodedPath)
                     if (expected.third.endsWith("travel-timeline")) {
                         assertEquals("POST", request.method.value)
-                        assertEquals(0L, request.body.contentLength)
+                        assertEquals(ContentType.Application.Json, request.body.contentType)
+                        assertEquals(
+                            """{"styleId":"ZOOM"}""",
+                            assertIs<io.ktor.http.content.TextContent>(request.body).text,
+                        )
                     } else {
                         assertEquals("GET", request.method.value)
                     }
@@ -50,7 +55,7 @@ class ShareVideoRemoteRepositoryTest {
             accessTokenProvider = AccessTokenProvider { "guest-token" },
         )
 
-        assertEquals(15L, repository.createTravelTimeline().getOrThrow().jobId)
+        assertEquals(15L, repository.createTravelTimeline(ShareVideoStyle.ZOOM).getOrThrow().jobId)
         assertEquals(ShareVideoStatus.RENDERING, repository.getJob(15).getOrThrow().status)
         assertEquals(ShareVideoStatus.COMPLETED, repository.getJob(15).getOrThrow().status)
         val download = repository.getDownloadUrl(15).getOrThrow()

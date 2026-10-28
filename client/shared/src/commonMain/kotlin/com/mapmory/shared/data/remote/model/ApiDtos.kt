@@ -37,6 +37,11 @@ data class ShareVideoJobDto(
 )
 
 @Serializable
+data class CreateShareVideoRequestDto(
+    val styleId: String,
+)
+
+@Serializable
 data class ShareVideoDownloadDto(
     val jobId: Long,
     val downloadUrl: String,

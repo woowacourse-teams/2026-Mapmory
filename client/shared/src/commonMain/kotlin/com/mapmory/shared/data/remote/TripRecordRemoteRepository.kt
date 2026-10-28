@@ -12,6 +12,7 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import io.ktor.client.HttpClient
@@ -47,6 +48,9 @@ class TripRecordRemoteRepository(
                 region?.provinceCode?.let { parameter("provinceCode", it) }
                 region?.districtCode?.let { parameter("districtCode", it) }
                 query.tagId?.let { parameter("tagId", it) }
+                if (query.sort == TripRecordSort.TRAVEL_DATE_DESC) {
+                    parameter("orderBy", query.sort.name)
+                }
                 parameter("page", query.page)
                 parameter("size", query.size)
             }.requireSuccess()

@@ -1,16 +1,21 @@
 package com.mapmory.shared.data.remote
 
 import com.mapmory.shared.data.remote.model.ApiResponseDto
+import com.mapmory.shared.data.remote.model.CreateShareVideoRequestDto
 import com.mapmory.shared.data.remote.model.ShareVideoDownloadDto
 import com.mapmory.shared.data.remote.model.ShareVideoJobDto
 import com.mapmory.shared.domain.model.ShareVideoDownload
 import com.mapmory.shared.domain.model.ShareVideoJob
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 
 class ShareVideoRemoteRepository(
     private val client: HttpClient,
@@ -19,9 +24,11 @@ class ShareVideoRemoteRepository(
 ) : ShareVideoRepository {
     private val shareVideosUrl = "${apiBaseUrl.trimEnd('/')}/share-videos"
 
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> = apiCall {
+    override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> = apiCall {
         client.post("$shareVideosUrl/travel-timeline") {
             authorizeWith(accessTokenProvider)
+            contentType(ContentType.Application.Json)
+            setBody(CreateShareVideoRequestDto(style.name))
         }.requireSuccess()
             .body<ApiResponseDto<ShareVideoJobDto>>()
             .data

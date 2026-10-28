@@ -21,6 +21,7 @@ import com.mapmory.shared.domain.model.ServiceFeedbackPlatform
 import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
 import com.mapmory.shared.domain.model.ShareVideoDownload
 import com.mapmory.shared.domain.model.ShareVideoJob
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 
 internal class AuthenticatedTripRecordRepository(
@@ -125,8 +126,8 @@ internal class AuthenticatedShareVideoRepository(
     private val session: GuestSessionManager,
     private val delegate: ShareVideoRepository,
 ) : ShareVideoRepository {
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> =
-        withAuthenticatedSession(delegate::createTravelTimeline)
+    override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> =
+        withAuthenticatedSession { delegate.createTravelTimeline(style) }
 
     override suspend fun getJob(jobId: Long): Result<ShareVideoJob> =
         withAuthenticatedSession { delegate.getJob(jobId) }

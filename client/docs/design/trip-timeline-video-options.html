@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapmory · 여행 타임라인 영상 UX 대안</title>
+  <style>
+    :root {
+      --canvas: #f2f5f3;
+      --surface: #fafcfb;
+      --raised: #ffffff;
+      --line: #e4e9e6;
+      --text: #1f2924;
+      --body: #5f6e66;
+      --muted: #89948e;
+      --green: #4d9272;
+      --green-soft: #e9f2ed;
+      --video: #111518;
+      --font: "LINE Seed Sans KR", Pretendard, "Apple SD Gothic Neo", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      padding: 32px;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: var(--font);
+    }
+    .page { max-width: 1360px; margin: 0 auto; }
+    .eyebrow { color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+    h1 { margin: 10px 0 8px; font-size: 30px; letter-spacing: -.04em; }
+    .intro { margin: 0; max-width: 780px; color: var(--body); font-size: 15px; line-height: 1.7; }
+    .shared-state {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin: 24px 0 28px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+    }
+    .shared-state strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .shared-state p { margin: 0; color: var(--body); font-size: 13px; line-height: 1.6; }
+    .height-pill { flex: 0 0 auto; padding: 10px 14px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 13px; font-weight: 800; }
+    .options { display: grid; grid-template-columns: repeat(3, minmax(300px, 390px)); gap: 20px; align-items: start; }
+    .option { min-width: 0; }
+    .option-head { min-height: 90px; padding: 0 2px 12px; }
+    .option-title { display: flex; align-items: center; gap: 8px; margin: 0 0 7px; font-size: 17px; }
+    .tag { padding: 4px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 800; }
+    .option-head p { margin: 0; color: var(--body); font-size: 12px; line-height: 1.55; }
+    .screen {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 844px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .topbar { display: flex; align-items: center; gap: 12px; height: 64px; flex: 0 0 auto; padding: 0 18px; border-bottom: 1px solid var(--line); }
+    .back { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--text); font-size: 20px; }
+    .top-title { flex: 1; font-size: 15px; font-weight: 700; }
+    .subtle-action { color: var(--green); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .video-frame {
+      position: relative;
+      display: grid;
+      flex: 1 1 auto;
+      min-height: 0;
+      place-items: center;
+      overflow: hidden;
+      background: var(--video);
+      color: white;
+    }
+    .video-frame::before, .video-frame::after { position: absolute; content: ""; background: #27312d; }
+    .video-frame::before { width: 1px; height: 76%; left: 50%; top: 12%; opacity: .5; }
+    .video-frame::after { height: 1px; width: 78%; left: 11%; top: 51%; opacity: .45; }
+    .video-placeholder { z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; color: #d7e0db; font-size: 12px; }
+    .play { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; background: rgba(255,255,255,.12); font-size: 21px; }
+    .frame-caption { position: absolute; z-index: 1; left: 18px; bottom: 18px; color: #f5faf7; font-size: 12px; }
+    .video-meta { padding: 14px 18px 4px; }
+    .meta-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .meta-title { font-size: 14px; font-weight: 700; }
+    .meta-small { color: var(--muted); font-size: 11px; }
+    .style-pill { padding: 7px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 700; }
+    .timeline { display: flex; align-items: center; gap: 10px; padding: 10px 18px 12px; color: var(--muted); font-size: 11px; }
+    .track { height: 3px; flex: 1; border-radius: 4px; background: var(--line); }
+    .track::before { display: block; width: 34%; height: 3px; border-radius: 4px; background: var(--green); content: ""; }
+    .dock { display: flex; gap: 10px; padding: 14px 16px 22px; border-top: 1px solid var(--line); background: var(--surface); }
+    .button { display: grid; min-height: 48px; flex: 1; place-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); color: var(--text); font-size: 13px; font-weight: 700; }
+    .button.primary { border-color: var(--green); background: var(--green); color: white; }
+    .screen-b { position: relative; background: #e7ece9; }
+    .ghost-content { padding: 20px; color: #819087; }
+    .ghost-heading { margin: 12px 0 16px; font-size: 20px; font-weight: 800; }
+    .ghost-card { height: 115px; margin-bottom: 12px; border: 1px solid rgba(95,110,102,.12); border-radius: 18px; background: rgba(255,255,255,.62); }
+    .scrim { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(20,31,25,.38); }
+    .dialog { display: flex; width: 100%; max-height: 620px; flex-direction: column; overflow: hidden; border-radius: 26px; background: var(--surface); box-shadow: 0 16px 48px rgba(20,31,25,.18); }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 10px; }
+    .dialog-head strong { font-size: 16px; }
+    .dialog-head span { color: var(--muted); font-size: 12px; }
+    .dialog .video-frame { flex: 0 0 205px; margin: 0 14px; border-radius: 18px; }
+    .compact-meta { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 4px; }
+    .style-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; padding: 8px 16px 12px; }
+    .style-choice { padding: 10px 6px; border: 1px solid var(--line); border-radius: 11px; color: var(--body); text-align: center; font-size: 10px; }
+    .style-choice.selected { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 800; }
+    .regenerate { display: grid; min-height: 48px; margin: 0 14px 10px; place-items: center; border: 1px solid var(--line); border-radius: 14px; color: var(--green); font-size: 11px; font-weight: 700; }
+    .dialog .dock { padding: 0 14px 16px; border: 0; }
+    .dialog .button { min-height: 44px; font-size: 11px; }
+    .screen-c .video-frame { flex: 0 0 235px; margin: 20px 18px 0; border-radius: 20px; }
+    .expand-link { display: flex; align-items: center; justify-content: space-between; margin: 12px 18px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; color: var(--body); font-size: 12px; }
+    .expand-link strong { color: var(--green); }
+    .screen-c .video-meta { padding-top: 18px; }
+    .screen-c .dock { margin-top: auto; }
+    .tradeoff { min-height: 61px; margin: 10px 2px 0; color: var(--body); font-size: 12px; line-height: 1.6; }
+    .note { margin-top: 28px; padding: 16px 18px; border-left: 3px solid var(--green); background: var(--surface); color: var(--body); font-size: 12px; line-height: 1.7; }
+    @media (max-width: 1040px) {
+      body { padding: 22px; }
+      .options { grid-template-columns: repeat(2, minmax(300px, 390px)); }
+    }
+    @media (max-width: 680px) {
+      body { padding: 18px; }
+      h1 { font-size: 25px; }
+      .shared-state { align-items: flex-start; flex-direction: column; gap: 10px; }
+      .options { grid-template-columns: minmax(0, 390px); }
+      .option-head { min-height: 0; padding-bottom: 12px; }
+      .screen { height: 780px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="eyebrow">MAPMORY · VIDEO UX</div>
+    <h1>여행 타임라인 영상을 스크롤 없이 보는 세 가지 방법</h1>
+    <p class="intro">기록의 장소와 사진이 먼저 보이고, 만든 영상을 바로 재생·저장·공유할 수 있게 구성했습니다. 실제 기기 프레임이나 임의 여행 사진은 넣지 않고, 앱의 기본 라이트 팔레트와 영상 플레이어 영역만 표현한 와이어프레임입니다.</p>
+
+    <section class="shared-state" aria-label="공통 변경 사항">
+      <div class="height-pill">생성 전 높이 44%</div>
+      <div>
+        <strong>공통으로 반영하는 부분</strong>
+        <p>생성 전에는 스타일 선택과 만들기 버튼만 있는 작은 팝업으로 시작합니다. 사진 앱 저장이 끝나면 액션 버튼 위에 잠시 “동영상을 사진 앱에 저장했어요.” 알림을 띄우고, 실패 문구는 그대로 복구 가능하게 둡니다.</p>
+      </div>
+    </section>
+
+    <section class="options" aria-label="영상 완료 후 UI 대안">
+      <article class="option">
+        <header class="option-head">
+          <h2 class="option-title">A. 영상 집중형 <span class="tag">추천</span></h2>
+          <p>완료 후 플레이어 화면으로 전환하고, 저장·공유는 하단에 고정합니다.</p>
+        </header>
+        <div class="screen">
+          <div class="topbar"><span class="back">‹</span><span class="top-title">여행 타임라인</span><span class="subtle-action">닫기</span></div>
+          <div class="video-frame">
+            <div class="video-placeholder"><span class="play">▶</span><span>여행 영상 미리보기</span></div>
+            <span class="frame-caption">완성된 영상 · 선택한 스타일</span>
+          </div>
+          <div class="video-meta">
+            <div class="meta-row"><span class="meta-title">여행 타임라인 영상</span><span class="style-pill">현재 버전</span></div>
+            <div class="meta-small" style="margin-top:6px">스타일 변경 · 새 영상으로 다시 만들기</div>
+          </div>
+          <div class="timeline"><span>0:04</span><span class="track"></span><span>0:18</span></div>
+          <div class="dock"><div class="button">사진 앱에 저장</div><div class="button primary">공유하기</div></div>
+        </div>
+        <p class="tradeoff"><strong>장점</strong> 영상과 두 가지 핵심 행동이 한눈에 보입니다. <strong>유의점</strong> 기존 다이얼로그보다 화면 전환이 커집니다.</p>
+      </article>
+
+      <article class="option">
+        <header class="option-head">
+          <h2 class="option-title">B. 다이얼로그 완결형 <span class="tag">선택됨</span></h2>
+          <p>현재 흐름을 유지하되 영상 크기와 옵션을 줄여 한 화면에서 끝냅니다.</p>
+        </header>
+        <div class="screen screen-b">
+          <div class="topbar"><span class="back">‹</span><span class="top-title">내 여행 기록</span><span class="subtle-action">•••</span></div>
+          <div class="ghost-content"><div class="ghost-heading">이번 여행의 순간</div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div></div>
+          <div class="scrim">
+            <div class="dialog">
+              <div class="dialog-head"><strong>여행 타임라인 영상</strong><span>닫기</span></div>
+              <div class="video-frame"><div class="video-placeholder"><span class="play">▶</span><span>영상 미리보기</span></div></div>
+              <div class="compact-meta"><span class="meta-title">스타일</span><span class="meta-small">하나씩 선택해 다시 만들기</span></div>
+              <div class="style-grid"><div class="style-choice selected">현재 버전</div><div class="style-choice">확대 지구본</div><div class="style-choice">우주 배경</div><div class="style-choice">지평선 지구본</div></div>
+              <div class="dock"><div class="button">저장</div><div class="button primary">공유하기</div></div>
+              <div class="regenerate">선택한 스타일로 다시 만들기</div>
+            </div>
+          </div>
+        </div>
+        <p class="tradeoff"><strong>장점</strong> 여행 기록 맥락을 놓치지 않습니다. <strong>유의점</strong> 세 안 중 영상 영역이 가장 작아 긴 영상 감상에는 덜 적합합니다.</p>
+      </article>
+
+      <article class="option">
+        <header class="option-head">
+          <h2 class="option-title">C. 작은 미리보기 → 크게 보기</h2>
+          <p>다이얼로그에는 대표 프레임만 두고, 탭하면 전용 플레이어로 확장합니다.</p>
+        </header>
+        <div class="screen screen-c">
+          <div class="topbar"><span class="back">‹</span><span class="top-title">여행 기록</span><span class="subtle-action">닫기</span></div>
+          <div class="video-frame"><div class="video-placeholder"><span class="play">▶</span><span>짧은 영상 미리보기</span></div><span class="frame-caption">0:18</span></div>
+          <div class="expand-link"><span>화면을 넓혀서 영상 보기</span><strong>크게 보기&nbsp; ↗</strong></div>
+          <div class="video-meta">
+            <div class="meta-row"><span class="meta-title">여행 타임라인</span><span class="style-pill">현재 버전</span></div>
+            <div class="meta-small" style="margin-top:6px">선택한 스타일로 생성됨</div>
+          </div>
+          <div class="dock"><div class="button">사진 앱에 저장</div><div class="button primary">공유하기</div></div>
+        </div>
+        <p class="tradeoff"><strong>장점</strong> 다이얼로그는 가볍고, 감상할 때만 넓은 화면을 씁니다. <strong>유의점</strong> 크게 보기 동작을 한 번 더 눌러야 합니다.</p>
+      </article>
+    </section>
+
+    <p class="note"><strong>기능 제약</strong> 현재 API는 한 번의 생성 작업에서 선택한 스타일 영상 하나를 만듭니다. 따라서 세 안 모두 4개 영상을 동시에 나열하지 않으며, 다른 스타일은 선택 후 다시 생성하는 흐름으로 표현했습니다. 다운로드 성공 알림과 생성 전 컴팩트 팝업은 세 레이아웃에 공통 적용할 수 있습니다.</p>
+  </main>
+</body>
+</html>

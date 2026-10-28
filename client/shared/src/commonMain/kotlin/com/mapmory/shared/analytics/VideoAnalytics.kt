@@ -2,6 +2,7 @@ package com.mapmory.shared.analytics
 
 import com.mapmory.shared.domain.model.ShareVideoJob
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -31,9 +32,9 @@ internal class AnalyticsShareVideoRepository(
     private val mutex = Mutex()
     private val reportedJobs = mutableSetOf<Long>()
 
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> {
+    override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> {
         val job = try {
-            analytics.videoAction("create_request") { delegate.createTravelTimeline().getOrThrow() }
+            analytics.videoAction("create_request") { delegate.createTravelTimeline(style).getOrThrow() }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
