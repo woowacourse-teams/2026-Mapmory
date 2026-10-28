@@ -434,3 +434,41 @@ delete from travel_record where id=?                          -- 연결은 DB가
 
 - 기록당 태그 상한이 크게 늘 때(행 단위 DELETE가 상한만큼 늘어난다)
 - 태그를 한꺼번에 바꾸는 기능(일괄 태그 교체 등)이 생길 때
+
+## 2026-10-28 보완: cascade는 애그리거트 내부 자식에만, 필요한 만큼만 건다
+
+`TravelRecord`의 두 자식 컬렉션(`media`, `tags`)이 `CascadeType.ALL`이었다. 쓰는 동작은 "새 자식을 함께 저장한다"와
+"컬렉션에서 빠지면 지운다" 둘뿐인데, ALL은 MERGE·REFRESH·DETACH까지 건다. 그래서 다음처럼 좁힌다.
+
+```java
+@OneToMany(mappedBy = "travelRecord", cascade = CascadeType.PERSIST, orphanRemoval = true)
+@OnDelete(action = OnDeleteAction.CASCADE)
+```
+
+`media`에도 `@OnDelete`를 붙인다. 2026-09-01 보완은 일지 삭제가 미디어마다 DELETE를 내는 것(N+2문장)을
+결정 1의 대가로 수용했다. 그 뒤 태그 연결에서 `@OnDelete`로 이 비용을 DB의 `ON DELETE CASCADE`에 넘길 수 있음을 확인했으므로
+미디어도 같게 맞춘다. 9월 보완이 "안전망으로 남는다"고 한 `record_media`의 `ON DELETE CASCADE`(V5)가 이제 실제 삭제를 맡는다.
+
+### 실측
+
+리포지토리 단위로 flush까지 나가는 SQL을 셌다(측정 방법은 앞 보완과 같다). 사진 3장·태그 3개인 일지다.
+
+| 경우 | 이전 (`ALL`, 미디어에 `@OnDelete` 없음) | 이후 |
+|---|---|---|
+| 삭제 | 6 (자식 조회 2 + 미디어 DELETE 3 + 일지 DELETE 1) | **3** (자식 조회 2 + 일지 DELETE 1) |
+| 수정, 사진·태그 1개씩 교체 | 9 | 9 |
+
+수정은 그대로다. 새 자식 저장과 빠진 자식 삭제는 `PERSIST`와 `orphanRemoval`로 충분하다. 삭제 뒤 남은 미디어와 연결이 0행인 것도 확인했다.
+자식 조회 2문장은 남는다. Hibernate가 `orphanRemoval` 컬렉션을 정리하려고 읽기 때문이다.
+
+### cascade 규칙
+
+1. **애그리거트 내부 자식에만 건다.** 다른 애그리거트 루트(`Member`, `Region`, `Tag`)로 가는 연관에는 걸지 않는다.
+2. **필요한 동작만 건다.** 기본은 `PERSIST` + `orphanRemoval`이다. `ALL`을 습관으로 쓰지 않는다.
+3. **부모 삭제는 `@OnDelete`로 DB에 맡긴다.** 자식 테이블에 `ON DELETE CASCADE`가 있어야 한다.
+4. **소유 관계나 cascade를 바꾸면 삭제 경로까지 SQL 수를 잰다.** (2026-09-01 보완의 교훈)
+
+자식 리포지토리로 자식을 직접 저장하는 방식은 쓰지 않는다. 루트를 거치지 않는 쓰기 통로가 생겨 규칙이 애그리거트 밖으로 샌다.
+`TravelRecordTagRepository`가 그랬다(2026-10-28 앞 보완).
+
+`group`의 `TravelGroup`, `Album`도 `CascadeType.ALL`이다. 이 보완은 `travelrecord`에만 적용하고, `group`은 따로 본다.
