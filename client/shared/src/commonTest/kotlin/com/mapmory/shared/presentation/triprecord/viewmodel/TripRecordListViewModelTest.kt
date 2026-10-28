@@ -1,12 +1,15 @@
 package com.mapmory.shared.presentation.triprecord.viewmodel
 
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
+import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
@@ -25,6 +28,35 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
+    @Test
+    fun `지역_기록_목록에_진입하면_선택_지역명을_제공한다`() = runBlocking {
+        val location = Location(
+            id = 49L,
+            countryId = 1L,
+            parentId = null,
+            regionCode = "KR-49",
+            name = "제주특별자치도",
+            type = LocationType.PROVINCE,
+        )
+        val regionCatalog = object : RegionCatalog {
+            override val locations = listOf(location)
+
+            override fun findDistrict(provinceCode: String, districtCode: String): Location? = null
+        }
+        val repository = FakeTripRecordRepository { "2026-10-28T00:00:00Z" }
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+            regionCatalog = regionCatalog,
+        )
+
+        assertEquals(null, viewModel.selectedLocationName)
+        viewModel.initialize(location.id)
+
+        assertEquals(location.id, viewModel.query.locationId)
+        assertEquals(location.name, viewModel.selectedLocationName)
+    }
+
     @Test
     fun `태그와_서버를_기다리기_전에_로컬_기록을_표시하고_실패해도_유지한다`() = runBlocking {
         val gate = CompletableDeferred<Unit>()

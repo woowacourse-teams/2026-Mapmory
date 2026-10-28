@@ -114,7 +114,9 @@ internal fun MapmoryNavHost(
                 onRetryPendingSave = container.backgroundTripRecordSaver::retry,
                 onDismissPendingSave = container.backgroundTripRecordSaver::dismissFailure,
                 onOpenMap = navigator::navigateToMap,
-                onOpenEditor = { navigator.navigateToEditor() },
+                onOpenEditor = {
+                    navigator.navigateToEditor(selectedLocationId = requestedLocationId)
+                },
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
                 onOpenSettings = navigator::navigateToSettings,
