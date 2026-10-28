@@ -1,8 +1,12 @@
-// The #tech section (Sprint 3 "기술 소개", 2026-10-27, 티온's approved sketch v8): one phone pinned in a sticky stage,
-// two steps. Step 1 (사진 찾기) keeps the phone on the left, step 2 (지도 모으기) on the right; it slides only between
-// steps. Each scene shows a wobbling hand-written step label and one title, and the phone screen has one thing to touch
-// (untried elements glow, with a one-line hand-written hint). No small explanatory text under the titles (티온, 10-23).
-// Copy rules from AGENTS.md apply: `3만 장도 30초` keeps its footnote (the team test phone's measurement).
+// The #tech section (Sprint 3 "기술 소개", 2026-10-27, 티온's approved sketch v8; 10-28 scroll-driven): one phone pinned
+// in a sticky stage, two steps. Step 1 (사진 찾기) keeps the phone on the left, step 2 (지도 모으기) on the right; it
+// slides only between steps. Each scene shows a wobbling hand-written step label and one title. No small explanatory
+// text under the titles (티온, 10-23). Copy rules from AGENTS.md apply: `3만 장도 30초` keeps its footnote.
+//
+// 10-28 (티온: visitors flick through without reading): every scene's one visual change is driven by the scroll
+// position, not by timers or taps. A fast scroll shows the story in fast-forward; a stop shows a readable still. Taps
+// stay as optional extras. The last two scenes are one continuous trip: the globe leaves the phone, flies through the
+// recorded places in date order at the speed of the scroll, and goes back into the phone as the video to share.
 
 export const TECH_COPY = Object.freeze({
   eyebrow: "기술 소개",
@@ -22,19 +26,18 @@ export const TECH_STEPS = Object.freeze([
   { key: "map", label: "지도 모으기", side: "right" },
 ]);
 
-// scene_index for analytics is the position here + 1 (1-6). `hint` is the hand-written line on the phone screen;
-// `hintTouch` replaces it on devices without hover. Phones (10-27 mobile pass): text in the phone is 13px or larger,
-// everything to tap is about 44px or larger, and a first-time visitor sees one thing to do per screen. A \u00a0 keeps
-// a phrase on one line where a 360px phone would split it.
+// scene_index for analytics is the position here + 1 (1-6). `interaction` names the optional tap each scene still
+// answers to. `trip` marks the scene whose scroll room is long (the globe's trip plays through it). A   keeps a
+// phrase on one line where a 360px phone would split it.
 export const TECH_SCENES = Object.freeze([
-  { step: "find", title: "사진마다 찍은 곳이 담겨 있어요", hint: "사진에 올려 보세요", hintTouch: "사진을 눌러 보세요", interaction: "flip" },
+  { step: "find", title: "사진마다 찍은 곳이 담겨 있어요", interaction: "flip" },
   // "누른 곳": the place of the photo you press, in the hint's own verb (cold readers asked how a place gets "chosen")
-  { step: "find", title: "3만 장도 30초면 누른\u00a0곳 사진만 모여요", footnote: true, hint: "아무 사진이나 눌러 보세요", interaction: "gather" },
+  { step: "find", title: "3만 장도 30초면 누른 곳 사진만 모여요", footnote: true, interaction: "gather" },
   // the safety line (brief C): the UT sessions asked where the photos go; only the picked ones are uploaded
-  { step: "find", title: "고른 사진만 앱에 올라가고 나머지는 폰에 남아요", hint: "사진을 골라 기록해 보세요", interaction: "save" },
-  { step: "map", title: "다녀온 곳이 지도에 칠해져요", hint: "지도를 눌러 보세요", interaction: "map_toggle" },
-  { step: "map", title: "모은 기록을 3D 지구본에서 돌려 봐요", hint: "끌어서 돌려 보세요", hintTouch: "손가락으로 돌려 보세요", interaction: "globe_drag" },
-  { step: "map", title: "다녀온 곳을 타임라인\u00a0영상으로 공유해요", hint: "연도를 눌러 보세요", interaction: "year_pick", share: true },
+  { step: "find", title: "고른 사진만 앱에 올라가고 나머지는 폰에 남아요", interaction: "save" },
+  { step: "map", title: "다녀온 곳이 지도에 칠해져요", interaction: "map_toggle" },
+  { step: "map", title: "모은 기록을 3D 지구본에서 돌려 봐요", interaction: "globe_drag", trip: true },
+  { step: "map", title: "다녀온 곳을 타임라인 영상으로 공유해요", interaction: "year_pick", share: true },
 ]);
 
 // The share scene (the app's timeline video, app PR #436). Change it here, nothing else needs to move:
@@ -43,10 +46,11 @@ export const TECH_SCENES = Object.freeze([
 //   are about 6px at phone-mockup size) and point `sources`/`poster` at the new files in public/assets/tech/.
 //   For a still image instead: { type: "image", src, alt }.
 //   `years` are the year buttons drawn under the video and the second each year starts in it (the same in all four
-//   captures); a button seeks there, and the playing year lights up.
-//   `media: null` falls back to the drawn preview, which flies through `stops` (example countries in date order).
-// - `enabled: false` drops the share scene and its title (the section ends on the globe), for example while the
-//   share feature is not in the released app.
+//   captures); a button seeks there and plays, and the playing year lights up. The video never plays by itself
+//   (티온, 10-28: waiting for a replay feels slow); the scroll-driven trip before it shows the same journey.
+//   `media: null` shows the dark screen with the share button only; the trip still lands in it.
+// - `enabled: false` drops the share scene and its title (the trip ends back in the globe screen), for example while
+//   the share feature is not in the released app.
 export const TECH_SHARE = Object.freeze({
   enabled: true,
   button: "영상 공유하기",
@@ -65,20 +69,35 @@ export const TECH_SHARE = Object.freeze({
       { label: "2026", at: 16.1 },
     ]),
   }),
-  stops: Object.freeze([
-    { lon: 127.8, lat: 36.4, name: "대한민국", date: "2023. 05. 12" },
-    { lon: 138.5, lat: 36.2, name: "일본", date: "2024. 03. 02" },
-    { lon: -98.0, lat: 39.5, name: "미국", date: "2025. 01. 18" },
-    { lon: 2.4, lat: 46.6, name: "프랑스", date: "2026. 07. 09" },
-  ]),
 });
 
 export const techScenes = (share = TECH_SHARE) => TECH_SCENES.filter((scene) => !scene.share || share.enabled);
 
-// Example months on the back of flipped photos (the sprite's place labels), and the dots on the scene-5 globe.
-export const TECH_MONTHS = Object.freeze({
-  제주: "2025. 10", 일본: "2025. 03", 미국: "2025. 01", 부산: "2024. 08", 서울: "2024. 05", 강릉: "2024. 12",
-  속초: "2024. 07", 경주: "2023. 09", 전주: "2024. 04", 여수: "2023. 08", 대만: "2025. 05", 태국: "2025. 01",
-  베트남: "2024. 02", 프랑스: "2026. 07", 스페인: "2026. 06",
-});
-export const TECH_VISITED = Object.freeze([[127.8, 36.4], [129.2, 35.8], [126.5, 33.4], [139.7, 35.7], [135.5, 34.7], [-118.2, 34.0], [-74.0, 40.7], [2.35, 48.86], [100.5, 13.75]]);
+// The example records, one source for the whole story (티온, 10-28: the trip must visit the places that were really
+// recorded, not random countries): the place and month on the back of each photo in the roll (the sprite's place
+// labels, src/data/storySprite.js), the dots on the globe, and the trip the globe flies in date order. Places abroad
+// are recorded as countries and sit at the country's middle; places at home are cities. 경주 is the city the map scene
+// fills. Dates are "YYYY. MM. DD"; the photo backs show the month.
+export const TECH_PLACES = Object.freeze([
+  { name: "여수", lon: 127.66, lat: 34.76, date: "2023. 08. 12" },
+  { name: "경주", lon: 129.22, lat: 35.86, date: "2023. 09. 23" },
+  { name: "베트남", lon: 106.3, lat: 16.5, date: "2024. 02. 09" },
+  { name: "전주", lon: 127.15, lat: 35.82, date: "2024. 04. 13" },
+  { name: "서울", lon: 126.98, lat: 37.57, date: "2024. 05. 11" },
+  { name: "속초", lon: 128.59, lat: 38.21, date: "2024. 07. 06" },
+  { name: "부산", lon: 129.08, lat: 35.18, date: "2024. 08. 17" },
+  { name: "강릉", lon: 128.88, lat: 37.75, date: "2024. 12. 24" },
+  { name: "미국", lon: -98.5, lat: 39.8, date: "2025. 01. 05" },
+  { name: "태국", lon: 100.99, lat: 15.87, date: "2025. 01. 25" },
+  { name: "일본", lon: 138.25, lat: 36.2, date: "2025. 03. 14" },
+  { name: "대만", lon: 120.96, lat: 23.7, date: "2025. 05. 02" },
+  { name: "제주", lon: 126.53, lat: 33.38, date: "2025. 10. 03" },
+  { name: "스페인", lon: -3.7, lat: 40.4, date: "2026. 06. 27" },
+  { name: "프랑스", lon: 2.2, lat: 46.2, date: "2026. 07. 18" },
+]);
+// month on the back of a flipped photo
+export const TECH_MONTHS = Object.freeze(Object.fromEntries(TECH_PLACES.map((p) => [p.name, p.date.slice(0, 8)])));
+// the dots on the globe
+export const TECH_VISITED = Object.freeze(TECH_PLACES.map((p) => [p.lon, p.lat]));
+// the trip: every recorded place, oldest first
+export const TECH_TRIP = Object.freeze([...TECH_PLACES].sort((a, b) => a.date.localeCompare(b.date)));

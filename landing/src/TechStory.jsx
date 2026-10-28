@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { createPassiveViewTracker, createSceneReachTracker } from "./howStoryAnalytics.js";
-import { TECH_COPY, TECH_SHARE, TECH_STEPS, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
+import { TECH_COPY, TECH_SHARE, TECH_STEPS, TECH_TRIP, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
 
 const EXPERIENCE_TYPE = "tech_story";
 const PIN = "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z";
@@ -18,37 +18,30 @@ function StepLabel({ text }) {
   );
 }
 
-function ShareScreen({ hint }) {
+// The share screen: the app's real share video (TECH_SHARE.media) with its year buttons, or the dark screen alone.
+// The scroll-driven trip lands the globe in this screen and the share button shows as pressed; the video never plays
+// by itself, a tap on a year or on the video plays it.
+function ShareScreen() {
   const { media, button } = TECH_SHARE;
-  if (media) {
-    return (
-      <div className="ts-screen is-dark is-media" data-scene="">
-        <p className="ts-hint">{hint}</p>
+  return (
+    <div className={`ts-screen is-dark${media ? " is-media" : ""}`} data-scene="">
+      {media && (
         <div className="ts-media-box" data-share-box="">
           {media.type === "video"
             ? (
-              <video className="ts-media" poster={media.poster} muted loop playsInline preload="none" data-share-video="" tabIndex={0} aria-label="타임라인 공유 영상 예시, 누르면 멈추거나 다시 재생">
+              <video className="ts-media" poster={media.poster} muted loop playsInline preload="none" data-share-video="" tabIndex={0} aria-label="타임라인 공유 영상 예시, 누르면 재생하거나 멈춰요">
                 {media.sources.map((source) => <source src={source.src} type={source.type} key={source.src} />)}
               </video>
             )
             : <img className="ts-media" src={media.src} alt={media.alt ?? "타임라인 공유 영상 예시"} loading="lazy" decoding="async" />}
         </div>
-        {media.type === "video" && media.years?.length > 0 && (
-          <div className="ts-years" data-share-years="" role="group" aria-label="연도로 넘기기">
-            {media.years.map((year, i) => <button type="button" data-at={year.at} aria-pressed={i === 0} key={year.label}>{year.label}</button>)}
-          </div>
-        )}
-      </div>
-    );
-  }
-  return (
-    <div className="ts-screen is-dark" data-scene="">
-      <p className="ts-hint">{hint}</p>
-      <canvas className="ts-globe" data-tl-globe="" aria-label="다녀온 나라를 날짜순으로 도는 지구본" />
-      <div className="ts-tl-label" data-tl-label="" aria-live="polite"><b>{TECH_SHARE.stops[0].name}</b><span>{TECH_SHARE.stops[0].date}</span></div>
-      <div className="ts-years" data-tl-years="" role="group" aria-label="연도">
-        {TECH_SHARE.stops.map((stop, i) => <button type="button" data-i={i} key={stop.date}>{stop.date.slice(0, 4)}</button>)}
-      </div>
+      )}
+      {!media && <div className="ts-media-box is-empty" data-share-box="" aria-hidden="true" />}
+      {media?.type === "video" && media.years?.length > 0 && (
+        <div className="ts-years" data-share-years="" role="group" aria-label="연도부터 재생">
+          {media.years.map((year, i) => <button type="button" data-at={year.at} aria-pressed={i === 0} key={year.label}>{year.label}</button>)}
+        </div>
+      )}
       <div className="ts-share-btn" data-share-btn="" aria-hidden="true">{button}</div>
     </div>
   );
@@ -141,19 +134,16 @@ function TechStoryInner() {
                 <div className="ts-notch" aria-hidden="true" />
 
                 <div className="ts-screen" data-scene="">
-                  <p className="ts-hint" data-hint-flip="">{scenes[0].hint}</p>
                   <div className="ts-roll-view" tabIndex={0} role="button" aria-label="사진 두루마리, 누르면 가운데 사진이 뒤집혀요" data-roll-view=""><div className="ts-roll" data-roll="" /></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
-                  <p className="ts-hint">{scenes[1].hint}</p>
                   <div className="ts-gather" data-gather="" />
                   <div className="ts-found" data-found="" role="status"><Pin /><span data-found-text="" /></div>
                   <div className="ts-counter" aria-hidden="true"><span className="ts-counter-place" data-count-place="">제주</span><span><span data-count-n="">0</span>장 · <span data-count-t="">0</span>초</span></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
-                  <p className="ts-hint">{scenes[2].hint}</p>
                   <div className="ts-pick" data-pick="">
                     <div className="ts-rec-card"><Pin /><span data-rec-text="">제주 여행</span></div>
                   </div>
@@ -161,19 +151,24 @@ function TechStoryInner() {
                 </div>
 
                 <div className="ts-screen" data-scene="">
-                  <p className="ts-hint">{scenes[3].hint}</p>
                   <div className="ts-regions" data-regions="" role="button" tabIndex={0} aria-label="지도 칠하기, 다시 누르면 지우기" aria-pressed="true" />
                   <div className="ts-region-chip" data-region-chip="" aria-hidden="true"><Pin /><span data-region-chip-text="" /></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
-                  <p className="ts-hint">{scenes[4].hint}</p>
                   <canvas className="ts-globe" data-globe="" tabIndex={0} aria-label="다녀온 곳이 찍힌 지구본, 옆으로 끌거나 화살표 키로 돌려 보세요" />
                 </div>
 
-                {TECH_SHARE.enabled && <ShareScreen hint={scenes[5].hint} />}
+                {TECH_SHARE.enabled && <ShareScreen />}
               </div>
             </div>
+          </div>
+
+          {/* The trip (scenes 5-6): the globe comes out of the phone onto this canvas, flies the recorded places in date
+              order as the page scrolls, and goes back in. The pill under it names the place and month. */}
+          <canvas className="ts-trip-globe" data-trip-globe="" aria-hidden="true" />
+          <div className="ts-trip" data-trip="" aria-hidden="true">
+            <div className="ts-where"><Pin /><b data-trip-name="">{TECH_TRIP[0].name}</b><span data-trip-date="">{TECH_TRIP[0].date.slice(0, 8)}</span></div>
           </div>
 
           {/* The words stay in one place and change with the scene, so a quick scroll never has to wait for them to
@@ -196,7 +191,7 @@ function TechStoryInner() {
           {scenes.map((scene, i) => {
             const bridge = lastStep !== null && lastStep !== scene.step;
             lastStep = scene.step;
-            return [bridge && <div className="ts-bridge" data-bridge="" key={`bridge-${i}`} />, <div className="ts-beat" data-beat={i} key={scene.title} />];
+            return [bridge && <div className="ts-bridge" data-bridge="" key={`bridge-${i}`} />, <div className={`ts-beat${scene.trip ? " is-trip" : ""}`} data-beat={i} key={scene.title} />];
           })}
         </div>
       </div>

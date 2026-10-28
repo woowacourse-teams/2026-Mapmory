@@ -1,5 +1,6 @@
-// 3.1–3.5: the section follows the page's scroll, never steers it; nothing moves sideways; the words are
-// readable wherever a flick stops; every scene is reached; each scene fits one phone screen.
+// 3.1–3.6: the section follows the page's scroll, never steers it; nothing moves sideways; the words are
+// readable wherever a flick stops; every scene is reached; each scene fits one phone screen; a flick still shows
+// each scene change.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { SCENE_COUNT } from "../config.mjs";
@@ -117,4 +118,47 @@ export async function sceneLayout(ctx) {
     } finally { await b.close(); }
   }
   return { pass: bad.length === 0, value: bad.length ? `${bad.length}곳 문제` : "390·360px 6장면 모두 폰·라벨·제목이 한 화면에, 겹침 없음", detail: bad.join("; "), evidence };
+}
+
+// 3.6 A flick through the section (2,000 px/s on a 390 phone, sampled every frame) still shows each scene's change:
+// every scene is seen in at least two different states (the turned-over row of the roll, the number of lifted photos,
+// the picks and the fold, the map's levels, the trip's stops, the globe landing and the share button).
+export async function flickLegible(ctx) {
+  const b = await launch(VIEWPORTS.phone);
+  try {
+    await gotoSection(b.page, ctx.url);
+    const { start, end, vh } = await sectionRange(b.page);
+    await b.page.evaluate((y) => window.scrollTo(0, y), Math.max(0, start - vh));
+    await b.page.waitForTimeout(500);
+    await b.page.evaluate(() => {
+      window.__flick = [];
+      const text = (sel) => document.querySelector(sel)?.textContent.trim() ?? "";
+      const cls = (sel) => document.querySelector(sel)?.className ?? "";
+      const sample = () => {
+        const on = [...document.querySelectorAll(".ts-screen")].indexOf(document.querySelector(".ts-screen.is-on"));
+        const state = on === 0 ? [...document.querySelectorAll(".ts-flip.is-open")].map((f) => f.textContent.trim()).join(",")
+          : on === 1 ? String(document.querySelectorAll("[data-gather] .is-hit:not([hidden])").length)
+          : on === 2 ? `${document.querySelectorAll("[data-pick] .is-sel").length}|${cls("[data-pick]")}|${text("[data-save]")}`
+          : on === 3 ? cls("[data-regions]")
+          : on === 4 ? `${text("[data-trip]")}|${cls("[data-trip-globe]")}`
+          : on === 5 ? `${document.querySelector("[data-trip-globe]")?.style.opacity}|${cls("[data-share-btn]")}` : "";
+        window.__flick.push([on, state]);
+        window.__flickRaf = requestAnimationFrame(sample);
+      };
+      sample();
+    });
+    await flickTo(b.page, end, 2000);
+    await b.page.waitForTimeout(300);
+    const samples = await b.page.evaluate(() => { cancelAnimationFrame(window.__flickRaf); return window.__flick; });
+    const n = await beatCount(b.page);
+    const rows = [...Array(n).keys()].map((i) => {
+      const mine = samples.filter((s) => s[0] === i);
+      return { scene: i + 1, frames: mine.length, states: [...new Set(mine.map((s) => s[1]))] };
+    });
+    const bad = rows.filter((r) => r.states.length < 2);
+    const file = ctx.evidence("flick.json");
+    await fs.writeFile(file, JSON.stringify({ speed: 2000, rows }, null, 2));
+    return { pass: bad.length === 0 && n === SCENE_COUNT, value: `장면별 상태 ${rows.map((r) => r.states.length).join("/")}개 (프레임 ${rows.map((r) => r.frames).join("/")})`,
+      detail: bad.map((r) => `장면 ${r.scene}: 상태 ${r.states.length}개 (${r.frames}프레임)`).join("; "), evidence: [file] };
+  } finally { await b.close(); }
 }

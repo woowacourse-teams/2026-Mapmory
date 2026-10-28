@@ -1,7 +1,7 @@
 // 6.1–6.3, 6.5: the device/theme matrix, the keyboard, the touch scenarios, and the release flag.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { VIEWPORTS, beatCount, gotoSection, launch, overlaps, rectOf, scrollToBeat, within } from "../lib/browser.mjs";
+import { VIEWPORTS, beatCount, gotoSection, isTripBeat, launch, overlaps, rectOf, scrollToBeat, within } from "../lib/browser.mjs";
 import { runAllScenes } from "../lib/interact.mjs";
 
 // 6.1 Every width × theme × motion setting, at every scene: nothing overflows sideways, the phone, label and
@@ -91,7 +91,8 @@ export async function keyboard(ctx) {
         if (reached.size === targets.length) break;
       }
       // the walk may have left the section (and scrolled the page): come back to the scene for the key tests
-      await scrollToBeat(b.page, i, 0.5, 600);
+      // the trip beat is checked at its start, while the globe is still in the phone and can be turned
+      await scrollToBeat(b.page, i, (await isTripBeat(b.page, i)) ? 0.02 : 0.5, 600);
       for (const target of targets) {
         const r = reached.get(String(target.k));
         let works = false, how = "";

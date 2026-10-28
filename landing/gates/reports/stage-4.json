@@ -3,7 +3,7 @@
   "key": "design",
   "name": "시안",
   "url": "http://localhost:4173/",
-  "at": "2026-10-27T12:28:16.392Z",
+  "at": "2026-10-28T01:34:12.027Z",
   "complete": true,
   "passed": true,
   "forced": false,
@@ -13,7 +13,7 @@
       "name": "글자 대비",
       "pass": true,
       "expected": "일반 글자 4.5:1 이상, 큰 글자 3:1 이상, 라이트·다크",
-      "value": "위반 0 (라이트·다크 × 6장면), 판정 불가 133곳",
+      "value": "위반 0 (라이트·다크 × 6장면), 판정 불가 130곳",
       "detail": "",
       "evidence": [
         "gates/reports/evidence/stage-4/contrast.json"
@@ -24,14 +24,14 @@
         "WCAG 2.2 SC 1.4.3 Contrast (Minimum)"
       ],
       "derived": null,
-      "ms": 32157
+      "ms": 28402
     },
     {
       "id": "4.2",
       "name": "누르는 곳 크기",
       "pass": true,
       "expected": "모두 44×44 CSS px 이상",
-      "value": "130개 중 44px 미만 0개, 최소 44px",
+      "value": "158개 중 44px 미만 0개, 최소 44px",
       "detail": "",
       "evidence": [],
       "kind": "auto",
@@ -40,14 +40,14 @@
         "WCAG 2.2 SC 2.5.5 Target Size (Enhanced)"
       ],
       "derived": null,
-      "ms": 19717
+      "ms": 18891
     },
     {
       "id": "4.3",
       "name": "글자 크기",
       "pass": true,
       "expected": "폰 밖 16px 이상, 폰 안 13px 이상",
-      "value": "최소 폰 밖 22px, 폰 안 13px",
+      "value": "최소 폰 밖 16px, 폰 안 13px",
       "detail": "",
       "evidence": [],
       "kind": "auto",
@@ -56,14 +56,14 @@
         "Learn UI Design, font size guidelines"
       ],
       "derived": null,
-      "ms": 9937
+      "ms": 9542
     },
     {
       "id": "4.4",
       "name": "움직임 길이와 곡선",
       "pass": true,
       "expected": "요소 하나의 transition/animation 100~400ms, ease-in 단독·transition:all 없음 (스크롤에 묶인 연속 움직임 제외)",
-      "value": "전환 28개 중 범위 밖 0개 (예외 4개)",
+      "value": "전환 29개 중 범위 밖 0개 (예외 4개)",
       "detail": "",
       "evidence": [
         "gates/reports/evidence/stage-4/motion.json"
@@ -76,7 +76,7 @@
         "Emil Kowalski, design engineering skills"
       ],
       "derived": null,
-      "ms": 2144
+      "ms": 1923
     },
     {
       "id": "4.5",
@@ -93,15 +93,15 @@
         "NN/g, Animation Duration"
       ],
       "derived": null,
-      "ms": 3796
+      "ms": 3430
     },
     {
       "id": "4.6",
       "name": "화면마다 눈이 먼저 가는 것이 하나다",
       "pass": true,
       "expected": "6장면 모두 판정자 80% 이상이 같은 요소를 짚는다",
-      "value": "같은 요소 비율 장면별 100/100/80/100/100/100% (판정자 5명, 기준 80%)",
-      "detail": "장면 1: 폰 화면 속 그림 100%; 장면 2: 폰 화면 속 그림 100%; 장면 3: 폰 화면 속 그림 80%; 장면 4: 폰 화면 속 그림 100%; 장면 5: 폰 화면 속 그림 100%; 장면 6: 폰 화면 속 그림 100%",
+      "value": "같은 요소 비율 장면별 100/100/100/100/100/100% (판정자 5명, 기준 80%)",
+      "detail": "장면 1: 폰 화면 속 그림 100%; 장면 2: 폰 화면 속 그림 100%; 장면 3: 폰 화면 속 그림 100%; 장면 4: 폰 화면 속 그림 100%; 장면 5: 폰 화면 속 그림 100%; 장면 6: 폰 화면 속 그림 100%",
       "evidence": [
         "gates/judgments/focus.json"
       ],
@@ -148,7 +148,7 @@
         "Emil Kowalski, design engineering skills"
       ],
       "derived": null,
-      "ms": 4
+      "ms": 2
     }
   ]
 }

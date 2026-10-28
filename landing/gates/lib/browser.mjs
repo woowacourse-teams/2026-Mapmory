@@ -55,6 +55,7 @@ export async function scrollToBeat(page, i, t = 0.5, settle = 450) {
   await page.waitForTimeout(settle);
 }
 
+export const isTripBeat = (page, i) => page.evaluate((i) => Boolean(document.querySelector(`[data-beat="${i}"]`)?.classList.contains("is-trip")), i);
 export const activeScene = (page) => page.evaluate(() => [...document.querySelectorAll(".ts-screen")].indexOf(document.querySelector(".ts-screen.is-on")));
 export const beatCount = (page) => page.evaluate(() => document.querySelectorAll("[data-beat]").length);
 

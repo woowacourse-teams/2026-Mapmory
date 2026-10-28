@@ -62,6 +62,7 @@ export const STAGES = Object.freeze([
     auto("3.3", "어디에 멈춰도 제목이 화면 안에 온전히 있다", "섹션 안 멈춤 지점 40곳 중 100% (양 끝 10% 제외)", "structure.titleAlwaysReadable", "E", ["nngScrolljack", "tion"]),
     auto("3.4", "보통 속도로 내리면 6장면이 모두 한 번씩 활성화된다", "6/6", "structure.sceneReach", "E", ["nngScrolljack"]),
     auto("3.5", "장면에 멈췄을 때 폰, 라벨, 제목이 겹침 없이 한 화면에 보인다", "360·390px 장면 6개 모두", "structure.sceneLayout", "D", ["apple", "tion"], { derived: "스크롤에 따라 기능을 하나씩 보여 주기를 '한 화면에 다 보임'으로 옮김" }),
+    auto("3.6", "휙 내려도 장면마다 변화가 보인다", "390px에서 2,000px/s로 내리는 동안 프레임마다 표본, 장면 6개 모두 서로 다른 상태 2개 이상", "structure.flickLegible", "A", ["tion", "nngScrolljack"], { derived: "티온 10-28: 글자를 안 보고 휙휙 넘기는 사람에게도 장면의 변화가 보여야 한다 → 변화를 스크롤 위치에 묶고, 빠른 스크롤에서도 상태가 바뀌는지 잰다" }),
   ] },
   { n: 4, key: "design", name: "시안", criteria: [
     auto("4.1", "글자 대비", "일반 글자 4.5:1 이상, 큰 글자 3:1 이상, 라이트·다크", "visual.contrast", "E", ["wcag143"]),

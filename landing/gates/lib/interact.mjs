@@ -19,15 +19,16 @@ const tapper = (page, touch) => async (sel, i = 0) => {
 
 const row = (scene, name, ok, note) => ({ scene, name, ok: Boolean(ok), note });
 
-// 1 Tap a photo: it turns over to where and when it was taken, and stays under the finger (the roll pauses).
+// 1 Tap a photo that the scroll has not turned over: it turns over to where and when it was taken, and stays under the
+// finger (the roll only moves with the scroll).
 export async function flip(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 0, 0.5, 300);
-  await page.waitForTimeout(3200); // the self-demo (opens at 0.9 s, closes at 2.6 s) is over
+  await page.waitForTimeout(400);
   const idx = await page.evaluate(() => {
     const v = document.querySelector(".ts-roll-view")?.getBoundingClientRect();
     if (!v) return -1;
-    return [...document.querySelectorAll(".ts-flip")].findIndex((t) => { const r = t.getBoundingClientRect(); return r.top > v.top + 80 && r.bottom < v.bottom - 20; });
+    return [...document.querySelectorAll(".ts-flip")].findIndex((t) => { const r = t.getBoundingClientRect(); return !t.classList.contains("is-open") && r.top > v.top + 20 && r.bottom < v.bottom - 20; });
   });
   if (idx < 0) return row(1, "뒤집기", false, "누를 사진이 보이지 않음");
   const y0 = await page.evaluate((i) => document.querySelectorAll(".ts-flip")[i].getBoundingClientRect().top, idx);
@@ -38,11 +39,11 @@ export async function flip(page, { touch = true } = {}) {
   return row(1, "뒤집기", after.open && after.back && (!touch || held), `뒤집힘 ${after.open}, 뒷면 "${after.back}", 손가락 아래 머무름 ${held}`);
 }
 
-// 2 Tap any photo: every photo of that place lifts and the popup names it (after the first, automatic, 제주).
+// 2 Tap any photo: every photo of that place lifts and the popup names it (the scroll lifts 제주's by itself).
 export async function gather(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 1, 0.5, 300);
-  await page.waitForTimeout(2600);
+  await page.waitForTimeout(600);
   const read = () => page.evaluate(() => ({ text: document.querySelector("[data-found-text]")?.textContent ?? "", shown: Boolean(document.querySelector("[data-found]")?.classList.contains("is-shown")), lifted: document.querySelectorAll("[data-gather] .ts-ph.is-hit:not([hidden])").length }));
   const first = await read();
   const other = await page.evaluate(() => [...document.querySelectorAll("[data-gather] .ts-ph:not([hidden])")].findIndex((t) => !t.classList.contains("is-hit")));
@@ -57,7 +58,7 @@ export async function gather(page, { touch = true } = {}) {
 export async function save(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 2, 0.5, 300);
-  await page.waitForTimeout(3800); // the demo folds and unfolds once
+  await page.waitForTimeout(500);
   if (await page.evaluate(() => document.querySelector("[data-pick]")?.classList.contains("is-folded"))) { await tap("[data-pick]"); await page.waitForTimeout(500); }
   const pressed0 = await page.evaluate(() => document.querySelectorAll("[data-pick] .ts-ph")[1]?.getAttribute("aria-pressed"));
   await tap("[data-pick] .ts-ph", 1);
@@ -73,7 +74,7 @@ export async function save(page, { touch = true } = {}) {
 export async function mapToggle(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 3, 0.5, 300);
-  await page.waitForTimeout(2400);
+  await page.waitForTimeout(500);
   const state = () => page.evaluate(() => { const r = document.querySelector("[data-regions]"); return { filled: r?.classList.contains("is-filled"), pressed: r?.getAttribute("aria-pressed"), chip: document.querySelector("[data-region-chip]")?.classList.contains("is-shown"), text: document.querySelector("[data-region-chip-text]")?.textContent ?? "" }; });
   const a = await state();
   await tap("[data-regions]");
@@ -86,12 +87,12 @@ export async function mapToggle(page, { touch = true } = {}) {
   return row(4, "지도", a.filled && !b.filled && !b.chip && c.filled && c.pressed === "true" && chips.at(-1) === "대한민국", `칠해짐 ${a.filled} → 지움 ${b.filled} → 다시 칠함 ${c.filled}, 칩 ${[...new Set(chips)].join(" → ")}`);
 }
 
-// 5 A sideways drag takes hold of the globe: while the finger (or mouse) is still down, the globe stops turning by
-// itself (its pixels stay put), and the page has not moved. On a phone an up-and-down drag is left to the page: the
-// browser cancels the pointer and scrolls.
+// 5 At the start of the globe scene (the globe still in the phone) a sideways drag turns the globe: its pixels change
+// with the drag, stay put while the finger (or mouse) rests, and the page has not moved. On a phone an up-and-down
+// drag is left to the page: the browser cancels the pointer and scrolls.
 export async function globeDrag(page, { touch = true } = {}) {
-  await scrollToBeat(page, 4, 0.5, 300);
-  await page.waitForTimeout(800);
+  await scrollToBeat(page, 4, 0.02, 300);
+  await page.waitForTimeout(500);
   const c = await centerOf(page, "[data-globe]");
   if (!c) return row(5, "지구본", false, "지구본 없음");
   const [gx, gy] = c;
@@ -120,8 +121,8 @@ export async function globeDrag(page, { touch = true } = {}) {
     const scroll2 = await page.evaluate(() => scrollY);
     const cancelled = await page.evaluate(() => window.__gateCancel);
     await cdp.detach().catch(() => {});
-    const ok = idle > 0.2 && held < 0.2 && turned > 0.5 && Math.abs(scroll1 - scroll0) < 2 && scroll2 - scroll1 > 40 && cancelled > 0;
-    return row(5, "지구본", ok, `옆으로 끌어 잡고 있기: 지구본 스스로 돌기 멈춤 ${held < 0.2} (변화 ${held.toFixed(2)}, 놓아두면 ${idle.toFixed(2)}), 끌린 만큼 돌아감 ${turned > 0.5}, 페이지 ${(scroll1 - scroll0).toFixed(0)}px 이동; 위아래 끌기: 페이지 ${(scroll2 - scroll1).toFixed(0)}px 이동, 브라우저가 스크롤로 가져감 ${cancelled > 0}`);
+    const ok = idle < 0.2 && held < 0.2 && turned > 0.5 && Math.abs(scroll1 - scroll0) < 2 && scroll2 - scroll1 > 40 && cancelled > 0;
+    return row(5, "지구본", ok, `놓아두면 가만히 ${idle < 0.2} (변화 ${idle.toFixed(2)}); 옆으로 끌어 잡고 있기: 끌린 만큼 돌아감 ${turned > 0.5}, 잡고 있는 동안 가만히 ${held < 0.2} (변화 ${held.toFixed(2)}), 페이지 ${(scroll1 - scroll0).toFixed(0)}px 이동; 위아래 끌기: 페이지 ${(scroll2 - scroll1).toFixed(0)}px 이동, 브라우저가 스크롤로 가져감 ${cancelled > 0}`);
   }
   await page.mouse.move(gx - 60, gy);
   await page.mouse.down();
@@ -130,14 +131,14 @@ export async function globeDrag(page, { touch = true } = {}) {
   const turned = diff(before, await sample());
   await page.mouse.up();
   const scroll1 = await page.evaluate(() => scrollY);
-  return row(5, "지구본", idle > 0.2 && held < 0.2 && turned > 0.5 && Math.abs(scroll1 - scroll0) < 2, `마우스로 끌어 잡고 있기: 스스로 돌기 멈춤 ${held < 0.2} (변화 ${held.toFixed(2)}, 놓아두면 ${idle.toFixed(2)}), 돌아감 ${turned > 0.5}, 페이지 ${(scroll1 - scroll0).toFixed(0)}px 이동`);
+  return row(5, "지구본", idle < 0.2 && held < 0.2 && turned > 0.5 && Math.abs(scroll1 - scroll0) < 2, `놓아두면 가만히 ${idle < 0.2} (변화 ${idle.toFixed(2)}); 마우스로 끌기: 돌아감 ${turned > 0.5}, 잡고 있는 동안 가만히 ${held < 0.2} (변화 ${held.toFixed(2)}), 페이지 ${(scroll1 - scroll0).toFixed(0)}px 이동`);
 }
 
-// 6 The share video plays by itself; a year button seeks to that year; a tap on the video pauses it.
+// 6 The share video does not play by itself (10-28); a year button plays from that year; a tap on the video pauses it.
 export async function yearPick(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 5, 0.5, 300);
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(700);
   const read = () => page.evaluate(() => {
     const v = document.querySelector("[data-share-video]");
     if (!v) return null;
@@ -149,7 +150,7 @@ export async function yearPick(page, { touch = true } = {}) {
   if (!v0) return row(6, "영상", false, "공유 영상 없음 (TECH_SHARE.enabled=false?)");
   await page.waitForTimeout(1000);
   const v0b = await read();
-  const playing = !v0b.paused && v0b.t > v0.t;
+  const still = v0b.paused && v0b.t === v0.t;
   await tap("[data-share-years] button", 2);
   await page.waitForTimeout(1200);
   const v1 = await read();
@@ -157,8 +158,8 @@ export async function yearPick(page, { touch = true } = {}) {
   await page.waitForTimeout(400);
   const v2 = await read();
   const seeked = v1.t >= (v1.at[2] ?? 0) - 0.3;
-  const ok = v1.on === "2025" && seeked && v2.paused && v2.boxPaused;
-  return row(6, "영상", ok, `재생 중 ${playing}${v0.canPlay ? "" : " (이 브라우저는 코덱 없음)"}, 2025 누름 → 선택 "${v1.on}", 위치 ${v1.t}s (기대 ≥ ${v1.at[2]}s), 영상 누름 → 멈춤 ${v2.paused}`);
+  const ok = still && v1.on === "2025" && seeked && !v1.paused && v2.paused && v2.boxPaused;
+  return row(6, "영상", ok, `스스로 재생 안 함 ${still}${v0.canPlay ? "" : " (이 브라우저는 코덱 없음)"}, 2025 누름 → 선택 "${v1.on}", 위치 ${v1.t}s (기대 ≥ ${v1.at[2]}s), 재생 ${!v1.paused}, 영상 누름 → 멈춤 ${v2.paused}`);
 }
 
 export const SCENARIOS = [flip, gather, save, mapToggle, globeDrag, yearPick];

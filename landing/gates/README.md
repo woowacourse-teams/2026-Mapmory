@@ -51,7 +51,7 @@ QA 캡처처럼 커밋하지 않고 로컬에 둔다), 단계별 통과 여부�
 
 ## 파일
 
-- `config.mjs` 7단계 34기준, 출처, 목적 연결. 기준을 바꾸면 팀 문서의 표도 같이 바꾼다.
+- `config.mjs` 7단계 35기준, 출처, 목적 연결. 기준을 바꾸면 팀 문서의 표도 같이 바꾼다.
 - `run.mjs` 실행기. `baseline-lighthouse.sh` 5.2·5.3 기준선. `brief.json` 1단계 산출물. `variants.json` 4단계 3안과 선택 근거. `motion-exceptions.json` 4.4 예외(이유 필수).
 - `lib/browser.mjs` 뷰포트·스크롤 도우미, `lib/interact.mjs` 장면별 터치 시나리오 (6.3, 5.6, 5.7이 같이 쓴다).
 - `hooks/` Claude Code 훅. `settings.example.json`을 `.claude/settings.json`에 합치면 단계를 건너뛴 `landing/src/` 수정이 막힌다
