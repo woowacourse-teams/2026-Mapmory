@@ -11,6 +11,7 @@ import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.tag.Tag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,7 +138,7 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         travelRecordRepository.save(TravelRecord.of(
                 member, country, "태그 없는 기록", "", LocalDate.of(2026, 8, 11), null, TODAY
         ));
-        entityManager.persist(TravelRecordTag.of(taggedRecord, tag));
+        taggedRecord.retag(RecordTagIds.from(List.of(tag.getId())), List.of(tag));
         entityManager.flush();
         entityManager.clear();
 
@@ -232,6 +233,70 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
         assertThat(travelRecordRepository.findMediaByTravelRecordIdIn(
                 java.util.List.of(travelRecordId)
         )).isEmpty();
+    }
+
+    @Test
+    void 태그를_유지하고_빼고_더하는_변경이_한_번의_flush로_저장된다() {
+        Member member = memberRepository.save(Member.of("태그 교체 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(
+                Region.of(null, null, "XR", "태그 교체 국가", RegionType.COUNTRY)
+        );
+        Tag kept = persistTag(member, "유지");
+        Tag removed = persistTag(member, "제거");
+        Tag added = persistTag(member, "추가");
+        TravelRecord travelRecord = TravelRecord.of(
+                member, country, "태그 교체", "", LocalDate.of(2026, 8, 11), null, TODAY
+        );
+        travelRecord.retag(RecordTagIds.from(List.of(kept.getId(), removed.getId())), List.of(kept, removed));
+        Long travelRecordId = travelRecordRepository.save(travelRecord).getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        // 남는 태그를 지웠다 다시 붙이면 INSERT가 DELETE보다 먼저 나가 UNIQUE(tag_id, travel_record_id)에 걸린다.
+        TravelRecord found = travelRecordRepository.findByIdAndMemberId(travelRecordId, member.getId())
+                .orElseThrow();
+        found.retag(
+                RecordTagIds.from(List.of(kept.getId(), added.getId())),
+                List.of(entityManager.find(Tag.class, kept.getId()), entityManager.find(Tag.class, added.getId()))
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(travelRecordRepository.findTagsByTravelRecordId(travelRecordId))
+                .extracting(Tag::getName)
+                .containsExactly("유지", "추가");
+        assertThat(travelRecordRepository.findTagLinksByTravelRecordIdIn(List.of(travelRecordId)))
+                .extracting(link -> link.getTag().getName())
+                .containsExactly("유지", "추가");
+    }
+
+    @Test
+    void 여행_일지를_삭제하면_태그_연결도_삭제하고_태그는_남긴다() {
+        Member member = memberRepository.save(Member.of("태그 삭제 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(
+                Region.of(null, null, "XQ", "태그 삭제 국가", RegionType.COUNTRY)
+        );
+        Tag tag = persistTag(member, "가족");
+        TravelRecord travelRecord = TravelRecord.of(
+                member, country, "삭제할 기록", "", LocalDate.of(2026, 8, 11), null, TODAY
+        );
+        travelRecord.retag(RecordTagIds.from(List.of(tag.getId())), List.of(tag));
+        Long travelRecordId = travelRecordRepository.save(travelRecord).getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        travelRecordRepository.delete(travelRecordRepository.findById(travelRecordId).orElseThrow());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(travelRecordRepository.findTagLinksByTravelRecordIdIn(List.of(travelRecordId))).isEmpty();
+        assertThat(entityManager.find(Tag.class, tag.getId())).isNotNull();
+    }
+
+    private Tag persistTag(Member member, String name) {
+        Tag tag = Tag.of(member, name);
+        entityManager.persist(tag);
+        return tag;
     }
 
     @Test

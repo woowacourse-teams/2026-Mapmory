@@ -1,6 +1,7 @@
 package com.mapmory.backend.travelrecord.domain;
 
 import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.tag.Tag;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +57,31 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         ORDER BY rm.travelRecord.id ASC, rm.sortOrder ASC, rm.id ASC
     """)
     List<RecordMedia> findMediaByTravelRecordIdIn(
+            @Param("travelRecordIds") Collection<Long> travelRecordIds
+    );
+
+    /**
+     * TravelRecordTag도 애그리거트 내부 엔티티라 루트 리포지토리에서 조회한다. 상세 화면의 태그를 만든 순서로 읽는다.
+     */
+    @Query("""
+        SELECT trt.tag
+        FROM TravelRecordTag trt
+        WHERE trt.travelRecord.id = :travelRecordId
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<Tag> findTagsByTravelRecordId(@Param("travelRecordId") Long travelRecordId);
+
+    /**
+     * 목록 화면의 태그용. 한 페이지의 연결을 태그와 함께 한 번에 읽는다.
+     */
+    @Query("""
+        SELECT trt
+        FROM TravelRecordTag trt
+        JOIN FETCH trt.tag
+        WHERE trt.travelRecord.id IN :travelRecordIds
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<TravelRecordTag> findTagLinksByTravelRecordIdIn(
             @Param("travelRecordIds") Collection<Long> travelRecordIds
     );
 
