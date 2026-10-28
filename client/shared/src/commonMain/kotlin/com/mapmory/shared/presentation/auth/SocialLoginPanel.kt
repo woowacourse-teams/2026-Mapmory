@@ -44,7 +44,7 @@ internal fun SocialLoginPanel(
             }
         }
         measured?.providers?.filter { account?.recoveryProvider == null || it.name == account.recoveryProvider.name }?.forEach { provider ->
-            OutlinedButton(onClick = {
+            SocialLoginButton(provider = provider, onClick = {
                 if (controller != null) {
                     if (account?.recoveryRequired == true) recoveryProvider = provider
                     else controller.launch(measured, provider)
@@ -58,14 +58,7 @@ internal fun SocialLoginPanel(
                 }
             }, enabled = !ui.busy && account?.transitioning != true &&
                     (account?.pendingLogin != true || account.needsProviderProof),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.headingText),
-                modifier = Modifier.fillMaxWidth()) {
-                Text(when (provider) {
-                    SocialProvider.GOOGLE -> "Google로 계속하기"
-                    SocialProvider.KAKAO -> "카카오로 계속하기"
-                    SocialProvider.APPLE -> "Apple로 계속하기"
-                })
-            }
+                modifier = Modifier.fillMaxWidth())
         }
         if (measured == null) Text("이 기기에서 로그인 화면을 준비하지 못했어요.")
         if (ui.busy) LinearProgressIndicator(Modifier.fillMaxWidth())

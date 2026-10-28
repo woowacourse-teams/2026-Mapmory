@@ -57,6 +57,7 @@ import org.jetbrains.compose.resources.painterResource
 @Composable
 internal fun TripRecordTopBar(
     title: String,
+    titleAlignedStart: Boolean = false,
     onBackClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -81,7 +82,9 @@ internal fun TripRecordTopBar(
                 color = TripRecordPalette.current.text,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier
+                    .align(if (titleAlignedStart) Alignment.CenterStart else Alignment.Center)
+                    .then(if (titleAlignedStart) Modifier.padding(start = 48.dp) else Modifier),
             )
         }
         trailing?.let { content ->

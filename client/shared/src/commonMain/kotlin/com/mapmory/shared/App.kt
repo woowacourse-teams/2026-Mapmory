@@ -33,6 +33,7 @@ import com.mapmory.shared.navigation.PlatformNavigationGestures
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.presentation.splash.MapmorySplashScreen
 import com.mapmory.shared.presentation.components.ProvideScrollToTop
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalettes
 import com.mapmory.shared.presentation.theme.MapmoryTypography
 import com.mapmory.shared.update.ForceUpdateState
@@ -103,7 +104,12 @@ fun MapmoryApp(
     var edgeGestureOwnerId by remember { mutableStateOf<String?>(null) }
     var edgeGestureWasInternal by remember { mutableStateOf(false) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
-    var isTimelineJournal by rememberSaveable { mutableStateOf(false) }
+    var savedJournalLayout by rememberSaveable { mutableStateOf(TripRecordListLayout.PHOTO.name) }
+    val journalLayout = when (savedJournalLayout) {
+        TripRecordListLayout.TIMELINE.name -> TripRecordListLayout.TIMELINE
+        TripRecordListLayout.COLLECTION.name -> TripRecordListLayout.COLLECTION
+        else -> TripRecordListLayout.PHOTO
+    }
     var isTravelAchievementsEnabled by rememberSaveable { mutableStateOf(false) }
     var isMascotPreviewEnabled by rememberSaveable { mutableStateOf(false) }
 
@@ -144,8 +150,8 @@ fun MapmoryApp(
                             contentWindowInsets = contentWindowInsets,
                             developerToolsInfo = developerToolsInfo,
                             showTimelineLayoutSwitcher = showTimelineLayoutSwitcher,
-                            isTimelineJournal = isTimelineJournal,
-                            onTimelineLayoutChange = { isTimelineJournal = it },
+                            journalLayout = journalLayout,
+                            onJournalLayoutChange = { savedJournalLayout = it.name },
                             isTravelAchievementsEnabled = isTravelAchievementsEnabled,
                             onTravelAchievementsEnabledChange = { isTravelAchievementsEnabled = it },
                             isMascotPreviewEnabled = isMascotPreviewEnabled,

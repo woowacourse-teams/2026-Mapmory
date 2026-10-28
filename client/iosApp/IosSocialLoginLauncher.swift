@@ -1,4 +1,9 @@
+import Foundation
+
+// The provider launcher is iOS-only; its configuration validation is also tested on macOS.
+#if canImport(UIKit)
 import UIKit
+import OSLog
 import AuthenticationServices
 import CryptoKit
 import GoogleSignIn
@@ -13,6 +18,10 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
     private var appleController: ASAuthorizationController?
     private var nonce: String?
     private var anchor: UIWindow?
+    private var kakaoAttempt = KakaoTalkReturnState()
+    private var kakaoObservers: [NSObjectProtocol] = []
+    private var kakaoReturnCheck: DispatchWorkItem?
+    private static weak var pendingKakaoLauncher: IosSocialLoginLauncher?
 
     func launch(provider: SocialProvider, onResult: @escaping (SocialLoginResult) -> Void) {
         guard completion == nil else { onResult(SocialLoginFailure(message: "로그인이 진행 중이에요.")); return }
@@ -25,16 +34,23 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
         anchor = window
         completion = onResult
         if provider == .google {
-            guard let clientID = configured("MAPMORY_GOOGLE_IOS_CLIENT_ID"),
-                  let serverID = configured("MAPMORY_GOOGLE_WEB_CLIENT_ID") else {
-                finish(SocialLoginFailure(message: "Google 로그인 설정을 준비 중이에요.")); return
+            let configuration: GoogleLoginConfiguration
+            do {
+                configuration = try GoogleLoginConfiguration(info: Bundle.main.infoDictionary ?? [:])
+            } catch {
+                // Only a fixed failure category is logged. Never log credentials or SDK userInfo.
+                let reason = (error as? GoogleLoginConfiguration.Failure)?.rawValue ?? "configuration_invalid"
+                Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.mapmory.ios", category: "SocialLogin")
+                    .error("Google sign-in configuration: \(reason, privacy: .public)")
+                finish(SocialLoginFailure(message: "이 앱 버전의 Google 로그인 설정이 완료되지 않았어요.")); return
             }
-            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID, serverClientID: serverID)
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: configuration.clientID, serverClientID: configuration.serverClientID)
             GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { [weak self] result, error in
                 guard let self else { return }
-                if (error as NSError?)?.code == GIDSignInError.canceled.rawValue {
+                if let error = error as NSError?, error.domain == kGIDSignInErrorDomain,
+                   error.code == GIDSignInError.canceled.rawValue {
                     finish(SocialLoginCancelled.shared)
-                } else if let token = result?.user.idToken?.tokenString {
+                } else if error == nil, let token = result?.user.idToken?.tokenString, !token.isEmpty {
                     finish(SocialLoginSuccess(credential: SocialCredential(provider: .google, idToken: token,
                         accessToken: nil, authorizationCode: result?.serverAuthCode, displayName: result?.user.profile?.name, rawNonce: nil)))
                 } else { finish(SocialLoginFailure(message: "Google 인증에 실패했어요.")) }
@@ -44,19 +60,23 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
                 finish(SocialLoginFailure(message: "카카오 로그인 설정을 준비 중이에요.")); return
             }
             KakaoSDK.initSDK(appKey: key)
+            let usesTalk = UserApi.isKakaoTalkLoginAvailable()
+            let attemptID = kakaoAttempt.begin(usesTalk: usesTalk)
+            if usesTalk { observeKakaoReturn() }
             let callback: (OAuthToken?, Error?) -> Void = { [weak self] token, error in
-                if let token, let idToken = token.idToken, !idToken.isEmpty {
-                    self?.finish(SocialLoginSuccess(credential: SocialCredential(provider: .kakao, idToken: idToken,
+                guard let self, self.kakaoAttempt.isCurrent(attemptID) else { return }
+                if error == nil, let token, let idToken = token.idToken, !idToken.isEmpty {
+                    self.finish(SocialLoginSuccess(credential: SocialCredential(provider: .kakao, idToken: idToken,
                         accessToken: nil, authorizationCode: nil, displayName: nil, rawNonce: nil)))
                 } else if token != nil && error == nil {
-                    self?.finish(SocialLoginFailure(message: "카카오 ID 토큰을 받지 못했어요. 앱의 OpenID Connect 설정을 확인해 주세요."))
+                    self.finish(SocialLoginFailure(message: "카카오 ID 토큰을 받지 못했어요. 앱의 OpenID Connect 설정을 확인해 주세요."))
                 } else if let error = error as? SdkError, error.isClientFailed {
                     if case .ClientFailed(let reason, _) = error, reason == .Cancelled {
-                        self?.finish(SocialLoginCancelled.shared)
-                    } else { self?.finish(SocialLoginFailure(message: "카카오 인증에 실패했어요.")) }
-                } else { self?.finish(SocialLoginFailure(message: "카카오 인증에 실패했어요.")) }
+                        self.finish(SocialLoginCancelled.shared)
+                    } else { self.finish(SocialLoginFailure(message: "카카오 인증에 실패했어요.")) }
+                } else { self.finish(SocialLoginFailure(message: "카카오 인증에 실패했어요.")) }
             }
-            if UserApi.isKakaoTalkLoginAvailable() {
+            if usesTalk {
                 UserApi.shared.loginWithKakaoTalk(completion: callback)
             } else { UserApi.shared.loginWithKakaoAccount(completion: callback) }
         } else {
@@ -90,8 +110,52 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
     }
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor { anchor! }
     private func finish(_ result: SocialLoginResult) {
+        stopObservingKakaoReturn()
         let callback = completion; completion = nil; appleController = nil; nonce = nil; anchor = nil
         callback?(result)
+    }
+
+    private func observeKakaoReturn() {
+        Self.pendingKakaoLauncher = self
+        let center = NotificationCenter.default
+        kakaoObservers = [
+            center.addObserver(forName: UIScene.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, let scene = notification.object as? UIWindowScene,
+                      scene === self.anchor?.windowScene else { return }
+                self.kakaoAttempt.didLeaveApp()
+                self.kakaoReturnCheck?.cancel()
+            },
+            center.addObserver(forName: UIScene.didActivateNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, let scene = notification.object as? UIWindowScene,
+                      scene === self.anchor?.windowScene,
+                      let attemptID = self.kakaoAttempt.returnedWithoutRedirect else { return }
+                self.kakaoReturnCheck?.cancel()
+                // Allow onOpenURL to run regardless of lifecycle delivery order. A received
+                // redirect cancels this check before the SDK starts its asynchronous token exchange.
+                let check = DispatchWorkItem { [weak self] in
+                    guard let self, self.anchor?.windowScene?.activationState == .foregroundActive,
+                          self.kakaoAttempt.shouldCancelReturn(attemptID) else { return }
+                    AuthController.shared.authorizeWithTalkCompletionHandler = nil
+                    self.finish(SocialLoginCancelled.shared)
+                }
+                self.kakaoReturnCheck = check
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: check)
+            },
+        ]
+    }
+
+    private func stopObservingKakaoReturn() {
+        kakaoAttempt.finish()
+        kakaoReturnCheck?.cancel()
+        kakaoReturnCheck = nil
+        kakaoObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        kakaoObservers.removeAll()
+        if Self.pendingKakaoLauncher === self { Self.pendingKakaoLauncher = nil }
+    }
+
+    deinit {
+        kakaoReturnCheck?.cancel()
+        kakaoObservers.forEach { NotificationCenter.default.removeObserver($0) }
     }
     private func configured(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
@@ -99,7 +163,79 @@ final class IosSocialLoginLauncher: NSObject, SocialLoginLauncher, ASAuthorizati
         return value
     }
     static func handle(_ url: URL) -> Bool {
-        if AuthApi.isKakaoTalkLoginUrl(url) { return AuthController.handleOpenUrl(url: url) }
+        if AuthApi.isKakaoTalkLoginUrl(url) {
+            let handled = AuthController.handleOpenUrl(url: url)
+            if handled, let launcher = pendingKakaoLauncher {
+                launcher.kakaoAttempt.didReceiveRedirect()
+                launcher.kakaoReturnCheck?.cancel()
+                launcher.kakaoReturnCheck = nil
+            }
+            return handled
+        }
         return GIDSignIn.sharedInstance.handle(url)
+    }
+}
+#endif
+
+/// A direct return from KakaoTalk has no SDK callback. Web authentication owns its cancellation.
+struct KakaoTalkReturnState {
+    private var attemptID: UUID?
+    private var usesTalk = false
+    private var leftApp = false
+    private var receivedRedirect = false
+
+    mutating func begin(usesTalk: Bool) -> UUID {
+        let id = UUID()
+        attemptID = id
+        self.usesTalk = usesTalk
+        leftApp = false
+        receivedRedirect = false
+        return id
+    }
+    func isCurrent(_ id: UUID) -> Bool { attemptID == id }
+    mutating func didLeaveApp() { if usesTalk { leftApp = true } }
+    mutating func didReceiveRedirect() { receivedRedirect = true }
+    var returnedWithoutRedirect: UUID? {
+        usesTalk && leftApp && !receivedRedirect ? attemptID : nil
+    }
+    func shouldCancelReturn(_ id: UUID) -> Bool { returnedWithoutRedirect == id }
+    mutating func finish() { attemptID = nil }
+}
+
+/// Reject incomplete configuration before GoogleSignIn raises an Objective-C URL-scheme exception.
+struct GoogleLoginConfiguration {
+    enum Failure: String, Error {
+        case invalidIOSClient = "ios_client_missing_or_invalid"
+        case invalidServerClient = "web_client_missing_or_invalid"
+        case sameClient = "ios_and_web_clients_identical"
+        case missingCallbackScheme = "google_callback_scheme_missing"
+    }
+
+    let clientID: String
+    let serverClientID: String
+
+    init(info: [String: Any]) throws {
+        guard let clientID = Self.clientID(info["MAPMORY_GOOGLE_IOS_CLIENT_ID"]) else {
+            throw Failure.invalidIOSClient
+        }
+        guard let serverClientID = Self.clientID(info["MAPMORY_GOOGLE_WEB_CLIENT_ID"]) else {
+            throw Failure.invalidServerClient
+        }
+        guard clientID != serverClientID else { throw Failure.sameClient }
+        let callbackScheme = clientID.split(separator: ".").reversed().joined(separator: ".")
+        let urlTypes = info["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        let schemes = urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        guard schemes.contains(where: { $0.caseInsensitiveCompare(callbackScheme) == .orderedSame }) else {
+            throw Failure.missingCallbackScheme
+        }
+        self.clientID = clientID
+        self.serverClientID = serverClientID
+    }
+
+    private static func clientID(_ value: Any?) -> String? {
+        guard let value = value as? String,
+              value.range(of: #"^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$"#,
+                          options: .regularExpression) != nil else { return nil }
+        return value
     }
 }
