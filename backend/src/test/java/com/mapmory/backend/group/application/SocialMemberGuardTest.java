@@ -10,6 +10,7 @@ import com.mapmory.backend.group.exception.GroupErrorCode;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.member.exception.MemberErrorCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -19,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class SocialMemberGuardTest {
 
     private final MemberRepository memberRepository = mock(MemberRepository.class);
-    private final SocialMemberGuard guard = new SocialMemberGuard(memberRepository);
+    private final SocialMemberGuard guard = new SocialMemberGuard(new ActiveMemberGuard(memberRepository));
 
     @Test
     void 활동_중인_소셜_회원은_통과한다() {

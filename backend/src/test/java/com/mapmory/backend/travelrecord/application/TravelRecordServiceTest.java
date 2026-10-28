@@ -18,6 +18,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
@@ -96,6 +97,9 @@ class TravelRecordServiceTest {
     private RegionSuggester regionSuggester;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private ActiveMemberGuard activeMemberGuard;
     @Spy
     private OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
 
@@ -134,7 +138,8 @@ class TravelRecordServiceTest {
                 regionSuggester,
                 mock(PlatformTransactionManager.class),
                 eventPublisher,
-                travelRecordListCache
+                travelRecordListCache,
+                activeMemberGuard
         );
     }
 
