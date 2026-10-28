@@ -1,7 +1,12 @@
 // Playwright helpers shared by the gate checks. The section's scroll engine picks the active scene by a
 // focus line (the middle of the words band: under the phone on phones, the viewport middle on desktop), so
 // the helpers scroll by that line, never by element top.
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
+
+// GATES_BROWSER=webkit runs the checks in Playwright's WebKit (Safari's engine, `npx playwright install webkit`):
+// a stand-in for iPhone Safari where no iPhone is at hand (6.4). It is not Safari itself: iOS touch scrolling,
+// the address bar's height changes and H.264 decoding on Linux are not covered, so 6.4 still wants a real device.
+export const BROWSER = process.env.GATES_BROWSER === "webkit" ? "webkit" : "chromium";
 
 export const VIEWPORTS = Object.freeze({
   phoneS: { width: 360, height: 740, mobile: true },
@@ -12,7 +17,7 @@ export const VIEWPORTS = Object.freeze({
 });
 
 export async function launch({ width = 390, height = 844, mobile = true, dark = false, reduce = false, touch } = {}) {
-  const browser = await chromium.launch({ executablePath: process.env.GATES_CHROME || undefined });
+  const browser = BROWSER === "webkit" ? await webkit.launch() : await chromium.launch({ executablePath: process.env.GATES_CHROME || undefined });
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: touch ?? mobile,
     colorScheme: dark ? "dark" : "light", reducedMotion: reduce ? "reduce" : "no-preference", locale: "ko-KR" });
   const page = await context.newPage();
