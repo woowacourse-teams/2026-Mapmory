@@ -1,10 +1,11 @@
 package com.mapmory.backend.place.web;
 
+import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
+import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
-import com.mapmory.backend.travelrecord.dto.TravelRecordResponse;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -33,21 +34,22 @@ public class PlaceController {
         this.placeSelectionService = placeSelectionService;
     }
 
+    // 검색은 sessionToken이 필수다. 토큰을 보내지 않는 이전 앱은 출처를 Geoapify로 그려 Google 표기 정책을 지킬 수 없다.
     @GetMapping("/search")
-    public ResponseEntity<TravelRecordResponse<List<PlaceCandidateResponse>>> search(
-            @RequestParam @NotBlank @Size(max = 100) String query,
+    public ResponseEntity<ApiResponse<List<PlaceCandidateResponse>>> search(
+            @RequestParam @NotBlank @Size(max = SearchQuery.MAX_LENGTH) String query,
             @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
-        return ResponseEntity.ok(TravelRecordResponse.of(
+        return ResponseEntity.ok(ApiResponse.from(
                 placeSearchService.search(query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
     }
 
     @GetMapping("/{placeId}")
-    public ResponseEntity<TravelRecordResponse<PlaceSelectionResponse>> select(
+    public ResponseEntity<ApiResponse<PlaceSelectionResponse>> select(
             @PathVariable String placeId,
             @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken
     ) {
-        return ResponseEntity.ok(TravelRecordResponse.of(
+        return ResponseEntity.ok(ApiResponse.from(
                 PlaceSelectionResponse.from(placeSelectionService.select(placeId, sessionToken))));
     }
 }

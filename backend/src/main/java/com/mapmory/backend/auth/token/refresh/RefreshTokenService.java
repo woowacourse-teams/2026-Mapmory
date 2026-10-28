@@ -3,52 +3,54 @@ package com.mapmory.backend.auth.token.refresh;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
-import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * refresh 토큰 발급·회전·폐기.
  *
- * 원문(raw)은 SecureRandom으로 생성해 클라이언트에만 반환하고, 서버는 SHA-256 해시만 저장한다.
+ * 원문(raw)은 RefreshTokenGenerator로 받아 클라이언트에만 반환하고, 서버는 RefreshTokenHasher로 만든 해시만 저장한다.
  * 회전 시 기존 토큰을 폐기하고, 이미 폐기된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
- * 유효한 토큰을 모두 폐기한다.
+ * 유효한 토큰을 모두 폐기한다. 단, 게스트의 회전 응답 유실은 재발급한다. (ADR 0023)
  */
 @Service
 public class RefreshTokenService {
 
-    private static final int RAW_TOKEN_BYTES = 32;
-
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenGenerator refreshTokenGenerator;
+    private final RefreshTokenHasher refreshTokenHasher;
+    private final RefreshTokenReuseMonitor reuseMonitor;
     private final Duration refreshTokenValidity;
     private final Duration guestRefreshTokenValidity;
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final Clock clock;
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
-            JwtProperties jwtProperties
+            RefreshTokenGenerator refreshTokenGenerator,
+            RefreshTokenHasher refreshTokenHasher,
+            RefreshTokenReuseMonitor reuseMonitor,
+            JwtProperties jwtProperties,
+            Clock clock
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.refreshTokenGenerator = refreshTokenGenerator;
+        this.refreshTokenHasher = refreshTokenHasher;
+        this.reuseMonitor = reuseMonitor;
         this.refreshTokenValidity = jwtProperties.refreshTokenValidity();
         this.guestRefreshTokenValidity = jwtProperties.guestRefreshTokenValidity();
+        this.clock = clock;
     }
 
     @Transactional
     public String issue(Member member) {
-        String rawToken = generateRawToken();
-        LocalDateTime expiresAt = LocalDateTime.now().plus(validityFor(member));
-        refreshTokenRepository.save(RefreshToken.issue(member, hash(rawToken), expiresAt));
+        String rawToken = refreshTokenGenerator.generate();
+        LocalDateTime expiresAt = LocalDateTime.now(clock).plus(validityFor(member));
+        refreshTokenRepository.save(RefreshToken.issue(member, refreshTokenHasher.hash(rawToken), expiresAt));
         return rawToken;
     }
 
@@ -58,43 +60,88 @@ public class RefreshTokenService {
      * 의미를 갖는다. (ADR 0015)
      */
     private Duration validityFor(Member member) {
-        return member.getProvider() == AuthProvider.GUEST
+        return member.isGuest()
                 ? guestRefreshTokenValidity
                 : refreshTokenValidity;
     }
 
     /**
-     * 회전을 위한 검증.
+     * 회전. 기존 토큰을 폐기하고 새 토큰을 발급해, 둘을 회전 체인(replacedById)으로 잇는다.
      *
      * 토큰 행에 비관적 락(FOR UPDATE)을 걸어 같은 토큰 동시 사용의 이중 회전을 막는다.
      * 반환값으로 결과를 구분한다.
-     *   - 유효: 기존 토큰을 폐기하고 소유 회원을 담아 반환(Optional.of)
-     *   - 재사용(이미 폐기된 토큰): 탈취로 간주해 회원의 유효 토큰을 모두 폐기하고 Optional.empty 반환
+     *   - 유효: 새 토큰을 담아 반환(Optional.of)
+     *   - 재사용(이미 폐기된 토큰): 게스트의 응답 유실이면 재발급하고, 아니면 탈취로 간주해
+     *     회원의 유효 토큰을 모두 폐기하고 Optional.empty 반환
      *     (폐기를 커밋해야 하므로 여기서 예외를 던지지 않는다. 401 변환은 호출부가 한다.)
+     *   - 활동 중이 아닌 회원: 토큰만 폐기하고 Optional.empty 반환
      *   - 없음/만료: 남길 부작용이 없으므로 예외로 던진다.
      */
     @Transactional
-    public Optional<Member> validateAndRevoke(String rawToken) {
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(hash(rawToken))
+    public Optional<RotatedRefreshToken> rotate(String rawToken) {
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         if (refreshToken.isRevoked()) {
-            refreshTokenRepository.revokeAllActiveByMember(refreshToken.getMember(), now);
-            return Optional.empty();
+            return handleReuse(refreshToken, now);
         }
         if (refreshToken.isExpired(now)) {
             throw new BusinessException(AuthErrorCode.EXPIRED_REFRESH_TOKEN);
         }
 
-        refreshToken.revoke(now);
+        // 탈퇴하면 refresh를 모두 폐기하지만, 탈퇴와 재발급이 동시에 오면 폐기 전에 검증을 통과할 수 있다.
+        // 그래서 회원이 활동 중인지 한 번 더 본다. 제시된 토큰만 폐기하고 새 토큰은 주지 않는다. (ADR 0021)
+        if (!refreshToken.getMember().isActive()) {
+            refreshToken.revoke(now);
+            return Optional.empty();
+        }
+        return Optional.of(replace(refreshToken, now));
+    }
 
-        // 호출부(AuthService#refresh)는 트랜잭션 밖에서 실행되므로 반환 시점에 세션이 닫힌다.
-        // member는 지연 로딩 프록시라, 여기서 초기화해 두지 않으면 호출부에서 필드를 읽을 때
-        // LazyInitializationException이 난다. (잠금 범위를 넓히지 않으려고 fetch join 대신 초기화를 쓴다)
-        Member member = refreshToken.getMember();
-        Hibernate.initialize(member);
-        return Optional.of(member);
+    /**
+     * 폐기된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
+     *
+     * 게스트는 다시 로그인할 수단이 없어, 탈취로 보고 전체 폐기하면 계정을 영구히 잃는다.
+     * 응답 유실이라면 후속 토큰은 경과 시간과 무관하게 아직 쓰이지 않았다(쓰였다면 회전으로 폐기됐다).
+     * 그래서 후속 토큰이 유효할 때만 재발급하고, 이전 토큰이 새 후속을 가리키게 해 유실이 반복돼도 이어지게 한다.
+     * 직전보다 오래된 토큰은 후속이 이미 폐기됐으므로 여기서 걸러져 탈취로 처리된다.
+     *
+     * 소셜 회원은 다시 로그인하면 되므로 예외를 두지 않는다. 다만 후속 토큰이 쓰이지 않았는지는 로그에 남겨,
+     * 응답 유실로 강제 로그아웃되는 빈도를 볼 수 있게 한다. (#446)
+     */
+    private Optional<RotatedRefreshToken> handleReuse(RefreshToken reused, LocalDateTime now) {
+        Optional<RefreshToken> unusedSuccessor = findUnusedSuccessor(reused, now);
+        if (reused.getMember().isGuest() && unusedSuccessor.isPresent()) {
+            RotatedRefreshToken reissued = replace(unusedSuccessor.get(), now);
+            reused.followSuccessorOf(unusedSuccessor.get());
+            reuseMonitor.reissued(reused);
+            return Optional.of(reissued);
+        }
+        refreshTokenRepository.revokeAllActiveByMember(reused.getMember(), now);
+        reuseMonitor.revokedAll(reused, unusedSuccessor.isPresent());
+        return Optional.empty();
+    }
+
+    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken revoked, LocalDateTime now) {
+        if (revoked.getReplacedById() == null) {
+            return Optional.empty();
+        }
+        return refreshTokenRepository.findByIdForUpdate(revoked.getReplacedById())
+                .filter(successor -> !successor.isRevoked() && !successor.isExpired(now));
+    }
+
+    // 새 토큰을 발급하고, current를 폐기해 새 토큰을 후속으로 가리키게 한다.
+    // 새 토큰을 먼저 저장해야(IDENTITY) id가 생겨 후속으로 기록할 수 있다.
+    private RotatedRefreshToken replace(RefreshToken current, LocalDateTime now) {
+        Member member = current.getMember();
+        String rawToken = refreshTokenGenerator.generate();
+        RefreshToken successor = RefreshToken.issue(
+                member, refreshTokenHasher.hash(rawToken), now.plus(validityFor(member)));
+        refreshTokenRepository.save(successor);
+        current.replaceWith(successor, now);
+        return new RotatedRefreshToken(member.getId(), rawToken);
     }
 
     /**
@@ -103,29 +150,36 @@ public class RefreshTokenService {
      * 이미 발급된 access는 무상태라 만료까지 남지만, 갱신 경로가 끊겨 세션이 이어지지 않는다.
      */
     @Transactional
-    public void revokeAll(Member member) {
-        refreshTokenRepository.revokeAllActiveByMember(member, LocalDateTime.now());
+    public void revokeAll(Long memberId) {
+        refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now(clock));
     }
 
+    /**
+     * 로그아웃. 제시된 토큰을 폐기하고, 이미 회전된 토큰이면 바로 다음 토큰까지 폐기한다. (#462)
+     *
+     * 재발급과 겹칠 수 있어 회전처럼 행을 잠그고 읽는다. 잠그지 않으면 회전이 커밋한 replacedById를 읽기 전 값으로
+     * 덮어써 회전 체인이 끊기고, 그 재발급으로 나간 후속 토큰이 로그아웃 뒤에도 남는다.
+     * 잠그는 순서는 회전과 같이 제시된 토큰 → 후속 토큰이다.
+     *
+     * 겹친 재발급의 후속 토큰은 바로 다음 하나이므로 한 단계만 본다. 체인을 끝까지 따라가면 오래된 토큰일수록
+     * 잠금이 회전 횟수만큼 쌓인다. 그래서 두 단계 이상 이전 토큰으로 로그아웃하면 그 세션의 최신 토큰은 남는다.
+     * 세션 전체 폐기는 #467에서 다룬다.
+     */
     @Transactional
     public void revoke(String rawToken) {
-        refreshTokenRepository.findByTokenHash(hash(rawToken))
-                .ifPresent(token -> token.revoke(LocalDateTime.now()));
+        LocalDateTime now = LocalDateTime.now(clock);
+        refreshTokenRepository.findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
+                .ifPresent(token -> {
+                    token.revoke(now);
+                    revokeSuccessor(token, now);
+                });
     }
 
-    private String generateRawToken() {
-        byte[] bytes = new byte[RAW_TOKEN_BYTES];
-        secureRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private String hash(String rawToken) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", exception);
+    private void revokeSuccessor(RefreshToken token, LocalDateTime now) {
+        if (token.getReplacedById() == null) {
+            return;
         }
+        refreshTokenRepository.findByIdForUpdate(token.getReplacedById())
+                .ifPresent(successor -> successor.revoke(now));
     }
 }

@@ -1,9 +1,9 @@
 package com.mapmory.backend.place.web.dto;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.travelrecord.dto.RegionDetailResponse;
+import com.mapmory.backend.place.application.SelectedPlace;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.web.dto.RegionDetailResponse;
 
 public record PlaceSelectionResponse(
         String placeId,
@@ -18,8 +18,8 @@ public record PlaceSelectionResponse(
         PlaceDetails place = selected.place();
         Region region = selected.suggestedRegion();
         return new PlaceSelectionResponse(
-                place.placeId(), place.name(), place.countryCode(),
+                place.id().value(), place.name(), place.address().countryCode(),
                 region == null ? null : RegionDetailResponse.from(region),
-                region == null, place.attribution(), place.attributionUrl());
+                selected.manualRegionRequired(), place.provider().attribution(), place.provider().attributionUrl());
     }
 }

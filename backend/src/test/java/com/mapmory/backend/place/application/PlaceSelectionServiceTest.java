@@ -1,15 +1,17 @@
 package com.mapmory.backend.place.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionResolver;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.region.application.RegionSuggester;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -22,56 +24,36 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PlaceSelectionServiceTest {
 
     @Mock PlaceLookupPort placeLookupPort;
-    @Mock RegionResolver regionResolver;
-    @Mock KoreanAddressRegionMatcher addressRegionMatcher;
+    @Mock RegionSuggester regionSuggester;
     @InjectMocks PlaceSelectionService service;
 
     @Test
-    void 주소_이름으로_시군구를_추천한다() {
-        Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
-        Region province = Region.of(country, country, "11", "서울특별시", RegionType.PROVINCE);
-        Region district = Region.of(province, country, "11110", "종로구", RegionType.DISTRICT);
-        when(placeLookupPort.findForSelection("ChIJ-gyeong", null))
-                .thenReturn(place("KR", List.of("서울특별시", "종로구")));
-        when(addressRegionMatcher.match(List.of("서울특별시", "종로구"))).thenReturn(Optional.of(district));
+    void 장소의_국가와_주소로_지역을_추천한다() {
+        Region district = Region.of(null, null, "11110", "종로구", RegionType.DISTRICT);
+        when(placeLookupPort.findDetails(PlaceId.from("ChIJ-gyeong"), "session-1"))
+                .thenReturn(place(new RegionAddress("KR", "서울특별시", List.of("종로구"))));
+        when(regionSuggester.suggest(new RegionAddress("KR", "서울특별시", List.of("종로구"))))
+                .thenReturn(Optional.of(district));
 
-        SelectedPlace result = service.select("ChIJ-gyeong", null);
+        SelectedPlace result = service.select("ChIJ-gyeong", "session-1");
 
         assertThat(result.suggestedRegion()).isEqualTo(district);
+        assertThat(result.manualRegionRequired()).isFalse();
     }
 
     @Test
-    void 주소로_시군구를_찾지_못하면_직접_선택하도록_알린다() {
-        when(placeLookupPort.findForSelection("ChIJ-gyeong", null)).thenReturn(place("KR", List.of()));
-        when(addressRegionMatcher.match(List.of())).thenReturn(Optional.empty());
-
-        SelectedPlace result = service.select("ChIJ-gyeong", null);
-
-        assertThat(result.suggestedRegion()).isNull();
-    }
-
-    @Test
-    void 해외_장소는_국가를_추천한다() {
-        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
-        when(placeLookupPort.findForSelection("ChIJ-tokyo", null)).thenReturn(place("JP", List.of()));
-        when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
-
-        SelectedPlace result = service.select("ChIJ-tokyo", null);
-
-        assertThat(result.suggestedRegion()).isEqualTo(japan);
-        verifyNoInteractions(addressRegionMatcher);
-    }
-
-    @Test
-    void 제공자가_국가_코드를_주지_않으면_직접_선택하도록_알린다() {
-        when(placeLookupPort.findForSelection("ChIJ-island", null)).thenReturn(place(null, List.of()));
+    void 지역을_찾지_못하면_직접_선택하도록_알린다() {
+        when(placeLookupPort.findDetails(PlaceId.from("ChIJ-island"), null)).thenReturn(place(RegionAddress.UNKNOWN));
+        when(regionSuggester.suggest(RegionAddress.UNKNOWN)).thenReturn(Optional.empty());
 
         SelectedPlace result = service.select("ChIJ-island", null);
 
         assertThat(result.suggestedRegion()).isNull();
+        assertThat(result.manualRegionRequired()).isTrue();
     }
 
-    private static PlaceDetails place(String countryCode, List<String> addressAreas) {
-        return new PlaceDetails("ChIJ-place", null, countryCode, "Google Maps", "https://www.google.com/maps", addressAreas);
+    private static PlaceDetails place(RegionAddress address) {
+        return new PlaceDetails(PlaceId.from("ChIJ-place"), null, address,
+                new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps"));
     }
 }

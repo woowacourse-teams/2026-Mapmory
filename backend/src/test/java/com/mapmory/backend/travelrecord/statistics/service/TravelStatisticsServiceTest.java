@@ -3,8 +3,9 @@ package com.mapmory.backend.travelrecord.statistics.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 import com.mapmory.backend.travelrecord.statistics.model.TravelStatistics;
 import com.mapmory.backend.travelrecord.statistics.repository.TopRegionQueryResult;
@@ -32,9 +33,9 @@ class TravelStatisticsServiceTest {
     void returnsTravelStatistics() {
         TravelStatisticsService service = service();
         when(member.getId()).thenReturn(10L);
-        when(travelStatisticsRepository.findSummary(10L)).thenReturn(summary(7L, 4L, 3L));
+        when(travelStatisticsRepository.findSummary(10L, Region.KOREA)).thenReturn(summary(7L, 4L, 3L));
         when(travelStatisticsRepository.findVisitedCountryCodes(10L)).thenReturn(List.of("JP", "KR", "US"));
-        when(travelStatisticsRepository.findTopRegions(10L)).thenReturn(List.of(
+        when(travelStatisticsRepository.findTopRegions(10L, Region.KOREA)).thenReturn(List.of(
                 topRegion(15L, "11", "PROVINCE", "서울특별시", 3L),
                 topRegion(2L, "JP", "COUNTRY", "일본", 2L)
         ));

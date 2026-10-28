@@ -37,7 +37,7 @@ class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
     @BeforeEach
     void setUp() {
         GuestLoginRateLimiter limiter =
-                new GuestLoginRateLimiter(new GuestLoginRateLimitProperties(2, Duration.ofHours(1)));
+                new GuestLoginRateLimiter(new GuestLoginRateLimitProperties(2, Duration.ofHours(1)), clock);
         willAnswer(invocation -> limiter.tryAcquire(invocation.getArgument(0)))
                 .given(guestLoginRateLimiter).tryAcquire(anyString());
     }
@@ -80,7 +80,7 @@ class GuestLoginRateLimitIntegrationTest extends IntegrationTest {
         mockMvc.perform(post("/api/v1/auth/login/kakao")
                         .header("X-Forwarded-For", "203.0.113.5")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"kakaoAccessToken\":\"kakao-token\"}"))
+                        .content("{\"idToken\":\"kakao-id-token\"}"))
                 .andExpect(status().isUnauthorized());
     }
 

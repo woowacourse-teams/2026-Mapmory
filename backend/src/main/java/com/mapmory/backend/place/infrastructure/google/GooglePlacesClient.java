@@ -1,10 +1,13 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.place.application.PlaceErrorCode;
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.place.domain.SearchQuery;
+import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.net.ConnectException;
@@ -13,6 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -34,9 +39,9 @@ import tools.jackson.databind.JsonNode;
 @Component
 public class GooglePlacesClient implements PlaceLookupPort {
 
-    static final String PROVIDER_CODE = "GOOGLE";
-    static final String ATTRIBUTION = "Google Maps";
-    static final String ATTRIBUTION_URL = "https://www.google.com/maps";
+    private static final Logger log = LoggerFactory.getLogger(GooglePlacesClient.class);
+
+    static final PlaceProvider PROVIDER = new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
 
     // Place Details Essentials: 국가와 시·도·시·군·구 판정용 주소 구성요소만 받는다. 좌표와 이름은 받지 않는다.
     // displayName(Pro)을 넣으면 세션을 닫는 상세 조회가 Enterprise + Atmosphere로 과금된다.
@@ -60,18 +65,25 @@ public class GooglePlacesClient implements PlaceLookupPort {
         this.apiKey = apiKey;
         this.requestLimiter = requestLimiter;
         this.circuitBreaker = circuitBreaker;
+        if (apiKey == null || apiKey.isBlank()) {
+            log.atError()
+                    .addKeyValue("event", "GOOGLE_PLACES_NOT_CONFIGURED")
+                    .log("GOOGLE_PLACES_API_KEY가 없어 장소 검색과 선택이 실패한다");
+        }
+    }
+
+    /** 키를 뺀 뒤에는 새 Google 장소를 받지 않도록 제공자 장애로 알린다. */
+    @Override
+    public PlaceProvider provider() {
+        requireConfigured();
+        return PROVIDER;
     }
 
     @Override
-    public String providerCode() {
-        return PROVIDER_CODE;
-    }
-
-    @Override
-    public List<PlaceCandidate> search(String query, String sessionToken) {
+    public List<PlaceCandidate> search(SearchQuery query, String sessionToken) {
         requireConfigured();
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("input", query);
+        body.put("input", query.value());
         body.put("languageCode", LANGUAGE);
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);
@@ -87,32 +99,9 @@ public class GooglePlacesClient implements PlaceLookupPort {
         return mapper.candidates(response);
     }
 
-    /** 같은 sessionToken으로 상세를 조회해 자동완성 세션을 닫는다. 이름은 클라이언트가 후보의 name을 쓴다. */
+    /** 같은 sessionToken으로 상세를 조회하면 자동완성 세션이 닫힌다. 이름은 클라이언트가 후보의 name을 쓴다. */
     @Override
-    public PlaceDetails findForSelection(String placeId, String sessionToken) {
-        return details(placeId, sessionToken);
-    }
-
-    @Override
-    public PlaceDetails findById(String placeId) {
-        return details(placeId, null);
-    }
-
-    /**
-     * 기록에 붙일 장소를 Google을 다시 부르지 않고 만든다. 이름은 저장하지 않고 출처 표기는 상수라 다시 받을 값이 없다.
-     *
-     * <p>국가는 확인하지 않아 null이다. 앱을 고쳐 다른 나라 장소를 붙여도 그 회원의 기록에만 영향이 간다.
-     * 키를 뺀 뒤에는 새 Google 장소를 받지 않도록 제공자 장애로 알린다.
-     */
-    @Override
-    public PlaceDetails findForRecord(String placeId) {
-        validatePlaceId(placeId);
-        requireConfigured();
-        return new PlaceDetails(placeId, null, null, ATTRIBUTION, ATTRIBUTION_URL, List.of());
-    }
-
-    private PlaceDetails details(String placeId, String sessionToken) {
-        validatePlaceId(placeId);
+    public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
         requireConfigured();
         JsonNode response = call(true, requestLimiter::reserveDetails, requestLimiter::refundDetails,
                 () -> restClient.get()
@@ -121,7 +110,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
                             if (sessionToken != null) {
                                 uri.queryParam("sessionToken", sessionToken);
                             }
-                            return uri.build(placeId);
+                            return uri.build(placeId.value());
                         })
                         .header("X-Goog-Api-Key", apiKey)
                         .header("X-Goog-FieldMask", FIELD_MASK)
@@ -147,6 +136,14 @@ public class GooglePlacesClient implements PlaceLookupPort {
             }
             if (placeLookup && exception instanceof RestClientResponseException response && isUnknownPlace(response)) {
                 throw new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND);
+            }
+            if (exception instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError()) {
+                // 4xx는 서킷이 실패로 세지 않는다. 키 거절처럼 고칠 때까지 계속되는 실패라 여기서 ERROR로 알린다.
+                log.atError()
+                        .addKeyValue("event", "GOOGLE_PLACES_REJECTED")
+                        .addKeyValue("status", response.getStatusCode().value())
+                        .setCause(exception)
+                        .log("Google Places가 요청을 거절했다: {}", response.getStatusCode().value());
             }
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }
@@ -182,12 +179,6 @@ public class GooglePlacesClient implements PlaceLookupPort {
             return true;
         }
         return status == 400 && !exception.getResponseBodyAsString().contains("API_KEY");
-    }
-
-    private static void validatePlaceId(String placeId) {
-        if (placeId == null || !placeId.matches("[A-Za-z0-9_-]{1,255}")) {
-            throw new BusinessException(PlaceErrorCode.INVALID_PLACE_ID);
-        }
     }
 
     private void requireConfigured() {

@@ -1,7 +1,8 @@
 package com.mapmory.backend.travelrecord.statistics.service;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 import com.mapmory.backend.travelrecord.statistics.model.TravelStatistics;
 import com.mapmory.backend.travelrecord.statistics.repository.TopRegionQueryResult;
@@ -26,9 +27,9 @@ public class TravelStatisticsService {
     }
 
     private TravelStatistics getStatistics(Long memberId) {
-        TravelStatisticsSummaryQueryResult summary = travelStatisticsRepository.findSummary(memberId);
+        TravelStatisticsSummaryQueryResult summary = travelStatisticsRepository.findSummary(memberId, Region.KOREA);
         List<String> visitedCountryCodes = travelStatisticsRepository.findVisitedCountryCodes(memberId);
-        List<TopRegionStatistics> topRegions = travelStatisticsRepository.findTopRegions(memberId).stream()
+        List<TopRegionStatistics> topRegions = travelStatisticsRepository.findTopRegions(memberId, Region.KOREA).stream()
                 .map(TravelStatisticsService::toTopRegionStatistics)
                 .toList();
 

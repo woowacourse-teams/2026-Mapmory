@@ -10,9 +10,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
+import com.mapmory.backend.place.application.SelectedPlace;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.region.domain.RegionAddress;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,9 @@ import static org.mockito.Mockito.mock;
 
 class PlaceControllerTest {
 
+    private static final PlaceProvider GOOGLE =
+            new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
+
     @Test
     void 검색_후보를_응답한다() throws Exception {
         PlaceSearchService searchService = mock(PlaceSearchService.class);
@@ -33,7 +39,7 @@ class PlaceControllerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         String token = "0b6f8f4e-5d0a-4c9a-9f43-0c1c2f5f2b11";
         when(searchService.search("한강공원", token))
-                .thenReturn(List.of(new PlaceCandidate("park-1", "여의도한강공원", "서울 영등포구", null, null)));
+                .thenReturn(List.of(new PlaceCandidate(PlaceId.from("park-1"), "여의도한강공원", "서울 영등포구", GOOGLE)));
 
         mockMvc.perform(get("/api/v1/places/search").param("query", "한강공원").param("sessionToken", token))
                 .andExpect(status().isOk())
@@ -63,7 +69,7 @@ class PlaceControllerTest {
         when(searchService.search("경복", token)).thenReturn(List.of());
         when(selectionService.select("ChIJ-gyeong", token))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("ChIJ-gyeong", null, "KR", null, null, List.of()), null));
+                        new PlaceDetails(PlaceId.from("ChIJ-gyeong"), null, new RegionAddress("KR", null, List.of()), GOOGLE), null));
 
         mockMvc.perform(get("/api/v1/places/search").param("query", "경복").param("sessionToken", token))
                 .andExpect(status().isOk());
@@ -97,7 +103,7 @@ class PlaceControllerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         when(selectionService.select("ChIJ-park", null))
                 .thenReturn(new SelectedPlace(
-                        new PlaceDetails("ChIJ-park", null, "KR", null, null, List.of()), null));
+                        new PlaceDetails(PlaceId.from("ChIJ-park"), null, new RegionAddress("KR", null, List.of()), GOOGLE), null));
 
         mockMvc.perform(get("/api/v1/places/ChIJ-park"))
                 .andExpect(status().isOk())

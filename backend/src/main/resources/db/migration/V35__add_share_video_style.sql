@@ -1,0 +1,2 @@
+ALTER TABLE share_video_job
+    ADD COLUMN style_id VARCHAR(20) NOT NULL DEFAULT 'CLASSIC';

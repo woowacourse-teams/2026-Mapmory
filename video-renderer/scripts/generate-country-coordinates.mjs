@@ -1,0 +1,165 @@
+import {readFile, writeFile} from "node:fs/promises";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+const rendererDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const mapPath = path.join(rendererDir, "src/data/world-map.json");
+const outputPath = path.join(rendererDir, "src/travel-timeline/country-coordinates.ts");
+
+const unwrapRing = (ring) => {
+  if (ring.length === 0) return [];
+
+  const unwrapped = [[ring[0][0], ring[0][1]]];
+
+  for (let index = 1; index < ring.length; index++) {
+    const previousLongitude = unwrapped[index - 1][0];
+    let [longitude, latitude] = ring[index];
+
+    while (longitude - previousLongitude > 180) longitude -= 360;
+    while (longitude - previousLongitude < -180) longitude += 360;
+
+    unwrapped.push([longitude, latitude]);
+  }
+
+  return unwrapped;
+};
+
+const signedArea = (ring) => {
+  let twiceArea = 0;
+
+  for (let index = 0; index < ring.length - 1; index++) {
+    const [currentX, currentY] = ring[index];
+    const [nextX, nextY] = ring[index + 1];
+    twiceArea += currentX * nextY - nextX * currentY;
+  }
+
+  return twiceArea / 2;
+};
+
+const polygonCentroid = (ring) => {
+  let crossSum = 0;
+  let longitudeSum = 0;
+  let latitudeSum = 0;
+
+  for (let index = 0; index < ring.length - 1; index++) {
+    const [currentX, currentY] = ring[index];
+    const [nextX, nextY] = ring[index + 1];
+    const cross = currentX * nextY - nextX * currentY;
+
+    crossSum += cross;
+    longitudeSum += (currentX + nextX) * cross;
+    latitudeSum += (currentY + nextY) * cross;
+  }
+
+  if (Math.abs(crossSum) < 0.000001) {
+    const [longitudeTotal, latitudeTotal] = ring.reduce(
+      ([longitude, latitude], point) => [longitude + point[0], latitude + point[1]],
+      [0, 0],
+    );
+    return [longitudeTotal / ring.length, latitudeTotal / ring.length];
+  }
+
+  return [
+    longitudeSum / (3 * crossSum),
+    latitudeSum / (3 * crossSum),
+  ];
+};
+
+const pointInPolygon = ([longitude, latitude], ring) => {
+  let inside = false;
+
+  for (let current = 0, previous = ring.length - 1; current < ring.length; previous = current++) {
+    const [currentX, currentY] = ring[current];
+    const [previousX, previousY] = ring[previous];
+    const crossesLatitude = currentY > latitude !== previousY > latitude;
+    const intersection = ((previousX - currentX) * (latitude - currentY))
+      / (previousY - currentY || Number.EPSILON) + currentX;
+
+    if (crossesLatitude && longitude < intersection) inside = !inside;
+  }
+
+  return inside;
+};
+
+const findInsidePoint = (ring, preferredPoint) => {
+  if (pointInPolygon(preferredPoint, ring)) return preferredPoint;
+
+  const longitudes = ring.map(([longitude]) => longitude);
+  const latitudes = ring.map(([, latitude]) => latitude);
+  const minimumLongitude = Math.min(...longitudes);
+  const maximumLongitude = Math.max(...longitudes);
+  const minimumLatitude = Math.min(...latitudes);
+  const maximumLatitude = Math.max(...latitudes);
+  let nearestPoint;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let row = 1; row < 40; row++) {
+    for (let column = 1; column < 40; column++) {
+      const candidate = [
+        minimumLongitude + ((maximumLongitude - minimumLongitude) * column) / 40,
+        minimumLatitude + ((maximumLatitude - minimumLatitude) * row) / 40,
+      ];
+
+      if (!pointInPolygon(candidate, ring)) continue;
+
+      const distance = Math.hypot(
+        candidate[0] - preferredPoint[0],
+        candidate[1] - preferredPoint[1],
+      );
+
+      if (distance < nearestDistance) {
+        nearestPoint = candidate;
+        nearestDistance = distance;
+      }
+    }
+  }
+
+  return nearestPoint ?? ring[0];
+};
+
+const normalizeLongitude = (longitude) => {
+  let normalized = longitude;
+  while (normalized > 180) normalized -= 360;
+  while (normalized < -180) normalized += 360;
+  return normalized;
+};
+
+const round = (value) => Math.round(value * 10_000) / 10_000;
+
+const representativeCoordinate = (country) => {
+  const largestRing = country.rings
+    .map(unwrapRing)
+    .filter((ring) => ring.length >= 4)
+    .sort((left, right) => Math.abs(signedArea(right)) - Math.abs(signedArea(left)))[0];
+
+  if (!largestRing) {
+    throw new Error(`No polygon ring found for ${country.code}`);
+  }
+
+  const centroid = polygonCentroid(largestRing);
+  const [longitude, latitude] = findInsidePoint(largestRing, centroid);
+
+  return {
+    longitude: round(normalizeLongitude(longitude)),
+    latitude: round(latitude),
+  };
+};
+
+const countries = JSON.parse(await readFile(mapPath, "utf8"));
+const coordinates = Object.fromEntries(
+  countries
+    .map((country) => [country.code, representativeCoordinate(country)])
+    .sort(([leftCode], [rightCode]) => leftCode.localeCompare(rightCode)),
+);
+
+const entries = Object.entries(coordinates)
+  .map(
+    ([code, coordinate]) =>
+      `  ${JSON.stringify(code)}: {longitude: ${coordinate.longitude}, latitude: ${coordinate.latitude}},`,
+  )
+  .join("\n");
+
+const source = `// Generated by scripts/generate-country-coordinates.mjs. Do not edit manually.\n\nexport type CountryCoordinate = {\n  readonly longitude: number;\n  readonly latitude: number;\n};\n\nexport const countryCoordinates: Readonly<Record<string, CountryCoordinate>> = {\n${entries}\n};\n\nexport const getCountryCoordinate = (countryCode: string): CountryCoordinate => {\n  const coordinate = countryCoordinates[countryCode];\n\n  if (!coordinate) {\n    throw new Error(\`Representative coordinate not found for country: \${countryCode}\`);\n  }\n\n  return coordinate;\n};\n`;
+
+await writeFile(outputPath, source);
+console.log(`Generated ${Object.keys(coordinates).length} country coordinates at ${outputPath}`);

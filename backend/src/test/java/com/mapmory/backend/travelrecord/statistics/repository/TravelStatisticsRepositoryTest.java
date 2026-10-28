@@ -3,11 +3,11 @@ package com.mapmory.backend.travelrecord.statistics.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.travelrecord.RecordMedia;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
-import com.mapmory.backend.travelrecord.TravelRecord;
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
+import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.List;
@@ -33,7 +33,7 @@ class TravelStatisticsRepositoryTest extends MySqlTestContainerSupport {
         Scenario scenario = createScenario();
 
         TravelStatisticsSummaryQueryResult summary =
-                travelStatisticsRepository.findSummary(scenario.member().getId());
+                travelStatisticsRepository.findSummary(scenario.member().getId(), Region.KOREA);
         List<String> countryCodes =
                 travelStatisticsRepository.findVisitedCountryCodes(scenario.member().getId());
 
@@ -49,7 +49,7 @@ class TravelStatisticsRepositoryTest extends MySqlTestContainerSupport {
         Scenario scenario = createScenario();
 
         List<TopRegionQueryResult> topRegions =
-                travelStatisticsRepository.findTopRegions(scenario.member().getId());
+                travelStatisticsRepository.findTopRegions(scenario.member().getId(), Region.KOREA);
 
         assertThat(topRegions).hasSize(3);
         assertRegion(topRegions.get(0), scenario.seoul(), 3L);
@@ -63,13 +63,14 @@ class TravelStatisticsRepositoryTest extends MySqlTestContainerSupport {
         Member member = persist(Member.of("기록 없는 회원", UUID.randomUUID()));
         flushAndClear();
 
-        TravelStatisticsSummaryQueryResult summary = travelStatisticsRepository.findSummary(member.getId());
+        TravelStatisticsSummaryQueryResult summary =
+                travelStatisticsRepository.findSummary(member.getId(), Region.KOREA);
 
         assertThat(summary.getRecordCount()).isZero();
         assertThat(summary.getMediaCount()).isZero();
         assertThat(summary.getVisitedKoreaDistrictCount()).isZero();
         assertThat(travelStatisticsRepository.findVisitedCountryCodes(member.getId())).isEmpty();
-        assertThat(travelStatisticsRepository.findTopRegions(member.getId())).isEmpty();
+        assertThat(travelStatisticsRepository.findTopRegions(member.getId(), Region.KOREA)).isEmpty();
     }
 
     private Scenario createScenario() {

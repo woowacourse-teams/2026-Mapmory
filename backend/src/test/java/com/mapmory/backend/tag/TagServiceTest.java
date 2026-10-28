@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,11 +31,14 @@ class TagServiceTest {
     @Mock
     private Member member;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TagService tagService;
 
     @BeforeEach
     void setUp() {
-        tagService = new TagService(tagRepository);
+        tagService = new TagService(tagRepository, eventPublisher);
     }
 
     @Test
@@ -88,6 +92,7 @@ class TagServiceTest {
         );
 
         assertThat(tag.getName()).isEqualTo("친구");
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -121,5 +126,31 @@ class TagServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
                 .isEqualTo(code);
+    }
+
+    @Test
+    void 태그를_삭제하면_그_회원_캐시를_비우도록_알린다() {
+        Tag tag = mock(Tag.class);
+        when(member.getId()).thenReturn(10L);
+        when(tagRepository.findByIdAndMemberId(7L, 10L)).thenReturn(Optional.of(tag));
+
+        tagService.delete(member, 7L);
+
+        verify(tagRepository).delete(tag);
+        verify(eventPublisher).publishEvent(new TagChangedEvent(10L));
+    }
+
+    @Test
+    void 태그_이름을_바꾸면_그_회원_캐시를_비우도록_알린다() {
+        when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+        ReflectionTestUtils.setField(tag, "id", 1L);
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.of(tag));
+        when(tagRepository.existsByMemberIdAndNameKeyAndIdNot(10L, "가족", 1L)).thenReturn(false);
+
+        tagService.update(member, 1L, "가족");
+
+        assertThat(tag.getName()).isEqualTo("가족");
+        verify(eventPublisher).publishEvent(new TagChangedEvent(10L));
     }
 }

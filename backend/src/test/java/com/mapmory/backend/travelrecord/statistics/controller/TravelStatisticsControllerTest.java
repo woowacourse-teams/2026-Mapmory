@@ -12,7 +12,7 @@ import com.mapmory.backend.auth.token.jwt.JwtConfig;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 import com.mapmory.backend.travelrecord.statistics.model.TravelStatistics;
 import com.mapmory.backend.travelrecord.statistics.service.TravelStatisticsService;
