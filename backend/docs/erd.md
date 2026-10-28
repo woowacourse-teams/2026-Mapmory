@@ -423,6 +423,7 @@ CONSTRAINT fk_travel_record_tag_tag
 - 참조 중인 Region은 삭제하지 않는다. 행정구역 개편은 이력·코드 변경 정책으로 처리한다.
 - `travel_group` 1 : N `group_member`, `group_invitation`, `album`
 - `album` 1 : N `album_entry`
+- 여행 기록을 지우면 그룹이 이벤트를 받아 그 기록의 `album_entry`를 지우고, 항목이 없어진 `album`도 지운다(FK가 없어 DB가 하지 않는다).
 - `travel_record` 1 : N `album_entry` (id 참조, FK 없음)
 - 그룹 테이블의 FK에는 CASCADE를 걸지 않는다. 나가기·그룹 삭제·기록 삭제 연쇄는 애플리케이션이 처리한다.
 - 여행 기록이 삭제되면 그 기록의 `album_entry`를 모두 지운다. 그 기록이 앨범을 연 기록이면 가장 먼저 담은 멤버가 연 사람이 된다.

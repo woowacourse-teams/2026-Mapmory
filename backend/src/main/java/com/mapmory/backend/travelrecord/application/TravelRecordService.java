@@ -16,6 +16,7 @@ import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
+import com.mapmory.backend.travelrecord.api.TravelRecordDeleted;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
@@ -198,6 +199,7 @@ public class TravelRecordService {
 
         travelRecordRepository.delete(travelRecord);
         eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
+        eventPublisher.publishEvent(new TravelRecordDeleted(travelRecordId, member.getId()));
     }
 
     /**

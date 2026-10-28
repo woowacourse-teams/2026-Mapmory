@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -466,6 +467,59 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data[0].coverPhoto.viewUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data[1].id").value(empty.getId()))
                 .andExpect(jsonPath("$.data[1].coverPhoto").doesNotExist());
+    }
+
+    @Test
+    void 기록을_지우면_그_기록의_항목만_빠지고_앨범은_남는다() throws Exception {
+        TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg");
+        Long albumId = openedAlbumId(jisu, jisuRecord);
+        addEntry(minho, group.getId(), albumId, minhoRecord.getId()).andExpect(status().isCreated());
+
+        deleteRecordByApi(minho, minhoRecord).andExpect(status().isNoContent());
+
+        assertThat(entryCount(albumId)).isEqualTo(1);
+        detail(jisu, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries.length()").value(1))
+                .andExpect(jsonPath("$.data.entries[0].travelRecordId").value(jisuRecord.getId()));
+    }
+
+    @Test
+    void 마지막_항목의_기록을_지우면_앨범도_지운다() throws Exception {
+        TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        Long albumId = openedAlbumId(jisu, record);
+
+        deleteRecordByApi(jisu, record).andExpect(status().isNoContent());
+
+        assertThat(albumRepository.findById(albumId)).isEmpty();
+        assertThat(entryCount(albumId)).isZero();
+        list(jisu, group.getId(), "")
+                .andExpect(jsonPath("$.data.items.length()").value(0));
+    }
+
+    @Test
+    void 여러_그룹의_앨범에_담긴_기록을_지우면_모두에서_빠진다() throws Exception {
+        TravelGroup other = groupWith(jisu);
+        TravelRecord shared = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        TravelRecord kept = record(jisu, LocalDate.of(2026, 3, 2), null, "b.jpg");
+        Long albumId = openedAlbumId(jisu, shared);
+        addEntry(jisu, group.getId(), albumId, kept.getId()).andExpect(status().isCreated());
+        Long otherAlbumId = openedAlbumId(jisu, other.getId(), shared);
+
+        deleteRecordByApi(jisu, shared).andExpect(status().isNoContent());
+
+        assertThat(entryCount(albumId)).isEqualTo(1);
+        assertThat(albumRepository.findById(otherAlbumId)).isEmpty();
+    }
+
+    private ResultActions deleteRecordByApi(Member member, TravelRecord record) throws Exception {
+        return mockMvc.perform(delete("/api/v1/travel-records/{id}", record.getId())
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
+    private long entryCount(Long albumId) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM album_entry WHERE album_id = ?", Long.class, albumId);
     }
 
     private void deleteRecord(TravelRecord record) {
