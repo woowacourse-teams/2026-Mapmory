@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshotFactory;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import java.util.Optional;
@@ -24,6 +25,7 @@ class ShareVideoServiceTest {
     private final ShareVideoJobRepository shareVideoJobRepository = mock(ShareVideoJobRepository.class);
     private final ShareVideoDownloadUrlService downloadUrlService = mock(ShareVideoDownloadUrlService.class);
     private final JsonMapper jsonMapper = mock(JsonMapper.class);
+    private final ActiveMemberGuard activeMemberGuard = mock(ActiveMemberGuard.class);
     private final Member member = mock(Member.class);
 
     private ShareVideoService shareVideoService;
@@ -35,7 +37,8 @@ class ShareVideoServiceTest {
                 snapshotFactory,
                 shareVideoJobRepository,
                 downloadUrlService,
-                jsonMapper
+                jsonMapper,
+                activeMemberGuard
         );
         when(member.getId()).thenReturn(10L);
     }

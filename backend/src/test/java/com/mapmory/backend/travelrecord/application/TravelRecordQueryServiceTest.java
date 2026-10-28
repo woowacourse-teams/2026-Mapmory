@@ -14,6 +14,7 @@ import com.mapmory.backend.support.SqlStatementCounter;
 import com.mapmory.backend.travelrecord.api.RecordBrief;
 import com.mapmory.backend.travelrecord.api.RecordView;
 import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import jakarta.persistence.EntityManagerFactory;
@@ -27,6 +28,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class TravelRecordQueryServiceTest extends IntegrationTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     @Autowired
     private TravelRecordQuery travelRecordQuery;
@@ -125,11 +128,14 @@ class TravelRecordQueryServiceTest extends IntegrationTest {
         assertThat(counter.count(() -> travelRecordQuery.briefsOf(ten))).isEqualTo(2);
     }
 
+    // 사진 없는 기록은 이제 새로 만들 수 없지만(사진 1장 이상) 예전 기록으로 남아 있다. 그래서 사진이 없으면 붙이지 않는다.
     private TravelRecord record(Member member, LocalDate startDate, LocalDate endDate, String... fileNames) {
-        TravelRecord record = TravelRecord.of(member, region, "도쿄", "본문", startDate, endDate);
-        record.synchronizeMedia(IntStream.range(0, fileNames.length)
-                .mapToObj(i -> "travel-records/" + member.getId() + "/" + UUID.randomUUID() + "-" + fileNames[i])
-                .toList());
+        TravelRecord record = TravelRecord.of(member, region, "도쿄", "본문", startDate, endDate, TODAY);
+        if (fileNames.length > 0) {
+            record.synchronizeMedia(ObjectKeys.from(IntStream.range(0, fileNames.length)
+                    .mapToObj(i -> "travel-records/" + member.getId() + "/" + UUID.randomUUID() + "-" + fileNames[i])
+                    .toList()));
+        }
         return travelRecordRepository.save(record);
     }
 }

@@ -52,7 +52,9 @@ public class Album extends BaseEntity {
     @Column(name = "opener_member_id", nullable = false)
     private Long openerMemberId;
 
-    @OneToMany(mappedBy = "album", cascade = CascadeType.ALL, orphanRemoval = true)
+    // 항목은 이 앨범과 생명주기가 같은 애그리거트 내부 엔티티다. 새 항목은 함께 저장하고(PERSIST), 빠지면 지운다(orphanRemoval).
+    // 앨범 삭제는 아직 없다. 생기면 album_entry FK에 ON DELETE CASCADE를 더하고 @OnDelete로 맡긴다(ADR 0017 cascade 규칙).
+    @OneToMany(mappedBy = "album", cascade = CascadeType.PERSIST, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<AlbumEntry> entries = new ArrayList<>();
 

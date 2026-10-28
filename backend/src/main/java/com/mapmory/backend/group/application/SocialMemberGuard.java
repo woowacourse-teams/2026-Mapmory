@@ -3,8 +3,7 @@ package com.mapmory.backend.group.application;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.exception.GroupErrorCode;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.member.exception.MemberErrorCode;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,17 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class SocialMemberGuard {
 
-    private final MemberRepository memberRepository;
+    private final ActiveMemberGuard activeMemberGuard;
 
-    public SocialMemberGuard(MemberRepository memberRepository) {
-        this.memberRepository = memberRepository;
+    public SocialMemberGuard(ActiveMemberGuard activeMemberGuard) {
+        this.activeMemberGuard = activeMemberGuard;
     }
 
     @Transactional(readOnly = true)
     public void require(Long memberId) {
-        Member member = memberRepository.findById(memberId)
-                .filter(Member::isActive)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
+        Member member = activeMemberGuard.require(memberId);
         if (!member.isSocial()) {
             throw new BusinessException(GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
         }

@@ -53,6 +53,13 @@ public class Tag extends BaseEntity {
         return TagName.from(rawName).nameKey();
     }
 
+    /**
+     * member는 지연 로딩이지만 id만 읽으므로 회원을 조회하지 않는다.
+     */
+    public boolean isOwnedBy(Long memberId) {
+        return memberId != null && memberId.equals(member.getId());
+    }
+
     public Long getId() {
         return id;
     }
