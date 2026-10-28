@@ -17,6 +17,13 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "요청 값이 올바르지 않습니다.",
             "페이지 번호 또는 페이지 크기가 올바르지 않습니다."
     ),
+    // 응답 코드는 요청 검증(@Size)이 내는 것과 같다. TagErrorCode.INVALID_TAG_NAME과 같은 방식이다.
+    INVALID_TITLE(
+            ErrorKind.INVALID_INPUT,
+            "VALIDATION_ERROR",
+            "요청 값이 올바르지 않습니다.",
+            "제목은 200자 이하여야 합니다."
+    ),
     INVALID_TRAVEL_DATE_RANGE(
             ErrorKind.INVALID_INPUT,
             "INVALID_TRAVEL_DATE_RANGE",

@@ -223,6 +223,21 @@ class TravelRecordTest {
         assertThat(travelRecord.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 11));
     }
 
+    @Test
+    void 제목이_200자를_넘으면_일지를_고치지_않는다() {
+        TravelRecord travelRecord = travelRecord();
+        Region region = travelRecord.getRegion();
+
+        assertThatThrownBy(() -> travelRecord.update(
+                region, "가".repeat(201), "바뀐 본문", LocalDate.of(2026, 8, 12), null, TODAY))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
+                .isEqualTo("VALIDATION_ERROR");
+        assertThat(travelRecord.getTitle()).isEqualTo("일본 여행");
+        assertThat(travelRecord.getContent()).isEqualTo("본문");
+        assertThat(travelRecord.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 11));
+    }
+
     private TravelRecord travelRecord() {
         Region region = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
 

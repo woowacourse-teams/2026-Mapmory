@@ -581,7 +581,7 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `countryCode` | String | 조건부 | `placeId`가 없으면 필수. 대문자 2자리이며 존재하는 ISO 3166-1 alpha-2 코드 |
 | `provinceCode` | String | 조건부 | `KR`이면 필수, 입력 시 공백 없이 최대 20자 |
 | `districtCode` | String | 아니요 | 입력 시 `provinceCode` 필수, 공백 없이 최대 20자 |
-| `title` | String | 예 | 공백이 아닌 문자를 포함해야 하며 최대 200자 |
+| `title` | String | 아니요 | 최대 200자. `null`이거나 비었거나 공백뿐이면 빈 제목(`""`)으로 저장 |
 | `content` | String | 아니요 | `null`, 빈 문자열·공백 허용 |
 | `startDate` | LocalDate | 예 | `YYYY-MM-DD`, 오늘 또는 과거 |
 | `endDate` | LocalDate | 아니요 | 오늘 또는 과거이며 시작일과 같거나 이후 |
