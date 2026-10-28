@@ -2,9 +2,11 @@ package com.mapmory.backend.group.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -294,6 +296,196 @@ class AlbumIntegrationTest extends IntegrationTest {
         update(jisu, group.getId(), albumId, "{\"name\": \"\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 앨범_상세는_담긴_기록을_시작일_순으로_보여_준다() throws Exception {
+        TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3), "a.jpg");
+        Long albumId = openedAlbumId(jisu, jisuRecord);
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg", "c.jpg");
+        addEntry(minho, group.getId(), albumId, minhoRecord.getId()).andExpect(status().isCreated());
+
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(albumId))
+                .andExpect(jsonPath("$.data.startDate").value("2026-03-01"))
+                .andExpect(jsonPath("$.data.endDate").value("2026-03-03"))
+                .andExpect(jsonPath("$.data.opener.nickname").value("지수"))
+                .andExpect(jsonPath("$.data.myTravelRecordIds").value(contains(minhoRecord.getId().intValue())))
+                .andExpect(jsonPath("$.data.entries[0].travelRecordId").value(jisuRecord.getId()))
+                .andExpect(jsonPath("$.data.entries[1].travelRecordId").value(minhoRecord.getId()))
+                .andExpect(jsonPath("$.data.entries[1].endDate").doesNotExist())
+                .andExpect(jsonPath("$.data.entries[1].photos.length()").value(2));
+    }
+
+    @Test
+    void 지워진_기록은_상세에서_빠지고_기간도_남은_기록으로_계산한다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3)));
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 2, 20), LocalDate.of(2026, 3, 10), "b.jpg");
+        addEntry(minho, group.getId(), albumId, minhoRecord.getId()).andExpect(status().isCreated());
+
+        deleteRecord(minhoRecord);
+
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries.length()").value(1))
+                .andExpect(jsonPath("$.data.startDate").value("2026-03-01"))
+                .andExpect(jsonPath("$.data.endDate").value("2026-03-03"))
+                .andExpect(jsonPath("$.data.myTravelRecordIds").isEmpty());
+    }
+
+    @Test
+    void 멤버가_아니거나_다른_그룹의_앨범이면_상세를_볼_수_없다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null));
+        TravelGroup other = groupWith(minho);
+
+        detail(socialMember("낯선 사람"), group.getId(), albumId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+        detail(minho, other.getId(), albumId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ALBUM_NOT_FOUND"));
+    }
+
+    @Test
+    void 앨범_목록은_최근에_기록이_담긴_순서다() throws Exception {
+        Long older = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 1, 1), null));
+        Long newer = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 2, 1), null));
+        setAddedAt(older, jisu, LocalDateTime.of(2026, 10, 1, 9, 0));
+        setAddedAt(newer, jisu, LocalDateTime.of(2026, 10, 2, 9, 0));
+        // 오래된 앨범에 기록이 새로 담기면 맨 앞으로 온다.
+        addEntry(minho, group.getId(), older, record(minho, LocalDate.of(2026, 1, 1), null).getId())
+                .andExpect(status().isCreated());
+        setAddedAt(older, minho, LocalDateTime.of(2026, 10, 3, 9, 0));
+
+        list(minho, group.getId(), "")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].id").value(older))
+                .andExpect(jsonPath("$.data.items[0].lastAddedAt").value("2026-10-03T09:00:00"))
+                .andExpect(jsonPath("$.data.items[1].id").value(newer))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(false));
+        list(minho, group.getId(), "?page=0&size=1")
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(older))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(true));
+    }
+
+    @Test
+    void 앨범_카드는_담긴_기록들로_기간과_사진_수와_대표_사진을_만든다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3)));
+        addEntry(minho, group.getId(), albumId,
+                record(minho, LocalDate.of(2026, 2, 28), null, "m1.jpg", "m2.jpg").getId())
+                .andExpect(status().isCreated());
+
+        // 연 사람(지수)의 기록에 사진이 없으므로 먼저 담긴 기록 중 사진이 있는 민호의 첫 사진이다.
+        list(jisu, group.getId(), "")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].name").value("도쿄"))
+                .andExpect(jsonPath("$.data.items[0].region.id").value(seoul.getId()))
+                .andExpect(jsonPath("$.data.items[0].startDate").value("2026-02-28"))
+                .andExpect(jsonPath("$.data.items[0].endDate").value("2026-03-03"))
+                .andExpect(jsonPath("$.data.items[0].recordCount").value(2))
+                .andExpect(jsonPath("$.data.items[0].photoCount").value(2))
+                .andExpect(jsonPath("$.data.items[0].coverPhoto.viewUrl").value(endsWith("m1.jpg")))
+                .andExpect(jsonPath("$.data.items[0].coverPhoto.viewUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data.items[0].contributors[0].memberId").value(jisu.getId()))
+                .andExpect(jsonPath("$.data.items[0].contributors[0].nickname").value("지수"))
+                .andExpect(jsonPath("$.data.items[0].contributors[0].me").value(true))
+                .andExpect(jsonPath("$.data.items[0].contributors[1].nickname").value("민호"))
+                .andExpect(jsonPath("$.data.items[0].contributors[1].me").value(false));
+    }
+
+    @Test
+    void 기록을_여럿_담은_멤버는_담은_사람에_한_번만_나온다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "j1.jpg"));
+        addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 1), null, "m1.jpg").getId())
+                .andExpect(status().isCreated());
+        addEntry(jisu, group.getId(), albumId, record(jisu, LocalDate.of(2026, 3, 2), null, "j2.jpg").getId())
+                .andExpect(status().isCreated());
+
+        list(jisu, group.getId(), "")
+                .andExpect(jsonPath("$.data.items[0].recordCount").value(3))
+                .andExpect(jsonPath("$.data.items[0].photoCount").value(3))
+                .andExpect(jsonPath("$.data.items[0].contributors.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].contributors[0].nickname").value("지수"))
+                .andExpect(jsonPath("$.data.items[0].contributors[1].nickname").value("민호"))
+                .andExpect(jsonPath("$.data.items[0].coverPhoto.viewUrl").value(endsWith("j1.jpg")));
+    }
+
+    @Test
+    void 대표_사진은_연_사람_기록의_첫_사진이다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "j1.jpg"));
+        addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 1), null, "m1.jpg").getId())
+                .andExpect(status().isCreated());
+
+        list(minho, group.getId(), "")
+                .andExpect(jsonPath("$.data.items[0].coverPhoto.viewUrl").value(endsWith("j1.jpg")));
+    }
+
+    @Test
+    void 앨범이_없으면_빈_목록이고_페이지_크기는_50까지다() throws Exception {
+        list(jisu, group.getId(), "")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(0))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+        list(jisu, group.getId(), "?size=51")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        list(jisu, group.getId(), "?page=-1")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 멤버가_아니거나_게스트면_목록을_볼_수_없다() throws Exception {
+        Member guest = memberRepository.save(Member.ofGuest(UUID.randomUUID().toString(), "게스트", UUID.randomUUID()));
+
+        list(socialMember("낯선 사람"), group.getId(), "")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+        list(guest, group.getId(), "")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
+    }
+
+    @Test
+    void 그룹_목록의_대표_사진은_가장_최근에_기록이_담긴_앨범의_대표_사진이다() throws Exception {
+        Long older = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 1, 1), null, "old.jpg"));
+        Long newer = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 2, 1), null, "new.jpg"));
+        setAddedAt(older, jisu, LocalDateTime.of(2026, 10, 1, 9, 0));
+        setAddedAt(newer, jisu, LocalDateTime.of(2026, 10, 2, 9, 0));
+        TravelGroup empty = groupWith(minho);
+
+        mockMvc.perform(get("/api/v1/groups").header(HttpHeaders.AUTHORIZATION, bearer(minho)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(group.getId()))
+                .andExpect(jsonPath("$.data[0].coverPhoto.viewUrl").value(endsWith("new.jpg")))
+                .andExpect(jsonPath("$.data[0].coverPhoto.viewUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data[1].id").value(empty.getId()))
+                .andExpect(jsonPath("$.data[1].coverPhoto").doesNotExist());
+    }
+
+    private void deleteRecord(TravelRecord record) {
+        jdbcTemplate.update("DELETE FROM record_media WHERE travel_record_id = ?", record.getId());
+        jdbcTemplate.update("DELETE FROM travel_record WHERE id = ?", record.getId());
+    }
+
+    private void setAddedAt(Long albumId, Member member, LocalDateTime addedAt) {
+        jdbcTemplate.update("UPDATE album_entry SET created_at = ? WHERE album_id = ? AND member_id = ?",
+                addedAt, albumId, member.getId());
+    }
+
+    private ResultActions detail(Member member, Long groupId, Long albumId) throws Exception {
+        return mockMvc.perform(get("/api/v1/groups/{groupId}/albums/{albumId}", groupId, albumId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
+    private ResultActions list(Member member, Long groupId, String query) throws Exception {
+        return mockMvc.perform(get("/api/v1/groups/" + groupId + "/albums" + query)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
     }
 
     private Member socialMember(String nickname) {

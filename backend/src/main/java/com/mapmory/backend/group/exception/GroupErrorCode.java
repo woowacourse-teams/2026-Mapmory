@@ -22,6 +22,8 @@ public enum GroupErrorCode implements ErrorCode {
             "그룹 이름은 공백을 제외한 1자 이상 30자 이하여야 합니다."),
     INVALID_ALBUM_NAME(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
             "앨범 이름은 공백을 제외한 1자 이상 200자 이하여야 합니다."),
+    INVALID_PAGINATION(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
+            "page는 0 이상이고 size는 1 이상 50 이하여야 합니다."),
     EMPTY_ALBUM_UPDATE(ErrorKind.INVALID_INPUT, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.",
             "바꿀 앨범 이름이나 지역을 하나 이상 보내야 합니다."),
     // 다른 그룹의 앨범도 같은 응답을 준다. 그룹 경로로 남의 앨범이 있는지 알려 주지 않기 위해서다.
