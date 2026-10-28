@@ -191,3 +191,22 @@ V28의 `group_member`, `album_entry` FK에 `ON DELETE CASCADE`가 없어서, `@O
 - **이름은 선택이다**: 이름을 입력할 화면이 없을 수 있다. 비우면 첫 기록의 제목, 제목도 비었으면(제목은 선택이다) 앨범 지역의 이름이다(`Album.nameFor`).
 - **상세 항목은 기록 시작일 순이다**: 여행 순서로 읽히게 한다. 시작일이 같으면 담은 순서다. 목록 카드의 담은 사람은 처음 담은 순서 그대로다.
 
+## 2026-10-29 보완: 앨범 알림(T6)은 포트까지 먼저 만든다
+
+```
+AlbumService.open / addEntry(새 기록) ─(같은 트랜잭션)─▶ group/api/AlbumUpdated(그룹·앨범 id와 이름, 올린 사람, 받을 멤버들)
+                                                              │ 커밋된 뒤, notificationExecutor 스레드
+                                                              ▼
+notification/application/AlbumPushListener ─▶ 받을 멤버들의 push_token ─▶ PushSender 포트
+                                                                            └ 지금은 LoggingPushSender(보내지 않고 남김)
+```
+
+- **받을 멤버는 그룹이 이벤트에 담는다.** 그룹 잠금 아래에서 멤버 목록을 이미 안다. 알림은 `group/api`(이벤트)와 `member/api`(닉네임)만 import하고
+  그룹 리포지토리를 모른다. 같은 기록을 다시 담으면(200) 보내지 않는다. 담기 재시도로 롤백된 트랜잭션의 이벤트는 커밋되지 않아 버려진다.
+- **커밋된 뒤 요청 스레드 밖에서 보낸다.** 전용 실행기(스레드 2개, 대기열 1,000)를 둔다. 대기열이 차면 그 알림은 버리고 남긴다.
+  발송을 기다리는 동안 커넥션을 쥐지 않도록 리스너는 트랜잭션을 열지 않고, 무효 토큰 삭제만 `PushTokenService`가 트랜잭션으로 한다.
+- **FCM 어댑터는 따로 붙인다.** `PushSender`는 FCM이 유효하지 않다고 답한 토큰을 돌려주고, 부르는 쪽이 지운다.
+  어댑터가 빈으로 없으면 `LoggingPushSender`가 쓰인다. 서비스 계정 키는 인프라 작업으로 따로 둔다(결정 7).
+  일반 설정 클래스의 `@ConditionalOnMissingBean`은 먼저 등록된 빈만 보므로 FCM 어댑터는 `NotificationConfig`에서 이 빈보다 먼저 선언한다.
+- **토큰**: 같은 토큰을 다른 회원이 등록하면 그 회원으로 옮긴다. 삭제는 내 토큰만 지우고 없어도 204다. 등록은 탈퇴 뒤 남은 access token으로 하지 못한다(#523).
+

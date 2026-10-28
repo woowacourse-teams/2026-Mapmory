@@ -1,8 +1,11 @@
 package com.mapmory.backend.group.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.group.domain.Album;
 import com.mapmory.backend.group.domain.AlbumRepository;
+import com.mapmory.backend.group.domain.GroupMember;
+import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
 import com.mapmory.backend.region.domain.Region;
@@ -11,6 +14,8 @@ import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.travelrecord.api.RecordBrief;
 import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
+import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,6 +41,7 @@ public class AlbumService {
     private final TravelRecordQuery travelRecordQuery;
     private final AlbumQueryService albumQueryService;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AlbumService(AlbumRepository albumRepository,
                         TravelGroupRepository travelGroupRepository,
@@ -43,7 +49,8 @@ public class AlbumService {
                         SocialMemberGuard socialMemberGuard,
                         TravelRecordQuery travelRecordQuery,
                         AlbumQueryService albumQueryService,
-                        PlatformTransactionManager transactionManager) {
+                        PlatformTransactionManager transactionManager,
+                        ApplicationEventPublisher eventPublisher) {
         this.albumRepository = albumRepository;
         this.travelGroupRepository = travelGroupRepository;
         this.regionRepository = regionRepository;
@@ -51,6 +58,7 @@ public class AlbumService {
         this.travelRecordQuery = travelRecordQuery;
         this.albumQueryService = albumQueryService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -59,11 +67,12 @@ public class AlbumService {
     @Transactional
     public AlbumDetail open(Long memberId, Long groupId, Long travelRecordId, String name, Long regionId) {
         socialMemberGuard.require(memberId);
-        lockGroupOf(groupId, memberId);
+        TravelGroup group = lockGroupOf(groupId, memberId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         Region region = findRegion(regionId == null ? record.regionId() : regionId);
         String albumName = Album.nameFor(name, record.title(), region);
         Album album = albumRepository.save(Album.open(groupId, albumName, region, memberId, record.id()));
+        publishUpdated(group, album, memberId);
         return albumQueryService.detailOf(album, memberId);
     }
 
@@ -103,19 +112,33 @@ public class AlbumService {
 
     private AlbumEntryResult add(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
         socialMemberGuard.require(memberId);
-        lockGroupOf(groupId, memberId);
+        TravelGroup group = lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         boolean created = album.addEntry(memberId, record.id());
+        // 같은 기록을 다시 담았으면 알리지 않는다. 재시도로 롤백된 트랜잭션의 이벤트는 커밋되지 않아 버려진다.
+        if (created) {
+            publishUpdated(group, album, memberId);
+        }
         // 새 항목의 담은 시각(created_at)은 저장할 때 정해진다. 응답에 넣으려고 여기서 저장한다.
         albumRepository.flush();
         return new AlbumEntryResult(albumQueryService.detailOf(album, memberId), created);
     }
 
-    private void lockGroupOf(Long groupId, Long memberId) {
-        travelGroupRepository.findByIdForUpdate(groupId)
+    private TravelGroup lockGroupOf(Long groupId, Long memberId) {
+        return travelGroupRepository.findByIdForUpdate(groupId)
                 .filter(group -> group.hasMember(memberId))
                 .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
+    }
+
+    // 알림은 커밋된 뒤 따로 보낸다(ADR 0022 결정 7). 받을 멤버는 그룹 잠금 아래에서 정한다.
+    private void publishUpdated(TravelGroup group, Album album, Long actorMemberId) {
+        List<Long> recipients = group.getMembers().stream()
+                .map(GroupMember::getMemberId)
+                .filter(memberId -> !memberId.equals(actorMemberId))
+                .toList();
+        eventPublisher.publishEvent(new AlbumUpdated(
+                group.getId(), group.getName(), album.getId(), album.getName(), actorMemberId, recipients));
     }
 
     private Album findAlbum(Long albumId, Long groupId) {
