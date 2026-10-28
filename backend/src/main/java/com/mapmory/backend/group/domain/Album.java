@@ -68,6 +68,20 @@ public class Album extends BaseEntity {
     }
 
     /**
+     * 새 앨범의 이름. 앱은 앨범을 따로 보여 주지 않아 이름을 받지 못할 수 있다.
+     * 보낸 이름이 비었으면 첫 기록의 제목, 제목도 비었으면(제목은 선택이다) 앨범 지역의 이름이다.
+     */
+    public static String nameFor(String requestedName, String recordTitle, Region region) {
+        if (requestedName != null && !requestedName.isBlank()) {
+            return requestedName;
+        }
+        if (recordTitle != null && !recordTitle.isBlank()) {
+            return recordTitle;
+        }
+        return region.getName();
+    }
+
+    /**
      * 따로 올리기: 내 기록 하나로 새 앨범을 연다. 연 사람의 기록이 첫 항목이다.
      */
     public static Album open(Long groupId, String name, Region region, Long openerMemberId, Long travelRecordId) {

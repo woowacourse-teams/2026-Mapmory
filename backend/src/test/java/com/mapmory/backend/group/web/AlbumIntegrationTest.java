@@ -165,9 +165,22 @@ class AlbumIntegrationTest extends IntegrationTest {
         open(jisu, group.getId(), record.getId(), "가".repeat(201), null)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-        open(jisu, group.getId(), record.getId(), " ", null)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 이름을_비우면_기록_제목이고_제목도_비었으면_지역_이름이다() throws Exception {
+        TravelRecord titled = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        TravelRecord untitled = travelRecordRepository.save(untitledRecord(jisu));
+
+        open(jisu, group.getId(), titled.getId(), null, null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.name").value("도쿄"));
+        open(jisu, group.getId(), titled.getId(), " ", null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.name").value("도쿄"));
+        open(jisu, group.getId(), untitled.getId(), null, null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.name").value(seoul.getName()));
     }
 
     @Test
@@ -223,10 +236,12 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.opener.memberId").value(jisu.getId()))
                 .andExpect(jsonPath("$.data.opener.me").value(false))
                 .andExpect(jsonPath("$.data.myTravelRecordIds").value(contains(minhoRecord.getId().intValue())))
+                // 항목은 기록 시작일 순이다. 나중에 담았지만 민호의 기록(2/28)이 지수의 기록(3/1)보다 앞이다.
                 .andExpect(jsonPath("$.data.entries.length()").value(2))
-                .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("민호"))
-                .andExpect(jsonPath("$.data.entries[1].owner.me").value(true))
-                .andExpect(jsonPath("$.data.entries[1].addedAt").isNotEmpty());
+                .andExpect(jsonPath("$.data.entries[0].owner.nickname").value("민호"))
+                .andExpect(jsonPath("$.data.entries[0].owner.me").value(true))
+                .andExpect(jsonPath("$.data.entries[0].addedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("지수"));
         addEntry(minho, group.getId(), albumId, minhoRecord.getId())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entries.length()").value(2));
@@ -473,6 +488,14 @@ class AlbumIntegrationTest extends IntegrationTest {
         return created;
     }
 
+    // 제목은 선택이라 빈 제목으로 저장된 기록이다.
+    private TravelRecord untitledRecord(Member member) {
+        TravelRecord record = TravelRecord.of(member, seoul, "", "본문", LocalDate.of(2026, 3, 1), null, TODAY);
+        record.synchronizeMedia(ObjectKeys.from(
+                List.of("travel-records/" + member.getId() + "/" + UUID.randomUUID() + "-u.jpg")));
+        return record;
+    }
+
     // 사진 없는 기록은 이제 새로 만들 수 없지만(사진 1장 이상) 예전 기록으로 남아 있다. 그래서 사진이 없으면 붙이지 않는다.
     private TravelRecord record(Member member, LocalDate startDate, LocalDate endDate, String... fileNames) {
         TravelRecord record = TravelRecord.of(member, seoul, "도쿄", "본문", startDate, endDate, TODAY);
@@ -497,7 +520,8 @@ class AlbumIntegrationTest extends IntegrationTest {
 
     private ResultActions open(Member member, Long groupId, Long travelRecordId, String name, Long regionId)
             throws Exception {
-        String body = "{\"travelRecordId\": " + travelRecordId + ", \"name\": \"" + name + "\""
+        String body = "{\"travelRecordId\": " + travelRecordId
+                + (name == null ? "" : ", \"name\": \"" + name + "\"")
                 + (regionId == null ? "" : ", \"regionId\": " + regionId) + "}";
         return mockMvc.perform(post("/api/v1/groups/{groupId}/albums", groupId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member))

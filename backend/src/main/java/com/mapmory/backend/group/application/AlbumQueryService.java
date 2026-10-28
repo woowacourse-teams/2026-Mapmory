@@ -107,8 +107,10 @@ public class AlbumQueryService {
     public AlbumDetail detailOf(Album album, Long memberId) {
         Map<Long, RecordView> records = travelRecordQuery.viewsOf(album.travelRecordIds()).stream()
                 .collect(Collectors.toMap(RecordView::id, Function.identity()));
+        // 여행 순서로 읽히게 기록의 시작일 순이다. 시작일이 같으면 담은 순서다(정렬이 안정적이다).
         List<AlbumEntry> entries = album.getEntries().stream()
                 .filter(entry -> records.containsKey(entry.getTravelRecordId()))
+                .sorted(Comparator.comparing(entry -> records.get(entry.getTravelRecordId()).startDate()))
                 .toList();
 
         Set<Long> memberIds = new LinkedHashSet<>();
