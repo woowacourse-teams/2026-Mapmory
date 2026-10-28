@@ -20,7 +20,7 @@
       "key": "structure",
       "name": "구조",
       "passed": true,
-      "at": "2026-10-28T01:19:38.916Z",
+      "at": "2026-10-28T08:28:54.688Z",
       "report": "gates/reports/stage-3.md",
       "forced": false
     },
@@ -28,7 +28,7 @@
       "key": "design",
       "name": "시안",
       "passed": true,
-      "at": "2026-10-28T01:34:12.027Z",
+      "at": "2026-10-28T08:33:37.782Z",
       "report": "gates/reports/stage-4.md",
       "forced": false
     },
@@ -36,7 +36,7 @@
       "key": "build",
       "name": "구현",
       "passed": false,
-      "at": "2026-10-28T01:24:19.911Z",
+      "at": "2026-10-28T08:36:38.116Z",
       "report": "gates/reports/stage-5.md",
       "forced": false
     },
@@ -44,7 +44,7 @@
       "key": "qa",
       "name": "검수",
       "passed": true,
-      "at": "2026-10-28T08:08:47.237Z",
+      "at": "2026-10-28T08:32:09.549Z",
       "report": "gates/reports/stage-6.md",
       "forced": true
     },
@@ -57,5 +57,5 @@
       "forced": true
     }
   },
-  "current": 7
+  "current": 5
 }

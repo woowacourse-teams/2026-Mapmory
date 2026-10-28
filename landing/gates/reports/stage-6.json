@@ -3,7 +3,7 @@
   "key": "qa",
   "name": "검수",
   "url": "http://localhost:4173/",
-  "at": "2026-10-28T08:08:47.237Z",
+  "at": "2026-10-28T08:32:09.549Z",
   "complete": true,
   "passed": true,
   "forced": true,
@@ -45,7 +45,7 @@
         "WCAG 2.2 SC 1.4.10 Reflow"
       ],
       "derived": null,
-      "ms": 153487
+      "ms": 142409
     },
     {
       "id": "6.2",
@@ -64,7 +64,7 @@
         "WCAG 2.2 SC 2.4.7 Focus Visible"
       ],
       "derived": null,
-      "ms": 25182
+      "ms": 25608
     },
     {
       "id": "6.3",
@@ -82,7 +82,7 @@
         "Ramotion, web design process"
       ],
       "derived": null,
-      "ms": 21211
+      "ms": 21350
     },
     {
       "id": "6.4",
@@ -100,7 +100,7 @@
         "Clique Studios, 7 stages of the web design process"
       ],
       "derived": null,
-      "ms": 4
+      "ms": 3
     },
     {
       "id": "6.5",

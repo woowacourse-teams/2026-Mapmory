@@ -4,7 +4,7 @@ import land110 from "world-atlas/land-110m.json";
 import KOREA from "./data/tech-korea-map.json";
 import SPRITE from "./data/storySprite.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
-import { TECH_MONTHS, TECH_TRIP, TECH_VISITED, techScenes } from "./techStory.js";
+import { TECH_MONTHS, TECH_PIN, TECH_TRIP, TECH_VISITED, techScenes } from "./techStory.js";
 
 // Port of 티온's approved #tech sketch (v8, 2026-10-23), made scroll-driven on 10-28 (티온: visitors flick through
 // without reading, and waiting for a replay feels slow). Mounted by TechStory.jsx into its own markup; returns destroy.
@@ -18,7 +18,7 @@ import { TECH_MONTHS, TECH_TRIP, TECH_VISITED, techScenes } from "./techStory.js
 const LAND = feature(land110, land110.objects.land);
 const GRATICULE = geoGraticule10();
 const SPRITE_URL = "/assets/story/tiles.webp";
-const PIN = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+const PIN = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${TECH_PIN}"/></svg>`;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 // ease-in-out for anything scrubbed by the scroll: it settles into each stop instead of snapping
 const smooth = (t) => { t = clamp(t); return t * t * (3 - 2 * t); };
@@ -104,12 +104,13 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // a tap on any photo lifts every photo of that place instead
   const gather = $("[data-gather]");
   // 42 photos including every 제주 photo, so the scrubbed gather has a handful to lift
-  const jejuAll = [...Array(n).keys()].filter((k) => SPRITE.tiles[k][0] === "jeju");
+  const tilesOf = (key) => [...Array(n).keys()].filter((k) => SPRITE.tiles[k][0] === key);
+  const jejuAll = tilesOf("jeju");
   const order1 = shuffled(19).filter((k) => !jejuAll.includes(k)).slice(0, 42 - jejuAll.length);
   gather.innerHTML = [...jejuAll, ...order1].map((k) => `<button type="button" class="ts-ph" data-k="${k}" aria-label="${placeOf(k)} 사진" style="${cellStyle(k)}"></button>`).join("");
   const gTiles = [...gather.children];
   const jejuTiles = gTiles.slice(0, jejuAll.length), otherTiles = gTiles.slice(jejuAll.length);
-  let shown = [], shownCols = 0, gatherState = { place: null, count: 0, stagger: false };
+  let shown = [], shownCols = 0, shownCw = 0, gatherState = { place: null, count: 0, stagger: false };
   // the grid shows as many photos as fit (6 columns; on phones 3-4 columns of about 46px or more, for a finger) with
   // the 제주 photos spread through it; the rest are hidden, and the DOM order follows the grid for keyboard order
   function arrange(count, cols) {
@@ -131,15 +132,25 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   }
   // `count` photos of `place` (in grid order) are lifted; the others dim once the first has lifted. Returns how many
   // photos of the place the grid shows.
+  // the grid's columns and cell size for the current box; the tiles are rearranged only when the count or the
+  // columns change, so a scroll frame costs one pass over the shown tiles
+  const GAP = 3;
+  function measureGrid() {
+    const w = gather.clientWidth, ht = gather.clientHeight;
+    if (!w || !ht) return null;
+    const cols = narrow.matches ? Math.max(3, Math.min(4, Math.floor((w + GAP) / (46 + GAP)))) : 6;
+    const cw = (w - GAP * (cols - 1)) / cols;
+    const total = Math.min(gTiles.length, cols * Math.max(1, Math.floor((ht + GAP) / (cw + GAP))));
+    if (total !== shown.length || cols !== shownCols) { shown = arrange(total, cols); shownCols = cols; }
+    if (cw !== shownCw) { shownCw = cw; gather.style.setProperty("--cw", `${cw}px`); }
+    return { cols, cw };
+  }
+  const shownOf = (place) => shown.reduce((c, t) => c + (placeOf(+t.dataset.k) === place ? 1 : 0), 0);
   function layoutGather(place, count = Infinity, stagger = false) {
     gatherState = { place, count, stagger };
-    const w = gather.clientWidth, ht = gather.clientHeight, gap = 3;
-    if (!w || !ht) return 0;
-    const cols = narrow.matches ? Math.max(3, Math.min(4, Math.floor((w + gap) / (46 + gap)))) : 6;
-    const cw = (w - gap * (cols - 1)) / cols;
-    const total = Math.min(gTiles.length, cols * Math.max(1, Math.floor((ht + gap) / (cw + gap))));
-    if (total !== shown.length || cols !== shownCols) { shown = arrange(total, cols); shownCols = cols; }
-    gather.style.setProperty("--cw", `${cw}px`);
+    const g = measureGrid();
+    if (!g) return 0;
+    const { cols, cw } = g, gap = GAP;
     let h = 0;
     shown.forEach((t, i) => {
       const ofPlace = !!place && placeOf(+t.dataset.k) === place;
@@ -156,12 +167,14 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const cntN = $("[data-count-n]"), cntT = $("[data-count-t]"), cntP = $("[data-count-place]");
   const setCounter = (e) => { cntN.textContent = Math.round(30000 * e).toLocaleString("ko-KR"); cntT.textContent = String(Math.round(30 * e)); };
   let foundTimer = 0;
+  const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
   function scrubGather(q) {
-    const total = layoutGather("제주", 0);
+    if (!measureGrid()) return;
+    const total = shownOf("제주");
     const lifted = Math.round(smooth((q - 0.12) / 0.55) * total);
     layoutGather("제주", lifted);
-    cntP.textContent = "제주";
-    foundText.textContent = `제주 사진 ${total}장을 모았어요`;
+    setText(cntP, "제주");
+    setText(foundText, `제주 사진 ${total}장을 모았어요`);
     found.classList.toggle("is-shown", total > 0 && lifted >= total);
     setCounter(smooth((q - 0.05) / 0.6));
   }
@@ -184,8 +197,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // ── scene 3: as the scroll goes on, three photos are picked and fold into one record card; a tap picks or unpicks a
   // photo and 기록하기 folds them by hand
   const pick = $("[data-pick]");
-  const jeju = [...Array(n).keys()].filter((k) => SPRITE.tiles[k][0] === "jeju").slice(0, 6);
-  const japan = [...Array(n).keys()].filter((k) => SPRITE.tiles[k][0] === "japan").slice(0, 3);
+  const jeju = jejuAll.slice(0, 6), japan = tilesOf("japan").slice(0, 3);
   pick.insertAdjacentHTML("afterbegin", [...jeju, ...japan].map((k) => `<button type="button" class="ts-ph" data-place="${placeOf(k)}" aria-pressed="false" aria-label="${placeOf(k)} 사진 고르기" style="${cellStyle(k)}"></button>`).join(""));
   const pTiles = $$("[data-pick] .ts-ph");
   const save = $("[data-save]"), recText = $("[data-rec-text]");
@@ -235,10 +247,11 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // by hand the fold is a CSS transition (`.is-manual`), by scroll the frames are the animation
   const byHandPick = () => { pick.classList.add("is-manual"); takeOver(2); };
   on(pick, "click", (e) => {
-    byHandPick();
-    if (fold >= 0.9) { layoutPick(0); return; }
     const t = e.target.closest(".ts-ph");
+    // a tap anywhere on the folded card unfolds it; otherwise only a photo counts, blank space is not a try
+    if (fold >= 0.9) { byHandPick(); layoutPick(0); return; }
     if (!t) return;
+    byHandPick();
     setPicked(t, !t.classList.contains("is-sel"));
     layoutPick(0);
   });
@@ -324,11 +337,14 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const legZoom = LEGS.map((l) => zoomOf(l.d));
   const stopZoom = stops.map((_, k) => (k === 0 ? legZoom[0] : k === LEGS.length ? legZoom[k - 1] : (legZoom[k - 1] + legZoom[k]) / 2));
   const facing = (s) => [-s.lon, -s.lat * 0.6];
-  // the trip's room is the globe scene's (long) beat and the share scene's beat together
-  const P = share.enabled
-    ? { out: [0.06, 0.2], trip: [0.2, 0.78], back: [0.78, 0.9], land: 0.9 }
+  // the trip's room is the globe scene's (long) beat and the share scene's beat together. Its phases hang off where
+  // the share beat begins (`pShare`, measured each frame, since the beat heights are CSS): the globe starts back a
+  // little before the share screen appears and lands just after, so it always lands into the dark share screen
+  // whatever the beat heights or the viewport. Without the share scene the room is the globe beat alone.
+  const phases = (pShare) => share.enabled
+    ? { out: [0.06, 0.2], trip: [0.2, pShare - 0.09], back: [pShare - 0.09, pShare + 0.03], land: pShare + 0.03 }
     : { out: [0.08, 0.26], trip: [0.26, 0.86], back: [0.86, 0.98], land: 0.98 };
-  let dragRot = 0, dragX = null, dragStart = null, GS = 300, bigOn = false, hudOn = false, hudAt = -1, tripP = -1;
+  let dragRot = 0, dragX = null, dragStart = null, GS = 300, bigOn = false, hudOn = false, hudAt = -1;
   const drawInPhone = (rot, o = {}) => drawGlobe(globe, [rot, -22], { points: TECH_VISITED, ...o });
   // same rule as the interactive globe: a tap or a phone's vertical page pan is not a drag
   on(globe, "pointerdown", (e) => { dragStart = e; dragX = null; });
@@ -376,14 +392,16 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // where the trip is, 0..1, from the focus line through the trip's room. The room's end is where the stage unpins
   // (the beats' bottom meets the stage's bottom), which the focus line itself never reaches.
   function tripProgress(focus) {
-    const r4 = beats[4].getBoundingClientRect(), rl = (beats[5] ?? beats[4]).getBoundingClientRect();
+    const r4 = beats[4].getBoundingClientRect(), r5 = beats[5]?.getBoundingClientRect(), rl = r5 ?? r4;
     const end = rl.bottom - (stage.getBoundingClientRect().bottom - focus);
-    return clamp((focus - r4.top) / Math.max(1, end - r4.top));
+    const room = Math.max(1, end - r4.top);
+    // pShare: where the share beat (scene 6) begins in the room; kept away from the ends so the trip keeps its room
+    return { p: clamp((focus - r4.top) / room), pShare: r5 ? clamp((r5.top - r4.top) / room, 0.5, 0.95) : 1 };
   }
   // returns how the phone itself should look: `tilt` 1 = the step's angle, 0 = facing the visitor
   function tripFrame(focus) {
-    const p = tripProgress(focus);
-    tripP = p;
+    const { p, pShare } = tripProgress(focus);
+    const P = phases(pShare);
     const inPhase = p < P.out[0];
     const rotIn = -110 + smooth(p / P.out[0]) * 30 + dragRot;
     const look = { tilt: 1 - smooth(p / P.out[0]), scale: 1, alpha: 1 };
@@ -449,20 +467,22 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // ── scene 6: the share video. Never plays by itself; a year button plays from that year, a tap pauses or plays.
   const shareVideo = $("[data-share-video]");
   const shareYears = $("[data-share-years]");
-  let loadVideo = () => Promise.resolve(), videoBlob = "";
+  let loadVideo = () => Promise.resolve(), videoBlob = "", gone = false;
   if (shareVideo) {
     // muted, so it may play on phones too (with playsinline). The first source this browser can play, resolved against
     // the page like the sprite (the <source> children stay for a page without this script).
     const source = share.media.sources.find((x) => shareVideo.canPlayType(x.type)) ?? share.media.sources.at(-1);
     const url = new URL(source.src, document.baseURI).href;
     if (share.media.poster) shareVideo.poster = new URL(share.media.poster, document.baseURI).href;
-    // Fetched whole (about 300-400KB) when the share scene is reached, so a year button can seek even on a host that
-    // does not answer range requests; the plain URL if the fetch fails.
+    // Fetched whole (about 300-400KB) the first time a visitor shows intent on the share screen (a pointer over it, a
+    // touch, focus), not on reaching the scene, so scrolling past costs nothing; whole, so a year button can seek even
+    // on a host that does not answer range requests. The plain URL if the fetch fails.
     let loading = null;
     loadVideo = () => (loading ??= fetch(url)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
-      .then((blob) => { videoBlob = URL.createObjectURL(blob); shareVideo.src = videoBlob; })
-      .catch(() => { shareVideo.src = url; }));
+      .then((blob) => { if (gone) return; videoBlob = URL.createObjectURL(blob); shareVideo.src = videoBlob; })
+      .catch(() => { if (!gone) shareVideo.src = url; }));
+    for (const ev of ["pointerenter", "pointerdown", "focusin"]) on(shareBox, ev, () => loadVideo(), { passive: true });
     shareVideo.removeAttribute("src");
     shareVideo.querySelectorAll("source").forEach((el) => el.remove());
     const yearButtons = shareYears ? [...shareYears.children] : [];
@@ -516,7 +536,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     () => { manual.delete(2); pick.classList.remove("is-manual"); },
     () => manual.delete(3),
     () => {},
-    () => loadVideo(),
+    () => {},
   ];
   // i = -1 while the section is off screen: everything stops, and re-entry starts the scene again
   function setActive(i) {
@@ -524,7 +544,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     active = i;
     if (i >= 0) screens.forEach((s, k) => s.classList.toggle("is-on", k === i));
     if (i !== 5) shareVideo?.pause?.();
-    if (i < 4) { hideBig(); hideHud(); tripP = -1; }
+    if (i < 4) { hideBig(); hideHud(); }
     if (i < 0) return;
     onEnter[i]?.();
     onScene(i + 1);
@@ -599,7 +619,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   layoutPick(0);
   setLevel(0);
 
-  return () => {
+  const destroy = () => {
+    gone = true;
     cleanups.forEach((fn) => fn());
     timers.forEach((id) => clearTimeout(id));
     cancelAnimationFrame(frameRaf);
@@ -614,4 +635,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     pTiles.forEach((t) => t.remove());
     regions.innerHTML = "";
   };
+  // re-reads the scroll position now (the scene-reach confirm asks for a fresh read before counting a scene)
+  destroy.sample = () => { if (visible) frame(); };
+  return destroy;
 }

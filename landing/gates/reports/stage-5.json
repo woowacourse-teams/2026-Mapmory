@@ -3,7 +3,7 @@
   "key": "build",
   "name": "구현",
   "url": "http://localhost:4173/",
-  "at": "2026-10-28T01:24:19.911Z",
+  "at": "2026-10-28T08:36:38.116Z",
   "complete": true,
   "passed": false,
   "forced": false,
@@ -24,15 +24,15 @@
         "Ramotion, web design process"
       ],
       "derived": null,
-      "ms": 20489
+      "ms": 18396
     },
     {
       "id": "5.2",
       "name": "Lighthouse 모바일 점수",
       "pass": false,
       "expected": "성능 ≥ 90, 접근성 ≥ 90, 권장 사항 ≥ 90",
-      "value": "성능 49, 접근성 95, 권장 사항 96",
-      "detail": "first-contentful-paint 32; largest-contentful-paint 50; speed-index 87; total-blocking-time 0; max-potential-fid 17; errors-in-console 0; interactive 8; mainthread-work-breakdown 0; bootup-time 0; color-contrast 0 — 기준선(섹션 없는 main dc03fbc (이 브랜치의 merge-base) 빌드): 성능 54, 접근성 95, 권장 사항 96",
+      "value": "성능 51, 접근성 95, 권장 사항 96",
+      "detail": "first-contentful-paint 32; largest-contentful-paint 50; speed-index 87; total-blocking-time 6; max-potential-fid 32; errors-in-console 0; interactive 21; mainthread-work-breakdown 0; bootup-time 0; color-contrast 0 — 기준선(섹션 없는 main dc03fbc (이 브랜치의 merge-base) 빌드): 성능 54, 접근성 95, 권장 사항 96",
       "evidence": [
         "gates/reports/evidence/stage-5/lighthouse.json",
         "gates/reports/evidence/stage-5/baseline-lighthouse.json"
@@ -43,14 +43,14 @@
         "Lighthouse performance scoring"
       ],
       "derived": null,
-      "ms": 30010
+      "ms": 29006
     },
     {
       "id": "5.3",
       "name": "Core Web Vitals (실험실)",
       "pass": false,
       "expected": "LCP ≤ 2.5s, CLS ≤ 0.1, TBT ≤ 200ms",
-      "value": "LCP 3.99s, CLS 0.016, TBT 5672ms",
+      "value": "LCP 3.99s, CLS 0.016, TBT 2263ms",
       "detail": "LCP 초과, TBT 초과 — LCP 요소 \"제주는 31장\" — 기준선(섹션 없는 main dc03fbc (이 브랜치의 merge-base) 빌드): LCP 3.47s, CLS 0.016, TBT 8755ms",
       "evidence": [
         "gates/reports/evidence/stage-5/lighthouse.json",
@@ -62,15 +62,15 @@
         "web.dev, Web Vitals"
       ],
       "derived": null,
-      "ms": 11
+      "ms": 9
     },
     {
       "id": "5.4",
       "name": "페이지 무게",
       "pass": false,
       "expected": "섹션까지 내려 본 총 전송량 < 2,164KB, JS < 646KB",
-      "value": "총 1,801KB (JS 737KB, 이미지 279KB, 영상 285KB, 글꼴 476KB)",
-      "detail": "378KB react-globe.gl-ByriLCKj.js; 285KB share-classic.webm; 271KB tiles.webp; 201KB line-seed-kr-regular-core.woff2; 191KB line-seed-kr-bold-core.woff2 — 이 섹션의 몫 368KB (JS 75KB)",
+      "value": "총 1,517KB (JS 737KB, 이미지 279KB, 영상 0KB, 글꼴 476KB)",
+      "detail": "378KB react-globe.gl-B1wGaPB7.js; 271KB tiles.webp; 201KB line-seed-kr-regular-core.woff2; 191KB line-seed-kr-bold-core.woff2; 150KB three.module-BZiYvUGV.js — 이 섹션의 몫 83KB (JS 75KB)",
       "evidence": [
         "gates/reports/evidence/stage-5/page-weight.json"
       ],
@@ -81,7 +81,7 @@
         "Deloitte·Google, Milliseconds Make Millions"
       ],
       "derived": null,
-      "ms": 36773
+      "ms": 33126
     },
     {
       "id": "5.5",
@@ -99,7 +99,7 @@
         "WCAG 2.2 SC 1.4.3 Contrast (Minimum)"
       ],
       "derived": null,
-      "ms": 32332
+      "ms": 30086
     },
     {
       "id": "5.6",
@@ -117,7 +117,7 @@
         "Clique Studios, 7 stages of the web design process"
       ],
       "derived": null,
-      "ms": 22968
+      "ms": 22418
     },
     {
       "id": "5.7",
@@ -136,7 +136,7 @@
         "landing/ANALYTICS_MEASUREMENT_PLAN.md (1차 성과 = download_click 사용자 ÷ page_view 사용자)"
       ],
       "derived": null,
-      "ms": 51630
+      "ms": 47248
     }
   ]
 }

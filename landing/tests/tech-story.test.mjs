@@ -65,7 +65,16 @@ test("the share scene is configured in one place and can be swapped or turned of
   assert.match(engine, /const seek = \(at\) => loadVideo\(\)\.then/);
   assert.equal(techScenes({ ...TECH_SHARE, enabled: false }).length, 5);
   // the trip's room is both scenes' beats; without the share scene it ends back in the globe screen
-  assert.match(engine, /const P = share\.enabled\s*\? \{ out: \[0\.06, 0\.2\], trip: \[0\.2, 0\.78\], back: \[0\.78, 0\.9\], land: 0\.9 \}/);
+  // the trip's phases hang off where the share beat begins, so the globe always lands into the share screen
+  assert.match(engine, /const phases = \(pShare\) => share\.enabled\s*\? \{ out: \[0\.06, 0\.2\], trip: \[0\.2, pShare - 0\.09\], back: \[pShare - 0\.09, pShare \+ 0\.03\], land: pShare \+ 0\.03 \}/);
+  assert.match(engine, /pShare: r5 \? clamp\(\(r5\.top - r4\.top\) \/ room, 0\.5, 0\.95\) : 1/);
+  // the share video is fetched on intent, never on reaching the scene, and a tap on blank space in scene 3 is no try
+  assert.match(engine, /for \(const ev of \["pointerenter", "pointerdown", "focusin"\]\) on\(shareBox, ev, \(\) => loadVideo\(\)/);
+  assert.doesNotMatch(engine, /\(\) => loadVideo\(\),\n  \];/);
+  assert.match(engine, /if \(!t\) return;\n    byHandPick\(\);/);
+  // the variant switch is for local checks only, and the scene-reach confirm re-reads the scroll first
+  assert.match(component, /const local = import\.meta\.env\.DEV \|\| \["localhost", "127\.0\.0\.1"\]\.includes\(window\.location\.hostname\)/);
+  assert.match(component, /destroy\?\.sample\?\.\(\); check\(\);/);
 });
 
 test("the trip visits every recorded place in date order, and the same places are on the photos and the globe (티온, 10-28)", () => {
@@ -115,7 +124,7 @@ test("phones: text in the phone is 13px or larger and what is tapped is about 44
   assert.match(phone, /\.ts-roll \{ grid-template-columns: repeat\(3, 1fr\); \}/);
   assert.match(css, /\.ts-years button \{[^}]*min-width: 48px; min-height: 48px;/);
   // gather photos: 3-4 columns of about 46px or more on phones; the pill under the flying globe is 16px or larger
-  assert.match(engine, /narrow\.matches \? Math\.max\(3, Math\.min\(4, Math\.floor\(\(w \+ gap\) \/ \(46 \+ gap\)\)\)\) : 6/);
+  assert.match(engine, /narrow\.matches \? Math\.max\(3, Math\.min\(4, Math\.floor\(\(w \+ GAP\) \/ \(46 \+ GAP\)\)\)\) : 6/);
   assert.match(css, /\.ts-where span \{[^}]*font-size: 16px;/);
 });
 

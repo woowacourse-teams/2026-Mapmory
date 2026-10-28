@@ -1,11 +1,10 @@
 import { memo, useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { createPassiveViewTracker, createSceneReachTracker } from "./howStoryAnalytics.js";
-import { TECH_COPY, TECH_SHARE, TECH_STEPS, TECH_TRIP, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
+import { TECH_COPY, TECH_PIN, TECH_SHARE, TECH_STEPS, TECH_TRIP, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
 
 const EXPERIENCE_TYPE = "tech_story";
-const PIN = "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z";
-const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={PIN} /></svg>;
+const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={TECH_PIN} /></svg>;
 
 // Wobbling hand-written step label: one span per letter, each on its own beat of the boil animation. Assistive
 // tech reads the whole word once from the visually hidden span (aria-label is not allowed on a <p>, axe 5.5).
@@ -47,7 +46,7 @@ function ShareScreen() {
   );
 }
 
-// The #tech section (see src/techStory.js). React renders the words and the phone's fixed parts once; the engine
+// The #how section, the tech story (see src/techStory.js). React renders the words and the phone's fixed parts once; the engine
 // (src/techStoryEngine.js, a lazy chunk with d3-geo, the 110m land and the Korea map) fills the screens, follows the
 // page scroll (never steers it) and reports scenes and first tries for analytics.
 function TechStoryInner() {
@@ -57,8 +56,10 @@ function TechStoryInner() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
-    // `?tsv=above` (or another key in TECH_VARIANTS) shows a layout variant for a side-by-side check
-    const variant = new URLSearchParams(window.location.search).get("tsv");
+    // `?tsv=above` (or another key in TECH_VARIANTS) shows a layout variant for a side-by-side check (gates/run-variants.mjs).
+    // Only on a dev server or a local preview: a shared production link must not open an unapproved layout.
+    const local = import.meta.env.DEV || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    const variant = local ? new URLSearchParams(window.location.search).get("tsv") : null;
     if (TECH_VARIANTS.includes(variant)) root.dataset.variant = variant;
     let destroy = null;
     let cancelled = false;
@@ -71,11 +72,11 @@ function TechStoryInner() {
         view.flush();
         trackEvent(ANALYTICS_EVENTS.TECH_STORY_SCENE, { experience_type: EXPERIENCE_TYPE, scene_index: index });
       },
-      // count a scene only if it is still on screen a frame later: the engine's scroll frame runs first and reports
-      // a scene a fling has already left (as #how does)
+      // count a scene only if it is still on screen a frame later: on that fresh frame the engine re-reads the scroll
+      // position first (a fling during a long task may have left the scene before the timer fired), then check()
       confirm: (check) => {
         cancelAnimationFrame(confirmFrame);
-        confirmFrame = requestAnimationFrame(() => { confirmFrame = 0; check(); });
+        confirmFrame = requestAnimationFrame(() => { confirmFrame = 0; destroy?.sample?.(); check(); });
       },
     });
     const sync = () => {

@@ -17,7 +17,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Mapmory Landing Decisions
 
-### Tech section `#tech` (2026-10-27)
+### Tech section `#how` (2026-10-27)
 
 Sprint 3 "기술 소개" section. 티온 (10-27): it replaces the photo story in `#how`, between the hero and the 3D globe; this is a composition draft to develop further before release (`src/TechStory.jsx`, engine `src/techStoryEngine.js`, copy and config `src/techStory.js`, CSS `src/tech-story.css` scoped under `.ts`). 티온's approved sketch v8 (https://claude.ai/artifact/LsLYMmovbVjMZeEE6hvY63) is the source of truth.
 

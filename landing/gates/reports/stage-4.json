@@ -3,7 +3,7 @@
   "key": "design",
   "name": "시안",
   "url": "http://localhost:4173/",
-  "at": "2026-10-28T01:34:12.027Z",
+  "at": "2026-10-28T08:33:37.782Z",
   "complete": true,
   "passed": true,
   "forced": false,
@@ -24,7 +24,7 @@
         "WCAG 2.2 SC 1.4.3 Contrast (Minimum)"
       ],
       "derived": null,
-      "ms": 28402
+      "ms": 26560
     },
     {
       "id": "4.2",
@@ -40,7 +40,7 @@
         "WCAG 2.2 SC 2.5.5 Target Size (Enhanced)"
       ],
       "derived": null,
-      "ms": 18891
+      "ms": 18851
     },
     {
       "id": "4.3",
@@ -56,14 +56,14 @@
         "Learn UI Design, font size guidelines"
       ],
       "derived": null,
-      "ms": 9542
+      "ms": 9279
     },
     {
       "id": "4.4",
       "name": "움직임 길이와 곡선",
       "pass": true,
       "expected": "요소 하나의 transition/animation 100~400ms, ease-in 단독·transition:all 없음 (스크롤에 묶인 연속 움직임 제외)",
-      "value": "전환 29개 중 범위 밖 0개 (예외 4개)",
+      "value": "전환 29개 중 범위 밖 0개 (예외 1개)",
       "detail": "",
       "evidence": [
         "gates/reports/evidence/stage-4/motion.json"
@@ -76,7 +76,7 @@
         "Emil Kowalski, design engineering skills"
       ],
       "derived": null,
-      "ms": 1923
+      "ms": 1583
     },
     {
       "id": "4.5",
@@ -93,7 +93,7 @@
         "NN/g, Animation Duration"
       ],
       "derived": null,
-      "ms": 3430
+      "ms": 3462
     },
     {
       "id": "4.6",
@@ -129,7 +129,7 @@
         "5-second test guide (80%+ recall = strong design)"
       ],
       "derived": null,
-      "ms": 2
+      "ms": 1
     },
     {
       "id": "4.8",
@@ -148,7 +148,7 @@
         "Emil Kowalski, design engineering skills"
       ],
       "derived": null,
-      "ms": 2
+      "ms": 1
     }
   ]
 }

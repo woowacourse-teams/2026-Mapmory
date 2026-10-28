@@ -19,6 +19,9 @@ export const TECH_COPY = Object.freeze({
 // above the phone on phones, "bare" the screen as a plain card with no phone frame. `?tsv=<key>` on the URL shows
 // another one for a side-by-side check; the chosen one is the default here.
 export const TECH_VARIANTS = Object.freeze(["base", "above", "bare"]);
+
+// the map pin glyph (24×24 path) drawn by the component (step labels, trip pill) and by the engine (photo backs)
+export const TECH_PIN = "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z";
 export const TECH_VARIANT = "base";
 
 export const TECH_STEPS = Object.freeze([
