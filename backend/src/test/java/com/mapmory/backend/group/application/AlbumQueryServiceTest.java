@@ -23,7 +23,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,7 +82,7 @@ class AlbumQueryServiceTest extends IntegrationTest {
     }
 
     @Test
-    void 상세는_담긴_기록이_1개일_때와_10개일_때_SQL_수가_같다() {
+    void 상세는_담긴_기록이_1개일_때와_10개일_때_SQL_수가_같다() throws Exception {
         List<Member> members = members(10);
         TravelGroup group = groupOf(members);
         Long small = albumService.open(members.getFirst().getId(), group.getId(),
@@ -101,7 +103,7 @@ class AlbumQueryServiceTest extends IntegrationTest {
     }
 
     @Test
-    void 목록은_앨범과_기록이_늘어도_SQL_수가_같다() {
+    void 목록은_앨범과_기록이_늘어도_SQL_수가_같다() throws Exception {
         List<Member> members = members(5);
         TravelGroup few = groupOf(members);
         TravelGroup many = groupOf(members);
@@ -124,15 +126,22 @@ class AlbumQueryServiceTest extends IntegrationTest {
     }
 
     // 앨범을 열고 담으면 알림이 다른 스레드에서 회원·토큰을 읽는다. 통계는 컨텍스트 전체가 같이 쓰므로 끝난 뒤에 센다.
-    private void awaitNotifications() {
+    // 스레드마다 표시 작업을 넣고 모두 도착하기를 기다린다. 대기열은 넣은 순서대로 꺼내므로 앞의 알림은 모두 끝났다.
+    // 작업 수(getTaskCount)로 판단하면 대기열에서 막 꺼낸 작업을 빠뜨린다.
+    private void awaitNotifications() throws Exception {
         ThreadPoolExecutor pool = ((ThreadPoolTaskExecutor) notificationExecutor).getThreadPoolExecutor();
-        long deadline = System.nanoTime() + 5_000_000_000L;
-        while (pool.getCompletedTaskCount() < pool.getTaskCount()) {
-            if (System.nanoTime() > deadline) {
-                throw new IllegalStateException("알림 작업이 5초 안에 끝나지 않았다");
-            }
-            Thread.onSpinWait();
+        int threads = pool.getMaximumPoolSize();
+        CyclicBarrier allArrived = new CyclicBarrier(threads + 1);
+        for (int i = 0; i < threads; i++) {
+            pool.execute(() -> {
+                try {
+                    allArrived.await(5, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
         }
+        allArrived.await(5, TimeUnit.SECONDS);
     }
 
     private List<Member> members(int count) {
