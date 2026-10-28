@@ -134,7 +134,7 @@ public class AlbumQueryService {
                 shown.stream().map(RecordView::startDate).min(Comparator.naturalOrder()).orElse(null),
                 shown.stream().map(AlbumQueryService::lastDay).max(Comparator.naturalOrder()).orElse(null),
                 contributor(album.getOpenerMemberId(), nicknames, memberId),
-                album.travelRecordIdOf(memberId).filter(records::containsKey).orElse(null),
+                album.travelRecordIdsOf(memberId).stream().filter(records::containsKey).toList(),
                 entryViews
         );
     }
@@ -192,7 +192,9 @@ public class AlbumQueryService {
                 shown.stream().map(RecordBrief::startDate).min(Comparator.naturalOrder()).orElse(null),
                 shown.stream().map(RecordBrief::endDate).max(Comparator.naturalOrder()).orElse(null),
                 coverOf(album, shown),
-                entries.stream().map(entry -> contributor(entry.getMemberId(), nicknames, myMemberId)).toList(),
+                // 한 멤버가 기록을 여럿 담을 수 있어 처음 담은 순서로 한 번씩만 넣는다.
+                entries.stream().map(AlbumEntry::getMemberId).distinct()
+                        .map(memberId -> contributor(memberId, nicknames, myMemberId)).toList(),
                 shown.size(),
                 shown.stream().mapToInt(RecordBrief::photoCount).sum(),
                 // 정렬과 같은 기준이라 지워진 기록의 항목도 센다.

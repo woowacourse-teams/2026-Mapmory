@@ -48,7 +48,9 @@ public class TravelGroup extends BaseEntity {
     @Column(name = "member_count", nullable = false)
     private int memberCount;
 
-    @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
+    // 멤버는 이 그룹과 생명주기가 같은 애그리거트 내부 엔티티다. 새 멤버는 함께 저장하고(PERSIST), 빠지면 지운다(orphanRemoval).
+    // 그룹 삭제는 아직 없다. 생기면 group_member FK에 ON DELETE CASCADE를 더하고 @OnDelete로 맡긴다(ADR 0017 cascade 규칙).
+    @OneToMany(mappedBy = "group", cascade = CascadeType.PERSIST, orphanRemoval = true)
     @OrderBy("joinedAt ASC, id ASC")
     private List<GroupMember> members = new ArrayList<>();
 

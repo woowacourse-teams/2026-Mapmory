@@ -5,6 +5,7 @@ import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.common.time.ServiceTime;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
@@ -12,9 +13,12 @@ import com.mapmory.backend.region.application.RegionResolver;
 import com.mapmory.backend.region.application.RegionSuggester;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
+import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
@@ -40,7 +44,7 @@ public class TravelRecordService {
 
     private final TravelRecordRepository travelRecordRepository;
     private final RegionResolver regionResolver;
-    private final TravelRecordTagService travelRecordTagService;
+    private final TagRepository tagRepository;
     private final TagService tagService;
     private final OperationTimer operationTimer;
     private final TravelRecordAssembler travelRecordAssembler;
@@ -52,11 +56,12 @@ public class TravelRecordService {
     private final TransactionTemplate readOnlyTransactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
     private final TravelRecordListCache travelRecordListCache;
+    private final ActiveMemberGuard activeMemberGuard;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
             RegionResolver regionResolver,
-            TravelRecordTagService travelRecordTagService,
+            TagRepository tagRepository,
             TagService tagService,
             OperationTimer operationTimer,
             TravelRecordAssembler travelRecordAssembler,
@@ -66,11 +71,12 @@ public class TravelRecordService {
             RegionSuggester regionSuggester,
             PlatformTransactionManager transactionManager,
             ApplicationEventPublisher eventPublisher,
-            TravelRecordListCache travelRecordListCache
+            TravelRecordListCache travelRecordListCache,
+            ActiveMemberGuard activeMemberGuard
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
-        this.travelRecordTagService = travelRecordTagService;
+        this.tagRepository = tagRepository;
         this.tagService = tagService;
         this.operationTimer = operationTimer;
         this.travelRecordAssembler = travelRecordAssembler;
@@ -82,22 +88,27 @@ public class TravelRecordService {
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
         this.eventPublisher = eventPublisher;
         this.travelRecordListCache = travelRecordListCache;
+        this.activeMemberGuard = activeMemberGuard;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
     /**
      * 외부 호출(Google 장소 조회, S3 업로드 확인)은 트랜잭션 밖에서 먼저 하고, DB 일만 트랜잭션으로 묶는다.
      * 트랜잭션은 시작할 때 커넥션을 빌려 끝날 때 돌려주므로, 안에서 외부를 기다리면 그동안 커넥션을 쥐고 있게 된다.
+     *
+     * <p>탈퇴 뒤 남은 access token으로는 만들지 못한다. 회원 확인은 커넥션을 더 빌리지 않도록 트랜잭션 안에서 한다.
      */
     public TravelRecord create(Member member, TravelRecordCommand command) {
-        validateTravelDates(command.startDate(), command.endDate());
-        List<String> objectKeys = command.objectKeys();
-        TravelRecord.validateObjectKeys(objectKeys);
+        LocalDate today = ServiceTime.today(clock);
+        TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
+        ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
-        uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys);
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys.values());
 
         return transactionTemplate.execute(status -> {
-            validateObjectKeysAreAvailable(objectKeys);
+            activeMemberGuard.require(member.getId());
+            validateObjectKeysAreAvailable(objectKeys.values());
             Region region = resolveRegion(command, place);
             TravelRecord travelRecord = TravelRecord.of(
                     member,
@@ -105,13 +116,14 @@ public class TravelRecordService {
                     command.title(),
                     command.content(),
                     command.startDate(),
-                    command.endDate()
+                    command.endDate(),
+                    today
             );
             setPlace(travelRecord, place);
             travelRecord.synchronizeMedia(objectKeys);
+            travelRecord.retag(tagIds, findTags(member, tagIds));
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
-            travelRecordTagService.replace(member, savedTravelRecord, command.tagIds());
             eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return savedTravelRecord;
@@ -135,9 +147,10 @@ public class TravelRecordService {
             Long travelRecordId,
             TravelRecordCommand command
     ) {
-        validateTravelDates(command.startDate(), command.endDate());
-        List<String> objectKeys = command.objectKeys();
-        TravelRecord.validateObjectKeys(objectKeys);
+        LocalDate today = ServiceTime.today(clock);
+        TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
+        ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
 
         List<String> newObjectKeys = readOnlyTransactionTemplate.execute(status -> {
@@ -158,10 +171,10 @@ public class TravelRecordService {
                     command.title(),
                     command.content(),
                     command.startDate(),
-                    command.endDate()
+                    command.endDate(),
+                    today
             );
             setPlace(travelRecord, place);
-            List<Tag> tags = travelRecordTagService.replace(member, travelRecord, command.tagIds());
             operationTimer.record(
                     MonitoredOperation.MEDIA_SYNC,
                     () -> {
@@ -170,6 +183,9 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
+            // 태그 변경은 커밋 때 함께 나간다. 타이머 안에서 바꾸면 MEDIA_SYNC에 태그 쓰기가 섞인다.
+            List<Tag> tags = findTags(member, tagIds);
+            travelRecord.retag(tagIds, tags);
             eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return travelRecordAssembler.assembleDetail(travelRecord, tags);
@@ -242,10 +258,6 @@ public class TravelRecordService {
         }
     }
 
-    private void validateTravelDates(LocalDate startDate, LocalDate endDate) {
-        TravelRecord.validatePeriod(startDate, endDate, ServiceTime.today(clock));
-    }
-
     private Pageable createPageable(int page, int size) {
         return PageRequest.of(
                 page,
@@ -282,6 +294,16 @@ public class TravelRecordService {
         travelRecord.setPlace(place == null ? null : new RecordedPlace(
                 place.provider().code(), place.id().value(), place.name(),
                 place.provider().attribution(), place.provider().attributionUrl()));
+    }
+
+    /**
+     * 회원의 태그만 조회한다. 애그리거트도 소유를 확인하지만, 남의 태그가 있는지 드러내지 않도록 조회부터 회원으로 거른다.
+     */
+    private List<Tag> findTags(Member member, RecordTagIds tagIds) {
+        if (tagIds.isEmpty()) {
+            return List.of();
+        }
+        return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
     }
 
     private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {

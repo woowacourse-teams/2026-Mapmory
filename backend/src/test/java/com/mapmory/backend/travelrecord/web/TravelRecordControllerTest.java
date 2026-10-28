@@ -27,6 +27,7 @@ import com.mapmory.backend.travelrecord.application.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import com.mapmory.backend.travelrecord.application.TravelRecordService;
 import com.mapmory.backend.travelrecord.application.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.web.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.web.dto.TravelRecordDetailResponse;
@@ -57,6 +58,8 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 
 @ExtendWith(MockitoExtension.class)
 class TravelRecordControllerTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     private static final long MEMBER_ID = 10L;
     private static final Member MEMBER = Member.of("테스터", UUID.randomUUID());
@@ -115,7 +118,8 @@ class TravelRecordControllerTest {
                 request.title(),
                 request.content(),
                 request.startDate(),
-                request.endDate()
+                request.endDate(),
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
 
@@ -229,7 +233,8 @@ class TravelRecordControllerTest {
                 "일본 여행",
                 null,
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
         when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
@@ -260,7 +265,8 @@ class TravelRecordControllerTest {
                 "가".repeat(200),
                 "",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 1L);
         when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
@@ -380,7 +386,7 @@ class TravelRecordControllerTest {
 
     private TravelRecordDetail detail(String title, String content, List<String> objectKeys) {
         TravelRecord travelRecord = travelRecord(title, content);
-        travelRecord.synchronizeMedia(objectKeys);
+        travelRecord.synchronizeMedia(ObjectKeys.from(objectKeys));
         List<MediaView> mediaViews = travelRecord.getMedia().stream()
                 .map(recordMedia -> new MediaView(recordMedia, new ExpiringUrl(
                         "https://download.example/" + recordMedia.getObjectKey(),
@@ -401,7 +407,8 @@ class TravelRecordControllerTest {
                 title,
                 content,
                 LocalDate.of(2026, 8, 11),
-                LocalDate.of(2026, 8, 13)
+                LocalDate.of(2026, 8, 13),
+                TODAY
         );
         ReflectionTestUtils.setField(travelRecord, "id", 101L);
 
