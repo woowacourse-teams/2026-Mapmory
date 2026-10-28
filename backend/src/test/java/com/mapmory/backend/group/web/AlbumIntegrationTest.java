@@ -1,6 +1,7 @@
 package com.mapmory.backend.group.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willAnswer;
@@ -108,7 +109,7 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.opener.memberId").value(jisu.getId()))
                 .andExpect(jsonPath("$.data.opener.nickname").value("지수"))
                 .andExpect(jsonPath("$.data.opener.me").value(true))
-                .andExpect(jsonPath("$.data.myTravelRecordId").value(record.getId()))
+                .andExpect(jsonPath("$.data.myTravelRecordIds").value(contains(record.getId().intValue())))
                 .andExpect(jsonPath("$.data.entries.length()").value(1))
                 .andExpect(jsonPath("$.data.entries[0].travelRecordId").value(record.getId()))
                 .andExpect(jsonPath("$.data.entries[0].owner.memberId").value(jisu.getId()))
@@ -219,7 +220,7 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.endDate").value("2026-03-04"))
                 .andExpect(jsonPath("$.data.opener.memberId").value(jisu.getId()))
                 .andExpect(jsonPath("$.data.opener.me").value(false))
-                .andExpect(jsonPath("$.data.myTravelRecordId").value(minhoRecord.getId()))
+                .andExpect(jsonPath("$.data.myTravelRecordIds").value(contains(minhoRecord.getId().intValue())))
                 .andExpect(jsonPath("$.data.entries.length()").value(2))
                 .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("민호"))
                 .andExpect(jsonPath("$.data.entries[1].owner.me").value(true))
@@ -230,12 +231,17 @@ class AlbumIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 이미_다른_기록을_담았으면_409다() throws Exception {
-        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null));
+    void 같은_멤버가_다른_기록도_담는다() throws Exception {
+        TravelRecord shibuya = record(jisu, LocalDate.of(2026, 3, 1), null);
+        TravelRecord asakusa = record(jisu, LocalDate.of(2026, 3, 2), null);
+        Long albumId = openedAlbumId(jisu, shibuya);
 
-        addEntry(jisu, group.getId(), albumId, record(jisu, LocalDate.of(2026, 3, 2), null).getId())
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ALBUM_ENTRY_ALREADY_EXISTS"));
+        addEntry(jisu, group.getId(), albumId, asakusa.getId())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.entries.length()").value(2))
+                .andExpect(jsonPath("$.data.myTravelRecordIds").value(
+                        contains(shibuya.getId().intValue(), asakusa.getId().intValue())))
+                .andExpect(jsonPath("$.data.endDate").value("2026-03-02"));
     }
 
     @Test

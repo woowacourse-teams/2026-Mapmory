@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 앨범 상세. 글은 기록별로, 사진은 기록 안에 담는다. 앱은 사진을 풀어 한 그리드로 보여 준다.
  *
- * @param myTravelRecordId 내가 담은 기록. null이면 앱이 "사진 붙이기" 버튼을 보여 준다
+ * @param myTravelRecordIds 내가 담은 기록들. 담은 순서이고, 비어 있으면 아직 담지 않았다
  */
 public record AlbumDetailResponse(
         Long id,
@@ -17,7 +17,7 @@ public record AlbumDetailResponse(
         LocalDate startDate,
         LocalDate endDate,
         AlbumMemberResponse opener,
-        Long myTravelRecordId,
+        List<Long> myTravelRecordIds,
         List<AlbumEntryResponse> entries
 ) {
 
@@ -30,7 +30,7 @@ public record AlbumDetailResponse(
                 detail.startDate(),
                 detail.endDate(),
                 AlbumMemberResponse.from(detail.opener()),
-                detail.myTravelRecordId(),
+                detail.myTravelRecordIds(),
                 detail.entries().stream().map(AlbumEntryResponse::from).toList()
         );
     }

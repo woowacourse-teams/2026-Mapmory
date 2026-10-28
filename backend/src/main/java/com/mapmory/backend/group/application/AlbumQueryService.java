@@ -88,7 +88,7 @@ public class AlbumQueryService {
                 shown.stream().map(RecordView::startDate).min(Comparator.naturalOrder()).orElse(null),
                 shown.stream().map(AlbumQueryService::lastDay).max(Comparator.naturalOrder()).orElse(null),
                 contributor(album.getOpenerMemberId(), nicknames, memberId),
-                album.travelRecordIdOf(memberId).filter(records::containsKey).orElse(null),
+                album.travelRecordIdsOf(memberId).stream().filter(records::containsKey).toList(),
                 entryViews
         );
     }

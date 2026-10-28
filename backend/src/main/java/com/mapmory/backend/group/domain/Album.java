@@ -18,7 +18,6 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * 같은 여행 하나를 보여 주는 묶음. 저장은 각자 여행 기록에 하고, 앨범은 그 기록을 id로 가리키기만 한다.
@@ -81,17 +80,13 @@ public class Album extends BaseEntity {
      * 사진 붙이기: 내 기록을 이 앨범에 담는다. 멤버인지와 내 기록인지는 부르는 쪽이 먼저 확인한다.
      *
      * <p>같은 기록을 다시 담으면 아무것도 바꾸지 않고 false다. 응답을 못 받은 앱이 그대로 다시 보내도 되게 한다.
-     * 한 앨범에는 멤버당 기록 하나라 다른 기록을 이미 담았으면 거절한다(ADR 0022 결정 2).
+     * 한 멤버가 기록을 여럿 담을 수 있다. 지금 기록은 장소 하나라 여행 하나에 기록이 여럿이다(ADR 0022 2026-10-28 보완).
      *
      * @return 새로 담았으면 true
      */
     public boolean addEntry(Long memberId, Long travelRecordId) {
-        Optional<Long> added = travelRecordIdOf(memberId);
-        if (added.isPresent()) {
-            if (added.get().equals(travelRecordId)) {
-                return false;
-            }
-            throw new BusinessException(GroupErrorCode.ALBUM_ENTRY_ALREADY_EXISTS);
+        if (travelRecordIds().contains(travelRecordId)) {
+            return false;
         }
         entries.add(new AlbumEntry(this, travelRecordId, memberId));
         return true;
@@ -112,13 +107,13 @@ public class Album extends BaseEntity {
     }
 
     /**
-     * 이 멤버가 담은 기록.
+     * 이 멤버가 담은 기록들. 담은 순서다.
      */
-    public Optional<Long> travelRecordIdOf(Long memberId) {
+    public List<Long> travelRecordIdsOf(Long memberId) {
         return entries.stream()
                 .filter(entry -> entry.getMemberId().equals(memberId))
                 .map(AlbumEntry::getTravelRecordId)
-                .findFirst();
+                .toList();
     }
 
     public List<Long> travelRecordIds() {

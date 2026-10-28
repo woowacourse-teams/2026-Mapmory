@@ -67,9 +67,9 @@ public class AlbumService {
     }
 
     /**
-     * 같은 사람이 동시에 담으면 그룹 행 잠금으로 차례로 처리하지만, 늦은 쪽은 잠금을 기다리기 전에 읽은
-     * 옛 스냅샷으로 앨범을 보고 담으려다 유니크 제약(uk_album_entry_member)에 걸릴 수 있다.
-     * 그 트랜잭션은 롤백하고, 같은 기록이 이미 담겼으면 다시 담은 것으로(created=false) 응답한다.
+     * 같은 기록을 동시에 담으면 그룹 행 잠금으로 차례로 처리하지만, 늦은 쪽은 잠금을 기다리기 전에 읽은
+     * 옛 스냅샷으로 앨범을 보고 담으려다 유니크 제약(uk_album_entry_record)에 걸릴 수 있다.
+     * 그 트랜잭션은 롤백하고, 다시 들어오면 이미 담긴 기록이라 다시 담은 것으로(created=false) 응답한다.
      * 그래서 이 메서드는 트랜잭션을 직접 연다(GroupInvitationService.accept와 같다).
      */
     public AlbumEntryResult addEntry(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
