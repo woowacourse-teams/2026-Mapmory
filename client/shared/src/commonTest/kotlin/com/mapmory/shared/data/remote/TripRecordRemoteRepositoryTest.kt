@@ -3,6 +3,7 @@ package com.mapmory.shared.data.remote
 import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -53,6 +54,22 @@ class TripRecordRemoteRepositoryTest {
         )
         assertEquals(300L, page.records.single().thumbnailUrlExpiresIn)
         assertEquals("가족", page.records.single().tags.single().name)
+        client.close()
+    }
+
+    @Test
+    fun `시간순_목록_조회는_여행_날짜_정렬을_요청한다`() = runBlocking {
+        val client = client { request ->
+            assertEquals("TRAVEL_DATE_DESC", request.url.parameters["orderBy"])
+            jsonResponse(
+                """{"data":{"items":[],"page":0,"size":20,"totalElements":0,"totalPages":0,"hasNext":false}}""",
+            )
+        }
+
+        repository(client).getTripRecords(
+            TripRecordQuery(sort = TripRecordSort.TRAVEL_DATE_DESC),
+        ).getOrThrow()
+
         client.close()
     }
 

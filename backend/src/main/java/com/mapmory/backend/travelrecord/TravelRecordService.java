@@ -143,11 +143,26 @@ public class TravelRecordService {
             int page,
             int size
     ) {
+        return findAll(member, countryCode, provinceCode, districtCode, tagId, page, size,
+                TravelRecordListOrder.CREATED_AT_DESC);
+    }
+
+    @Transactional(readOnly = true)
+    public TravelRecordSummaries findAll(
+            Member member,
+            String countryCode,
+            String provinceCode,
+            String districtCode,
+            Long tagId,
+            int page,
+            int size,
+            TravelRecordListOrder orderBy
+    ) {
         validateRegionCodeFormat(countryCode, provinceCode, districtCode);
         validateRegionFilterHierarchy(countryCode, provinceCode, districtCode);
         validatePagination(page, size);
         Long memberId = member.getId();
-        Pageable pageable = createPageable(page, size);
+        Pageable pageable = createPageable(page, size, orderBy);
         if (tagId != null) {
             tagService.getOwnedTag(member, tagId);
         }
@@ -228,11 +243,16 @@ public class TravelRecordService {
         TravelPeriod.of(startDate, endDate).validateNotAfter(LocalDate.now(clock));
     }
 
-    private Pageable createPageable(int page, int size) {
+    private Pageable createPageable(int page, int size, TravelRecordListOrder orderBy) {
+        Sort sort = orderBy == TravelRecordListOrder.TRAVEL_DATE_DESC
+                ? Sort.by(Sort.Direction.DESC, "period.startDate")
+                    .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                    .and(Sort.by(Sort.Direction.DESC, "id"))
+                : Sort.by(Sort.Direction.DESC, "createdAt");
         return PageRequest.of(
                 page,
                 size,
-                Sort.by(Sort.Direction.DESC, "createdAt")
+                sort
         );
     }
 

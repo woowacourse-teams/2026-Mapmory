@@ -2,6 +2,7 @@ package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.runSuspend
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,6 +10,23 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class FakeTripRecordRepositoryTest {
+    @Test
+    fun `시간순_조회는_여행_시작일_최신순으로_기록을_반환한다`() = runSuspend {
+        val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        repository.createTripRecord(
+            TripRecordDraft(101, "2026-08-01", listOf("older.jpg"), title = "이전 여행"),
+        )
+        repository.createTripRecord(
+            TripRecordDraft(101, "2026-08-05", listOf("newer.jpg"), title = "최근 여행"),
+        )
+
+        val page = repository.getTripRecords(
+            TripRecordQuery(sort = TripRecordSort.TRAVEL_DATE_DESC),
+        ).getOrThrow()
+
+        assertEquals(listOf("최근 여행", "이전 여행"), page.records.map { it.title })
+    }
+
     @Test
     fun `여행_기록을_생성하고_수정하고_삭제한다`() = runSuspend {
         val repository = FakeTripRecordRepository(

@@ -6,6 +6,7 @@ import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
@@ -25,6 +26,32 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
+    @Test
+    fun `시간순_전환은_여행날짜_정렬을_요청하고_첫_페이지부터_불러온다`() = runBlocking {
+        val requestedQueries = mutableListOf<TripRecordQuery>()
+        val source = FakeTripRecordRepository { "2026-10-08T00:00:00Z" }
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                requestedQueries += query
+                return Result.success(
+                    TripRecordPage(emptyList(), query.page, query.size, totalElements = 21, totalPages = 2),
+                )
+            }
+        }
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+        )
+
+        viewModel.refreshIfNeeded(null, 0)
+        viewModel.nextPage()
+        viewModel.refreshIfNeeded(null, 0, TripRecordSort.TRAVEL_DATE_DESC)
+
+        assertEquals(1, requestedQueries[1].page)
+        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requestedQueries[2].sort)
+        assertEquals(0, requestedQueries[2].page)
+    }
+
     @Test
     fun `태그와_서버를_기다리기_전에_로컬_기록을_표시하고_실패해도_유지한다`() = runBlocking {
         val gate = CompletableDeferred<Unit>()

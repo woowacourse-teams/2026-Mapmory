@@ -88,7 +88,13 @@ data class TripRecordQuery(
     val tagId: Long? = null,
     val page: Int = 0,
     val size: Int = 20,
+    val sort: TripRecordSort = TripRecordSort.CREATED_AT_DESC,
 )
+
+enum class TripRecordSort {
+    CREATED_AT_DESC,
+    TRAVEL_DATE_DESC,
+}
 
 data class TripRecordPage(
     val records: List<TripRecordSummary>,

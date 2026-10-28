@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
@@ -50,7 +52,12 @@ internal interface ShareVideoExporter {
 internal expect fun rememberShareVideoExporter(): ShareVideoExporter
 
 @Composable
-internal fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier = Modifier) {
+internal fun TripTimelineVideoPreview(
+    video: ShareVideoFile,
+    modifier: Modifier = Modifier,
+    onExpand: (() -> Unit)? = null,
+    cornerRadius: Dp = 16.dp,
+) {
     val controller = remember(video.path) { TripTimelineVideoPlaybackController() }
     var isSeeking by remember(video.path) { mutableStateOf(false) }
     var sliderPosition by remember(video.path) { mutableLongStateOf(0L) }
@@ -58,8 +65,16 @@ internal fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier 
     val position = if (isSeeking) sliderPosition else controller.positionMillis
     val progress = if (duration > 0L) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
 
-    Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black)) {
+    Box(modifier.clip(RoundedCornerShape(cornerRadius)).background(Color.Black)) {
         TripTimelineVideoSurface(video, controller, Modifier.fillMaxSize())
+        if (onExpand != null) {
+            TextButton(
+                onClick = onExpand,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+            ) {
+                Text("전체 화면", color = Color.White, fontSize = 12.sp)
+            }
+        }
         Row(
             modifier = Modifier.align(Alignment.BottomCenter)
                 .fillMaxWidth()
