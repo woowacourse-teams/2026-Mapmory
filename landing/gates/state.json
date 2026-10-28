@@ -44,7 +44,7 @@
       "key": "qa",
       "name": "검수",
       "passed": false,
-      "at": "2026-10-28T01:27:35.760Z",
+      "at": "2026-10-28T06:41:14.733Z",
       "report": "gates/reports/stage-6.md",
       "forced": true
     },
@@ -57,5 +57,5 @@
       "forced": true
     }
   },
-  "current": 5
+  "current": 6
 }

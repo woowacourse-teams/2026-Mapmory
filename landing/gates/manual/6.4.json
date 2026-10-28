@@ -1,9 +1,9 @@
 {
-  "pass": false,
+  "pass": true,
   "by": "티온",
   "at": "2026-10-28",
-  "device": "Android Chrome (티온 실기기)",
-  "note": "안드로이드 Chrome에서 확인했다고 티온이 알림(10-28 14:14 KST). iPhone Safari는 아직 못 봄: iOS 크루의 iPhone이나 시뮬레이터 Safari로 미리보기(https://claude.ai/artifact/JKbHPM8XNb3vbAPoAKehP1)를 열어 6장면과 mp4 재생을 보면 pass: true로 바꾼다. 중간 확인은 GATES_BROWSER=webkit(사파리 엔진)으로 6.1·6.3을 돌려 둘 수 있다",
+  "device": "Android Chrome 실기기 + iPhone Safari 실기기 (미리보기 링크 v7)",
+  "note": "티온이 안드로이드(10-28 14:14 KST)와 iPhone(10-28 15:36 KST, 미리보기 https://claude.ai/artifact/JKbHPM8XNb3vbAPoAKehP1 을 Safari에서 열어)에서 6장면 전환과 마지막 장면 영상 재생을 확인: '다 잘되는거 확인했어'",
   "android": { "checked": true, "by": "티온", "at": "2026-10-28" },
-  "ios": { "checked": false }
+  "ios": { "checked": true, "by": "티온", "at": "2026-10-28" }
 }

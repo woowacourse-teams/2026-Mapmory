@@ -3,7 +3,7 @@
   "key": "qa",
   "name": "검수",
   "url": "http://localhost:4173/",
-  "at": "2026-10-28T01:27:35.760Z",
+  "at": "2026-10-28T06:41:14.733Z",
   "complete": true,
   "passed": false,
   "forced": true,
@@ -45,7 +45,7 @@
         "WCAG 2.2 SC 1.4.10 Reflow"
       ],
       "derived": null,
-      "ms": 148365
+      "ms": 150981
     },
     {
       "id": "6.2",
@@ -64,7 +64,7 @@
         "WCAG 2.2 SC 2.4.7 Focus Visible"
       ],
       "derived": null,
-      "ms": 25672
+      "ms": 25371
     },
     {
       "id": "6.3",
@@ -82,23 +82,25 @@
         "Ramotion, web design process"
       ],
       "derived": null,
-      "ms": 21618
+      "ms": 21294
     },
     {
       "id": "6.4",
       "name": "실기기",
-      "pass": false,
+      "pass": true,
       "expected": "iPhone Safari와 Android Chrome에서 6장면과 mp4 재생 확인",
-      "value": "기록 없음",
-      "detail": "gates/manual/6.4.json 에 사람이 확인한 결과를 적어야 함",
-      "evidence": [],
+      "value": "티온 · 2026-10-28 · Android Chrome 실기기 + iPhone Safari 실기기 (미리보기 링크 v7) · 티온이 안드로이드(10-28 14:14 KST)와 iPhone(10-28 15:36 KST, 미리보기 https://claude.ai/artifact/JKbHPM8XNb3vbAPoAKehP1 을 Safari에서 열어)에서 6장면 전환과 마지막 장면 영상 재생을 확인: '다 잘되는거 확인했어'",
+      "detail": "",
+      "evidence": [
+        "gates/manual/6.4.json"
+      ],
       "kind": "manual",
       "purpose": "E",
       "sources": [
         "Clique Studios, 7 stages of the web design process"
       ],
       "derived": null,
-      "ms": 4
+      "ms": 3
     },
     {
       "id": "6.5",
@@ -114,7 +116,7 @@
         "landing/AGENTS.md (문구는 앱 코드로 확인, 공유 장면 출시 규칙)"
       ],
       "derived": null,
-      "ms": 1
+      "ms": 2
     }
   ]
 }
