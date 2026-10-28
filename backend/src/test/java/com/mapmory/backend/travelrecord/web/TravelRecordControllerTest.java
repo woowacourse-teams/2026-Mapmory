@@ -27,6 +27,7 @@ import com.mapmory.backend.travelrecord.application.TravelRecordDetail;
 import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import com.mapmory.backend.travelrecord.application.TravelRecordService;
 import com.mapmory.backend.travelrecord.application.TravelRecordSummaries;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.web.dto.CreateTravelRecordResponse;
 import com.mapmory.backend.travelrecord.web.dto.TravelRecordDetailResponse;
@@ -385,7 +386,7 @@ class TravelRecordControllerTest {
 
     private TravelRecordDetail detail(String title, String content, List<String> objectKeys) {
         TravelRecord travelRecord = travelRecord(title, content);
-        travelRecord.synchronizeMedia(objectKeys);
+        travelRecord.synchronizeMedia(ObjectKeys.from(objectKeys));
         List<MediaView> mediaViews = travelRecord.getMedia().stream()
                 .map(recordMedia -> new MediaView(recordMedia, new ExpiringUrl(
                         "https://download.example/" + recordMedia.getObjectKey(),

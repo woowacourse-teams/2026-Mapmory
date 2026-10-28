@@ -27,9 +27,9 @@ class TravelRecordTest {
     @Test
     void 요청_순서를_미디어_정렬_순서로_삼는다() {
         TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(List.of(KEY_A, KEY_B));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A, KEY_B)));
 
-        travelRecord.synchronizeMedia(List.of(KEY_B, KEY_A));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_B, KEY_A)));
 
         assertThat(travelRecord.getMedia())
                 .extracting(RecordMedia::getObjectKey)
@@ -42,9 +42,9 @@ class TravelRecordTest {
     @Test
     void 요청에_없는_미디어는_컬렉션에서_떨어진다() {
         TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(List.of(KEY_A, KEY_B));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A, KEY_B)));
 
-        travelRecord.synchronizeMedia(List.of(KEY_B));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_B)));
 
         assertThat(travelRecord.getMedia())
                 .extracting(RecordMedia::getObjectKey)
@@ -54,9 +54,9 @@ class TravelRecordTest {
     @Test
     void 새_Object_Key는_미디어를_만들어_붙인다() {
         TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(List.of(KEY_A));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
 
-        travelRecord.synchronizeMedia(List.of(KEY_A, KEY_C));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A, KEY_C)));
 
         assertThat(travelRecord.getMedia())
                 .extracting(RecordMedia::getObjectKey)
@@ -67,39 +67,21 @@ class TravelRecordTest {
     @Test
     void 빈_Object_Key_목록은_모든_미디어를_떼어낸다() {
         TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(List.of(KEY_A));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
 
-        travelRecord.synchronizeMedia(List.of());
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of()));
 
         assertThat(travelRecord.getMedia()).isEmpty();
     }
 
     @Test
-    void 한_일지_안에서_Object_Key가_중복되면_거부한다() {
-        assertThatThrownBy(() -> TravelRecord.validateObjectKeys(List.of(KEY_A, KEY_A)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
-                .isEqualTo("INVALID_OBJECT_KEY");
-    }
-
-    @Test
-    void 동기화도_중복_Object_Key를_거부한다() {
-        TravelRecord travelRecord = travelRecord();
-
-        assertThatThrownBy(() -> travelRecord.synchronizeMedia(List.of(KEY_A, KEY_A)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode().code())
-                .isEqualTo("INVALID_OBJECT_KEY");
-    }
-
-    @Test
     void 이미_가진_Object_Key는_새_키가_아니다() {
         TravelRecord travelRecord = travelRecord();
-        travelRecord.synchronizeMedia(List.of(KEY_A));
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
 
-        List<String> newObjectKeys = travelRecord.newObjectKeys(List.of(KEY_A, KEY_C));
+        ObjectKeys newObjectKeys = travelRecord.newObjectKeys(ObjectKeys.from(List.of(KEY_A, KEY_C)));
 
-        assertThat(newObjectKeys).containsExactly(KEY_C);
+        assertThat(newObjectKeys.values()).containsExactly(KEY_C);
     }
 
     @Test

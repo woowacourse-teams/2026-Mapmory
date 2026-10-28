@@ -17,6 +17,7 @@ import com.mapmory.backend.tag.TagRepository;
 import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
+import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -100,11 +101,10 @@ public class TravelRecordService {
     public TravelRecord create(Member member, TravelRecordCommand command) {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
-        List<String> objectKeys = command.objectKeys();
-        TravelRecord.validateObjectKeys(objectKeys);
+        ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
-        uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys);
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys.values());
 
         return transactionTemplate.execute(status -> {
             activeMemberGuard.require(member.getId());
@@ -149,18 +149,17 @@ public class TravelRecordService {
     ) {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
-        List<String> objectKeys = command.objectKeys();
-        TravelRecord.validateObjectKeys(objectKeys);
+        ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
 
-        List<String> newObjectKeys = readOnlyTransactionTemplate.execute(status -> {
+        ObjectKeys newObjectKeys = readOnlyTransactionTemplate.execute(status -> {
             TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
-            List<String> keys = travelRecord.newObjectKeys(objectKeys);
+            ObjectKeys keys = travelRecord.newObjectKeys(objectKeys);
             validateObjectKeysAreAvailable(keys);
             return keys;
         });
-        uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys);
+        uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys.values());
 
         return transactionTemplate.execute(status -> {
             TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
@@ -307,9 +306,9 @@ public class TravelRecordService {
         return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
     }
 
-    private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
+    private void validateObjectKeysAreAvailable(ObjectKeys newObjectKeys) {
         if (!newObjectKeys.isEmpty()
-                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
+                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys.values())) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }

@@ -22,7 +22,6 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,23 +138,11 @@ public class TravelRecord extends BaseEntity {
     }
 
     /**
-     * 한 일지 안에서 같은 Object Key를 두 번 가질 수 없다.
-     *
-     * <p>일지를 만들기 전에도 검증할 수 있어야 해서 정적 메서드다.
-     * 생성과 수정이 같은 시점에 같은 규칙을 적용한다.
-     */
-    public static void validateObjectKeys(List<String> objectKeys) {
-        if (new HashSet<>(objectKeys).size() != objectKeys.size()) {
-            throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
-        }
-    }
-
-    /**
      * 여행 기간은 기준일(오늘)보다 뒤일 수 없다.
      *
      * <p>기준일이 지나도 저장된 기간은 유효하므로 {@link TravelPeriod}가 생성 시점에 검사하지 않는다.
      * 생성({@link #of})과 수정({@link #update})이 이 규칙을 지킨다. 정적 메서드로도 열어 두는 것은
-     * 응용 서비스가 외부 호출 전에 먼저 거절할 수 있게 하기 위해서다. ({@link #validateObjectKeys}와 같다)
+     * 응용 서비스가 외부 호출 전에 먼저 거절할 수 있게 하기 위해서다. ({@link ObjectKeys#from}과 같다)
      */
     public static void validatePeriod(LocalDate startDate, LocalDate endDate, LocalDate today) {
         periodNotAfter(startDate, endDate, today);
@@ -177,37 +164,33 @@ public class TravelRecord extends BaseEntity {
     }
 
     /**
-     * 요청된 Object Key 중 이 일지가 아직 가지고 있지 않은 것들.
+     * 요청된 Object Key 중 이 일지가 아직 가지고 있지 않은 것들. 수정할 때 S3로 확인할 대상이다.
      */
-    public List<String> newObjectKeys(List<String> objectKeys) {
-        Set<String> currentObjectKeys = media.stream()
-                .map(RecordMedia::getObjectKey)
+    public ObjectKeys newObjectKeys(ObjectKeys requested) {
+        Set<ObjectKey> currentObjectKeys = media.stream()
+                .map(RecordMedia::objectKey)
                 .collect(Collectors.toSet());
-
-        return objectKeys.stream()
-                .filter(objectKey -> !currentObjectKeys.contains(objectKey))
-                .toList();
+        return requested.excluding(currentObjectKeys);
     }
 
     /**
      * 요청된 Object Key 순서를 이 일지의 미디어 정렬 순서로 삼는다.
      * 이미 가진 미디어는 순서만 바꾸고, 새 키는 미디어를 만들며, 빠진 것은 컬렉션에서 떨어져
-     * orphanRemoval로 삭제된다.
+     * orphanRemoval로 삭제된다. 키의 형식과 중복은 {@link ObjectKeys}가 이미 보장한다.
      */
-    public void synchronizeMedia(List<String> objectKeys) {
-        validateObjectKeys(objectKeys);
-
-        Map<String, RecordMedia> unusedMedia = new LinkedHashMap<>();
+    public void synchronizeMedia(ObjectKeys requested) {
+        Map<ObjectKey, RecordMedia> unusedMedia = new LinkedHashMap<>();
         for (RecordMedia recordMedia : media) {
-            unusedMedia.put(recordMedia.getObjectKey(), recordMedia);
+            unusedMedia.put(recordMedia.objectKey(), recordMedia);
         }
 
+        List<ObjectKey> objectKeys = requested.keys();
         List<RecordMedia> addedMedia = new ArrayList<>();
         for (int sortOrder = 0; sortOrder < objectKeys.size(); sortOrder++) {
-            String objectKey = objectKeys.get(sortOrder);
+            ObjectKey objectKey = objectKeys.get(sortOrder);
             RecordMedia recordMedia = unusedMedia.remove(objectKey);
             if (recordMedia == null) {
-                addedMedia.add(RecordMedia.of(this, objectKey, null, sortOrder));
+                addedMedia.add(RecordMedia.of(this, objectKey, sortOrder));
             } else {
                 recordMedia.updateSortOrder(sortOrder);
             }
