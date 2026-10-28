@@ -1,0 +1,13 @@
+{
+  "$comment": "Claude Code 훅 예시. 저장소 루트의 .claude/settings.json (또는 settings.local.json) hooks에 합치면, 단계를 건너뛴 코드 수정이 막힙니다. 자세한 규칙은 guard-src.mjs 머리말.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/landing/gates/hooks/guard-src.mjs\"" }
+        ]
+      }
+    ]
+  }
+}

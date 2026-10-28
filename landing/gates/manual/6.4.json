@@ -1,0 +1,9 @@
+{
+  "pass": true,
+  "by": "티온",
+  "at": "2026-10-28",
+  "device": "Android Chrome 실기기 + iPhone Safari 실기기 (미리보기 링크 v7)",
+  "note": "티온이 안드로이드(10-28 14:14 KST)와 iPhone(10-28 15:36 KST, 미리보기 https://claude.ai/artifact/JKbHPM8XNb3vbAPoAKehP1 을 Safari에서 열어)에서 6장면 전환과 마지막 장면 영상 재생을 확인: '다 잘되는거 확인했어'",
+  "android": { "checked": true, "by": "티온", "at": "2026-10-28" },
+  "ios": { "checked": true, "by": "티온", "at": "2026-10-28" }
+}

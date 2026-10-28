@@ -59,7 +59,7 @@ function PhotoWallHero({ storeActions }) {
           ))}
         </div>
         <p className="wall-hero-diff">{HERO_COPY.diff}</p>
-        {pick && <a className="wall-hero-ask" href="#roll">{HERO_COPY.ask}</a>}
+        {pick && <a className="wall-hero-ask" href="#how">{HERO_COPY.ask}</a>}
       </div>
       <div className="wall-hero-foot">
         {storeActions}

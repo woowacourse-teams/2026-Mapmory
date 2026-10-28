@@ -1,0 +1,61 @@
+{
+  "stage": 7,
+  "key": "launch",
+  "name": "출시·측정",
+  "url": "http://localhost:4173/",
+  "at": "2026-10-27T17:10:48.918Z",
+  "complete": true,
+  "passed": false,
+  "forced": true,
+  "rows": [
+    {
+      "id": "7.1",
+      "name": "지표가 보인다",
+      "pass": false,
+      "expected": "PostHog에 view → scene 1~6 도달과 장면별 시도율 타일",
+      "value": "기록 없음",
+      "detail": "gates/manual/7.1.json 에 사람이 확인한 결과를 적어야 함",
+      "evidence": [],
+      "kind": "manual",
+      "purpose": "E",
+      "sources": [
+        "Clique Studios, 7 stages of the web design process",
+        "landing/ANALYTICS_MEASUREMENT_PLAN.md (1차 성과 = download_click 사용자 ÷ page_view 사용자)"
+      ],
+      "derived": null,
+      "ms": 1
+    },
+    {
+      "id": "7.2",
+      "name": "이전 섹션보다 나쁘지 않다",
+      "pass": false,
+      "expected": "마지막 장면 도달률 ≥ 기존 how_story 장면 5 도달률 (출시 후 2주)",
+      "value": "기록 없음",
+      "detail": "gates/manual/7.2.json 에 사람이 확인한 결과를 적어야 함",
+      "evidence": [],
+      "kind": "manual",
+      "purpose": "E",
+      "sources": [
+        "landing/ANALYTICS_MEASUREMENT_PLAN.md (1차 성과 = download_click 사용자 ÷ page_view 사용자)"
+      ],
+      "derived": null,
+      "ms": 0
+    },
+    {
+      "id": "7.3",
+      "name": "수정 규칙",
+      "pass": false,
+      "expected": "주 1회 보고, 한 번에 장면 하나만 바꾼다",
+      "value": "기록 없음",
+      "detail": "gates/manual/7.3.json 에 사람이 확인한 결과를 적어야 함",
+      "evidence": [],
+      "kind": "manual",
+      "purpose": "E",
+      "sources": [
+        "Clique Studios, 7 stages of the web design process"
+      ],
+      "derived": null,
+      "ms": 0
+    }
+  ]
+}
