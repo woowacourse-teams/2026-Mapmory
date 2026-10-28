@@ -13,6 +13,7 @@ import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -137,6 +139,32 @@ public class AlbumQueryService {
                 album.travelRecordIdsOf(memberId).stream().filter(records::containsKey).toList(),
                 entryViews
         );
+    }
+
+    /**
+     * 그룹마다 가장 최근에 기록이 담긴 앨범의 대표 사진(앨범 카드와 같은 규칙). 앨범이나 사진이 없는 그룹은 결과에서 빠진다.
+     * 앨범 id는 그룹마다 한 번씩 고른다. 한 회원은 그룹 10개까지라 쿼리 수가 정해져 있다. 멤버인지는 부르는 쪽이 확인한다.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, ExpiringUrl> latestCoversOf(Collection<Long> groupIds) {
+        List<Long> albumIds = groupIds.stream()
+                .flatMap(groupId -> albumRepository.findLatestIdsByGroupId(groupId, Limit.of(1)).stream())
+                .toList();
+        List<Album> albums = findInOrder(albumIds);
+        Map<Long, RecordBrief> records = briefsOf(
+                albums.stream().flatMap(album -> album.travelRecordIds().stream()).toList());
+        Map<Long, ExpiringUrl> covers = new HashMap<>();
+        for (Album album : albums) {
+            List<RecordBrief> shown = album.travelRecordIds().stream()
+                    .map(records::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+            ExpiringUrl cover = coverOf(album, shown);
+            if (cover != null) {
+                covers.put(album.getGroupId(), cover);
+            }
+        }
+        return covers;
     }
 
     private List<Album> findInOrder(List<Long> albumIds) {

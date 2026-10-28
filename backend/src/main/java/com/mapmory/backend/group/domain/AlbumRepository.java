@@ -3,6 +3,7 @@ package com.mapmory.backend.group.domain;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,6 +35,15 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
         WHERE a.groupId = :groupId AND EXISTS (SELECT 1 FROM AlbumEntry e WHERE e.album = a)
     """)
     Page<Long> findIdsByGroupIdOrderByLastAdded(@Param("groupId") Long groupId, Pageable pageable);
+
+    // 그룹 카드의 대표 사진용. findIdsByGroupIdOrderByLastAdded와 같은 순서이고 전체 수는 세지 않는다.
+    @Query("""
+        SELECT a.id FROM Album a JOIN a.entries e
+        WHERE a.groupId = :groupId
+        GROUP BY a.id
+        ORDER BY MAX(e.createdAt) DESC, a.id DESC
+    """)
+    List<Long> findLatestIdsByGroupId(@Param("groupId") Long groupId, Limit limit);
 
     // 순서는 정하지 않는다. 부르는 쪽이 findIdsByGroupIdOrderByLastAdded의 순서로 맞춘다.
     @Query("""

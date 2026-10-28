@@ -451,6 +451,23 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
     }
 
+    @Test
+    void 그룹_목록의_대표_사진은_가장_최근에_기록이_담긴_앨범의_대표_사진이다() throws Exception {
+        Long older = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 1, 1), null, "old.jpg"));
+        Long newer = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 2, 1), null, "new.jpg"));
+        setAddedAt(older, jisu, LocalDateTime.of(2026, 10, 1, 9, 0));
+        setAddedAt(newer, jisu, LocalDateTime.of(2026, 10, 2, 9, 0));
+        TravelGroup empty = groupWith(minho);
+
+        mockMvc.perform(get("/api/v1/groups").header(HttpHeaders.AUTHORIZATION, bearer(minho)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(group.getId()))
+                .andExpect(jsonPath("$.data[0].coverPhoto.viewUrl").value(endsWith("new.jpg")))
+                .andExpect(jsonPath("$.data[0].coverPhoto.viewUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data[1].id").value(empty.getId()))
+                .andExpect(jsonPath("$.data[1].coverPhoto").doesNotExist());
+    }
+
     private void deleteRecord(TravelRecord record) {
         jdbcTemplate.update("DELETE FROM record_media WHERE travel_record_id = ?", record.getId());
         jdbcTemplate.update("DELETE FROM travel_record WHERE id = ?", record.getId());

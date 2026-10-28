@@ -17,6 +17,7 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,10 +121,16 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
     @Test
     void 미리보기는_그룹_이름과_인원과_내가_멤버인지를_보여_준다() throws Exception {
         String code = JsonPath.read(invitationBody(jisu), "$.data.code");
+        // 저장된 값(초 단위)을 준다. 만들기 응답은 저장 전 값이라 초 아래까지 있다.
+        LocalDateTime expiresAt = jdbcTemplate.queryForObject(
+                "SELECT expires_at FROM group_invitation WHERE code = ?", LocalDateTime.class, code);
 
         preview(minho, code)
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupId").value(group.getId()))
                 .andExpect(jsonPath("$.data.groupName").value("제주 가족"))
+                .andExpect(jsonPath("$.data.full").value(false))
+                .andExpect(jsonPath("$.data.expiresAt").value(expiresAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)))
                 .andExpect(jsonPath("$.data.memberCount").value(1))
                 .andExpect(jsonPath("$.data.alreadyMember").value(false));
         preview(jisu, code)
@@ -172,6 +179,8 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
         jdbcTemplate.update("UPDATE travel_group SET member_count = 30 WHERE id = ?", group.getId());
         String code = JsonPath.read(invitationBody(jisu), "$.data.code");
 
+        preview(minho, code)
+                .andExpect(jsonPath("$.data.full").value(true));
         accept(minho, code)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("GROUP_FULL"));
