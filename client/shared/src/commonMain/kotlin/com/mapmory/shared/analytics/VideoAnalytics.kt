@@ -1,14 +1,13 @@
 package com.mapmory.shared.analytics
 
-import com.mapmory.shared.domain.model.ShareVideoJob
-import com.mapmory.shared.domain.model.ShareVideoStatus
-import com.mapmory.shared.domain.repository.ShareVideoRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** Action completion means the platform API returned, not that an external share was delivered. */
-internal suspend fun <T> MapmoryAnalytics.videoAction(action: String, block: suspend () -> T): T {
+internal suspend fun <T> MapmoryAnalytics.videoAction(
+    action: String,
+    reportErrors: Boolean = true,
+    block: suspend () -> T,
+): T {
     emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "started"))
     return try {
         block().also {
@@ -19,39 +18,34 @@ internal suspend fun <T> MapmoryAnalytics.videoAction(action: String, block: sus
         throw error
     } catch (error: Exception) {
         emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "failure"))
-        reportFailure("video_$action", error)
+        if (reportErrors) reportFailure("video_$action", error)
         throw error
     }
 }
 
-internal class AnalyticsShareVideoRepository(
-    private val delegate: ShareVideoRepository,
-    private val analytics: MapmoryAnalytics,
-) : ShareVideoRepository by delegate {
-    private val mutex = Mutex()
-    private val reportedJobs = mutableSetOf<Long>()
-
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> {
-        val job = try {
-            analytics.videoAction("create_request") { delegate.createTravelTimeline().getOrThrow() }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            return Result.failure(error)
-        }
-        reportTerminal(job)
-        return Result.success(job)
-    }
-
-    override suspend fun getJob(jobId: Long): Result<ShareVideoJob> = delegate.getJob(jobId).also { result ->
-        result.getOrNull()?.let { reportTerminal(it) }
-    }
-
-    private suspend fun reportTerminal(job: ShareVideoJob) = mutex.withLock {
-        if (job.status != ShareVideoStatus.COMPLETED && job.status != ShareVideoStatus.FAILED) return@withLock
-        if (!reportedJobs.add(job.jobId)) return@withLock
-        analytics.emit(MapmoryAnalyticsEvent.VIDEO_GENERATION_RESULT, mapOf(
-            "outcome" to if (job.status == ShareVideoStatus.COMPLETED) "success" else "failure",
+/** Legacy request events alongside detailed telemetry, which owns app_error reporting. */
+internal suspend fun <T> MapmoryAnalytics.videoActionResult(
+    action: String,
+    block: suspend () -> Result<T>,
+): Result<T> {
+    emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "started"))
+    val result = try {
+        block()
+    } catch (error: Exception) {
+        emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf(
+            "action" to action, "outcome" to if (error is CancellationException) "cancelled" else "failure",
         ))
+        throw error
     }
+    val error = result.exceptionOrNull()
+    emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf(
+        "action" to action,
+        "outcome" to when (error) {
+            null -> "success"
+            is CancellationException -> "cancelled"
+            else -> "failure"
+        },
+    ))
+    if (error is CancellationException) throw error
+    return result
 }
