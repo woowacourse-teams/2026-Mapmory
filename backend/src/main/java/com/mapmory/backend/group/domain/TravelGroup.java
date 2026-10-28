@@ -86,11 +86,15 @@ public class TravelGroup extends BaseEntity {
         if (hasMember(memberId)) {
             return;
         }
-        if (memberCount >= MAX_MEMBERS) {
+        if (isFull()) {
             throw new BusinessException(GroupErrorCode.GROUP_FULL);
         }
         members.add(new GroupMember(this, memberId, joinedAt));
         memberCount++;
+    }
+
+    public boolean isFull() {
+        return memberCount >= MAX_MEMBERS;
     }
 
     public boolean hasMember(Long memberId) {

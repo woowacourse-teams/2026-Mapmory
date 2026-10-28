@@ -23,6 +23,13 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
 
     /**
+     * 다른 컨텍스트에 기록을 묶어 넘길 때 쓴다(TravelRecordQuery). 회원과 지역은 즉시 로딩이라
+     * 함께 읽지 않으면 기록마다 조회가 한 번씩 더 나간다. 없는 id는 결과에서 빠진다.
+     */
+    @EntityGraph(attributePaths = {"member", "region"})
+    List<TravelRecord> findAllByIdIn(Collection<Long> ids);
+
+    /**
      * startDate가 같으면 TravelRecord.id 순서로 고정
      * region.root를 함께 조회해 지연 로딩 문제 방지
      * 개수 제한 없음

@@ -67,7 +67,8 @@ class GroupIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.members[0].nickname").value("지수"))
                 .andExpect(jsonPath("$.data.members[0].owner").value(true))
                 .andExpect(jsonPath("$.data.members[0].me").value(true))
-                .andExpect(jsonPath("$.data.members[0].memberId").doesNotExist());
+                .andExpect(jsonPath("$.data.members[0].memberId").value(jisu.getId()))
+                .andExpect(jsonPath("$.data.members[0].joinedAt").isNotEmpty());
     }
 
     @Test
@@ -77,9 +78,11 @@ class GroupIntegrationTest extends IntegrationTest {
         mockMvc.perform(get("/api/v1/groups/{groupId}", group.getId()).header(HttpHeaders.AUTHORIZATION, bearer(minho)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(group.getId()))
+                .andExpect(jsonPath("$.data.members[0].memberId").value(jisu.getId()))
                 .andExpect(jsonPath("$.data.members[0].nickname").value("지수"))
                 .andExpect(jsonPath("$.data.members[0].owner").value(true))
                 .andExpect(jsonPath("$.data.members[0].me").value(false))
+                .andExpect(jsonPath("$.data.members[1].memberId").value(minho.getId()))
                 .andExpect(jsonPath("$.data.members[1].nickname").value("민호"))
                 .andExpect(jsonPath("$.data.members[1].owner").value(false))
                 .andExpect(jsonPath("$.data.members[1].me").value(true));
@@ -98,6 +101,7 @@ class GroupIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data[0].id").value(first.getId()))
                 .andExpect(jsonPath("$.data[0].memberCount").value(2))
                 .andExpect(jsonPath("$.data[0].albumCount").value(1))
+                .andExpect(jsonPath("$.data[0].coverPhoto").doesNotExist())
                 .andExpect(jsonPath("$.data[1].id").value(second))
                 .andExpect(jsonPath("$.data[1].name").value("회사 동기"))
                 .andExpect(jsonPath("$.data[1].memberCount").value(1))
