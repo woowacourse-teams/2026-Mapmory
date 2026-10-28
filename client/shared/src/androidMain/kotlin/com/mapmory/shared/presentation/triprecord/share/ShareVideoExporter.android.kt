@@ -1,5 +1,10 @@
 package com.mapmory.shared.presentation.triprecord.share
 
+import androidx.compose.runtime.LaunchedEffect
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareVideoPreviewAnalytics
+import kotlinx.coroutines.delay
+
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
@@ -14,7 +19,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,7 +33,6 @@ import java.net.URL
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import javax.net.ssl.HttpsURLConnection
 
@@ -39,6 +42,12 @@ internal actual fun TripTimelineVideoSurface(
     controller: TripTimelineVideoPlaybackController,
     modifier: Modifier,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    val previewAnalytics = remember(video.path, analytics) { ShareVideoPreviewAnalytics(analytics) }
+    DisposableEffect(previewAnalytics) {
+        previewAnalytics.opened()
+        onDispose { previewAnalytics.closed() }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val videoView = remember { arrayOfNulls<VideoView>(1) }
     DisposableEffect(lifecycle) {
@@ -76,6 +85,14 @@ internal actual fun TripTimelineVideoSurface(
         }
     }
 
+    LaunchedEffect(video.path, previewAnalytics, lifecycle) {
+        while (true) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                videoView[0]?.let { previewAnalytics.playbackChanged(it.isPlaying) }
+            }
+            delay(250)
+        }
+    }
     androidx.compose.runtime.key(video.path) {
         AndroidView(
             modifier = modifier,
@@ -83,11 +100,17 @@ internal actual fun TripTimelineVideoSurface(
                 VideoView(context).apply {
                     setMediaController(null)
                     setOnPreparedListener {
+                        previewAnalytics.ready()
                         controller.update(isPlaying = false, positionMillis = 0L, durationMillis = it.duration.toLong())
                     }
                     setOnCompletionListener {
+                        previewAnalytics.completed()
                         val duration = it.duration.coerceAtLeast(0).toLong()
                         controller.update(isPlaying = false, positionMillis = duration, durationMillis = duration)
+                    }
+                    setOnErrorListener { _, what, extra ->
+                        previewAnalytics.failed(ShareVideoPlaybackException(what.toLong(), extra.toLong()))
+                        false // Preserve VideoView's native error handling.
                     }
                     setVideoURI(Uri.fromFile(File(video.path)))
                     videoView[0] = this
@@ -164,8 +187,8 @@ private class AndroidShareVideoExporter(
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            check(requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                "동영상 저장 권한을 허용해 주세요."
+            if (!requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                throw ShareMediaPermissionDeniedException("동영상 저장 권한을 허용해 주세요.")
             }
         }
         withContext(Dispatchers.IO) {
