@@ -10,6 +10,7 @@ import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.notification.infrastructure.NotificationConfig;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionRepository;
@@ -22,11 +23,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
  * 앨범 조회의 SQL 수가 기록·앨범 수와 상관없이 일정한지 확인한다.
@@ -59,6 +64,10 @@ class AlbumQueryServiceTest extends IntegrationTest {
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
+    @Autowired
+    @Qualifier(NotificationConfig.EXECUTOR)
+    private TaskExecutor notificationExecutor;
+
     private Region region;
 
     @BeforeEach
@@ -81,6 +90,7 @@ class AlbumQueryServiceTest extends IntegrationTest {
         members.stream().skip(1).forEach(member ->
                 albumService.addEntry(member.getId(), group.getId(), large, record(member).getId()));
         Long viewer = members.getFirst().getId();
+        awaitNotifications();
         SqlStatementCounter counter = new SqlStatementCounter(entityManagerFactory);
 
         long forOne = counter.count(() -> albumQueryService.detail(viewer, group.getId(), small));
@@ -103,6 +113,7 @@ class AlbumQueryServiceTest extends IntegrationTest {
                     albumService.addEntry(member.getId(), many.getId(), albumId, record(member).getId()));
         }
         Long viewer = members.getFirst().getId();
+        awaitNotifications();
         SqlStatementCounter counter = new SqlStatementCounter(entityManagerFactory);
 
         long forOne = counter.count(() -> albumQueryService.list(viewer, few.getId(), 0, 20));
@@ -110,6 +121,18 @@ class AlbumQueryServiceTest extends IntegrationTest {
 
         assertThat(albumQueryService.list(viewer, many.getId(), 0, 20).items()).hasSize(5);
         assertThat(forFive).isEqualTo(forOne);
+    }
+
+    // 앨범을 열고 담으면 알림이 다른 스레드에서 회원·토큰을 읽는다. 통계는 컨텍스트 전체가 같이 쓰므로 끝난 뒤에 센다.
+    private void awaitNotifications() {
+        ThreadPoolExecutor pool = ((ThreadPoolTaskExecutor) notificationExecutor).getThreadPoolExecutor();
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (pool.getCompletedTaskCount() < pool.getTaskCount()) {
+            if (System.nanoTime() > deadline) {
+                throw new IllegalStateException("알림 작업이 5초 안에 끝나지 않았다");
+            }
+            Thread.onSpinWait();
+        }
     }
 
     private List<Member> members(int count) {
