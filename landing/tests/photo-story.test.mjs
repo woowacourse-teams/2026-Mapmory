@@ -45,7 +45,7 @@ test("the hero is the sketch's example roll: 제주 / 일본 / 미국, 4.5 s aut
   ]);
   // only cells of the chosen place stay lit: each place has photos in the sprite
   for (const { key } of HERO_PLACES) assert.ok(SPRITE.tiles.some((t) => t.place === key), key);
-  assert.match(hero, /href="#roll"/);
+  assert.match(hero, /href="#how"/); // 2026-10-27: #how now holds the tech section (draft)
 });
 
 test("chip taps keep the hero_demo_select contract; the auto-pick is never measured", () => {
@@ -161,7 +161,8 @@ test("analytics: the stories keep the how_story reach events and nothing else", 
   for (const source of [story, controller, roll, rec, heroEngine]) assert.doesNotMatch(source, /EXPERIENCE_(VIEW|START|END)|MEMORY_OPEN|experience_(view|start|end)|memory_open|useExperienceAnalytics|how_play/);
   for (const source of [controller, roll, rec, heroEngine]) assert.doesNotMatch(source, /trackEvent|analytics\.js/);
   assert.match(controller, /if \(pinned\) \{ scene = sceneOf\(i, beat\); atRest = true; \}/);
-  assert.match(app, /<section className="how-section" id="how" aria-labelledby="how-title">\s*<PhotoStory \/>\s*<a className="how-experience-link" href="#experience"/);
+  // 2026-10-27 (draft #512): #how renders the tech section in place of the photo story; the story files stay for now
+  assert.match(app, /<section className="how-section" id="how" aria-labelledby="tech-title">\s*<TechStory \/>\s*<a className="how-experience-link" href="#experience"/);
 });
 
 test("the CSS is scoped to the hero and the stories, with one dark token block", () => {

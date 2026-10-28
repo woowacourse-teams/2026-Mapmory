@@ -1,0 +1,50 @@
+{
+  "stage": 1,
+  "key": "brief",
+  "name": "브리프",
+  "url": "http://localhost:4173/",
+  "at": "2026-10-27T11:21:42.721Z",
+  "complete": true,
+  "passed": true,
+  "forced": false,
+  "rows": [
+    {
+      "id": "1.1",
+      "name": "장면마다 브리프가 채워져 있다 (사용자의 궁금증, 한 줄 메시지, 한 가지 조작, 사실 근거, 측정 이벤트)",
+      "pass": true,
+      "expected": "6장면 모두 5항목, 메시지와 조작은 장면당 1개",
+      "value": "6장면 × 7항목 채움, 질문 6개",
+      "detail": "",
+      "evidence": [
+        "gates/brief.json"
+      ],
+      "kind": "auto",
+      "purpose": "B",
+      "sources": [
+        "Clique Studios, 7 stages of the web design process",
+        "Ramotion, web design process",
+        "NN/g, How Users Read on the Web"
+      ],
+      "derived": null,
+      "ms": 4
+    },
+    {
+      "id": "1.2",
+      "name": "브리프만 읽은 판정자가 앱이 무엇을 하는지와 각 장면에서 사용자가 무엇을 하는지를 맞힌다",
+      "pass": true,
+      "expected": "장면별 판정자 80% 이상, 6장면 모두",
+      "value": "정답 비율 장면별 100/100/100/100/100/100%, 제품 100% (판정자 5명, 기준 80%)",
+      "detail": "",
+      "evidence": [
+        "gates/judgments/brief.json"
+      ],
+      "kind": "judge",
+      "purpose": "A",
+      "sources": [
+        "5-second test guide (80%+ recall = strong design)"
+      ],
+      "derived": null,
+      "ms": 5
+    }
+  ]
+}

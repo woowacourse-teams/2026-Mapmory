@@ -1,0 +1,248 @@
+/* The #tech section (2026-10-27, 티온's approved sketch v8; 10-28 scroll-driven): one phone pinned in a sticky stage;
+   step 1 keeps it on the left, step 2 on the right, and it slides only between steps (scroll-linked). On phones the
+   phone is pinned on top and the words pass below it. The scroll position is the playhead of every scene (the engine
+   sets positions per frame), so the transitions here are short settles for the states the engine toggles; by hand
+   (`.is-manual`) the same states animate as transitions. Canvas colours come from the --ts-* tokens. */
+.ts {
+  --ts-accent: var(--accent-strong);
+  --ts-accent-soft: var(--accent-soft);
+  --ts-phone-body: #121614;
+  --ts-screen: #ffffff;
+  --ts-screen-fg: #1b231e;
+  --ts-screen-muted: #7b877f;
+  --ts-land: #b9dccb;
+  --ts-sea: #e8f4ee;
+  --ts-grid: var(--line);
+  --ts-tl-bg: #0f141c;
+  --ts-hand: "Nanum Pen Script", "LINE Seed Sans KR", cursive;
+  /* strong curves (emil): ease-out for anything entering or settling, ease-in-out for movement on screen */
+  --ts-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ts-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ph: min(620px, 74svh);
+  position: relative;
+}
+.ts-head { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 8px; }
+.ts-eyebrow { margin: 0; color: var(--accent-ink); font-size: 14px; font-weight: 700; letter-spacing: 0.08em; }
+.ts-head h2 { margin: 8px 0 0; font-size: var(--type-h2); line-height: 1.25; letter-spacing: -0.03em; text-wrap: balance; word-break: keep-all; }
+
+/* ── stage + phone */
+.ts-story { position: relative; }
+.ts-stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.ts-phone-wrap { position: absolute; top: 50%; left: 50%; z-index: 1; perspective: 1400px; transform: translate(calc(-50% - min(100vw - 32px, 1120px) * 0.26), -50%); will-change: transform; }
+.ts-phone { width: calc(var(--ph) * 0.462); height: var(--ph); padding: calc(var(--ph) * 0.018); border-radius: calc(var(--ph) * 0.07); background: var(--ts-phone-body);
+  box-shadow: 0 30px 60px -20px rgba(10, 30, 20, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset; will-change: transform, opacity; }
+.ts-screen-box { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: calc(var(--ph) * 0.055); background: var(--ts-screen); color: var(--ts-screen-fg); }
+.ts-notch { position: absolute; top: 8px; left: 50%; z-index: 5; width: 30%; height: 18px; border-radius: 12px; background: var(--ts-phone-body); transform: translateX(-50%); }
+.ts-screen { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 38px 10px 12px; font-size: 13px; font-weight: 700;
+  opacity: 0; visibility: hidden; transition: opacity 200ms ease, visibility 0s 200ms; }
+/* until the engine loads, the first screen's frame shows */
+.ts-screen.is-on, .ts:not(.is-live) .ts-notch + .ts-screen { opacity: 1; visibility: visible; transition: opacity 200ms ease; }
+.ts-ph { border-radius: 4px; background-image: var(--ts-atlas); background-size: var(--ts-bs); }
+
+/* ── scene 1: the roll moves with the scroll (engine); the photos passing the middle turn over to where they were
+   taken; a hover (tap without hover) turns any photo */
+.ts-roll-view { flex: 1; min-height: 0; overflow: hidden; border-radius: 8px; }
+.ts-roll { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; will-change: transform; }
+.ts-roll-view:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: -2px; }
+.ts-flip { aspect-ratio: 1; perspective: 400px; cursor: pointer; }
+.ts-flip-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 280ms var(--ts-ease-out); }
+.ts-flip .ts-ph, .ts-flip-back { position: absolute; inset: 0; backface-visibility: hidden; }
+.ts-flip-back { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: 4px; background: var(--ts-accent); color: #fff;
+  font-size: 11px; line-height: 1.15; text-align: center; transform: rotateY(180deg); }
+.ts-flip-back svg { width: 11px; height: 11px; }
+.ts-flip-back small { font-size: 9px; font-weight: 400; opacity: 0.85; }
+@media (hover: hover) and (pointer: fine) { .ts-flip:hover .ts-flip-in { transform: rotateY(180deg); } }
+.ts-flip.is-open .ts-flip-in { transform: rotateY(180deg); }
+
+/* ── scene 2: the 제주 photos lift out of the grid one after another with the scroll (any place by a tap) */
+.ts-gather { position: relative; flex: 1; min-height: 0; }
+.ts-gather .ts-ph { position: absolute; width: var(--cw); height: var(--cw); padding: 0; border: 0; cursor: pointer; will-change: transform;
+  transition: transform 250ms var(--ts-ease-out), opacity 250ms ease, box-shadow 250ms ease; }
+.ts-gather .ts-ph.is-dim { opacity: 0.22; }
+.ts-gather .ts-ph.is-hit { z-index: 1; box-shadow: 0 0 0 2px var(--ts-accent), 0 8px 14px -6px rgba(0, 0, 0, 0.45); }
+.ts-gather .ts-ph:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 1px; }
+.ts-found { position: absolute; left: 50%; bottom: 64px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px;
+  background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 13px; white-space: nowrap; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
+  opacity: 0; transform: translate(-50%, 8px) scale(0.96); transition: opacity 200ms ease, transform 250ms var(--ts-ease-out); }
+.ts-found { max-width: calc(100% - 16px); }
+.ts-found span { overflow: hidden; text-overflow: ellipsis; }
+.ts-found.is-shown { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.ts-found svg { width: 14px; height: 14px; color: var(--ts-accent); }
+.ts-counter { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border-radius: 12px; background: var(--ts-accent-soft); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.ts-counter-place { color: var(--ts-screen-fg); }
+
+/* ── scene 3: three photos are picked and fold into one record card with the scroll (the engine positions each frame);
+   by hand (`.is-manual`) the same fold is a transition */
+.ts-pick { position: relative; flex: 1; min-height: 0; }
+.ts-pick .ts-ph { position: absolute; width: var(--pw); height: var(--pw); padding: 0; border: 0; cursor: pointer; will-change: transform; }
+.ts-pick.is-manual .ts-ph { transition: transform 300ms var(--ts-ease-in-out), opacity 250ms ease; }
+.ts-pick .ts-ph::after { content: ""; position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: rgba(0, 0, 0, 0.15); transition: background 150ms ease, opacity 150ms ease; }
+.ts-pick .ts-ph.is-sel::after { background: var(--ts-accent); }
+.ts-pick .ts-ph:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 1px; }
+.ts-pick.is-folding .ts-ph::after { opacity: 0; }
+.ts-pick.is-folded .ts-ph:not(.is-sel) { pointer-events: none; }
+/* folded: only the top photo of the stack is a button (engine); a tap on the ones under it falls through to the stack */
+.ts-pick.is-folded .ts-ph:disabled { pointer-events: none; cursor: default; }
+.ts-rec-card { position: absolute; top: var(--rt, 60%); left: 8%; right: 8%; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+  background: var(--ts-screen); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35); pointer-events: none; opacity: 0; transform: translateY(8px);
+  transition: opacity 150ms ease, transform 150ms ease; }
+.ts-rec-card svg { flex: none; width: 16px; height: 16px; color: var(--ts-accent); }
+.ts-pick.is-folded .ts-rec-card { opacity: 1; transform: none; transition: opacity 200ms var(--ts-ease-out), transform 200ms var(--ts-ease-out); }
+/* by hand the card comes in once the photos have folded */
+.ts-pick.is-manual.is-folded .ts-rec-card { transition-delay: 280ms; }
+.ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ts-accent); color: #fff; font: inherit; text-align: center; cursor: pointer; transition: background 150ms ease, color 150ms ease; }
+.ts-save:disabled { background: var(--ts-accent-soft); color: var(--accent-ink); cursor: default; }
+.ts-save:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
+
+/* ── scene 4: like the app's map, 시·군·구 in thin lines and 시·도 borders thick; 경주시 (.is-l1) -> 경상북도 (.is-l2) ->
+   대한민국 (.is-l3) fill with the scroll; by hand (`.is-staged`) the three follow one another */
+.ts-regions { flex: 1; min-height: 0; display: grid; place-items: center; border-radius: 12px; cursor: pointer; }
+.ts-regions:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
+.ts-regions svg { width: 100%; height: 100%; }
+.ts-lv { fill: transparent; stroke: none; transition: fill 250ms ease; }
+.ts-lv.is-kr { fill: var(--ts-sea); }
+.is-l1 .ts-lv.is-gj { fill: var(--ts-accent); }
+.is-l2 .ts-lv.is-gb { fill: color-mix(in srgb, var(--ts-accent) 50%, transparent); }
+.is-l3 .ts-lv.is-kr { fill: color-mix(in srgb, var(--ts-accent) 22%, var(--ts-sea)); }
+.ts-ln { fill: none; stroke: var(--ts-screen-muted); stroke-linejoin: round; pointer-events: none; }
+.ts-ln.is-dist { stroke-opacity: 0.45; stroke-width: 0.22; }
+.ts-ln.is-sd { stroke-width: 0.75; }
+.ts-tag { fill: var(--ts-screen-fg); font-size: 9px; font-weight: 700; paint-order: stroke; stroke: var(--ts-screen); stroke-width: 2.5px; stroke-linejoin: round; opacity: 0; transition: opacity 250ms ease; }
+.is-l1 .ts-tag.is-t1, .is-l2 .ts-tag.is-t2, .is-l3 .ts-tag.is-t3 { opacity: 1; }
+.is-staged.is-l2 .ts-lv.is-gb, .is-staged.is-l2 .ts-tag.is-t2 { transition-delay: 350ms; }
+.is-staged.is-l3 .ts-lv.is-kr, .is-staged.is-l3 .ts-tag.is-t3 { transition-delay: 700ms; }
+/* phones name the level being filled in one chip instead (the names on the map would be about 9px there) */
+.ts-region-chip { position: absolute; left: 50%; bottom: 16px; z-index: 3; display: none; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px;
+  background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 15px; white-space: nowrap; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
+  opacity: 0; transform: translate(-50%, 6px); transition: opacity 200ms ease, transform 250ms var(--ts-ease-out); }
+.ts-region-chip.is-shown { opacity: 1; transform: translate(-50%, 0); }
+.ts-region-chip svg { width: 15px; height: 15px; color: var(--ts-accent); }
+
+/* ── scenes 5 and 6, one trip: the globe in the phone (drag or arrow keys turn it), then out on the stage canvas
+   through the recorded places in date order, then back into the share screen */
+.ts-globe { flex: 1; width: 100%; min-height: 0; touch-action: pan-y; cursor: grab; }
+.ts-globe:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; border-radius: 8px; }
+.ts-globe:active { cursor: grabbing; }
+.ts-trip-globe { position: absolute; left: 0; top: 0; z-index: 2; width: 300px; height: 300px; transform-origin: 0 0; opacity: 0; visibility: hidden; pointer-events: none; will-change: transform, opacity; }
+.ts-trip-globe.is-on { visibility: visible; }
+/* the pill under the flying globe: the place and month it is at */
+.ts-trip { position: absolute; left: 0; top: 0; z-index: 3; opacity: 0; pointer-events: none; will-change: transform; transition: opacity 150ms ease; }
+.ts-trip.is-on { opacity: 1; }
+.ts-where { display: flex; align-items: baseline; gap: 8px; padding: 10px 18px; border-radius: 999px; background: var(--ts-screen-fg); color: var(--ts-screen);
+  font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 12px 30px -16px rgba(10, 30, 20, 0.55); }
+.ts-where svg { align-self: center; width: 16px; height: 16px; color: var(--ts-accent); }
+.ts-where span { color: var(--ts-screen-muted); font-size: 16px; font-weight: 600; }
+.ts-screen.is-dark { background: var(--ts-tl-bg); color: #f2f4f6; }
+/* the real share video (TECH_SHARE.media): the capture's own dark blue and blue, cropped to the globe and the country
+   name; the year buttons under it replace the capture's year bar (scripts/encode-tech-share-video.sh) */
+.ts-screen.is-media { --ts-accent: #2f80f3; padding-left: 0; padding-right: 0; background: #0e131b; }
+.ts-media-box { position: relative; flex: 1; min-height: 0; }
+.ts-media { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+.ts-media:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: -2px; }
+.ts-media-box.is-paused::after { content: ""; position: absolute; top: 50%; left: 50%; width: 0; height: 0; border-style: solid; border-width: 14px 0 14px 24px;
+  border-color: transparent transparent transparent rgba(255, 255, 255, 0.85); transform: translate(-35%, -50%); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+.ts-years { position: relative; display: flex; justify-content: space-between; padding: 0 4px; }
+.ts-years::before { content: ""; position: absolute; left: 24px; right: 24px; bottom: 12px; height: 2px; background: #333d4b; }
+.ts-years button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; min-width: 48px; min-height: 48px; padding: 6px 4px 8px;
+  border: 0; background: none; color: #8b95a1; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ts-years button::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #333d4b; transition: background 200ms ease, box-shadow 200ms ease; }
+.ts-years button.is-on { color: #d6e8ff; }
+.ts-years button.is-on::after { background: var(--ts-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ts-accent) 22%, transparent); }
+.ts-years button:focus-visible { outline: 2px solid var(--ts-accent); border-radius: 6px; }
+.ts-share-btn { margin: 0 10px; padding: 11px; border-radius: 12px; background: #ffffff1a; color: #f2f4f6; text-align: center; transition: background 200ms ease, color 200ms ease, transform 160ms var(--ts-ease-out); }
+.ts-share-btn.is-pressed { background: var(--ts-accent); color: #fff; transform: scale(0.97); }
+
+/* ── the words: the hand-written step label and one title. They stay in the sticky stage and change in place with the
+   scene, so a quick scroll never waits for words to pass (티온, 10-27). */
+.ts-captions { position: absolute; inset: 0; z-index: 4; width: min(1120px, calc(100% - 32px)); margin: 0 auto; pointer-events: none; }
+.ts-copy { position: absolute; top: 50%; width: min(420px, 42%); opacity: 0; transform: translateY(calc(-50% + 6px));
+  transition: opacity 120ms ease, transform 120ms ease; }
+.ts-copy.is-right { right: 0; }
+.ts-copy.is-left { left: 0; }
+.ts-copy.is-on, .ts:not(.is-live) .ts-copy[data-caption="0"] { opacity: 1; transform: translateY(-50%);
+  transition: opacity 150ms ease, transform 220ms var(--ts-ease-out); }
+.ts-label { display: inline-flex; margin: 0 0 6px; color: var(--accent-ink); font: 400 42px/1 var(--ts-hand); }
+.ts-label .ts-ch { display: inline-block; white-space: pre; animation: ts-boil 0.9s steps(1) infinite; animation-delay: calc(var(--i) * -0.17s); }
+@keyframes ts-boil { 0% { transform: rotate(-5deg) translateY(0); } 33% { transform: rotate(4deg) translateY(-2px); } 66% { transform: rotate(-1deg) translateY(1px); } }
+.ts-copy h3 { margin: 0; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+/* the scroll room under the stage: a spacer per scene and one between the steps; the globe's trip gets three */
+.ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
+.ts-beat { min-height: 92vh; min-height: 92svh; }
+.ts-beat.is-trip { min-height: 276vh; min-height: 276svh; }
+.ts-bridge { height: 45vh; height: 45svh; }
+.ts-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
+.ts-footnote { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 8px 0 64px; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 760px) {
+  /* the phone as big as fits between the floating header (about 70px) and a band for the words (about 150px), and
+     no wider than the page minus 60px a side: about 560 x 259 on a 390 x 844 phone, 500 x 231 on 360 x 740 */
+  .ts { --ts-top: 84px; --ph: min(560px, calc(100svh - var(--ts-top) - 156px), calc((100vw - 120px) / 0.462)); }
+  .ts-head { padding-top: 72px; }
+  .ts-phone-wrap { top: calc(var(--ts-top) + var(--ph) / 2); transform: translate(-50%, -50%); }
+  .ts-beats { padding-top: calc(var(--ts-top) + var(--ph) - 10svh); }
+  .ts-beat { min-height: 44svh; }
+  /* the trip plays through five screens of scroll: a flick shows it in fast-forward, a slow scroll reads each place */
+  .ts-beat.is-trip { min-height: 220svh; }
+  /* the words sit in the band under the phone */
+  .ts-captions { top: calc(var(--ts-top) + var(--ph)); width: 100%; }
+  .ts-copy.is-right, .ts-copy.is-left { left: 16px; right: 16px; width: auto; text-align: center; }
+  .ts-label { margin-bottom: 4px; font-size: 32px; }
+  .ts-copy h3 { font-size: 22px; }
+  .ts-fn { font-size: 0.6em; }
+  /* room for the phone to turn from the step-1 angle to the step-2 angle */
+  .ts-bridge { height: 26svh; }
+
+  /* in the phone: 13px or larger text, photos and buttons a finger can hit (about 44px or more) */
+  .ts-screen { padding: 34px 8px 10px; }
+  .ts-roll { grid-template-columns: repeat(3, 1fr); }
+  .ts-flip-back { gap: 3px; font-size: 15px; }
+  .ts-flip-back svg { width: 16px; height: 16px; }
+  .ts-flip-back small { display: none; }
+  .ts-counter { display: none; }
+  .ts-found { bottom: 14px; max-width: calc(100% - 8px); padding: 8px 12px; font-size: 14px; }
+  .ts-pick .ts-ph::after { top: 6px; right: 6px; width: 22px; height: 22px; }
+  .ts-rec-card { font-size: 15px; }
+  .ts-save { min-height: 48px; font-size: 15px; }
+  .ts-tag { display: none; }
+  .ts-region-chip { display: flex; }
+  .ts-years button { font-size: 14px; }
+  .ts-where { padding: 8px 14px; font-size: 17px; }
+}
+@media (max-width: 380px) {
+  .ts-found { gap: 4px; padding: 8px 10px; font-size: 13px; }
+}
+
+/* ── layout variants (4단계 시안, gates/variants.json; `data-variant` on .ts, TECH_VARIANT is the default)
+   "above": on phones the words come first, in a band under the header, and the phone sits under them. The scroll room
+   is shifted so the first scene is on when the stage pins and the last is on before it unpins (the engine's focus line
+   is the middle of the words band). */
+@media (max-width: 760px) {
+  .ts[data-variant="above"] { --ts-band: 156px; }
+  .ts[data-variant="above"] .ts-phone-wrap { top: calc(var(--ts-top) + var(--ts-band) + var(--ph) / 2); }
+  .ts[data-variant="above"] .ts-captions { top: var(--ts-top); bottom: auto; height: var(--ts-band); }
+  .ts[data-variant="above"] .ts-beats { padding-top: calc(var(--ts-top) + var(--ts-band) / 2 - 22svh); padding-bottom: calc(78svh - var(--ts-top) - var(--ts-band) / 2); }
+}
+/* "bare": the screen as a plain rounded card, no phone body or notch */
+.ts[data-variant="bare"] .ts-phone { padding: 0; background: transparent; box-shadow: none; }
+.ts[data-variant="bare"] .ts-screen-box { border-radius: 22px; box-shadow: 0 24px 48px -20px rgba(10, 30, 20, 0.4), 0 0 0 1px var(--line); }
+.ts[data-variant="bare"] .ts-notch { display: none; }
+.ts[data-variant="bare"] .ts-screen { padding-top: 14px; }
+:root[data-theme="dark"] .ts[data-variant="bare"] .ts-screen-box { box-shadow: 0 24px 48px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.14); }
+
+/* reduced motion: states still change (opacity, colour), nothing slides, turns or scales on its own (the engine also
+   keeps the roll and the globe in place) */
+@media (prefers-reduced-motion: reduce) {
+  .ts-screen, .ts-gather .ts-ph, .ts-pick.is-manual .ts-ph, .ts-lv, .ts-flip-in, .ts-rec-card, .ts-found, .ts-region-chip, .ts-trip, .ts-share-btn, .ts-pick.is-folded .ts-rec-card { transition: none; }
+  .ts-label .ts-ch { animation: none; }
+  .ts-copy, .ts-copy.is-on { transition: none; }
+}
+
+:root[data-theme="dark"] .ts {
+  --ts-phone-body: #2a302d;
+  --ts-screen: #18201c;
+  --ts-screen-fg: #e6eee9;
+  --ts-screen-muted: #8a9a90;
+  --ts-land: #2f5a47;
+  --ts-sea: #1d2a24;
+}
+:root[data-theme="dark"] .ts-phone { box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.14); }

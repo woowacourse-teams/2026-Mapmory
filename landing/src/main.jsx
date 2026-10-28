@@ -4,6 +4,7 @@ import { App } from "./App.jsx";
 import { initializeAnalytics } from "./analytics.js";
 import "./styles.css";
 import "./photo-story.css";
+import "./tech-story.css";
 
 initializeAnalytics();
 
