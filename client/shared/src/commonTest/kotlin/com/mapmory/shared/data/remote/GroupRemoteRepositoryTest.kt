@@ -28,6 +28,32 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class GroupRemoteRepositoryTest {
+    @Test fun leaveAcceptsEmpty204AndRefreshesExpiredToken() = runBlocking {
+        var calls = 0
+        withRepository({ request ->
+            assertEquals("DELETE", request.method.value)
+            assertEquals("/api/v1/groups/3/members/me", request.url.encodedPath)
+            if (calls++ == 0) {
+                jsonResponse("""{"status":401,"code":"EXPIRED_ACCESS_TOKEN"}""", HttpStatusCode.Unauthorized)
+            } else {
+                assertEquals("Bearer rotated-access", request.headers[HttpHeaders.Authorization])
+                respond("", HttpStatusCode.NoContent)
+            }
+        }) { repository, _ ->
+            assertTrue(repository.leaveGroup(3).isSuccess)
+            assertEquals(2, calls)
+        }
+    }
+
+    @Test fun failedLeaveDoesNotTreatAny404AsSuccessOrAutomaticallyRetry() = runBlocking {
+        var calls = 0
+        withRepository({ calls++; jsonResponse("""{"status":404,"code":"GROUP_NOT_FOUND"}""", HttpStatusCode.NotFound) }) { repository, _ ->
+            val failure = assertIs<MapmoryApiException>(repository.leaveGroup(3).exceptionOrNull())
+            assertEquals("GROUP_NOT_FOUND", failure.code)
+            assertEquals(1, calls)
+        }
+    }
+
     @Test
     fun groupEndpointsFollowServerContract() = runBlocking {
         var calls = 0

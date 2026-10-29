@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 internal fun LiveGroupContent(
     repository: GroupRepository,
     albumRepository: com.mapmory.shared.domain.repository.AlbumRepository?,
+    shareCoordinator: AlbumShareCoordinator?,
     tripRecordRepository: com.mapmory.shared.domain.repository.TripRecordRepository,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
@@ -28,24 +29,35 @@ internal fun LiveGroupContent(
     onBusyChanged: (Boolean) -> Unit,
     onPhotoVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    leaveCoordinator: GroupLeaveCoordinator? = null,
+    recordRevision: Long = 0,
 ) {
     val analytics = LocalMapmoryAnalytics.current
-    val state = remember(repository, analytics) { LiveGroupState(repository, analytics) }
+    val state = remember(repository, analytics, leaveCoordinator) {
+        LiveGroupState(repository, analytics) { leaveCoordinator?.membershipConfirmed(it) }
+    }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     var name by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
     var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(state, refresh) { state.load() }
+    val leaveResult = leaveCoordinator?.state?.collectAsState()?.value
+    val leaving = leaveResult?.status == GroupLeaveStatus.RUNNING
+    LaunchedEffect(state, refresh, recordRevision) { state.load() }
+    LaunchedEffect(leaveResult) {
+        if (leaveResult?.status == GroupLeaveStatus.LEFT) state.removeGroup(leaveResult.groupId)
+    }
     LaunchedEffect(state.busy) { onBusyChanged(state.busy) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     val albumNavigation = remember(state.group?.id) { AlbumNavigationState() }
     val back = rememberUpdatedState {
-        if (state.sheet != null || state.busy) state.back()
+        if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
+        else if (state.sheet != null || state.busy) state.back()
         else albumNavigation.back() || state.back()
     }
     val gestureBack = rememberUpdatedState {
-        if (state.sheet != null || state.busy) state.gestureBack()
+        if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
+        else if (state.sheet != null || state.busy) state.gestureBack()
         else albumNavigation.back() || state.gestureBack()
     }
     DisposableEffect(backHandlerRegistry, backHandlerOwnerId) {
@@ -76,27 +88,46 @@ internal fun LiveGroupContent(
                     onGroup = { scope.launch { state.openGroup(it.toLong()) } },
                     onRetry = { scope.launch { state.load() } },
                 )
-            } else if (albumRepository != null) {
+            } else if (albumRepository != null && shareCoordinator != null) {
                 key(group.id) {
-                    LiveAlbumContent(group.id, albumRepository, albumNavigation,
+                    LiveAlbumContent(group.id, albumRepository, tripRecordRepository, shareCoordinator, albumNavigation,
                         groupName = group.name, memberCount = group.members.size,
                         onBack = { back.value() }, onInvite = { open(LiveGroupSheet.INVITE) },
                         onManageGroup = { name = group.name; open(LiveGroupSheet.RENAME) },
+                        onLeaveGroup = leaveCoordinator?.let { { open(LiveGroupSheet.LEAVE) } },
+                        membershipBusy = leaving,
+                        recordRevision = recordRevision,
+                        onGroupUnavailable = { state.removeGroup(group.id) },
                         onPhotoVisibilityChanged = onPhotoVisibilityChanged)
                 }
             }
         }
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (state.sheet == null) state.error?.let { Text(it, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error) }
+        if (state.sheet != LiveGroupSheet.LEAVE && leaveResult != null) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+                Text(when (leaveResult.status) {
+                    GroupLeaveStatus.RUNNING -> "그룹에서 나가고 있어요. 화면을 이동해도 계속 진행돼요."
+                    GroupLeaveStatus.LEFT -> "그룹에서 나왔어요. 내 여행 기록은 그대로 남아 있어요."
+                    GroupLeaveStatus.STILL_MEMBER -> "아직 그룹에 참여 중이에요. 그룹에서 다시 나갈 수 있어요."
+                    GroupLeaveStatus.FAILED -> "그룹에서 나가지 못했어요. 참여 상태를 다시 확인해 주세요."
+                    GroupLeaveStatus.UNKNOWN -> "그룹 나가기 결과를 확인하지 못했어요. 참여 상태를 확인해 주세요."
+                })
+                if (leaveResult.status in listOf(GroupLeaveStatus.UNKNOWN, GroupLeaveStatus.FAILED)) {
+                    TextButton(onClick = { leaveCoordinator?.check(leaveResult.groupId) }) { Text("참여 상태 확인") }
+                } else if (!leaving) TextButton(onClick = { leaveCoordinator?.dismiss() }) { Text("확인") }
+            }
+        }
     }
     state.sheet?.let { sheet ->
-        ModalBottomSheet(onDismissRequest = { state.dismissSheet() }) {
+        ModalBottomSheet(onDismissRequest = { if (!leaving) state.dismissSheet() }) {
             Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(when (sheet) {
                     LiveGroupSheet.CREATE -> "새 그룹 만들기"
                     LiveGroupSheet.RENAME -> "그룹 이름 변경"
                     LiveGroupSheet.JOIN -> "코드로 참여"
                     LiveGroupSheet.INVITE -> "멤버 초대"
+                    LiveGroupSheet.LEAVE -> "그룹에서 나갈까요?"
                 }, style = MaterialTheme.typography.headlineSmall)
                 when (sheet) {
                     LiveGroupSheet.CREATE, LiveGroupSheet.RENAME -> {
@@ -138,10 +169,30 @@ internal fun LiveGroupContent(
                             }, Modifier.fillMaxWidth())
                         }
                     }
+                    LiveGroupSheet.LEAVE -> {
+                        GroupMuted("이 그룹의 앨범에서 내가 담은 기록과 사진이 내려가요. 내 여행 기록은 삭제되지 않아요.")
+                        GroupMuted("다른 멤버의 기록이 없는 앨범은 삭제돼요. 마지막 멤버가 나가면 그룹과 초대 코드도 삭제돼요. 다시 참여하려면 새 초대가 필요해요.")
+                        val currentResult = leaveResult?.takeIf { it.groupId == state.group?.id }
+                        val unknown = currentResult?.status == GroupLeaveStatus.UNKNOWN
+                        when (currentResult?.status) {
+                            GroupLeaveStatus.FAILED -> Text("나가지 못했어요. 연결과 로그인 상태를 확인한 뒤 다시 시도해 주세요.")
+                            GroupLeaveStatus.UNKNOWN -> Text("요청이 처리됐을 수 있어요. 나가기 전에 참여 상태부터 확인해 주세요.")
+                            GroupLeaveStatus.STILL_MEMBER -> Text("참여 중인 상태를 확인했어요. 다시 나가기를 시도할 수 있어요.")
+                            else -> Unit
+                        }
+                        val shareRunning = shareCoordinator?.operations?.collectAsState()?.value?.any { it.status == AlbumShareStatus.RUNNING } == true
+                        if (shareRunning) Text("진행 중인 공유가 끝난 뒤 나갈 수 있어요.")
+                        GroupButton(if (unknown) "참여 상태 확인" else "그룹 나가기", {
+                            state.group?.id?.let { id ->
+                                if (unknown) leaveCoordinator?.check(id) else leaveCoordinator?.leave(id)
+                            }
+                        }, Modifier.fillMaxWidth(), enabled = !leaving && !shareRunning && !state.busy)
+                        if (leaving) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
                 }
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                TextButton(onClick = { state.dismissSheet() }, enabled = !state.busy) { Text("닫기") }
+                TextButton(onClick = { state.dismissSheet() }, enabled = !state.busy && !leaving) { Text("닫기") }
             }
         }
     }

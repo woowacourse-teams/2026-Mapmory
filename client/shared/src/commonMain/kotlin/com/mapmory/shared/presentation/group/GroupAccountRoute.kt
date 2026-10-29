@@ -27,6 +27,7 @@ internal fun GroupAccountRoute(
 ) {
     val session = container.accountSession
     val account = session?.state?.collectAsState()?.value
+    val recordRevision by container.tripRecordRevision.collectAsState()
     var photoVisible by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
@@ -45,6 +46,7 @@ internal fun GroupAccountRoute(
         }
     }
     TripRecordBackground(modifier) {
+        GroupTheme {
         Column(Modifier.fillMaxSize()) {
             val needsLogin = account?.pendingLogin == true || account?.recoveryRequired == true ||
                 account?.member?.provider == MemberProvider.GUEST
@@ -60,6 +62,9 @@ internal fun GroupAccountRoute(
                     LiveGroupContent(
                         repository = checkNotNull(container.groupRepository),
                         albumRepository = container.albumRepository,
+                        shareCoordinator = container.albumShareCoordinator,
+                        leaveCoordinator = container.groupLeaveCoordinator,
+                        recordRevision = recordRevision,
                         tripRecordRepository = container.tripRecordRepository,
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,
@@ -80,5 +85,6 @@ internal fun GroupAccountRoute(
             text = { Text("이 계정의 기록으로 전환했어요. 게스트로 남긴 기록은 자동으로 합쳐지지 않아요.") },
             confirmButton = { TextButton(onClick = { noticeDismissed = true }) { Text("확인") } },
         )
+        }
     }
 }

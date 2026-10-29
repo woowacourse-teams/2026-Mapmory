@@ -19,6 +19,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
+import io.ktor.client.plugins.timeout
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.appendPathSegments
@@ -49,6 +50,16 @@ internal class GroupRemoteRepository(
         request<GroupInvitationDto>(HttpMethod.Post, "groups", groupId.toString(), "invitations").toDomain()
     }
 
+    override suspend fun leaveGroup(groupId: Long): Result<Unit> = authenticated {
+        client.request(apiBaseUrl.trimEnd('/')) {
+            method = HttpMethod.Delete
+            url { appendPathSegments("groups", groupId.toString(), "members", "me") }
+            bearerAuth(checkNotNull(session.getAccessToken()))
+            timeout { requestTimeoutMillis = 20_000 }
+        }.requireSuccess()
+        Unit // The server returns 204 without an ApiResponse body.
+    }
+
     override suspend fun previewInvitation(tokenOrCode: String): Result<GroupInvitationPreview> = authenticated {
         request<GroupInvitationPreviewDto>(HttpMethod.Get, "invitations", tokenOrCode).toDomain()
     }
@@ -65,6 +76,7 @@ internal class GroupRemoteRepository(
         vararg path: String,
         crossinline configure: HttpRequestBuilder.() -> Unit = {},
     ): T = client.request(apiBaseUrl.trimEnd('/')) {
+        timeout { requestTimeoutMillis = 20_000 }
         this.method = method
         url { appendPathSegments(*path, encodeSlash = true) }
         bearerAuth(checkNotNull(session.getAccessToken()))
