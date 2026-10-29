@@ -15,6 +15,12 @@ import com.mapmory.backend.notification.domain.NotificationSettingRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +76,29 @@ class NotificationSettingIntegrationTest extends IntegrationTest {
 
         find(jisu).andExpect(jsonPath("$.data.groupAlbum").value(true));
         assertThat(notificationSettingRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 처음_바꾸는_요청이_동시에_와도_실패하지_않고_한_행만_남는다() throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> results = IntStream.range(0, 2)
+                    .mapToObj(i -> pool.submit(() -> {
+                        start.await();
+                        return change(jisu, "{\"groupAlbum\": false}").andReturn().getResponse().getStatus();
+                    }))
+                    .toList();
+            start.countDown();
+
+            for (Future<Integer> result : results) {
+                assertThat(result.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+            }
+            assertThat(notificationSettingRepository.count()).isEqualTo(1);
+            find(jisu).andExpect(jsonPath("$.data.groupAlbum").value(false));
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

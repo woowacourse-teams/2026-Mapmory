@@ -9,12 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface NotificationSettingRepository extends JpaRepository<NotificationSetting, Long> {
 
-    // 처음 바꾸는 요청이 동시에 와도 기본 키 충돌 없이 하나로 합친다.
+    // 처음 바꾸는 요청이 동시에 와도 기본 키 충돌 없이 하나로 합친다. VALUES() 참조는 MySQL 8.0.20부터 지원 중단이라 별칭(AS new)으로 쓴다.
     @Modifying
     @Query(value = """
             INSERT INTO notification_setting (member_id, group_album)
-            VALUES (:memberId, :groupAlbum)
-            ON DUPLICATE KEY UPDATE group_album = VALUES(group_album)
+            VALUES (:memberId, :groupAlbum) AS new
+            ON DUPLICATE KEY UPDATE group_album = new.group_album
             """, nativeQuery = true)
     void upsertGroupAlbum(@Param("memberId") Long memberId, @Param("groupAlbum") boolean groupAlbum);
 
