@@ -156,8 +156,94 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     layoutGather(null, 0);
     found.classList.remove("is-shown");
   }
+  // ── scene 2 with motion (티온, 10-29 13:23Z): after 사진 불러오기 the album pours out of the phone across the whole
+  // stage, the place's photos light up among them, and only those fly back into the phone's grid; the rest fade. The
+  // scroll is the playhead, as everywhere. The place's photos are the very ones the grid in the phone shows, so the
+  // landing hands over to the lifted grid without a jump. Reduced motion keeps the plain lift in the phone.
+  const stage = $("[data-tech-stage]");
+  const burst = document.createElement("div");
+  burst.className = "ts-burst";
+  burst.setAttribute("aria-hidden", "true");
+  stage.appendChild(burst);
+  let burstKey = "", bTiles = [];
+  const rand = (seed) => { let x = seed; return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; }; };
+  // the tiles and where each one lands outside the phone: a jittered grid over the stage that leaves the header and the
+  // scene's words clear; the place's photos are spread evenly through it
+  function layoutBurst(place) {
+    const sr = stage.getBoundingClientRect();
+    const key = `${place}|${sr.width}|${sr.height}|${shown.length}|${shownCols}`;
+    if (key === burstKey) return sr;
+    burstKey = key;
+    const size = narrow.matches ? 50 : 84, gap = narrow.matches ? 8 : 14, step = size + gap;
+    const top = narrow.matches ? 76 : 92, words = captions[at.gather]?.querySelector("h3")?.parentElement.getBoundingClientRect();
+    const keepOff = words && { l: words.left - sr.left - 12, r: words.right - sr.left + 12, t: words.top - sr.top - 12, b: words.bottom - sr.top + 12 };
+    const cols = Math.max(1, Math.floor((sr.width - 8) / step)), rows = Math.max(1, Math.floor((sr.height - top - 8) / step));
+    const ox = (sr.width - cols * step + gap) / 2, r = rand(7);
+    let cells = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const cx = ox + x * step + size / 2 + (r() - 0.5) * gap * 1.6, cy = top + y * step + size / 2 + (r() - 0.5) * gap * 1.6;
+      if (keepOff && cx + size / 2 > keepOff.l && cx - size / 2 < keepOff.r && cy + size / 2 > keepOff.t && cy - size / 2 < keepOff.b) continue;
+      cells.push({ x: cx, y: cy, rot: (r() - 0.5) * 16, d: r() });
+    }
+    cells = cells.slice(0, 96);
+    const mine = shown.map((t, i) => ({ k: +t.dataset.k, i })).filter((o) => placeOf(o.k) === place);
+    const others = shuffled(31).filter((k) => placeOf(k) !== place);
+    const every = mine.length ? cells.length / mine.length : Infinity;
+    const placeAt = new Map(mine.map((o, j) => [Math.min(cells.length - 1, Math.floor((j + 0.5) * every)), o]));
+    let o = 0;
+    burst.innerHTML = "";
+    bTiles = cells.map((c, idx) => {
+      const m = placeAt.get(idx), k = m ? m.k : others[o++ % others.length];
+      const el = document.createElement("div");
+      el.className = "ts-ph";
+      el.style.cssText = cellStyle(k);
+      burst.appendChild(el);
+      return { el, ...c, slot: m ? m.i : -1 };
+    });
+    burst.style.setProperty("--bs", `${size}px`);
+    burst.dataset.size = size;
+    return sr;
+  }
+  const hideBurst = () => burst.classList.remove("is-on");
+  function scrubBurst(q) {
+    const g = measureGrid();
+    if (!g) return;
+    const sr = layoutBurst(fieldPlace), size = +burst.dataset.size;
+    // where the photos come from and go to: the album box inside the (turned) phone, as the page sees it
+    const gr = gather.getBoundingClientRect(), fx = gr.width / (gather.clientWidth || 1), fy = gr.height / (gather.clientHeight || 1);
+    const ox = gr.left - sr.left + gr.width / 2, oy = gr.top - sr.top + gr.height / 3;
+    const out = (q - 0.04) / 0.36, lit = smooth((q - 0.42) / 0.12), back = (q - 0.56) / 0.3;
+    // the album fades back in under the photos as they land, then the flying copies go
+    const landed = q >= 0.88, album = q >= 0.78;
+    setForm(fieldPlace, { ready: true, loaded: album });
+    layoutGather(fieldPlace, album ? Infinity : 0);
+    const total = shownOf(fieldPlace);
+    setText(foundText, `${fieldPlace} 사진 ${total}장을 찾았어요`);
+    found.classList.toggle("is-shown", landed && total > 0);
+    burst.classList.toggle("is-on", out > 0 && !landed);
+    if (out <= 0 || landed) return;
+    const { cols, cw } = g;
+    bTiles.forEach((t) => {
+      const a = smooth(out * 1.5 - t.d * 0.5);
+      let x = lerp(ox, t.x, a), y = lerp(oy, t.y, a), sc = lerp(0.2, 1, a), rot = t.rot * a, op = clamp(a * 4);
+      if (t.slot >= 0) {
+        const b = smooth(back * 1.4 - t.d * 0.4);
+        const fxp = gr.left - sr.left + ((t.slot % cols) * (cw + GAP) + cw / 2) * fx;
+        const fyp = gr.top - sr.top + (Math.floor(t.slot / cols) * (cw + GAP) + cw / 2) * fy - 3;
+        x = lerp(x, fxp, b); y = lerp(y, fyp, b); sc = lerp(sc * (1 + 0.12 * lit), (cw * 1.12 * fx) / size, b); rot = lerp(rot, 0, b);
+        t.el.classList.toggle("is-hit", lit > 0.5);
+      } else {
+        const b = smooth(back * 1.6 - t.d * 0.6);
+        op *= lerp(1, 0.28, lit) * (1 - b);
+        sc *= lerp(1, 0.86, b);
+      }
+      t.el.style.opacity = op.toFixed(3);
+      t.el.style.transform = `translate(${(x - size / 2).toFixed(1)}px,${(y - size / 2).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`;
+    });
+  }
   // scene 2: the album shows and the place's photos lift one after another
   function scrubGather(q) {
+    if (!reduce) { scrubBurst(q); return; }
     if (!measureGrid()) return;
     setForm(fieldPlace, { ready: true, loaded: true });
     const total = shownOf(fieldPlace);
@@ -442,6 +528,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (act < 0) { act = near; q = focus < nearTop ? 0 : 1; }
     setActive(act);
     showCaption(captions[act]);
+    if (act !== at.gather || manual.has(act)) hideBurst();
     if (!manual.has(act)) {
       if (act === at.type) scrubType(q);
       else if (act === at.gather) scrubGather(q);
@@ -473,11 +560,12 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const onScreen = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     if (visible) schedule();
-    else { cancelAnimationFrame(frameRaf); frameRaf = 0; setActive(-1); onScene(0); }
+    else { cancelAnimationFrame(frameRaf); frameRaf = 0; hideBurst(); setActive(-1); onScene(0); }
   });
   onScreen.observe($(".ts-story"));
   const resize = new ResizeObserver(() => {
     layoutGather(gatherState.place, gatherState.count, gatherState.stagger);
+    burstKey = "";
     layoutPick(fold);
     globeKey = "";
     schedule();
@@ -505,6 +593,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     theme.disconnect();
     root.classList.remove("is-live");
     gather.innerHTML = "";
+    burst.remove();
     pTiles.forEach((t) => t.remove());
     regions.innerHTML = "";
   };

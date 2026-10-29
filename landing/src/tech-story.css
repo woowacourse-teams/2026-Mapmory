@@ -68,6 +68,11 @@
 .ts-safe.is-shown { opacity: 1; transform: none; }
 .ts-load-screen .ts-gather .ts-ph.is-gone { opacity: 0.06; }
 
+/* scene 2's album pouring out of the phone over the whole stage (engine: scrubBurst); above the phone, under the words */
+.ts-burst { position: absolute; inset: 0; z-index: 2; pointer-events: none; visibility: hidden; }
+.ts-burst.is-on { visibility: visible; }
+.ts-burst .ts-ph { position: absolute; top: 0; left: 0; width: var(--bs); height: var(--bs); border-radius: 6px; box-shadow: 0 8px 16px -10px rgba(0, 0, 0, 0.5); will-change: transform, opacity; }
+.ts-burst .ts-ph.is-hit { z-index: 1; box-shadow: 0 0 0 2px var(--ts-accent), 0 10px 20px -8px rgba(0, 0, 0, 0.5); }
 .ts-gather { position: relative; flex: 1; min-height: 0; }
 .ts-gather .ts-ph { position: absolute; width: var(--cw); height: var(--cw); padding: 0; border: 0; cursor: pointer; will-change: transform;
   transition: transform 250ms var(--ts-ease-out), opacity 250ms ease, box-shadow 250ms ease; }
