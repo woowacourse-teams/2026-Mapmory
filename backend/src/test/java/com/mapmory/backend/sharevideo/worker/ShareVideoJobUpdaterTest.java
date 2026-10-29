@@ -20,15 +20,18 @@ import org.junit.jupiter.api.Test;
 class ShareVideoJobUpdaterTest {
 
     private final ShareVideoJobRepository shareVideoJobRepository = mock(ShareVideoJobRepository.class);
+    private final ShareVideoNotificationOutboxWriter notificationOutboxWriter =
+            mock(ShareVideoNotificationOutboxWriter.class);
     private final ShareVideoJobUpdater jobUpdater = new ShareVideoJobUpdater(
             shareVideoJobRepository,
+            notificationOutboxWriter,
             Clock.fixed(Instant.parse("2026-10-27T03:00:00Z"), ZoneId.of("Asia/Seoul"))
     );
 
     @Test
     void 영상_생성을_완료하면_결과_Object_Key를_저장한다() {
         ShareVideoJob job = renderingJob();
-        when(shareVideoJobRepository.findById(1L)).thenReturn(Optional.of(job));
+        when(shareVideoJobRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(job));
 
         jobUpdater.complete(1L, "share-videos/1/travel-timeline.mp4", 1_500L, 250L);
 
@@ -41,7 +44,7 @@ class ShareVideoJobUpdaterTest {
     @Test
     void 영상_생성에_실패하면_실패_이유를_저장한다() {
         ShareVideoJob job = renderingJob();
-        when(shareVideoJobRepository.findById(1L)).thenReturn(Optional.of(job));
+        when(shareVideoJobRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(job));
 
         jobUpdater.fail(
                 1L,
@@ -59,7 +62,7 @@ class ShareVideoJobUpdaterTest {
     @Test
     void 예외_메시지가_없으면_예외_클래스명을_실패_이유로_저장한다() {
         ShareVideoJob job = renderingJob();
-        when(shareVideoJobRepository.findById(1L)).thenReturn(Optional.of(job));
+        when(shareVideoJobRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(job));
 
         jobUpdater.fail(1L, ShareVideoFailureCode.RENDER_FAILED, new IllegalStateException(), 1_500L, null);
 
@@ -69,7 +72,7 @@ class ShareVideoJobUpdaterTest {
     @Test
     void 실패_이유는_DB_컬럼_길이인_천_자로_제한한다() {
         ShareVideoJob job = renderingJob();
-        when(shareVideoJobRepository.findById(1L)).thenReturn(Optional.of(job));
+        when(shareVideoJobRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(job));
 
         jobUpdater.fail(
                 1L,
@@ -84,7 +87,7 @@ class ShareVideoJobUpdaterTest {
 
     @Test
     void 존재하지_않는_작업은_상태를_변경하지_않는다() {
-        when(shareVideoJobRepository.findById(999L)).thenReturn(Optional.empty());
+        when(shareVideoJobRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> jobUpdater.complete(999L, "object-key", 1_500L, 250L))
                 .isInstanceOf(IllegalStateException.class)

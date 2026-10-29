@@ -198,6 +198,9 @@ public class ShareVideoJob extends BaseEntity {
         return recipientPushTokenId;
     }
 
+    public Long getMemberId() {
+        return member.getId();
+    }
     public ShareVideoFailureCode getFailureCode() {
         return failureCode;
     }

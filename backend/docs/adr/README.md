@@ -29,3 +29,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0023](0023-guest-refresh-lost-rotation.md) | 게스트의 refresh 회전 응답 유실은 후속 토큰이 쓰이지 않았을 때만 재발급 | 제안 |
 | [0024](0024-kakao-login-with-id-token.md) | 카카오 로그인도 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
 | [0025](0025-share-video-notification-registration.md) | 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선 | 제안 |
+| [0026](0026-shared-notification-outbox.md) | 알림 발송을 공통 Outbox로 기록하고 기기별로 처리 | 제안 |
