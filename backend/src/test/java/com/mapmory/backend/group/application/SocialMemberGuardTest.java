@@ -24,7 +24,7 @@ class SocialMemberGuardTest {
 
     @Test
     void 활동_중인_소셜_회원은_통과한다() {
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(
                 Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID())));
 
         assertThatCode(() -> guard.require(1L)).doesNotThrowAnyException();
@@ -32,7 +32,7 @@ class SocialMemberGuardTest {
 
     @Test
     void 게스트는_소셜_로그인이_필요하다() {
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(
                 Member.ofGuest("guest-1", "게스트", UUID.randomUUID())));
 
         assertError(1L, GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
@@ -40,7 +40,7 @@ class SocialMemberGuardTest {
 
     @Test
     void 제공자가_없는_옛_임시_회원도_소셜_로그인이_필요하다() {
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(Member.of("임시", UUID.randomUUID())));
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(Member.of("임시", UUID.randomUUID())));
 
         assertError(1L, GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
     }
@@ -49,14 +49,14 @@ class SocialMemberGuardTest {
     void 탈퇴한_회원은_사용할_수_없는_회원이다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID());
         member.withdraw(LocalDateTime.of(2026, 10, 26, 12, 0));
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(member));
 
         assertError(1L, MemberErrorCode.INACTIVE_MEMBER);
     }
 
     @Test
     void 없는_회원은_사용할_수_없는_회원이다() {
-        when(memberRepository.findById(1L)).thenReturn(Optional.empty());
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.empty());
 
         assertError(1L, MemberErrorCode.INACTIVE_MEMBER);
     }
