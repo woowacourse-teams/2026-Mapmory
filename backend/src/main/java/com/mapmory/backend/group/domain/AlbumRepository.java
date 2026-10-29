@@ -45,6 +45,23 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
     """)
     List<Long> findLatestIdsByGroupId(@Param("groupId") Long groupId, Limit limit);
 
+    // 기록이 지워졌을 때 정리할 그룹들. idx_album_entry_travel_record를 탄다.
+    @Query("""
+        SELECT DISTINCT a.groupId FROM Album a JOIN a.entries e
+        WHERE e.travelRecordId = :travelRecordId
+    """)
+    List<Long> findGroupIdsContainingRecord(@Param("travelRecordId") Long travelRecordId);
+
+    // 그룹 잠금 뒤에 부른다. 항목을 떼고 비었는지 보려고 항목을 모두 읽는다.
+    @Query("""
+        SELECT DISTINCT a FROM Album a
+        LEFT JOIN FETCH a.entries
+        WHERE a.groupId = :groupId
+          AND EXISTS (SELECT 1 FROM AlbumEntry e WHERE e.album = a AND e.travelRecordId = :travelRecordId)
+    """)
+    List<Album> findAllByGroupIdContainingRecord(@Param("groupId") Long groupId,
+                                                 @Param("travelRecordId") Long travelRecordId);
+
     // 순서는 정하지 않는다. 부르는 쪽이 findIdsByGroupIdOrderByLastAdded의 순서로 맞춘다.
     @Query("""
         SELECT DISTINCT a FROM Album a

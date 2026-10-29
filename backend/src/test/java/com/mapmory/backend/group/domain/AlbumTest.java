@@ -113,6 +113,20 @@ class AlbumTest {
     }
 
     @Test
+    void 지워진_기록의_항목을_떼고_다_떼면_비었다() {
+        Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
+        album.addEntry(2L, 201L);
+
+        assertThat(album.removeEntriesOf(201L)).isTrue();
+        assertThat(album.travelRecordIds()).containsExactly(101L);
+        assertThat(album.isEmpty()).isFalse();
+
+        assertThat(album.removeEntriesOf(999L)).isFalse();
+        assertThat(album.removeEntriesOf(101L)).isTrue();
+        assertThat(album.isEmpty()).isTrue();
+    }
+
+    @Test
     void 지역을_바꾼다() {
         Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
         Region osaka = Region.of(JAPAN, JAPAN, "27", "오사카부", RegionType.PROVINCE);

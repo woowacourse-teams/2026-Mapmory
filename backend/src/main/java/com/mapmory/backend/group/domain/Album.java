@@ -121,6 +121,22 @@ public class Album extends BaseEntity {
     }
 
     /**
+     * 지워진 기록의 항목을 뗀다. 떼어 낸 항목은 orphanRemoval로 지워진다.
+     *
+     * @return 뗀 항목이 있으면 true
+     */
+    public boolean removeEntriesOf(Long travelRecordId) {
+        return entries.removeIf(entry -> entry.getTravelRecordId().equals(travelRecordId));
+    }
+
+    /**
+     * 담긴 항목이 없다. 빈 앨범은 지운다(ADR 0022 2026-10-29 보완).
+     */
+    public boolean isEmpty() {
+        return entries.isEmpty();
+    }
+
+    /**
      * 이 멤버가 담은 기록들. 담은 순서다.
      */
     public List<Long> travelRecordIdsOf(Long memberId) {
