@@ -1,5 +1,8 @@
 package com.mapmory.shared.presentation.group
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
@@ -293,7 +296,7 @@ private fun EmptySymbol() {
 
 @Composable
 private fun GroupEmpty(title: String, message: String, action: String? = null, onAction: () -> Unit = {}) {
-    Column(Modifier.fillMaxSize().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally,
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center) {
         EmptySymbol()
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,

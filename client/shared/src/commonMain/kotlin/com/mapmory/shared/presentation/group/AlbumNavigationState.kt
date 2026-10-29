@@ -7,6 +7,7 @@ internal class AlbumNavigationState {
     val detail = mutableStateOf<AlbumDetail?>(null)
     val selectedPhoto = mutableStateOf<String?>(null)
     val pick = mutableStateOf(false)
+    val add = mutableStateOf(false)
     val rename = mutableStateOf(false)
 
     var revision: Long = 0
@@ -17,6 +18,7 @@ internal class AlbumNavigationState {
         selectedPhoto.value = null
         detail.value = null
         pick.value = false
+        add.value = false
         rename.value = false
     }
 
@@ -33,6 +35,7 @@ internal class AlbumNavigationState {
     fun back(): Boolean {
         val handled = when {
             rename.value -> { rename.value = false; true }
+            add.value -> { add.value = false; true }
             pick.value -> { pick.value = false; true }
             selectedPhoto.value != null -> { selectedPhoto.value = null; true }
             detail.value != null -> { detail.value = null; true }

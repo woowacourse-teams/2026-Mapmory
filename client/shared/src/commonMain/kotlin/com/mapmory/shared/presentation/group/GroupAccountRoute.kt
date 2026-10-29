@@ -22,6 +22,9 @@ internal fun GroupAccountRoute(
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    initialGroupId: Long? = null,
+    initialAlbumId: Long? = null,
+    onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
 ) {
@@ -65,6 +68,9 @@ internal fun GroupAccountRoute(
                         shareCoordinator = container.albumShareCoordinator,
                         leaveCoordinator = container.groupLeaveCoordinator,
                         recordRevision = recordRevision,
+                        initialGroupId = initialGroupId,
+                        initialAlbumId = initialAlbumId,
+                        onCreateRecord = onCreateRecord,
                         tripRecordRepository = container.tripRecordRepository,
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,
@@ -80,6 +86,7 @@ internal fun GroupAccountRoute(
                 onRecordClick = onRecordClick, onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick, onGroupClick = { retry++ })
         }
+
         if (account?.guestAbandoned == true && !noticeDismissed) AlertDialog(
             onDismissRequest = { noticeDismissed = true }, title = { Text("기존 계정으로 로그인했어요") },
             text = { Text("이 계정의 기록으로 전환했어요. 게스트로 남긴 기록은 자동으로 합쳐지지 않아요.") },
