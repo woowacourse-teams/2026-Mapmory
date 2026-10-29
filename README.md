@@ -1,66 +1,75 @@
 # Mapmory
 
-🌍📸 사진과 지구본으로 여행의 장소와 기억을 기록하는 여행 아카이브 서비스, Mapmory의 통합 저장소입니다.
+Mapmory는 여행지를 지도에 표시하고 사진으로 여행의 순간을 기록하는 여행 아카이브 앱입니다. 방문한 장소를 지도에서 다시 살펴보고, 여행 기록을 모아 통계와 공유 콘텐츠로 만들 수 있습니다.
 
-이 저장소 하나에서 Android, iOS, Compose Multiplatform 공통 코드, Backend를 관리합니다. 저장소는 하나지만 각 영역의 소스·빌드·의존성·배포 경계는 분리합니다.
+Android와 iOS 앱, 공통 Compose Multiplatform 코드, Backend를 한 저장소에서 관리합니다. 앱 클라이언트와 Backend는 독립적으로 빌드하며 HTTP API로 통신합니다.
 
-## 프로젝트 구조
+## 앱 기능
+
+- **지도에서 여행 기록 탐색**: 세계 지도와 대한민국 시·도 및 시·군·구 지도에서 기록을 확인합니다.
+- **여행 기록 작성**: 여행지를 선택하고 촬영 위치 정보를 활용해 사진을 찾아 날짜와 함께 기록합니다. 기존 기록도 수정하거나 삭제할 수 있습니다.
+- **사진과 일지 탐색**: 기록별 사진을 보고, 사진 모음이나 타임라인 형태로 여행 기록을 살펴봅니다.
+- **여행 통계 확인**: 방문한 지역과 여행 기록을 여행 통계 화면에서 확인합니다.
+- **여행 기록 공유**: 기록을 공유 이미지로 꾸미고, 여행 타임라인 영상도 만들 수 있습니다.
+
+## 기술 구성
+
+| 영역 | 기술 |
+| --- | --- |
+| Android, iOS 앱 | Kotlin, Compose Multiplatform |
+| Backend | Java 21, Spring Boot |
+| 데이터 저장 | MySQL, Amazon S3 |
+| 캠페인 웹 프로토타입 | React, Vite |
+
+## 저장소 구조
 
 ```text
 2026-Mapmory/
 ├── client/
-│   ├── androidApp/     # Android 앱 진입점과 Android 전용 코드
-│   ├── iosApp/         # Xcode 앱 진입점과 iOS 전용 코드
-│   └── shared/         # Compose Multiplatform 공통 UI·상태·도메인 코드
-│
-├── backend/            # API 서버·인증·DB·파일 저장소 연동
-├── docs/               # 프로젝트 공통 문서와 API 명세
-└── .github/            # 영역별 CI/CD
+│   ├── androidApp/      # Android 앱 진입점과 플랫폼 코드
+│   ├── iosApp/          # Xcode 앱 진입점과 플랫폼 코드
+│   └── shared/          # Android, iOS 공통 UI와 도메인 코드
+├── backend/             # HTTP API, 인증, 데이터베이스, 파일 저장소 연동
+├── landing/             # Mapmory 소개 사이트와 별도 캠페인 웹 프로토타입
+├── docs/                # 프로젝트 공통 문서와 개인정보 처리방침
+└── .github/workflows/   # Android, iOS, Backend, Landing CI 및 배포 워크플로
 ```
 
-## 클라이언트와 서버의 경계
+`landing/travel-map-campaign`은 앱과 별도로 운영하는 웹 캠페인입니다. 캠페인 웹의 영상 생성 기능은 Mapmory 앱 기능에 포함되지 않습니다.
 
-클라이언트와 서버 코드를 같은 디렉터리에 섞지 않습니다.
+## 개발 시작
 
-```text
-client/*  ── HTTP/JSON API ──>  backend/*
-```
-
-- 저장소 루트에는 공통 Gradle 설정을 두지 않습니다.
-- `client`와 `backend`가 각각 자체 `settings.gradle.kts`, Gradle Wrapper와 의존성 버전을 관리합니다.
-- Android/iOS 코드가 Backend 소스 파일을 직접 import하지 않습니다.
-- Backend는 API 계약을 통해서만 클라이언트와 통신합니다.
-- API 요청·응답 모델은 우선 각 영역에서 별도로 관리하고, 필요할 때 OpenAPI 또는 명세 문서로 동기화합니다.
-- Backend 비밀정보와 클라이언트 서명키는 각각 서버 Secret 저장소와 팀 비밀번호 관리자에 보관합니다.
-
-따라서 저장소는 하나여도 코드가 자동으로 꼬이지 않습니다. 물리적 디렉터리, 빌드 설정, 의존성, API 경계를 분리하면 됩니다.
-
-## 실행 위치
+Android 앱은 JDK 21과 Android SDK가 필요합니다.
 
 ```bash
-# Android / 공통 클라이언트
 cd client
 ./gradlew :androidApp:assembleDebug
-
-# Backend
-cd backend
-# backend의 별도 실행 명령 사용
 ```
 
-iOS는 `client/iosApp`을 Xcode에서 열어 실행합니다.
+iOS 앱은 Xcode에서 [`client/iosApp/Mapmory.xcodeproj`](client/iosApp/Mapmory.xcodeproj)를 열어 `Mapmory` scheme으로 실행합니다. Backend와 각 플랫폼의 환경 설정은 아래 안내를 참고하세요.
+
+```bash
+cd backend
+./gradlew build
+```
+
+캠페인 웹 프로토타입을 실행하려면:
+
+```bash
+cd landing/travel-map-campaign
+npm ci
+npm run dev
+```
 
 ## 문서
 
 - [클라이언트 안내](client/README.md)
-- [클라이언트 환경](client/docs/environment.md)
-- [iOS 환경](client/iosApp/README.md)
-- [App Store Connect 제출 체크리스트](client/docs/app-store-connect-submission-checklist.md)
+- [클라이언트 개발 환경](client/docs/environment.md)
+- [API 계약](client/docs/api-contract.md)
+- [지도 데이터 기준](client/docs/map-data.md)
+- [iOS 앱 설정](client/iosApp/README.md)
+- [Backend 개발 안내](backend/README.md)
+- [Google Play 제출 체크리스트](client/docs/play-console-submission-checklist.md)
+- [App Store 제출 체크리스트](client/docs/app-store-connect-submission-checklist.md)
 - [App Store 개인정보 응답 기준](client/docs/app-store-privacy-responses.md)
-- [Backend 안내](backend/README.md)
-
-## 팀 운영 원칙
-
-- 변경된 영역의 담당자가 해당 영역을 리뷰합니다.
-- 클라이언트 변경은 `client/**`, 서버 변경은 `backend/**` 아래에 둡니다.
-- 비밀정보·서명키·개인 환경 경로는 커밋하지 않습니다.
-- CI는 변경된 영역에 필요한 작업만 실행합니다.
+- [캠페인 웹 프로토타입 안내](landing/travel-map-campaign/README.md)
