@@ -356,52 +356,30 @@ private fun TripRecordPhotoAlbum(
                     .fillMaxSize()
                     .photoGridPinch(columnCount, onColumnCountChange, { isPinching = it })
                     .navigationBarsPadding(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 if (representativePhoto != null) {
                     item(key = "editorial-hero", contentType = "hero") {
                         val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
-                        Box(Modifier.fillMaxWidth().height(heroHeight)) {
-                            MapmoryAsyncImage(
-                                imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
-                                    ?: representativePhoto.originalBytes?.bytesForDecoding(),
-                                imageUri = representativePhoto.previewUri ?: representativePhoto.localOriginalUri
-                                    ?: representativePhoto.fullResolutionUri,
-                                cacheKey = "trip-preview:${representativePhoto.id}",
-                                fallbackUri = representativePhoto.fullResolutionUri,
-                                fallbackBytes = representativePhoto.originalBytes?.bytesForDecoding(),
-                                contentDescription = "${record.locationName} 대표 사진 확대",
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RoundedCornerShape(0.dp),
-                            )
-                            Box(
-                                Modifier.fillMaxSize().background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
-                                    ),
-                                ),
-                            )
-                            Column(
-                                Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 18.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text(
-                                    "${record.locationName} · ${recordDateRange(record)}",
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                        JournalAlbumHero(
+                            title = record.title,
+                            subtitle = "${record.locationName} · ${recordDateRange(record)}",
+                            height = heroHeight,
+                            photo = {
+                                MapmoryAsyncImage(
+                                    imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
+                                        ?: representativePhoto.originalBytes?.bytesForDecoding(),
+                                    imageUri = representativePhoto.previewUri ?: representativePhoto.localOriginalUri
+                                        ?: representativePhoto.fullResolutionUri,
+                                    cacheKey = "trip-preview:${representativePhoto.id}",
+                                    fallbackUri = representativePhoto.fullResolutionUri,
+                                    fallbackBytes = representativePhoto.originalBytes?.bytesForDecoding(),
+                                    contentDescription = "${record.locationName} 대표 사진 확대",
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = RoundedCornerShape(0.dp),
                                 )
-                                Text(
-                                    record.title,
-                                    color = Color.White,
-                                    fontSize = 25.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
+                            },
+                        )
                     }
                 } else {
                     item(key = "editorial-heading", contentType = "heading") {
@@ -437,16 +415,10 @@ private fun TripRecordPhotoAlbum(
                 }
                 item(key = "editorial-gallery-heading", contentType = "heading") {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            "함께 남긴 사진",
-                            color = TripRecordPalette.current.headingText,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
                         Text(
                             "${record.photoCount ?: record.photos.size}장",
                             color = TripRecordPalette.current.secondaryText,
@@ -467,18 +439,17 @@ private fun TripRecordPhotoAlbum(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.animateItem().padding(horizontal = 20.dp)
-                                    .padding(top = if (index == 0) 2.dp else 14.dp),
+                                    .padding(top = if (index == 0) 12.dp else 24.dp, bottom = 4.dp),
                             )
                         }
                         itemsIndexed(
                             photoRows[index],
                             key = { _, photos -> "row:${photos.first().id}" },
                             contentType = { _, _ -> "photos" },
-                        ) { rowIndex, photos ->
+                        ) { _, photos ->
                             AlbumPhotoRow(
                                 photos, group.displayDate, columnCount, { photoSize.value }, onPhotoClick,
-                                Modifier.animateItem().padding(horizontal = 20.dp)
-                                    .padding(top = if (rowIndex == 0) 0.dp else 8.dp),
+                                Modifier.animateItem().padding(horizontal = 20.dp),
                             )
                         }
                     }
@@ -823,44 +794,24 @@ private fun AlbumPhotoRow(
     onPhotoClick: (TripRecordPhotoUiState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth().clipToBounds(),
-        horizontalArrangement = Arrangement.spacedBy(1.dp),
-    ) {
-        photos.forEach { photo ->
-            MapmoryAsyncImage(
-                imageBytes = photo.previewBytes?.bytesForDecoding()
-                    ?: photo.originalBytes?.bytesForDecoding(),
-                imageUri = photo.previewUri ?: photo.localOriginalUri ?: photo.fullResolutionUri,
-                cacheKey = "trip-preview:${photo.id}",
-                fallbackUri = photo.fullResolutionUri,
-                fallbackBytes = photo.originalBytes?.bytesForDecoding(),
-                contentDescription = "$displayDate 여행 사진 확대",
-                sharedImageKey = photo.id,
-                sharedCornerRadius = 0.dp,
-                onClick = { onPhotoClick(photo) },
-                modifier = Modifier
-                    .layout { measurable, _ ->
-                        val side = photoSize().roundToPx().coerceAtLeast(1)
-                        val placeable = measurable.measure(Constraints.fixed(side, side))
-                        layout(side, side) { placeable.placeRelative(0, 0) }
-                    }
-                    .semantics {
-                        contentDescription = "$displayDate 여행 사진 확대"
-                    },
-                shape = RectangleShape,
-            )
-        }
-        repeat(columnCount - photos.size) {
-            Spacer(
-                modifier = Modifier
-                    .layout { measurable, _ ->
-                        val side = photoSize().roundToPx().coerceAtLeast(1)
-                        val placeable = measurable.measure(Constraints.fixed(side, side))
-                        layout(side, side) { placeable.placeRelative(0, 0) }
-                    },
-            )
-        }
+    JournalAlbumPhotoRow(photos, columnCount, photoSize, modifier) { photo, cell ->
+        MapmoryAsyncImage(
+            imageBytes = photo.previewBytes?.bytesForDecoding()
+                ?: photo.originalBytes?.bytesForDecoding(),
+            imageUri = photo.previewUri ?: photo.localOriginalUri ?: photo.fullResolutionUri,
+            cacheKey = "trip-preview:${photo.id}",
+            fallbackUri = photo.fullResolutionUri,
+            fallbackBytes = photo.originalBytes?.bytesForDecoding(),
+            contentDescription = "$displayDate 여행 사진 확대",
+            sharedImageKey = photo.id,
+            sharedCornerRadius = 0.dp,
+            onClick = { onPhotoClick(photo) },
+            modifier = cell
+                .semantics {
+                    contentDescription = "$displayDate 여행 사진 확대"
+                },
+            shape = RectangleShape,
+        )
     }
 }
 

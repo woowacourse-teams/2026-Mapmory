@@ -17,6 +17,27 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.text.style.TextOverflow
+import com.mapmory.shared.presentation.triprecord.screen.JournalAlbumHero
+import com.mapmory.shared.presentation.triprecord.screen.JournalAlbumPhotoRow
+import com.mapmory.shared.presentation.triprecord.screen.TripIconButton
+import com.mapmory.shared.presentation.triprecord.screen.photoGridPinch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -155,33 +176,93 @@ internal fun GroupAlbumScreen(
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
 ) {
-    val scrollState = rememberLazyGridState()
+    val scrollState = rememberLazyListState()
+    var columns by rememberSaveable(album.id) { mutableStateOf(2) }
+    var pinching by remember { mutableStateOf(false) }
+    val rows = remember(album.photos, columns) { album.photos.chunked(columns) }
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
     Column(modifier.fillMaxSize()) {
-        GroupHeader(album.name, onBack, headerActions)
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            GroupMuted("${album.place} · ${album.date}")
-            Text("사진 ${album.photoCount}장", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            GroupMuted("함께 올린 사람 · ${album.contributors.joinToString(", ")}")
-        }
-        if (album.photos.isEmpty()) {
-            Box(Modifier.weight(1f)) { GroupEmpty("아직 사진이 없어요", "이 앨범에 첫 사진을 남겨 보세요.") }
-        } else {
-            LazyVerticalGrid(state = scrollState, columns = GridCells.Fixed(2), modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(album.photos, key = { it.id }) { photo ->
-                    GroupCard(onClick = { onPhoto(album.photos.indexOf(photo)) }) {
-                        Column {
-                            GroupImage(photo, Modifier.fillMaxWidth().aspectRatio(1f), "${photo.uploaderName}님이 올린 사진")
-                            Text(photo.uploaderName, Modifier.padding(12.dp), fontSize = 13.sp)
+        GroupHeader("", onBack, headerActions)
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val photoSize by animateDpAsState(
+                ((maxWidth - 56.dp - 1.dp * (columns - 1)) / columns).coerceAtLeast(1.dp),
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "groupAlbumPhotoSize",
+            )
+            val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
+            LazyColumn(
+                state = scrollState, userScrollEnabled = !pinching,
+                modifier = Modifier.fillMaxSize().photoGridPinch(columns, { columns = it }, { pinching = it }),
+                contentPadding = PaddingValues(bottom = 104.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                item(key = "cover") {
+                    val cover = album.photos.firstOrNull()
+                    if (cover != null) JournalAlbumHero(
+                        title = album.name,
+                        subtitle = "${album.place} · ${album.date.replace('-', '.')}",
+                        height = heroHeight,
+                        photo = {
+                            MapmoryAsyncImage(imageBytes = null, imageUri = cover.imageUri,
+                                contentDescription = "${album.name} 대표 사진", modifier = Modifier.fillMaxSize(),
+                                shape = RectangleShape)
+                        },
+                    ) else Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
+                        Text(album.name, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        GroupMuted("${album.place} · ${album.date}")
+                    }
+                }
+                item(key = "contributors") {
+                    Column(Modifier.padding(horizontal = 20.dp).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("함께 남긴 사진", color = TripRecordPalette.current.headingText,
+                                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("${album.photoCount}장", color = TripRecordPalette.current.secondaryText, fontSize = 11.sp)
+                        }
+                        if (album.contributors.isNotEmpty()) Text(
+                            "함께 올린 사람 · ${album.contributors.joinToString(", ")}",
+                            color = TripRecordPalette.current.secondaryText, fontSize = 12.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (album.photos.isEmpty()) item(key = "empty") {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("아직 사진이 없어요", fontWeight = FontWeight.Bold)
+                        GroupMuted("이 앨범에 첫 사진을 남겨 보세요.")
+                    }
+                }
+                itemsIndexed(rows, key = { _, row -> "photos:${row.first().id}" }) { _, row ->
+                    JournalAlbumPhotoRow(row, columns, { photoSize }, Modifier.animateItem().padding(horizontal = 20.dp)) { photo, cell ->
+                        Box(cell.clickable { onPhoto(album.photos.indexOf(photo)) }) {
+                            MapmoryAsyncImage(imageBytes = null, imageUri = photo.imageUri,
+                                contentDescription = "${photo.uploaderName}님이 올린 사진",
+                                modifier = Modifier.fillMaxSize(), shape = RectangleShape,
+                                sharedCornerRadius = 0.dp)
+                            GroupPhotoOwnerBadge(photo.uploaderName, columns < 5,
+                                Modifier.align(Alignment.BottomStart))
                         }
                     }
                 }
             }
+            TripIconButton("+", "이 앨범에 사진 추가", onAddPhotos,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 33.dp),
+                containerColor = TripRecordPalette.current.primary,
+                contentColor = TripRecordPalette.current.onPrimary)
         }
-        GroupButton("이 앨범에 사진 추가", onAddPhotos,
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), tall = true)
+    }
+}
+
+@Composable
+private fun GroupPhotoOwnerBadge(name: String, visible: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = visible, modifier = modifier,
+        enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
+        Text(name, color = TripRecordPalette.current.contentOnMedia,
+            fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.background(TripRecordPalette.current.mediaScrim)
+                .padding(horizontal = 6.dp, vertical = 3.dp))
     }
 }
 

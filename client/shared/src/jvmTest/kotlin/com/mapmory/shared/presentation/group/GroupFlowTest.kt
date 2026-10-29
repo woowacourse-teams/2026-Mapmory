@@ -68,7 +68,8 @@ class GroupFlowTest {
             assertTrue(registry.handleGestureForward("group", restoring = true), "Cancelled gesture restores album")
             render()
             val albumBefore = pixels()
-            tap(90f, 360f)
+            java.io.File("build/reports/group-album-preview.png").apply { parentFile.mkdirs(); writeBytes(albumBefore) }
+            tap(90f, 530f) // First photo below the shared journal cover and contributor heading.
             assertTrue(registry.handleGestureBack("group"), "Photo viewer must consume edge back")
             render()
             assertTrue(albumBefore.contentEquals(pixels()), "Closing photo restores the album screen")
