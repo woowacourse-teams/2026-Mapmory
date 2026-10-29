@@ -41,6 +41,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   let colors = null;
   const palette = () => (colors ??= Object.fromEntries(["sea", "land", "grid", "accent", "screen"].map((k) => [k, getComputedStyle(root).getPropertyValue(`--ts-${k}`).trim()])));
   const tried = (i) => onInteract(i + 1, scenes[i].interaction);
+  // each scene's position by its key (-1 when it is not in the story, like the share scene while it is off)
+  const at = Object.fromEntries(["type", "gather", "safe", "save", "map", "globe", "share"].map((key) => [key, scenes.findIndex((s) => s.key === key)]));
   // scenes a tap has taken over from the scroll, until they are entered again
   const manual = new Set();
   const takeOver = (i) => { manual.add(i); tried(i); };
@@ -126,52 +128,69 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   }
   const found = $("[data-found]"), foundText = $("[data-found-text]");
   const field = $("[data-field]"), fieldText = $("[data-field-text]");
+  const loadScreen = $("[data-load-screen]"), loadBtn = $("[data-load]"), safe = $("[data-safe]");
   // the places a tap on the field goes through (the sprite's place labels)
   const FIELD_PLACES = ["제주", "일본", "미국"];
   let foundTimer = 0, fieldPlace = FIELD_PLACES[0];
   const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
-  const setField = (text, done) => {
+  const setField = (text) => {
     setText(fieldText, text);
     field.classList.toggle("is-empty", !text);
-    field.classList.toggle("is-done", done);
   };
-  // scene 1: the place goes into the field a syllable at a time; the grid waits, untouched. The typing starts halfway
-  // through the room: on phones the first half passes before the stage pins
+  // the form's state: what the field says, whether 사진 불러오기 is lit or pressed, whether the album shows, and
+  // whether the other photos have gone and the safety line is up
+  const setForm = (text, { ready = false, pressed = false, loaded = false, safeOn = false } = {}) => {
+    setField(text);
+    loadBtn.classList.toggle("is-ready", ready);
+    loadBtn.classList.toggle("is-pressed", pressed);
+    loadScreen.classList.toggle("is-loaded", loaded);
+    safe.classList.toggle("is-shown", safeOn);
+    gTiles.forEach((t) => t.classList.toggle("is-gone", safeOn && !t.classList.contains("is-hit")));
+    if (safeOn) found.classList.remove("is-shown");
+  };
+  // scene 1: the place goes into the field a syllable at a time and 사진 불러오기 lights up, then is pressed. The typing
+  // starts halfway through the room: on phones the first half passes before the stage pins
   function scrubType(q) {
-    const chars = [...fieldPlace], typed = Math.round(smooth((q - 0.5) / 0.35) * chars.length);
-    setField(chars.slice(0, typed).join(""), false);
+    const chars = [...fieldPlace], typed = Math.round(smooth((q - 0.5) / 0.3) * chars.length);
+    setForm(chars.slice(0, typed).join(""), { ready: typed === chars.length, pressed: q > 0.9 });
     layoutGather(null, 0);
     found.classList.remove("is-shown");
   }
-  // scene 2: the place's photos lift one after another
+  // scene 2: the album shows and the place's photos lift one after another
   function scrubGather(q) {
     if (!measureGrid()) return;
-    setField(fieldPlace, true);
+    setForm(fieldPlace, { ready: true, loaded: true });
     const total = shownOf(fieldPlace);
     const lifted = Math.round(smooth((q - 0.1) / 0.6) * total);
     layoutGather(fieldPlace, lifted);
-    setText(foundText, `${fieldPlace} 사진 ${total}장을 모았어요`);
+    setText(foundText, `${fieldPlace} 사진 ${total}장을 찾았어요`);
     found.classList.toggle("is-shown", total > 0 && lifted >= total);
+  }
+  // scene 3: the found photos stay, the rest of the album fades, and the line that nothing left the phone rises
+  function scrubSafe(q) {
+    if (!measureGrid()) return;
+    layoutGather(fieldPlace, Infinity);
+    setForm(fieldPlace, { ready: true, loaded: true, safeOn: q > 0.15 });
   }
   function gatherTo(place) {
     fieldPlace = place;
-    setField(place, true);
+    setForm(place, { ready: true, loaded: true });
     const total = layoutGather(place, Infinity, true);
     found.classList.remove("is-shown");
     clearTimeout(foundTimer);
-    foundText.textContent = `${place} 사진 ${total}장을 모았어요`;
+    foundText.textContent = `${place} 사진 ${total}장을 찾았어요`;
     foundTimer = later(() => found.classList.add("is-shown"), reduce ? 0 : 200 + total * 45);
   }
-  // by hand both scenes of the screen stay with the tap until they are entered again
-  const byHandGather = (i) => { manual.add(0); manual.add(1); tried(i); };
+  // by hand the scenes of the screen stay with the tap until they are entered again
+  const byHandGather = (i) => { [at.type, at.gather, at.safe].forEach((k) => manual.add(k)); tried(i); };
   on(gather, "click", (e) => {
     const t = e.target.closest(".ts-ph");
     if (!t) return;
-    byHandGather(1);
+    byHandGather(at.gather);
     gatherTo(placeOf(+t.dataset.k));
   });
   on(field, "click", () => {
-    byHandGather(0);
+    byHandGather(at.type);
     gatherTo(FIELD_PLACES[(FIELD_PLACES.indexOf(fieldPlace) + 1) % FIELD_PLACES.length]);
   });
 
@@ -226,7 +245,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     layoutPick(smooth((q - 0.52) / 0.3));
   }
   // by hand the fold is a CSS transition (`.is-manual`), by scroll the frames are the animation
-  const byHandPick = () => { pick.classList.add("is-manual"); takeOver(2); };
+  const byHandPick = () => { pick.classList.add("is-manual"); takeOver(at.save); };
   on(pick, "click", (e) => {
     const t = e.target.closest(".ts-ph");
     // a tap anywhere on the folded card unfolds it; otherwise only a photo counts, blank space is not a try
@@ -254,7 +273,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     regions.setAttribute("aria-pressed", String(count > 0));
   }
   const scrubMap = (q) => setFilled(Math.round(smooth((q - 0.1) / 0.7) * provinces.length));
-  const toggleFill = () => { takeOver(3); setFilled(filled > 0 ? 0 : provinces.length); };
+  const toggleFill = () => { takeOver(at.map); setFilled(filled > 0 ? 0 : provinces.length); };
   on(regions, "click", toggleFill);
   on(regions, "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFill(); } });
 
@@ -302,7 +321,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       if (kind === "page_scroll") { dragStart = null; return; }
       dragX = dragStart.clientX;
       globe.setPointerCapture?.(e.pointerId);
-      tried(4);
+      tried(at.globe);
     }
     if (dragX === null) return;
     dragRot += (e.clientX - dragX) * 0.5;
@@ -316,7 +335,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (!step) return;
     e.preventDefault();
     dragRot += step;
-    tried(4);
+    tried(at.globe);
     schedule();
   });
 
@@ -365,7 +384,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       on(shareYears, "click", (e) => {
         const b = e.target.closest("button");
         if (!b) return;
-        tried(5);
+        tried(at.share);
         seek(+b.dataset.at);
       });
     }
@@ -374,8 +393,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
 
   // ── scenes and scroll
   const screens = $$("[data-scene]");
-  // scenes 1 and 2 share the record-form screen; every later scene has its own
-  const screenOf = (i) => Math.max(0, i - 1);
+  // the first three scenes share the app's form screen; every later scene has its own
+  const screenOf = (i) => Math.max(0, i - at.safe);
   const beats = $$("[data-beat]");
   const captions = $$("[data-caption]");
   const bridges = $$("[data-bridge]");
@@ -388,20 +407,20 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     shownCaption = el;
   }
   // entering a scene hands it back to the scroll
-  const onEnter = [
-    () => { manual.delete(0); manual.delete(1); clearTimeout(foundTimer); fieldPlace = FIELD_PLACES[0]; },
-    () => { manual.delete(0); manual.delete(1); clearTimeout(foundTimer); },
-    () => { manual.delete(2); pick.classList.remove("is-manual"); },
-    () => manual.delete(3),
-    () => {},
-    () => {},
-  ];
+  const backToScroll = () => { [at.type, at.gather, at.safe].forEach((k) => manual.delete(k)); clearTimeout(foundTimer); };
+  const onEnter = {
+    [at.type]: () => { backToScroll(); fieldPlace = FIELD_PLACES[0]; },
+    [at.gather]: backToScroll,
+    [at.safe]: backToScroll,
+    [at.save]: () => { manual.delete(at.save); pick.classList.remove("is-manual"); },
+    [at.map]: () => manual.delete(at.map),
+  };
   // i = -1 while the section is off screen: everything stops, and re-entry starts the scene again
   function setActive(i) {
     if (i === active) return;
     active = i;
     if (i >= 0) screens.forEach((s, k) => s.classList.toggle("is-on", k === screenOf(i)));
-    if (i !== 5) shareVideo?.pause?.();
+    if (i !== at.share) shareVideo?.pause?.();
     if (i < 0) return;
     onEnter[i]?.();
     onScene(i + 1);
@@ -424,12 +443,13 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     setActive(act);
     showCaption(captions[act]);
     if (!manual.has(act)) {
-      if (act === 0) scrubType(q);
-      else if (act === 1) scrubGather(q);
-      else if (act === 2) scrubPick(q);
-      else if (act === 3) scrubMap(q);
+      if (act === at.type) scrubType(q);
+      else if (act === at.gather) scrubGather(q);
+      else if (act === at.safe) scrubSafe(q);
+      else if (act === at.save) scrubPick(q);
+      else if (act === at.map) scrubMap(q);
     }
-    if (act === 4) scrubGlobe(q);
+    if (act === at.globe) scrubGlobe(q);
     const raw = bridges.length ? (() => { const r = bridges[0].getBoundingClientRect(); return clamp((focus - r.top) / r.height); })() : 0;
     const p = reduce ? (raw > 0.5 ? 1 : 0) : smooth(raw);
     // side: -1 = phone on the left (step 1), +1 = on the right (step 2)
@@ -468,7 +488,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   root.classList.add("is-live");
-  setField("", false);
+  setForm("");
   layoutGather(null, 0);
   layoutPick(0);
   setFilled(0);

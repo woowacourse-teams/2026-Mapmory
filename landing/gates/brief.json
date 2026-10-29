@@ -24,9 +24,9 @@
       "index": 1,
       "step": "find",
       "question": "사진을 하나하나 골라야 하나?",
-      "message": "위치 하나만 넣으면",
-      "hint": "위치 칸을 눌러 보세요",
-      "interaction": "위치 칸 누르기 (제주 → 일본 → 미국으로 바뀌고 그곳 사진이 떠오른다)",
+      "message": "장소만 넣으면",
+      "hint": "장소 칸을 눌러 보세요",
+      "interaction": "장소 칸 누르기 (제주 → 일본 → 미국으로 바뀌고 그곳 사진이 떠오른다)",
       "truth": {
         "claim": "기록 화면에서 장소 하나를 고르면 앱이 그곳에서 찍은 사진을 폰 안에서 찾아 보여 준다",
         "evidence": [
@@ -41,8 +41,8 @@
     {
       "index": 2,
       "step": "find",
-      "question": "그다음엔 뭘 해야 하지?",
-      "message": "그곳 사진이 알아서 모여요",
+      "question": "그곳 사진은 어떻게 찾지?",
+      "message": "사진첩에서 알아서 뽑아와요",
       "hint": "아무 사진이나 눌러 보세요",
       "interaction": "아무 사진이나 누르기 (그곳 사진만 떠오르고 팝업이 곳 이름과 장수를 말한다)",
       "truth": {
@@ -58,6 +58,24 @@
     },
     {
       "index": 3,
+      "step": "find",
+      "question": "내 사진이 서버로 가는 거 아냐?",
+      "message": "찾는 동안 사진은 서버로 안 가요",
+      "interaction": "없음 (스크롤하면 나머지 사진이 흐려지고 '서버로 보낸 사진 0장' 줄이 올라온다)",
+      "truth": {
+        "claim": "사진 찾기는 폰 안에서 앱에 들어 있는 지역 경계로 한다. 온라인으로 가는 건 입력한 장소 이름 검색뿐이고 사진은 보내지 않는다",
+        "evidence": [
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/triprecord/screen/TripRecordEditorScreen.kt (기록 화면에서 장소를 고르면 사진 추천 그리드, PhotoRecommendationPagingState)",
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/photo/PhotoRecommendationRegion.kt (고른 지역 경계 안에서 찍힌 사진만, 폰 안에서 판별)",
+          "landing/AGENTS.md copy rules ('photo search runs on the device by location'), how-section verified copy 03 '찾는 건 내 폰 안에서 해요 / 찾는 동안 사진을 서버로 보내지 않아요' (2026-10-13 main·develop 확인)"
+        ]
+      },
+      "event": "tech_story_scene scene_index=3",
+      "purpose": "C",
+      "rubric": "찾는 동안 사진이 폰 밖(서버)으로 나가지 않는다는 뜻이면 정답"
+    },
+    {
+      "index": 4,
       "step": "find",
       "question": "내 사진이 다 올라가는 거 아냐?",
       "message": "고른 사진만 앱에 올라가요",
@@ -76,7 +94,7 @@
       "rubric": "고른 사진으로 기록을 만든다. 고른 것만 올라가고 나머지는 폰에 있다는 뜻이면 정답"
     },
     {
-      "index": 4,
+      "index": 5,
       "step": "map",
       "question": "기록하면 뭐가 남지?",
       "message": "다녀온 곳이 지도에 칠해져요",
@@ -94,7 +112,7 @@
       "rubric": "기록한(다녀온) 지역이 지도에 색으로 칠해진다"
     },
     {
-      "index": 5,
+      "index": 6,
       "step": "map",
       "question": "해외 다녀온 곳도 남나?",
       "message": "해외는 나라별로 칠해져요",
@@ -114,7 +132,8 @@
   ],
   "revisions": [
     "2026-10-27 2단계: 독자 1차 판정(copy-round1.json)에서 남은 궁금증을 반영. 장면 2 '고른 곳' → '누른 곳', 장면 3 '올라가고' → '앱에 올라가고', 각주에 '처음 훑는 데', '다음부터는 새 사진만 읽어요' 추가 (PhotoMetadataSync.shouldReuseCoordinates로 확인)",
-    "2026-10-29 티온 피드백: 장면 1을 기록칸(위치 하나 입력)으로, 장면 2를 '그곳 사진이 알아서 모여요'로 바꾸고 3만 장 문구와 각주를 뺐다. 지도 단계는 칠해지는 것만 남겨 지구본 비행과 공유 영상 장면을 끄고(TECH_SHARE.enabled=false) 장면을 5개로 줄였다"
+    "2026-10-29 티온 피드백: 장면 1을 기록칸(위치 하나 입력)으로, 장면 2를 '그곳 사진이 알아서 모여요'로 바꾸고 3만 장 문구와 각주를 뺐다. 지도 단계는 칠해지는 것만 남겨 지구본 비행과 공유 영상 장면을 끄고(TECH_SHARE.enabled=false) 장면을 5개로 줄였다",
+    "2026-10-29 티온 2차: 장면 1-3을 앱의 '어디 사진을 불러올까요?' 화면으로(장소 입력 → 사진 불러오기 → 사진첩에서 뽑아옴), 장면 3 '찾는 동안 사진은 서버로 안 가요'를 새로 넣어 6장면"
   ],
   "outOfScope": [
     "히어로와 CTA 문구 (A, E는 다른 섹션의 몫)",

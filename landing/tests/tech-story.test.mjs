@@ -17,12 +17,14 @@ const plan = await read("../ANALYTICS_MEASUREMENT_PLAN.md");
 const plain = (title) => title.replace(/\u00a0/g, " ");
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 
-test("two steps, five scenes plus the share scene, one short title each (티온, 10-29)", () => {
+test("two steps, six scenes plus the share scene, one short title each (티온, 10-29)", () => {
   assert.deepEqual(TECH_STEPS.map(({ label, side }) => [label, side]), [["사진 찾기", "left"], ["지도 모으기", "right"]]);
-  // 10-29: step 1 is the record form (one place typed in, its photos gather), step 2 only fills places; short titles
+  // 10-29: step 1 is the app's "어디 사진을 불러올까요?" screen (a place typed in, its photos come out of the album,
+  // nothing goes to the server), step 2 only fills places; short titles
   assert.deepEqual(TECH_SCENES.map(({ step, title }) => [step, plain(title)]), [
-    ["find", "위치 하나만 넣으면"],
-    ["find", "그곳 사진이 알아서 모여요"],
+    ["find", "장소만 넣으면"],
+    ["find", "사진첩에서 알아서 뽑아와요"],
+    ["find", "찾는 동안 사진은 서버로 안 가요"],
     ["find", "고른 사진만 앱에 올라가요"],
     ["map", "다녀온 곳이 지도에 칠해져요"],
     ["map", "해외는 나라별로 칠해져요"],
@@ -31,7 +33,10 @@ test("two steps, five scenes plus the share scene, one short title each (티온,
   for (const { title } of TECH_SCENES) assert.ok(plain(title).length <= 22, `${title} stays short`);
   // a no-break space only ever joins two words, to keep a phrase on one line on a 360px phone
   for (const { title } of TECH_SCENES) assert.doesNotMatch(title, /(^|\s)\u00a0|\u00a0(\s|$)/);
-  assert.deepEqual(TECH_COPY.title, ["위치만 넣으면", "사진이 지도에 모여요"]);
+  assert.deepEqual(TECH_COPY.title, ["장소만 넣으면", "사진이 지도에 모여요"]);
+  // the screen is the app's own: its question, the 장소 label, its placeholder and its button
+  for (const words of ["어디 사진을 불러올까요?", ">장소<", "사진 불러오기"]) assert.ok(component.includes(words), words);
+  assert.match(css, /content: "장소 또는 행정구역 검색"/);
 });
 
 test("no small text sits under the titles, and the 3만 장 claim is gone with its counter (10-29)", () => {
@@ -67,8 +72,8 @@ test("the share scene is configured in one place and can be swapped or turned of
   // 10-28: the video never plays by itself (티온: waiting for a replay feels slow); a year button or a tap plays it
   assert.doesNotMatch(stripComments(engine), /shareVideo\.play\(\)\.catch/);
   assert.match(engine, /const seek = \(at\) => loadVideo\(\)\.then/);
-  assert.equal(techScenes().length, 5);
-  assert.equal(techScenes({ ...TECH_SHARE, enabled: true }).length, 6);
+  assert.equal(techScenes().length, 6);
+  assert.equal(techScenes({ ...TECH_SHARE, enabled: true }).length, 7);
   // the share video is fetched on intent, never on reaching the scene, and a tap on blank space in scene 3 is no try
   assert.match(engine, /for \(const ev of \["pointerenter", "pointerdown", "focusin"\]\) on\(shareBox, ev, \(\) => loadVideo\(\)/);
   assert.doesNotMatch(engine, /\(\) => loadVideo\(\),\n  \];/);
@@ -106,10 +111,10 @@ test("the map and the globe fill the recorded places in date order, nothing else
 test("every scene plays by the scroll position, not by timers or taps (티온, 10-28)", () => {
   const code = stripComments(engine);
   // the frame reads how far the focus line is through the scene's room and lays the scene out from it
-  assert.match(code, /if \(act === 0\) scrubType\(q\);\s*else if \(act === 1\) scrubGather\(q\);\s*else if \(act === 2\) scrubPick\(q\);\s*else if \(act === 3\) scrubMap\(q\);/);
-  assert.match(code, /if \(act === 4\) scrubGlobe\(q\);/);
-  // scenes 1 and 2 share the record-form screen
-  assert.match(code, /const screenOf = \(i\) => Math\.max\(0, i - 1\);/);
+  assert.match(code, /if \(act === at\.type\) scrubType\(q\);\s*else if \(act === at\.gather\) scrubGather\(q\);\s*else if \(act === at\.safe\) scrubSafe\(q\);\s*else if \(act === at\.save\) scrubPick\(q\);\s*else if \(act === at\.map\) scrubMap\(q\);/);
+  assert.match(code, /if \(act === at\.globe\) scrubGlobe\(q\);/);
+  // the first three scenes share the app's form screen
+  assert.match(code, /const screenOf = \(i\) => Math\.max\(0, i - at\.safe\);/);
   // no self-running demos: no timers start a flip, a gather, a fold or a fill, and no rAF loop turns the globe
   for (const gone of [/demoFlip/, /foldDemo/, /startGlobe/, /autoplay/, /rot \+= 0\.3/, /mountTimeline/]) assert.doesNotMatch(code, gone);
   // a tap takes a scene over from the scroll until it is entered again
@@ -169,6 +174,7 @@ test("the engine follows the scroll and never steers it", () => {
 
 test("keyboard: the record field is a button, and the globe turns with the arrow keys (6.2)", () => {
   assert.match(component, /<button type="button" className="ts-field is-empty" data-field="" aria-label="[^"]+">/);
+  assert.match(engine, /const at = Object\.fromEntries\(/);
   assert.match(engine, /on\(field, "click", \(\) => \{/);
   assert.match(component, /<canvas className="ts-globe" data-globe="" tabIndex=\{0\}/);
   assert.match(engine, /on\(globe, "keydown", \(e\) => \{\s*const step = e\.key === "ArrowRight"/);
@@ -178,8 +184,9 @@ test("keyboard: the record field is a button, and the globe turns with the arrow
 });
 
 test("every scene's touchable element is one measured interaction, and the plan describes the loop", () => {
-  assert.deepEqual(TECH_SCENES.map((scene) => scene.interaction), ["place_pick", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
-  assert.deepEqual([...TECH_STORY_INTERACTIONS], TECH_SCENES.map((scene) => scene.interaction));
+  // the safety scene has nothing to tap; it only rises with the scroll
+  assert.deepEqual(TECH_SCENES.map((scene) => scene.interaction ?? null), ["place_pick", "gather", null, "save", "map_toggle", "globe_drag", "year_pick"]);
+  assert.deepEqual([...TECH_STORY_INTERACTIONS], TECH_SCENES.map((scene) => scene.interaction).filter(Boolean));
   for (const name of ["tech_story_view", "tech_story_scene", "tech_story_interact"]) assert.match(plan, new RegExp("`" + name + "`"));
   assert.match(plan, /### 기술 소개 피드백 루프/);
 });

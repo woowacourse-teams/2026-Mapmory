@@ -15,7 +15,7 @@
 
 export const TECH_COPY = Object.freeze({
   eyebrow: "기술 소개",
-  title: ["위치만 넣으면", "사진이 지도에 모여요"],
+  title: ["장소만 넣으면", "사진이 지도에 모여요"],
 });
 
 // Layout variant (4단계 시안, gates/variants.json): "base" words under the phone in a phone frame, "above" the words
@@ -32,15 +32,19 @@ export const TECH_STEPS = Object.freeze([
   { key: "map", label: "지도 모으기", side: "right" },
 ]);
 
-// scene_index for analytics is the position here + 1 (1-6). `interaction` names the optional tap each scene still
-// answers to. Scenes 1 and 2 share one screen (the record form).
+// scene_index for analytics is the position here + 1 (1-6 with the share scene on). `key` names the scene for the
+// engine; `interaction` names the optional tap a scene answers to (the safety scene has none). The first three scenes
+// share one screen, the app's own "어디 사진을 불러올까요?" form (티온, 10-29).
 export const TECH_SCENES = Object.freeze([
-  { step: "find", title: "위치 하나만 넣으면", interaction: "place_pick" },
-  { step: "find", title: "그곳 사진이 알아서 모여요", interaction: "gather" },
-  // the safety line (brief C): the UT sessions asked where the photos go; only the picked ones are uploaded
-  { step: "find", title: "고른 사진만 앱에 올라가요", interaction: "save" },
-  { step: "map", title: "다녀온 곳이 지도에 칠해져요", interaction: "map_toggle" },
-  { step: "map", title: "해외는 나라별로 칠해져요", interaction: "globe_drag" },
+  { key: "type", step: "find", title: "장소만 넣으면", interaction: "place_pick" },
+  { key: "gather", step: "find", title: "사진첩에서 알아서 뽑아와요", interaction: "gather" },
+  // the safety line, while scrolling (티온, 10-29; UT: "서버로 넘어간다는 생각이 계속 들어서 불안하다"). True on main and
+  // develop: the find runs on the phone against bundled region outlines (PhotoRecommendationRegion); only the typed
+  // place text is searched online, never a photo
+  { key: "safe", step: "find", title: "찾는 동안 사진은 서버로 안 가요" },
+  { key: "save", step: "find", title: "고른 사진만 앱에 올라가요", interaction: "save" },
+  { key: "map", step: "map", title: "다녀온 곳이 지도에 칠해져요", interaction: "map_toggle" },
+  { key: "globe", step: "map", title: "해외는 나라별로 칠해져요", interaction: "globe_drag" },
   { step: "map", title: "다녀온 곳을 타임라인 영상으로 공유해요", interaction: "year_pick", share: true },
 ]);
 
@@ -55,7 +59,8 @@ export const TECH_SCENES = Object.freeze([
 //   `media: null` shows the dark screen with the share button only; the trip still lands in it.
 // - `enabled: false` drops the share scene and its title (the trip ends back in the globe screen), for example while
 //   the share feature is not in the released app.
-// Off since 10-29 (티온: the map step only shows places filling in).
+// Off since 10-29 (티온: the map step only shows places filling in). Turned back on it is the seventh scene, so the
+// analytics check on scene_index (1-6, src/analytics.js) has to allow 7 first.
 export const TECH_SHARE = Object.freeze({
   enabled: false,
   button: "영상 공유하기",

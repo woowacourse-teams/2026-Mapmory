@@ -5,6 +5,10 @@ import { TECH_COPY, TECH_PIN, TECH_SHARE, TECH_STEPS, TECH_VARIANT, TECH_VARIANT
 
 const EXPERIENCE_TYPE = "tech_story";
 const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={TECH_PIN} /></svg>;
+// the app's search field icons (magnifier, my-location target) and the lock of the safety line
+const Search = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5" /></svg>;
+const Target = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5" /><circle cx="12" cy="12" r="1.8" fill="currentColor" /><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22" /></svg>;
+const Lock = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1Zm2 0h6V7a3 3 0 0 0-6 0v3Z" /></svg>;
 
 // Hand-written step label: one span per letter (the boil animation they were for is gone since 10-29). Assistive
 // tech reads the whole word once from the visually hidden span (aria-label is not allowed on a <p>, axe 5.5).
@@ -134,11 +138,16 @@ function TechStoryInner() {
               <div className="ts-screen-box">
                 <div className="ts-notch" aria-hidden="true" />
 
-                {/* scenes 1 and 2: the record form, one place in the field and that place's photos gathering under it */}
-                <div className="ts-screen" data-scene="">
-                  <button type="button" className="ts-field is-empty" data-field="" aria-label="위치 바꾸기"><Pin /><span data-field-text="" /></button>
+                {/* scenes 1-3: the app's own "어디 사진을 불러올까요?" screen (티온, 10-29): a place goes into the field,
+                    사진 불러오기 is pressed, that place's photos come out of the album, and the safety line rises */}
+                <div className="ts-screen ts-load-screen" data-scene="" data-load-screen="">
+                  <p className="ts-app-q">어디 사진을 불러올까요?</p>
+                  <p className="ts-app-label">장소</p>
+                  <button type="button" className="ts-field is-empty" data-field="" aria-label="장소 바꾸기"><Search /><span data-field-text="" /><span className="ts-field-target"><Target /></span></button>
+                  <div className="ts-load" data-load="" aria-hidden="true">사진 불러오기</div>
                   <div className="ts-gather" data-gather="" />
                   <div className="ts-found" data-found="" role="status"><Pin /><span data-found-text="" /></div>
+                  <div className="ts-safe" data-safe="" aria-hidden="true"><Lock /><span>폰 안에서만 찾아요 · 서버로 보낸 사진 0장</span></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">

@@ -39,17 +39,34 @@
 .ts-screen.is-on, .ts:not(.is-live) .ts-notch + .ts-screen { opacity: 1; visibility: visible; transition: opacity 200ms ease; }
 .ts-ph { border-radius: 4px; background-image: var(--ts-atlas); background-size: var(--ts-bs); }
 
-/* ── scenes 1 and 2, one screen like the app's record form: a place is typed into the field with the scroll, then
-   that place's photos lift out of the grid one after another (2026-10-29, 티온: "위치 하나만 받으면 자동으로 찾아준다") */
-.ts-field { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1.5px solid var(--ts-screen-fg); border-radius: 12px;
-  background: var(--ts-screen); color: var(--ts-screen-fg); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
-.ts-field svg { flex: none; width: 15px; height: 15px; color: var(--ts-accent); }
-.ts-field.is-empty { border-color: var(--line); }
-.ts-field.is-empty [data-field-text]::before { content: "어디 다녀왔나요?"; color: var(--ts-screen-muted); font-weight: 400; }
-.ts-field::after { content: ""; width: 1.5px; height: 18px; margin-left: -4px; background: var(--ts-accent); animation: ts-caret 1s steps(1) infinite; }
-.ts-field.is-done::after { display: none; }
+/* ── scenes 1-3, the app's own "어디 사진을 불러올까요?" screen (티온, 10-29): a place is typed into the field with the
+   scroll and 사진 불러오기 lights up (1), the album's photos of that place lift (2), the others fade and the safety line
+   rises (3) */
+.ts-load-screen { gap: 0; }
+.ts-app-q { margin: 6px 4px 0; font-size: 17px; font-weight: 800; line-height: 1.3; letter-spacing: -0.02em; }
+.ts-app-label { margin: 12px 4px 6px; font-size: 12px; font-weight: 800; }
+.ts-field { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--ts-screen); color: var(--ts-screen-fg); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: border-color 200ms ease; }
+.ts-field > svg { flex: none; width: 15px; height: 15px; color: var(--ts-screen-muted); }
+.ts-field [data-field-text] { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.ts-field.is-empty [data-field-text]::before { content: "장소 또는 행정구역 검색"; color: var(--ts-screen-muted); font-weight: 400; }
+.ts-field:not(.is-empty) { border-color: var(--ts-screen-fg); }
+.ts-field-target { display: flex; color: var(--ts-accent); }
+.ts-field-target svg { width: 17px; height: 17px; }
 .ts-field:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
-@keyframes ts-caret { 50% { opacity: 0; } }
+.ts-load { margin-top: 8px; padding: 11px; border-radius: 14px; background: var(--ts-accent-soft); color: var(--ts-screen-muted); text-align: center;
+  transition: background 200ms ease, color 200ms ease, transform 160ms var(--ts-ease-out); }
+.ts-load.is-ready { background: var(--ts-accent); color: #fff; }
+.ts-load.is-pressed { transform: scale(0.97); }
+/* the album under the form shows once the button is pressed */
+.ts-load-screen .ts-gather { margin-top: 10px; opacity: 0; transition: opacity 250ms ease; }
+.ts-load-screen.is-loaded .ts-gather { opacity: 1; }
+.ts-safe { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 14px;
+  background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 13px; line-height: 1.35; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
+  opacity: 0; transform: translateY(12px); transition: opacity 200ms ease, transform 300ms var(--ts-ease-out); }
+.ts-safe svg { flex: none; width: 15px; height: 15px; color: var(--ts-accent); }
+.ts-safe.is-shown { opacity: 1; transform: none; }
+.ts-load-screen .ts-gather .ts-ph.is-gone { opacity: 0.06; }
 
 .ts-gather { position: relative; flex: 1; min-height: 0; }
 .ts-gather .ts-ph { position: absolute; width: var(--cw); height: var(--cw); padding: 0; border: 0; cursor: pointer; will-change: transform;
@@ -163,6 +180,9 @@
   /* in the phone: 13px or larger text, photos and buttons a finger can hit (about 44px or more) */
   .ts-screen { padding: 34px 8px 10px; }
   .ts-field { min-height: 44px; }
+  .ts-app-q { font-size: 16px; }
+  .ts-app-label { font-size: 13px; }
+  .ts-safe { bottom: 8px; font-size: 13px; }
   .ts-found { bottom: 14px; max-width: calc(100% - 8px); padding: 8px 12px; font-size: 14px; }
   .ts-pick .ts-ph::after { top: 6px; right: 6px; width: 22px; height: 22px; }
   .ts-rec-card { font-size: 15px; }
@@ -193,9 +213,8 @@
 /* reduced motion: states still change (opacity, colour), nothing slides, turns or scales on its own (the engine also
    keeps the globe still) */
 @media (prefers-reduced-motion: reduce) {
-  .ts-screen, .ts-gather .ts-ph, .ts-pick.is-manual .ts-ph, .ts-pv, .ts-rec-card, .ts-found, .ts-share-btn, .ts-pick.is-folded .ts-rec-card { transition: none; }
+  .ts-screen, .ts-gather .ts-ph, .ts-pick.is-manual .ts-ph, .ts-pv, .ts-rec-card, .ts-found, .ts-safe, .ts-load, .ts-share-btn, .ts-pick.is-folded .ts-rec-card { transition: none; }
   .ts-copy, .ts-copy.is-on { transition: none; }
-  .ts-field::after { animation: none; }
 }
 
 :root[data-theme="dark"] .ts {
