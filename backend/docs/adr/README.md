@@ -28,3 +28,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0022](0022-group-sharing-albums.md) | 그룹 공유는 저장은 각자 기록에, 보기는 앨범 하나로 | 제안 |
 | [0023](0023-guest-refresh-lost-rotation.md) | 게스트의 refresh 회전 응답 유실은 후속 토큰이 쓰이지 않았을 때만 재발급 | 제안 |
 | [0024](0024-kakao-login-with-id-token.md) | 카카오 로그인도 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
+| [0025](0025-apple-withdrawal-token-revocation.md) | 애플 회원은 탈퇴할 때 다시 인증받아 애플 토큰을 철회한 뒤 탈퇴 | 제안 |

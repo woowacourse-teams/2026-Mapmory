@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willAnswer;
 
 import com.mapmory.backend.auth.infrastructure.apple.AppleIdentityAdapter;
+import com.mapmory.backend.auth.infrastructure.apple.AppleRevocationAdapter;
 import com.mapmory.backend.auth.infrastructure.google.GoogleIdentityAdapter;
 import com.mapmory.backend.auth.infrastructure.kakao.KakaoIdentityAdapter;
 import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimitProperties;
@@ -50,7 +51,7 @@ import org.springframework.test.context.jdbc.Sql;
  * MockMvc는 쓰지 않는 테스트에도 켠다. 테스트마다 켜고 끄면 컨텍스트 캐시 키가 달라져
  * 같은 설정의 컨텍스트를 새로 띄우게 된다.
  *
- * 외부 연동 빈(소셜 로그인 adapter, Google Places와 호출 한도, S3 업로드 확인과 presigned URL, 미디어 URL)과
+ * 외부 연동 빈(소셜 로그인 adapter, 애플 토큰 철회 adapter, Google Places와 호출 한도, S3 업로드 확인과 presigned URL, 미디어 URL)과
  * 게스트 로그인 한도도 같은 이유로 여기서 spy로 둔다.
  * stub하지 않으면 실제 메서드를 그대로 부르고, stub은 테스트가 끝나면 초기화되므로 이 빈을 쓰지 않는 테스트의 동작은 바뀌지 않는다.
  * spy는 {@code given(spy.method())}로 stub하면 그 순간 실제 메서드가 불린다. {@code willReturn(...).given(spy).method()}로 stub한다.
@@ -81,6 +82,9 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
 
     @MockitoSpyBean
     protected AppleIdentityAdapter appleIdentityAdapter;
+
+    @MockitoSpyBean
+    protected AppleRevocationAdapter appleRevocationAdapter;
 
     @MockitoSpyBean
     protected GoogleIdentityAdapter googleIdentityAdapter;
