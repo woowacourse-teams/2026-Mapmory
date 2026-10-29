@@ -44,6 +44,19 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/share_image_paths" />
         </provider>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="app-updates" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification_pin" />
+        <service
+            android:name=".update.MapmoryFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />
         <activity
             android:name=".MainActivity"
