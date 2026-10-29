@@ -6,12 +6,12 @@
 .ts {
   --ts-accent: var(--accent-strong);
   --ts-accent-soft: var(--accent-soft);
-  --ts-phone-body: #121614;
-  --ts-screen: #ffffff;
-  --ts-screen-fg: #1b231e;
-  --ts-screen-muted: #7b877f;
-  --ts-land: #b9dccb;
-  --ts-sea: #e8f4ee;
+  --ts-phone-body: #161512;
+  --ts-screen: #fffdf9;
+  --ts-screen-fg: #161512;
+  --ts-screen-muted: #7d786d;
+  --ts-land: #c9d8cd;
+  --ts-sea: #eeece5;
   --ts-grid: var(--line);
   --ts-tl-bg: #0f141c;
   --ts-hand: "Nanum Pen Script", "LINE Seed Sans KR", cursive;
@@ -23,14 +23,14 @@
 }
 .ts-head { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 8px; }
 .ts-eyebrow { margin: 0; color: var(--accent-ink); font-size: 14px; font-weight: 700; letter-spacing: 0.08em; }
-.ts-head h2 { margin: 8px 0 0; font-size: var(--type-h2); line-height: 1.25; letter-spacing: -0.03em; text-wrap: balance; word-break: keep-all; }
+.ts-head h2 { margin: 8px 0 0; font-family: var(--serif); font-weight: 600; font-size: var(--type-h2); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
 
 /* ── stage + phone */
 .ts-story { position: relative; }
 .ts-stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
 .ts-phone-wrap { position: absolute; top: 50%; left: 50%; z-index: 1; perspective: 1400px; transform: translate(calc(-50% - min(100vw - 32px, 1000px) * 0.22), -50%); will-change: transform; }
 .ts-phone { width: calc(var(--ph) * 0.462); height: var(--ph); padding: calc(var(--ph) * 0.018); border-radius: calc(var(--ph) * 0.07); background: var(--ts-phone-body);
-  box-shadow: 0 30px 60px -20px rgba(10, 30, 20, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset; will-change: transform, opacity; }
+  box-shadow: 0 24px 48px -24px rgba(22, 21, 18, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.06) inset; will-change: transform, opacity; }
 .ts-screen-box { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: calc(var(--ph) * 0.055); background: var(--ts-screen); color: var(--ts-screen-fg); }
 .ts-notch { position: absolute; top: 8px; left: 50%; z-index: 5; width: 30%; height: 18px; border-radius: 12px; background: var(--ts-phone-body); transform: translateX(-50%); }
 .ts-screen { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 38px 10px 12px; font-size: 13px; font-weight: 700;
@@ -163,9 +163,9 @@
 .ts-copy.is-on, .ts:not(.is-live) .ts-copy[data-caption="0"] { opacity: 1; transform: translateY(-50%);
   transition: opacity 150ms ease, transform 220ms var(--ts-ease-out); }
 .ts-label { display: inline-flex; margin: 0 0 6px; color: var(--accent-ink); font: 400 42px/1 var(--ts-hand); }
-.ts-label .ts-ch { display: inline-block; white-space: pre; animation: ts-boil 0.9s steps(1) infinite; animation-delay: calc(var(--i) * -0.17s); }
-@keyframes ts-boil { 0% { transform: rotate(-5deg) translateY(0); } 33% { transform: rotate(4deg) translateY(-2px); } 66% { transform: rotate(-1deg) translateY(1px); } }
-.ts-copy h3 { margin: 0; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+/* the label holds still (2026-10-29: the boiling wiggle read as childish) */
+.ts-label .ts-ch { display: inline-block; white-space: pre; }
+.ts-copy h3 { margin: 0; font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.38; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
 /* the scroll room under the stage: a spacer per scene and one between the steps; the globe's trip gets three */
 .ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
 .ts-beat { min-height: 92vh; min-height: 92svh; }
@@ -188,7 +188,7 @@
   .ts-captions { top: calc(var(--ts-top) + var(--ph)); width: 100%; }
   .ts-copy.is-right, .ts-copy.is-left { left: 16px; right: 16px; width: auto; text-align: center; }
   .ts-label { margin-bottom: 4px; font-size: 32px; }
-  .ts-copy h3 { font-size: 22px; }
+  .ts-copy h3 { font-size: clamp(19px, 5.6vw, 22px); }
   .ts-fn { font-size: 0.6em; }
   /* room for the phone to turn from the step-1 angle to the step-2 angle */
   .ts-bridge { height: 26svh; }
@@ -234,16 +234,15 @@
    keeps the roll and the globe in place) */
 @media (prefers-reduced-motion: reduce) {
   .ts-screen, .ts-gather .ts-ph, .ts-pick.is-manual .ts-ph, .ts-lv, .ts-flip-in, .ts-rec-card, .ts-found, .ts-region-chip, .ts-trip, .ts-share-btn, .ts-pick.is-folded .ts-rec-card { transition: none; }
-  .ts-label .ts-ch { animation: none; }
   .ts-copy, .ts-copy.is-on { transition: none; }
 }
 
 :root[data-theme="dark"] .ts {
-  --ts-phone-body: #2a302d;
-  --ts-screen: #18201c;
-  --ts-screen-fg: #e6eee9;
-  --ts-screen-muted: #8a9a90;
-  --ts-land: #2f5a47;
-  --ts-sea: #1d2a24;
+  --ts-phone-body: #2b2a26;
+  --ts-screen: #1b1a17;
+  --ts-screen-fg: #f3f0e8;
+  --ts-screen-muted: #9a9488;
+  --ts-land: #3d5446;
+  --ts-sea: #23221e;
 }
 :root[data-theme="dark"] .ts-phone { box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.14); }
