@@ -143,27 +143,34 @@ const { Icon: TrustOnSaveIcon } = TRUST_ON_SAVE;
 
 const memoryByCountry = new Map(memories.map((memory) => [memory.id, memory]));
 const memoryByKey = new Map(memories.map((memory) => [memory.key, memory]));
+// 2026-10-29 "여행 잡지" mood: muted greens for visited countries and ink for the chosen one (was neon mint and yellow)
 function getGlobePalette(theme) {
   return theme === "dark"
     ? {
-        atmosphere: "#93a6b8",
-        visited: "#3fd09a",
-        visitedHover: "#72efbd",
-        unvisited: "#303b4d",
-        visitedSide: "#189a6d",
-        unvisitedSide: "#1b2532",
-        visitedStroke: "#a3f4d3",
-        unvisitedStroke: "#778497",
+        atmosphere: "#5d6b62",
+        visited: "#5f9677",
+        visitedHover: "#7fb497",
+        unvisited: "#2a2925",
+        visitedSide: "#3e6b52",
+        unvisitedSide: "#1c1b18",
+        visitedStroke: "#a8cdb6",
+        unvisitedStroke: "#57534a",
+        selected: "#e9e4d8",
+        selectedSide: "#a9a395",
+        selectedStroke: "#ffffff",
       }
     : {
-        atmosphere: "#c5ded2",
-        visited: "#65d7a7",
-        visitedHover: "#8be9c4",
-        unvisited: "#e7ebe6",
-        visitedSide: "#2cab7b",
-        unvisitedSide: "#c4cec7",
-        visitedStroke: "#f7fffb",
-        unvisitedStroke: "#aab8af",
+        atmosphere: "#d9dfd6",
+        visited: "#8fb79f",
+        visitedHover: "#a9cbb6",
+        unvisited: "#ece9e1",
+        visitedSide: "#5f8f73",
+        unvisitedSide: "#d6d1c5",
+        visitedStroke: "#fbfaf6",
+        unvisitedStroke: "#bdb7aa",
+        selected: "#2f5f45",
+        selectedSide: "#1f4130",
+        selectedStroke: "#fbfaf6",
       };
 }
 
@@ -433,8 +440,8 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
     let material;
     import("three").then(({ MeshPhongMaterial }) => {
       material = new MeshPhongMaterial({
-        color: theme === "dark" ? "#0b111c" : "#f4f6f2",
-        emissive: theme === "dark" ? "#07121b" : "#e8eee9",
+        color: theme === "dark" ? "#181714" : "#f6f4ee",
+        emissive: theme === "dark" ? "#0f0e0c" : "#ebe8e0",
         shininess: theme === "dark" ? 12 : 7,
       });
       if (active) { setMaterialFailed(false); setGlobeMaterial(material); } // a retry (theme change) can recover a failed fetch
@@ -550,9 +557,9 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
       <GlobeLoadBoundary>{materialFailed ? <GlobeUnavailable /> : <Suspense fallback={<div className="globe-loading"><GlobeHemisphereEast size={28} weight="duotone" /><span>지구본을 준비하고 있어요</span></div>}>
         {hasGlobeMounted && globeMaterial && countries.length > 0 && <Globe ref={globeRef} width={size.width} height={size.height} backgroundColor="rgba(0,0,0,0)" globeMaterial={globeMaterial} rendererConfig={GLOBE_RENDERER_CONFIG} showAtmosphere atmosphereColor={globePalette.atmosphere} atmosphereAltitude={0.12} polygonsData={countries}
           onGlobeReady={() => { setIsGlobeReady(true); applyGlobeRenderQuality(globeRef.current); }}
-          polygonCapColor={(polygon) => { const id = String(polygon.id); if (id === selected.id) return "#f6c66f"; if (id === hoveredId && isVisited(polygon)) return globePalette.visitedHover; return isVisited(polygon) ? globePalette.visited : globePalette.unvisited; }}
-          polygonSideColor={(polygon) => (String(polygon.id) === selected.id ? "#b87924" : isVisited(polygon) ? globePalette.visitedSide : globePalette.unvisitedSide)}
-          polygonStrokeColor={(polygon) => (String(polygon.id) === selected.id ? "#fff1c7" : isVisited(polygon) ? globePalette.visitedStroke : globePalette.unvisitedStroke)}
+          polygonCapColor={(polygon) => { const id = String(polygon.id); if (id === selected.id) return globePalette.selected; if (id === hoveredId && isVisited(polygon)) return globePalette.visitedHover; return isVisited(polygon) ? globePalette.visited : globePalette.unvisited; }}
+          polygonSideColor={(polygon) => (String(polygon.id) === selected.id ? globePalette.selectedSide : isVisited(polygon) ? globePalette.visitedSide : globePalette.unvisitedSide)}
+          polygonStrokeColor={(polygon) => (String(polygon.id) === selected.id ? globePalette.selectedStroke : isVisited(polygon) ? globePalette.visitedStroke : globePalette.unvisitedStroke)}
           polygonAltitude={(polygon) => (String(polygon.id) === selected.id ? 0.04 : isVisited(polygon) ? 0.012 : 0.003)}
           polygonsTransitionDuration={WORLD_SELECTION_MOTION_MS}
           onPolygonHover={(polygon) => { const visited = polygon && isVisited(polygon); setHoveredId(visited ? String(polygon.id) : null); if (containerRef.current) containerRef.current.style.cursor = visited ? "pointer" : "grab"; }}
@@ -565,7 +572,7 @@ function InteractiveGlobe({ selected, focusRequest, onSelect, onInteract, theme,
           ? "선택한 나라로 이동하는 중이에요"
           : guideVisible
             ? ""
-            : "민트색 나라를 눌러 사진을 열어보세요"
+            : "초록색 나라를 눌러 사진을 열어보세요"
       }</p>
     </div>
   );
@@ -953,7 +960,7 @@ function App() {
         <div className="experience-pin">
           <div className="section-heading section-heading-flow">
             <div><h2>지구본에서 기억을 꺼내봐요.</h2></div>
-            <p>지구본을 움직이고 민트색 나라를 눌러보세요. 지도는 그대로, 그곳의 사진만 열려요.</p>
+            <p>지구본을 움직이고 초록색 나라를 눌러보세요. 지도는 그대로, 그곳의 사진만 열려요.</p>
           </div>
           <div className={`experience-stage ${isWorldMemoryOpen ? "is-memory-open" : ""}`} ref={experienceStageRef}>
             <article className="globe-panel" id="globe-demo" ref={globePanelRef}>

@@ -122,7 +122,7 @@ export async function sceneLayout(ctx) {
 
 // 3.6 A flick through the section (2,000 px/s on a 390 phone, sampled every frame) still shows each scene's change:
 // every scene is seen in at least two different states (the turned-over row of the roll, the number of lifted photos,
-// the picks and the fold, the map's levels, the trip's stops, the globe landing and the share button).
+// the picks and the fold, the map's levels, the trip's stops, the globe landing; the share scene is tap-only and exempt).
 export async function flickLegible(ctx) {
   const b = await launch(VIEWPORTS.phone);
   try {
@@ -135,13 +135,14 @@ export async function flickLegible(ctx) {
       const text = (sel) => document.querySelector(sel)?.textContent.trim() ?? "";
       const cls = (sel) => document.querySelector(sel)?.className ?? "";
       const sample = () => {
-        const on = [...document.querySelectorAll(".ts-screen")].indexOf(document.querySelector(".ts-screen.is-on"));
-        const state = on === 0 ? [...document.querySelectorAll(".ts-flip.is-open")].map((f) => f.textContent.trim()).join(",")
+        const on = [...document.querySelectorAll("[data-caption]")].indexOf(document.querySelector("[data-caption].is-on"));
+        const globe = () => { const cv = document.querySelector("[data-globe]"); if (!cv?.width) return ""; const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 211) s += d[i] + 2 * d[i + 1]; return String(s); };
+        const state = on === 0 ? `${text("[data-field-text]")}|${cls("[data-load]")}`
           : on === 1 ? String(document.querySelectorAll("[data-gather] .is-hit:not([hidden])").length)
-          : on === 2 ? `${document.querySelectorAll("[data-pick] .is-sel").length}|${cls("[data-pick]")}|${text("[data-save]")}`
-          : on === 3 ? cls("[data-regions]")
-          : on === 4 ? `${text("[data-trip]")}|${cls("[data-trip-globe]")}`
-          : on === 5 ? `${document.querySelector("[data-trip-globe]")?.style.opacity}|${cls("[data-share-btn]")}` : "";
+          : on === 2 ? cls("[data-safe]")
+          : on === 3 ? `${document.querySelectorAll("[data-pick] .is-sel").length}|${cls("[data-pick]")}|${text("[data-save]")}`
+          : on === 4 ? String(document.querySelectorAll("[data-regions] .ts-pv.is-on").length)
+          : on === 5 ? globe() : "";
         window.__flick.push([on, state]);
         window.__flickRaf = requestAnimationFrame(sample);
       };
@@ -155,7 +156,9 @@ export async function flickLegible(ctx) {
       const mine = samples.filter((s) => s[0] === i);
       return { scene: i + 1, frames: mine.length, states: [...new Set(mine.map((s) => s[1]))] };
     });
-    const bad = rows.filter((r) => r.states.length < 2);
+    // the share scene (7) is tap-only by design: its video never plays by itself and scroll changes nothing there
+    const tapOnly = new Set([7]);
+    const bad = rows.filter((r) => r.states.length < 2 && !tapOnly.has(r.scene));
     const file = ctx.evidence("flick.json");
     await fs.writeFile(file, JSON.stringify({ speed: 2000, rows }, null, 2));
     return { pass: bad.length === 0 && n === SCENE_COUNT, value: `장면별 상태 ${rows.map((r) => r.states.length).join("/")}개 (프레임 ${rows.map((r) => r.frames).join("/")})`,

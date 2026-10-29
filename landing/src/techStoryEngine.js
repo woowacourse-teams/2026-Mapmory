@@ -1,29 +1,32 @@
-import { geoDistance, geoGraticule10, geoInterpolate, geoOrthographic, geoPath } from "d3-geo";
+import { geoCentroid, geoGraticule10, geoOrthographic, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
+import countries110 from "world-atlas/countries-110m.json";
 import land110 from "world-atlas/land-110m.json";
 import KOREA from "./data/tech-korea-map.json";
 import SPRITE from "./data/storySprite.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
-import { TECH_MONTHS, TECH_PIN, TECH_TRIP, TECH_VISITED, techScenes } from "./techStory.js";
+import { TECH_COUNTRIES, TECH_PROVINCES, techScenes } from "./techStory.js";
 
 // Port of 티온's approved #tech sketch (v8, 2026-10-23), made scroll-driven on 10-28 (티온: visitors flick through
 // without reading, and waiting for a replay feels slow). Mounted by TechStory.jsx into its own markup; returns destroy.
 // Follows the page scroll and never steers it: one passive scroll listener and rAF, no wheel/touch/key handlers on the
 // page, no preventDefault, scroll-snap or programmatic scroll. Every listener, timer and frame is returned on destroy.
 //
-// The scroll position is the playhead. Each scene's one change (photos turning over, a place's photos lifting, picked
-// photos folding into a record, the map filling, the globe's trip) follows the focus line through that scene's room:
+// The scroll position is the playhead. Each scene's one change (a place typed into the record field, its photos
+// lifting, picked photos folding into a record, the map filling, the globe filling as it turns; 2026-10-29) follows
+// the focus line through that scene's room:
 // a fast scroll plays it in fast-forward, a stop leaves a readable still. Taps stay as optional extras: a tap in a
 // scene takes it over from the scroll until the scene is entered again.
 const LAND = feature(land110, land110.objects.land);
+// the visited countries in fill order, each with the longitude it faces the camera from
+const COUNTRIES = feature(countries110, countries110.objects.countries).features;
+const FILLS = TECH_COUNTRIES.map((name) => COUNTRIES.find((f) => f.properties.name === name)).filter(Boolean);
 const GRATICULE = geoGraticule10();
 const SPRITE_URL = "/assets/story/tiles.webp";
-const PIN = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${TECH_PIN}"/></svg>`;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 // ease-in-out for anything scrubbed by the scroll: it settles into each stop instead of snapping
 const smooth = (t) => { t = clamp(t); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
-const span = (p, [a, b]) => clamp((p - a) / (b - a));
 
 export function mountTechStory(root, { share, onScene = () => {}, onInteract = () => {} }) {
   const $ = (selector) => root.querySelector(selector);
@@ -38,6 +41,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   let colors = null;
   const palette = () => (colors ??= Object.fromEntries(["sea", "land", "grid", "accent", "screen"].map((k) => [k, getComputedStyle(root).getPropertyValue(`--ts-${k}`).trim()])));
   const tried = (i) => onInteract(i + 1, scenes[i].interaction);
+  // each scene's position by its key (-1 when it is not in the story, like the share scene while it is off)
+  const at = Object.fromEntries(["type", "gather", "safe", "save", "map", "globe", "share"].map((key) => [key, scenes.findIndex((s) => s.key === key)]));
   // scenes a tap has taken over from the scroll, until they are entered again
   const manual = new Set();
   const takeOver = (i) => { manual.add(i); tried(i); };
@@ -57,56 +62,14 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     return a;
   };
 
-  // ── scene 1: the camera roll moves up with the scroll, and the photos passing the middle turn over to where and
-  // when they were taken; a hover (tap without hover, Enter on the roll) turns any photo by hand
-  const roll = $("[data-roll]"), rollView = roll.parentElement;
-  // 36 photos twice: a whole number of rows in 3, 4 or 6 columns, so the roll has no seam if it ever wraps
-  const order0 = shuffled(7).slice(0, 36);
-  const flip = (k) => `<div class="ts-flip"><div class="ts-flip-in"><div class="ts-ph" style="${cellStyle(k)}"></div><div class="ts-flip-back">${PIN}${placeOf(k)}<small>${TECH_MONTHS[placeOf(k)] ?? ""}</small></div></div></div>`;
-  roll.innerHTML = [...order0, ...order0].map(flip).join("");
-  const flips = [...roll.children];
-  const byHand = new Set();
-  let rollMids = [], rollHalf = 0, rollRow = 0;
-  function measureRoll() {
-    rollMids = flips.map((f) => f.offsetTop + f.offsetHeight / 2);
-    rollHalf = roll.offsetHeight / 2;
-    rollRow = flips[0]?.offsetHeight ?? 0;
-  }
-  function layoutRoll(q) {
-    if (!rollRow) measureRoll();
-    if (!rollRow) return;
-    const view = rollView.clientHeight;
-    // reduced motion: the roll stays put and the turned-over row walks down it instead
-    const off = reduce ? 0 : q * rollHalf;
-    roll.style.transform = `translateY(${(-off).toFixed(1)}px)`;
-    const band = reduce ? lerp(rollRow * 0.6, view - rollRow * 0.6, q) : view * 0.45;
-    flips.forEach((f, k) => { if (!byHand.has(f)) f.classList.toggle("is-open", Math.abs(rollMids[k] - off - band) < rollRow * 0.55); });
-  }
-  const turn = (tile) => { byHand.add(tile); tile.classList.toggle("is-open"); tried(0); };
-  on(roll, "click", (e) => { const f = e.target.closest(".ts-flip"); if (f) turn(f); });
-  // a hover counts only when the mouse itself moves onto a photo (CSS turns it over)
-  on(roll, "pointermove", (e) => { if (e.pointerType === "mouse" && (e.movementX || e.movementY) && e.target.closest(".ts-flip")) tried(0); });
-  const nearestMiddle = () => {
-    const v = rollView.getBoundingClientRect(), cx = v.left + v.width / 2, cy = v.top + v.height * 0.45;
-    let tile = null, best = Infinity;
-    for (const f of roll.children) { const r = f.getBoundingClientRect(); const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy); if (d < best) { best = d; tile = f; } }
-    return tile;
-  };
-  // keyboard: the roll is one tab stop (72 photos would be 72 stops); Enter or Space turns the photo nearest the middle
-  on(rollView, "keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    const tile = nearestMiddle();
-    if (tile) turn(tile);
-  });
-
-  // ── scene 2: as the scroll goes on, the 제주 photos lift out of the grid one after another and a popup counts them;
-  // a tap on any photo lifts every photo of that place instead
+  // ── scenes 1 and 2, one screen like the app's record form: as the scroll goes on a place is typed into the field
+  // (scene 1), then that place's photos lift out of the grid one after another and a popup says how many (scene 2).
+  // A tap on the field switches the place; a tap on any photo lifts every photo of its place.
   const gather = $("[data-gather]");
-  // 42 photos including every 제주 photo, so the scrubbed gather has a handful to lift
+  // 72 photos including every 제주 photo: the scrubbed gather has a handful to lift, and a desktop phone fills its screen
   const tilesOf = (key) => [...Array(n).keys()].filter((k) => SPRITE.tiles[k][0] === key);
   const jejuAll = tilesOf("jeju");
-  const order1 = shuffled(19).filter((k) => !jejuAll.includes(k)).slice(0, 42 - jejuAll.length);
+  const order1 = shuffled(19).filter((k) => !jejuAll.includes(k)).slice(0, 72 - jejuAll.length);
   gather.innerHTML = [...jejuAll, ...order1].map((k) => `<button type="button" class="ts-ph" data-k="${k}" aria-label="${placeOf(k)} 사진" style="${cellStyle(k)}"></button>`).join("");
   const gTiles = [...gather.children];
   const jejuTiles = gTiles.slice(0, jejuAll.length), otherTiles = gTiles.slice(jejuAll.length);
@@ -164,34 +127,175 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     return h;
   }
   const found = $("[data-found]"), foundText = $("[data-found-text]");
-  const cntN = $("[data-count-n]"), cntT = $("[data-count-t]"), cntP = $("[data-count-place]");
-  const setCounter = (e) => { cntN.textContent = Math.round(30000 * e).toLocaleString("ko-KR"); cntT.textContent = String(Math.round(30 * e)); };
-  let foundTimer = 0;
+  const field = $("[data-field]"), fieldText = $("[data-field-text]");
+  const loadScreen = $("[data-load-screen]"), loadBtn = $("[data-load]"), safe = $("[data-safe]");
+  // the places a tap on the field goes through (the sprite's place labels)
+  const FIELD_PLACES = ["제주", "일본", "미국"];
+  let foundTimer = 0, fieldPlace = FIELD_PLACES[0];
   const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+  const setField = (text) => {
+    setText(fieldText, text);
+    field.classList.toggle("is-empty", !text);
+  };
+  // the form's state: what the field says, whether 사진 불러오기 is lit or pressed, whether the album shows, and
+  // whether the other photos have gone and the safety line is up
+  const setForm = (text, { ready = false, pressed = false, loaded = false, safeOn = false } = {}) => {
+    setField(text);
+    loadBtn.classList.toggle("is-ready", ready);
+    loadBtn.classList.toggle("is-pressed", pressed);
+    loadScreen.classList.toggle("is-loaded", loaded);
+    safe.classList.toggle("is-shown", safeOn);
+    gTiles.forEach((t) => t.classList.toggle("is-gone", safeOn && !t.classList.contains("is-hit")));
+    if (safeOn) found.classList.remove("is-shown");
+  };
+  // scene 1: the place goes into the field a syllable at a time and 사진 불러오기 lights up, then is pressed. The typing
+  // starts halfway through the room: on phones the first half passes before the stage pins
+  function scrubType(q) {
+    const chars = [...fieldPlace], typed = Math.round(smooth((q - 0.5) / 0.3) * chars.length);
+    setForm(chars.slice(0, typed).join(""), { ready: typed === chars.length, pressed: q > 0.9 });
+    layoutGather(null, 0);
+    found.classList.remove("is-shown");
+  }
+  // ── scene 2 with motion (티온, 10-29 13:23Z): after 사진 불러오기 the album pours out of the phone across the whole
+  // stage, the place's photos light up among them, and only those fly back into the phone's grid; the rest fade. The
+  // scroll is the playhead, as everywhere. The place's photos are the very ones the grid in the phone shows, so the
+  // landing hands over to the lifted grid without a jump. Reduced motion keeps the plain lift in the phone.
+  const stage = $("[data-tech-stage]");
+  const burst = document.createElement("div");
+  burst.className = "ts-burst";
+  burst.setAttribute("aria-hidden", "true");
+  stage.appendChild(burst);
+  let burstKey = "", bTiles = [], veil = null;
+  const rand = (seed) => { let x = seed; return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; }; };
+  // the tiles and where each one lands outside the phone: a jittered grid over the stage that leaves the header and the
+  // scene's words clear; the place's photos are spread evenly through it
+  function layoutBurst(place) {
+    const sr = stage.getBoundingClientRect();
+    const key = `${place}|${sr.width}|${sr.height}|${shown.length}|${shownCols}`;
+    if (key === burstKey) return sr;
+    burstKey = key;
+    const size = narrow.matches ? 50 : 84, gap = narrow.matches ? 8 : 14, step = size + gap;
+    const top = narrow.matches ? 76 : 92, words = captions[at.gather]?.querySelector("h3")?.parentElement.getBoundingClientRect();
+    const keepOff = words && { l: words.left - sr.left - 12, r: words.right - sr.left + 12, t: words.top - sr.top - 12, b: words.bottom - sr.top + 12 };
+    const cols = Math.max(1, Math.floor((sr.width - 8) / step)), rows = Math.max(1, Math.floor((sr.height - top - 8) / step));
+    const ox = (sr.width - cols * step + gap) / 2, r = rand(7);
+    let cells = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const cx = ox + x * step + size / 2 + (r() - 0.5) * gap * 1.6, cy = top + y * step + size / 2 + (r() - 0.5) * gap * 1.6;
+      if (keepOff && cx + size / 2 > keepOff.l && cx - size / 2 < keepOff.r && cy + size / 2 > keepOff.t && cy - size / 2 < keepOff.b) continue;
+      cells.push({ x: cx, y: cy, rot: (r() - 0.5) * 16, d: r() });
+    }
+    cells = cells.slice(0, 96);
+    const mine = shown.map((t, i) => ({ k: +t.dataset.k, i })).filter((o) => placeOf(o.k) === place);
+    const others = shuffled(31).filter((k) => placeOf(k) !== place);
+    const every = mine.length ? cells.length / mine.length : Infinity;
+    const placeAt = new Map(mine.map((o, j) => [Math.min(cells.length - 1, Math.floor((j + 0.5) * every)), o]));
+    let o = 0;
+    burst.innerHTML = "";
+    // the veil that dims what is behind the picked photos
+    veil = document.createElement("div");
+    veil.className = "ts-burst-veil";
+    burst.appendChild(veil);
+    bTiles = cells.map((c, idx) => {
+      const m = placeAt.get(idx), k = m ? m.k : others[o++ % others.length];
+      const el = document.createElement("div");
+      el.className = "ts-ph";
+      el.style.cssText = cellStyle(k);
+      burst.appendChild(el);
+      return { el, ...c, slot: m ? m.i : -1, order: m ? mine.indexOf(m) : -1 };
+    });
+    burst.style.setProperty("--bs", `${size}px`);
+    burst.dataset.size = size;
+    return sr;
+  }
+  const hideBurst = () => burst.classList.remove("is-on");
+  function scrubBurst(q) {
+    const g = measureGrid();
+    if (!g) return;
+    const sr = layoutBurst(fieldPlace), size = +burst.dataset.size;
+    // where the photos come from and go to: the album box inside the (turned) phone, as the page sees it
+    const gr = gather.getBoundingClientRect(), fx = gr.width / (gather.clientWidth || 1), fy = gr.height / (gather.clientHeight || 1);
+    const ox = gr.left - sr.left + gr.width / 2, oy = gr.top - sr.top + gr.height / 3;
+    // The beat 티온 asked to dwell on (14:27Z), with no words on the photos (14:34Z): out, the album pours out; pick,
+    // the place's photos come forward one by one as a ring closes on each, while the rest step back behind a dimming
+    // veil; back, they fly into the phone
+    const out = (q - 0.04) / 0.3, pick = (q - 0.36) / 0.28, back = (q - 0.66) / 0.22;
+    const recede = smooth(pick * 1.6);
+    // the album fades back in under the photos as they land, then the flying copies go
+    const landed = q >= 0.9, album = q >= 0.8;
+    setForm(fieldPlace, { ready: true, loaded: album });
+    layoutGather(fieldPlace, album ? Infinity : 0);
+    const total = shownOf(fieldPlace);
+    setText(foundText, `${fieldPlace} 사진 ${total}장을 찾았어요`);
+    found.classList.toggle("is-shown", landed && total > 0);
+    burst.classList.toggle("is-on", out > 0 && !landed);
+    if (out <= 0 || landed) return;
+    const { cols, cw } = g;
+    const cx = sr.width / 2, cy = sr.height / 2;
+    const fade = smooth(back * 1.5);
+    veil.style.opacity = (recede * (1 - fade)).toFixed(3);
+    bTiles.forEach((t) => {
+      const a = smooth(out * 1.5 - t.d * 0.5);
+      let x = lerp(ox, t.x, a), y = lerp(oy, t.y, a), sc = lerp(0.2, 1, a), rot = t.rot * a, op = clamp(a * 4);
+      if (t.slot >= 0) {
+        const b = smooth(back * 1.4 - t.d * 0.4);
+        const fxp = gr.left - sr.left + ((t.slot % cols) * (cw + GAP) + cw / 2) * fx;
+        const fyp = gr.top - sr.top + (Math.floor(t.slot / cols) * (cw + GAP) + cw / 2) * fy - 3;
+        // one after another: it comes forward bigger with a small overshoot and straightens, then holds there
+        const pj = clamp((pick - (t.order / Math.max(1, total)) * 0.55) / 0.3), pop = Math.sin(Math.PI * clamp(pj * 1.25)) * (pj < 0.8 ? 1 : 0);
+        const up = smooth(pj);
+        y -= (8 * up + 12 * pop) * (1 - b);
+        x = lerp(x, fxp, b); y = lerp(y, fyp, b); rot = lerp(rot * (1 - up), 0, b);
+        sc = lerp(sc * (1 + 0.38 * up + 0.14 * pop), (cw * 1.12 * fx) / size, b);
+        t.el.classList.toggle("is-hit", pj > 0.12);
+      } else {
+        // the rest step back: smaller, a little away from the middle, under the veil, and gone as the others land
+        const b = smooth(back * 1.6 - t.d * 0.6);
+        x += (x - cx) * 0.08 * recede; y += (y - cy) * 0.08 * recede;
+        op *= lerp(1, 0.55, recede) * (1 - b);
+        sc *= lerp(1, 0.74, recede) * lerp(1, 0.9, b);
+      }
+      t.el.style.opacity = op.toFixed(3);
+      t.el.style.transform = `translate(${(x - size / 2).toFixed(1)}px,${(y - size / 2).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`;
+    });
+  }
+  // scene 2: the album shows and the place's photos lift one after another
   function scrubGather(q) {
+    if (!reduce) { scrubBurst(q); return; }
     if (!measureGrid()) return;
-    const total = shownOf("제주");
-    const lifted = Math.round(smooth((q - 0.12) / 0.55) * total);
-    layoutGather("제주", lifted);
-    setText(cntP, "제주");
-    setText(foundText, `제주 사진 ${total}장을 모았어요`);
+    setForm(fieldPlace, { ready: true, loaded: true });
+    const total = shownOf(fieldPlace);
+    const lifted = Math.round(smooth((q - 0.1) / 0.6) * total);
+    layoutGather(fieldPlace, lifted);
+    setText(foundText, `${fieldPlace} 사진 ${total}장을 찾았어요`);
     found.classList.toggle("is-shown", total > 0 && lifted >= total);
-    setCounter(smooth((q - 0.05) / 0.6));
+  }
+  // scene 3: the found photos stay, the rest of the album fades, and the line that nothing left the phone rises
+  function scrubSafe(q) {
+    if (!measureGrid()) return;
+    layoutGather(fieldPlace, Infinity);
+    setForm(fieldPlace, { ready: true, loaded: true, safeOn: q > 0.15 });
   }
   function gatherTo(place) {
-    cntP.textContent = place;
+    fieldPlace = place;
+    setForm(place, { ready: true, loaded: true });
     const total = layoutGather(place, Infinity, true);
     found.classList.remove("is-shown");
     clearTimeout(foundTimer);
-    foundText.textContent = `${place} 사진 ${total}장을 모았어요`;
+    foundText.textContent = `${place} 사진 ${total}장을 찾았어요`;
     foundTimer = later(() => found.classList.add("is-shown"), reduce ? 0 : 200 + total * 45);
-    setCounter(1);
   }
+  // by hand the scenes of the screen stay with the tap until they are entered again
+  const byHandGather = (i) => { [at.type, at.gather, at.safe].forEach((k) => manual.add(k)); tried(i); };
   on(gather, "click", (e) => {
     const t = e.target.closest(".ts-ph");
     if (!t) return;
-    takeOver(1);
+    byHandGather(at.gather);
     gatherTo(placeOf(+t.dataset.k));
+  });
+  on(field, "click", () => {
+    byHandGather(at.type);
+    gatherTo(FIELD_PLACES[(FIELD_PLACES.indexOf(fieldPlace) + 1) % FIELD_PLACES.length]);
   });
 
   // ── scene 3: as the scroll goes on, three photos are picked and fold into one record card; a tap picks or unpicks a
@@ -245,7 +349,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     layoutPick(smooth((q - 0.52) / 0.3));
   }
   // by hand the fold is a CSS transition (`.is-manual`), by scroll the frames are the animation
-  const byHandPick = () => { pick.classList.add("is-manual"); takeOver(2); };
+  const byHandPick = () => { pick.classList.add("is-manual"); takeOver(at.save); };
   on(pick, "click", (e) => {
     const t = e.target.closest(".ts-ph");
     // a tap anywhere on the folded card unfolds it; otherwise only a photo counts, blank space is not a try
@@ -257,95 +361,61 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   });
   on(save, "click", () => { byHandPick(); layoutPick(1); });
 
-  // ── scene 4: as the scroll goes on, 경주시 -> 경상북도 -> 대한민국 fill; a tap clears the map, a tap again fills it
+  // ── scene 4: as the scroll goes on, the 시·도 the records visited fill one by one in date order; a tap clears the
+  // map, a tap again fills it
   const regions = $("[data-regions]");
   const [w, h] = [KOREA.w + 12, KOREA.h + 12];
   regions.innerHTML = `<svg viewBox="-6 -6 ${w} ${h}" aria-hidden="true"><defs><path id="ts-kr" d="${KOREA.kr}"/></defs>`
-    + '<use class="ts-lv is-kr" href="#ts-kr"/>'
-    + `<path class="ts-lv is-gb" d="${KOREA.gb}"/><path class="ts-lv is-gj" d="${KOREA.gj}"/>`
-    + `<use class="ts-ln is-dist" href="#ts-kr"/><path class="ts-ln is-sd" d="${KOREA.sd}"/>`
-    + `<text class="ts-tag is-t1" x="${KOREA.gjc[0] - 6}" y="${KOREA.gjc[1] + 3}" text-anchor="end">경주시</text>`
-    + `<text class="ts-tag is-t2" x="${KOREA.gbc[0]}" y="${KOREA.gbc[1]}" text-anchor="middle">경상북도</text>`
-    + `<text class="ts-tag is-t3" x="${KOREA.krc[0]}" y="${KOREA.krc[1]}" text-anchor="end">대한민국</text></svg>`;
-  const chip = $("[data-region-chip]"), chipText = $("[data-region-chip-text]");
-  const LEVELS = ["", "경주시", "경상북도", "대한민국"];
-  let level = 0, chipTimers = [];
-  // `staged`: by hand the three levels follow one another (the same beats as .is-staged in tech-story.css)
-  function setLevel(lvl, staged = false) {
-    level = lvl;
-    regions.classList.toggle("is-staged", staged);
-    for (let l = 1; l <= 3; l++) regions.classList.toggle(`is-l${l}`, lvl >= l);
-    regions.classList.toggle("is-filled", lvl > 0);
-    regions.setAttribute("aria-pressed", String(lvl > 0));
-    chipTimers.forEach((id) => { clearTimeout(id); timers.delete(id); });
-    chipTimers = [];
-    chip.classList.toggle("is-shown", lvl > 0);
-    if (!lvl) return;
-    if (!staged || reduce) { chipText.textContent = LEVELS[lvl]; return; }
-    for (let l = 1; l <= lvl; l++) chipTimers.push(later(() => { chipText.textContent = LEVELS[l]; }, (l - 1) * 350));
+    + '<use class="ts-kr" href="#ts-kr"/>'
+    + TECH_PROVINCES.map((name) => `<path class="ts-pv" d="${KOREA.pv[name]}"/>`).join("")
+    + `<use class="ts-ln is-dist" href="#ts-kr"/><path class="ts-ln is-sd" d="${KOREA.sd}"/></svg>`;
+  const provinces = [...regions.querySelectorAll(".ts-pv")];
+  let filled = 0;
+  function setFilled(count) {
+    filled = count;
+    provinces.forEach((el, i) => el.classList.toggle("is-on", i < count));
+    regions.setAttribute("aria-pressed", String(count > 0));
   }
-  const scrubMap = (q) => setLevel(q < 0.12 ? 0 : q < 0.42 ? 1 : q < 0.72 ? 2 : 3);
-  const toggleFill = () => { takeOver(3); setLevel(level > 0 ? 0 : 3, true); };
+  const scrubMap = (q) => setFilled(Math.round(smooth((q - 0.1) / 0.7) * provinces.length));
+  const toggleFill = () => { takeOver(at.map); setFilled(filled > 0 ? 0 : provinces.length); };
   on(regions, "click", toggleFill);
   on(regions, "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFill(); } });
 
-  // ── globes (d3 orthographic on canvas): sea, graticule, land, route, dots, the flying tip. `zoom` above 1 looks
-  // closer at a part of the globe through its round outline.
-  const keys = new WeakMap();
-  function drawGlobe(canvas, rotate, o) {
-    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  // ── scene 5 (d3 orthographic on canvas): sea, graticule, land and the visited countries filled. As the scroll goes on
+  // the globe turns from one visited country to the next in date order and each fills as it comes round; a drag or
+  // the arrow keys turn it more.
+  const globe = $("[data-globe]");
+  let globeKey = "";
+  function drawGlobe(rotate, fills) {
+    const cw = globe.clientWidth, ch = globe.clientHeight;
     if (!cw || !ch) return;
-    const c = palette(), zoom = o.zoom ?? 1;
-    const key = `${cw}x${ch}|${rotate.map((v) => v.toFixed(2))}|${zoom.toFixed(3)}|${o.route?.length ?? 0}|${o.tip?.map((v) => v.toFixed(2)) ?? ""}|${c.sea}`;
-    if (keys.get(canvas) === key) return;
-    keys.set(canvas, key);
-    const ctx = canvas.getContext("2d"), dpr = Math.min(devicePixelRatio || 1, 2);
-    if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) { canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr); }
+    const c = palette();
+    const key = `${cw}x${ch}|${rotate.map((v) => v.toFixed(2))}|${fills}|${c.sea}`;
+    if (globeKey === key) return;
+    globeKey = key;
+    const ctx = globe.getContext("2d"), dpr = Math.min(devicePixelRatio || 1, 2);
+    if (globe.width !== Math.round(cw * dpr) || globe.height !== Math.round(ch * dpr)) { globe.width = Math.round(cw * dpr); globe.height = Math.round(ch * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
-    const R = Math.min(cw, ch) * 0.47, cx = cw / 2, cy = ch / 2;
-    ctx.save();
-    if (zoom > 1) { ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip(); }
-    const path = geoPath(geoOrthographic().translate([cx, cy]).scale(R * zoom).rotate(rotate).clipAngle(90), ctx);
+    const R = Math.min(cw, ch) * 0.47;
+    const path = geoPath(geoOrthographic().translate([cw / 2, ch / 2]).scale(R).rotate(rotate).clipAngle(90), ctx);
     ctx.beginPath(); path({ type: "Sphere" }); ctx.fillStyle = c.sea; ctx.fill();
     ctx.beginPath(); path(GRATICULE); ctx.strokeStyle = c.grid; ctx.lineWidth = 0.5; ctx.stroke();
     ctx.beginPath(); path(LAND); ctx.fillStyle = c.land; ctx.fill();
-    if (o.route?.length > 1) { ctx.beginPath(); path({ type: "LineString", coordinates: o.route }); ctx.strokeStyle = c.accent; ctx.lineWidth = Math.max(1.5, R * 0.012); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(); }
-    ctx.fillStyle = c.accent;
-    path.pointRadius(Math.max(2.5, R * 0.02));
-    o.points.forEach((pt) => { ctx.beginPath(); path({ type: "Point", coordinates: pt }); ctx.fill(); });
-    if (o.tip) {
-      path.pointRadius(Math.max(5, R * 0.045)); ctx.beginPath(); path({ type: "Point", coordinates: o.tip }); ctx.fillStyle = c.screen; ctx.fill();
-      path.pointRadius(Math.max(3, R * 0.028)); ctx.beginPath(); path({ type: "Point", coordinates: o.tip }); ctx.fillStyle = c.accent; ctx.fill();
-    }
-    ctx.restore();
+    ctx.beginPath(); FILLS.slice(0, fills).forEach((f) => path(f)); ctx.fillStyle = c.accent; ctx.fill();
   }
-
-  // ── scenes 5 and 6, one trip: the globe turns a little with the scroll inside the phone (a drag or the arrow keys
-  // turn it more), comes out of the phone, flies through the recorded places in date order at the speed of the
-  // scroll, and goes back into the phone as the video to share
-  const globe = $("[data-globe]"), big = $("[data-trip-globe]"), hud = $("[data-trip]"), hudName = $("[data-trip-name]"), hudDate = $("[data-trip-date]");
-  const shareBtn = $("[data-share-btn]"), shareBox = $("[data-share-box]");
-  const stops = TECH_TRIP, ll = (s) => [s.lon, s.lat];
-  const LEGS = stops.slice(1).map((s, i) => ({ arc: geoInterpolate(ll(stops[i]), ll(s)), d: (geoDistance(ll(stops[i]), ll(s)) * 180) / Math.PI }));
-  // scroll room per leg: a hop at home is quick, a flight abroad takes longer
-  const weights = LEGS.map((l) => 0.45 + 1.4 * Math.sqrt(l.d / 180));
-  const wsum = weights.reduce((a, b) => a + b, 0);
-  const starts = weights.reduce((acc, w) => [...acc, acc[acc.length - 1] + w / wsum], [0]);
-  // the camera comes closer for a short hop, so it can be seen, and backs out for a flight
-  const zoomOf = (d) => clamp(1 + 1.6 * (1 - d / 30), 1, 2.6);
-  const legZoom = LEGS.map((l) => zoomOf(l.d));
-  const stopZoom = stops.map((_, k) => (k === 0 ? legZoom[0] : k === LEGS.length ? legZoom[k - 1] : (legZoom[k - 1] + legZoom[k]) / 2));
-  const facing = (s) => [-s.lon, -s.lat * 0.6];
-  // the trip's room is the globe scene's (long) beat and the share scene's beat together. Its phases hang off where
-  // the share beat begins (`pShare`, measured each frame, since the beat heights are CSS): the globe starts back a
-  // little before the share screen appears and lands just after, so it always lands into the dark share screen
-  // whatever the beat heights or the viewport. Without the share scene the room is the globe beat alone.
-  const phases = (pShare) => share.enabled
-    ? { out: [0.06, 0.2], trip: [0.2, pShare - 0.09], back: [pShare - 0.09, pShare + 0.03], land: pShare + 0.03 }
-    : { out: [0.08, 0.26], trip: [0.26, 0.86], back: [0.86, 0.98], land: 0.98 };
-  let dragRot = 0, dragX = null, dragStart = null, GS = 300, bigOn = false, hudOn = false, hudAt = -1;
-  const drawInPhone = (rot, o = {}) => drawGlobe(globe, [rot, -22], { points: TECH_VISITED, ...o });
+  // where each visited country faces the camera from; the turn between two takes the short way round
+  const FACES = FILLS.map((f) => geoCentroid(f));
+  const turnTo = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;
+  let dragRot = 0, dragX = null, dragStart = null;
+  function scrubGlobe(q) {
+    if (!FACES.length) return;
+    const f = clamp((q - 0.05) / 0.85) * (FACES.length - 1), i = Math.min(FACES.length - 2, Math.floor(f));
+    const t = reduce ? Math.round(f - i) : smooth(f - i), [a, b] = [FACES[i], FACES[i + 1] ?? FACES[i]];
+    const lon = turnTo(a[0], b[0], t), lat = a[1] + (b[1] - a[1]) * t;
+    // a country fills as the turn arrives at it
+    drawGlobe([-lon + dragRot, -lat * 0.6], Math.min(FILLS.length, i + 1 + (f - i > 0.6 ? 1 : 0)));
+  }
   // same rule as the interactive globe: a tap or a phone's vertical page pan is not a drag
   on(globe, "pointerdown", (e) => { dragStart = e; dragX = null; });
   on(globe, "pointermove", (e) => {
@@ -355,7 +425,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       if (kind === "page_scroll") { dragStart = null; return; }
       dragX = dragStart.clientX;
       globe.setPointerCapture?.(e.pointerId);
-      tried(4);
+      tried(at.globe);
     }
     if (dragX === null) return;
     dragRot += (e.clientX - dragX) * 0.5;
@@ -369,104 +439,13 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (!step) return;
     e.preventDefault();
     dragRot += step;
-    tried(4);
+    tried(at.globe);
     schedule();
   });
-  const showHud = (at, x, y) => {
-    if (at !== hudAt) { hudAt = at; hudName.textContent = stops[at].name; hudDate.textContent = stops[at].date.slice(0, 8); }
-    hud.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translateX(-50%)`;
-    if (!hudOn) { hudOn = true; hud.classList.add("is-on"); }
-  };
-  const hideHud = () => { if (hudOn) { hudOn = false; hud.classList.remove("is-on"); } };
-  const hideBig = () => { if (bigOn) { bigOn = false; big.classList.remove("is-on"); globe.style.opacity = ""; } };
-  // the big globe: as wide as the stage allows, no wider than 440px, and on phones no taller than the room between the
-  // header and the words under the phone
-  function sizeBig(st, wr) {
-    const cy = wr.top - st.top + wr.height / 2;
-    let gs = Math.min(st.width * 0.92, 440);
-    if (narrow.matches) { const cap = captionsEl.getBoundingClientRect(); gs = Math.min(gs, 2 * (cap.top - st.top - cy) - 76, 2 * (cy - 72)); } else gs = Math.min(gs, st.height * 0.56);
-    gs = Math.max(140, Math.round(gs));
-    if (gs !== GS) { GS = gs; big.style.width = big.style.height = `${GS}px`; }
-    return { x: wr.left - st.left + wr.width / 2, y: cy, s: 1 };
-  }
-  // where the trip is, 0..1, from the focus line through the trip's room. The room's end is where the stage unpins
-  // (the beats' bottom meets the stage's bottom), which the focus line itself never reaches.
-  function tripProgress(focus) {
-    const r4 = beats[4].getBoundingClientRect(), r5 = beats[5]?.getBoundingClientRect(), rl = r5 ?? r4;
-    const end = rl.bottom - (stage.getBoundingClientRect().bottom - focus);
-    const room = Math.max(1, end - r4.top);
-    // pShare: where the share beat (scene 6) begins in the room; kept away from the ends so the trip keeps its room
-    return { p: clamp((focus - r4.top) / room), pShare: r5 ? clamp((r5.top - r4.top) / room, 0.5, 0.95) : 1 };
-  }
-  // returns how the phone itself should look: `tilt` 1 = the step's angle, 0 = facing the visitor
-  function tripFrame(focus) {
-    const { p, pShare } = tripProgress(focus);
-    const P = phases(pShare);
-    const inPhase = p < P.out[0];
-    const rotIn = -110 + smooth(p / P.out[0]) * 30 + dragRot;
-    const look = { tilt: 1 - smooth(p / P.out[0]), scale: 1, alpha: 1 };
-    shareBtn?.classList.toggle("is-pressed", p >= P.land + 0.06);
-    if (reduce) {
-      // reduced motion: the globe stays in the phone; the route draws in and the view steps from place to place
-      hideBig();
-      if (p < P.trip[0]) { drawInPhone(rotIn); hideHud(); return { tilt: 1, scale: 1, alpha: 1 }; }
-      const u = span(p, P.trip), i = Math.min(LEGS.length - 1, starts.findIndex((s, k) => u >= s && u < (starts[k + 1] ?? 2)));
-      const local = span(u, [starts[i], starts[i + 1]]), at = p >= P.trip[1] ? stops.length - 1 : local < 0.5 ? i : i + 1;
-      drawGlobe(globe, facing(stops[at]), { points: TECH_VISITED, route: stops.slice(0, at + 1).map(ll), tip: ll(stops[at]) });
-      if (p < P.back[0]) { const r = globe.getBoundingClientRect(), st = stage.getBoundingClientRect(); showHud(at, r.left - st.left + r.width / 2, r.bottom - st.top + 8); } else hideHud();
-      return { tilt: 1, scale: 1, alpha: 1 };
-    }
-    if (inPhase) { hideBig(); hideHud(); drawInPhone(rotIn); return look; }
-    const st = stage.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-    const bigPos = sizeBig(st, wr);
-    // where the globe sits inside the phone: the globe screen on the way out, the share screen on the way back
-    const home = share.enabled && p >= P.back[0] && shareBox ? shareBox : globe;
-    const hr = home.getBoundingClientRect();
-    const small = { x: hr.left - st.left + hr.width / 2, y: hr.top - st.top + hr.height / 2, s: Math.min(hr.width, hr.height) / GS };
-    let pos, rotate, zoom = 1, route = [], tip = null, alpha = 1;
-    if (p < P.out[1]) {
-      const e = smooth(span(p, P.out));
-      pos = { x: lerp(small.x, bigPos.x, e), y: lerp(small.y, bigPos.y, e), s: lerp(small.s, 1, e) };
-      look.scale = lerp(1, 0.9, e); look.alpha = lerp(1, 0.28, e);
-      const to = facing(stops[0]);
-      rotate = [lerp(-110 + 30 + dragRot, to[0], e), lerp(-22, to[1], e)];
-      zoom = lerp(1, stopZoom[0], e);
-      tip = e > 0.5 ? ll(stops[0]) : null;
-      hideHud();
-    } else if (p < P.trip[1]) {
-      const u = span(p, P.trip);
-      let i = starts.findIndex((s, k) => u >= s && u < (starts[k + 1] ?? 2));
-      i = clamp(i, 0, LEGS.length - 1);
-      const local = span(u, [starts[i], starts[i + 1]]), e = smooth(local);
-      tip = LEGS[i].arc(e);
-      pos = bigPos; look.scale = 0.9; look.alpha = 0.28;
-      rotate = [-tip[0], -tip[1] * 0.6];
-      zoom = local < 0.25 ? lerp(stopZoom[i], legZoom[i], local / 0.25) : local > 0.75 ? lerp(legZoom[i], stopZoom[i + 1], (local - 0.75) / 0.25) : legZoom[i];
-      route = [...stops.slice(0, i + 1).map(ll), tip];
-      showHud(local < 0.5 ? i : i + 1, bigPos.x, bigPos.y + GS / 2 + 14);
-    } else {
-      const e = smooth(span(p, P.back)), last = stops[stops.length - 1];
-      pos = { x: lerp(bigPos.x, small.x, e), y: lerp(bigPos.y, small.y, e), s: lerp(1, small.s, e) };
-      look.scale = lerp(0.9, 1, e); look.alpha = lerp(0.28, 1, e);
-      const f = facing(last);
-      rotate = [f[0] + 10 * e, f[1]];
-      zoom = lerp(stopZoom[stops.length - 1], 1, e);
-      route = stops.map(ll); tip = ll(last);
-      alpha = 1 - clamp((p - P.land) / 0.04);
-      hideHud();
-    }
-    if (!bigOn) { bigOn = true; big.classList.add("is-on"); globe.style.opacity = "0"; }
-    big.style.opacity = alpha.toFixed(3);
-    big.style.transform = `translate(${(pos.x - (GS * pos.s) / 2).toFixed(1)}px,${(pos.y - (GS * pos.s) / 2).toFixed(1)}px) scale(${pos.s.toFixed(4)})`;
-    drawGlobe(big, rotate, { points: TECH_VISITED, route, tip, zoom });
-    // the globe screen keeps the finished route for the way back when there is no share screen
-    if (!share.enabled && p >= P.back[0]) drawGlobe(globe, facing(stops[stops.length - 1]), { points: TECH_VISITED, route: stops.map(ll), tip: ll(stops[stops.length - 1]) });
-    return look;
-  }
 
-  // ── scene 6: the share video. Never plays by itself; a year button plays from that year, a tap pauses or plays.
+  // ── scene 6 (TECH_SHARE.enabled, off since 10-29): the share video. Never plays by itself; a year button plays from that year, a tap pauses or plays.
   const shareVideo = $("[data-share-video]");
-  const shareYears = $("[data-share-years]");
+  const shareYears = $("[data-share-years]"), shareBox = $("[data-share-box]");
   let loadVideo = () => Promise.resolve(), videoBlob = "", gone = false;
   if (shareVideo) {
     // muted, so it may play on phones too (with playsinline). The first source this browser can play, resolved against
@@ -509,7 +488,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       on(shareYears, "click", (e) => {
         const b = e.target.closest("button");
         if (!b) return;
-        tried(5);
+        tried(at.share);
         seek(+b.dataset.at);
       });
     }
@@ -518,10 +497,12 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
 
   // ── scenes and scroll
   const screens = $$("[data-scene]");
+  // the first three scenes share the app's form screen; every later scene has its own
+  const screenOf = (i) => Math.max(0, i - at.safe);
   const beats = $$("[data-beat]");
   const captions = $$("[data-caption]");
   const bridges = $$("[data-bridge]");
-  const stage = $("[data-tech-stage]"), wrap = $("[data-phone-wrap]"), phone = $("[data-phone]"), captionsEl = $(".ts-captions");
+  const wrap = $("[data-phone-wrap]"), phone = $("[data-phone]"), captionsEl = $(".ts-captions");
   let active = -1, frameRaf = 0, visible = false, shownCaption = null;
   // the words change in place with the scene
   function showCaption(el) {
@@ -530,21 +511,20 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     shownCaption = el;
   }
   // entering a scene hands it back to the scroll
-  const onEnter = [
-    () => byHand.clear(),
-    () => { manual.delete(1); clearTimeout(foundTimer); },
-    () => { manual.delete(2); pick.classList.remove("is-manual"); },
-    () => manual.delete(3),
-    () => {},
-    () => {},
-  ];
+  const backToScroll = () => { [at.type, at.gather, at.safe].forEach((k) => manual.delete(k)); clearTimeout(foundTimer); };
+  const onEnter = {
+    [at.type]: () => { backToScroll(); fieldPlace = FIELD_PLACES[0]; },
+    [at.gather]: backToScroll,
+    [at.safe]: backToScroll,
+    [at.save]: () => { manual.delete(at.save); pick.classList.remove("is-manual"); },
+    [at.map]: () => manual.delete(at.map),
+  };
   // i = -1 while the section is off screen: everything stops, and re-entry starts the scene again
   function setActive(i) {
     if (i === active) return;
     active = i;
-    if (i >= 0) screens.forEach((s, k) => s.classList.toggle("is-on", k === i));
-    if (i !== 5) shareVideo?.pause?.();
-    if (i < 4) { hideBig(); hideHud(); }
+    if (i >= 0) screens.forEach((s, k) => s.classList.toggle("is-on", k === screenOf(i)));
+    if (i !== at.share) shareVideo?.pause?.();
     if (i < 0) return;
     onEnter[i]?.();
     onScene(i + 1);
@@ -566,30 +546,31 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (act < 0) { act = near; q = focus < nearTop ? 0 : 1; }
     setActive(act);
     showCaption(captions[act]);
+    if (act !== at.gather || manual.has(act)) hideBurst();
     if (!manual.has(act)) {
-      if (act === 0) layoutRoll(q);
-      else if (act === 1) scrubGather(q);
-      else if (act === 2) scrubPick(q);
-      else if (act === 3) scrubMap(q);
+      if (act === at.type) scrubType(q);
+      else if (act === at.gather) scrubGather(q);
+      else if (act === at.safe) scrubSafe(q);
+      else if (act === at.save) scrubPick(q);
+      else if (act === at.map) scrubMap(q);
     }
-    const look = act >= 4 ? tripFrame(focus) : { tilt: 1, scale: 1, alpha: 1 };
+    if (act === at.globe) scrubGlobe(q);
     const raw = bridges.length ? (() => { const r = bridges[0].getBoundingClientRect(); return clamp((focus - r.top) / r.height); })() : 0;
     const p = reduce ? (raw > 0.5 ? 1 : 0) : smooth(raw);
-    // side: -1 = phone on the left (step 1), +1 = on the right (step 2); the phone faces the visitor for the trip
-    const side = (-1 + 2 * p) * look.tilt;
-    const scale = look.scale === 1 ? "" : ` scale(${look.scale.toFixed(4)})`;
+    // side: -1 = phone on the left (step 1), +1 = on the right (step 2)
+    const side = -1 + 2 * p;
     if (narrow.matches) {
       // Phones tell the steps apart by the angle the phone is seen from (티온, 10-27): it stays centred and turns a
       // little toward one side for step 1 and the other for step 2 (the same way round as on desktop), and the turn
       // between them follows the scroll through the room between the steps.
       wrap.style.transform = "translate(-50%,-50%)";
-      phone.style.transform = `rotateY(${(-14 * side).toFixed(2)}deg) rotateZ(${(side * 1.2).toFixed(2)}deg)${scale}`;
+      phone.style.transform = `rotateY(${(-14 * side).toFixed(2)}deg) rotateZ(${(side * 1.2).toFixed(2)}deg)`;
     } else {
-      const span = Math.min(captionsEl.clientWidth, 1120);
-      wrap.style.transform = `translate(calc(-50% + ${0.26 * (-1 + 2 * p) * span}px),-50%)`;
-      phone.style.transform = `rotateY(${(-18 * side).toFixed(2)}deg) rotateZ(${(side * 1.5).toFixed(2)}deg)${scale}`;
+      // 0.22 of a 1000px row (was 0.26 of 1120): the phone and its words sit closer, no empty third between them
+      const span = Math.min(captionsEl.clientWidth, 1000);
+      wrap.style.transform = `translate(calc(-50% + ${0.22 * (-1 + 2 * p) * span}px),-50%)`;
+      phone.style.transform = `rotateY(${(-18 * side).toFixed(2)}deg) rotateZ(${(side * 1.5).toFixed(2)}deg)`;
     }
-    phone.style.opacity = look.alpha === 1 ? "" : look.alpha.toFixed(3);
   }
   const schedule = () => { if (visible && !frameRaf) frameRaf = requestAnimationFrame(frame); };
   on(window, "scroll", schedule, { passive: true });
@@ -597,14 +578,14 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   const onScreen = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     if (visible) schedule();
-    else { cancelAnimationFrame(frameRaf); frameRaf = 0; setActive(-1); onScene(0); }
+    else { cancelAnimationFrame(frameRaf); frameRaf = 0; hideBurst(); setActive(-1); onScene(0); }
   });
   onScreen.observe($(".ts-story"));
   const resize = new ResizeObserver(() => {
-    measureRoll();
     layoutGather(gatherState.place, gatherState.count, gatherState.stagger);
+    burstKey = "";
     layoutPick(fold);
-    keys.delete(globe); keys.delete(big);
+    globeKey = "";
     schedule();
   });
   resize.observe(root);
@@ -613,11 +594,10 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   root.classList.add("is-live");
-  measureRoll();
-  layoutRoll(0);
-  layoutGather("제주", 0);
+  setForm("");
+  layoutGather(null, 0);
   layoutPick(0);
-  setLevel(0);
+  setFilled(0);
 
   const destroy = () => {
     gone = true;
@@ -630,8 +610,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     onScreen.disconnect();
     theme.disconnect();
     root.classList.remove("is-live");
-    roll.innerHTML = "";
     gather.innerHTML = "";
+    burst.remove();
     pTiles.forEach((t) => t.remove());
     regions.innerHTML = "";
   };

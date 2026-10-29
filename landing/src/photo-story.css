@@ -2,37 +2,37 @@
    plus main's .how-section and its globe link. Canvas colours come from the --ps-* tokens below; the dark block at the
    end restyles both in place when the header's theme toggle flips data-theme. */
 .wall-hero, .ps {
-  --ps-on-accent: #062b1d;
-  --ps-dot: #b7c6bc;
-  --ps-shadow: rgba(25, 54, 39, 0.22);
-  --ps-roll-bg: #eaf1ec;
-  --ps-ocean-hi: #f4f8f5;
-  --ps-ocean-lo: #d9e5dd;
-  --ps-land: #c6d6cc;
-  --ps-land-line: #eef3f0;
-  --ps-graticule: rgba(20, 60, 40, 0.06);
+  --ps-on-accent: #fbf9f4;
+  --ps-dot: #d9d3c6;
+  --ps-shadow: rgba(22, 21, 18, 0.18);
+  --ps-roll-bg: #efece4;
+  --ps-ocean-hi: #f8f6f1;
+  --ps-ocean-lo: #e6e1d6;
+  --ps-land: #d3d7cc;
+  --ps-land-line: #f3f0e9;
+  --ps-graticule: rgba(22, 21, 18, 0.05);
 }
 
 /* ── first screen: the wall fills the viewport under the floating header */
 .wall-hero { --header-space: 84px; position: relative; height: 100vh; height: 100svh; min-height: 560px; margin-top: calc(-1 * var(--header-space)); overflow: hidden; touch-action: pan-y; background: var(--canvas); }
 .wall-hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .wall-hero-copy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(720px, calc(100% - 32px)); text-align: center; pointer-events: none; }
-.wall-hero-kicker { display: inline-block; padding: 7px 14px; border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; box-shadow: 0 4px 14px var(--ps-shadow); }
-.wall-hero h1 { margin: 18px 0 0; font-size: clamp(40px, 8vw, 92px); line-height: 1.04; letter-spacing: -0.04em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
-.wall-hero h1 span { display: block; color: var(--accent-strong); text-wrap: balance; }
+.wall-hero-kicker { display: inline-block; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 14px; font-weight: 700; }
+.wall-hero h1 { margin: 18px 0 0; font-family: var(--serif); font-size: clamp(40px, 8vw, 92px); line-height: 1.12; letter-spacing: -0.03em; font-weight: 600; word-break: keep-all; text-wrap: balance; }
+.wall-hero h1 span { display: block; color: var(--text); text-wrap: balance; }
 .wall-hero-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 26px; pointer-events: auto; }
-.wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 18px var(--ps-shadow); transition: transform 200ms var(--ease-out), background-color 200ms ease, border-color 200ms ease; }
-.wall-hero-chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--ps-on-accent); }
+.wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 200ms var(--ease-out), background-color 200ms ease, border-color 200ms ease; }
+.wall-hero-chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .wall-hero-chips button small { margin-left: 6px; font-size: inherit; font-weight: 700; opacity: 0.7; }
 .wall-hero-diff { margin: 14px auto 0; max-width: 30em; font-size: 17px; font-weight: 700; opacity: 0.9; word-break: keep-all; text-wrap: balance; }
-.wall-hero-ask { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; padding: 0 16px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 14px; font-weight: 700; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
+.wall-hero-actions { margin-top: 22px; display: flex; justify-content: center; pointer-events: auto; }
+/* one primary colour for every store button on the page (hero, header, final); the ask is a quiet text link */
+.wall-hero-actions .button-store { min-height: 48px; padding-inline: 18px; font-size: 14px; }
+.wall-hero-ask { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--accent-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
 @keyframes wall-ask-in { from { opacity: 0; transform: translateY(6px); } }
 .wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; pointer-events: none; }
-.wall-hero-foot .store-buttons { pointer-events: auto; }
-.wall-hero-foot .button-store { min-height: 44px; padding-inline: 16px; border-color: var(--text); border-radius: 12px; background: var(--text); color: var(--canvas); font-size: 13px; }
 @media (hover: hover) and (pointer: fine) {
   .wall-hero-chips button:hover { transform: translateY(-2px); }
-  .wall-hero-foot .button-store:hover:not(:disabled) { background: var(--text); }
 }
 @media (max-width: 900px) { .wall-hero { --header-space: 80px; } }
 @media (max-width: 760px) {
@@ -43,8 +43,10 @@
 
 /* ── #how: two pinned stories. The stage is 100svh and sticks while its track scrolls past. */
 .how-section { position: relative; padding: 0 0 72px; }
-.how-section > .how-experience-link { width: fit-content; min-height: 44px; margin: 8px max(24px, calc((100% - 1080px) / 2)) 0; padding: 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
-.how-section > .how-experience-link:hover { color: var(--accent-ink); }
+/* the way on to the globe: the page's secondary button, right under the footnote (it used to float alone in grey) */
+.how-section > .how-experience-link { width: fit-content; min-height: 48px; margin: 0 auto; padding: 0 20px; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); background: var(--surface); font-size: 15px; font-weight: 700; transition: border-color 160ms ease, color 160ms ease; }
+.how-section > .how-experience-link svg { color: var(--accent-strong); }
+.how-section > .how-experience-link:hover { border-color: var(--accent-strong); color: var(--accent-ink); }
 .ps-track { position: relative; }
 .ps-roll { height: 330vh; height: 330svh; background: var(--ps-roll-bg); }
 .ps-rec { height: 320vh; height: 320svh; }
@@ -87,12 +89,13 @@
 }
 
 :root[data-theme="dark"] .wall-hero, :root[data-theme="dark"] .ps {
-  --ps-dot: #3a4b55;
+  --ps-on-accent: #12110f;
+  --ps-dot: #34322c;
   --ps-shadow: rgba(0, 0, 0, 0.5);
-  --ps-roll-bg: #0f1a20;
-  --ps-ocean-hi: #1b2b34;
-  --ps-ocean-lo: #111d24;
-  --ps-land: #33454f;
-  --ps-land-line: #0b141a;
-  --ps-graticule: rgba(240, 255, 248, 0.05);
+  --ps-roll-bg: #1b1a17;
+  --ps-ocean-hi: #23221e;
+  --ps-ocean-lo: #181714;
+  --ps-land: #3a3832;
+  --ps-land-line: #12110f;
+  --ps-graticule: rgba(243, 240, 232, 0.05);
 }
