@@ -46,8 +46,8 @@ private class IosShareImageExporter : ShareImageExporter {
                 }
                 else -> status
             }
-            check(permission == PHAuthorizationStatusAuthorized) {
-                "사진 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요."
+            if (permission != PHAuthorizationStatusAuthorized) {
+                throw ShareMediaPermissionDeniedException("사진 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요.")
             }
             suspendCancellableCoroutine<Unit> { continuation ->
                 PHPhotoLibrary.sharedPhotoLibrary().performChanges(
