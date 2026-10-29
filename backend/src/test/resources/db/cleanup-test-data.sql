@@ -13,5 +13,6 @@ DELETE FROM album;
 DELETE FROM group_invitation;
 DELETE FROM group_member;
 DELETE FROM travel_group;
+DELETE FROM notification_setting;
 DELETE FROM push_token;
 DELETE FROM member;
