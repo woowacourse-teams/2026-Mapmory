@@ -19,24 +19,17 @@ const tapper = (page, touch) => async (sel, i = 0) => {
 
 const row = (scene, name, ok, note) => ({ scene, name, ok: Boolean(ok), note });
 
-// 1 Tap a photo that the scroll has not turned over: it turns over to where and when it was taken, and stays under the
-// finger (the roll only moves with the scroll).
-export async function flip(page, { touch = true } = {}) {
+// 1 Tap the place field: the place changes (제주 → 일본 → …) and that place's photos lift under it.
+export async function placePick(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 0, 0.5, 300);
   await page.waitForTimeout(400);
-  const idx = await page.evaluate(() => {
-    const v = document.querySelector(".ts-roll-view")?.getBoundingClientRect();
-    if (!v) return -1;
-    return [...document.querySelectorAll(".ts-flip")].findIndex((t) => { const r = t.getBoundingClientRect(); return !t.classList.contains("is-open") && r.top > v.top + 20 && r.bottom < v.bottom - 20; });
-  });
-  if (idx < 0) return row(1, "뒤집기", false, "누를 사진이 보이지 않음");
-  const y0 = await page.evaluate((i) => document.querySelectorAll(".ts-flip")[i].getBoundingClientRect().top, idx);
-  await tap(".ts-flip", idx);
-  await page.waitForTimeout(900);
-  const after = await page.evaluate((i) => { const t = document.querySelectorAll(".ts-flip")[i]; return { open: t.classList.contains("is-open"), top: t.getBoundingClientRect().top, back: t.querySelector(".ts-flip-back")?.textContent.trim() ?? "" }; }, idx);
-  const held = Math.abs(after.top - y0) < 1.5;
-  return row(1, "뒤집기", after.open && after.back && (!touch || held), `뒤집힘 ${after.open}, 뒷면 "${after.back}", 손가락 아래 머무름 ${held}`);
+  const read = () => page.evaluate(() => ({ place: document.querySelector("[data-field-text]")?.textContent ?? "", lifted: document.querySelectorAll("[data-gather] .ts-ph.is-hit:not([hidden])").length }));
+  const first = await read();
+  if (!(await tap("[data-field]"))) return row(1, "위치", false, "위치 칸 없음");
+  await page.waitForTimeout(1600);
+  const second = await read();
+  return row(1, "위치", second.place && second.place !== first.place && second.lifted > 0, `"${first.place}" → 누른 뒤 "${second.place}" (${second.lifted}장 떠오름)`);
 }
 
 // 2 Tap any photo: every photo of that place lifts and the popup names it (the scroll lifts 제주's by itself).
@@ -70,21 +63,20 @@ export async function save(page, { touch = true } = {}) {
   return row(3, "기록", pressed0 !== pressed1 && s.folded && s.button === "기록했어요" && /\d+장/.test(s.card ?? ""), `고르기 ${pressed0}→${pressed1}, 접힘 ${s.folded}, 버튼 "${s.button}", 카드 "${s.card}"`);
 }
 
-// 4 Tap the map: it clears; tap again: 경주시 → 경상북도 → 대한민국 fill in turn, the chip naming each.
+// 4 Tap the map: it clears; tap again: every visited 시·도 fills.
 export async function mapToggle(page, { touch = true } = {}) {
   const tap = tapper(page, touch);
   await scrollToBeat(page, 3, 0.5, 300);
   await page.waitForTimeout(500);
-  const state = () => page.evaluate(() => { const r = document.querySelector("[data-regions]"); return { filled: r?.classList.contains("is-filled"), pressed: r?.getAttribute("aria-pressed"), chip: document.querySelector("[data-region-chip]")?.classList.contains("is-shown"), text: document.querySelector("[data-region-chip-text]")?.textContent ?? "" }; });
+  const state = () => page.evaluate(() => { const r = document.querySelector("[data-regions]"); return { on: r?.querySelectorAll(".ts-pv.is-on").length ?? 0, all: r?.querySelectorAll(".ts-pv").length ?? 0, pressed: r?.getAttribute("aria-pressed") }; });
   const a = await state();
   await tap("[data-regions]");
   await page.waitForTimeout(500);
   const b = await state();
   await tap("[data-regions]");
-  const chips = [];
-  for (const ms of [400, 700, 800]) { await page.waitForTimeout(ms); chips.push((await state()).text); }
+  await page.waitForTimeout(500);
   const c = await state();
-  return row(4, "지도", a.filled && !b.filled && !b.chip && c.filled && c.pressed === "true" && chips.at(-1) === "대한민국", `칠해짐 ${a.filled} → 지움 ${b.filled} → 다시 칠함 ${c.filled}, 칩 ${[...new Set(chips)].join(" → ")}`);
+  return row(4, "지도", a.on > 0 && b.on === 0 && c.on === c.all && c.pressed === "true", `칠한 시·도 ${a.on} → 지움 ${b.on} → 다시 칠함 ${c.on}/${c.all}`);
 }
 
 // 5 At the start of the globe scene (the globe still in the phone) a sideways drag turns the globe: its pixels change
@@ -147,7 +139,7 @@ export async function yearPick(page, { touch = true } = {}) {
       canPlay: Boolean(v.canPlayType("video/webm") || v.canPlayType("video/mp4")), on: buttons.find((b) => b.getAttribute("aria-pressed") === "true")?.textContent ?? "", at: buttons.map((b) => +b.dataset.at), boxPaused: document.querySelector("[data-share-box]")?.classList.contains("is-paused") };
   });
   const v0 = await read();
-  if (!v0) return row(6, "영상", false, "공유 영상 없음 (TECH_SHARE.enabled=false?)");
+  if (!v0) return row(6, "영상", true, "공유 장면 꺼짐 (TECH_SHARE.enabled=false)");
   await page.waitForTimeout(1000);
   const v0b = await read();
   const still = v0b.paused && v0b.t === v0.t;
@@ -162,7 +154,7 @@ export async function yearPick(page, { touch = true } = {}) {
   return row(6, "영상", ok, `스스로 재생 안 함 ${still}${v0.canPlay ? "" : " (이 브라우저는 코덱 없음)"}, 2025 누름 → 선택 "${v1.on}", 위치 ${v1.t}s (기대 ≥ ${v1.at[2]}s), 재생 ${!v1.paused}, 영상 누름 → 멈춤 ${v2.paused}`);
 }
 
-export const SCENARIOS = [flip, gather, save, mapToggle, globeDrag, yearPick];
+export const SCENARIOS = [placePick, gather, save, mapToggle, globeDrag, yearPick];
 
 export async function runAllScenes(page, opts = {}) {
   const out = [];

@@ -96,7 +96,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
 });
 
 // The #tech section's touchable element per scene (1-6), one tech_story_interact per type per page.
-export const TECH_STORY_INTERACTIONS = Object.freeze(["flip", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
+export const TECH_STORY_INTERACTIONS = Object.freeze(["place_pick", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
 
 const supportedEvents = new Set(Object.values(ANALYTICS_EVENTS));
 const forbiddenParameterPattern = /(email|phone|name|address|message|free.?text)/i;

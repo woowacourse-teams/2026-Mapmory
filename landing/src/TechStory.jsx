@@ -1,12 +1,12 @@
 import { memo, useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
 import { createPassiveViewTracker, createSceneReachTracker } from "./howStoryAnalytics.js";
-import { TECH_COPY, TECH_PIN, TECH_SHARE, TECH_STEPS, TECH_TRIP, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
+import { TECH_COPY, TECH_PIN, TECH_SHARE, TECH_STEPS, TECH_VARIANT, TECH_VARIANTS, techScenes } from "./techStory.js";
 
 const EXPERIENCE_TYPE = "tech_story";
 const Pin = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={TECH_PIN} /></svg>;
 
-// Wobbling hand-written step label: one span per letter, each on its own beat of the boil animation. Assistive
+// Hand-written step label: one span per letter (the boil animation they were for is gone since 10-29). Assistive
 // tech reads the whole word once from the visually hidden span (aria-label is not allowed on a <p>, axe 5.5).
 function StepLabel({ text }) {
   return (
@@ -134,14 +134,11 @@ function TechStoryInner() {
               <div className="ts-screen-box">
                 <div className="ts-notch" aria-hidden="true" />
 
+                {/* scenes 1 and 2: the record form, one place in the field and that place's photos gathering under it */}
                 <div className="ts-screen" data-scene="">
-                  <div className="ts-roll-view" tabIndex={0} role="button" aria-label="사진 두루마리, 누르면 가운데 사진이 뒤집혀요" data-roll-view=""><div className="ts-roll" data-roll="" /></div>
-                </div>
-
-                <div className="ts-screen" data-scene="">
+                  <button type="button" className="ts-field is-empty" data-field="" aria-label="위치 바꾸기"><Pin /><span data-field-text="" /></button>
                   <div className="ts-gather" data-gather="" />
                   <div className="ts-found" data-found="" role="status"><Pin /><span data-found-text="" /></div>
-                  <div className="ts-counter" aria-hidden="true"><span className="ts-counter-place" data-count-place="">제주</span><span><span data-count-n="">0</span>장 · <span data-count-t="">0</span>초</span></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
@@ -153,11 +150,10 @@ function TechStoryInner() {
 
                 <div className="ts-screen" data-scene="">
                   <div className="ts-regions" data-regions="" role="button" tabIndex={0} aria-label="지도 칠하기, 다시 누르면 지우기" aria-pressed="true" />
-                  <div className="ts-region-chip" data-region-chip="" aria-hidden="true"><Pin /><span data-region-chip-text="" /></div>
                 </div>
 
                 <div className="ts-screen" data-scene="">
-                  <canvas className="ts-globe" data-globe="" tabIndex={0} aria-label="다녀온 곳이 찍힌 지구본, 옆으로 끌거나 화살표 키로 돌려 보세요" />
+                  <canvas className="ts-globe" data-globe="" tabIndex={0} aria-label="다녀온 나라가 칠해진 지구본, 옆으로 끌거나 화살표 키로 돌려 보세요" />
                 </div>
 
                 {TECH_SHARE.enabled && <ShareScreen />}
@@ -165,22 +161,15 @@ function TechStoryInner() {
             </div>
           </div>
 
-          {/* The trip (scenes 5-6): the globe comes out of the phone onto this canvas, flies the recorded places in date
-              order as the page scrolls, and goes back in. The pill under it names the place and month. */}
-          <canvas className="ts-trip-globe" data-trip-globe="" aria-hidden="true" />
-          <div className="ts-trip" data-trip="" aria-hidden="true">
-            <div className="ts-where"><Pin /><b data-trip-name="">{TECH_TRIP[0].name}</b><span data-trip-date="">{TECH_TRIP[0].date.slice(0, 8)}</span></div>
-          </div>
-
           {/* The words stay in one place and change with the scene, so a quick scroll never has to wait for them to
-              pass by (티온, 10-27). Only the current scene's words show; all six stay in the page for screen readers. */}
+              pass by (티온, 10-27). Only the current scene's words show; all of them stay in the page for screen readers. */}
           <div className="ts-captions">
             {scenes.map((scene, i) => {
               const step = TECH_STEPS.find((s) => s.key === scene.step);
               return (
                 <div className={`ts-copy is-${step.side === "left" ? "right" : "left"}`} data-caption={i} key={scene.title}>
                   <StepLabel text={step.label} />
-                  <h3>{scene.title}{scene.footnote && <sup className="ts-fn">*</sup>}</h3>
+                  <h3>{scene.title}</h3>
                 </div>
               );
             })}
@@ -192,11 +181,10 @@ function TechStoryInner() {
           {scenes.map((scene, i) => {
             const bridge = lastStep !== null && lastStep !== scene.step;
             lastStep = scene.step;
-            return [bridge && <div className="ts-bridge" data-bridge="" key={`bridge-${i}`} />, <div className={`ts-beat${scene.trip ? " is-trip" : ""}`} data-beat={i} key={scene.title} />];
+            return [bridge && <div className="ts-bridge" data-bridge="" key={`bridge-${i}`} />, <div className="ts-beat" data-beat={i} key={scene.title} />];
           })}
         </div>
       </div>
-      <p className="ts-footnote">{TECH_COPY.footnote}</p>
     </div>
   );
 }
