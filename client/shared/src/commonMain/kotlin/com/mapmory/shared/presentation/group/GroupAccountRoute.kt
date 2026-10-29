@@ -27,6 +27,7 @@ internal fun GroupAccountRoute(
 ) {
     val session = container.accountSession
     val account = session?.state?.collectAsState()?.value
+    var photoVisible by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var restoring by remember { mutableStateOf(true) }
@@ -58,16 +59,19 @@ internal fun GroupAccountRoute(
                 container.groupRepository != null -> key(account?.generation) {
                     LiveGroupContent(
                         repository = checkNotNull(container.groupRepository),
+                        albumRepository = container.albumRepository,
+                        tripRecordRepository = container.tripRecordRepository,
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,
                         refresh = retry,
                         onBusyChanged = { busy = it },
+                        onPhotoVisibilityChanged = { photoVisible = it },
                         modifier = Modifier.weight(1f),
                     )
                 }
                 else -> Box(Modifier.weight(1f).padding(24.dp)) { Text("그룹 서버 연결을 사용할 수 없어요.") }
             }
-            TripBottomBar(selected = TripBottomTab.GROUP, onMapClick = onMapClick,
+            if (!photoVisible) TripBottomBar(selected = TripBottomTab.GROUP, onMapClick = onMapClick,
                 onRecordClick = onRecordClick, onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick, onGroupClick = { retry++ })
         }

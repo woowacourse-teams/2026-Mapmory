@@ -20,10 +20,13 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun LiveGroupContent(
     repository: GroupRepository,
+    albumRepository: com.mapmory.shared.domain.repository.AlbumRepository?,
+    tripRecordRepository: com.mapmory.shared.domain.repository.TripRecordRepository,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
     refresh: Int,
     onBusyChanged: (Boolean) -> Unit,
+    onPhotoVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val analytics = LocalMapmoryAnalytics.current
@@ -36,60 +39,51 @@ internal fun LiveGroupContent(
     LaunchedEffect(state, refresh) { state.load() }
     LaunchedEffect(state.busy) { onBusyChanged(state.busy) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
-    val back = rememberUpdatedState { state.back() }
+    val albumNavigation = remember(state.group?.id) { AlbumNavigationState() }
+    val back = rememberUpdatedState {
+        if (state.sheet != null || state.busy) state.back()
+        else albumNavigation.back() || state.back()
+    }
+    val gestureBack = rememberUpdatedState {
+        if (state.sheet != null || state.busy) state.gestureBack()
+        else albumNavigation.back() || state.gestureBack()
+    }
     DisposableEffect(backHandlerRegistry, backHandlerOwnerId) {
         val registration = backHandlerRegistry.register(
             backHandlerOwnerId,
-            gestureBack = state::gestureBack,
+            gestureBack = { gestureBack.value() },
             gestureForward = state::gestureForward,
             handler = { back.value() },
         )
         onDispose { backHandlerRegistry.unregister(registration) }
     }
-    PlatformBackHandler(enabled = state.busy || state.group != null || state.sheet != null) { state.back() }
+    PlatformBackHandler(enabled = state.busy || state.group != null || state.sheet != null) { back.value() }
     fun open(sheet: LiveGroupSheet) { copied = false; state.openSheet(sheet) }
     Column(modifier.fillMaxSize()) {
         val group = state.group
-        if (group == null) {
-            Text("내 그룹", Modifier.padding(24.dp), style = MaterialTheme.typography.headlineMedium)
-            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GroupButton("새 그룹 만들기", { open(LiveGroupSheet.CREATE) }, Modifier.weight(1f), enabled = !state.busy)
-                GroupButton("코드로 참여", { open(LiveGroupSheet.JOIN) }, Modifier.weight(1f), outlined = true, enabled = !state.busy)
-            }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.groups?.isEmpty() == true) {
-                    Text("아직 참여한 그룹이 없어요.")
-                    GroupMuted("그룹을 만들거나 초대 코드로 참여해 보세요.")
+        Box(Modifier.weight(1f)) {
+            if (group == null) {
+                GroupListScreen(
+                    state = when {
+                        state.groups == null && state.busy -> GroupListUiState.Loading
+                        state.groups == null && state.error != null -> GroupListUiState.Error(checkNotNull(state.error))
+                        else -> GroupListUiState.Content(state.groups.orEmpty().map {
+                            GroupSummary(it.id.toString(), it.name, it.memberCount.toInt(), albumCount = it.albumCount.toInt(), coverUri = it.coverPhoto?.viewUrl)
+                        })
+                    },
+                    onCreate = { open(LiveGroupSheet.CREATE) },
+                    onJoin = { open(LiveGroupSheet.JOIN) },
+                    onGroup = { scope.launch { state.openGroup(it.toLong()) } },
+                    onRetry = { scope.launch { state.load() } },
+                )
+            } else if (albumRepository != null) {
+                key(group.id) {
+                    LiveAlbumContent(group.id, albumRepository, albumNavigation,
+                        groupName = group.name, memberCount = group.members.size,
+                        onBack = { back.value() }, onInvite = { open(LiveGroupSheet.INVITE) },
+                        onManageGroup = { name = group.name; open(LiveGroupSheet.RENAME) },
+                        onPhotoVisibilityChanged = onPhotoVisibilityChanged)
                 }
-                state.groups.orEmpty().forEach { summary ->
-                    GroupCard(onClick = { scope.launch { state.openGroup(summary.id) } }) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(summary.name, style = MaterialTheme.typography.titleMedium)
-                            GroupMuted("멤버 ${summary.memberCount}명 · 앨범 ${summary.albumCount}개")
-                        }
-                    }
-                }
-                TextButton(onClick = { scope.launch { state.load() } }, enabled = !state.busy) { Text("그룹 새로고침") }
-            }
-        } else {
-            GroupHeader(group.name) { state.back() }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                GroupMuted("멤버 ${group.members.size}명 / 최대 30명")
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    GroupButton("멤버 초대", { open(LiveGroupSheet.INVITE) }, Modifier.weight(1f), enabled = !state.busy)
-                    GroupButton("이름 변경", { name = group.name; open(LiveGroupSheet.RENAME) }, Modifier.weight(1f), outlined = true, enabled = !state.busy)
-                }
-                Text("그룹 멤버", style = MaterialTheme.typography.titleMedium)
-                group.members.forEach { member ->
-                    Text(member.nickname + (if (member.me) " · 나" else "") + (if (member.owner) " · 방장" else ""))
-                }
-                GroupCard {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("함께 남긴 앨범", style = MaterialTheme.typography.titleMedium)
-                        GroupMuted("앨범 기능을 준비하고 있어요.")
-                    }
-                }
-                TextButton(onClick = { scope.launch { state.openGroup(group.id) } }, enabled = !state.busy) { Text("그룹 정보 새로고침") }
             }
         }
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -129,7 +123,7 @@ internal fun LiveGroupContent(
                             GroupMuted("멤버 ${preview.memberCount}명 / 최대 30명")
                             GroupButton(if (preview.alreadyMember) "그룹으로 이동" else "참여하기", {
                                 scope.launch { state.acceptInvitation(code) }
-                            }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                            }, Modifier.fillMaxWidth(), enabled = !state.busy && (!preview.full || preview.alreadyMember))
                         }
                     }
                     LiveGroupSheet.INVITE -> {

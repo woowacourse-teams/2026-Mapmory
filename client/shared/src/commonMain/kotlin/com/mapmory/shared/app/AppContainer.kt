@@ -86,6 +86,7 @@ interface AppContainer {
     val accountLoginController: com.mapmory.shared.presentation.auth.AccountLoginController? get() = null
     val accountSession: com.mapmory.shared.data.auth.AccountSession? get() = null
     val groupRepository: com.mapmory.shared.domain.repository.GroupRepository? get() = null
+    val albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? get() = null
 
     val regionCatalog: RegionCatalog
     val tripRecordRepository: TripRecordRepository
@@ -191,6 +192,7 @@ private class DefaultAppContainer(
     analytics: MapmoryAnalytics,
     override val accountSession: com.mapmory.shared.data.auth.AccountSession?,
     override val groupRepository: com.mapmory.shared.domain.repository.GroupRepository?,
+    override val albumRepository: com.mapmory.shared.domain.repository.AlbumRepository?,
     private val invalidateSummaryCaches: () -> Unit,
 ) : AppContainer {
     override val accountLoginController = accountSession?.let {
@@ -280,6 +282,7 @@ fun createAppContainer(
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
     accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
     groupRepository: com.mapmory.shared.domain.repository.GroupRepository? = null,
+    albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? = null,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
@@ -319,6 +322,7 @@ fun createAppContainer(
         analytics = analytics,
         accountSession = accountSession,
         groupRepository = groupRepository,
+        albumRepository = albumRepository,
         invalidateSummaryCaches = { cachedMapSummary.invalidate(); cachedTripStatistics.invalidate() },
     )
 }
@@ -523,6 +527,7 @@ internal fun createGuestRemoteAppContainer(
     return createAppContainer(
         accountSession = session,
         groupRepository = com.mapmory.shared.data.remote.GroupRemoteRepository(client, apiBaseUrl, session),
+        albumRepository = com.mapmory.shared.data.remote.AlbumRemoteRepository(client, apiBaseUrl, session),
         tripRecordRepository = AuthenticatedTripRecordRepository(session, cachedTripRecords),
         mapSummaryRepository = remoteMapSummary,
         mapSummaryCache = mapSummaryCache,

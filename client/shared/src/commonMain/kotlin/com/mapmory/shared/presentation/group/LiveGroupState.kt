@@ -154,7 +154,7 @@ internal class LiveGroupState(
         group = detail
         val existing = groups.orEmpty()
         val albumCount = existing.firstOrNull { it.id == detail.id }?.albumCount ?: 0
-        val summary = RemoteGroupSummary(detail.id, detail.name, detail.members.size.toLong(), albumCount)
+        val summary = RemoteGroupSummary(detail.id, detail.name, detail.members.size.toLong(), albumCount, existing.firstOrNull { it.id == detail.id }?.coverPhoto)
         groups = if (existing.any { it.id == detail.id }) existing.map { if (it.id == detail.id) summary else it }
             else existing + summary
         sheet = null
@@ -179,6 +179,6 @@ internal class LiveGroupState(
         "GROUP_FULL" -> "그룹 정원이 가득 찼어요. 최대 30명까지 참여할 수 있어요."
         "TOO_MANY_GROUPS" -> "그룹은 최대 10개까지 만들거나 참여할 수 있어요."
         "INVITATION_RATE_LIMITED" -> "초대를 너무 자주 확인했어요. 잠시 후 다시 시도해 주세요."
-        else -> error.message ?: "요청을 처리하지 못했어요. 다시 시도해 주세요."
+        else -> "요청을 처리하지 못했어요. 다시 시도해 주세요."
     }
 }
