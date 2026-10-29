@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
  *
  * 받는 쪽
  *   - auth: 회원의 refresh 토큰을 모두 폐기한다. 탈퇴와 같은 트랜잭션에서 실행돼야 하므로 @EventListener(동기)다.
+ *   - notification: 회원의 기기 토큰을 모두 지운다. 탈퇴가 커밋된 뒤에 받는다. (InactiveMemberListener)
  *   - 그룹·여행기록·미디어 등 다른 컨텍스트는 탈퇴가 커밋된 뒤에 처리하도록
  *     @TransactionalEventListener(phase = AFTER_COMMIT)로 받는다. (아직 없음)
  *

@@ -6,6 +6,7 @@ import com.mapmory.backend.notification.domain.PushToken;
 import com.mapmory.backend.notification.domain.PushTokenRepository;
 import java.util.Collection;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -49,5 +50,17 @@ public class PushTokenService {
     @Transactional
     public void unregister(Long memberId, String token) {
         pushTokenRepository.deleteByTokenAndMemberId(token, memberId);
+    }
+
+    /**
+     * 탈퇴하거나 버려진 회원의 토큰을 모두 지운다. 그 회원의 기기로 알림이 가지 않는다.
+     * 다시 등록하는 경로는 {@link #register}가 막으므로 한 번 지우면 다시 생기지 않는다. 가드가 회원 행을 공유 잠금으로 읽으므로
+     * 탈퇴 전에 확인을 통과한 등록은 탈퇴보다 먼저 커밋되고, 그 토큰도 여기서 함께 지운다.
+     *
+     * <p>탈퇴가 커밋된 뒤에 불리므로 새 트랜잭션을 연다. 끝난 트랜잭션에 합류하면 지운 것이 커밋되지 않는다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void removeAllOf(Long memberId) {
+        pushTokenRepository.deleteAllByMemberId(memberId);
     }
 }

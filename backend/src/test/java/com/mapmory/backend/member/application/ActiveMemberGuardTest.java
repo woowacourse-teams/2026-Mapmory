@@ -25,7 +25,7 @@ class ActiveMemberGuardTest {
     @Test
     void 활동_중인_회원을_돌려준다() {
         Member member = Member.ofGuest("guest-1", "게스트", UUID.randomUUID());
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(member));
 
         assertThat(guard.require(1L)).isSameAs(member);
     }
@@ -34,7 +34,7 @@ class ActiveMemberGuardTest {
     void 탈퇴한_회원은_사용할_수_없는_회원이다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID());
         member.withdraw(NOW);
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(member));
 
         assertInactive(1L);
     }
@@ -43,14 +43,14 @@ class ActiveMemberGuardTest {
     void 버려진_게스트는_사용할_수_없는_회원이다() {
         Member guest = Member.ofGuest("guest-1", "게스트", UUID.randomUUID());
         guest.abandon(NOW);
-        when(memberRepository.findById(1L)).thenReturn(Optional.of(guest));
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(guest));
 
         assertInactive(1L);
     }
 
     @Test
     void 없는_회원은_사용할_수_없는_회원이다() {
-        when(memberRepository.findById(1L)).thenReturn(Optional.empty());
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.empty());
 
         assertInactive(1L);
     }

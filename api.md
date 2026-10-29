@@ -1654,6 +1654,8 @@ Authorization: Bearer {accessToken}
 
 로그아웃 전에 부른다. 없는 토큰이어도 `204`다.
 
+탈퇴하거나 게스트가 버려지면 서버가 그 회원의 토큰을 모두 지운다. 앱이 따로 부르지 않아도 된다.
+
 #### Response `204 No Content`
 
 ### Group 오류

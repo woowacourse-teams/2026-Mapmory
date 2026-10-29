@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
  *
  * 받는 쪽
  *   - auth: 게스트의 refresh 토큰을 모두 폐기한다. 로그인과 같은 트랜잭션에서 동기로 받는다. (MemberRefreshTokenRevoker)
+ *   - notification: 게스트의 기기 토큰을 모두 지운다. 로그인이 커밋된 뒤에 받는다. (InactiveMemberListener)
  *   - 여행기록·미디어 등 다른 컨텍스트는 파기 기간을 정해 게스트의 데이터를 지운다.
  *     로그인이 커밋된 뒤에 처리하도록 @TransactionalEventListener(phase = AFTER_COMMIT)로 받는다. (아직 없음)
  *
