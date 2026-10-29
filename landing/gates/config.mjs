@@ -37,7 +37,7 @@ export const SOURCES = Object.freeze({
   tion: { title: "티온 10-27: 휙휙 내려도 글이 읽혀야 하고, 한 화면에 한 가지", url: "" },
 });
 
-export const SCENE_COUNT = 6;
+export const SCENE_COUNT = 7;
 export const JUDGES = 5; // 6–10 readers give directional results (fiveSecond); five AI readers is the floor we can afford each round
 
 const auto = (id, name, pass, check, purpose, source, extra = {}) => ({ id, name, pass, kind: "auto", check, purpose, source, ...extra });

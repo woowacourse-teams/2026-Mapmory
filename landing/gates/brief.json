@@ -23,45 +23,62 @@
     {
       "index": 1,
       "step": "find",
-      "question": "앱이 어떻게 사진 찍은 곳을 알지?",
-      "message": "사진마다 찍은 곳이 담겨 있어요",
-      "hint": "사진을 눌러 보세요",
-      "interaction": "사진 하나 누르기 (뒤집히며 찍은 곳과 달이 보인다)",
+      "question": "사진을 하나하나 골라야 하나?",
+      "message": "장소만 넣으면",
+      "hint": "장소 칸을 눌러 보세요",
+      "interaction": "장소 칸 누르기 (제주 → 일본 → 미국으로 바뀌고 그곳 사진이 떠오른다)",
       "truth": {
-        "claim": "폰 사진에는 찍은 위치가 들어 있고, 앱은 그것을 폰 안에서 읽는다",
+        "claim": "기록 화면에서 장소 하나를 고르면 앱이 그곳에서 찍은 사진을 폰 안에서 찾아 보여 준다",
         "evidence": [
-          "client/shared/src/androidMain/kotlin/com/mapmory/shared/presentation/photo/PhotoLibrary.android.kt (ExifInterface, readCoordinates, syncPhotoMetadata → 폰 안 Room DB)",
-          "client/shared/src/androidMain/kotlin/com/mapmory/shared/presentation/photo/PhotoMetadataSync.kt (exifReadCount)"
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/triprecord/screen/TripRecordEditorScreen.kt (기록 화면에서 장소를 고르면 사진 추천 그리드, PhotoRecommendationPagingState)",
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/photo/PhotoRecommendationRegion.kt (고른 지역 경계 안에서 찍힌 사진만, 폰 안에서 판별)"
         ]
       },
-      "event": "tech_story_interact interaction_type=flip",
+      "event": "tech_story_interact interaction_type=place_pick",
       "purpose": "B",
-      "rubric": "사진을 누르면 그 사진을 찍은 곳(과 날짜)이 보인다. 앱이 사진 속 위치 정보를 쓴다는 뜻이면 정답"
+      "rubric": "장소(위치)만 넣으면 그곳 사진을 앱이 알아서 찾아 준다는 뜻이면 정답"
     },
     {
       "index": 2,
       "step": "find",
-      "question": "내 사진 3만 장도 되나?",
-      "message": "3만 장도 30초면 누른 곳 사진만 모여요",
-      "footnote": "* 팀 테스트 폰에서 사진 3만 장을 처음 훑는 데 걸린 시간이에요. 다음부터는 새 사진만 읽어요. 기기에 따라 달라질 수 있어요.",
+      "question": "그곳 사진은 어떻게 찾지?",
+      "message": "사진첩에서 알아서 뽑아와요",
       "hint": "아무 사진이나 눌러 보세요",
       "interaction": "아무 사진이나 누르기 (그곳 사진만 떠오르고 팝업이 곳 이름과 장수를 말한다)",
       "truth": {
-        "claim": "팀 테스트 폰에서 사진 3만 장의 위치 읽기가 30초 안에 끝났다. 각주로 기기 차이를 밝힌다",
+        "claim": "고른 장소에서 찍은 사진만 추천 그리드에 모인다",
         "evidence": [
-          "landing/AGENTS.md ('3만 장도 30초'는 각주와 함께만 쓴다는 규칙, 팀 테스트 폰 측정)",
-          "client/shared/src/androidMain/kotlin/com/mapmory/shared/presentation/photo/PhotoMetadataSync.kt (한 번 읽은 사진은 저장해 두고 새 사진만 읽는다)"
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/triprecord/screen/TripRecordEditorScreen.kt (기록 화면에서 장소를 고르면 사진 추천 그리드, PhotoRecommendationPagingState)",
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/photo/PhotoRecommendationRegion.kt (고른 지역 경계 안에서 찍힌 사진만, 폰 안에서 판별)"
         ]
       },
       "event": "tech_story_interact interaction_type=gather",
       "purpose": "B",
-      "rubric": "사진이 아주 많아도 빠르게, 한 곳의 사진만 골라 모아 준다"
+      "rubric": "고른 곳의 사진만 골라 모아 준다"
     },
     {
       "index": 3,
       "step": "find",
+      "question": "내 사진이 서버로 가는 거 아냐?",
+      "message": "찾는 동안 사진은 서버로 안 가요",
+      "interaction": "없음 (스크롤하면 나머지 사진이 흐려지고 '서버로 보낸 사진 0장' 줄이 올라온다)",
+      "truth": {
+        "claim": "사진 찾기는 폰 안에서 앱에 들어 있는 지역 경계로 한다. 온라인으로 가는 건 입력한 장소 이름 검색뿐이고 사진은 보내지 않는다",
+        "evidence": [
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/triprecord/screen/TripRecordEditorScreen.kt (기록 화면에서 장소를 고르면 사진 추천 그리드, PhotoRecommendationPagingState)",
+          "client/shared/src/commonMain/kotlin/com/mapmory/shared/presentation/photo/PhotoRecommendationRegion.kt (고른 지역 경계 안에서 찍힌 사진만, 폰 안에서 판별)",
+          "landing/AGENTS.md copy rules ('photo search runs on the device by location'), how-section verified copy 03 '찾는 건 내 폰 안에서 해요 / 찾는 동안 사진을 서버로 보내지 않아요' (2026-10-13 main·develop 확인)"
+        ]
+      },
+      "event": "tech_story_scene scene_index=3",
+      "purpose": "C",
+      "rubric": "찾는 동안 사진이 폰 밖(서버)으로 나가지 않는다는 뜻이면 정답"
+    },
+    {
+      "index": 4,
+      "step": "find",
       "question": "내 사진이 다 올라가는 거 아냐?",
-      "message": "고른 사진만 앱에 올라가고 나머지는 폰에 남아요",
+      "message": "고른 사진만 앱에 올라가요",
       "hint": "사진을 골라 기록해 보세요",
       "interaction": "사진 고르고 기록하기 누르기 (고른 사진이 기록 카드 하나로 접힌다)",
       "truth": {
@@ -77,12 +94,12 @@
       "rubric": "고른 사진으로 기록을 만든다. 고른 것만 올라가고 나머지는 폰에 있다는 뜻이면 정답"
     },
     {
-      "index": 4,
+      "index": 5,
       "step": "map",
       "question": "기록하면 뭐가 남지?",
       "message": "다녀온 곳이 지도에 칠해져요",
       "hint": "지도를 눌러 보세요",
-      "interaction": "지도 누르기 (칠해진 곳이 지워졌다가 시·군·구 → 시·도 → 나라 순으로 다시 칠해진다)",
+      "interaction": "지도 누르기 (칠해진 시·도가 지워졌다가 다시 칠해진다)",
       "truth": {
         "claim": "앱 지도에서 기록이 있는 지역이 칠해진다",
         "evidence": [
@@ -95,10 +112,10 @@
       "rubric": "기록한(다녀온) 지역이 지도에 색으로 칠해진다"
     },
     {
-      "index": 5,
+      "index": 6,
       "step": "map",
-      "question": "해외까지 다닌 곳을 한눈에 보려면?",
-      "message": "모은 기록을 3D 지구본에서 돌려 봐요",
+      "question": "해외 다녀온 곳도 남나?",
+      "message": "해외는 나라별로 칠해져요",
       "hint": "손가락으로 돌려 보세요",
       "interaction": "지구본 옆으로 끌기 (돌아간다. 위아래로 끌면 페이지가 내려간다)",
       "truth": {
@@ -110,17 +127,17 @@
       },
       "event": "tech_story_interact interaction_type=globe_drag",
       "purpose": "D",
-      "rubric": "기록을 3D 지구본으로 본다. 돌릴 수 있다"
+      "rubric": "해외 기록은 나라 단위로 지구본에 칠해진다"
     },
     {
-      "index": 6,
+      "index": 7,
       "step": "map",
       "question": "친구한테 자랑할 수 있나?",
       "message": "다녀온 곳을 타임라인 영상으로 공유해요",
       "hint": "연도를 눌러 보세요",
       "interaction": "연도 누르기 (영상이 그 해로 넘어간다. 영상을 누르면 멈춘다)",
       "truth": {
-        "claim": "앱이 다녀온 곳을 날짜순 영상으로 만들어 공유한다. 앱 PR #436에 있고 main에는 아직 없으므로, 앱이 출시되기 전엔 이 장면을 끈다 (6.5)",
+        "claim": "앱이 다녀온 곳을 날짜순 영상으로 만들어 공유한다 (앱 #436 출시 확인: gates/manual/6.5.json)",
         "evidence": [
           "https://github.com/woowacourse-teams/2026-mapmory/pull/436 (여행 업적과 타임라인 영상 공유를 추가한다, and/feat/journal-layout-ab에 머지)",
           "landing/AGENTS.md (공유 장면은 앱 기능 출시 전 TECH_SHARE.enabled=false)",
@@ -134,7 +151,10 @@
     }
   ],
   "revisions": [
-    "2026-10-27 2단계: 독자 1차 판정(copy-round1.json)에서 남은 궁금증을 반영. 장면 2 '고른 곳' → '누른 곳', 장면 3 '올라가고' → '앱에 올라가고', 각주에 '처음 훑는 데', '다음부터는 새 사진만 읽어요' 추가 (PhotoMetadataSync.shouldReuseCoordinates로 확인)"
+    "2026-10-27 2단계: 독자 1차 판정(copy-round1.json)에서 남은 궁금증을 반영. 장면 2 '고른 곳' → '누른 곳', 장면 3 '올라가고' → '앱에 올라가고', 각주에 '처음 훑는 데', '다음부터는 새 사진만 읽어요' 추가 (PhotoMetadataSync.shouldReuseCoordinates로 확인)",
+    "2026-10-29 티온 피드백: 장면 1을 기록칸(위치 하나 입력)으로, 장면 2를 '그곳 사진이 알아서 모여요'로 바꾸고 3만 장 문구와 각주를 뺐다. 지도 단계는 칠해지는 것만 남겨 지구본 비행과 공유 영상 장면을 끄고(TECH_SHARE.enabled=false) 장면을 5개로 줄였다",
+    "2026-10-29 티온 2차: 장면 1-3을 앱의 '어디 사진을 불러올까요?' 화면으로(장소 입력 → 사진 불러오기 → 사진첩에서 뽑아옴), 장면 3 '찾는 동안 사진은 서버로 안 가요'를 새로 넣어 6장면",
+    "2026-10-29 티온 3차: 장면 2에서 사진첩이 폰 밖으로 쏟아지고 그곳 사진만 골라져 폰으로 모인다(글자 없이). 공유 영상 장면을 다시 켜 7장면 (\"마지막 공유파트만 넣어서 배포하자\")"
   ],
   "outOfScope": [
     "히어로와 CTA 문구 (A, E는 다른 섹션의 몫)",

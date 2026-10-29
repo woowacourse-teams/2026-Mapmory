@@ -96,7 +96,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
 });
 
 // The #tech section's touchable element per scene (1-6), one tech_story_interact per type per page.
-export const TECH_STORY_INTERACTIONS = Object.freeze(["flip", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
+export const TECH_STORY_INTERACTIONS = Object.freeze(["place_pick", "gather", "save", "map_toggle", "globe_drag", "year_pick"]);
 
 const supportedEvents = new Set(Object.values(ANALYTICS_EVENTS));
 const forbiddenParameterPattern = /(email|phone|name|address|message|free.?text)/i;
@@ -254,11 +254,11 @@ export function trackEvent(name, parameters = {}) {
       && Number.isInteger(parameters.scene_index)
       && parameters.scene_index >= 1
       && parameters.scene_index <= 6)) return false;
-  // The #tech section: passive reach (view, scene 1-6) plus the first try of each scene's touchable element.
+  // The #tech section: passive reach (view, scene 1-7) plus the first try of each scene's touchable element.
   if ((name === ANALYTICS_EVENTS.TECH_STORY_VIEW || name === ANALYTICS_EVENTS.TECH_STORY_SCENE || name === ANALYTICS_EVENTS.TECH_STORY_INTERACT)
     && parameters.experience_type !== "tech_story") return false;
   if ((name === ANALYTICS_EVENTS.TECH_STORY_SCENE || name === ANALYTICS_EVENTS.TECH_STORY_INTERACT)
-    && !(Number.isInteger(parameters.scene_index) && parameters.scene_index >= 1 && parameters.scene_index <= 6)) return false;
+    && !(Number.isInteger(parameters.scene_index) && parameters.scene_index >= 1 && parameters.scene_index <= 7)) return false;
   if (name === ANALYTICS_EVENTS.TECH_STORY_INTERACT && !TECH_STORY_INTERACTIONS.includes(parameters.interaction_type)) return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;

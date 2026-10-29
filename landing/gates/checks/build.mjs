@@ -1,4 +1,5 @@
 // 5.1–5.7: tests and build, Lighthouse, Core Web Vitals (lab), page weight, axe, console/404, analytics events.
+import { SCENE_COUNT } from "../config.mjs";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -194,11 +195,11 @@ export async function analytics(ctx) {
     const views = events.filter((e) => e.name === "tech_story_view").length;
     const reached = [...new Set(events.filter((e) => e.name === "tech_story_scene").map((e) => e.scene))].sort();
     const interacts = events.filter((e) => e.name === "tech_story_interact").map((e) => `${e.scene}:${e.type}`);
-    const expected = ["1:flip", "2:gather", "3:save", "4:map_toggle", "5:globe_drag", "6:year_pick"];
+    const expected = ["1:place_pick", "2:gather", "4:save", "5:map_toggle", "6:globe_drag", "7:year_pick"];
     const missing = expected.filter((x) => !interacts.includes(x));
     const file = ctx.evidence("analytics-events.json");
     await fs.writeFile(file, JSON.stringify({ events, scenes }, null, 2));
-    const pass = views === 1 && reached.length === 6 && missing.length === 0 && interacts.length === 6;
-    return { pass, value: `view ${views}, scene ${reached.join(",")}, interact ${interacts.join(" ")}`, detail: missing.length ? `빠진 interact: ${missing.join(", ")}` : (interacts.length > 6 ? "interact가 장면당 1개를 넘음" : ""), evidence: [file] };
+    const pass = views === 1 && reached.length === SCENE_COUNT && missing.length === 0 && interacts.length === expected.length;
+    return { pass, value: `view ${views}, scene ${reached.join(",")}, interact ${interacts.join(" ")}`, detail: missing.length ? `빠진 interact: ${missing.join(", ")}` : (interacts.length > expected.length ? "interact가 장면당 1개를 넘음" : ""), evidence: [file] };
   } finally { await b.close(); await fs.rm(out, { recursive: true, force: true }); }
 }
