@@ -60,6 +60,7 @@ internal fun GroupAccountRoute(
                     LiveGroupContent(
                         repository = checkNotNull(container.groupRepository),
                         albumRepository = container.albumRepository,
+                        shareCoordinator = container.albumShareCoordinator,
                         tripRecordRepository = container.tripRecordRepository,
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,

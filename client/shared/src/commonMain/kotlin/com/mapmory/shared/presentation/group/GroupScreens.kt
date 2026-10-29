@@ -94,7 +94,6 @@ internal fun GroupHomeScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
-    sharingEnabled: Boolean = true,
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
@@ -106,7 +105,7 @@ internal fun GroupHomeScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupButton("멤버 초대", onInvite, Modifier.weight(1f), outlined = true)
-                    if (sharingEnabled && group.albums.isNotEmpty()) GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
+                    if (group.albums.isNotEmpty()) GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
                 }
             }
             item {
@@ -121,9 +120,9 @@ internal fun GroupHomeScreen(
                     EmptySymbol()
                     Text("아직 함께 남긴 사진이 없어요", fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
-                    GroupMuted(if (sharingEnabled) "첫 앨범을 만들거나 내 여행 기록을 공유해 보세요." else "공유된 앨범이 아직 없어요.")
+                    GroupMuted("첫 앨범을 만들거나 내 여행 기록을 공유해 보세요.")
                     Spacer(Modifier.height(24.dp))
-                    if (sharingEnabled) GroupButton("첫 앨범 추가하기", onAdd, Modifier.fillMaxWidth())
+                    GroupButton("첫 앨범 추가하기", onAdd, Modifier.fillMaxWidth())
                 }
             }
             items(group.albums, key = { it.id }) { album ->
@@ -152,7 +151,6 @@ internal fun GroupAlbumScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
-    sharingEnabled: Boolean = true,
 ) {
     val scrollState = rememberLazyGridState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
@@ -179,7 +177,7 @@ internal fun GroupAlbumScreen(
                 }
             }
         }
-        if (sharingEnabled) GroupButton("이 앨범에 사진 추가", onAddPhotos,
+        GroupButton("이 앨범에 사진 추가", onAddPhotos,
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), tall = true)
     }
 }

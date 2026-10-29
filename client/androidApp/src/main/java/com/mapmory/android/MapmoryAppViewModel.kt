@@ -47,6 +47,7 @@ internal object UploadContainer {
             onboardingPreference = AndroidOnboardingPreference(application),
             teamDevicePreference = AndroidTeamDevicePreference(application),
             shareVideoJobStore = AndroidShareVideoJobStore(application, configuredApiBaseUrl),
+            albumShareStore = com.mapmory.shared.data.settings.AndroidAlbumShareStore(application, configuredApiBaseUrl),
             backgroundSaveExecution = execution,
             onAuthRefreshFailed = { stage, error ->
                 if (isDebuggable) {

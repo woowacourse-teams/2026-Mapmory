@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 internal fun LiveGroupContent(
     repository: GroupRepository,
     albumRepository: com.mapmory.shared.domain.repository.AlbumRepository?,
+    shareCoordinator: AlbumShareCoordinator?,
     tripRecordRepository: com.mapmory.shared.domain.repository.TripRecordRepository,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
@@ -76,9 +77,9 @@ internal fun LiveGroupContent(
                     onGroup = { scope.launch { state.openGroup(it.toLong()) } },
                     onRetry = { scope.launch { state.load() } },
                 )
-            } else if (albumRepository != null) {
+            } else if (albumRepository != null && shareCoordinator != null) {
                 key(group.id) {
-                    LiveAlbumContent(group.id, albumRepository, albumNavigation,
+                    LiveAlbumContent(group.id, albumRepository, tripRecordRepository, shareCoordinator, albumNavigation,
                         groupName = group.name, memberCount = group.members.size,
                         onBack = { back.value() }, onInvite = { open(LiveGroupSheet.INVITE) },
                         onManageGroup = { name = group.name; open(LiveGroupSheet.RENAME) },

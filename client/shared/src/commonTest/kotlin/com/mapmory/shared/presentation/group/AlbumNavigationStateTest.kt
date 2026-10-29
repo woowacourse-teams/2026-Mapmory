@@ -1,9 +1,6 @@
 package com.mapmory.shared.presentation.group
 
 import kotlin.test.*
-import com.mapmory.shared.domain.group.AlbumDetail
-import com.mapmory.shared.domain.group.AlbumRegion
-import com.mapmory.shared.domain.group.AlbumMember
 
 class AlbumNavigationStateTest {
     @Test fun refreshDoesNotCountAsAnotherAlbumEntry() {
@@ -30,5 +27,3 @@ class AlbumNavigationStateTest {
         assertFalse(navigation.back())
     }
 }
-
-internal fun album(id: Long = 4) = AlbumDetail(id, 3, "여행", AlbumRegion(1, "11", "CITY", "서울"), null, null, AlbumMember(9, "나", true), listOf(7), emptyList())
