@@ -29,7 +29,8 @@
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
 | 구현됨 | `GET` | `/members/me` | 내 회원 정보 조회 |
 | 구현됨 | `PATCH` | `/members/me/nickname` | 내 닉네임 변경 |
-| 구현됨 | `DELETE` | `/members/me` | 회원 탈퇴 |
+| 구현됨 | `DELETE` | `/members/me` | 회원 탈퇴 (애플 회원 제외) |
+| 구현됨 | `POST` | `/auth/apple/withdrawal` | 애플 회원 탈퇴 (애플 토큰 철회) |
 | 구현됨 | `GET` | `/admin/auth/csrf` | 관리자 CSRF 토큰 발급 |
 | 구현됨 | `POST` | `/admin/auth/login` | 관리자 로그인(세션 발급) |
 | 구현됨 | `GET` | `/admin/auth/me` | 현재 관리자 조회 |
@@ -321,6 +322,39 @@ Access Token이 아니라 ID Token을 보낸다.
 
 #### Response `204 No Content`
 
+### 애플 회원 탈퇴
+
+`POST /api/v1/auth/apple/withdrawal`
+
+애플로 가입한 회원(게스트에서 애플로 승격한 회원 포함)은 이 API로 탈퇴한다. `DELETE /members/me`는 `400 APPLE_REAUTHENTICATION_REQUIRED`다.
+앱스토어 심사 지침에 따라 서버가 애플 토큰을 철회해 앱과 애플 계정의 연결을 끊은 뒤 탈퇴한다.
+
+앱은 탈퇴 직전에 **Sign in with Apple을 다시 띄워** 받은 `identityToken`과 `authorizationCode`를 보낸다.
+`authorizationCode`는 5분 안에 한 번만 쓸 수 있으므로 받자마자 보낸다. Access Token이 필요하다.
+
+```json
+{
+  "identityToken": "apple-identity-token",
+  "authorizationCode": "apple-authorization-code"
+}
+```
+
+- 재인증한 애플 계정이 탈퇴하는 회원과 같아야 한다.
+- 철회에 실패하면 탈퇴하지 않는다. 잠시 후 재인증부터 다시 한다.
+- 철회 후 서버의 탈퇴 처리에 실패하면 `503 APPLE_WITHDRAWAL_INCOMPLETE`다. 앱은 탈퇴 완료로 표시하거나 Mapmory 토큰을 지우지 않고, 재인증부터 다시 진행한다. 소비된 authorization code는 재사용하지 않는다.
+- 이미 탈퇴한 애플 회원이 **아직 유효한 기존 Access Token과 필수 요청 본문**으로 다시 요청하면 애플 API 호출 없이 `204`다. 없는 회원과 버려진 게스트는 `401 INACTIVE_MEMBER`, 애플 회원이 아닌 경우는 `400 NOT_APPLE_MEMBER`다. Access Token이 만료되면 이 재요청도 `401 EXPIRED_ACCESS_TOKEN`이며, 탈퇴로 폐기된 Refresh Token은 갱신할 수 없다.
+- 탈퇴 뒤 동작(토큰 폐기, 남은 Access Token, 재가입)은 회원 탈퇴와 같다.
+
+#### Response `204 No Content`
+
+| 상태 | `code` | 조건 | 앱 처리 |
+| --- | --- | --- | --- |
+| `400` | `NOT_APPLE_MEMBER` | 애플 회원이 아님 | `DELETE /members/me`로 탈퇴 |
+| `400` | `APPLE_REAUTHENTICATION_FAILED` | identity token이 유효하지 않음, 다른 애플 계정으로 재인증함, `authorizationCode`가 만료됐거나 이미 쓰임 | 재인증부터 다시 |
+| `503` | `APPLE_UNAVAILABLE` | 애플 장애 또는 서버의 애플 키·client 설정 오류로 철회를 완료하지 못함 | 잠시 후 재인증부터 다시 |
+| `503` | `APPLE_WITHDRAWAL_INCOMPLETE` | 애플 철회는 성공했지만 Mapmory 탈퇴 처리가 실패함 | 토큰을 유지하고 잠시 후 새 재인증으로 재시도. 반복 실패 시 응답의 `X-Request-Id`로 문의 |
+| `401` | `INACTIVE_MEMBER` | 회원이 없거나 버려진 게스트임 | 로그인 화면으로 |
+
 ### Auth 오류
 
 | 상태 | `code` | 조건 |
@@ -336,7 +370,7 @@ Access Token이 아니라 ID Token을 보낸다.
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
 | `503` | `KAKAO_UNAVAILABLE` | 카카오 공개키를 받아오지 못해 검증할 수 없음 |
 | `503` | `GOOGLE_UNAVAILABLE` | 구글 공개키를 받아오지 못해 검증할 수 없음 |
-| `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음 |
+| `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음. 애플 회원 탈퇴에서 애플 토큰을 철회하지 못함 |
 
 ### 토큰 오류 처리
 
@@ -1317,7 +1351,7 @@ Authorization: Bearer {accessToken}
 
 `DELETE /api/v1/members/me`
 
-게스트 회원도 같은 API로 탈퇴한다.
+게스트 회원도 같은 API로 탈퇴한다. **애플 회원은 애플 회원 탈퇴(`POST /auth/apple/withdrawal`)를 쓴다.**
 
 - 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
 - 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
@@ -1336,6 +1370,7 @@ Authorization: Bearer {accessToken}
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
 | `401` | `INACTIVE_MEMBER` | Access Token의 회원이 없거나 탈퇴했거나 버려진 게스트임. 저장한 토큰을 지우고 로그인 화면으로. 탈퇴 API는 탈퇴한 회원에게도 `204` |
+| `400` | `APPLE_REAUTHENTICATION_REQUIRED` | 애플 회원이 회원 탈퇴를 부름. 애플 회원 탈퇴(`POST /auth/apple/withdrawal`)를 쓴다 |
 
 ## 12. Group API
 

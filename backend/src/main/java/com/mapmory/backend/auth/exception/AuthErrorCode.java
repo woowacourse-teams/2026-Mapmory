@@ -48,8 +48,23 @@ public enum AuthErrorCode implements ErrorCode {
     ),
     APPLE_UNAVAILABLE(
             ErrorKind.SERVICE_UNAVAILABLE,
-            "애플 로그인을 일시적으로 사용할 수 없습니다.",
-            "애플 인증 서버 오류로 로그인에 실패했습니다. 잠시 후 다시 시도하세요."
+            "애플 인증을 일시적으로 사용할 수 없습니다.",
+            "애플 인증 서버 오류로 요청에 실패했습니다. 잠시 후 다시 시도하세요."
+    ),
+    APPLE_REAUTHENTICATION_FAILED(
+            ErrorKind.INVALID_INPUT,
+            "애플 재인증에 실패했습니다.",
+            "탈퇴하려는 계정으로 애플 로그인을 다시 하고, 받은 identity token과 authorization code를 바로 보내세요."
+    ),
+    APPLE_WITHDRAWAL_INCOMPLETE(
+            ErrorKind.SERVICE_UNAVAILABLE,
+            "회원 탈퇴를 완료하지 못했습니다.",
+            "애플 연결은 해제됐지만 Mapmory 탈퇴를 완료하지 못했습니다. 잠시 후 애플 재인증부터 다시 진행하세요."
+    ),
+    NOT_APPLE_MEMBER(
+            ErrorKind.INVALID_INPUT,
+            "애플 회원이 아닙니다.",
+            "애플로 가입한 회원만 이 경로로 탈퇴합니다. DELETE /api/v1/members/me를 사용하세요."
     ),
     INVALID_REFRESH_TOKEN(
             ErrorKind.AUTHENTICATION_REQUIRED,
