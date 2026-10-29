@@ -25,8 +25,9 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
     words = { x0: c.left - r.left - m, y0: c.top - r.top - m, x1: c.right - r.left + m, y1: c.bottom - r.top + m };
   };
 
-  // a chosen place's photos rise out of the wall into a tidy grid where nothing covers them: under the words, or on
-  // both sides of them when the band below is too low (2026-10-29: left in place, most of them sat under the words)
+  // a chosen place's photos rise out of the wall into a tidy grid where nothing covers them: under the words, or (on
+  // desktop) on both sides of them when the band below is too low (2026-10-29: left in place, most of them sat under
+  // the words)
   let slots = new Map();
   function fitGrid(n, r, gap, max) {
     const w = r.x1 - r.x0, h = r.y1 - r.y0;
@@ -53,7 +54,16 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
     const kept = tiles.filter((t) => t.place === pick && t.x + t.s > 0 && t.x < W);
     const small = W < 520, gap = small ? 8 : 12, max = small ? 84 : 112, pad = 16;
     const below = { x0: pad, y0: words.y1 + 4, x1: W - pad, y1: H - (small ? 40 : 52) };
-    if (fitGrid(kept.length, below, gap, max).s >= (small ? 52 : 72)) { placeGrid(kept, below, gap, max); return; }
+    const readable = small ? 56 : 72;
+    if (fitGrid(kept.length, below, gap, max).s >= readable) { placeGrid(kept, below, gap, max); return; }
+    // phones: the sides are a sliver, so the band below keeps as many as it holds at a size that reads (2026-10-29,
+    // 티온: on a short phone 제주 and 일본 shrank into slivers at the edges while 미국's seven still fitted below)
+    if (small) {
+      let n = kept.length;
+      while (n > 1 && fitGrid(n, below, gap, max).s < readable) n--;
+      placeGrid(kept.slice(0, n), below, gap, max);
+      return;
+    }
     const top = 96, bottom = H - 52, half = Math.ceil(kept.length / 2);
     placeGrid(kept.slice(0, half), { x0: pad, y0: top, x1: words.x0, y1: bottom }, gap, max);
     placeGrid(kept.slice(half), { x0: words.x1, y0: top, x1: W - pad, y1: bottom }, gap, max);
