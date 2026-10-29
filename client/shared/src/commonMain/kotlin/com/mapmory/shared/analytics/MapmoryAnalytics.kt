@@ -26,6 +26,10 @@ object MapmoryAnalyticsUserProperty {
 }
 
 object MapmoryAnalyticsEvent {
+    const val GROUP_ACTION = "group_action"
+    const val GROUP_VIEWED = "group_viewed"
+    const val GROUP_ACTION_REJECTED = "group_action_rejected"
+    const val GROUP_PREVIEW_RESULT = "group_preview_result"
     const val SOCIAL_LOGIN_VIEWED = "social_login_viewed"
     const val SOCIAL_LOGIN_STARTED = "social_login_started"
     const val SOCIAL_LOGIN_COMPLETED = "social_login_completed"
