@@ -20,7 +20,7 @@ ADR 0020은 identity token만 검증하므로 서버에 애플 refresh token·ac
 ```
 앱: 탈퇴 → Sign in with Apple 다시 → identityToken, authorizationCode
 POST /api/v1/auth/apple/withdrawal  (Authorization: Bearer {access token})
-  1. 회원이 활동 중인 애플 회원인지 확인
+  1. 애플 회원인지 확인. 이미 탈퇴했으면 204, 없는 회원·버려진 게스트는 401
   2. identity token 검증 → sub가 회원의 provider_id와 같은지 확인
   3. authorization code를 토큰으로 교환(client_id = identity token의 aud)
   4. 교환 응답 identity token을 검증해 sub와 aud가 재인증 결과와 같은지 확인 → 철회
@@ -43,10 +43,15 @@ POST /api/v1/auth/apple/withdrawal  (Authorization: Bearer {access token})
 | 애플 회원이 아님 | `400 NOT_APPLE_MEMBER` |
 | identity token이 잘못됨, 다른 계정, code 만료(5분)·재사용(`invalid_grant`) | `400 APPLE_REAUTHENTICATION_FAILED` |
 | 애플 장애, client_secret·client_id 설정 오류, 철회 키 미설정 | `503 APPLE_UNAVAILABLE` (ERROR 알림) |
+| 애플 철회 성공 후 Mapmory 탈퇴 트랜잭션 실패 | `503 APPLE_WITHDRAWAL_INCOMPLETE` (전용 ERROR 로그) |
 
 - 보호된 경로라 재인증 실패를 401로 주지 않는다. 앱은 "그 밖의 401"을 로그아웃으로 처리한다.
 - 외부 호출(교환·철회)은 트랜잭션 밖에서 먼저 하고, 성공하면 탈퇴 트랜잭션을 연다.
-- 철회 뒤 탈퇴가 실패하면 애플 연결만 끊긴다. 다시 애플로 로그인하면 `sub`가 같아 같은 회원으로 들어온다.
+- 이미 탈퇴한 애플 회원은 유효한 기존 Access Token과 필수 본문으로 재요청하면 애플 호출 없이 `204`다. 없는 회원·버려진 게스트·다른 제공자를 성공으로 처리하지 않는다.
+- 철회 뒤 탈퇴 트랜잭션이 실패하면 회원 정보 변경과 Mapmory refresh 폐기를 함께 롤백하고 `APPLE_WITHDRAWAL_INCOMPLETE`를 반환한다. 앱은 Mapmory 토큰을 유지하고 새 재인증으로 다시 요청한다.
+- 이때 `APPLE_WITHDRAWAL_LOCAL_FAILED` ERROR 로그에 `memberId`, `requestId`, `stage`, `failureType`을 남긴다. 애플 토큰·코드·키와 원본 예외 메시지는 남기지 않는다.
+- 애플 철회와 DB 커밋은 원자적이지 않다. 사용자 재시도나 운영 개입이 없으면 불일치가 계속될 수 있다. 철회 직후 프로세스가 종료되면 이 로그도 남지 않는다. 서버가 자동으로 복구하는 구조는 아니며, 영속 작업 상태·자동 재시도는 별도 설계가 필요하다.
+- 테스트는 실제 DB 변경 후 실패를 주입해 회원 정보와 refresh 폐기의 동시 롤백, 새 재인증 요청의 성공을 확인한다. 실제 애플 계정의 재인증·연결 해제는 릴리스 전 별도로 확인한다.
 
 ### 애플 회원은 일반 탈퇴로 탈퇴할 수 없다
 
@@ -81,3 +86,7 @@ POST /api/v1/auth/apple/withdrawal  (Authorization: Bearer {access token})
   비어 있으면 로그인은 되지만 애플 회원 탈퇴가 `503`이다. 키가 잘못됐으면 애플리케이션이 뜨지 않는다.
 - 앱은 탈퇴 직전에 Sign in with Apple을 다시 띄우고, 받은 값을 5분 안에 한 번만 보낸다.
 - 카카오 연결 끊기는 #469에서 다룬다.
+
+## 배포 및 장애 대응
+
+구버전 앱의 탈퇴 경로 전환, EC2 환경변수, 실제 계정 확인 및 실패 복구 절차는 [애플 탈퇴 운영 가이드](../apple-withdrawal-operations.md)를 따른다.

@@ -56,6 +56,11 @@ public enum AuthErrorCode implements ErrorCode {
             "애플 재인증에 실패했습니다.",
             "탈퇴하려는 계정으로 애플 로그인을 다시 하고, 받은 identity token과 authorization code를 바로 보내세요."
     ),
+    APPLE_WITHDRAWAL_INCOMPLETE(
+            ErrorKind.SERVICE_UNAVAILABLE,
+            "회원 탈퇴를 완료하지 못했습니다.",
+            "애플 연결은 해제됐지만 Mapmory 탈퇴를 완료하지 못했습니다. 잠시 후 애플 재인증부터 다시 진행하세요."
+    ),
     NOT_APPLE_MEMBER(
             ErrorKind.INVALID_INPUT,
             "애플 회원이 아닙니다.",

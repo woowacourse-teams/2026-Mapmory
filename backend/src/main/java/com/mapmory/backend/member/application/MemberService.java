@@ -38,6 +38,16 @@ public class MemberService {
         return findActiveMember(memberId);
     }
 
+    /** 탈퇴 완료 여부를 확인할 때 사용한다. 없는 회원과 버려진 게스트는 허용하지 않는다. */
+    @Transactional(readOnly = true)
+    public Member findForWithdrawal(Long memberId) {
+        Member member = findMember(memberId);
+        if (member.isAbandoned()) {
+            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
+        }
+        return member;
+    }
+
     @Transactional
     public Member changeNickname(Long memberId, String nickname) {
         Member member = findActiveMember(memberId);
