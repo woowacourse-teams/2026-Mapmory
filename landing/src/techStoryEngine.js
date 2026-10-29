@@ -5,7 +5,7 @@ import land110 from "world-atlas/land-110m.json";
 import KOREA from "./data/tech-korea-map.json";
 import SPRITE from "./data/storySprite.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
-import { TECH_COUNTRIES, TECH_PROVINCES, techScenes } from "./techStory.js";
+import { TECH_COUNTRIES, TECH_PIN, TECH_PROVINCES, techScenes } from "./techStory.js";
 
 // Port of 티온's approved #tech sketch (v8, 2026-10-23), made scroll-driven on 10-28 (티온: visitors flick through
 // without reading, and waiting for a replay feels slow). Mounted by TechStory.jsx into its own markup; returns destroy.
@@ -197,6 +197,8 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       const el = document.createElement("div");
       el.className = "ts-ph";
       el.style.cssText = cellStyle(k);
+      // the place's photos get a pin with the place name when they are picked out
+      if (m) el.innerHTML = `<span class="ts-burst-pin"><svg viewBox="0 0 24 24" fill="currentColor"><path d="${TECH_PIN}"/></svg>${place}</span>`;
       burst.appendChild(el);
       return { el, ...c, slot: m ? m.i : -1 };
     });
@@ -212,7 +214,10 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     // where the photos come from and go to: the album box inside the (turned) phone, as the page sees it
     const gr = gather.getBoundingClientRect(), fx = gr.width / (gather.clientWidth || 1), fy = gr.height / (gather.clientHeight || 1);
     const ox = gr.left - sr.left + gr.width / 2, oy = gr.top - sr.top + gr.height / 3;
-    const out = (q - 0.04) / 0.36, lit = smooth((q - 0.42) / 0.12), back = (q - 0.56) / 0.3;
+    // out: the album pours out; pick: the place's photos jump up one after another with their pin while the rest sink
+    // (티온 14:19Z: an action at the moment of picking, before they gather); back: they fly into the phone
+    const out = (q - 0.04) / 0.32, pick = (q - 0.38) / 0.18, back = (q - 0.62) / 0.24;
+    const lit = smooth(pick * 2);
     // the album fades back in under the photos as they land, then the flying copies go
     const landed = q >= 0.88, album = q >= 0.78;
     setForm(fieldPlace, { ready: true, loaded: album });
@@ -230,12 +235,18 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
         const b = smooth(back * 1.4 - t.d * 0.4);
         const fxp = gr.left - sr.left + ((t.slot % cols) * (cw + GAP) + cw / 2) * fx;
         const fyp = gr.top - sr.top + (Math.floor(t.slot / cols) * (cw + GAP) + cw / 2) * fy - 3;
-        x = lerp(x, fxp, b); y = lerp(y, fyp, b); sc = lerp(sc * (1 + 0.12 * lit), (cw * 1.12 * fx) / size, b); rot = lerp(rot, 0, b);
-        t.el.classList.toggle("is-hit", lit > 0.5);
+        // each one jumps in turn: up and bigger with a small overshoot, straightened, then it holds raised
+        const pj = clamp(pick * 1.6 - (t.slot % 8) * 0.08), jump = Math.sin(Math.PI * Math.min(1, pj * 1.4)) * (pj < 0.72 ? 1 : 0);
+        const up = smooth(pj / 0.5);
+        y -= (10 * up + 14 * jump) * (1 - b);
+        x = lerp(x, fxp, b); y = lerp(y, fyp, b); rot = lerp(rot * (1 - up), 0, b);
+        sc = lerp(sc * (1 + 0.3 * up + 0.12 * jump), (cw * 1.12 * fx) / size, b);
+        t.el.classList.toggle("is-hit", pj > 0.05);
+        t.el.classList.toggle("is-pinned", pj > 0.15 && b < 0.35);
       } else {
         const b = smooth(back * 1.6 - t.d * 0.6);
-        op *= lerp(1, 0.28, lit) * (1 - b);
-        sc *= lerp(1, 0.86, b);
+        op *= lerp(1, 0.18, lit) * (1 - b);
+        sc *= lerp(1, 0.86, lit) * lerp(1, 0.9, b);
       }
       t.el.style.opacity = op.toFixed(3);
       t.el.style.transform = `translate(${(x - size / 2).toFixed(1)}px,${(y - size / 2).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`;
