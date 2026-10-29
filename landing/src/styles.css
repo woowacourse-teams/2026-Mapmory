@@ -223,7 +223,8 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .location-shortcuts { display: flex; gap: 7px; }
 .location-shortcuts button { min-height: 36px; padding: 0 11px; border: 1px solid var(--globe-line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--globe-panel); color: var(--globe-muted); cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .location-shortcuts button:hover { border-color: var(--accent); color: var(--globe-text); }
-.location-shortcuts button.is-active { color: #2d1c05; background: #f6c66f; border-color: #f6c66f; box-shadow: 0 7px 18px rgba(246, 198, 111, 0.24); }
+/* the page's one accent marks a choice everywhere (the hero chips, this dock); it used to be the only yellow on the page */
+.location-shortcuts button.is-active { color: #062b1c; background: var(--accent); border-color: var(--accent); box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 24%, transparent); }
 
 .experience-stage { display: grid; grid-template-columns: minmax(0, 1.14fr) minmax(310px, 0.86fr); gap: 16px; align-items: stretch; scroll-margin-top: 84px; }
 .globe-panel { height: 520px; min-width: 0; overflow: hidden; border: 1px solid var(--globe-line); border-radius: 22px; background: var(--globe-panel); box-shadow: var(--shadow); display: flex; flex-direction: column; }
@@ -278,35 +279,33 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .photo-credit-owned { text-decoration: none; }
 
 .globe-onboarding-overlay {
+  /* the hint sits under the globe as one pill; the globe is never dimmed or covered (2026-10-29 review: the grey veil
+     and the dark card made the demo look switched off) */
   position: absolute;
   z-index: 8;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  color: #f0fff8;
-  background: rgba(6, 12, 17, 0.36);
+  inset: auto 0 12px;
+  padding: 0 12px;
+  display: flex;
+  justify-content: center;
   pointer-events: none;
 }
 .globe-onboarding-card {
-  width: min(390px, calc(100% - 28px));
-  padding: 24px 22px;
-  display: flex;
-  flex-direction: column;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 16px 6px 10px;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: #f0fff8;
-  border: 1px solid rgba(134, 164, 151, 0.32);
-  border-radius: 18px;
-  background: rgba(10, 18, 24, 0.76);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.2);
+  gap: 8px;
+  color: var(--globe-text);
+  border: 1px solid var(--globe-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--globe-raised) 94%, transparent);
+  box-shadow: 0 6px 18px rgba(22, 48, 34, 0.1);
 }
-.globe-onboarding-gesture { display: inline-flex; color: var(--accent); animation: guide-swipe 1.45s ease-in-out infinite; }
-.globe-onboarding-card strong { margin-top: 2px; font-size: 22px; letter-spacing: -0.035em; }
-.globe-onboarding-copy { color: #c4d2cc; font-size: 13px; }
+.globe-onboarding-gesture { display: inline-flex; color: var(--accent-strong); animation: guide-swipe 1.45s ease-in-out infinite; }
+.globe-onboarding-gesture svg { width: 26px; height: 26px; }
+.globe-onboarding-card strong { font-size: 14px; letter-spacing: -0.02em; white-space: nowrap; }
+.globe-onboarding-copy { display: none; }
 
 @keyframes guide-swipe {
   0%, 100% { transform: translateX(-8px); }
@@ -370,7 +369,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
   background: var(--surface);
 }
 .trust-zone { padding: 22px 22px 24px; border-radius: 16px; }
-.trust-zone.is-device { background: var(--canvas); border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent); }
+.trust-zone.is-device { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent-strong) 28%, transparent); }
 .trust-zone-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .trust-zone-label svg { flex: 0 0 auto; color: var(--accent-strong); }
 .trust-zone h3 { margin: 12px 0 6px; font-size: 18px; line-height: 1.4; word-break: keep-all; }
@@ -481,14 +480,13 @@ footer p { margin: 10px 0 0; }
 
 @media (max-width: 560px) {
   /* Section headings step down on phones so the hero payoff stays clearly the largest type. */
-  :root { --type-h2: 24px; }
+  :root { --type-h2: 30px; }
   .site-header { top: 8px; width: min(100% - 32px, 520px); min-height: 64px; margin-top: 8px; padding: 0 14px; border-radius: 18px; }
   .brand { min-height: 44px; display: inline-flex; align-items: center; font-size: 22px; }
   .theme-toggle { padding: 2px; }
-  .theme-toggle button { width: 44px; height: 44px; }
+  .theme-toggle button { width: 40px; height: 40px; }
   .header-actions { gap: 8px; }
-  .header-store-trigger { width: 44px; min-height: 44px; padding: 0; }
-  .header-store-trigger span { display: none; }
+  .header-store-trigger { min-height: 44px; padding: 0 14px; }
   .header-store-popover { width: 196px; }
   .experience-section { padding: 26px 0 104px; }
   .section-heading-flow { margin-bottom: 26px; grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -537,7 +535,7 @@ footer p { margin: 10px 0 0; }
   .hotspot-label { display: none; }
   .hotspot-dot { width: 31px; height: 31px; }
   .download-section { width: min(100% - 48px, 520px); padding: 70px 18px; }
-  .download-section h2 { font-size: 26px; }
+  .download-section h2 { font-size: 30px; }
   .waitlist-form { grid-template-columns: 1fr; }
   .waitlist-form > .button, .waitlist-agreements, .waitlist-feedback { grid-column: 1; }
   .waitlist-agreements { font-size: 11px; }
@@ -546,12 +544,7 @@ footer p { margin: 10px 0 0; }
 }
 
 @media (max-width: 560px) {
-  .globe-onboarding-card {
-    width: calc(100% - 20px);
-    padding: 20px 10px;
-  }
-  .globe-onboarding-card strong { font-size: 20px; }
-  .globe-onboarding-copy { font-size: 12px; }
+  .globe-onboarding-card strong { font-size: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

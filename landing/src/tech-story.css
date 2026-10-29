@@ -28,7 +28,7 @@
 /* ── stage + phone */
 .ts-story { position: relative; }
 .ts-stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
-.ts-phone-wrap { position: absolute; top: 50%; left: 50%; z-index: 1; perspective: 1400px; transform: translate(calc(-50% - min(100vw - 32px, 1120px) * 0.26), -50%); will-change: transform; }
+.ts-phone-wrap { position: absolute; top: 50%; left: 50%; z-index: 1; perspective: 1400px; transform: translate(calc(-50% - min(100vw - 32px, 1000px) * 0.22), -50%); will-change: transform; }
 .ts-phone { width: calc(var(--ph) * 0.462); height: var(--ph); padding: calc(var(--ph) * 0.018); border-radius: calc(var(--ph) * 0.07); background: var(--ts-phone-body);
   box-shadow: 0 30px 60px -20px rgba(10, 30, 20, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset; will-change: transform, opacity; }
 .ts-screen-box { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: calc(var(--ph) * 0.055); background: var(--ts-screen); color: var(--ts-screen-fg); }
@@ -133,9 +133,10 @@
 .ts-where svg { align-self: center; width: 16px; height: 16px; color: var(--ts-accent); }
 .ts-where span { color: var(--ts-screen-muted); font-size: 16px; font-weight: 600; }
 .ts-screen.is-dark { background: var(--ts-tl-bg); color: #f2f4f6; }
-/* the real share video (TECH_SHARE.media): the capture's own dark blue and blue, cropped to the globe and the country
-   name; the year buttons under it replace the capture's year bar (scripts/encode-tech-share-video.sh) */
-.ts-screen.is-media { --ts-accent: #2f80f3; padding-left: 0; padding-right: 0; background: #0e131b; }
+/* the real share video (TECH_SHARE.media): the capture's own dark blue, cropped to the globe and the country
+   name; the year buttons and the share button under it use the page accent (2026-10-29: the capture's blue read as
+   another app) and replace the capture's year bar (scripts/encode-tech-share-video.sh) */
+.ts-screen.is-media { padding-left: 0; padding-right: 0; background: #0e131b; }
 .ts-media-box { position: relative; flex: 1; min-height: 0; }
 .ts-media { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
 .ts-media:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: -2px; }
@@ -154,7 +155,7 @@
 
 /* ── the words: the hand-written step label and one title. They stay in the sticky stage and change in place with the
    scene, so a quick scroll never waits for words to pass (티온, 10-27). */
-.ts-captions { position: absolute; inset: 0; z-index: 4; width: min(1120px, calc(100% - 32px)); margin: 0 auto; pointer-events: none; }
+.ts-captions { position: absolute; inset: 0; z-index: 4; width: min(1000px, calc(100% - 32px)); margin: 0 auto; pointer-events: none; }
 .ts-copy { position: absolute; top: 50%; width: min(420px, 42%); opacity: 0; transform: translateY(calc(-50% + 6px));
   transition: opacity 120ms ease, transform 120ms ease; }
 .ts-copy.is-right { right: 0; }
@@ -171,7 +172,7 @@
 .ts-beat.is-trip { min-height: 276vh; min-height: 276svh; }
 .ts-bridge { height: 45vh; height: 45svh; }
 .ts-fn { margin-left: 2px; color: var(--muted); font-size: 0.45em; vertical-align: super; }
-.ts-footnote { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 8px 0 64px; color: var(--muted); font-size: 13px; }
+.ts-footnote { width: min(560px, calc(100% - 32px)); margin: 0 auto; padding: 8px 0 20px; color: var(--muted); font-size: 13px; text-align: center; text-wrap: balance; }
 
 @media (max-width: 760px) {
   /* the phone as big as fits between the floating header (about 70px) and a band for the words (about 150px), and

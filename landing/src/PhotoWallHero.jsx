@@ -59,10 +59,11 @@ function PhotoWallHero({ storeActions }) {
           ))}
         </div>
         <p className="wall-hero-diff">{HERO_COPY.diff}</p>
+        {/* the store buttons sit right under the promise (2026-10-29 review: at the bottom they floated under an empty third) */}
+        <div className="wall-hero-actions">{storeActions}</div>
         {pick && <a className="wall-hero-ask" href="#how">{HERO_COPY.ask}</a>}
       </div>
       <div className="wall-hero-foot">
-        {storeActions}
         <span>{HERO_COPY.made}</span>
       </div>
     </section>

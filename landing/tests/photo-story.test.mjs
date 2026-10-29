@@ -207,7 +207,9 @@ test("the server-rendered hero and stories have real headings, the chips and the
     const heroHtml = renderToStaticMarkup(createElement(PhotoWallHero, { storeActions: createElement("div", { className: "store-buttons" }) }));
     assert.match(heroHtml, /<h1 id="hero-title">사진 21,474장<span>장소를 누르면 그곳 사진만<\/span><\/h1>/);
     assert.equal(heroHtml.match(/aria-pressed="false"/g).length, 3);
-    assert.match(heroHtml, /<div class="wall-hero-foot"><div class="store-buttons"><\/div><span>Mapmory 팀이 만들었어요<\/span><\/div>/);
+    // the store buttons sit under the promise line; the foot keeps only the byline (2026-10-29 design review)
+    assert.match(heroHtml, /<p class="wall-hero-diff">[^<]+<\/p><div class="wall-hero-actions"><div class="store-buttons"><\/div><\/div>/);
+    assert.match(heroHtml, /<div class="wall-hero-foot"><span>Mapmory 팀이 만들었어요<\/span><\/div>/);
     assert.doesNotMatch(heroHtml, /wall-hero-ask/); // the "how did it find them" link appears only after a pick
   } finally {
     await rm(dir, { recursive: true, force: true });

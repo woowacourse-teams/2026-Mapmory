@@ -25,14 +25,14 @@
 .wall-hero-chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--ps-on-accent); }
 .wall-hero-chips button small { margin-left: 6px; font-size: inherit; font-weight: 700; opacity: 0.7; }
 .wall-hero-diff { margin: 14px auto 0; max-width: 30em; font-size: 17px; font-weight: 700; opacity: 0.9; word-break: keep-all; text-wrap: balance; }
-.wall-hero-ask { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; padding: 0 16px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 14px; font-weight: 700; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
+.wall-hero-actions { margin-top: 22px; display: flex; justify-content: center; pointer-events: auto; }
+/* one primary colour for every store button on the page (hero, header, final); the ask is a quiet text link */
+.wall-hero-actions .button-store { min-height: 48px; padding-inline: 18px; font-size: 14px; }
+.wall-hero-ask { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--accent-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
 @keyframes wall-ask-in { from { opacity: 0; transform: translateY(6px); } }
 .wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; pointer-events: none; }
-.wall-hero-foot .store-buttons { pointer-events: auto; }
-.wall-hero-foot .button-store { min-height: 44px; padding-inline: 16px; border-color: var(--text); border-radius: 12px; background: var(--text); color: var(--canvas); font-size: 13px; }
 @media (hover: hover) and (pointer: fine) {
   .wall-hero-chips button:hover { transform: translateY(-2px); }
-  .wall-hero-foot .button-store:hover:not(:disabled) { background: var(--text); }
 }
 @media (max-width: 900px) { .wall-hero { --header-space: 80px; } }
 @media (max-width: 760px) {
@@ -43,8 +43,10 @@
 
 /* ── #how: two pinned stories. The stage is 100svh and sticks while its track scrolls past. */
 .how-section { position: relative; padding: 0 0 72px; }
-.how-section > .how-experience-link { width: fit-content; min-height: 44px; margin: 8px max(24px, calc((100% - 1080px) / 2)) 0; padding: 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
-.how-section > .how-experience-link:hover { color: var(--accent-ink); }
+/* the way on to the globe: the page's secondary button, right under the footnote (it used to float alone in grey) */
+.how-section > .how-experience-link { width: fit-content; min-height: 48px; margin: 0 auto; padding: 0 20px; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); background: var(--surface); font-size: 15px; font-weight: 700; transition: border-color 160ms ease, color 160ms ease; }
+.how-section > .how-experience-link svg { color: var(--accent-strong); }
+.how-section > .how-experience-link:hover { border-color: var(--accent-strong); color: var(--accent-ink); }
 .ps-track { position: relative; }
 .ps-roll { height: 330vh; height: 330svh; background: var(--ps-roll-bg); }
 .ps-rec { height: 320vh; height: 320svh; }

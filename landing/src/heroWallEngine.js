@@ -15,6 +15,14 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
   let W = 0, H = 0, DPR = 1, tiles = [], tok = {};
   const lens = { x: 0, y: 0, tx: 0, ty: 0, live: false, last: 0 };
   let pick = null, pickAt = 0, visible = true, raf = 0, destroyed = false;
+  // where the words are on the canvas (with a margin): a chosen place's photos stay under the clearing there
+  const copyEl = hero.querySelector(".wall-hero-copy");
+  let words = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  const measureWords = () => {
+    if (!copyEl) return;
+    const c = copyEl.getBoundingClientRect(), r = canvas.getBoundingClientRect(), m = 14;
+    words = { x0: c.left - r.left - m, y0: c.top - r.top - m, x1: c.right - r.left + m, y1: c.bottom - r.top + m };
+  };
 
   const readTok = () => { tok = readTokens(hero, TOKENS); };
   function layout() {
@@ -67,7 +75,10 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
       const bob = reducedMotion ? 0 : Math.sin(now / 1400 + t.ph) * 1.2;
       const s = t.s * lift * (1 - dotK * 0.9), x = cx - s / 2, y = cy - s / 2 + bob;
       const item = { t, x, y, s, a: 0.16 + t.v * 0.84 - dotK * 0.1, ring: pick && keep ? k : 0 };
-      if (!pick && t.v > 0.3) top.push(item); else paint(item);
+      // a chosen place's photos stay crisp on top of the clearing; the ones that would touch the words are left out
+      // (2026-10-29: half-hidden under the clearing they read as faded placeholders)
+      if (pick && keep && x < words.x1 && x + s > words.x0 && y < words.y1 && y + s > words.y0) continue;
+      if (pick ? keep : t.v > 0.3) top.push(item); else paint(item);
       if (!pick && d < hitD && inLens > 0.55) { hitD = d; hit = item; }
     }
     // a soft clearing behind the words, then the lit photos on top of it
@@ -100,8 +111,11 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
 
   const io = new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; kick(); });
   io.observe(hero);
-  const ro = new ResizeObserver(() => { layout(); kick(); });
+  const ro = new ResizeObserver(() => { layout(); measureWords(); kick(); });
   ro.observe(canvas);
+  // the words grow when a place is picked (the ask link appears), without the canvas changing size
+  const wordsRo = new ResizeObserver(() => { measureWords(); kick(); });
+  if (copyEl) wordsRo.observe(copyEl);
   const onPointerMove = (e) => {
     const r = canvas.getBoundingClientRect();
     lens.tx = e.clientX - r.left; lens.ty = e.clientY - r.top; lens.live = true; lens.last = performance.now();
@@ -128,6 +142,7 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
       cancelAnimationFrame(raf);
       io.disconnect();
       ro.disconnect();
+      wordsRo.disconnect();
       offTheme();
       hero.removeEventListener("pointermove", onPointerMove);
       sprite?.removeEventListener("load", onSprite);

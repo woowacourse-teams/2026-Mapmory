@@ -398,6 +398,9 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     // pShare: where the share beat (scene 6) begins in the room; kept away from the ends so the trip keeps its room
     return { p: clamp((focus - r4.top) / room), pShare: r5 ? clamp((r5.top - r4.top) / room, 0.5, 0.95) : 1 };
   }
+  // how solid the phone stays while the globe is out on the trip. 0.28 left a grey ghost phone that read as a second,
+  // different phone in a flick (2026-10-29 review), so it stays solid and only steps back in scale.
+  const TRIP_PHONE_ALPHA = 1;
   // returns how the phone itself should look: `tilt` 1 = the step's angle, 0 = facing the visitor
   function tripFrame(focus) {
     const { p, pShare } = tripProgress(focus);
@@ -427,7 +430,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     if (p < P.out[1]) {
       const e = smooth(span(p, P.out));
       pos = { x: lerp(small.x, bigPos.x, e), y: lerp(small.y, bigPos.y, e), s: lerp(small.s, 1, e) };
-      look.scale = lerp(1, 0.9, e); look.alpha = lerp(1, 0.28, e);
+      look.scale = lerp(1, 0.9, e); look.alpha = lerp(1, TRIP_PHONE_ALPHA, e);
       const to = facing(stops[0]);
       rotate = [lerp(-110 + 30 + dragRot, to[0], e), lerp(-22, to[1], e)];
       zoom = lerp(1, stopZoom[0], e);
@@ -439,7 +442,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       i = clamp(i, 0, LEGS.length - 1);
       const local = span(u, [starts[i], starts[i + 1]]), e = smooth(local);
       tip = LEGS[i].arc(e);
-      pos = bigPos; look.scale = 0.9; look.alpha = 0.28;
+      pos = bigPos; look.scale = 0.9; look.alpha = TRIP_PHONE_ALPHA;
       rotate = [-tip[0], -tip[1] * 0.6];
       zoom = local < 0.25 ? lerp(stopZoom[i], legZoom[i], local / 0.25) : local > 0.75 ? lerp(legZoom[i], stopZoom[i + 1], (local - 0.75) / 0.25) : legZoom[i];
       route = [...stops.slice(0, i + 1).map(ll), tip];
@@ -447,7 +450,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     } else {
       const e = smooth(span(p, P.back)), last = stops[stops.length - 1];
       pos = { x: lerp(bigPos.x, small.x, e), y: lerp(bigPos.y, small.y, e), s: lerp(1, small.s, e) };
-      look.scale = lerp(0.9, 1, e); look.alpha = lerp(0.28, 1, e);
+      look.scale = lerp(0.9, 1, e); look.alpha = lerp(TRIP_PHONE_ALPHA, 1, e);
       const f = facing(last);
       rotate = [f[0] + 10 * e, f[1]];
       zoom = lerp(stopZoom[stops.length - 1], 1, e);
@@ -585,8 +588,9 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
       wrap.style.transform = "translate(-50%,-50%)";
       phone.style.transform = `rotateY(${(-14 * side).toFixed(2)}deg) rotateZ(${(side * 1.2).toFixed(2)}deg)${scale}`;
     } else {
-      const span = Math.min(captionsEl.clientWidth, 1120);
-      wrap.style.transform = `translate(calc(-50% + ${0.26 * (-1 + 2 * p) * span}px),-50%)`;
+      // 0.22 of a 1000px row (was 0.26 of 1120): the phone and its words sit closer, no empty third between them
+      const span = Math.min(captionsEl.clientWidth, 1000);
+      wrap.style.transform = `translate(calc(-50% + ${0.22 * (-1 + 2 * p) * span}px),-50%)`;
       phone.style.transform = `rotateY(${(-18 * side).toFixed(2)}deg) rotateZ(${(side * 1.5).toFixed(2)}deg)${scale}`;
     }
     phone.style.opacity = look.alpha === 1 ? "" : look.alpha.toFixed(3);

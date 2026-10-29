@@ -144,7 +144,7 @@ test("a quick scroll never waits for words, and the steps are told apart by the 
   // desktop: the phone crosses from left to right; phones: it stays centred and only its angle turns,
   // one way for step 1 and the other way for step 2, through the room between the steps
   assert.match(engine, /wrap\.style\.transform = "translate\(-50%,-50%\)";\s*phone\.style\.transform = `rotateY\(\$\{\(-14 \* side\)/);
-  assert.match(engine, /wrap\.style\.transform = `translate\(calc\(-50% \+ \$\{0\.26 \* \(-1 \+ 2 \* p\) \* span\}px\),-50%\)`;/);
+  assert.match(engine, /wrap\.style\.transform = `translate\(calc\(-50% \+ \$\{0\.22 \* \(-1 \+ 2 \* p\) \* span\}px\),-50%\)`;/);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.ts-bridge \{ height: 26svh; \}/);
 });
 
