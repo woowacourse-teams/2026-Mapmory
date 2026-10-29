@@ -1,6 +1,7 @@
 package com.mapmory.backend.group.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -17,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
+import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.group.domain.AlbumRepository;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
@@ -40,15 +42,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * 앨범 열기·담기·이름과 지역 바꾸기(T4)를 HTTP부터 DB까지 확인한다.
  */
+@RecordApplicationEvents
 class AlbumIntegrationTest extends IntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @Autowired
     private MockMvc mockMvc;
@@ -587,6 +595,30 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.data.id")).longValue();
+    }
+
+    @Test
+    void 앨범을_열거나_새_기록을_담으면_올린_사람을_뺀_멤버에게_알릴_이벤트를_보낸다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg");
+        addEntry(minho, group.getId(), albumId, minhoRecord.getId()).andExpect(status().isCreated());
+
+        assertThat(applicationEvents.stream(AlbumUpdated.class))
+                .extracting(AlbumUpdated::albumId, AlbumUpdated::groupName, AlbumUpdated::albumName,
+                        AlbumUpdated::actorMemberId, AlbumUpdated::recipientMemberIds)
+                .containsExactly(
+                        tuple(albumId, "도쿄 친구들", "도쿄", jisu.getId(), List.of(minho.getId())),
+                        tuple(albumId, "도쿄 친구들", "도쿄", minho.getId(), List.of(jisu.getId())));
+    }
+
+    @Test
+    void 같은_기록을_다시_담으면_알리지_않는다() throws Exception {
+        TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        Long albumId = openedAlbumId(jisu, record);
+
+        addEntry(jisu, group.getId(), albumId, record.getId()).andExpect(status().isOk());
+
+        assertThat(applicationEvents.stream(AlbumUpdated.class)).hasSize(1);
     }
 
     private ResultActions open(Member member, Long groupId, Long travelRecordId, String name, Long regionId)
