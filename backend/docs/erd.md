@@ -165,6 +165,7 @@ erDiagram
 | 구현 전 설계 | `album_entry` | 앨범에 담긴 여행 기록 id와 담은 회원을 저장한다. |
 | 구현 전 설계 | `push_token` | 앨범 알림을 받을 회원 기기의 FCM 토큰을 저장한다. |
 | 구현 전 설계 | `notification_setting` | 회원이 끈 알림 종류를 저장한다. 행이 없으면 모두 켜짐이다. |
+| 구현 전 설계 | `push_outbox` | 앨범 쓰기와 같은 트랜잭션에 적어 두고 스케줄러가 꺼내 보내는 알림이다. |
 
 ## 현재 구현 스키마
 
@@ -421,6 +422,24 @@ CONSTRAINT fk_travel_record_tag_tag
 | `updated_at` | `DATETIME` | NOT NULL | 마지막으로 바꾼 시각 |
 
 행이 없는 회원은 켜짐이다. 기기가 아니라 회원 단위라 다른 기기로 로그인해도 따라간다.
+
+### `push_outbox`
+
+앨범 알림을 앨범 쓰기와 같은 트랜잭션에 적어 두고 스케줄러가 꺼내 보낸다(ADR 0022 2026-10-29 보완: 아웃박스). 마이그레이션은 `V39__create_push_outbox.sql`이다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 알림 식별자 |
+| `type` | `VARCHAR(30)` | NOT NULL | `ALBUM_UPDATED` |
+| `payload` | `JSON` | NOT NULL | 보낼 때 다시 읽는 이벤트(그룹·앨범·올린 사람·받을 멤버) |
+| `status` | `VARCHAR(10)` | NOT NULL | `PENDING`, `SENT`, `FAILED` |
+| `attempts` | `INT` | NOT NULL, DEFAULT 0 | 실패한 횟수. 5번째 실패면 `FAILED` |
+| `next_attempt_at` | `DATETIME(6)` | NOT NULL | 이 시각부터 보낼 차례. 집어 가면 5분 뒤로 미룬다(처리 중 잠금) |
+| `last_error` | `VARCHAR(500)` | NULL | 마지막 실패 이유 |
+| `created_at` | `DATETIME` | NOT NULL | 적은 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막으로 바뀐 시각. 끝난 지 7일 지나면 지운다 |
+
+`INDEX(status, next_attempt_at)`로 보낼 차례인 행을 찾는다. 다른 서버가 잡은 행은 `FOR UPDATE SKIP LOCKED`로 건너뛴다.
 
 ## 관계 및 삭제 정책
 

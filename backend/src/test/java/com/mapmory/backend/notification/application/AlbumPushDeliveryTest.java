@@ -1,7 +1,7 @@
 package com.mapmory.backend.notification.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
@@ -23,7 +23,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-class AlbumPushListenerTest {
+class AlbumPushDeliveryTest {
 
     private static final AlbumUpdated EVENT = new AlbumUpdated(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of(2L, 4L));
 
@@ -33,7 +33,7 @@ class AlbumPushListenerTest {
     private final PushSender pushSender = mock(PushSender.class);
     private final NotificationSettingRepository notificationSettingRepository =
             mock(NotificationSettingRepository.class);
-    private final AlbumPushListener listener = new AlbumPushListener(
+    private final AlbumPushDelivery delivery = new AlbumPushDelivery(
             pushTokenRepository, pushTokenService, memberQuery, pushSender, notificationSettingRepository);
 
     @Test
@@ -45,7 +45,7 @@ class AlbumPushListenerTest {
         given(memberQuery.nicknamesOf(any())).willReturn(Map.of(1L, "민호"));
         given(pushSender.send(anyList())).willReturn(List.of());
 
-        listener.onAlbumUpdated(EVENT);
+        delivery.deliver(EVENT);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PushMessage>> sent = ArgumentCaptor.forClass(List.class);
@@ -65,7 +65,7 @@ class AlbumPushListenerTest {
         given(memberQuery.nicknamesOf(any())).willReturn(Map.of(1L, "민호"));
         given(pushSender.send(anyList())).willReturn(List.of());
 
-        listener.onAlbumUpdated(EVENT);
+        delivery.deliver(EVENT);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PushMessage>> sent = ArgumentCaptor.forClass(List.class);
@@ -77,7 +77,7 @@ class AlbumPushListenerTest {
     void 받을_멤버가_모두_끄면_기기를_찾지도_않는다() {
         given(notificationSettingRepository.findGroupAlbumOffAmong(List.of(2L, 4L))).willReturn(Set.of(2L, 4L));
 
-        listener.onAlbumUpdated(EVENT);
+        delivery.deliver(EVENT);
 
         verify(pushTokenRepository, never()).findAllByMemberIdIn(any());
         verify(pushSender, never()).send(anyList());
@@ -90,24 +90,24 @@ class AlbumPushListenerTest {
         given(memberQuery.nicknamesOf(any())).willReturn(Map.of());
         given(pushSender.send(anyList())).willReturn(List.of("gone"));
 
-        listener.onAlbumUpdated(EVENT);
+        delivery.deliver(EVENT);
 
         verify(pushTokenService).removeInvalid(List.of("gone"));
     }
 
     @Test
     void 받을_멤버나_기기가_없으면_보내지_않는다() {
-        listener.onAlbumUpdated(new AlbumUpdated(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of()));
+        delivery.deliver(new AlbumUpdated(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of()));
         given(pushTokenRepository.findAllByMemberIdIn(any())).willReturn(List.of());
-        listener.onAlbumUpdated(EVENT);
+        delivery.deliver(EVENT);
 
         verify(pushSender, never()).send(anyList());
     }
 
     @Test
-    void 보내다가_실패해도_예외를_올리지_않는다() {
+    void 보내다가_실패하면_예외를_올려_아웃박스가_다시_보내게_한다() {
         given(pushTokenRepository.findAllByMemberIdIn(any())).willThrow(new IllegalStateException("db down"));
 
-        assertThatCode(() -> listener.onAlbumUpdated(EVENT)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> delivery.deliver(EVENT)).isInstanceOf(IllegalStateException.class);
     }
 }

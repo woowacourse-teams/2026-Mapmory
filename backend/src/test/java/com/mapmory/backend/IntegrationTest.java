@@ -10,6 +10,7 @@ import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimitProperties;
 import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimiter;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.notification.application.port.PushSender;
 import com.mapmory.backend.place.infrastructure.google.GooglePlacesClient;
 import com.mapmory.backend.place.infrastructure.google.GoogleRequestLimiter;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
@@ -46,11 +47,12 @@ import org.springframework.test.context.jdbc.Sql;
  *   - Google 주소는 닿지 않는 곳으로 둔다. 개발 PC에 API 키가 있어도 실제 Google을 부르지 않고,
  *     stub하지 않은 조회는 PLACE_PROVIDER_UNAVAILABLE로 실패한다. 키는 설정 누락으로 먼저 실패하지 않게 채운다.
  *   - 운영처럼 공용 버킷 prefix를 둔다.
+ *   - 알림 아웃박스 스케줄러는 끈다. 다른 테스트의 데이터를 집어 가지 않게, 아웃박스 테스트는 PushOutboxRelay를 직접 부른다.
  *
  * MockMvc는 쓰지 않는 테스트에도 켠다. 테스트마다 켜고 끄면 컨텍스트 캐시 키가 달라져
  * 같은 설정의 컨텍스트를 새로 띄우게 된다.
  *
- * 외부 연동 빈(소셜 로그인 adapter, Google Places와 호출 한도, S3 업로드 확인과 presigned URL, 미디어 URL)과
+ * 외부 연동 빈(소셜 로그인 adapter, Google Places와 호출 한도, S3 업로드 확인과 presigned URL, 미디어 URL, 푸시 발송)과
  * 게스트 로그인 한도도 같은 이유로 여기서 spy로 둔다.
  * stub하지 않으면 실제 메서드를 그대로 부르고, stub은 테스트가 끝나면 초기화되므로 이 빈을 쓰지 않는 테스트의 동작은 바뀌지 않는다.
  * spy는 {@code given(spy.method())}로 stub하면 그 순간 실제 메서드가 불린다. {@code willReturn(...).given(spy).method()}로 stub한다.
@@ -68,7 +70,8 @@ import org.springframework.test.context.jdbc.Sql;
         "spring.datasource.hikari.connection-timeout=500",
         "google.places.api-key=test-key",
         "google.places.base-url=http://127.0.0.1:9",
-        "upload.storage.s3.key-prefix=mapmory"
+        "upload.storage.s3.key-prefix=mapmory",
+        "notification.outbox.enabled=false"
 })
 @Sql(
         scripts = "/db/cleanup-test-data.sql",
@@ -102,6 +105,9 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
 
     @MockitoSpyBean
     protected RecordMediaUrlService recordMediaUrlService;
+
+    @MockitoSpyBean
+    protected PushSender pushSender;
 
     @Autowired
     protected Clock clock;
