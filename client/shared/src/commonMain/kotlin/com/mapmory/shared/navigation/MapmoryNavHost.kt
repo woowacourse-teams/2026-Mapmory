@@ -177,18 +177,19 @@ internal fun MapmoryNavHost(
                 onRecordClick = { navigator.navigateToRecords() },
                 onProfileClick = navigator::navigateToProfile,
                 onSettingsClick = navigator::navigateToSettings,
-                onOpenPreview = if (developerToolsInfo != null) navigator::navigateToGroupPreview else null,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
             )
         }
 
         composable<GroupPreviewRoute> { backStackEntry ->
             SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
-            com.mapmory.shared.presentation.group.GroupRoute(
+            com.mapmory.shared.presentation.group.GroupAccountRoute(
+                container = container,
                 onMapClick = navigator::navigateToMap,
                 onRecordClick = { navigator.navigateToRecords() },
                 onProfileClick = navigator::navigateToProfile,
                 onSettingsClick = navigator::navigateToSettings,
-                previewEnabled = developerToolsInfo != null,
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),

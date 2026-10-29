@@ -10,9 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.data.auth.MemberProvider
-import com.mapmory.shared.data.remote.MapmoryApiException
-import com.mapmory.shared.data.remote.RemoteGroupSummary
-import com.mapmory.shared.analytics.*
+import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.auth.SocialLoginPanel
 import com.mapmory.shared.presentation.triprecord.screen.*
 
@@ -24,21 +22,20 @@ internal fun GroupAccountRoute(
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onOpenPreview: (() -> Unit)? = null,
+    backHandlerRegistry: MapmoryBackHandlerRegistry,
+    backHandlerOwnerId: String,
 ) {
     val session = container.accountSession
     val account = session?.state?.collectAsState()?.value
-    val analytics = LocalMapmoryAnalytics.current
+    var photoVisible by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var restoring by remember { mutableStateOf(true) }
     var restoreError by remember { mutableStateOf<String?>(null) }
-    var groups by remember { mutableStateOf<List<RemoteGroupSummary>?>(null) }
-    var listError by remember { mutableStateOf<String?>(null) }
-    var loginRequired by remember { mutableStateOf(false) }
     var noticeDismissed by remember { mutableStateOf(false) }
-    LaunchedEffect(session, retry) {
+    LaunchedEffect(session, account?.generation, retry) {
         session?.state?.first { !it.transitioning }
-        restoring = true; restoreError = null; groups = null; listError = null; loginRequired = false
+        restoring = true; restoreError = null
         val result = session?.restore()
         val member = result?.getOrNull()
         restoring = false
@@ -46,58 +43,35 @@ internal fun GroupAccountRoute(
             if (account?.pendingLogin != true) restoreError = "계정 상태를 확인하지 못했어요. 다시 시도해 주세요."
             return@LaunchedEffect
         }
-        if (member.provider != MemberProvider.GUEST) {
-            val started = kotlin.time.TimeSource.Monotonic.markNow()
-            val loaded = container.groupRepository?.groups()
-            groups = loaded?.getOrNull()
-            if (loaded?.isFailure == true) {
-                val error = loaded.exceptionOrNull()!!
-                loginRequired = (error as? MapmoryApiException)?.code == "SOCIAL_LOGIN_REQUIRED"
-                listError = if ((error as? MapmoryApiException)?.statusCode == 404)
-                    "그룹 기능을 준비하고 있어요. 잠시 후 다시 확인해 주세요." else "그룹을 불러오지 못했어요. 다시 시도해 주세요."
-                if (!loginRequired) analytics.reportFailure("group_list", error, mapOf("source" to "group_tab", "execution_mode" to "live"))
-            }
-            analytics.emit("group_list_loaded", mapOf("source" to "group_tab", "execution_mode" to "live",
-                "outcome" to if (groups != null) "success" else if (loginRequired) "login_required" else "failure",
-                "duration_ms" to started.elapsedNow().inWholeMilliseconds.toString()))
-        }
     }
     TripRecordBackground(modifier) {
         Column(Modifier.fillMaxSize()) {
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Text("그룹", Modifier.padding(24.dp), style = MaterialTheme.typography.headlineMedium)
-                onOpenPreview?.let { open ->
-                    TextButton(onClick = open, modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Text("그룹 앨범 화면 미리보기")
-                    }
+            val needsLogin = account?.pendingLogin == true || account?.recoveryRequired == true ||
+                account?.member?.provider == MemberProvider.GUEST
+            when {
+                restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp)) { CircularProgressIndicator() }
+                restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
+                    Text("그룹", style = MaterialTheme.typography.headlineMedium)
+                    restoreError?.let { Text(it) }
+                    SocialLoginPanel(session, container.accountLoginController)
+                    TextButton(onClick = { retry++ }) { Text("계정 확인 다시 시도") }
                 }
-                when {
-                    account?.pendingLogin == true -> SocialLoginPanel(session, container.accountLoginController)
-                    restoring -> CircularProgressIndicator(Modifier.padding(24.dp))
-                    restoreError != null -> Column(Modifier.padding(24.dp)) {
-                        Text(restoreError!!)
-                        TextButton(onClick = { retry++ }) { Text("계정 확인 다시 시도") }
-                        // A lost/invalid session must still offer deliberate social recovery.
-                        SocialLoginPanel(session, container.accountLoginController)
-                    }
-                    account?.member?.provider == MemberProvider.GUEST || loginRequired -> SocialLoginPanel(session, container.accountLoginController)
-                    listError != null -> Column(Modifier.padding(24.dp)) {
-                        Text(listError!!)
-                        TextButton(onClick = { retry++ }) { Text("그룹 다시 불러오기") }
-                    }
-                    groups == null -> CircularProgressIndicator(Modifier.padding(24.dp))
-                    groups!!.isEmpty() -> Text("아직 참여한 그룹이 없어요.", Modifier.padding(24.dp))
-                    else -> groups!!.forEach { group ->
-                        Card(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text(group.name, style = MaterialTheme.typography.titleMedium)
-                                Text("멤버 ${group.memberCount}명 · 앨범 ${group.albumCount}개")
-                            }
-                        }
-                    }
+                container.groupRepository != null -> key(account?.generation) {
+                    LiveGroupContent(
+                        repository = checkNotNull(container.groupRepository),
+                        albumRepository = container.albumRepository,
+                        tripRecordRepository = container.tripRecordRepository,
+                        backHandlerRegistry = backHandlerRegistry,
+                        backHandlerOwnerId = backHandlerOwnerId,
+                        refresh = retry,
+                        onBusyChanged = { busy = it },
+                        onPhotoVisibilityChanged = { photoVisible = it },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+                else -> Box(Modifier.weight(1f).padding(24.dp)) { Text("그룹 서버 연결을 사용할 수 없어요.") }
             }
-            TripBottomBar(selected = TripBottomTab.GROUP, onMapClick = onMapClick,
+            if (!photoVisible) TripBottomBar(selected = TripBottomTab.GROUP, onMapClick = onMapClick,
                 onRecordClick = onRecordClick, onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick, onGroupClick = { retry++ })
         }
