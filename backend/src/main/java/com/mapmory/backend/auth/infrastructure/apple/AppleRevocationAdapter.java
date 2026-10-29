@@ -38,6 +38,6 @@ public class AppleRevocationAdapter implements AppleRevocationPort {
 
     @Override
     public void revoke(AppleReauthentication reauthentication, String authorizationCode) {
-        appleTokenClient.revoke(reauthentication.clientId(), authorizationCode);
+        appleTokenClient.revoke(reauthentication, authorizationCode);
     }
 }

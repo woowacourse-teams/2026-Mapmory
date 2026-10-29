@@ -47,6 +47,6 @@ class AppleRevocationAdapterTest {
     void 토큰이_발급된_앱의_client_id로_철회한다() {
         adapter.revoke(new AppleReauthentication("apple-sub", "com.mapmory.ios.internal"), "auth-code");
 
-        then(tokenClient).should().revoke("com.mapmory.ios.internal", "auth-code");
+        then(tokenClient).should().revoke(new AppleReauthentication("apple-sub", "com.mapmory.ios.internal"), "auth-code");
     }
 }

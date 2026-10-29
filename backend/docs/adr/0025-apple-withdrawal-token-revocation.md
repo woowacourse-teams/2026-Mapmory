@@ -22,8 +22,9 @@ ADR 0020은 identity token만 검증하므로 서버에 애플 refresh token·ac
 POST /api/v1/auth/apple/withdrawal  (Authorization: Bearer {access token})
   1. 회원이 활동 중인 애플 회원인지 확인
   2. identity token 검증 → sub가 회원의 provider_id와 같은지 확인
-  3. authorization code를 토큰으로 교환(client_id = identity token의 aud) → 철회
-  4. 탈퇴(MemberService.withdrawUnlinked)
+  3. authorization code를 토큰으로 교환(client_id = identity token의 aud)
+  4. 교환 응답 identity token을 검증해 sub와 aud가 재인증 결과와 같은지 확인 → 철회
+  5. 탈퇴(MemberService.withdrawUnlinked)
 ```
 
 - **본인 확인**: 재인증한 애플 계정(`sub`)이 탈퇴하는 회원과 같아야 한다. 확인하지 않으면 다른 애플 계정으로 재인증해도 탈퇴된다.
@@ -71,7 +72,7 @@ POST /api/v1/auth/apple/withdrawal  (Authorization: Bearer {access token})
 
 ### 장점
 
-- 서버에 저장하는 애플 비밀이 없다. 기존 애플 회원에도 바로 적용된다.
+- 사용자별 애플 토큰을 저장하지 않는다. 기존 애플 회원에도 적용된다. 서버 서명용 개인키는 비밀 저장소에 보관한다.
 - 재인증한 계정이 본인인지 확인한다.
 
 ### 비용과 주의점

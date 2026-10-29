@@ -1,6 +1,7 @@
 package com.mapmory.backend.auth.infrastructure.apple;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mapmory.backend.auth.application.model.AppleReauthentication;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.infrastructure.apple.config.AppleProperties;
 import com.mapmory.backend.common.exception.BusinessException;
@@ -27,12 +28,14 @@ class AppleTokenClient {
 
     private final RestClient restClient;
     private final AppleClientSecretFactory clientSecretFactory;
+    private final AppleIdentityTokenVerifier verifier;
     private final String tokenUri;
     private final String revokeUri;
 
-    AppleTokenClient(RestClient appleRestClient, AppleClientSecretFactory clientSecretFactory, AppleProperties properties) {
+    AppleTokenClient(RestClient appleRestClient, AppleClientSecretFactory clientSecretFactory, AppleIdentityTokenVerifier verifier, AppleProperties properties) {
         this.restClient = appleRestClient;
         this.clientSecretFactory = clientSecretFactory;
+        this.verifier = verifier;
         this.tokenUri = properties.tokenUri();
         this.revokeUri = properties.revokeUri();
     }
@@ -41,9 +44,25 @@ class AppleTokenClient {
      * code를 토큰으로 바꾼 뒤 철회한다. 애플은 refresh token을 철회하면 그 사용자와 앱의 연결을 끊는다.
      * 교환 응답에 refresh token이 없으면 access token을 철회한다.
      */
-    void revoke(String clientId, String authorizationCode) {
+    void revoke(AppleReauthentication reauthentication, String authorizationCode) {
+        String clientId = reauthentication.clientId();
         String clientSecret = clientSecretFactory.create(clientId);
         AppleTokenResponse tokens = exchange(clientId, clientSecret, authorizationCode);
+        if (tokens.identityToken() == null || tokens.identityToken().isBlank()) {
+            throw unavailable(new IllegalStateException("애플 토큰 교환 응답에 identity token이 없습니다."));
+        }
+        AppleUser codeUser;
+        try {
+            codeUser = verifier.verify(tokens.identityToken());
+        } catch (BusinessException exception) {
+            if (exception.getErrorCode() == AuthErrorCode.INVALID_APPLE_TOKEN) {
+                throw new BusinessException(AuthErrorCode.APPLE_REAUTHENTICATION_FAILED);
+            }
+            throw exception;
+        }
+        if (!reauthentication.subject().equals(codeUser.subject()) || !clientId.equals(codeUser.clientId())) {
+            throw new BusinessException(AuthErrorCode.APPLE_REAUTHENTICATION_FAILED);
+        }
         if (tokens.refreshToken() != null) {
             revokeToken(clientId, clientSecret, tokens.refreshToken(), "refresh_token");
             return;
@@ -109,7 +128,8 @@ class AppleTokenClient {
      */
     record AppleTokenResponse(
             @JsonProperty("access_token") String accessToken,
-            @JsonProperty("refresh_token") String refreshToken
+            @JsonProperty("refresh_token") String refreshToken,
+            @JsonProperty("id_token") String identityToken
     ) {
     }
 }
