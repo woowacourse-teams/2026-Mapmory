@@ -106,6 +106,7 @@ These decisions supersede older mobile scroll-relay guidance below. Desktop chor
 
 - Default to the light theme and provide an explicit dark-theme toggle.
 - Keep the globe as the focal product surface. Use a white globe with neutral land and mint visited countries in the default light theme; preserve the detailed dark treatment in dark mode.
+- 2026-10-29 "여행 잡지" palette (src/App.jsx): visited countries are muted greens and the chosen country is ink, in both themes. This supersedes the mint visited-country, gold mobile selection and mint-country wording in this file; read those as "visited green" and "chosen ink".
 - The globe must rotate, and only activated/visited regions open travel memories.
 - Selecting an activated region swaps the adjacent photo and record content.
 - Use the real current product flow: place selection opens a separate memory panel. Do not imply photos are pinned directly onto the globe.

@@ -350,6 +350,9 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .download-section { width: min(1080px, calc(100% - 48px)); margin: 0 auto 90px; padding: 84px 40px; text-align: center; border-radius: 20px; color: var(--cta-text); background: var(--cta-bg); }
 /* on the dark panel the store buttons turn to paper */
 .download-section .button-primary { color: var(--cta-bg); background: var(--cta-text); border-color: var(--cta-text); }
+@media (hover: hover) and (pointer: fine) {
+  .download-section .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--cta-text) 88%, var(--cta-bg)); }
+}
 .download-section h2 { margin: 0; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.3; letter-spacing: -0.02em; word-break: keep-all; }
 .download-section > p:not(.eyebrow) { margin: 22px 0 34px; color: var(--muted); }
 /* The hero's one-line trust promise, repeated at the last conversion point. */
@@ -503,7 +506,7 @@ footer p { margin: 10px 0 0; }
   .site-header { top: 8px; width: min(100% - 32px, 520px); min-height: 64px; margin-top: 8px; padding: 0 14px; border-radius: 18px; }
   .brand { min-height: 44px; display: inline-flex; align-items: center; font-size: 22px; }
   .theme-toggle { padding: 2px; }
-  .theme-toggle button { width: 40px; height: 40px; }
+  .theme-toggle button { width: 44px; height: 44px; }
   .header-actions { gap: 8px; }
   .header-store-trigger { min-height: 44px; padding: 0 14px; }
   .header-store-popover { width: 196px; }
