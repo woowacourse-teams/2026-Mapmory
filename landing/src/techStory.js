@@ -45,7 +45,7 @@ export const TECH_SCENES = Object.freeze([
   { key: "save", step: "find", title: "고른 사진만 앱에 올라가요", interaction: "save" },
   { key: "map", step: "map", title: "다녀온 곳이 지도에 칠해져요", interaction: "map_toggle" },
   { key: "globe", step: "map", title: "해외는 나라별로 칠해져요", interaction: "globe_drag" },
-  { step: "map", title: "다녀온 곳을 타임라인 영상으로 공유해요", interaction: "year_pick", share: true },
+  { key: "share", step: "map", title: "다녀온 곳을 타임라인 영상으로 공유해요", interaction: "year_pick", share: true },
 ]);
 
 // The share scene (the app's timeline video, app PR #436). Change it here, nothing else needs to move:

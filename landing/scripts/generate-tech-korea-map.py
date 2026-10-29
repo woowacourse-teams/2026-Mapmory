@@ -49,7 +49,7 @@ gb = path(prov_p['KR-47'], .3)
 gjg = dist_p['47130']; gj = path(gjg, .3)
 seoul = prov_p['KR-11'].centroid
 # 여수 전남, 경주 경북, 전주 전북, 서울, 속초·강릉 강원, 부산, 제주 (the app's province codes)
-VISITED = {'KR-46': '전남', 'KR-47': '경북', 'KR-45': '전북', 'KR-11': '서울', 'KR-42': '강원', 'KR-26': '부산', 'KR-50': '제주'}
+VISITED = {'KR-46': '전남', 'KR-47': '경북', 'KR-45': '전북', 'KR-11': '서울', 'KR-42': '강원', 'KR-26': '부산', 'KR-49': '제주'}
 pv = {name: path(prov_p[code], .45) for code, name in VISITED.items()}
 json.dump({'w': W, 'h': H, 'kr': kr, 'sd': sd, 'gb': gb, 'gj': gj,
            'gjc': [round(gjg.centroid.x, 1), round(gjg.centroid.y, 1)],

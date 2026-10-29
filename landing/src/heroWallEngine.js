@@ -58,15 +58,18 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
     if (fitGrid(kept.length, below, gap, max).s >= readable) { placeGrid(kept, below, gap, max); return; }
     // phones: the sides are a sliver, so the band below keeps as many as it holds at a size that reads (2026-10-29,
     // 티온: on a short phone 제주 and 일본 shrank into slivers at the edges while 미국's seven still fitted below)
-    if (small) {
+    const top = 96, bottom = H - 52, half = Math.ceil(kept.length / 2);
+    const left = { x0: pad, y0: top, x1: words.x0, y1: bottom }, right = { x0: words.x1, y0: top, x1: W - pad, y1: bottom };
+    // tablets (520-768 wide) have side columns too narrow to read, so they take the phone path below
+    const sidesRead = !small && Math.min(fitGrid(half, left, gap, max).s, fitGrid(kept.length - half, right, gap, max).s) >= readable;
+    if (!sidesRead) {
       let n = kept.length;
       while (n > 1 && fitGrid(n, below, gap, max).s < readable) n--;
       placeGrid(kept.slice(0, n), below, gap, max);
       return;
     }
-    const top = 96, bottom = H - 52, half = Math.ceil(kept.length / 2);
-    placeGrid(kept.slice(0, half), { x0: pad, y0: top, x1: words.x0, y1: bottom }, gap, max);
-    placeGrid(kept.slice(half), { x0: words.x1, y0: top, x1: W - pad, y1: bottom }, gap, max);
+    placeGrid(kept.slice(0, half), left, gap, max);
+    placeGrid(kept.slice(half), right, gap, max);
   }
 
   const readTok = () => { tok = readTokens(hero, TOKENS); };

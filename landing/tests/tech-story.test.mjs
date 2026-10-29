@@ -18,6 +18,8 @@ const plain = (title) => title.replace(/\u00a0/g, " ");
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 
 test("two steps, six scenes plus the share scene, one short title each (티온, 10-29)", () => {
+  // the engine finds each scene by its key; a scene without one breaks its taps (the share scene's year buttons, 10-29)
+  assert.deepEqual(TECH_SCENES.map((s) => s.key), ["type", "gather", "safe", "save", "map", "globe", "share"]);
   assert.deepEqual(TECH_STEPS.map(({ label, side }) => [label, side]), [["사진 찾기", "left"], ["지도 모으기", "right"]]);
   // 10-29: step 1 is the app's "어디 사진을 불러올까요?" screen (a place typed in, its photos come out of the album,
   // nothing goes to the server), step 2 only fills places; short titles
