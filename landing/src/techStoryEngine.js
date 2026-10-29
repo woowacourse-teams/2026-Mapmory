@@ -165,7 +165,7 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   burst.className = "ts-burst";
   burst.setAttribute("aria-hidden", "true");
   stage.appendChild(burst);
-  let burstKey = "", bTiles = [];
+  let burstKey = "", bTiles = [], veil = null, count = null, countN = -1;
   const rand = (seed) => { let x = seed; return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; }; };
   // the tiles and where each one lands outside the phone: a jittered grid over the stage that leaves the header and the
   // scene's words clear; the place's photos are spread evenly through it
@@ -192,16 +192,26 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     const placeAt = new Map(mine.map((o, j) => [Math.min(cells.length - 1, Math.floor((j + 0.5) * every)), o]));
     let o = 0;
     burst.innerHTML = "";
+    // the veil that dims what is behind the picked photos, and the count above them
+    veil = document.createElement("div");
+    veil.className = "ts-burst-veil";
+    burst.appendChild(veil);
     bTiles = cells.map((c, idx) => {
       const m = placeAt.get(idx), k = m ? m.k : others[o++ % others.length];
       const el = document.createElement("div");
       el.className = "ts-ph";
       el.style.cssText = cellStyle(k);
-      // the place's photos get a pin with the place name when they are picked out
-      if (m) el.innerHTML = `<span class="ts-burst-pin"><svg viewBox="0 0 24 24" fill="currentColor"><path d="${TECH_PIN}"/></svg>${place}</span>`;
+      // every photo shows where it was taken for a moment (a tag); the place's photos turn it into a green pin
+      el.innerHTML = m
+        ? `<span class="ts-burst-tag is-mine"><svg viewBox="0 0 24 24" fill="currentColor"><path d="${TECH_PIN}"/></svg>${place}</span>`
+        : `<span class="ts-burst-tag">${placeOf(k)}</span>`;
       burst.appendChild(el);
-      return { el, ...c, slot: m ? m.i : -1 };
+      return { el, ...c, slot: m ? m.i : -1, order: m ? mine.indexOf(m) : -1, tagged: false };
     });
+    count = document.createElement("div");
+    count.className = "ts-burst-count";
+    burst.appendChild(count);
+    countN = -1;
     burst.style.setProperty("--bs", `${size}px`);
     burst.dataset.size = size;
     return sr;
@@ -214,12 +224,13 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     // where the photos come from and go to: the album box inside the (turned) phone, as the page sees it
     const gr = gather.getBoundingClientRect(), fx = gr.width / (gather.clientWidth || 1), fy = gr.height / (gather.clientHeight || 1);
     const ox = gr.left - sr.left + gr.width / 2, oy = gr.top - sr.top + gr.height / 3;
-    // out: the album pours out; pick: the place's photos jump up one after another with their pin while the rest sink
-    // (티온 14:19Z: an action at the moment of picking, before they gather); back: they fly into the phone
-    const out = (q - 0.04) / 0.32, pick = (q - 0.38) / 0.18, back = (q - 0.62) / 0.24;
-    const lit = smooth(pick * 2);
+    // The beat 티온 asked to dwell on (14:27Z): out, the album pours out; tag, every photo shows where it was taken;
+    // pick, the place's photos come forward one by one, ringed and pinned, as the rest step back behind a dimming veil
+    // and a count goes up; back, they fly into the phone
+    const out = (q - 0.04) / 0.26, tag = (q - 0.27) / 0.12, pick = (q - 0.4) / 0.24, back = (q - 0.66) / 0.22;
+    const recede = smooth(pick * 1.6);
     // the album fades back in under the photos as they land, then the flying copies go
-    const landed = q >= 0.88, album = q >= 0.78;
+    const landed = q >= 0.9, album = q >= 0.8;
     setForm(fieldPlace, { ready: true, loaded: album });
     layoutGather(fieldPlace, album ? Infinity : 0);
     const total = shownOf(fieldPlace);
@@ -228,29 +239,42 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
     burst.classList.toggle("is-on", out > 0 && !landed);
     if (out <= 0 || landed) return;
     const { cols, cw } = g;
+    const cx = sr.width / 2, cy = sr.height / 2;
+    const fade = smooth(back * 1.5);
+    veil.style.opacity = (recede * (1 - fade)).toFixed(3);
+    let picked = 0;
     bTiles.forEach((t) => {
       const a = smooth(out * 1.5 - t.d * 0.5);
       let x = lerp(ox, t.x, a), y = lerp(oy, t.y, a), sc = lerp(0.2, 1, a), rot = t.rot * a, op = clamp(a * 4);
+      const tagged = tag > t.d * 0.8 && (t.slot >= 0 ? back <= 0 : pick < 0.5);
+      if (tagged !== t.tagged) { t.tagged = tagged; t.el.classList.toggle("is-tagged", tagged); }
       if (t.slot >= 0) {
         const b = smooth(back * 1.4 - t.d * 0.4);
         const fxp = gr.left - sr.left + ((t.slot % cols) * (cw + GAP) + cw / 2) * fx;
         const fyp = gr.top - sr.top + (Math.floor(t.slot / cols) * (cw + GAP) + cw / 2) * fy - 3;
-        // each one jumps in turn: up and bigger with a small overshoot, straightened, then it holds raised
-        const pj = clamp(pick * 1.6 - (t.slot % 8) * 0.08), jump = Math.sin(Math.PI * Math.min(1, pj * 1.4)) * (pj < 0.72 ? 1 : 0);
-        const up = smooth(pj / 0.5);
-        y -= (10 * up + 14 * jump) * (1 - b);
+        // one after another: it comes forward bigger with a small overshoot and straightens, then holds there
+        const pj = clamp((pick - (t.order / Math.max(1, total)) * 0.55) / 0.3), pop = Math.sin(Math.PI * clamp(pj * 1.25)) * (pj < 0.8 ? 1 : 0);
+        const up = smooth(pj);
+        if (pj > 0.12) picked++;
+        y -= (8 * up + 12 * pop) * (1 - b);
         x = lerp(x, fxp, b); y = lerp(y, fyp, b); rot = lerp(rot * (1 - up), 0, b);
-        sc = lerp(sc * (1 + 0.3 * up + 0.12 * jump), (cw * 1.12 * fx) / size, b);
-        t.el.classList.toggle("is-hit", pj > 0.05);
-        t.el.classList.toggle("is-pinned", pj > 0.15 && b < 0.35);
+        sc = lerp(sc * (1 + 0.38 * up + 0.14 * pop), (cw * 1.12 * fx) / size, b);
+        t.el.classList.toggle("is-hit", pj > 0.12);
+        t.el.classList.toggle("is-pinned", pj > 0.12 && b < 0.3);
       } else {
+        // the rest step back: smaller, a little away from the middle, under the veil, and gone as the others land
         const b = smooth(back * 1.6 - t.d * 0.6);
-        op *= lerp(1, 0.18, lit) * (1 - b);
-        sc *= lerp(1, 0.86, lit) * lerp(1, 0.9, b);
+        x += (x - cx) * 0.08 * recede; y += (y - cy) * 0.08 * recede;
+        op *= lerp(1, 0.55, recede) * (1 - b);
+        sc *= lerp(1, 0.74, recede) * lerp(1, 0.9, b);
       }
       t.el.style.opacity = op.toFixed(3);
       t.el.style.transform = `translate(${(x - size / 2).toFixed(1)}px,${(y - size / 2).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`;
     });
+    const n = Math.min(picked, total);
+    if (n !== countN) { countN = n; count.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${TECH_PIN}"/></svg><span>${fieldPlace} 사진 <b>${n}</b>장</span>`; }
+    count.style.left = `${narrow.matches ? cx : ox}px`;
+    count.classList.toggle("is-shown", n > 0 && fade < 0.4);
   }
   // scene 2: the album shows and the place's photos lift one after another
   function scrubGather(q) {
