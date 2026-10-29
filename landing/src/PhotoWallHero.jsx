@@ -6,7 +6,7 @@ import { prefersReducedMotion } from "./storyCanvas.js";
 
 // The first screen (2026-10-18, sketch v11): an example camera roll as a wall of photos, a lens that shows where each
 // photo was taken, and 제주 / 일본 / 미국 chips that keep only that place. If nobody touches the wall, 제주 is picked
-// once after 4.5 s (not measured). Chip taps send hero_demo_select. The wall itself is a canvas (src/heroWallEngine.js).
+// once after 4.5 s (not measured). Tapping a photo picks its place too (not measured). Chip taps send hero_demo_select. The wall itself is a canvas (src/heroWallEngine.js).
 function PhotoWallHero({ storeActions }) {
   const heroRef = useRef(null);
   const canvasRef = useRef(null);
@@ -14,22 +14,29 @@ function PhotoWallHero({ storeActions }) {
   const pickRef = useRef(null);
   const touchedRef = useRef(false);
   const [pick, setPick] = useState(null);
+  const chooseRef = useRef(null);
 
   useEffect(() => {
-    const engine = mountHeroWall(heroRef.current, canvasRef.current, { reducedMotion: prefersReducedMotion() });
+    const engine = mountHeroWall(heroRef.current, canvasRef.current, {
+      reducedMotion: prefersReducedMotion(),
+      onPick: (key) => chooseRef.current?.(key, "photo"),
+    });
     engineRef.current = engine;
     engine.setPick(pickRef.current);
     return () => { engine.destroy(); engineRef.current = null; };
   }, []);
 
   const choose = useCallback((key, source) => {
-    if (source === "chip") touchedRef.current = true;
-    const next = pickRef.current === key ? null : key;
+    if (source !== "autoplay") touchedRef.current = true;
+    // a chip toggles; a tapped photo only ever picks its place
+    const next = pickRef.current === key && source === "chip" ? null : key;
     pickRef.current = next;
     setPick(next);
     engineRef.current?.setPick(next);
     if (next && source === "chip") trackEvent(ANALYTICS_EVENTS.HERO_DEMO_SELECT, { experience_type: "hero_demo", demo_place: next });
   }, []);
+
+  chooseRef.current = choose;
 
   useEffect(() => {
     const hero = heroRef.current;
