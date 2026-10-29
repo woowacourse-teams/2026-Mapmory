@@ -25,5 +25,5 @@ export async function schema(ctx) {
   });
   const questions = new Set(scenes.map((s) => s.question));
   if (questions.size !== scenes.length) problems.push("같은 질문에 답하는 장면이 둘 이상");
-  return { pass: problems.length === 0, value: problems.length ? `${problems.length}개 빠짐` : `6장면 × 7항목 채움, 질문 ${questions.size}개`, detail: problems.join("; "), evidence: [file] };
+  return { pass: problems.length === 0, value: problems.length ? `${problems.length}개 빠짐` : `${scenes.length}장면 × 7항목 채움, 질문 ${questions.size}개`, detail: problems.join("; "), evidence: [file] };
 }

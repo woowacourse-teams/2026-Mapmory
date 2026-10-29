@@ -135,13 +135,14 @@ export async function flickLegible(ctx) {
       const text = (sel) => document.querySelector(sel)?.textContent.trim() ?? "";
       const cls = (sel) => document.querySelector(sel)?.className ?? "";
       const sample = () => {
-        const on = [...document.querySelectorAll(".ts-screen")].indexOf(document.querySelector(".ts-screen.is-on"));
-        const state = on === 0 ? [...document.querySelectorAll(".ts-flip.is-open")].map((f) => f.textContent.trim()).join(",")
+        const on = [...document.querySelectorAll("[data-caption]")].indexOf(document.querySelector("[data-caption].is-on"));
+        const globe = () => { const cv = document.querySelector("[data-globe]"); if (!cv?.width) return ""; const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data; let s = 0; for (let i = 0; i < d.length; i += 4 * 211) s += d[i] + 2 * d[i + 1]; return String(s); };
+        const state = on === 0 ? `${text("[data-field-text]")}|${cls("[data-load]")}`
           : on === 1 ? String(document.querySelectorAll("[data-gather] .is-hit:not([hidden])").length)
-          : on === 2 ? `${document.querySelectorAll("[data-pick] .is-sel").length}|${cls("[data-pick]")}|${text("[data-save]")}`
-          : on === 3 ? cls("[data-regions]")
-          : on === 4 ? `${text("[data-trip]")}|${cls("[data-trip-globe]")}`
-          : on === 5 ? `${document.querySelector("[data-trip-globe]")?.style.opacity}|${cls("[data-share-btn]")}` : "";
+          : on === 2 ? cls("[data-safe]")
+          : on === 3 ? `${document.querySelectorAll("[data-pick] .is-sel").length}|${cls("[data-pick]")}|${text("[data-save]")}`
+          : on === 4 ? String(document.querySelectorAll("[data-regions] .ts-pv.is-on").length)
+          : on === 5 ? globe() : "";
         window.__flick.push([on, state]);
         window.__flickRaf = requestAnimationFrame(sample);
       };

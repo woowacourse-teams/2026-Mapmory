@@ -8,13 +8,66 @@ import { clamp, drawSpriteTile, easeOut, fitCanvas, font, onThemeChange, readTok
 const TOKENS = ["canvas", "surface", "text", "accent", "ps-on-accent", "ps-dot", "ps-shadow"];
 const rand = (n) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
 
-// mountHeroWall(hero section, canvas, { reducedMotion }) -> { setPick(key | null), destroy() }
-export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
+// mountHeroWall(hero section, canvas, { reducedMotion, onPick }) -> { setPick(key | null), destroy() }
+// onPick(place) fires when a photo with a place is tapped, so a photo works like its chip.
+export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = {}) {
   const ctx = canvas.getContext("2d");
   const sprite = getSpriteImage();
   let W = 0, H = 0, DPR = 1, tiles = [], tok = {};
   const lens = { x: 0, y: 0, tx: 0, ty: 0, live: false, last: 0 };
   let pick = null, pickAt = 0, visible = true, raf = 0, destroyed = false;
+  // where the words are on the canvas (with a margin): a chosen place's photos stay under the clearing there
+  const copyEl = hero.querySelector(".wall-hero-copy");
+  let words = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  const measureWords = () => {
+    if (!copyEl) return;
+    const c = copyEl.getBoundingClientRect(), r = canvas.getBoundingClientRect(), m = 14;
+    words = { x0: c.left - r.left - m, y0: c.top - r.top - m, x1: c.right - r.left + m, y1: c.bottom - r.top + m };
+  };
+
+  // a chosen place's photos rise out of the wall into a tidy grid where nothing covers them: under the words, or (on
+  // desktop) on both sides of them when the band below is too low (2026-10-29: left in place, most of them sat under
+  // the words)
+  let slots = new Map();
+  function fitGrid(n, r, gap, max) {
+    const w = r.x1 - r.x0, h = r.y1 - r.y0;
+    let best = { s: 0, c: 1 };
+    for (let c = 1; c <= n; c++) {
+      const rows = Math.ceil(n / c), s = Math.min((w - gap * (c - 1)) / c, (h - gap * (rows - 1)) / rows);
+      if (s > best.s) best = { s, c };
+    }
+    return { s: Math.min(best.s, max), c: best.c };
+  }
+  function placeGrid(list, r, gap, max) {
+    if (!list.length) return;
+    const { s, c } = fitGrid(list.length, r, gap, max), rows = Math.ceil(list.length / c);
+    const y0 = r.y0 + (r.y1 - r.y0 - (rows * s + (rows - 1) * gap)) / 2;
+    list.forEach((t, i) => {
+      const row = Math.floor(i / c), inRow = Math.min(c, list.length - row * c);
+      const x0 = r.x0 + (r.x1 - r.x0 - (inRow * s + (inRow - 1) * gap)) / 2;
+      slots.set(t, { x: x0 + (i - row * c) * (s + gap), y: y0 + row * (s + gap), s });
+    });
+  }
+  function gather() {
+    slots = new Map();
+    if (!pick || !W) return;
+    const kept = tiles.filter((t) => t.place === pick && t.x + t.s > 0 && t.x < W);
+    const small = W < 520, gap = small ? 8 : 12, max = small ? 84 : 112, pad = 16;
+    const below = { x0: pad, y0: words.y1 + 4, x1: W - pad, y1: H - (small ? 40 : 52) };
+    const readable = small ? 56 : 72;
+    if (fitGrid(kept.length, below, gap, max).s >= readable) { placeGrid(kept, below, gap, max); return; }
+    // phones: the sides are a sliver, so the band below keeps as many as it holds at a size that reads (2026-10-29,
+    // 티온: on a short phone 제주 and 일본 shrank into slivers at the edges while 미국's seven still fitted below)
+    if (small) {
+      let n = kept.length;
+      while (n > 1 && fitGrid(n, below, gap, max).s < readable) n--;
+      placeGrid(kept.slice(0, n), below, gap, max);
+      return;
+    }
+    const top = 96, bottom = H - 52, half = Math.ceil(kept.length / 2);
+    placeGrid(kept.slice(0, half), { x0: pad, y0: top, x1: words.x0, y1: bottom }, gap, max);
+    placeGrid(kept.slice(half), { x0: words.x1, y0: top, x1: W - pad, y1: bottom }, gap, max);
+  }
 
   const readTok = () => { tok = readTokens(hero, TOKENS); };
   function layout() {
@@ -62,12 +115,16 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
       if (Math.abs(target - t.v) > 0.01) settling = true;
       // a calm wall: photos sit dim; the lens (or a chosen place) brings them up
       const dotK = pick && !keep ? k : 0;
-      if (dotK > 0.98) { ctx.globalAlpha = 0.7; ctx.fillStyle = tok["ps-dot"]; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, 7); ctx.fill(); continue; }
+      if (dotK > 0.98) { t.at = null; ctx.globalAlpha = 0.7; ctx.fillStyle = tok["ps-dot"]; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, 7); ctx.fill(); continue; }
       const lift = 1 + t.v * (pick ? 0.12 : 0.16);
       const bob = reducedMotion ? 0 : Math.sin(now / 1400 + t.ph) * 1.2;
-      const s = t.s * lift * (1 - dotK * 0.9), x = cx - s / 2, y = cy - s / 2 + bob;
+      let s = t.s * lift * (1 - dotK * 0.9), x = cx - s / 2, y = cy - s / 2 + bob;
+      const slot = pick && keep ? slots.get(t) : null;
+      if (pick && keep && !slot) { t.at = null; continue; } // off-screen photos of the place stay out
+      if (slot) { s += (slot.s - s) * k; x += (slot.x - x) * k; y += (slot.y - y) * k; }
       const item = { t, x, y, s, a: 0.16 + t.v * 0.84 - dotK * 0.1, ring: pick && keep ? k : 0 };
-      if (!pick && t.v > 0.3) top.push(item); else paint(item);
+      t.at = { x, y, s };
+      if (pick ? keep : t.v > 0.3) top.push(item); else paint(item);
       if (!pick && d < hitD && inLens > 0.55) { hitD = d; hit = item; }
     }
     // a soft clearing behind the words, then the lit photos on top of it
@@ -100,14 +157,34 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
 
   const io = new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; kick(); });
   io.observe(hero);
-  const ro = new ResizeObserver(() => { layout(); kick(); });
+  const ro = new ResizeObserver(() => { layout(); measureWords(); gather(); kick(); });
   ro.observe(canvas);
+  // the words grow when a place is picked (the ask link appears), without the canvas changing size
+  const wordsRo = new ResizeObserver(() => { measureWords(); gather(); kick(); });
+  if (copyEl) wordsRo.observe(copyEl);
+  // the photo under a point (topmost first), among the ones drawn in the last frame
+  const photoAt = (e) => {
+    const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    for (let i = tiles.length - 1; i >= 0; i--) {
+      const a = tiles[i].at;
+      if (a && px >= a.x && px <= a.x + a.s && py >= a.y && py <= a.y + a.s) return tiles[i];
+    }
+    return null;
+  };
   const onPointerMove = (e) => {
     const r = canvas.getBoundingClientRect();
     lens.tx = e.clientX - r.left; lens.ty = e.clientY - r.top; lens.live = true; lens.last = performance.now();
+    if (e.pointerType === "mouse") canvas.style.cursor = photoAt(e)?.place ? "pointer" : "";
     kick();
   };
   hero.addEventListener("pointermove", onPointerMove);
+  // a tap on a photo that has a place picks that place, like its chip (the words above let taps through)
+  const onClick = (e) => {
+    if (e.target !== canvas) return;
+    const t = photoAt(e);
+    if (t?.place && t.place !== pick) onPick?.(t.place);
+  };
+  hero.addEventListener("click", onClick);
   const onSprite = () => kick();
   sprite?.addEventListener("load", onSprite);
   const offTheme = onThemeChange(() => { readTok(); kick(); });
@@ -121,6 +198,7 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
     setPick(key) {
       if (key === pick) return;
       pick = key; pickAt = performance.now();
+      gather();
       kick();
     },
     destroy() {
@@ -128,8 +206,10 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false } = {}) {
       cancelAnimationFrame(raf);
       io.disconnect();
       ro.disconnect();
+      wordsRo.disconnect();
       offTheme();
       hero.removeEventListener("pointermove", onPointerMove);
+      hero.removeEventListener("click", onClick);
       sprite?.removeEventListener("load", onSprite);
     },
   };

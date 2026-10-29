@@ -13,7 +13,7 @@ test("mobile gallery keeps controls outside the uncropped photo and touch target
   assert.match(stylesSource, /\.world-memory-modal \.memory-image-wrap\.is-gallery img \{ object-fit: contain; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-photo-meta \{ display: none; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-sheet-gallery-controls > button \{ width: 44px; height: 44px;/);
-  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--accent\);/s);
+  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--ink\);/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title \{[^}]*display: flex;/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title h2 \{[^}]*Nanum Pen Script/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-mobile-photo-caption \{[^}]*Nanum Pen Script/s);
