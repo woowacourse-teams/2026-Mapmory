@@ -10,12 +10,14 @@ class AlbumNavigationStateTest {
         navigation.showAlbum(album())
         navigation.selectedPhoto.value = "photo"
         navigation.pick.value = true
+        navigation.add.value = true
         navigation.rename.value = true
         navigation.showList()
         assertNull(navigation.detail.value)
         assertNull(navigation.selectedPhoto.value)
         assertFalse(navigation.pick.value)
         assertFalse(navigation.rename.value)
+        assertFalse(navigation.add.value)
     }
 
     @Test fun refreshPreservesPhotoIdentityAcrossSignedUrlChangesAndClosesDeletedPhoto() {
@@ -29,6 +31,15 @@ class AlbumNavigationStateTest {
         assertEquals("new-url", navigation.selectedPhoto.value)
         navigation.showAlbum(detail)
         assertNull(navigation.selectedPhoto.value)
+    }
+
+    @Test fun backDismissesAddChoiceWithoutLeavingAlbum() {
+        val navigation = AlbumNavigationState()
+        navigation.showAlbum(album())
+        navigation.add.value = true
+        assertTrue(navigation.back())
+        assertFalse(navigation.add.value)
+        assertNotNull(navigation.detail.value)
     }
 
     @Test fun refreshDoesNotCountAsAnotherAlbumEntry() {

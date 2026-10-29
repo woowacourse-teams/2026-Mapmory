@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.BorderStroke
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.videoAction
@@ -92,6 +94,12 @@ internal fun TripTimelineVideoDialog(
         }
     }
 
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(message) {
+        val notice = message ?: return@LaunchedEffect
+        snackbar.showSnackbar(notice)
+        message = null
+    }
     fun dismissDialog() {
         if (activeJob) notifier.showProgress(jobId)
         telemetry.action(ShareMediaAction.CLOSED)
@@ -296,9 +304,6 @@ internal fun TripTimelineVideoDialog(
                         )
                     }
                 }
-                message?.let {
-                    Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-                }
                 jobState.statusCheckError?.let {
                     Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
                     OutlinedButton(
@@ -383,6 +388,7 @@ internal fun TripTimelineVideoDialog(
                     border = BorderStroke(1.dp, TripRecordPalette.current.border),
                 ) { Text("최신 기록으로 다시 만들기") }
             }
+            SnackbarHost(snackbar)
         }
     }
 }

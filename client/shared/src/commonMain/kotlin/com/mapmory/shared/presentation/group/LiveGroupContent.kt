@@ -31,6 +31,9 @@ internal fun LiveGroupContent(
     modifier: Modifier = Modifier,
     leaveCoordinator: GroupLeaveCoordinator? = null,
     recordRevision: Long = 0,
+    initialGroupId: Long? = null,
+    initialAlbumId: Long? = null,
+    onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
 ) {
     val analytics = LocalMapmoryAnalytics.current
     val state = remember(repository, analytics, leaveCoordinator) {
@@ -40,16 +43,48 @@ internal fun LiveGroupContent(
     val clipboard = LocalClipboardManager.current
     var name by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
-    var copied by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    var noticeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    fun clearNotice() {
+        noticeJob?.cancel()
+        snackbar.currentSnackbarData?.dismiss()
+    }
+    fun showNotice(message: String) {
+        clearNotice()
+        noticeJob = scope.launch { snackbar.showSnackbar(message) }
+    }
+    var refreshing by remember { mutableStateOf(false) }
     val leaveResult = leaveCoordinator?.state?.collectAsState()?.value
     val leaving = leaveResult?.status == GroupLeaveStatus.RUNNING
-    LaunchedEffect(state, refresh, recordRevision) { state.load() }
+    var returnTargetRestored by remember(state) { mutableStateOf(false) }
+    LaunchedEffect(state, refresh, recordRevision, initialGroupId) {
+        state.load()
+        if (!returnTargetRestored && initialGroupId != null) {
+            state.openGroup(initialGroupId)
+            returnTargetRestored = true
+        }
+    }
     LaunchedEffect(leaveResult) {
-        if (leaveResult?.status == GroupLeaveStatus.LEFT) state.removeGroup(leaveResult.groupId)
+        if (leaveResult?.status == GroupLeaveStatus.LEFT) {
+            state.removeGroup(leaveResult.groupId)
+            if (leaveCoordinator.takeDepartureNotice() != null) {
+                showNotice("그룹에서 나왔어요. 내 여행 기록은 그대로 남아 있어요.")
+            }
+        }
     }
     LaunchedEffect(state.busy) { onBusyChanged(state.busy) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     val albumNavigation = remember(state.group?.id) { AlbumNavigationState() }
+    var albumReturnRestored by remember(state) { mutableStateOf(false) }
+    LaunchedEffect(state.group?.id, initialAlbumId) {
+        if (!albumReturnRestored && state.group?.id == initialGroupId && initialAlbumId != null) {
+            albumReturnRestored = true
+            val revision = albumNavigation.revision
+            albumRepository?.detail(checkNotNull(initialGroupId), initialAlbumId)?.onSuccess {
+                if (albumNavigation.revision == revision) albumNavigation.showAlbum(it)
+            }
+        }
+    }
     val back = rememberUpdatedState {
         if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
         else if (state.sheet != null || state.busy) state.back()
@@ -70,11 +105,23 @@ internal fun LiveGroupContent(
         onDispose { backHandlerRegistry.unregister(registration) }
     }
     PlatformBackHandler(enabled = state.busy || state.group != null || state.sheet != null) { back.value() }
-    fun open(sheet: LiveGroupSheet) { copied = false; state.openSheet(sheet) }
-    Column(modifier.fillMaxSize()) {
+    fun open(sheet: LiveGroupSheet) { clearNotice(); state.openSheet(sheet) }
+    LaunchedEffect(state.error, state.sheet) {
+        if (state.sheet == null && state.groups != null) state.error?.let {
+            if (snackbar.showSnackbar(it, actionLabel = "다시 시도") == SnackbarResult.ActionPerformed) state.load()
+        }
+    }
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
         val group = state.group
         Box(Modifier.weight(1f)) {
             if (group == null) {
+                GroupRefreshContainer(refreshing, !state.busy, {
+                    scope.launch {
+                        refreshing = true
+                        try { state.load() } finally { refreshing = false }
+                    }
+                }, Modifier.fillMaxSize()) {
                 GroupListScreen(
                     state = when {
                         state.groups == null && state.busy -> GroupListUiState.Loading
@@ -85,9 +132,10 @@ internal fun LiveGroupContent(
                     },
                     onCreate = { open(LiveGroupSheet.CREATE) },
                     onJoin = { open(LiveGroupSheet.JOIN) },
-                    onGroup = { scope.launch { state.openGroup(it.toLong()) } },
+                    onGroup = { clearNotice(); scope.launch { state.openGroup(it.toLong()) } },
                     onRetry = { scope.launch { state.load() } },
                 )
+                }
             } else if (albumRepository != null && shareCoordinator != null) {
                 key(group.id) {
                     LiveAlbumContent(group.id, albumRepository, tripRecordRepository, shareCoordinator, albumNavigation,
@@ -97,14 +145,14 @@ internal fun LiveGroupContent(
                         onLeaveGroup = leaveCoordinator?.let { { open(LiveGroupSheet.LEAVE) } },
                         membershipBusy = leaving,
                         recordRevision = recordRevision,
+                        onCreateRecord = { onCreateRecord(group.id, albumNavigation.detail.value?.id) },
                         onGroupUnavailable = { state.removeGroup(group.id) },
                         onPhotoVisibilityChanged = onPhotoVisibilityChanged)
                 }
             }
         }
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (state.sheet == null) state.error?.let { Text(it, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error) }
-        if (state.sheet != LiveGroupSheet.LEAVE && leaveResult != null) {
+        if (state.sheet != LiveGroupSheet.LEAVE && leaveResult != null && leaveResult.status != GroupLeaveStatus.LEFT) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
                 Text(when (leaveResult.status) {
                     GroupLeaveStatus.RUNNING -> "그룹에서 나가고 있어요. 화면을 이동해도 계속 진행돼요."
@@ -118,6 +166,8 @@ internal fun LiveGroupContent(
                 } else if (!leaving) TextButton(onClick = { leaveCoordinator?.dismiss() }) { Text("확인") }
             }
         }
+    }
+    SnackbarHost(snackbar, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(16.dp))
     }
     state.sheet?.let { sheet ->
         ModalBottomSheet(onDismissRequest = { if (!leaving) state.dismissSheet() }) {
@@ -137,6 +187,7 @@ internal fun LiveGroupContent(
                         if (sheet == LiveGroupSheet.CREATE && state.creationUncertain) {
                             GroupButton("그룹 목록 확인", { scope.launch { state.reviewCreationResult() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
                         } else GroupButton(if (sheet == LiveGroupSheet.CREATE) "그룹 만들기" else "이름 저장", {
+                            clearNotice()
                             scope.launch {
                                 if (sheet == LiveGroupSheet.CREATE) state.create(name) else state.rename(name)
                                 if (state.sheet == null) name = ""
@@ -164,8 +215,9 @@ internal fun LiveGroupContent(
                         else {
                             Text(invitation.code, style = MaterialTheme.typography.headlineLarge)
                             GroupMuted("만료: ${invitation.expiresAt.date} ${invitation.expiresAt.hour.toString().padStart(2, '0')}:${invitation.expiresAt.minute.toString().padStart(2, '0')}")
-                            GroupButton(if (copied) "복사했어요" else "초대 코드 복사", {
-                                clipboard.setText(AnnotatedString(invitation.code)); copied = true
+                            GroupButton("초대 코드 복사", {
+                                clipboard.setText(AnnotatedString(invitation.code))
+                                showNotice("초대 코드를 복사했어요")
                             }, Modifier.fillMaxWidth())
                         }
                     }
@@ -193,6 +245,7 @@ internal fun LiveGroupContent(
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 TextButton(onClick = { state.dismissSheet() }, enabled = !state.busy && !leaving) { Text("닫기") }
+                SnackbarHost(snackbar)
             }
         }
     }
