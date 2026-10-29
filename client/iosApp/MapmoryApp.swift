@@ -8,13 +8,13 @@ import UIKit
 import UserNotifications
 
 private let lightSystemBarColor = UIColor(
-    red: 250.0 / 255.0,
-    green: 252.0 / 255.0,
-    blue: 251.0 / 255.0,
+    red: 255.0 / 255.0,
+    green: 254.0 / 255.0,
+    blue: 255.0 / 255.0,
     alpha: 1
 )
 private let darkSystemBarColor = UIColor(
-    red: 17.0 / 255.0,
+    red: 18.0 / 255.0,
     green: 21.0 / 255.0,
     blue: 24.0 / 255.0,
     alpha: 1
