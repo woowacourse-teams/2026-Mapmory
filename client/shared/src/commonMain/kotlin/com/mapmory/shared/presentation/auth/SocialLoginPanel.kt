@@ -44,6 +44,10 @@ internal fun SocialLoginPanel(
             }
         }
         measured?.providers?.filter { account?.recoveryProvider == null || it.name == account.recoveryProvider.name }?.forEach { provider ->
+            if (account?.recentLoginProvider?.name == provider.name) {
+                Text("최근 로그인", color = palette.primary, style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.End))
+            }
             SocialLoginButton(provider = provider, onClick = {
                 if (controller != null) {
                     if (account?.recoveryRequired == true) recoveryProvider = provider

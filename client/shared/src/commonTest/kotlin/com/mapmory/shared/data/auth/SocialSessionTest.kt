@@ -11,10 +11,14 @@ class SocialSessionTest {
         var failRead = false
         var failWrite = false
         var pending: String? = null
+        var recent: String? = null
+        var allowClear = false
+        override fun recentLoginProvider() = AuthPendingRead(recent)
+        override fun saveRecentLoginProvider(provider: String) { recent = provider }
         var writes = 0
         override fun load(): AuthTokens? { check(!failRead); return tokens }
         override fun save(tokens: AuthTokens) { writes++; check(!failWrite); this.tokens = tokens }
-        override fun clear() = error("No implicit account deletion")
+        override fun clear() { check(allowClear) { "No implicit account deletion" }; tokens = null }
         override fun pendingProvider() = AuthPendingRead(pending)
         override fun markPendingProvider(provider: String?) { pending = provider }
     }
@@ -41,8 +45,51 @@ class SocialSessionTest {
             if (exchangeFailure) return Result.failure(IllegalStateException("response lost"))
             return Result.success(SocialSessionTokens(social, true))
         }
+        override suspend fun logout(refreshToken: String) = Result.success(Unit)
         override suspend fun member(accessToken: String): Result<AccountMember> = if (memberFailure)
             Result.failure(IllegalStateException("offline")) else Result.success(AccountMember("닉네임", memberProvider))
+    }
+
+    @Test fun recentLoginMethodSurvivesLogoutAndSessionRecreation() = runBlocking {
+        val store = Store().apply { allowClear = true }
+        val gateway = Gateway()
+        val session = GuestSessionManager(gateway, store)
+        try {
+            session.login(MemberProvider.GOOGLE, "proof").getOrThrow()
+            assertEquals("GOOGLE", store.recent)
+            assertEquals(MemberProvider.GOOGLE, session.state.value.recentLoginProvider)
+            session.logout().getOrThrow()
+            assertEquals(MemberProvider.GOOGLE, session.state.value.recentLoginProvider)
+            assertEquals("GOOGLE", store.recent)
+        } finally { session.close() }
+        val recreated = GuestSessionManager(gateway, store)
+        try { assertEquals(MemberProvider.GOOGLE, recreated.state.value.recentLoginProvider) }
+        finally { recreated.close() }
+    }
+
+    @Test fun failedLoginDoesNotReplaceRecentSuccessfulMethod() = runBlocking {
+        val store = Store().apply { recent = "KAKAO" }
+        val gateway = Gateway().apply { exchangeFailure = true }
+        val session = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(session.login(MemberProvider.GOOGLE, "proof").isFailure)
+            assertEquals("KAKAO", store.recent)
+            assertEquals(MemberProvider.KAKAO, session.state.value.recentLoginProvider)
+        } finally { session.close() }
+    }
+
+    @Test fun successfulSessionRestoreBackfillsRecentMethodAndGuestRestoreKeepsIt() = runBlocking {
+        val store = Store(social)
+        val gateway = Gateway()
+        val session = GuestSessionManager(gateway, store)
+        try {
+            session.restore().getOrThrow()
+            assertEquals("GOOGLE", store.recent)
+            gateway.memberProvider = MemberProvider.GUEST
+            session.restore().getOrThrow()
+            assertEquals("GOOGLE", store.recent)
+            assertEquals(MemberProvider.GOOGLE, session.state.value.recentLoginProvider)
+        } finally { session.close() }
     }
 
     @Test fun loginSavesNewTokensAndClearsAccountDataBeforePublishingSuccess() = runBlocking {
