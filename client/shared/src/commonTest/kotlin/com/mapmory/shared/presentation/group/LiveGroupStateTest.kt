@@ -15,6 +15,60 @@ import kotlinx.datetime.LocalDateTime
 import kotlin.test.*
 
 class LiveGroupStateTest {
+    @Test fun departureDuringFirstListLoadKeepsOtherMemberships() = runBlocking {
+        val repository = Repository().apply {
+            listedGroups = listOf(GroupSummary(81, "나갈 그룹", 1, 0), GroupSummary(82, "남을 그룹", 2, 1))
+            listGate = CompletableDeferred()
+        }
+        val state = LiveGroupState(repository)
+        val reading = launch(start = CoroutineStart.UNDISPATCHED) { state.load() }
+        assertNull(state.groups)
+        state.removeGroup(81)
+        repository.listGate!!.complete(Unit)
+        reading.join()
+        assertEquals(listOf(82L), state.groups?.map { it.id })
+        // A later server read can include a genuinely rejoined group again.
+        state.load()
+        assertEquals(listOf(81L, 82L), state.groups?.map { it.id })
+    }
+
+    @Test fun listStartedBeforeDepartureCannotRestoreRemovedGroup() = runBlocking {
+        val repository = Repository()
+        val state = LiveGroupState(repository)
+        state.create("그룹")
+        val gate = CompletableDeferred<Unit>()
+        repository.listGate = gate
+        val reading = launch(start = CoroutineStart.UNDISPATCHED) { state.load() }
+        state.removeGroup(81)
+        gate.complete(Unit)
+        reading.join()
+        assertTrue(state.groups.orEmpty().isEmpty())
+        assertNull(state.group)
+    }
+
+    @Test fun confirmedDepartureClearsInviteAndCannotBeRestoredByCancelledGesture() = runBlocking {
+        val state = LiveGroupState(Repository())
+        state.create("그룹")
+        state.openSheet(LiveGroupSheet.INVITE)
+        state.issueInvitation()
+        state.gestureBack()
+        state.removeGroup(81)
+        assertNull(state.group)
+        assertNull(state.sheet)
+        assertNull(state.invitation)
+        assertTrue(state.groups.orEmpty().isEmpty())
+        assertFalse(state.gestureForward())
+    }
+
+    @Test fun refreshedMembershipClosesGroupThatIsNoLongerAccessible() = runBlocking {
+        val state = LiveGroupState(Repository())
+        state.openGroup(81)
+        state.openSheet(LiveGroupSheet.LEAVE)
+        state.load() // Repository returns no memberships.
+        assertNull(state.group)
+        assertNull(state.sheet)
+    }
+
     @Test fun creationUsesServerIdAndRefreshKeepsCreatedGroup() = runBlocking {
         val repository = Repository()
         val state = LiveGroupState(repository)
@@ -129,16 +183,23 @@ class LiveGroupStateTest {
     }
 
     private class Repository : GroupRepository {
+        var listedGroups: List<GroupSummary>? = null
         var savedName = "우리 그룹"
         var createError: Throwable? = null
         var previewError: Throwable? = null
         var createGate: CompletableDeferred<Unit>? = null
+        var listGate: CompletableDeferred<Unit>? = null
         var createCalls = 0
         var issueCalls = 0
         var acceptedCode: String? = null
         private var created = false
         private fun detail() = GroupDetail(81, savedName, listOf(GroupMemberView("나", true, true)))
-        override suspend fun groups() = Result.success(if (created) listOf(GroupSummary(81, savedName, 1, 0)) else emptyList())
+        override suspend fun leaveGroup(groupId: Long) = Result.success(Unit)
+        override suspend fun groups(): Result<List<GroupSummary>> {
+            val snapshot = listedGroups ?: if (created) listOf(GroupSummary(81, savedName, 1, 0)) else emptyList()
+            listGate?.await()
+            return Result.success(snapshot)
+        }
         override suspend fun createGroup(name: String): Result<GroupDetail> {
             createCalls++
             createGate?.await()
