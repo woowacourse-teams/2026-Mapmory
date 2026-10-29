@@ -11,6 +11,8 @@ internal data class GroupSummary(
     val name: String,
     val memberCount: Int,
     val albums: List<GroupAlbum> = emptyList(),
+    val albumCount: Int = albums.size,
+    val coverUri: String? = null,
 )
 
 internal data class GroupAlbum(
@@ -19,8 +21,10 @@ internal data class GroupAlbum(
     val place: String,
     val date: String,
     val photos: List<GroupPhoto> = emptyList(),
+    val photoCount: Int = photos.size,
+    val contributorNames: List<String>? = null,
 ) {
-    val contributors: List<String> get() = photos.distinctBy { it.uploaderId }.map { it.uploaderName }
+    val contributors: List<String> get() = contributorNames ?: photos.distinctBy { it.uploaderId }.map { it.uploaderName }
 }
 
 // Group photos reference a member's record; they are not copies of a shared editable record.

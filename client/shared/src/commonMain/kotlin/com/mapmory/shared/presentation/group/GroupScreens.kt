@@ -43,6 +43,7 @@ internal fun GroupListScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
+    headerActions: (@Composable () -> Unit)? = null,
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
@@ -67,11 +68,11 @@ internal fun GroupListScreen(
                     items(state.groups, key = { it.id }) { group ->
                         GroupCard(onClick = { onGroup(group.id) }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                GroupImage(group.albums.firstOrNull()?.photos?.firstOrNull(),
+                                GroupImage(group.coverUri?.let { GroupPhoto("cover", 0, "", "", it) } ?: group.albums.firstOrNull()?.photos?.firstOrNull(),
                                     Modifier.size(88.dp), "${group.name} 대표 사진")
                                 Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(group.name, fontWeight = FontWeight.Bold, maxLines = 2)
-                                    GroupMuted("멤버 ${group.memberCount}명 · 앨범 ${group.albums.size}개")
+                                    GroupMuted("멤버 ${group.memberCount}명 · 앨범 ${group.albumCount}개")
                                 }
                                 Text("›", Modifier.padding(end = 16.dp), color = TripRecordPalette.current.muted)
                             }
@@ -92,25 +93,27 @@ internal fun GroupHomeScreen(
     onAlbum: (String) -> Unit,
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
+    headerActions: (@Composable () -> Unit)? = null,
+    sharingEnabled: Boolean = true,
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
     Column(modifier.fillMaxSize()) {
-        GroupHeader(group.name, onBack)
+        GroupHeader(group.name, onBack, headerActions)
         LazyColumn(state = scrollState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item { GroupMuted("멤버 ${group.memberCount}명 · 함께 남긴 여행 사진") }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupButton("멤버 초대", onInvite, Modifier.weight(1f), outlined = true)
-                    if (group.albums.isNotEmpty()) GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
+                    if (sharingEnabled && group.albums.isNotEmpty()) GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
                 }
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text("함께 남긴 앨범", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    GroupMuted("앨범 ${group.albums.size}개")
+                    GroupMuted("앨범 ${group.albumCount}개")
                 }
             }
             if (group.albums.isEmpty()) item {
@@ -118,9 +121,9 @@ internal fun GroupHomeScreen(
                     EmptySymbol()
                     Text("아직 함께 남긴 사진이 없어요", fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
-                    GroupMuted("첫 앨범을 만들거나 내 여행 기록을 공유해 보세요.")
+                    GroupMuted(if (sharingEnabled) "첫 앨범을 만들거나 내 여행 기록을 공유해 보세요." else "공유된 앨범이 아직 없어요.")
                     Spacer(Modifier.height(24.dp))
-                    GroupButton("첫 앨범 추가하기", onAdd, Modifier.fillMaxWidth())
+                    if (sharingEnabled) GroupButton("첫 앨범 추가하기", onAdd, Modifier.fillMaxWidth())
                 }
             }
             items(group.albums, key = { it.id }) { album ->
@@ -130,7 +133,7 @@ internal fun GroupHomeScreen(
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             GroupMuted(album.place)
                             Text(album.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            GroupMuted("${album.date} · 사진 ${album.photos.size}장")
+                            GroupMuted("${album.date} · 사진 ${album.photoCount}장")
                             GroupMuted("함께 올린 사람 · ${album.contributors.joinToString(", ")}")
                         }
                     }
@@ -148,14 +151,16 @@ internal fun GroupAlbumScreen(
     onPhoto: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
+    headerActions: (@Composable () -> Unit)? = null,
+    sharingEnabled: Boolean = true,
 ) {
     val scrollState = rememberLazyGridState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
     Column(modifier.fillMaxSize()) {
-        GroupHeader(album.name, onBack)
+        GroupHeader(album.name, onBack, headerActions)
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GroupMuted("${album.place} · ${album.date}")
-            Text("사진 ${album.photos.size}장", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text("사진 ${album.photoCount}장", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             GroupMuted("함께 올린 사람 · ${album.contributors.joinToString(", ")}")
         }
         if (album.photos.isEmpty()) {
@@ -174,7 +179,7 @@ internal fun GroupAlbumScreen(
                 }
             }
         }
-        GroupButton("이 앨범에 사진 추가", onAddPhotos,
+        if (sharingEnabled) GroupButton("이 앨범에 사진 추가", onAddPhotos,
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), tall = true)
     }
 }
@@ -214,10 +219,11 @@ internal fun GroupPhotoScreen(
 }
 
 @Composable
-internal fun GroupHeader(title: String, onBack: () -> Unit) {
+internal fun GroupHeader(title: String, onBack: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     com.mapmory.shared.presentation.triprecord.screen.TripRecordTopBar(
         title = title,
         onBackClick = onBack,
+        trailing = trailing,
     )
 }
 

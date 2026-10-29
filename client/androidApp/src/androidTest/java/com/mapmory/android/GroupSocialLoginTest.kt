@@ -10,6 +10,11 @@ import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
 import com.mapmory.shared.data.auth.*
 import com.mapmory.shared.data.remote.*
+import com.mapmory.shared.domain.repository.GroupRepository
+import com.mapmory.shared.domain.group.GroupSummary
+import com.mapmory.shared.domain.group.GroupDetail
+import com.mapmory.shared.domain.group.GroupInvitationPreview
+import com.mapmory.shared.domain.group.IssuedGroupInvitation
 import com.mapmory.shared.presentation.auth.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
@@ -66,10 +71,16 @@ class GroupSocialLoginTest {
             override val accountSession = session
             override val accountLoginController = controller
             override val groupRepository = object : GroupRepository {
-                override suspend fun groups(): Result<List<RemoteGroupSummary>> {
+                override suspend fun createGroup(name: String): Result<GroupDetail> = error("Not used")
+                override suspend fun getGroup(groupId: Long): Result<GroupDetail> = error("Not used")
+                override suspend fun renameGroup(groupId: Long, name: String): Result<GroupDetail> = error("Not used")
+                override suspend fun createInvitation(groupId: Long): Result<IssuedGroupInvitation> = error("Not used")
+                override suspend fun previewInvitation(tokenOrCode: String): Result<GroupInvitationPreview> = error("Not used")
+                override suspend fun acceptInvitation(tokenOrCode: String): Result<GroupDetail> = error("Not used")
+                override suspend fun groups(): Result<List<GroupSummary>> {
                     listCalls++
                     return if (failList && listCalls == 1) Result.failure(IllegalStateException("fixture offline"))
-                    else Result.success(listOf(RemoteGroupSummary(1, "에뮬레이터 검증 그룹", 2)))
+                    else Result.success(listOf(GroupSummary(1, "에뮬레이터 검증 그룹", 2, 0)))
                 }
             }
         }
@@ -135,9 +146,9 @@ class GroupSocialLoginTest {
         val session = FixtureSession(); val controller = show(session, failList = true)
         try {
             compose.onNodeWithText("Google로 계속하기").performScrollTo().performClick()
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("그룹 다시 불러오기").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("그룹 새로고침").fetchSemanticsNodes().isNotEmpty() }
             screenshot("group-list-retry")
-            compose.onNodeWithText("그룹 다시 불러오기").performClick()
+            compose.onNodeWithText("그룹 새로고침").performClick()
             compose.waitUntil(5_000) { compose.onAllNodesWithText("에뮬레이터 검증 그룹").fetchSemanticsNodes().isNotEmpty() }
             assertEquals(1, session.calls)
             assertEquals(1, events.count { it.first == "login" })
