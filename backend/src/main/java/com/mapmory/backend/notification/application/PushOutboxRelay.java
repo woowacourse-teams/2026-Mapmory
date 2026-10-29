@@ -1,6 +1,5 @@
 package com.mapmory.backend.notification.application;
 
-import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.notification.domain.PushOutbox;
 import com.mapmory.backend.notification.domain.PushOutboxRepository;
 import com.mapmory.backend.notification.domain.PushOutboxType;
@@ -88,7 +87,7 @@ public class PushOutboxRelay {
 
     private void deliver(Claimed claimed) {
         switch (claimed.type()) {
-            case ALBUM_UPDATED -> albumPushDelivery.deliver(jsonMapper.readValue(claimed.payload(), AlbumUpdated.class));
+            case ALBUM_UPDATED -> albumPushDelivery.deliver(jsonMapper.readValue(claimed.payload(), AlbumPushPayload.class));
         }
     }
 

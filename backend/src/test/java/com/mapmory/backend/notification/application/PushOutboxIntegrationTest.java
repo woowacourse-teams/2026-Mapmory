@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -15,6 +16,7 @@ import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.notification.domain.PushOutbox;
 import com.mapmory.backend.notification.domain.PushOutboxRepository;
 import com.mapmory.backend.notification.domain.PushOutboxStatus;
+import com.mapmory.backend.notification.domain.PushOutboxType;
 import com.mapmory.backend.notification.domain.PushPlatform;
 import com.mapmory.backend.notification.domain.PushToken;
 import com.mapmory.backend.notification.domain.PushTokenRepository;
@@ -54,6 +56,9 @@ class PushOutboxIntegrationTest extends IntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private NotificationSettingService notificationSettingService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -104,6 +109,31 @@ class PushOutboxIntegrationTest extends IntegrationTest {
         verify(pushSender).send(anyList());
         assertThat(onlyOutbox().getStatus()).isEqualTo(PushOutboxStatus.SENT);
         assertThat(pushOutboxRelay.relayDue()).isZero();
+    }
+
+    @Test
+    void 적힌_뒤에_알림을_끄면_보내지_않고_보냄으로_표시한다() {
+        write(event());
+        notificationSettingService.changeGroupAlbum(minho.getId(), false);
+
+        assertThat(pushOutboxRelay.relayDue()).isEqualTo(1);
+
+        verify(pushSender, never()).send(anyList());
+        assertThat(onlyOutbox().getStatus()).isEqualTo(PushOutboxStatus.SENT);
+    }
+
+    @Test
+    void 모르는_필드가_있는_알림도_읽어_보낸다() {
+        String payload = """
+                {"groupId":3,"groupName":"제주 가족","albumId":7,"albumName":"도쿄 3월",
+                 "actorMemberId":%d,"recipientMemberIds":[%d],"recordId":99}
+                """.formatted(jisu.getId(), minho.getId());
+        pushOutboxRepository.save(PushOutbox.pending(PushOutboxType.ALBUM_UPDATED, payload, LocalDateTime.now(clock)));
+
+        pushOutboxRelay.relayDue();
+
+        verify(pushSender).send(anyList());
+        assertThat(onlyOutbox().getStatus()).isEqualTo(PushOutboxStatus.SENT);
     }
 
     @Test

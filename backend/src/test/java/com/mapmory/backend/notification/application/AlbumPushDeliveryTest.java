@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.member.api.MemberQuery;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.application.port.PushSender;
@@ -25,7 +24,7 @@ import org.mockito.ArgumentCaptor;
 
 class AlbumPushDeliveryTest {
 
-    private static final AlbumUpdated EVENT = new AlbumUpdated(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of(2L, 4L));
+    private static final AlbumPushPayload EVENT = new AlbumPushPayload(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of(2L, 4L));
 
     private final PushTokenRepository pushTokenRepository = mock(PushTokenRepository.class);
     private final PushTokenService pushTokenService = mock(PushTokenService.class);
@@ -97,7 +96,7 @@ class AlbumPushDeliveryTest {
 
     @Test
     void 받을_멤버나_기기가_없으면_보내지_않는다() {
-        delivery.deliver(new AlbumUpdated(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of()));
+        delivery.deliver(new AlbumPushPayload(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of()));
         given(pushTokenRepository.findAllByMemberIdIn(any())).willReturn(List.of());
         delivery.deliver(EVENT);
 

@@ -38,6 +38,6 @@ public class AlbumPushOutboxWriter {
             return;
         }
         pushOutboxRepository.save(PushOutbox.pending(
-                PushOutboxType.ALBUM_UPDATED, jsonMapper.writeValueAsString(event), LocalDateTime.now(clock)));
+                PushOutboxType.ALBUM_UPDATED, jsonMapper.writeValueAsString(AlbumPushPayload.from(event)), LocalDateTime.now(clock)));
     }
 }
