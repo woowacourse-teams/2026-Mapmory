@@ -12,9 +12,10 @@ public interface ShareVideoJobRepository extends JpaRepository<ShareVideoJob, Lo
     @Query("SELECT job FROM ShareVideoJob job WHERE job.id = :jobId")
     Optional<ShareVideoJob> findByIdForUpdate(@Param("jobId") Long jobId);
 
+    @Query("SELECT job FROM ShareVideoJob job WHERE job.id = :jobId AND job.member.id = :memberId")
     Optional<ShareVideoJob> findByIdAndMemberId(
-            Long jobId,
-            Long memberId
+            @Param("jobId") Long jobId,
+            @Param("memberId") Long memberId
     );
 
     @Query(value = """

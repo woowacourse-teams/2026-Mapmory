@@ -27,4 +27,13 @@ public class ShareVideoWorkerConfig {
 
         return scheduler;
     }
+
+    @Bean(name = "shareVideoHeartbeatScheduler")
+    @ConditionalOnProperty(prefix = "share-video.worker", name = "enabled", havingValue = "true")
+    public TaskScheduler shareVideoHeartbeatScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("share-video-heartbeat-");
+        return scheduler;
+    }
 }

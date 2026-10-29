@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "share_video_job")
@@ -66,6 +67,18 @@ public class ShareVideoJob extends BaseEntity {
     // 요청 당시 등록 ID를 보존한다. 등록이 삭제돼도 영상 작업은 유지한다.
     @Column(name = "recipient_push_token_id", nullable = true)
     private Long recipientPushTokenId;
+
+    @Column(name = "claim_token", columnDefinition = "char(36)")
+    private String claimToken;
+
+    @Column(name = "lease_expires_at")
+    private LocalDateTime leaseExpiresAt;
+
+    @Column(name = "attempt_id", columnDefinition = "char(36)")
+    private String attemptId;
+
+    @Column(name = "attempt_object_key", length = 500)
+    private String attemptObjectKey;
 
     // JPA가 엔티티를 조회할 때 사용하는 기본 생성자
     protected ShareVideoJob() {
@@ -130,6 +143,64 @@ public class ShareVideoJob extends BaseEntity {
     public void startRendering(final LocalDateTime startedAt) {
         status = ShareVideoStatus.RENDERING;
         this.startedAt = startedAt;
+    }
+
+    public void claimAttempt(
+            final String claimToken,
+            final String attemptId,
+            final String attemptObjectKey,
+            final LocalDateTime now,
+            final LocalDateTime expiresAt
+    ) {
+        Objects.requireNonNull(claimToken);
+        Objects.requireNonNull(attemptId);
+        Objects.requireNonNull(attemptObjectKey);
+        Objects.requireNonNull(now);
+        Objects.requireNonNull(expiresAt);
+        if (!expiresAt.isAfter(now)) {
+            throw new IllegalArgumentException("선점 기한은 현재 시각 이후여야 합니다.");
+        }
+        if (status != ShareVideoStatus.PENDING) {
+            throw new IllegalStateException("대기 중인 영상만 선점할 수 있습니다.");
+        }
+        startRendering(now);
+        this.claimToken = claimToken;
+        this.attemptId = attemptId;
+        this.attemptObjectKey = attemptObjectKey;
+        this.leaseExpiresAt = expiresAt;
+    }
+
+    public boolean renewLease(final String claimToken, final LocalDateTime now, final LocalDateTime expiresAt) {
+        Objects.requireNonNull(now);
+        Objects.requireNonNull(expiresAt);
+        if (!expiresAt.isAfter(now)) {
+            throw new IllegalArgumentException("선점 기한은 현재 시각 이후여야 합니다.");
+        }
+        if (claimToken == null || status != ShareVideoStatus.RENDERING
+                || !claimToken.equals(this.claimToken)
+                || leaseExpiresAt == null || !leaseExpiresAt.isAfter(now)) {
+            return false;
+        }
+        if (expiresAt.isAfter(leaseExpiresAt)) {
+            leaseExpiresAt = expiresAt;
+        }
+        return true;
+    }
+
+    public String getClaimToken() {
+        return claimToken;
+    }
+
+    public LocalDateTime getLeaseExpiresAt() {
+        return leaseExpiresAt;
+    }
+
+    public String getAttemptId() {
+        return attemptId;
+    }
+
+    public String getAttemptObjectKey() {
+        return attemptObjectKey;
     }
 
     public void complete(

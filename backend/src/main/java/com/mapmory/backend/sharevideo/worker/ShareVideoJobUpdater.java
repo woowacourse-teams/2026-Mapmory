@@ -40,6 +40,37 @@ public class ShareVideoJobUpdater {
         ShareVideoJob job = shareVideoJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new IllegalStateException("영상 작업을 찾을 수 없습니다. jobId=" + jobId));
 
+        if (job.getClaimToken() != null) {
+            throw new IllegalStateException("선점된 영상은 선점 토큰이 필요합니다. jobId=" + jobId);
+        }
+        completeJob(job, jobId, resultObjectKey, renderDurationMs, uploadDurationMs);
+    }
+
+    @Transactional
+    public void completeClaimed(
+            final Long jobId,
+            final String claimToken,
+            final String resultObjectKey,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
+        ShareVideoJob job = shareVideoJobRepository.findByIdForUpdate(jobId)
+                .orElseThrow(() -> new IllegalStateException("영상 작업을 찾을 수 없습니다. jobId=" + jobId));
+        requireClaim(job, claimToken);
+        if (!Objects.equals(job.getAttemptObjectKey(), resultObjectKey)) {
+            throw new IllegalStateException("현재 시도의 영상 경로가 아닙니다. jobId=" + jobId);
+        }
+        completeJob(job, jobId, resultObjectKey, renderDurationMs, uploadDurationMs);
+    }
+
+    private void completeJob(
+            final ShareVideoJob job,
+            final Long jobId,
+            final String resultObjectKey,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
+
         if (job.getStatus() == ShareVideoStatus.COMPLETED) {
             if (!Objects.equals(job.getResultObjectKey(), resultObjectKey)) {
                 throw new IllegalStateException("이미 완료된 영상의 결과 경로가 다릅니다. jobId=" + jobId);
@@ -80,6 +111,36 @@ public class ShareVideoJobUpdater {
         ShareVideoJob job = shareVideoJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new IllegalStateException("영상 작업을 찾을 수 없습니다. jobId=" + jobId));
 
+        if (job.getClaimToken() != null) {
+            throw new IllegalStateException("선점된 영상은 선점 토큰이 필요합니다. jobId=" + jobId);
+        }
+        failJob(job, jobId, failureCode, throwable, renderDurationMs, uploadDurationMs);
+    }
+
+    @Transactional
+    public void failClaimed(
+            final Long jobId,
+            final String claimToken,
+            final ShareVideoFailureCode failureCode,
+            final Throwable throwable,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
+        ShareVideoJob job = shareVideoJobRepository.findByIdForUpdate(jobId)
+                .orElseThrow(() -> new IllegalStateException("영상 작업을 찾을 수 없습니다. jobId=" + jobId));
+        requireClaim(job, claimToken);
+        failJob(job, jobId, failureCode, throwable, renderDurationMs, uploadDurationMs);
+    }
+
+    private void failJob(
+            final ShareVideoJob job,
+            final Long jobId,
+            final ShareVideoFailureCode failureCode,
+            final Throwable throwable,
+            final Long renderDurationMs,
+            final Long uploadDurationMs
+    ) {
+
         if (job.getStatus() == ShareVideoStatus.COMPLETED || job.getStatus() == ShareVideoStatus.FAILED) {
             return;
         }
@@ -94,6 +155,16 @@ public class ShareVideoJobUpdater {
                 renderDurationMs,
                 uploadDurationMs
         );
+    }
+
+    private void requireClaim(final ShareVideoJob job, final String token) {
+        if (token == null || !token.equals(job.getClaimToken())) {
+            throw new IllegalStateException("영상 작업의 선점 토큰이 일치하지 않습니다. jobId=" + job.getId());
+        }
+        if (job.getStatus() == ShareVideoStatus.RENDERING
+                && (job.getLeaseExpiresAt() == null || !job.getLeaseExpiresAt().isAfter(LocalDateTime.now(clock)))) {
+            throw new IllegalStateException("영상 작업의 선점 기한이 만료됐습니다. jobId=" + job.getId());
+        }
     }
 
     private String failureReason(final Throwable throwable) {

@@ -165,6 +165,67 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
     }
 
     @Test
+    void 영상_선점_정보를_저장하고_현재_토큰으로만_연장한다() {
+        Member member = memberRepository.save(Member.of("아웃박스 테스트", UUID.randomUUID()));
+        ShareVideoJob job = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", "{}");
+        String token = UUID.randomUUID().toString();
+        String attemptId = UUID.randomUUID().toString();
+        job.claimAttempt(token, attemptId, "share-videos/attempt.mp4", NOW, NOW.plusMinutes(5));
+        Long jobId = jobRepository.saveAndFlush(job).getId();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            ShareVideoJob locked = jobRepository.findByIdForUpdate(jobId).orElseThrow();
+            assertThat(locked.renewLease("wrong-token", NOW.plusMinutes(1), NOW.plusMinutes(6))).isFalse();
+            assertThat(locked.renewLease(token, NOW.plusMinutes(1), NOW.plusMinutes(6))).isTrue();
+        });
+
+        ShareVideoJob reloaded = jobRepository.findById(jobId).orElseThrow();
+        assertThat(reloaded.getClaimToken()).isEqualTo(token);
+        assertThat(reloaded.getAttemptId()).isEqualTo(attemptId);
+        assertThat(reloaded.getAttemptObjectKey()).isEqualTo("share-videos/attempt.mp4");
+        assertThat(reloaded.getLeaseExpiresAt()).isEqualTo(NOW.plusMinutes(6));
+        assertThat(reloaded.renewLease(token, NOW.plusMinutes(6), NOW.plusMinutes(11))).isFalse();
+    }
+
+    @Test
+    void 현재_토큰과_시도_경로로만_영상을_완료한다() {
+        Member member = memberRepository.save(Member.of("아웃박스 테스트", UUID.randomUUID()));
+        ShareVideoJob job = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", ShareVideoStyle.HORIZON, "{}", 11L);
+        String token = UUID.randomUUID().toString();
+        job.claimAttempt(token, UUID.randomUUID().toString(), "attempt.mp4", NOW, NOW.plusMinutes(5));
+        Long id = jobRepository.saveAndFlush(job).getId();
+
+        assertThatThrownBy(() -> jobUpdater.completeClaimed(id, "old-token", "attempt.mp4", 100L, 20L))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> jobUpdater.completeClaimed(id, token, "other.mp4", 100L, 20L))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> jobUpdater.complete(id, "attempt.mp4", 100L, 20L))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jobRepository.findById(id).orElseThrow().getStatus()).isEqualTo(ShareVideoStatus.RENDERING);
+        assertThat(outboxRepository.count()).isZero();
+
+        jobUpdater.completeClaimed(id, token, "attempt.mp4", 100L, 20L);
+        assertThat(jobRepository.findById(id).orElseThrow().getStatus()).isEqualTo(ShareVideoStatus.COMPLETED);
+        assertThat(outboxRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 만료된_워커는_영상_완료나_실패를_기록할_수_없다() {
+        Member member = memberRepository.save(Member.of("아웃박스 테스트", UUID.randomUUID()));
+        ShareVideoJob job = ShareVideoJob.pending(member, "TRAVEL_TIMELINE", "{}");
+        String token = UUID.randomUUID().toString();
+        job.claimAttempt(token, UUID.randomUUID().toString(), "attempt.mp4", NOW.minusMinutes(5), NOW);
+        Long id = jobRepository.saveAndFlush(job).getId();
+
+        assertThatThrownBy(() -> jobUpdater.completeClaimed(id, token, "attempt.mp4", 100L, 20L))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("만료");
+        assertThatThrownBy(() -> jobUpdater.failClaimed(id, token, ShareVideoFailureCode.WORKER_FAILED,
+                new IllegalStateException("실패"), 100L, 20L))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("만료");
+        assertThat(jobRepository.findById(id).orElseThrow().getStatus()).isEqualTo(ShareVideoStatus.RENDERING);
+    }
+
+    @Test
     void 발송_시각이_된_알림만_선점한다() {
         NotificationOutbox ready = saveOutbox("ready", NOW);
         saveOutbox("future", NOW.plusSeconds(1));
