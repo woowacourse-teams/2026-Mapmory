@@ -9,7 +9,6 @@ import com.mapmory.backend.notification.domain.PushToken;
 import com.mapmory.backend.notification.domain.PushTokenRepository;
 import com.mapmory.backend.notification.infrastructure.NotificationConfig;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,10 +69,10 @@ public class AlbumPushListener {
         if (tokens.isEmpty()) {
             return;
         }
-        String nickname = memberQuery.nicknamesOf(Set.of(event.actorMemberId()))
-                .getOrDefault(event.actorMemberId(), DEFAULT_NICKNAME);
+        AlbumPush push = AlbumPush.of(event, memberQuery.nicknamesOf(Set.of(event.actorMemberId()))
+                .get(event.actorMemberId()));
         List<PushMessage> messages = tokens.stream()
-                .map(token -> message(token.getToken(), event, nickname))
+                .map(token -> push.to(token.getToken()))
                 .toList();
 
         pushTokenService.removeInvalid(pushSender.send(messages));
@@ -88,18 +87,5 @@ public class AlbumPushListener {
         return memberIds.stream()
                 .filter(memberId -> !off.contains(memberId))
                 .toList();
-    }
-
-    static PushMessage message(String token, AlbumUpdated event, String nickname) {
-        return new PushMessage(
-                token,
-                event.groupName(),
-                "%s님이 '%s'에 사진을 올렸어요".formatted(nickname, event.albumName()),
-                Map.of(
-                        "type", "ALBUM_UPDATED",
-                        "groupId", String.valueOf(event.groupId()),
-                        "albumId", String.valueOf(event.albumId())
-                )
-        );
     }
 }
