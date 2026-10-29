@@ -160,6 +160,13 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 
 작업 ID·회원 ID·파일 경로·다운로드 URL·여행 내용은 이벤트 파라미터로 전송하지 않는다. 기존 플랫폼 Firebase 수집 활성화 설정을 따르며, Debug/Internal에서의 실제 수신은 별도 확인해야 한다.
 
+## iOS 사진 로딩 진단
+
+- `photo_load_failed(stage, error_domain, error_code)`는 로딩 단계의 실패다. PhotoKit 실패 후 원본/PHPicker 재시도로 복구할 수 있으므로 최종 누락 사진 수와 같지 않다. 촬영일이 없는 사진의 `capture_date_missing`도 이미지 표시 실패를 의미하지 않는다.
+- `photo_load_completed(requested, succeeded, failed)`는 수동 선택 배치 또는 추천 페이지가 끝났을 때의 최종 건수다. 재시도로 복구한 사진은 `succeeded`에 포함한다. 수동 선택 취소는 집계하지 않는다.
+- 추가 원본 읽기 실패는 `app_error(operation=photo_original_preview/photo_cached_original)`로 수집한다. 정상 코루틴 취소는 제외한다.
+- 사진 바이트·EXIF 값·파일명·로컬 식별자·URL은 이벤트 파라미터에 넣지 않는다. 실제 Firebase 수신은 별도 검증이 필요하다.
+
 ### 기존 영상 이벤트와의 호환성 (PR #487 통합)
 
 `video_opened`, `video_action`, `video_generation_result`와 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 같은 실제 작업을 두 관점으로 기록하므로 두 이벤트 체계의 건수를 합산하지 않는다.
