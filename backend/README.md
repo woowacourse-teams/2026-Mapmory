@@ -37,6 +37,8 @@ Windows에서는 `./gradlew` 대신 `./gradlew.bat`을 사용합니다.
 - [일반구와 시 단위 지역 코드 불일치 트러블슈팅](docs/region-code-troubleshooting.md)
 - [Testcontainers 테스트 성능 개선](docs/testcontainers-performance.md)
 
+- [애플 회원 탈퇴 배포 및 장애 대응](docs/apple-withdrawal-operations.md)
+
 ## 환경변수
 
 필요한 키 목록은 `.env.example` 참고.

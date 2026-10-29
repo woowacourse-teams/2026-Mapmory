@@ -29,7 +29,8 @@
 | 구현됨 | `POST` | `/auth/logout` | Refresh Token 폐기 |
 | 구현됨 | `GET` | `/members/me` | 내 회원 정보 조회 |
 | 구현됨 | `PATCH` | `/members/me/nickname` | 내 닉네임 변경 |
-| 구현됨 | `DELETE` | `/members/me` | 회원 탈퇴 |
+| 구현됨 | `DELETE` | `/members/me` | 회원 탈퇴 (애플 회원 제외) |
+| 구현됨 | `POST` | `/auth/apple/withdrawal` | 애플 회원 탈퇴 (애플 토큰 철회) |
 | 구현됨 | `GET` | `/admin/auth/csrf` | 관리자 CSRF 토큰 발급 |
 | 구현됨 | `POST` | `/admin/auth/login` | 관리자 로그인(세션 발급) |
 | 구현됨 | `GET` | `/admin/auth/me` | 현재 관리자 조회 |
@@ -73,6 +74,8 @@
 | 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
 | 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
 | 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
+| 구현 전 설계 | `GET` | `/notification-settings` | 내 알림 설정 |
+| 구현 전 설계 | `PUT` | `/notification-settings` | 내 알림 설정 바꾸기 |
 
 ### 공통 응답
 
@@ -319,6 +322,39 @@ Access Token이 아니라 ID Token을 보낸다.
 
 #### Response `204 No Content`
 
+### 애플 회원 탈퇴
+
+`POST /api/v1/auth/apple/withdrawal`
+
+애플로 가입한 회원(게스트에서 애플로 승격한 회원 포함)은 이 API로 탈퇴한다. `DELETE /members/me`는 `400 APPLE_REAUTHENTICATION_REQUIRED`다.
+앱스토어 심사 지침에 따라 서버가 애플 토큰을 철회해 앱과 애플 계정의 연결을 끊은 뒤 탈퇴한다.
+
+앱은 탈퇴 직전에 **Sign in with Apple을 다시 띄워** 받은 `identityToken`과 `authorizationCode`를 보낸다.
+`authorizationCode`는 5분 안에 한 번만 쓸 수 있으므로 받자마자 보낸다. Access Token이 필요하다.
+
+```json
+{
+  "identityToken": "apple-identity-token",
+  "authorizationCode": "apple-authorization-code"
+}
+```
+
+- 재인증한 애플 계정이 탈퇴하는 회원과 같아야 한다.
+- 철회에 실패하면 탈퇴하지 않는다. 잠시 후 재인증부터 다시 한다.
+- 철회 후 서버의 탈퇴 처리에 실패하면 `503 APPLE_WITHDRAWAL_INCOMPLETE`다. 앱은 탈퇴 완료로 표시하거나 Mapmory 토큰을 지우지 않고, 재인증부터 다시 진행한다. 소비된 authorization code는 재사용하지 않는다.
+- 이미 탈퇴한 애플 회원이 **아직 유효한 기존 Access Token과 필수 요청 본문**으로 다시 요청하면 애플 API 호출 없이 `204`다. 없는 회원과 버려진 게스트는 `401 INACTIVE_MEMBER`, 애플 회원이 아닌 경우는 `400 NOT_APPLE_MEMBER`다. Access Token이 만료되면 이 재요청도 `401 EXPIRED_ACCESS_TOKEN`이며, 탈퇴로 폐기된 Refresh Token은 갱신할 수 없다.
+- 탈퇴 뒤 동작(토큰 폐기, 남은 Access Token, 재가입)은 회원 탈퇴와 같다.
+
+#### Response `204 No Content`
+
+| 상태 | `code` | 조건 | 앱 처리 |
+| --- | --- | --- | --- |
+| `400` | `NOT_APPLE_MEMBER` | 애플 회원이 아님 | `DELETE /members/me`로 탈퇴 |
+| `400` | `APPLE_REAUTHENTICATION_FAILED` | identity token이 유효하지 않음, 다른 애플 계정으로 재인증함, `authorizationCode`가 만료됐거나 이미 쓰임 | 재인증부터 다시 |
+| `503` | `APPLE_UNAVAILABLE` | 애플 장애 또는 서버의 애플 키·client 설정 오류로 철회를 완료하지 못함 | 잠시 후 재인증부터 다시 |
+| `503` | `APPLE_WITHDRAWAL_INCOMPLETE` | 애플 철회는 성공했지만 Mapmory 탈퇴 처리가 실패함 | 토큰을 유지하고 잠시 후 새 재인증으로 재시도. 반복 실패 시 응답의 `X-Request-Id`로 문의 |
+| `401` | `INACTIVE_MEMBER` | 회원이 없거나 버려진 게스트임 | 로그인 화면으로 |
+
 ### Auth 오류
 
 | 상태 | `code` | 조건 |
@@ -334,7 +370,7 @@ Access Token이 아니라 ID Token을 보낸다.
 | `429` | `GUEST_LOGIN_RATE_LIMITED` | 게스트 로그인 요청이 한도를 초과함 |
 | `503` | `KAKAO_UNAVAILABLE` | 카카오 공개키를 받아오지 못해 검증할 수 없음 |
 | `503` | `GOOGLE_UNAVAILABLE` | 구글 공개키를 받아오지 못해 검증할 수 없음 |
-| `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음 |
+| `503` | `APPLE_UNAVAILABLE` | 애플 공개키를 받아오지 못해 검증할 수 없음. 애플 회원 탈퇴에서 애플 토큰을 철회하지 못함 |
 
 ### 토큰 오류 처리
 
@@ -1315,7 +1351,7 @@ Authorization: Bearer {accessToken}
 
 `DELETE /api/v1/members/me`
 
-게스트 회원도 같은 API로 탈퇴한다.
+게스트 회원도 같은 API로 탈퇴한다. **애플 회원은 애플 회원 탈퇴(`POST /auth/apple/withdrawal`)를 쓴다.**
 
 - 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
 - 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
@@ -1334,6 +1370,7 @@ Authorization: Bearer {accessToken}
 | `401` | `INVALID_ACCESS_TOKEN` | Access Token이 없거나 유효하지 않음 |
 | `401` | `EXPIRED_ACCESS_TOKEN` | Access Token이 만료됨 |
 | `401` | `INACTIVE_MEMBER` | Access Token의 회원이 없거나 탈퇴했거나 버려진 게스트임. 저장한 토큰을 지우고 로그인 화면으로. 탈퇴 API는 탈퇴한 회원에게도 `204` |
+| `400` | `APPLE_REAUTHENTICATION_REQUIRED` | 애플 회원이 회원 탈퇴를 부름. 애플 회원 탈퇴(`POST /auth/apple/withdrawal`)를 쓴다 |
 
 ## 12. Group API
 
@@ -1619,6 +1656,8 @@ Authorization: Bearer {accessToken}
 
 그룹원이 앨범을 열거나 새 기록을 붙이면, 올린 사람을 뺀 같은 그룹 멤버의 기기에 FCM 푸시를 보낸다. 같은 기록을 다시 붙이면(`200`) 보내지 않는다. 앨범 쓰기가 커밋된 뒤 따로 보내므로 발송 실패가 올리기를 실패시키지 않는다.
 
+그룹 앨범 알림을 끈 회원(`PUT /api/v1/notification-settings`)에게는 보내지 않는다. 보내기 직전에 거르므로 끈 뒤에는 바로 가지 않는다.
+
 > 서버의 FCM 연결(서비스 계정 키)은 아직 없다. 토큰 등록·삭제와 발송 대상 고르기는 동작하지만, FCM 어댑터를 붙이기 전까지 실제로는 보내지 않고 로그만 남긴다.
 
 | 항목 | 값 |
@@ -1655,6 +1694,39 @@ Authorization: Bearer {accessToken}
 로그아웃 전에 부른다. 없는 토큰이어도 `204`다.
 
 #### Response `204 No Content`
+
+### 내 알림 설정
+
+`GET /api/v1/notification-settings`
+
+한 번도 바꾸지 않았으면 모두 `true`다. 설정은 기기가 아니라 회원 단위라 다른 기기로 로그인해도 같다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "groupAlbum": true
+  }
+}
+```
+
+### 내 알림 설정 바꾸기
+
+`PUT /api/v1/notification-settings`
+
+```json
+{
+  "groupAlbum": false
+}
+```
+
+`groupAlbum`은 빠지면 `400 VALIDATION_ERROR`다. 탈퇴 뒤 남은 access token으로 부르면 `401 INACTIVE_MEMBER`다.
+기기 알림 권한(OS 설정)이 꺼져 있으면 서버가 보내도 뜨지 않는다. 서버는 이를 알 수 없으므로 앱이 안내한다.
+
+#### Response `200 OK`
+
+바뀐 설정을 `GET`과 같은 모양으로 돌려준다.
 
 ### Group 오류
 

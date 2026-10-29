@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.web.client.RestClient;
 
 @Configuration
 @EnableConfigurationProperties(AppleProperties.class)
@@ -32,5 +33,17 @@ public class AppleClientConfig {
         }
         decoder.setJwtValidator(AppleIdentityTokenValidators.create(appleProperties.clientIds()));
         return decoder;
+    }
+
+    /**
+     * 탈퇴할 때 애플 토큰을 교환·철회하는 클라이언트. 공통 HTTP 타임아웃과 관측이 적용되도록 자동 구성된 Builder를 쓴다.
+     */
+    @Bean
+    public RestClient appleRestClient(RestClient.Builder builder, AppleProperties appleProperties) {
+        if (!appleProperties.canRevoke()) {
+            // 로그인은 되지만 애플 회원 탈퇴가 503으로 실패하므로, 설정 누락을 로그로 드러낸다.
+            log.warn("apple.team-id·key-id·private-key(APPLE_TEAM_ID·APPLE_KEY_ID·APPLE_PRIVATE_KEY)가 비어 있어 애플 회원 탈퇴가 실패합니다.");
+        }
+        return builder.build();
     }
 }

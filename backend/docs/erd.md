@@ -164,6 +164,7 @@ erDiagram
 | 구현 전 설계 | `album` | 그룹 앨범의 이름, 지역, 연 사람을 저장한다. |
 | 구현 전 설계 | `album_entry` | 앨범에 담긴 여행 기록 id와 담은 회원을 저장한다. |
 | 구현 전 설계 | `push_token` | 앨범 알림을 받을 회원 기기의 FCM 토큰을 저장한다. |
+| 구현 전 설계 | `notification_setting` | 회원이 끈 알림 종류를 저장한다. 행이 없으면 모두 켜짐이다. |
 
 ## 현재 구현 스키마
 
@@ -407,6 +408,19 @@ CONSTRAINT fk_travel_record_tag_tag
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 등록 시각 |
 
 같은 토큰을 다른 회원이 등록하면(기기에서 계정을 바꿈) `member_id`를 새 회원으로 바꾼다. `INDEX(member_id)`로 그룹 멤버들의 토큰을 모은다.
+
+### `notification_setting`
+
+회원이 그룹 앨범 알림을 끌 수 있게 한다(ADR 0022 2026-10-29 보완). 마이그레이션은 `V38__create_notification_setting.sql`이다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `member_id` | `BIGINT` | PK, FK → `member.id` | 설정한 회원 |
+| `group_album` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | 그룹 앨범 알림을 받는지 |
+| `created_at` | `DATETIME` | NOT NULL | 처음 바꾼 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막으로 바꾼 시각 |
+
+행이 없는 회원은 켜짐이다. 기기가 아니라 회원 단위라 다른 기기로 로그인해도 따라간다.
 
 ## 관계 및 삭제 정책
 

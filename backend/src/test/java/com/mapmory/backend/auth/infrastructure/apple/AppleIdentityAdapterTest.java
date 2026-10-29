@@ -20,7 +20,7 @@ class AppleIdentityAdapterTest {
 
     @Test
     void 애플_sub를_신원으로_바꾸고_이름은_비워_둔다() {
-        given(appleIdentityTokenVerifier.verify("identity-token")).willReturn(new AppleUser("001234.abcdef.0123"));
+        given(appleIdentityTokenVerifier.verify("identity-token")).willReturn(new AppleUser("001234.abcdef.0123", "com.mapmory.ios"));
 
         SocialIdentity identity = adapter.verify("identity-token");
 
