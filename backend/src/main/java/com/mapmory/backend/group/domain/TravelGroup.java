@@ -14,6 +14,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,7 +50,7 @@ public class TravelGroup extends BaseEntity {
     private int memberCount;
 
     // 멤버는 이 그룹과 생명주기가 같은 애그리거트 내부 엔티티다. 새 멤버는 함께 저장하고(PERSIST), 빠지면 지운다(orphanRemoval).
-    // 그룹 삭제는 아직 없다. 생기면 group_member FK에 ON DELETE CASCADE를 더하고 @OnDelete로 맡긴다(ADR 0017 cascade 규칙).
+    // 마지막 멤버가 나가면 그룹을 지우고, 남은 멤버 한 명은 orphanRemoval이 지운다(ADR 0022 2026-10-29 보완).
     @OneToMany(mappedBy = "group", cascade = CascadeType.PERSIST, orphanRemoval = true)
     @OrderBy("joinedAt ASC, id ASC")
     private List<GroupMember> members = new ArrayList<>();
@@ -95,6 +96,36 @@ public class TravelGroup extends BaseEntity {
 
     public boolean isFull() {
         return memberCount >= MAX_MEMBERS;
+    }
+
+    /**
+     * 이 회원 혼자 남았다. 나가면 그룹을 지운다(ADR 0022 결정 6).
+     */
+    public boolean isOnlyMember(Long memberId) {
+        return members.size() == 1 && hasMember(memberId);
+    }
+
+    /**
+     * 그룹에서 나간다. 방장이 나가면 가장 먼저 들어온 멤버가 방장이 된다(ADR 0022 결정 6).
+     * 혼자 남은 멤버는 나가지 않고 그룹을 지운다. 그래서 여기서는 받지 않는다({@link #isOnlyMember}).
+     */
+    public void leave(Long memberId) {
+        GroupMember leaving = members.stream()
+                .filter(member -> member.isMember(memberId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("멤버가 아닙니다. memberId=" + memberId));
+        if (members.size() == 1) {
+            throw new IllegalStateException("혼자 남은 멤버는 나가지 않고 그룹을 지웁니다. groupId=" + id);
+        }
+        members.remove(leaving);
+        memberCount--;
+        // 들어온 시각이 같으면 목록 순서(들어온 순서, @OrderBy)로 정한다. 저장 전 멤버는 id가 없어 id로 비교하지 않는다.
+        if (ownerMemberId.equals(memberId)) {
+            ownerMemberId = members.stream()
+                    .min(Comparator.comparing(GroupMember::getJoinedAt))
+                    .orElseThrow()
+                    .getMemberId();
+        }
     }
 
     public boolean hasMember(Long memberId) {

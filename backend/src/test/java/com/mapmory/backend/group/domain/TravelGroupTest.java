@@ -17,6 +17,41 @@ class TravelGroupTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 22, 12, 0);
 
     @Test
+    void 멤버가_나가면_인원이_줄고_방장은_그대로다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+        group.join(2L, NOW.plusMinutes(1));
+        group.join(3L, NOW.plusMinutes(2));
+
+        group.leave(2L);
+
+        assertThat(group.hasMember(2L)).isFalse();
+        assertThat(group.getMemberCount()).isEqualTo(2);
+        assertThat(group.getOwnerMemberId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 방장이_나가면_가장_먼저_들어온_멤버가_방장이_된다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+        group.join(3L, NOW.plusMinutes(1));
+        group.join(2L, NOW.plusMinutes(2));
+
+        group.leave(1L);
+
+        assertThat(group.getOwnerMemberId()).isEqualTo(3L);
+        assertThat(group.getMemberCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 혼자_남은_멤버는_나가지_않고_그룹을_지운다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+
+        assertThat(group.isOnlyMember(1L)).isTrue();
+        assertThatThrownBy(() -> group.leave(1L)).isInstanceOf(IllegalStateException.class);
+        group.join(2L, NOW.plusMinutes(1));
+        assertThat(group.isOnlyMember(1L)).isFalse();
+    }
+
+    @Test
     void 만든_사람이_첫_멤버이자_방장이다() {
         TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
 

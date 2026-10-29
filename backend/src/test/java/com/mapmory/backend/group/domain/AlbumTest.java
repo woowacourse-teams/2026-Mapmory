@@ -127,6 +127,31 @@ class AlbumTest {
     }
 
     @Test
+    void 나간_멤버의_항목을_모두_뗀다() {
+        Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
+        album.addEntry(2L, 201L);
+        album.addEntry(2L, 202L);
+
+        assertThat(album.removeEntriesBy(2L)).isTrue();
+
+        assertThat(album.travelRecordIds()).containsExactly(101L);
+        assertThat(album.getOpenerMemberId()).isEqualTo(1L);
+        assertThat(album.removeEntriesBy(3L)).isFalse();
+    }
+
+    @Test
+    void 연_사람이_나가면_가장_먼저_담은_멤버가_연_사람이_된다() {
+        Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
+        album.addEntry(3L, 301L);
+        album.addEntry(2L, 201L);
+
+        album.removeEntriesBy(1L);
+
+        assertThat(album.getOpenerMemberId()).isEqualTo(3L);
+        assertThat(album.isEmpty()).isFalse();
+    }
+
+    @Test
     void 지역을_바꾼다() {
         Album album = Album.open(10L, "도쿄", JAPAN, 1L, 101L);
         Region osaka = Region.of(JAPAN, JAPAN, "27", "오사카부", RegionType.PROVINCE);

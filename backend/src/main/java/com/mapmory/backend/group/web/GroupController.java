@@ -2,6 +2,7 @@ package com.mapmory.backend.group.web;
 
 import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.dto.ApiResponse;
+import com.mapmory.backend.group.application.GroupLeaveService;
 import com.mapmory.backend.group.application.GroupService;
 import com.mapmory.backend.group.web.dto.GroupNameRequest;
 import com.mapmory.backend.group.web.dto.GroupResponse;
@@ -13,6 +14,7 @@ import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class GroupController {
 
     private final GroupService groupService;
+    private final GroupLeaveService groupLeaveService;
 
-    public GroupController(GroupService groupService) {
+    public GroupController(GroupService groupService, GroupLeaveService groupLeaveService) {
         this.groupService = groupService;
+        this.groupLeaveService = groupLeaveService;
     }
 
     @PostMapping
@@ -64,5 +68,17 @@ public class GroupController {
             @Valid @RequestBody GroupNameRequest request
     ) {
         return ApiResponse.from(GroupResponse.from(groupService.rename(member.getId(), groupId, request.name())));
+    }
+
+    /**
+     * 그룹 나가기. 내가 담은 앨범 항목이 모두 내려가고 기록은 남는다. 마지막 멤버가 나가면 그룹을 지운다.
+     */
+    @DeleteMapping("/{groupId}/members/me")
+    public ResponseEntity<Void> leave(
+            @LoginMember Member member,
+            @PathVariable @Positive Long groupId
+    ) {
+        groupLeaveService.leave(member.getId(), groupId);
+        return ResponseEntity.noContent().build();
     }
 }

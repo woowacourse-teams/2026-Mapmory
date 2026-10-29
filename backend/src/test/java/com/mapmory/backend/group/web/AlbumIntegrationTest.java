@@ -521,6 +521,91 @@ class AlbumIntegrationTest extends IntegrationTest {
         assertThat(albumRepository.findById(otherAlbumId)).isEmpty();
     }
 
+    @Test
+    void 나가면_내_항목만_내려가고_기록은_남는다() throws Exception {
+        TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg");
+        Long albumId = openedAlbumId(jisu, jisuRecord);
+        addEntry(minho, group.getId(), albumId, minhoRecord.getId()).andExpect(status().isCreated());
+
+        leave(minho, group.getId()).andExpect(status().isNoContent());
+
+        assertThat(entryCount(albumId)).isEqualTo(1);
+        assertThat(travelRecordRepository.findById(minhoRecord.getId())).isPresent();
+        assertThat(memberCountOf(group.getId())).isEqualTo(1);
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+    }
+
+    @Test
+    void 방장이_나가면_가장_먼저_들어온_멤버가_방장이_된다() throws Exception {
+        leave(jisu, group.getId()).andExpect(status().isNoContent());
+
+        assertThat(travelGroupRepository.findById(group.getId()).orElseThrow().getOwnerMemberId())
+                .isEqualTo(minho.getId());
+    }
+
+    @Test
+    void 연_사람이_나가도_다른_멤버의_항목이_있으면_앨범은_남고_연_사람이_넘어간다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
+        addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg").getId())
+                .andExpect(status().isCreated());
+
+        leave(jisu, group.getId()).andExpect(status().isNoContent());
+
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries.length()").value(1))
+                .andExpect(jsonPath("$.data.opener.nickname").value("민호"));
+    }
+
+    @Test
+    void 내_항목만_있던_앨범은_나가면_지운다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
+
+        leave(jisu, group.getId()).andExpect(status().isNoContent());
+
+        assertThat(albumRepository.findById(albumId)).isEmpty();
+    }
+
+    @Test
+    void 마지막_멤버가_나가면_그룹과_앨범과_초대를_지운다() throws Exception {
+        TravelGroup alone = groupWith(jisu);
+        Long albumId = openedAlbumId(jisu, alone.getId(), record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
+        jdbcTemplate.update(
+                "INSERT INTO group_invitation (group_id, token, code, inviter_member_id, expires_at) VALUES (?, ?, ?, ?, ?)",
+                alone.getId(), UUID.randomUUID().toString(), "ABC123", jisu.getId(), LocalDateTime.now().plusDays(1));
+
+        leave(jisu, alone.getId()).andExpect(status().isNoContent());
+
+        assertThat(travelGroupRepository.findById(alone.getId())).isEmpty();
+        assertThat(albumRepository.findById(albumId)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM group_member WHERE group_id = ?", Long.class, alone.getId())).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM group_invitation WHERE group_id = ?", Long.class, alone.getId())).isZero();
+    }
+
+    @Test
+    void 멤버가_아니면_나갈_수_없다() throws Exception {
+        leave(socialMember("낯선 사람"), group.getId())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+        leave(jisu, Long.MAX_VALUE)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+    }
+
+    private ResultActions leave(Member member, Long groupId) throws Exception {
+        return mockMvc.perform(delete("/api/v1/groups/{groupId}/members/me", groupId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
+    private int memberCountOf(Long groupId) {
+        return jdbcTemplate.queryForObject("SELECT member_count FROM travel_group WHERE id = ?", Integer.class, groupId);
+    }
+
     private ResultActions deleteRecordByApi(Member member, TravelRecord record) throws Exception {
         return mockMvc.perform(delete("/api/v1/travel-records/{id}", record.getId())
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));
@@ -564,6 +649,8 @@ class AlbumIntegrationTest extends IntegrationTest {
             jdbcTemplate.update("INSERT INTO group_member (group_id, member_id, joined_at) VALUES (?, ?, ?)",
                     created.getId(), other.getId(), joinedAt);
         }
+        // 멤버를 직접 넣었으므로 인원도 맞춘다. 수락(join)은 인원을 함께 올린다.
+        jdbcTemplate.update("UPDATE travel_group SET member_count = ? WHERE id = ?", others.length + 1, created.getId());
         return created;
     }
 
