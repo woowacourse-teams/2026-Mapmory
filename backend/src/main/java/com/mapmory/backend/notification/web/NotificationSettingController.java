@@ -25,8 +25,7 @@ public class NotificationSettingController {
 
     @GetMapping
     public ApiResponse<NotificationSettingsResponse> find(@LoginMember Member member) {
-        return ApiResponse.from(new NotificationSettingsResponse(
-                notificationSettingService.isGroupAlbumOn(member.getId())));
+        return ApiResponse.from(NotificationSettingsResponse.from(notificationSettingService.settingOf(member.getId())));
     }
 
     @PutMapping

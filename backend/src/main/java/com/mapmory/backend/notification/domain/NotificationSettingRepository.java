@@ -18,7 +18,7 @@ public interface NotificationSettingRepository extends JpaRepository<Notificatio
             """, nativeQuery = true)
     void upsertGroupAlbum(@Param("memberId") Long memberId, @Param("groupAlbum") boolean groupAlbum);
 
-    // 받을 멤버 중 그룹 앨범 알림을 끈 회원. 행이 없는 회원은 켜짐이라 여기 나오지 않는다.
+    // 받을 멤버 중 그룹 앨범 알림을 끈 회원. 행이 없는 회원은 기본값(켜짐, NotificationSetting.defaultsFor)이라 나오지 않는다.
     @Query("SELECT s.memberId FROM NotificationSetting s WHERE s.memberId IN :memberIds AND s.groupAlbum = false")
     Set<Long> findGroupAlbumOffAmong(@Param("memberIds") Collection<Long> memberIds);
 }

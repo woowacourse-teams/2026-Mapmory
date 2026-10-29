@@ -23,13 +23,12 @@ public class NotificationSettingService {
     }
 
     /**
-     * 한 번도 바꾸지 않았으면 켜짐이다.
+     * 한 번도 바꾸지 않았으면 기본값이다({@link NotificationSetting#defaultsFor}).
      */
     @Transactional(readOnly = true)
-    public boolean isGroupAlbumOn(Long memberId) {
+    public NotificationSetting settingOf(Long memberId) {
         return notificationSettingRepository.findById(memberId)
-                .map(NotificationSetting::isGroupAlbum)
-                .orElse(true);
+                .orElseGet(() -> NotificationSetting.defaultsFor(memberId));
     }
 
     /**
