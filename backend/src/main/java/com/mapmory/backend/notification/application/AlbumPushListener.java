@@ -24,7 +24,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class AlbumPushListener {
 
-    static final String DEFAULT_NICKNAME = "멤버";
     private static final Logger log = LoggerFactory.getLogger(AlbumPushListener.class);
 
     private final PushTokenRepository pushTokenRepository;
