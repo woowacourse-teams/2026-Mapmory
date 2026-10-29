@@ -597,6 +597,49 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
     }
 
+    @Test
+    void 탈퇴하면_모든_그룹에서_나가고_기록은_남는다() throws Exception {
+        TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        Long albumId = openedAlbumId(jisu, jisuRecord);
+        addEntry(minho, group.getId(), albumId, record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg").getId())
+                .andExpect(status().isCreated());
+        TravelGroup alone = groupWith(jisu);
+        Long aloneAlbumId = openedAlbumId(jisu, alone.getId(), record(jisu, LocalDate.of(2026, 4, 1), null, "c.jpg"));
+
+        withdraw(jisu).andExpect(status().isNoContent());
+
+        TravelGroup left = travelGroupRepository.findById(group.getId()).orElseThrow();
+        assertThat(left.getOwnerMemberId()).isEqualTo(minho.getId());
+        assertThat(memberCountOf(group.getId())).isEqualTo(1);
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries.length()").value(1))
+                .andExpect(jsonPath("$.data.opener.nickname").value("민호"));
+        assertThat(travelGroupRepository.findById(alone.getId())).isEmpty();
+        assertThat(albumRepository.findById(aloneAlbumId)).isEmpty();
+        // 개인 기록은 30일 뒤 파기한다(#435). 그룹에서만 빠진다.
+        assertThat(travelRecordRepository.findById(jisuRecord.getId())).isPresent();
+    }
+
+    @Test
+    void 탈퇴하지_않은_멤버는_그룹에_남는다() throws Exception {
+        Member yuna = socialMember("유나");
+        TravelGroup three = groupWith(jisu, minho, yuna);
+
+        withdraw(minho).andExpect(status().isNoContent());
+
+        assertThat(memberCountOf(three.getId())).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT member_id FROM group_member WHERE group_id = ?", Long.class, three.getId()))
+                .containsExactlyInAnyOrder(jisu.getId(), yuna.getId());
+        assertThat(travelGroupRepository.findById(three.getId()).orElseThrow().getOwnerMemberId())
+                .isEqualTo(jisu.getId());
+    }
+
+    private ResultActions withdraw(Member member) throws Exception {
+        return mockMvc.perform(delete("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
     private ResultActions leave(Member member, Long groupId) throws Exception {
         return mockMvc.perform(delete("/api/v1/groups/{groupId}/members/me", groupId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));
