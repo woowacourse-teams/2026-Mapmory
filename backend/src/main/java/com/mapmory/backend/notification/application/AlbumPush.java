@@ -1,6 +1,5 @@
 package com.mapmory.backend.notification.application;
 
-import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import java.util.Map;
 
@@ -19,15 +18,15 @@ record AlbumPush(String title, String body, Map<String, String> data) {
     /**
      * @param nickname 올린 사람 닉네임. 못 찾았으면 null이고 {@link #DEFAULT_NICKNAME}으로 부른다
      */
-    static AlbumPush of(AlbumUpdated event, String nickname) {
+    static AlbumPush of(AlbumPushPayload payload, String nickname) {
         String sender = nickname == null ? DEFAULT_NICKNAME : nickname;
         return new AlbumPush(
-                event.groupName(),
-                "%s님이 '%s'에 사진을 올렸어요".formatted(sender, event.albumName()),
+                payload.groupName(),
+                "%s님이 '%s'에 사진을 올렸어요".formatted(sender, payload.albumName()),
                 Map.of(
                         "type", "ALBUM_UPDATED",
-                        "groupId", String.valueOf(event.groupId()),
-                        "albumId", String.valueOf(event.albumId())
+                        "groupId", String.valueOf(payload.groupId()),
+                        "albumId", String.valueOf(payload.albumId())
                 )
         );
     }

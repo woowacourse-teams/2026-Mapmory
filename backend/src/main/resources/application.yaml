@@ -156,6 +156,13 @@ share-video:
     render-timeout: ${SHARE_VIDEO_RENDER_TIMEOUT:10m}
     npm-command: ${SHARE_VIDEO_NPM_COMMAND:npm}
 
+notification:
+  outbox:
+    # 앨범 알림 아웃박스를 이 서버가 비울지. API를 받지 않는 렌더러 서버에서는 false로 끈다.
+    enabled: ${NOTIFICATION_OUTBOX_ENABLED:true}
+    # 앞 차례가 끝난 뒤 이 시간만큼 기다렸다가 보낼 차례인 알림을 다시 본다.
+    poll-delay: ${NOTIFICATION_OUTBOX_POLL_DELAY:2s}
+
 waitlist:
   cors:
     allowed-origins: ${WAITLIST_ALLOWED_ORIGINS:http://localhost:4173,http://localhost:5173,https://map-mory.com,https://www.map-mory.com}
