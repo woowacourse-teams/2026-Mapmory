@@ -195,7 +195,7 @@ export async function analytics(ctx) {
     const views = events.filter((e) => e.name === "tech_story_view").length;
     const reached = [...new Set(events.filter((e) => e.name === "tech_story_scene").map((e) => e.scene))].sort();
     const interacts = events.filter((e) => e.name === "tech_story_interact").map((e) => `${e.scene}:${e.type}`);
-    const expected = ["1:place_pick", "2:gather", "4:save", "5:map_toggle", "6:globe_drag"];
+    const expected = ["1:place_pick", "2:gather", "4:save", "5:map_toggle", "6:globe_drag", "7:year_pick"];
     const missing = expected.filter((x) => !interacts.includes(x));
     const file = ctx.evidence("analytics-events.json");
     await fs.writeFile(file, JSON.stringify({ events, scenes }, null, 2));

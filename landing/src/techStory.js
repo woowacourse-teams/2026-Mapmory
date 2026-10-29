@@ -32,7 +32,7 @@ export const TECH_STEPS = Object.freeze([
   { key: "map", label: "지도 모으기", side: "right" },
 ]);
 
-// scene_index for analytics is the position here + 1 (1-6 with the share scene on). `key` names the scene for the
+// scene_index for analytics is the position here + 1 (1-7 with the share scene on). `key` names the scene for the
 // engine; `interaction` names the optional tap a scene answers to (the safety scene has none). The first three scenes
 // share one screen, the app's own "어디 사진을 불러올까요?" form (티온, 10-29).
 export const TECH_SCENES = Object.freeze([
@@ -59,10 +59,10 @@ export const TECH_SCENES = Object.freeze([
 //   `media: null` shows the dark screen with the share button only; the trip still lands in it.
 // - `enabled: false` drops the share scene and its title (the trip ends back in the globe screen), for example while
 //   the share feature is not in the released app.
-// Off since 10-29 (티온: the map step only shows places filling in). Turned back on it is the seventh scene, so the
-// analytics check on scene_index (1-6, src/analytics.js) has to allow 7 first.
+// Off for a few hours on 10-29, back on as the seventh scene the same day (티온: "마지막 공유파트만 넣어서 배포하자");
+// the analytics check on scene_index (src/analytics.js) allows 1-7.
 export const TECH_SHARE = Object.freeze({
-  enabled: false,
+  enabled: true,
   button: "영상 공유하기",
   media: Object.freeze({
     type: "video",

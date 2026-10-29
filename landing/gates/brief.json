@@ -128,12 +128,33 @@
       "event": "tech_story_interact interaction_type=globe_drag",
       "purpose": "D",
       "rubric": "해외 기록은 나라 단위로 지구본에 칠해진다"
+    },
+    {
+      "index": 7,
+      "step": "map",
+      "question": "친구한테 자랑할 수 있나?",
+      "message": "다녀온 곳을 타임라인 영상으로 공유해요",
+      "hint": "연도를 눌러 보세요",
+      "interaction": "연도 누르기 (영상이 그 해로 넘어간다. 영상을 누르면 멈춘다)",
+      "truth": {
+        "claim": "앱이 다녀온 곳을 날짜순 영상으로 만들어 공유한다 (앱 #436 출시 확인: gates/manual/6.5.json)",
+        "evidence": [
+          "https://github.com/woowacourse-teams/2026-mapmory/pull/436 (여행 업적과 타임라인 영상 공유를 추가한다, and/feat/journal-layout-ab에 머지)",
+          "landing/AGENTS.md (공유 장면은 앱 기능 출시 전 TECH_SHARE.enabled=false)",
+          "landing/public/assets/tech/share-classic.mp4 (앱 화면 녹화)"
+        ]
+      },
+      "event": "tech_story_interact interaction_type=year_pick",
+      "purpose": "D",
+      "share": true,
+      "rubric": "다녀온 곳을 영상으로 만들어 공유한다"
     }
   ],
   "revisions": [
     "2026-10-27 2단계: 독자 1차 판정(copy-round1.json)에서 남은 궁금증을 반영. 장면 2 '고른 곳' → '누른 곳', 장면 3 '올라가고' → '앱에 올라가고', 각주에 '처음 훑는 데', '다음부터는 새 사진만 읽어요' 추가 (PhotoMetadataSync.shouldReuseCoordinates로 확인)",
     "2026-10-29 티온 피드백: 장면 1을 기록칸(위치 하나 입력)으로, 장면 2를 '그곳 사진이 알아서 모여요'로 바꾸고 3만 장 문구와 각주를 뺐다. 지도 단계는 칠해지는 것만 남겨 지구본 비행과 공유 영상 장면을 끄고(TECH_SHARE.enabled=false) 장면을 5개로 줄였다",
-    "2026-10-29 티온 2차: 장면 1-3을 앱의 '어디 사진을 불러올까요?' 화면으로(장소 입력 → 사진 불러오기 → 사진첩에서 뽑아옴), 장면 3 '찾는 동안 사진은 서버로 안 가요'를 새로 넣어 6장면"
+    "2026-10-29 티온 2차: 장면 1-3을 앱의 '어디 사진을 불러올까요?' 화면으로(장소 입력 → 사진 불러오기 → 사진첩에서 뽑아옴), 장면 3 '찾는 동안 사진은 서버로 안 가요'를 새로 넣어 6장면",
+    "2026-10-29 티온 3차: 장면 2에서 사진첩이 폰 밖으로 쏟아지고 그곳 사진만 골라져 폰으로 모인다(글자 없이). 공유 영상 장면을 다시 켜 7장면 (\"마지막 공유파트만 넣어서 배포하자\")"
   ],
   "outOfScope": [
     "히어로와 CTA 문구 (A, E는 다른 섹션의 몫)",

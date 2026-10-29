@@ -254,11 +254,11 @@ export function trackEvent(name, parameters = {}) {
       && Number.isInteger(parameters.scene_index)
       && parameters.scene_index >= 1
       && parameters.scene_index <= 6)) return false;
-  // The #tech section: passive reach (view, scene 1-6) plus the first try of each scene's touchable element.
+  // The #tech section: passive reach (view, scene 1-7) plus the first try of each scene's touchable element.
   if ((name === ANALYTICS_EVENTS.TECH_STORY_VIEW || name === ANALYTICS_EVENTS.TECH_STORY_SCENE || name === ANALYTICS_EVENTS.TECH_STORY_INTERACT)
     && parameters.experience_type !== "tech_story") return false;
   if ((name === ANALYTICS_EVENTS.TECH_STORY_SCENE || name === ANALYTICS_EVENTS.TECH_STORY_INTERACT)
-    && !(Number.isInteger(parameters.scene_index) && parameters.scene_index >= 1 && parameters.scene_index <= 6)) return false;
+    && !(Number.isInteger(parameters.scene_index) && parameters.scene_index >= 1 && parameters.scene_index <= 7)) return false;
   if (name === ANALYTICS_EVENTS.TECH_STORY_INTERACT && !TECH_STORY_INTERACTIONS.includes(parameters.interaction_type)) return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;

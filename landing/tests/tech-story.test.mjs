@@ -49,7 +49,7 @@ test("no small text sits under the titles, and the 3만 장 claim is gone with i
 
 test("the share scene is configured in one place and can be swapped or turned off", async () => {
   // off since 10-29 (티온: the map step only shows places filling in); the scene still works when turned back on
-  assert.equal(TECH_SHARE.enabled, false);
+  assert.equal(TECH_SHARE.enabled, true);
   // 10-27: the real share video (티온's captures, classic style), as VP9 and H.264 with a poster, all in public/
   const { media } = TECH_SHARE;
   assert.equal(media.type, "video");
@@ -72,8 +72,8 @@ test("the share scene is configured in one place and can be swapped or turned of
   // 10-28: the video never plays by itself (티온: waiting for a replay feels slow); a year button or a tap plays it
   assert.doesNotMatch(stripComments(engine), /shareVideo\.play\(\)\.catch/);
   assert.match(engine, /const seek = \(at\) => loadVideo\(\)\.then/);
-  assert.equal(techScenes().length, 6);
-  assert.equal(techScenes({ ...TECH_SHARE, enabled: true }).length, 7);
+  assert.equal(techScenes().length, 7);
+  assert.equal(techScenes({ ...TECH_SHARE, enabled: false }).length, 6);
   // the share video is fetched on intent, never on reaching the scene, and a tap on blank space in scene 3 is no try
   assert.match(engine, /for \(const ev of \["pointerenter", "pointerdown", "focusin"\]\) on\(shareBox, ev, \(\) => loadVideo\(\)/);
   assert.doesNotMatch(engine, /\(\) => loadVideo\(\),\n  \];/);
