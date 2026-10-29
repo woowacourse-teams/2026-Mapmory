@@ -175,6 +175,7 @@ fun TripRecordDetailScreen(
                 latestDate = initialLatestDate,
                 photoCount = initialPhotoCount,
                 columnCount = photoColumns,
+                isTimelineLayout = isTimelineLayout,
                 onBackClick = onBackClick,
             )
 
@@ -343,8 +344,7 @@ private fun TripRecordPhotoAlbum(
                 .weight(1f),
         ) {
             val photoSize = animateDpAsState(
-                targetValue = ((maxWidth - 56.dp - 1.dp * (columnCount - 1)) / columnCount)
-                    .coerceAtLeast(1.dp),
+                targetValue = detailAlbumPhotoSize(maxWidth, columnCount),
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                 label = "albumPhotoSize",
             )
@@ -360,7 +360,7 @@ private fun TripRecordPhotoAlbum(
             ) {
                 if (representativePhoto != null) {
                     item(key = "editorial-hero", contentType = "hero") {
-                        val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
+                        val heroHeight = detailAlbumHeroHeight(maxHeight)
                         Box(Modifier.fillMaxWidth().height(heroHeight)) {
                             MapmoryAsyncImage(
                                 imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
@@ -1211,3 +1211,9 @@ fun ErrorTripRecordDetailScreenPreview() {
 private const val UnknownPhotoDate = "날짜 미상"
 private val AlbumDatePattern = Regex("(\\d{4})[.\\-/](\\d{1,2})[.\\-/](\\d{1,2})")
 private val KoreanWeekdays = listOf("월", "화", "수", "목", "금", "토", "일")
+
+internal fun detailAlbumHeroHeight(availableHeight: Dp): Dp =
+    (availableHeight * 0.34f).coerceIn(220.dp, 300.dp)
+
+internal fun detailAlbumPhotoSize(availableWidth: Dp, columnCount: Int): Dp =
+    ((availableWidth - 56.dp - 1.dp * (columnCount - 1)) / columnCount).coerceAtLeast(1.dp)

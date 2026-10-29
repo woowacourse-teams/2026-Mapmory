@@ -9,6 +9,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -106,7 +110,7 @@ private fun SkeletonCardText(
     }
 }
 
-/** 목록의 사진 개수로 상세 응답이 오기 전 사진첩 자리를 확보한다. */
+/** 상세 화면과 같은 앨범/타임라인 구조로 로딩 중의 자리 이동을 줄인다. */
 @Composable
 internal fun TripRecordDetailSkeleton(
     modifier: Modifier = Modifier,
@@ -114,51 +118,98 @@ internal fun TripRecordDetailSkeleton(
     latestDate: String? = null,
     photoCount: Int? = null,
     columnCount: Int = 2,
+    isTimelineLayout: Boolean = false,
     onBackClick: () -> Unit = {},
 ) {
-    val visibleLocationName = locationName?.takeIf { it.isNotBlank() } ?: "여행"
     val rows = albumSkeletonRowSizes(photoCount, columnCount)
     Column(modifier.fillMaxSize()) {
-        TripRecordTopBar(
-            title = "",
-            onBackClick = onBackClick,
-        )
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
-            contentPadding = PaddingValues(start = 24.dp, top = 32.dp, end = 32.dp, bottom = 36.dp),
-        ) {
-            item(key = "heading") { AlbumHeading(locationName = visibleLocationName) }
-            if (rows.isNotEmpty()) {
-                item(key = "date") {
-                    Box(Modifier.padding(top = 32.dp, bottom = 14.dp)) {
-                        val date = latestDate.toAlbumDate()
-                        if (date != null) {
-                            Text(
-                                text = date.toAlbumDisplayDate(),
-                                color = TripRecordPalette.current.headingText,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                            )
-                        } else {
-                            SkeletonCardText(18.sp, Modifier.width(140.dp), FontWeight.Bold)
+        TripRecordTopBar(title = "", onBackClick = onBackClick)
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val heroHeight = detailAlbumHeroHeight(maxHeight)
+            val photoSize = detailAlbumPhotoSize(maxWidth, columnCount)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                contentPadding = PaddingValues(top = if (isTimelineLayout) 16.dp else 0.dp, bottom = 36.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (isTimelineLayout) {
+                    item(key = "timeline-heading") {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            SkeletonCardText(24.sp, Modifier.fillMaxWidth(0.65f), FontWeight.Bold)
+                            SkeletonCardText(12.sp, Modifier.fillMaxWidth(0.8f))
                         }
                     }
-                }
-                items(rows.size, key = { "row:$it" }) { rowIndex ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(top = if (rowIndex == 0) 0.dp else 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        repeat(rows[rowIndex]) {
-                            SkeletonBox(
-                                Modifier.weight(1f).aspectRatio(1f),
-                                RoundedCornerShape(14.dp),
-                            )
+                    item(key = "timeline-list-heading") {
+                        Text("시간순 기록", color = TripRecordPalette.current.headingText,
+                            fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 3.dp))
+                    }
+                    if (rows.isNotEmpty()) {
+                        item(key = "timeline-year-filter") {
+                            Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("연도별로 보기", color = TripRecordPalette.current.secondaryText,
+                                    fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SkeletonBox(Modifier.width(66.dp).height(44.dp), CircleShape)
+                                    SkeletonBox(Modifier.width(82.dp).height(44.dp), CircleShape)
+                                }
+                            }
                         }
-                        repeat(columnCount - rows[rowIndex]) {
-                            Spacer(Modifier.weight(1f).aspectRatio(1f))
+                        item(key = "timeline-photos") {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.width(25.dp), contentAlignment = Alignment.TopCenter) {
+                                    SkeletonBox(Modifier.size(24.dp), CircleShape)
+                                }
+                                Column(Modifier.weight(1f).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        SkeletonCardText(14.sp, Modifier.width(140.dp), FontWeight.Bold)
+                                        SkeletonCardText(11.sp, Modifier.width(80.dp))
+                                    }
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                        // 날짜별 분포는 아직 모르므로 화면 한 줄 분량만 확보한다.
+                                        repeat((photoCount ?: 1).coerceIn(1, 6)) {
+                                            SkeletonBox(Modifier.size(64.dp), RectangleShape)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (rows.isNotEmpty()) {
+                        item(key = "editorial-hero") {
+                            SkeletonBox(Modifier.fillMaxWidth().height(heroHeight), RectangleShape)
+                        }
+                    } else {
+                        item(key = "editorial-heading") {
+                            AlbumHeading(locationName?.takeIf(String::isNotBlank) ?: "여행",
+                                Modifier.padding(horizontal = 20.dp).padding(top = 24.dp))
+                        }
+                    }
+                    item(key = "editorial-gallery-heading") {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("함께 남긴 사진", color = TripRecordPalette.current.headingText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            if (photoCount != null) Text("${photoCount.coerceAtLeast(0)}장", color = TripRecordPalette.current.secondaryText, fontSize = 11.sp)
+                        }
+                    }
+                    if (rows.isNotEmpty()) {
+                        item(key = "date") {
+                            Box(Modifier.padding(horizontal = 20.dp).padding(top = 2.dp)) {
+                                val date = latestDate.toAlbumDate()
+                                if (date != null) Text(date.toAlbumDisplayDate(), color = TripRecordPalette.current.headingText,
+                                    fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                else SkeletonCardText(18.sp, Modifier.width(140.dp), FontWeight.Bold)
+                            }
+                        }
+                        items(rows.size, key = { "row:$it" }) { rowIndex ->
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                                .padding(top = if (rowIndex == 0) 0.dp else 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                repeat(rows[rowIndex]) {
+                                    SkeletonBox(Modifier.size(photoSize), RectangleShape)
+                                }
+                            }
                         }
                     }
                 }
