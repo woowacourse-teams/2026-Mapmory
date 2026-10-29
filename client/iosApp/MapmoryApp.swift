@@ -1,5 +1,6 @@
 import FirebaseCrashlytics
 import FirebaseCore
+import FirebaseMessaging
 import FirebaseRemoteConfig
 import Foundation
 import Shared
@@ -126,7 +127,7 @@ private struct ComposeView: UIViewControllerRepresentable {
     }
 }
 
-final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     private static var analyticsEnabled: Bool {
 #if DEBUG || INTERNAL
         false
@@ -137,7 +138,23 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        guard FirebaseApp.app() != nil else { return true }
+        Messaging.messaging().delegate = self
+        application.registerForRemoteNotifications()
         return true
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard fcmToken != nil else { return }
+#if DEBUG || INTERNAL
+        let topic = "mapmory-app-update-dev"
+        let otherTopic = "mapmory-app-update"
+#else
+        let topic = "mapmory-app-update"
+        let otherTopic = "mapmory-app-update-dev"
+#endif
+        Messaging.messaging().subscribe(toTopic: topic) { _ in }
+        Messaging.messaging().unsubscribe(fromTopic: otherTopic) { _ in }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
@@ -169,8 +186,10 @@ private final class IosForceUpdateController {
     )
 #if DEBUG || INTERNAL
     private let key = "ios_dev_min_supported_version"
+    private let recommendedVersionKey = "ios_dev_recommended_supported_version"
 #else
     private let key = "ios_min_supported_version"
+    private let recommendedVersionKey = "ios_recommended_supported_version"
 #endif
     private var fetching = false
     private var generation = 0
@@ -178,6 +197,7 @@ private final class IosForceUpdateController {
 
     init() {
         _ = state.applyMinimumVersion(value: UserDefaults.standard.string(forKey: key) ?? "")
+        _ = state.applyRecommendedVersion(value: UserDefaults.standard.string(forKey: recommendedVersionKey) ?? "")
     }
 
     func refresh() {
@@ -205,11 +225,11 @@ private final class IosForceUpdateController {
         remote.ensureInitialized { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self, self.generation == request else { return }
-                self.accept(remote.configValue(forKey: self.key).stringValue)
+                self.accept(remote)
                 remote.fetchAndActivate { [weak self] _, error in
                     DispatchQueue.main.async {
                         guard let self, self.generation == request else { return }
-                        if error == nil { self.accept(remote.configValue(forKey: self.key).stringValue) }
+                        if error == nil { self.accept(remote) }
                         self.generation += 1
                         self.fetching = false
                         self.state.finishCheck()
@@ -219,9 +239,14 @@ private final class IosForceUpdateController {
         }
     }
 
-    private func accept(_ value: String) {
-        if state.applyMinimumVersion(value: value) {
-            UserDefaults.standard.set(value, forKey: key)
+    private func accept(_ remote: RemoteConfig) {
+        let minimumVersion = remote.configValue(forKey: key).stringValue
+        if state.applyMinimumVersion(value: minimumVersion) {
+            UserDefaults.standard.set(minimumVersion, forKey: key)
+        }
+        let recommendedVersion = remote.configValue(forKey: recommendedVersionKey).stringValue
+        if state.applyRecommendedVersion(value: recommendedVersion) {
+            UserDefaults.standard.set(recommendedVersion, forKey: recommendedVersionKey)
         }
     }
 
