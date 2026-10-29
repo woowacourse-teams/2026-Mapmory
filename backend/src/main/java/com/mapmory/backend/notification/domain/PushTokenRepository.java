@@ -20,6 +20,11 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
     @Query("DELETE FROM PushToken t WHERE t.token = :token AND t.memberId = :memberId")
     void deleteByTokenAndMemberId(@Param("token") String token, @Param("memberId") Long memberId);
 
+    // 탈퇴하거나 버려진 회원의 기기 전부.
+    @Modifying
+    @Query("DELETE FROM PushToken t WHERE t.memberId = :memberId")
+    void deleteAllByMemberId(@Param("memberId") Long memberId);
+
     // FCM이 더 이상 유효하지 않다고 답한 토큰.
     @Modifying
     @Query("DELETE FROM PushToken t WHERE t.token IN :tokens")

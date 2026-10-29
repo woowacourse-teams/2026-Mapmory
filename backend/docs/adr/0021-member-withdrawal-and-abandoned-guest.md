@@ -60,6 +60,12 @@
 회원 컨텍스트에서 처음 발행하는 이벤트이고, 같은 트랜잭션에서 실행되는 동기 `@EventListener`도 처음이다.
 (태그·여행 기록은 이미 캐시 무효화 이벤트를 `@TransactionalEventListener`로 쓰고 있다.)
 
+> 2026-10-29 구현 업데이트(#546): **notification**이 `MemberWithdrawn`·`GuestAbandoned`를 커밋 뒤에 받아 그 회원의
+> 기기 토큰(`push_token`)을 모두 지운다. 탈퇴한 사람의 기기로 앨범 알림이 가지 않게 한다.
+> 다시 등록하는 경로(`PUT /push-tokens`)는 `ActiveMemberGuard`가 막으므로 한 번 지우면 다시 생기지 않는다.
+> 탈퇴와 따로 커밋하므로 새 트랜잭션(`REQUIRES_NEW`)을 열고, 실패해도 탈퇴는 그대로 두고 `PUSH_TOKEN_CLEANUP_FAILED`로 남긴다.
+> 30분 유예(아래)를 기다리지 않는 이유는 토큰이 남은 access token으로 새로 생기지 않고, 다른 회원에게 영향을 주는 데이터이기 때문이다.
+
 ### 남은 access token(최대 30분)은 회원 API와 재발급에서만 막는다
 
 access token은 무상태라 탈퇴하거나 버려져도 만료까지 유효하다. JWT 필터에서 요청마다 회원을 조회하지 않는다

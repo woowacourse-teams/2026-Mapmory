@@ -1,12 +1,17 @@
 package com.mapmory.backend.notification.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
@@ -99,9 +104,56 @@ class PushTokenIntegrationTest extends IntegrationTest {
         unregister(jisu, "never-registered").andExpect(status().isNoContent());
     }
 
+    @Test
+    void 탈퇴하면_그_회원의_토큰을_모두_지운다() throws Exception {
+        register(jisu, "jisu-phone", "ANDROID").andExpect(status().isNoContent());
+        register(jisu, "jisu-tablet", "IOS").andExpect(status().isNoContent());
+        register(minho, "minho-phone", "ANDROID").andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, bearer(jisu)))
+                .andExpect(status().isNoContent());
+
+        assertThat(pushTokenRepository.findAll())
+                .extracting(PushToken::getToken)
+                .containsExactly("minho-phone");
+    }
+
+    @Test
+    void 게스트가_버려지면_그_게스트의_토큰을_지운다() throws Exception {
+        willReturn(new SocialIdentity("700100", "지수")).given(kakaoIdentityAdapter).verify(anyString());
+        kakaoLogin(null);
+        String guestAccessToken = JsonPath.read(
+                mockMvc.perform(post("/api/v1/auth/login/guest")).andReturn().getResponse().getContentAsString(),
+                "$.data.accessToken");
+        register("Bearer " + guestAccessToken, "guest-phone", "ANDROID").andExpect(status().isNoContent());
+        register(minho, "minho-phone", "ANDROID").andExpect(status().isNoContent());
+
+        kakaoLogin(guestAccessToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guestAbandoned").value(true));
+
+        assertThat(pushTokenRepository.findAll())
+                .extracting(PushToken::getToken)
+                .containsExactly("minho-phone");
+    }
+
+    private ResultActions kakaoLogin(String guestAccessToken) throws Exception {
+        var request = post("/api/v1/auth/login/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"kakao-id-token\"}");
+        if (guestAccessToken != null) {
+            request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + guestAccessToken);
+        }
+        return mockMvc.perform(request);
+    }
+
     private ResultActions register(Member member, String token, String platform) throws Exception {
+        return register(bearer(member), token, platform);
+    }
+
+    private ResultActions register(String authorization, String token, String platform) throws Exception {
         return mockMvc.perform(put("/api/v1/push-tokens")
-                .header(HttpHeaders.AUTHORIZATION, bearer(member))
+                .header(HttpHeaders.AUTHORIZATION, authorization)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\": \"" + token + "\", \"platform\": \"" + platform + "\"}"));
     }
