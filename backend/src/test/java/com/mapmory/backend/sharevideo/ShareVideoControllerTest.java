@@ -2,9 +2,12 @@ package com.mapmory.backend.sharevideo;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,10 +20,14 @@ import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -113,6 +120,65 @@ class ShareVideoControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 영상_생성_요청의_수신_등록_ID를_서비스에_전달한다() throws Exception {
+        when(shareVideoService.createTravelTimeline(any(Member.class), eq(ShareVideoStyle.CLASSIC), eq(42L)))
+                .thenReturn(pendingJob(15L));
+
+        mockMvc.perform(post("/api/v1/share-videos/travel-timeline")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"styleId\":\"CLASSIC\",\"pushTokenId\":42}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.jobId").value(15));
+
+        verify(shareVideoService).createTravelTimeline(member, ShareVideoStyle.CLASSIC, 42L);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"{}", "{\"styleId\":\"CLASSIC\"}"})
+    void 수신_ID나_본문이_없어도_영상_생성을_요청한다(String body) throws Exception {
+        when(shareVideoService.createTravelTimeline(any(Member.class), eq(ShareVideoStyle.CLASSIC), isNull()))
+                .thenReturn(pendingJob(15L));
+        var request = post("/api/v1/share-videos/travel-timeline")
+                .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                .contentType(MediaType.APPLICATION_JSON);
+        if (body != null) {
+            request.content(body);
+        }
+
+        mockMvc.perform(request).andExpect(status().isAccepted());
+
+        verify(shareVideoService).createTravelTimeline(member, ShareVideoStyle.CLASSIC, null);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    void 수신_등록_ID가_양수가_아니면_서비스_호출_전에_거절한다(long pushTokenId) throws Exception {
+        mockMvc.perform(post("/api/v1/share-videos/travel-timeline")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pushTokenId\":" + pushTokenId + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(shareVideoService);
+    }
+
+    @Test
+    void 사용할_수_없는_수신_등록이면_404를_반환한다() throws Exception {
+        when(shareVideoService.createTravelTimeline(any(Member.class), eq(ShareVideoStyle.CLASSIC), eq(42L)))
+                .thenThrow(new BusinessException(ShareVideoErrorCode.SHARE_VIDEO_PUSH_TARGET_NOT_FOUND));
+
+        mockMvc.perform(post("/api/v1/share-videos/travel-timeline")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pushTokenId\":42}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SHARE_VIDEO_PUSH_TARGET_NOT_FOUND"));
     }
 
     private ShareVideoJob pendingJob(long jobId) {

@@ -63,6 +63,11 @@ public class ShareVideoJob extends BaseEntity {
     @Column(name = "upload_duration_ms")
     private Long uploadDurationMs;
 
+    // 요청 당시 등록 ID를 보존한다. 등록이 삭제돼도 영상 작업은 유지한다.
+    @Column(name = "recipient_push_token_id", nullable = true)
+    private Long recipientPushTokenId;
+
+    // JPA가 엔티티를 조회할 때 사용하는 기본 생성자
     protected ShareVideoJob() {
     }
 
@@ -71,13 +76,29 @@ public class ShareVideoJob extends BaseEntity {
             final String videoType,
             final ShareVideoStyle styleId,
             final ShareVideoStatus status,
-            final String snapshotJson
+            final String snapshotJson,
+            final Long recipientPushTokenId
     ) {
         this.member = member;
         this.videoType = videoType;
         this.styleId = styleId;
         this.status = status;
         this.snapshotJson = snapshotJson;
+        this.recipientPushTokenId = recipientPushTokenId;
+    }
+
+    public static ShareVideoJob pending(
+            final Member member,
+            final String videoType,
+            final String snapshotJson
+    ) {
+        return pending(
+                member,
+                videoType,
+                ShareVideoStyle.defaultStyle(),
+                snapshotJson,
+                null
+        );
     }
 
     public static ShareVideoJob pending(
@@ -86,21 +107,24 @@ public class ShareVideoJob extends BaseEntity {
             final ShareVideoStyle styleId,
             final String snapshotJson
     ) {
-        return new ShareVideoJob(
-                member,
-                videoType,
-                styleId,
-                ShareVideoStatus.PENDING,
-                snapshotJson
-        );
+        return pending(member, videoType, styleId, snapshotJson, null);
     }
 
     public static ShareVideoJob pending(
             final Member member,
             final String videoType,
-            final String snapshotJson
+            final ShareVideoStyle styleId,
+            final String snapshotJson,
+            final Long recipientPushTokenId
     ) {
-        return pending(member, videoType, ShareVideoStyle.defaultStyle(), snapshotJson);
+        return new ShareVideoJob(
+                member,
+                videoType,
+                styleId,
+                ShareVideoStatus.PENDING,
+                snapshotJson,
+                recipientPushTokenId
+        );
     }
 
     public void startRendering(final LocalDateTime startedAt) {
@@ -168,6 +192,10 @@ public class ShareVideoJob extends BaseEntity {
 
     public LocalDateTime getFinishedAt() {
         return finishedAt;
+    }
+
+    public Long getRecipientPushTokenId() {
+        return recipientPushTokenId;
     }
 
     public ShareVideoFailureCode getFailureCode() {

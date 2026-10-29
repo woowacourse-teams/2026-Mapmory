@@ -112,6 +112,17 @@ public class PushTokenService {
         pushTokenRepository.deleteByIdAndMemberId(pushTokenId, memberId);
     }
 
+    /**
+     * 해당 푸시 등록이 회원에게 속하는지 확인한다.
+     * 없거나 다른 회원의 등록이면 false를 반환한다.
+     */
+    @Transactional(readOnly = true)
+    public boolean isOwnedBy(Long pushTokenId, Long memberId) {
+        return pushTokenRepository
+                .findByIdAndMemberId(pushTokenId, memberId)
+                .isPresent();
+    }
+
     private BusinessException registrationConflict(Throwable cause) {
         NotificationErrorCode error = NotificationErrorCode.PUSH_REGISTRATION_CONFLICT;
         return new BusinessException(error, error.detail(), cause);

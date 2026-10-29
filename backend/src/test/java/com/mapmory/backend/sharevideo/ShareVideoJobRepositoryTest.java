@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.notification.domain.PushPlatform;
+import com.mapmory.backend.notification.domain.PushToken;
+import com.mapmory.backend.notification.domain.PushTokenRepository;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -24,6 +27,9 @@ class ShareVideoJobRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private PushTokenRepository pushTokenRepository;
 
     @Test
     void 회원이_소유한_영상_작업만_조회한다() {
@@ -57,6 +63,33 @@ class ShareVideoJobRepositoryTest extends MySqlTestContainerSupport {
                 .contains("\"KR\"");
         assertThat(found.getResultObjectKey()).isNull();
         assertThat(found.getFailureReason()).isNull();
+        assertThat(found.getRecipientPushTokenId()).isNull();
+    }
+
+    @Test
+    void 수신_등록_ID를_저장하고_등록_삭제_후에도_영상_작업을_유지한다() {
+        Member member = memberRepository.save(Member.of("수신 대상 회원", UUID.randomUUID()));
+        PushToken recipient = pushTokenRepository.saveAndFlush(
+                new PushToken(member.getId(), "recipient-token", PushPlatform.ANDROID)
+        );
+        Long recipientId = recipient.getId();
+        ShareVideoJob job = shareVideoJobRepository.saveAndFlush(
+                ShareVideoJob.pending(member, "TRAVEL_TIMELINE", ShareVideoStyle.HORIZON,
+                        snapshotJson(), recipientId)
+        );
+        Long jobId = job.getId();
+        entityManager.clear();
+
+        assertThat(shareVideoJobRepository.findById(jobId).orElseThrow().getRecipientPushTokenId())
+                .isEqualTo(recipientId);
+
+        pushTokenRepository.deleteByIdAndMemberId(recipientId, member.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(pushTokenRepository.findById(recipientId)).isEmpty();
+        assertThat(shareVideoJobRepository.findById(jobId))
+                .hasValueSatisfying(saved -> assertThat(saved.getRecipientPushTokenId()).isEqualTo(recipientId));
     }
 
     @Test

@@ -29,6 +29,21 @@ POST /api/v1/share-videos/travel-timeline
 
 선택한 스타일은 작업에 고정 저장되어 이후 상태 조회와 재시도에서도 유지된다. 기존 작업과 스타일을 생략한 요청에는 `CLASSIC`을 적용한다.
 
+알림 수신 대상을 지정하려면 기기 등록 API가 반환한 `pushTokenId`를 선택적으로 보낸다.
+
+```json
+{
+  "styleId": "HORIZON",
+  "pushTokenId": 42
+}
+```
+
+- `pushTokenId`를 생략하거나 `null`로 보내면 알림 대상 없이 영상을 생성한다. 본문 없는 기존 요청도 지원한다.
+- 값이 있으면 양수여야 한다. 0·음수는 `400 VALIDATION_ERROR`로 거절한다.
+- 로그인 회원 소유가 아니거나 존재하지 않는 등록은 모두 `404 SHARE_VIDEO_PUSH_TARGET_NOT_FOUND`로 거절하고 작업을 저장하지 않는다.
+- 검증한 ID는 `share_video_job.recipient_push_token_id`에 요청 당시의 값으로 저장한다. 푸시 등록을 삭제해도 영상 작업은 유지한다.
+- 현재 단계는 수신 대상 저장까지이며, 실제 완료 푸시 발송은 Outbox·FCM 구현 후 연결한다.
+
 로그인 회원의 여행 기록을 시작일과 ID 순서로 조회한다. 국가 정류장이 두 개보다 적으면 `INSUFFICIENT_TIMELINE_STOPS` 오류를 반환한다.
 
 성공 시 `202 Accepted`를 반환한다.

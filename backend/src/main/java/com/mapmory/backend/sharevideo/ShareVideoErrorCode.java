@@ -5,6 +5,13 @@ import com.mapmory.backend.common.exception.ErrorKind;
 
 public enum ShareVideoErrorCode implements ErrorCode {
 
+    SHARE_VIDEO_PUSH_TARGET_NOT_FOUND(
+            ErrorKind.NOT_FOUND,
+            "SHARE_VIDEO_PUSH_TARGET_NOT_FOUND",
+            "알림 수신 등록을 찾을 수 없습니다.",
+            "존재하지 않거나 현재 회원이 사용할 수 없는 푸시 등록입니다."
+    ),
+
     INSUFFICIENT_TIMELINE_STOPS(
             ErrorKind.INVALID_INPUT,
             "INSUFFICIENT_TIMELINE_STOPS",
