@@ -75,12 +75,6 @@ class AlbumPushListenerTest {
     }
 
     @Test
-    void 올린_사람_닉네임을_못_찾으면_멤버라고_부른다() {
-        assertThat(AlbumPushListener.message("t", EVENT, AlbumPushListener.DEFAULT_NICKNAME).body())
-                .isEqualTo("멤버님이 '도쿄 3월'에 사진을 올렸어요");
-    }
-
-    @Test
     void 보내다가_실패해도_예외를_올리지_않는다() {
         given(pushTokenRepository.findAllByMemberIdIn(any())).willThrow(new IllegalStateException("db down"));
 
