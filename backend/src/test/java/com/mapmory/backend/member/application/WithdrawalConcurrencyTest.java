@@ -5,12 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.group.application.GroupInvitationService;
+import com.mapmory.backend.group.domain.TravelGroup;
+import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.notification.application.PushTokenService;
 import com.mapmory.backend.notification.domain.PushPlatform;
 import com.mapmory.backend.notification.domain.PushTokenRepository;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -48,6 +52,12 @@ class WithdrawalConcurrencyTest extends IntegrationTest {
     private PushTokenRepository pushTokenRepository;
 
     @Autowired
+    private GroupInvitationService groupInvitationService;
+
+    @Autowired
+    private TravelGroupRepository travelGroupRepository;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -66,6 +76,20 @@ class WithdrawalConcurrencyTest extends IntegrationTest {
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().isWithdrawn()).isTrue();
         assertThat(pushTokenRepository.findByToken("late-token")).isEmpty();
+    }
+
+    @Test
+    void 가드를_통과한_초대_수락이_탈퇴보다_늦게_커밋돼도_그룹에_남지_않는다() throws Exception {
+        Member owner = socialMember();
+        Member joiner = socialMember();
+        TravelGroup group = travelGroupRepository.save(TravelGroup.create("경쟁", owner.getId(), LocalDateTime.now()));
+        String token = groupInvitationService.create(owner.getId(), group.getId()).getToken();
+
+        runAcrossWithdrawal(joiner.getId(), () -> groupInvitationService.accept(joiner.getId(), token));
+
+        assertThat(memberRepository.findById(joiner.getId()).orElseThrow().isWithdrawn()).isTrue();
+        assertThat(travelGroupRepository.existsMember(group.getId(), joiner.getId())).isFalse();
+        assertThat(travelGroupRepository.findById(group.getId()).orElseThrow().getMemberCount()).isEqualTo(1);
     }
 
     @Test
