@@ -4,6 +4,7 @@ import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.member.api.MemberQuery;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.application.port.PushSender;
+import com.mapmory.backend.notification.domain.NotificationSettingRepository;
 import com.mapmory.backend.notification.domain.PushToken;
 import com.mapmory.backend.notification.domain.PushTokenRepository;
 import com.mapmory.backend.notification.infrastructure.NotificationConfig;
@@ -32,13 +33,16 @@ public class AlbumPushListener {
     private final PushTokenService pushTokenService;
     private final MemberQuery memberQuery;
     private final PushSender pushSender;
+    private final NotificationSettingRepository notificationSettingRepository;
 
     public AlbumPushListener(PushTokenRepository pushTokenRepository, PushTokenService pushTokenService,
-                             MemberQuery memberQuery, PushSender pushSender) {
+                             MemberQuery memberQuery, PushSender pushSender,
+                             NotificationSettingRepository notificationSettingRepository) {
         this.pushTokenRepository = pushTokenRepository;
         this.pushTokenService = pushTokenService;
         this.memberQuery = memberQuery;
         this.pushSender = pushSender;
+        this.notificationSettingRepository = notificationSettingRepository;
     }
 
     @Async(NotificationConfig.EXECUTOR)
@@ -58,10 +62,11 @@ public class AlbumPushListener {
 
     // 읽기만 하고 트랜잭션을 열지 않는다. 발송을 기다리는 동안 커넥션을 쥐지 않는다. 지우기는 PushTokenService가 한다.
     void notify(AlbumUpdated event) {
-        if (event.recipientMemberIds().isEmpty()) {
+        List<Long> recipients = recipientsWithAlbumOn(event.recipientMemberIds());
+        if (recipients.isEmpty()) {
             return;
         }
-        List<PushToken> tokens = pushTokenRepository.findAllByMemberIdIn(event.recipientMemberIds());
+        List<PushToken> tokens = pushTokenRepository.findAllByMemberIdIn(recipients);
         if (tokens.isEmpty()) {
             return;
         }
@@ -72,6 +77,17 @@ public class AlbumPushListener {
                 .toList();
 
         pushTokenService.removeInvalid(pushSender.send(messages));
+    }
+
+    // 보낼 때 거른다. 끄기 전에 생긴 알림도 끈 뒤에는 가지 않는다.
+    private List<Long> recipientsWithAlbumOn(List<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return memberIds;
+        }
+        Set<Long> off = notificationSettingRepository.findGroupAlbumOffAmong(memberIds);
+        return memberIds.stream()
+                .filter(memberId -> !off.contains(memberId))
+                .toList();
     }
 
     static PushMessage message(String token, AlbumUpdated event, String nickname) {

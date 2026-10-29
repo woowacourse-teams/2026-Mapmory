@@ -73,6 +73,8 @@
 | 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
 | 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
 | 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
+| 구현 전 설계 | `GET` | `/notification-settings` | 내 알림 설정 |
+| 구현 전 설계 | `PUT` | `/notification-settings` | 내 알림 설정 바꾸기 |
 
 ### 공통 응답
 
@@ -1619,6 +1621,8 @@ Authorization: Bearer {accessToken}
 
 그룹원이 앨범을 열거나 새 기록을 붙이면, 올린 사람을 뺀 같은 그룹 멤버의 기기에 FCM 푸시를 보낸다. 같은 기록을 다시 붙이면(`200`) 보내지 않는다. 앨범 쓰기가 커밋된 뒤 따로 보내므로 발송 실패가 올리기를 실패시키지 않는다.
 
+그룹 앨범 알림을 끈 회원(`PUT /api/v1/notification-settings`)에게는 보내지 않는다. 보내기 직전에 거르므로 끈 뒤에는 바로 가지 않는다.
+
 > 서버의 FCM 연결(서비스 계정 키)은 아직 없다. 토큰 등록·삭제와 발송 대상 고르기는 동작하지만, FCM 어댑터를 붙이기 전까지 실제로는 보내지 않고 로그만 남긴다.
 
 | 항목 | 값 |
@@ -1655,6 +1659,39 @@ Authorization: Bearer {accessToken}
 로그아웃 전에 부른다. 없는 토큰이어도 `204`다.
 
 #### Response `204 No Content`
+
+### 내 알림 설정
+
+`GET /api/v1/notification-settings`
+
+한 번도 바꾸지 않았으면 모두 `true`다. 설정은 기기가 아니라 회원 단위라 다른 기기로 로그인해도 같다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "groupAlbum": true
+  }
+}
+```
+
+### 내 알림 설정 바꾸기
+
+`PUT /api/v1/notification-settings`
+
+```json
+{
+  "groupAlbum": false
+}
+```
+
+`groupAlbum`은 빠지면 `400 VALIDATION_ERROR`다. 탈퇴 뒤 남은 access token으로 부르면 `401 INACTIVE_MEMBER`다.
+기기 알림 권한(OS 설정)이 꺼져 있으면 서버가 보내도 뜨지 않는다. 서버는 이를 알 수 없으므로 앱이 안내한다.
+
+#### Response `200 OK`
+
+바뀐 설정을 `GET`과 같은 모양으로 돌려준다.
 
 ### Group 오류
 
