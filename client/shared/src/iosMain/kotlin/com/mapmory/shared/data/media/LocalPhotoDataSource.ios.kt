@@ -53,6 +53,9 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource {
     }
 
     override suspend fun capturedAt(localId: String): String? {
+        if (localId.startsWith(IosPendingPhotoPrefix)) {
+            return NSData.dataWithContentsOfFile(localId.removePrefix(IosPendingPhotoPrefix))?.originalPhotoDate()
+        }
         val asset = PHAsset.fetchAssetsWithLocalIdentifiers(listOf(localId), null).firstObject as? PHAsset
             ?: return null
         return asset.creationDate?.let { date ->

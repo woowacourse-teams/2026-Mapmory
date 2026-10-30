@@ -2,9 +2,21 @@
 
 package com.mapmory.shared.presentation.triprecord.share
 
+import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
+import platform.AVFoundation.rate
+import platform.AVFoundation.AVPlayerItemStatusFailed
+import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
+import platform.CoreMedia.CMTimeGetSeconds
+
+import androidx.compose.runtime.LaunchedEffect
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareVideoPreviewAnalytics
+import kotlinx.coroutines.delay
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -12,20 +24,14 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVPlayer
-import platform.AVFoundation.currentItem
-import platform.AVFoundation.currentTime
-import platform.AVFoundation.duration
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
-import platform.AVFoundation.rate
 import platform.AVFoundation.seekToTime
 import platform.AVKit.AVPlayerViewController
-import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSFileManager
@@ -65,6 +71,12 @@ internal actual fun TripTimelineVideoSurface(
     controller: TripTimelineVideoPlaybackController,
     modifier: Modifier,
 ) {
+    val analytics = LocalMapmoryAnalytics.current
+    val previewAnalytics = remember(video.path, analytics) { ShareVideoPreviewAnalytics(analytics) }
+    DisposableEffect(previewAnalytics) {
+        previewAnalytics.opened()
+        onDispose { previewAnalytics.closed() }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val player = remember(video.path) { AVPlayer(uRL = NSURL.fileURLWithPath(video.path)) }
     DisposableEffect(lifecycle, player) {
@@ -112,6 +124,25 @@ internal actual fun TripTimelineVideoSurface(
         }
     }
 
+    LaunchedEffect(player, previewAnalytics, lifecycle) {
+        while (true) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                val item = player.currentItem
+                when (item?.status) {
+                    AVPlayerItemStatusReadyToPlay -> previewAnalytics.ready()
+                    AVPlayerItemStatusFailed -> previewAnalytics.failed(ShareVideoPlaybackException(item.error?.code ?: 0L))
+                }
+                val duration = item?.duration?.let(::CMTimeGetSeconds) ?: 0.0
+                val position = CMTimeGetSeconds(player.currentTime())
+                if (player.rate == 0f && duration.isFinite() && duration > 0 && position > 0 && position >= duration - 0.05) {
+                    previewAnalytics.completed()
+                } else {
+                    previewAnalytics.playbackChanged(player.rate > 0f)
+                }
+            }
+            delay(250)
+        }
+    }
     key(video.path) {
         UIKitViewController(
             factory = {
@@ -152,8 +183,8 @@ private class IosShareVideoExporter : ShareVideoExporter {
                 }
                 else -> status
             }
-            check(permission == PHAuthorizationStatusAuthorized) {
-                "동영상 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요."
+            if (permission != PHAuthorizationStatusAuthorized) {
+                throw ShareMediaPermissionDeniedException("동영상 저장 권한이 필요해요. 설정에서 사진 추가를 허용해 주세요.")
             }
             suspendCancellableCoroutine<Unit> { continuation ->
                 PHPhotoLibrary.sharedPhotoLibrary().performChanges(
