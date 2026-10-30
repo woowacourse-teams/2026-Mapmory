@@ -42,6 +42,8 @@ dependencies {
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:cloudfront'
 
+    implementation 'com.google.firebase:firebase-admin:9.11.0'
+
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

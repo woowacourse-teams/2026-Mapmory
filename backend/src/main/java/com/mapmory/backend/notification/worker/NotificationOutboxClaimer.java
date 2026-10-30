@@ -34,6 +34,13 @@ public class NotificationOutboxClaimer {
                 .map(outbox -> claim(outbox, nowUtc));
     }
 
+    @Transactional
+    public Optional<ClaimedNotification> claimNextForType(final String eventType) {
+        LocalDateTime nowUtc = LocalDateTime.now(clock);
+        return outboxRepository.findNextPendingForTypeForUpdate(eventType, nowUtc)
+                .map(outbox -> claim(outbox, LocalDateTime.now(clock)));
+    }
+
     private ClaimedNotification claim(
             final NotificationOutbox outbox,
             final LocalDateTime nowUtc
@@ -65,6 +72,17 @@ public class NotificationOutboxClaimer {
         }
 
         expired.get().recoverExpiredClaim(nowUtc);
+        return true;
+    }
+
+    @Transactional
+    public boolean recoverNextExpiredForType(final String eventType) {
+        LocalDateTime nowUtc = LocalDateTime.now(clock);
+        Optional<NotificationOutbox> expired = outboxRepository.findNextExpiredForTypeForUpdate(eventType, nowUtc);
+        if (expired.isEmpty()) {
+            return false;
+        }
+        expired.get().recoverExpiredClaim(LocalDateTime.now(clock));
         return true;
     }
 }

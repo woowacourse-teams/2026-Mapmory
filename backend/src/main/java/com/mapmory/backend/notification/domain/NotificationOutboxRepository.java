@@ -25,6 +25,16 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
             """, nativeQuery = true)
     Optional<NotificationOutbox> findNextPendingForUpdate(@Param("nowUtc")LocalDateTime nowUtc);
 
+    @Query(value = """
+            SELECT * FROM notification_outbox
+            WHERE status = 'PENDING' AND event_type = :eventType AND next_attempt_at <= :nowUtc
+            ORDER BY next_attempt_at, id
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    Optional<NotificationOutbox> findNextPendingForTypeForUpdate(
+            @Param("eventType") String eventType, @Param("nowUtc") LocalDateTime nowUtc);
+
     // 선점 기한이 지난 알림을 하나 잠금
     @Query(value = """
             SELECT *
@@ -36,4 +46,14 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     Optional<NotificationOutbox> findNextExpiredForUpdate(@Param("nowUtc") LocalDateTime nowUtc);
+
+    @Query(value = """
+            SELECT * FROM notification_outbox
+            WHERE status = 'PROCESSING' AND event_type = :eventType AND lease_expires_at <= :nowUtc
+            ORDER BY lease_expires_at, id
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    Optional<NotificationOutbox> findNextExpiredForTypeForUpdate(
+            @Param("eventType") String eventType, @Param("nowUtc") LocalDateTime nowUtc);
 }

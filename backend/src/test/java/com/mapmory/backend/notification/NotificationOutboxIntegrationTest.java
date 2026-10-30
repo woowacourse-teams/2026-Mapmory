@@ -2,15 +2,27 @@ package com.mapmory.backend.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.notification.domain.NotificationOutbox;
 import com.mapmory.backend.notification.domain.NotificationOutboxRepository;
 import com.mapmory.backend.notification.domain.NotificationOutboxStatus;
+import com.mapmory.backend.notification.domain.PushPlatform;
+import com.mapmory.backend.notification.domain.PushToken;
+import com.mapmory.backend.notification.domain.PushTokenRepository;
+import com.mapmory.backend.notification.application.port.NotificationPushSender;
+import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.worker.ClaimedNotification;
 import com.mapmory.backend.notification.worker.NotificationOutboxClaimer;
 import com.mapmory.backend.notification.worker.NotificationOutboxResultService;
+import com.mapmory.backend.notification.worker.NotificationOutboxWorker;
+import com.mapmory.backend.notification.worker.NotificationRecipientFinder;
+import com.mapmory.backend.notification.worker.NotificationMessageFactory;
 import com.mapmory.backend.sharevideo.ShareVideoJob;
 import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.ShareVideoJobRepository;
@@ -42,11 +54,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 @DataJpaTest
 @Import({ShareVideoJobUpdater.class, ShareVideoNotificationOutboxWriter.class,
-        NotificationOutboxClaimer.class, NotificationOutboxResultService.class,
+        NotificationOutboxClaimer.class, NotificationOutboxResultService.class, NotificationRecipientFinder.class,
         NotificationOutboxIntegrationTest.TestBeans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
@@ -59,6 +72,8 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
     @Autowired private NotificationOutboxRepository outboxRepository;
     @Autowired private NotificationOutboxClaimer claimer;
     @Autowired private NotificationOutboxResultService resultService;
+    @Autowired private NotificationRecipientFinder recipientFinder;
+    @Autowired private PushTokenRepository pushTokenRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private JsonMapper jsonMapper;
@@ -301,6 +316,35 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
         assertThat(resultService.markSent(outbox.getId(), token)).isFalse();
         assertThat(outboxRepository.findById(outbox.getId()).orElseThrow().getStatus())
                 .isEqualTo(NotificationOutboxStatus.PROCESSING);
+    }
+
+    @Test
+    void 발송_워커는_영상_이벤트만_처리하고_FCM_접수_결과를_기록한다() {
+        Member member = memberRepository.save(Member.of("아웃박스 테스트", UUID.randomUUID()));
+        PushToken token = pushTokenRepository.saveAndFlush(new PushToken(member.getId(), "worker-test-token", PushPlatform.ANDROID));
+        try {
+            NotificationOutbox other = outboxRepository.saveAndFlush(NotificationOutbox.pending(
+                    "GROUP_EVENT", "group:1:event", "{}", member.getId(), token.getId(), NOW));
+            NotificationOutbox video = outboxRepository.saveAndFlush(NotificationOutbox.pending(
+                    "VIDEO_COMPLETED", "video:15:completed", "{\"jobId\":15}", member.getId(), token.getId(), NOW));
+            NotificationPushSender sender = mock(NotificationPushSender.class);
+            when(sender.send(any(PushMessage.class))).thenAnswer(invocation -> {
+                assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                return new NotificationPushSender.Result(NotificationPushSender.Status.ACCEPTED, null);
+            });
+            NotificationOutboxWorker worker = new NotificationOutboxWorker(
+                    claimer, recipientFinder, new NotificationMessageFactory(jsonMapper), sender, resultService);
+
+            worker.processNext();
+
+            assertThat(outboxRepository.findById(video.getId()).orElseThrow().getStatus())
+                    .isEqualTo(NotificationOutboxStatus.SENT);
+            assertThat(outboxRepository.findById(other.getId()).orElseThrow().getStatus())
+                    .isEqualTo(NotificationOutboxStatus.PENDING);
+            verify(sender).send(any(PushMessage.class));
+        } finally {
+            pushTokenRepository.deleteById(token.getId());
+        }
     }
 
     @Test
