@@ -165,7 +165,7 @@ class MapViewModel(
 
         location.type == LocationType.PROVINCE ->
             uiState.koreaProvinces.any {
-                it.code == location.regionCode.removePrefix(KoreanProvincePrefix)
+                it.code == location.regionCode.removePrefix(KoreanProvincePrefix) && it.count > 0
             }
 
         else -> {
@@ -174,7 +174,7 @@ class MapViewModel(
                 ?.regionCode
             uiState.districtsByProvince[provinceCode]
                 .orEmpty()
-                .any { it.code == location.regionCode }
+                .any { it.code == location.regionCode && it.count > 0 }
         }
     }
 
