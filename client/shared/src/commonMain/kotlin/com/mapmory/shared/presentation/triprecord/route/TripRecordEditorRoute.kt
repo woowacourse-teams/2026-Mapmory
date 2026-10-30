@@ -21,6 +21,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.region.RegionCatalog
+import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.PlatformBackHandler
 import com.mapmory.shared.presentation.triprecord.screen.NewTripRecordFlowScreen
@@ -28,6 +29,7 @@ import com.mapmory.shared.presentation.triprecord.screen.RetainedPhotoFlowState
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordEditorViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -38,6 +40,8 @@ internal fun TripRecordEditorRoute(
     selectedLocationId: Long?,
     viewModel: TripRecordEditorViewModel,
     regionCatalog: RegionCatalog,
+    tripStatisticsRepository: TripStatisticsRepository,
+    showTravelAchievements: Boolean,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
     onBack: () -> Unit,
@@ -68,6 +72,18 @@ internal fun TripRecordEditorRoute(
             selectedLocation = selectedLocationId?.let(regionCatalog::findById),
         )
         photoUsageReady = true
+    }
+
+    LaunchedEffect(recordId, tripStatisticsRepository, showTravelAchievements) {
+        if (recordId == null && showTravelAchievements && tripStatisticsRepository.getCachedStatistics() == null) {
+            try {
+                tripStatisticsRepository.getStatistics()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Achievement celebrations are optional; a failed baseline lookup must not block record entry.
+            }
+        }
     }
 
     LaunchedEffect(Unit) {

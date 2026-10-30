@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,19 +35,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
+import mapmoryclient.shared.generated.resources.Res
+import mapmoryclient.shared.generated.resources.mori_expression_sheet
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -95,6 +106,33 @@ internal fun tripAchievementBadges(statistics: TripStatisticsUiModel): List<Trip
     }
 }
 
+internal fun tripAchievementBadges(statistics: TripStatistics): List<TripAchievementBadge> =
+    tripAchievementBadges(
+        TripStatisticsUiModel.Empty.copy(
+            recordCount = statistics.recordCount.toUiCount(),
+            worldVisitedCount = statistics.visitedCountryCount.toUiCount(),
+            koreaVisitedCount = statistics.visitedKoreaDistrictCount.toUiCount(),
+            visitedCountryCodes = statistics.visitedCountryCodes.toSet(),
+        ),
+    )
+
+internal fun newlyEarnedTripAchievementBadges(
+    previous: TripStatistics,
+    current: TripStatistics,
+): List<TripAchievementBadge> {
+    val previouslyEarned = tripAchievementBadges(previous).filter { it.earned }.mapTo(mutableSetOf()) { it.id }
+    return tripAchievementBadges(current).filter { it.earned && it.id !in previouslyEarned }
+}
+
+internal fun tripAchievementMoriExpressionIndex(earnedCount: Int, totalCount: Int): Int = when {
+    totalCount <= 0 -> 0
+    earnedCount <= 0 -> 2
+    earnedCount * 4 < totalCount -> 0
+    earnedCount * 2 < totalCount -> 4
+    earnedCount * 4 < totalCount * 3 -> 3
+    else -> 1
+}
+
 @Composable
 internal fun TripAchievementCollection(
     statistics: TripStatisticsUiModel,
@@ -114,7 +152,7 @@ internal fun TripAchievementCollection(
             Column {
                 Text("여행 업적", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "여행 기록으로 배지를 모아요",
+                    "기록을 남기고 여행 배지를 모아요",
                     color = TripRecordPalette.current.secondaryText,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp),
@@ -208,18 +246,7 @@ internal fun TripAchievementScreen(
                     val statistics = statisticsUiState.statistics
                     val badges = tripAchievementBadges(statistics)
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                        Text(
-                            "여행 기록으로 배지를 모아요",
-                            color = TripRecordPalette.current.secondaryText,
-                            fontSize = 13.sp,
-                        )
-                        Text(
-                            "${badges.count { it.earned }} / ${badges.size} 획득",
-                            color = TripRecordPalette.current.primary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 5.dp),
-                        )
+                        AchievementCompanionCard(badges)
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -250,6 +277,172 @@ internal fun TripAchievementScreen(
 }
 
 @Composable
+private fun AchievementCompanionCard(badges: List<TripAchievementBadge>) {
+    val palette = TripRecordPalette.current
+    val earnedCount = badges.count { it.earned }
+    val expression = tripAchievementMoriExpressionIndex(earnedCount, badges.size)
+    val message = when (expression) {
+        0 -> "모리와 첫 여행 이야기를 기다려요"
+        1 -> "모리와 여행 업적을 모두 모았어요!"
+        2 -> "첫 기록을 남기고 함께 출발해요"
+        3 -> "기록이 차곡차곡 쌓이고 있어요"
+        else -> "다음 여행 이야기는 어디일까요?"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.primarySoft),
+        border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.16f)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            MoriExpressionImage(
+                expressionIndex = expression,
+                description = "여행 업적 진행 상황을 보여주는 모리",
+                modifier = Modifier.height(92.dp).aspectRatio(0.6f),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "MAPMORY  /  TRAVEL ACHIEVEMENTS",
+                    color = palette.secondaryAccent,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.6.sp,
+                )
+                Text(
+                    message,
+                    color = palette.headingText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 5.dp),
+                )
+                Text(
+                    "$earnedCount / ${badges.size}개 획득",
+                    color = palette.secondaryAccent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 5.dp),
+                )
+                Box(Modifier.fillMaxWidth().height(5.dp).background(palette.surface, CircleShape)) {
+                    Box(
+                        Modifier.fillMaxWidth(earnedCount.toFloat() / badges.size)
+                            .height(5.dp).background(palette.primary, CircleShape),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TripAchievementUnlockDialog(
+    badges: List<TripAchievementBadge>,
+    onDismiss: () -> Unit,
+) {
+    val palette = TripRecordPalette.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = palette.surface),
+            border = BorderStroke(1.dp, palette.border),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().background(palette.primarySoft, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    MoriExpressionImage(
+                        expressionIndex = 1,
+                        description = "새 업적을 축하하는 모리",
+                        modifier = Modifier.height(82.dp).aspectRatio(0.6f),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "MAPMORY  /  TRAVEL BADGE",
+                            color = palette.secondaryAccent,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.6.sp,
+                        )
+                        Text(
+                            if (badges.size == 1) "새 여행 업적을 달성했어요!" else "새 여행 업적 ${badges.size}개를 달성했어요!",
+                            color = palette.headingText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
+                Text(
+                    "기록을 남기며 새로운 배지를 모았어요.",
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 14.dp),
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(badges) { badge ->
+                        Row(
+                            Modifier.fillMaxWidth().background(palette.surfaceElevated, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            TripAchievementBadgeArtwork(badge.id, earned = true, modifier = Modifier.size(46.dp))
+                            Column {
+                                Text(badge.title, color = palette.headingText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(badge.requirement, color = palette.secondaryText, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
+                ) {
+                    Text("계속하기", color = palette.onPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoriExpressionImage(
+    expressionIndex: Int,
+    description: String,
+    modifier: Modifier = Modifier,
+) {
+    val painter = painterResource(Res.drawable.mori_expression_sheet)
+    Canvas(modifier.clipToBounds().semantics { contentDescription = description }) {
+        val frameWidth = size.width
+        val frameHeight = size.height
+        clipRect {
+            translate(left = -frameWidth * expressionIndex.coerceIn(0, 4)) {
+                with(painter) {
+                    draw(size = Size(frameWidth * 5f, frameHeight))
+                }
+            }
+        }
+    }
+}
+
+private fun Long.toUiCount(): Int = coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+
+@Composable
 private fun AchievementTile(
     badge: TripAchievementBadge,
     onShareClick: () -> Unit,
@@ -258,23 +451,23 @@ private fun AchievementTile(
     val palette = TripRecordPalette.current
     Card(
         modifier = modifier.height(248.dp),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, if (badge.earned) badgeAccent(badge.id).copy(alpha = 0.38f) else palette.border),
-        colors = CardDefaults.cardColors(containerColor = palette.surfaceElevated),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, if (badge.earned) palette.primary.copy(alpha = 0.30f) else palette.border),
+        colors = CardDefaults.cardColors(containerColor = if (badge.earned) palette.primarySoft else palette.surfaceElevated),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             TripAchievementBadgeArtwork(
                 badgeId = badge.id,
                 earned = badge.earned,
-                modifier = Modifier.size(86.dp),
+                modifier = Modifier.size(90.dp),
             )
             Text(
                 badge.title,
                 color = palette.headingText,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -283,56 +476,56 @@ private fun AchievementTile(
             Text(
                 badge.requirement,
                 color = palette.secondaryText,
-                fontSize = 9.sp,
+                fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 3.dp),
             )
-            Spacer(Modifier.height(7.dp))
+            Spacer(Modifier.height(9.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
                     if (badge.earned) "달성 완료" else "진행 중",
-                    color = if (badge.earned) badgeAccent(badge.id) else palette.secondaryText,
-                    fontSize = 9.sp,
+                    color = if (badge.earned) palette.primary else palette.secondaryText,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     "${badge.progress} / ${badge.target}${badge.progressUnit}",
                     color = palette.secondaryText,
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                 )
             }
             Box(
-                Modifier.fillMaxWidth().padding(top = 4.dp).height(4.dp)
+                Modifier.fillMaxWidth().padding(top = 5.dp).height(5.dp)
                     .background(palette.border, CircleShape),
             ) {
                 Box(
-                    Modifier.fillMaxWidth(badge.progress.toFloat() / badge.target)
-                        .height(4.dp).background(badgeAccent(badge.id), CircleShape),
+                    Modifier.fillMaxWidth((badge.progress.toFloat() / badge.target).coerceIn(0f, 1f))
+                        .height(5.dp).background(if (badge.earned) palette.primary else palette.secondaryAccent, CircleShape),
                 )
             }
             Spacer(Modifier.weight(1f))
             if (badge.earned) {
                 Button(
                     onClick = onShareClick,
-                    modifier = Modifier.fillMaxWidth().height(36.dp),
-                    shape = RoundedCornerShape(11.dp),
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                    shape = RoundedCornerShape(13.dp),
                     contentPadding = PaddingValues(0.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = badgeAccent(badge.id),
-                        contentColor = Color.White,
+                        containerColor = palette.primary,
+                        contentColor = palette.onPrimary,
                     ),
                 ) {
-                    Text("업적 공유", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("업적 공유", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Text(
                     "다음 배지까지 조금만 더",
                     color = palette.secondaryText,
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.height(36.dp).padding(top = 8.dp),
+                    modifier = Modifier.height(38.dp).padding(top = 8.dp),
                 )
             }
         }
@@ -357,35 +550,34 @@ internal fun TripAchievementBadgeArtwork(
         },
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val colors = badgePalette(badgeId, earned)
+            val colors = badgePalette(earned)
             val side = minOf(size.width, size.height)
-            val radius = side * 0.345f
-            val center = Offset(size.width / 2f, size.height * 0.39f)
-            val ribbonTop = center.y + radius * 0.48f
-            val ribbonBottom = size.height * 0.94f
-            val ribbonHalfWidth = radius * 0.28f
+            val radius = side * 0.31f
+            val center = Offset(size.width / 2f, size.height * 0.46f)
+            val shellRadius = radius * 1.08f
 
-            drawPath(
-                ribbonPath(center.x, ribbonTop, ribbonBottom, ribbonHalfWidth, left = true),
-                color = colors.ribbonLeft,
+            drawBadgeLeaf(center, radius, side = -1f, color = colors.leafLeft)
+            drawBadgeLeaf(center, radius, side = 1f, color = colors.leafRight)
+            drawCircle(
+                color = (if (earned) Color(0xFF193B2A) else Color.Black).copy(alpha = if (earned) 0.16f else 0.07f),
+                radius = shellRadius,
+                center = Offset(center.x, center.y + 2.dp.toPx()),
             )
-            drawPath(
-                ribbonPath(center.x, ribbonTop, ribbonBottom, ribbonHalfWidth, left = false),
-                color = colors.ribbonRight,
-            )
-
-            val shadow = rosettePath(center.x, center.y + 2.dp.toPx(), radius * 1.12f)
-            drawPath(shadow, (if (earned) Color(0xFF14231D) else Color.Black).copy(alpha = if (earned) 0.20f else 0.08f))
-
-            val rosette = rosettePath(center.x, center.y, radius * 1.12f)
-            drawPath(
-                path = rosette,
-                brush = Brush.sweepGradient(
-                    listOf(colors.outerLight, colors.outer, colors.outerDark, colors.outerLight),
-                    center = center,
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(colors.outerLight, colors.outer, colors.outerDark),
+                    center = Offset(center.x - radius * 0.32f, center.y - radius * 0.42f),
+                    radius = shellRadius * 1.7f,
                 ),
+                radius = shellRadius,
+                center = center,
             )
-            drawPath(rosette, Color.White.copy(alpha = if (earned) 0.75f else 0.48f), style = Stroke(1.5.dp.toPx()))
+            drawCircle(
+                Color.White.copy(alpha = if (earned) 0.58f else 0.42f),
+                shellRadius,
+                center,
+                style = Stroke(1.3.dp.toPx()),
+            )
             drawCircle(
                 brush = Brush.radialGradient(
                     listOf(colors.faceLight, colors.face, colors.faceDark),
@@ -402,13 +594,6 @@ internal fun TripAchievementBadgeArtwork(
             } else {
                 drawTwoRegionsSymbol(center, radius, colors)
             }
-
-            drawPath(
-                starPath(center.x + radius * 0.77f, center.y - radius * 0.52f, radius * 0.20f, radius * 0.08f),
-                colors.sparkle,
-            )
-            drawCircle(colors.sparkle, radius * 0.055f, Offset(center.x - radius * 0.91f, center.y - radius * 0.50f))
-            drawCircle(Color.White.copy(alpha = 0.88f), radius * 0.045f, Offset(center.x + radius * 0.91f, center.y + radius * 0.04f))
         }
         Text(
             text = target,
@@ -416,7 +601,7 @@ internal fun TripAchievementBadgeArtwork(
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
-                .background(if (earned) badgeAccent(badgeId) else Color(0xFF777777), RoundedCornerShape(4.dp))
+                .background(if (earned) badgeAccent(badgeId) else Color(0xFF777777), CircleShape)
                 .padding(horizontal = 4.dp, vertical = 1.dp),
         )
     }
@@ -432,56 +617,50 @@ internal data class BadgeArtPalette(
     val rim: Color,
     val ink: Color,
     val bright: Color,
-    val ribbonLeft: Color,
-    val ribbonRight: Color,
+    val leafLeft: Color,
+    val leafRight: Color,
     val sparkle: Color,
 )
 
-internal fun badgePalette(id: String, earned: Boolean): BadgeArtPalette = when {
-    !earned -> BadgeArtPalette(
+internal fun badgePalette(earned: Boolean): BadgeArtPalette = if (!earned) {
+    BadgeArtPalette(
         outerLight = Color(0xFFE9E9E9), outer = Color(0xFFC1C1C1), outerDark = Color(0xFF909090),
         faceLight = Color.White, face = Color(0xFFE6E6E6), faceDark = Color(0xFFD1D1D1),
         rim = Color(0xFFB8B8B8), ink = Color(0xFF656565), bright = Color(0xFF888888),
-        ribbonLeft = Color(0xFF888888), ribbonRight = Color(0xFFB3B3B3), sparkle = Color(0xFF777777),
+        leafLeft = Color(0xFF888888), leafRight = Color(0xFFB3B3B3), sparkle = Color(0xFF777777),
     )
-    id == "first_record" || id.startsWith("records_") -> BadgeArtPalette(
-        outerLight = Color(0xFFFFD86E), outer = Color(0xFFF58B47), outerDark = Color(0xFFDE4C53),
-        faceLight = Color(0xFFFFF9D9), face = Color(0xFFFFEAB0), faceDark = Color(0xFFFFC96A),
-        rim = Color(0xFFE99D4A), ink = Color(0xFF276B5A), bright = Color(0xFF35A995),
-        ribbonLeft = Color(0xFFE64F5B), ribbonRight = Color(0xFFFFA34D), sparkle = Color(0xFFEC5C5A),
-    )
-    else -> BadgeArtPalette(
-        outerLight = Color(0xFF8BE5E4), outer = Color(0xFF5878EA), outerDark = Color(0xFF794BD4),
-        faceLight = Color(0xFFE8FFF5), face = Color(0xFFC8F1E7), faceDark = Color(0xFF92DCCB),
-        rim = Color(0xFF6680DB), ink = Color(0xFF31569E), bright = Color(0xFFFFB84D),
-        ribbonLeft = Color(0xFF4B76D8), ribbonRight = Color(0xFF39B9B0), sparkle = Color(0xFFFFA83D),
+} else {
+    BadgeArtPalette(
+        outerLight = Color(0xFFAED7BB), outer = Color(0xFF6FA582), outerDark = Color(0xFF367150),
+        faceLight = Color(0xFFFFF9E8), face = Color(0xFFF4E6C2), faceDark = Color(0xFFE5D09B),
+        rim = Color(0xFFF7EDCF), ink = Color(0xFF28543D), bright = Color(0xFFF2BD4E),
+        leafLeft = Color(0xFF255D3C), leafRight = Color(0xFF4B8A5E), sparkle = Color(0xFFE8754F),
     )
 }
 
-private fun badgeAccent(id: String): Color = if (id == "first_record" || id.startsWith("records_")) Color(0xFFDE5B52) else Color(0xFF5274D9)
+private fun badgeAccent(id: String): Color = if (id == "first_record" || id.startsWith("records_")) Color(0xFFC94C57) else Color(0xFF4D9272)
 
-private fun ribbonPath(cx: Float, top: Float, bottom: Float, halfWidth: Float, left: Boolean): Path {
-    val direction = if (left) -1f else 1f
-    return Path().apply {
-        moveTo(cx + direction * halfWidth * 0.18f, top)
-        lineTo(cx + direction * halfWidth * 1.75f, top)
-        lineTo(cx + direction * halfWidth * 1.72f, bottom)
-        lineTo(cx + direction * halfWidth * 0.95f, bottom - halfWidth * 0.44f)
-        lineTo(cx + direction * halfWidth * 0.18f, bottom)
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBadgeLeaf(
+    center: Offset,
+    radius: Float,
+    side: Float,
+    color: Color,
+) {
+    val leaf = Path().apply {
+        moveTo(center.x + side * radius * 0.08f, center.y - radius * 0.82f)
+        cubicTo(
+            center.x + side * radius * 0.44f, center.y - radius * 0.90f,
+            center.x + side * radius * 0.63f, center.y - radius * 1.24f,
+            center.x + side * radius * 0.22f, center.y - radius * 1.40f,
+        )
+        cubicTo(
+            center.x + side * radius * 0.01f, center.y - radius * 1.42f,
+            center.x - side * radius * 0.08f, center.y - radius * 1.05f,
+            center.x + side * radius * 0.08f, center.y - radius * 0.82f,
+        )
         close()
     }
-}
-
-private fun rosettePath(cx: Float, cy: Float, radius: Float): Path = Path().apply {
-    val vertices = 32
-    repeat(vertices) { index ->
-        val angle = -PI / 2.0 + index * 2.0 * PI / vertices
-        val pointRadius = if (index % 2 == 0) radius else radius * 0.93f
-        val x = cx + cos(angle).toFloat() * pointRadius
-        val y = cy + sin(angle).toFloat() * pointRadius
-        if (index == 0) moveTo(x, y) else lineTo(x, y)
-    }
-    close()
+    drawPath(leaf, color)
 }
 
 private fun starPath(cx: Float, cy: Float, radius: Float, innerRadius: Float): Path = Path().apply {
@@ -506,7 +685,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFirstRecordSymb
         cubicTo(center.x + radius * 0.48f, center.y - radius * 0.60f, center.x + radius * 0.66f, center.y - radius * 0.12f, center.x, center.y + radius * 0.47f)
         close()
     }
-    drawPath(pin, colors.ink)
+    drawPath(pin, colors.sparkle)
     drawCircle(Color.White, radius * 0.22f, Offset(center.x, center.y - radius * 0.19f))
     drawCircle(colors.bright, radius * 0.115f, Offset(center.x, center.y - radius * 0.19f))
     drawPath(

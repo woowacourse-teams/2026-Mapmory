@@ -140,7 +140,7 @@ private fun ExperimentalFeaturesCard(
             )
             ExperimentalFeatureToggle(
                 title = "여행 업적",
-                description = "통계 화면에 여행 기록 배지를 표시합니다.",
+                description = "통계에서 모리와 업적, 새 배지 축하를 확인해요.",
                 checked = isTravelAchievementsEnabled,
                 onCheckedChange = onTravelAchievementsEnabledChange,
             )

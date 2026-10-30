@@ -13,6 +13,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -30,7 +33,10 @@ import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementBadge
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementUnlockDialog
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
+import com.mapmory.shared.presentation.triprecord.screen.newlyEarnedTripAchievementBadges
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 
 @Composable
@@ -51,7 +57,25 @@ internal fun MapmoryNavHost(
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
+    var newlyEarnedBadges by remember { mutableStateOf<List<TripAchievementBadge>?>(null) }
     val gestureMotion = LocalNavigationGestureMotion.current
+    LaunchedEffect(container.backgroundTripRecordSaver, developerToolsInfo, isTravelAchievementsEnabled) {
+        container.backgroundTripRecordSaver.completedSaves.collect { completion ->
+            if (developerToolsInfo == null || !isTravelAchievementsEnabled) return@collect
+            val previousStatistics = completion.previousStatistics ?: return@collect
+            val currentStatistics = try {
+                container.tripStatisticsRepository.getStatistics().getOrNull()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@collect
+            val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
+            if (unlocked.isNotEmpty()) {
+                newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+            }
+        }
+    }
     Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
         container.shareVideoRepository?.let { repository ->
             TripTimelineVideoJobMonitor(repository, container.shareVideoJobStore)
@@ -149,6 +173,8 @@ internal fun MapmoryNavHost(
                 selectedLocationId = route.selectedLocationId,
                 viewModel = viewModel,
                 regionCatalog = container.regionCatalog,
+                tripStatisticsRepository = container.tripStatisticsRepository,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 onBack = { navigator.navigateBack() },
@@ -276,6 +302,12 @@ internal fun MapmoryNavHost(
                 isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
         }
+        }
+
+        newlyEarnedBadges?.let { badges ->
+            if (badges.isNotEmpty()) {
+                TripAchievementUnlockDialog(badges) { newlyEarnedBadges = null }
+            }
         }
 
     }

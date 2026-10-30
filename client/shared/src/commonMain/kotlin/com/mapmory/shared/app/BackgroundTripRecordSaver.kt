@@ -4,13 +4,18 @@ import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.media.PhotoPreviewCache
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.TripRecordDraft
+import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
+import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,6 +41,11 @@ data class BackgroundTripRecordSave(
     val errorMessage: String? = null,
 )
 
+data class BackgroundTripRecordCompletion(
+    val recordId: Long,
+    val previousStatistics: TripStatistics?,
+)
+
 interface BackgroundSaveExecution {
     val store: BackgroundSaveStore get() = EmptyBackgroundSaveStore
     fun attach(saver: BackgroundTripRecordSaver) {}
@@ -58,16 +68,19 @@ class BackgroundTripRecordSaver internal constructor(
     private val automaticRetryDelayMillis: Long = AutomaticRetryDelayMillis,
     private val localPhotoDataSource: com.mapmory.shared.data.media.LocalPhotoDataSource? = null,
     private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    private val tripStatisticsRepository: TripStatisticsRepository? = null,
 ) {
     private val queueMutex = Mutex()
     private val serverSaveStarted = mutableSetOf<Long>()
     private val drafts = mutableMapOf<Long, TripRecordDraft>()
     private val mutableSaves = MutableStateFlow<List<BackgroundTripRecordSave>>(emptyList())
+    private val completedSavesChannel = Channel<BackgroundTripRecordCompletion>(Channel.UNLIMITED)
     private var nextId = 0L
     private val attemptStarts = mutableMapOf<Long, TimeSource.Monotonic.ValueTimeMark>()
     private val queuedAt = mutableMapOf<Long, TimeSource.Monotonic.ValueTimeMark>()
 
     val saves: StateFlow<List<BackgroundTripRecordSave>> = mutableSaves.asStateFlow()
+    val completedSaves: Flow<BackgroundTripRecordCompletion> = completedSavesChannel.receiveAsFlow()
     private val mutablePendingPhotoIds = MutableStateFlow<Set<String>>(emptySet())
     val pendingPhotoIds: StateFlow<Set<String>> = mutablePendingPhotoIds.asStateFlow()
 
@@ -225,6 +238,7 @@ class BackgroundTripRecordSaver internal constructor(
 
         result.fold(
             onSuccess = { record ->
+                val previousStatistics = tripStatisticsRepository?.getCachedStatistics()
                 logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, recordId = record.id)
                 val completed = mutableSaves.value.firstOrNull { it.id == id }
                 attemptStarts.remove(id)
@@ -236,6 +250,9 @@ class BackgroundTripRecordSaver internal constructor(
                 persist()
                 completed?.let(execution::onCompleted)
                 onSaved()
+                completedSavesChannel.trySend(
+                    BackgroundTripRecordCompletion(record.id, previousStatistics),
+                )
             },
             onFailure = { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
