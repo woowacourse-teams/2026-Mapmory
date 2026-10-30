@@ -17,7 +17,8 @@ import com.mapmory.shared.data.remote.toUserFriendlyRemoteFailure
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
-import com.mapmory.shared.presentation.triprecord.share.rememberTripTimelineVideoNotifier
+import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 @Composable
@@ -26,7 +27,7 @@ internal fun TripTimelineVideoJobMonitor(
     jobStore: ShareVideoJobStore,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val notifier = rememberTripTimelineVideoNotifier()
+    val notifier = rememberAnalyticsTripTimelineVideoNotifier()
     val jobState by jobStore.state.collectAsState()
     var foreground by remember(lifecycle) {
         mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
@@ -62,7 +63,13 @@ internal fun TripTimelineVideoJobMonitor(
         var retryDelay = 2_000L
         var consecutiveFailures = 0
         while (true) {
-            val result = repository.getJob(jobId)
+            val result = try {
+                repository.getJob(jobId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
             if (result.isSuccess) {
                 val status = result.getOrThrow().status
                 when (status) {
@@ -94,15 +101,17 @@ internal fun TripTimelineVideoJobMonitor(
                     break
                 }
                 val friendlyError = error.toUserFriendlyRemoteFailure()
-                jobStore.updateStatusCheckError(
-                    if (friendlyError is MapmoryConnectionException) {
-                        "네트워크 연결이 불안정해 영상 상태를 확인하지 못했어요. 연결되면 자동으로 다시 확인할게요."
-                    } else {
-                        "${friendlyError.message ?: "영상 상태를 확인하지 못했어요."} 자동으로 다시 확인할게요."
-                    },
-                )
                 consecutiveFailures += 1
-                if (consecutiveFailures >= 5) break
+                if (consecutiveFailures >= 5) {
+                    jobStore.updateStatusCheckError(
+                        if (friendlyError is MapmoryConnectionException) {
+                            "네트워크 연결이 불안정해 영상 상태를 확인하지 못했어요. 같은 작업으로 다시 확인할 수 있어요."
+                        } else {
+                            "${friendlyError.message ?: "영상 상태를 확인하지 못했어요."} 같은 작업으로 다시 확인할 수 있어요."
+                        },
+                    )
+                    break
+                }
                 delay(retryDelay)
                 retryDelay = (retryDelay * 2).coerceAtMost(15_000L)
             }

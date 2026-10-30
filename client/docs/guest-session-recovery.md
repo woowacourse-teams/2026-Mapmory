@@ -77,3 +77,7 @@ Apple·Google 로그인 연결 또는 서버가 발급하는 복구 키를 도�
 - [Android Auto Backup](https://developer.android.com/identity/data/autobackup)
 - [Android Block Store](https://developer.android.com/identity/block-store)
 - [Android Restore Credentials](https://developer.android.com/identity/sign-in/restore-credentials)
+
+## 갱신 실패와 응답 유실 처리 보완 (PR #438)
+
+저장소 오류 구분, 세션 소유 갱신, 제한된 재시도와 취소 처리는 [ADR 0001](adr/0001-guest-refresh-recovery.md)을 따른다. [트러블슈팅과 검증](troubleshooting/guest-refresh-response-loss.md)에 서버 의존성과 잔여 검증을 기록했다. 이 보완은 위 Android 재설치 복구 후속 작업을 구현한 것은 아니다.

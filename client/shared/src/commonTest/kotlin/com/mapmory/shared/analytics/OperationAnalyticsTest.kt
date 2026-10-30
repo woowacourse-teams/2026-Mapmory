@@ -1,11 +1,21 @@
 package com.mapmory.shared.analytics
 
 import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.presentation.triprecord.share.ShareVideoPlaybackException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class OperationAnalyticsTest {
+    @Test fun `native playback errors are not attributed to client logic`() {
+        val analytics = RecordingAnalytics()
+        analytics.reportFailure("share_video_preview_playback", ShareVideoPlaybackException(-11800))
+        val failure = analytics.events.single().second
+        assertEquals("media_playback", failure["error_category"])
+        assertEquals("undetermined", failure["owner_hint"])
+        assertEquals("ShareVideoPlaybackException", failure["error_type"])
+    }
+
     @Test fun `failure counts once and never includes raw error data`() = runBlocking {
         val analytics = RecordingAnalytics()
         val error = MapmoryApiException(500, "SECRET_CODE", "private title", "private content", "/private/path", emptyList())
@@ -74,6 +84,24 @@ class OperationAnalyticsTest {
         }
         assertEquals(listOf("started", "cancelled"), analytics.events.map { it.second.getValue("outcome") })
         assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.APP_ERROR })
+    }
+
+    @Test fun `tracked action can defer error reporting to detailed telemetry`() = runBlocking {
+        val analytics = RecordingAnalytics()
+        val error = IllegalStateException("private image conversion detail")
+        assertSame(error, assertFailsWith<IllegalStateException> {
+            analytics.trackAction(
+                eventName = "record_share_action",
+                operation = "record_share_save_image",
+                action = "save_image",
+                reportErrors = false,
+            ) { throw error }
+        })
+        assertEquals(listOf("started", "failure"), analytics.events
+            .filter { it.first == "record_share_action" }
+            .map { it.second.getValue("outcome") })
+        assertFalse(analytics.events.any { it.first == MapmoryAnalyticsEvent.APP_ERROR })
+        assertFalse(analytics.events.toString().contains("private image conversion detail"))
     }
 
     @Test fun `request rejection is not attributed to mobile automatically`() {

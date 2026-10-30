@@ -1,5 +1,10 @@
 package com.mapmory.shared.presentation.triprecord.share
 
+import androidx.compose.runtime.LaunchedEffect
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.ShareVideoPreviewAnalytics
+import kotlinx.coroutines.delay
+
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
@@ -9,7 +14,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.widget.MediaController
 import android.widget.VideoView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,7 +37,17 @@ import kotlinx.coroutines.withContext
 import javax.net.ssl.HttpsURLConnection
 
 @Composable
-internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Modifier) {
+internal actual fun TripTimelineVideoSurface(
+    video: ShareVideoFile,
+    controller: TripTimelineVideoPlaybackController,
+    modifier: Modifier,
+) {
+    val analytics = LocalMapmoryAnalytics.current
+    val previewAnalytics = remember(video.path, analytics) { ShareVideoPreviewAnalytics(analytics) }
+    DisposableEffect(previewAnalytics) {
+        previewAnalytics.opened()
+        onDispose { previewAnalytics.closed() }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val videoView = remember { arrayOfNulls<VideoView>(1) }
     DisposableEffect(lifecycle) {
@@ -46,16 +60,58 @@ internal actual fun TripTimelineVideoPreview(video: ShareVideoFile, modifier: Mo
             videoView[0]?.pause()
         }
     }
+    LaunchedEffect(video.path, controller) {
+        controller.connect(
+            toggle = {
+                videoView[0]?.let { view ->
+                    if (view.isPlaying) view.pause() else {
+                        if (view.duration > 0 && view.currentPosition >= view.duration) view.seekTo(0)
+                        view.start()
+                    }
+                }
+            },
+            seek = { position -> videoView[0]?.seekTo(position.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) },
+        )
+        while (true) {
+            videoView[0]?.let { view ->
+                val duration = view.duration.coerceAtLeast(0).toLong()
+                controller.update(
+                    isPlaying = view.isPlaying,
+                    positionMillis = view.currentPosition.coerceAtLeast(0).toLong(),
+                    durationMillis = duration,
+                )
+            }
+            delay(250)
+        }
+    }
 
+    LaunchedEffect(video.path, previewAnalytics, lifecycle) {
+        while (true) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                videoView[0]?.let { previewAnalytics.playbackChanged(it.isPlaying) }
+            }
+            delay(250)
+        }
+    }
     androidx.compose.runtime.key(video.path) {
         AndroidView(
             modifier = modifier,
             factory = { context ->
                 VideoView(context).apply {
-                    val controller = MediaController(context)
-                    setMediaController(controller)
-                    controller.setAnchorView(this)
-                    setOnPreparedListener { controller.show(3_000) }
+                    setMediaController(null)
+                    setOnPreparedListener {
+                        previewAnalytics.ready()
+                        controller.update(isPlaying = false, positionMillis = 0L, durationMillis = it.duration.toLong())
+                    }
+                    setOnCompletionListener {
+                        previewAnalytics.completed()
+                        val duration = it.duration.coerceAtLeast(0).toLong()
+                        controller.update(isPlaying = false, positionMillis = duration, durationMillis = duration)
+                    }
+                    setOnErrorListener { _, what, extra ->
+                        previewAnalytics.failed(ShareVideoPlaybackException(what.toLong(), extra.toLong()))
+                        false // Preserve VideoView's native error handling.
+                    }
                     setVideoURI(Uri.fromFile(File(video.path)))
                     videoView[0] = this
                 }
@@ -93,9 +149,13 @@ private class AndroidShareVideoExporter(
     private val context: Context,
     private val requestPermission: suspend (String) -> Boolean,
 ) : ShareVideoExporter {
-    override suspend fun download(url: String, jobId: Long): ShareVideoFile = withContext(Dispatchers.IO) {
+    override suspend fun download(url: String, jobId: Long, protectedJobId: Long?): ShareVideoFile = withContext(Dispatchers.IO) {
         val directory = File(context.cacheDir, "shared-videos").apply { mkdirs() }
-        directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000L }
+        directory.listFiles()?.filter {
+            val cachedJobId = it.name.removePrefix("Mapmory-").removeSuffix(".mp4").toLongOrNull()
+            cachedJobId != null && cachedJobId != protectedJobId &&
+                System.currentTimeMillis() - it.lastModified() > 86_400_000L
+        }
             ?.forEach { it.delete() }
         val file = File(directory, "Mapmory-$jobId.mp4")
         if (file.isFile && file.length() > 0L) return@withContext ShareVideoFile(file.absolutePath)
@@ -127,8 +187,8 @@ private class AndroidShareVideoExporter(
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            check(requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                "동영상 저장 권한을 허용해 주세요."
+            if (!requestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                throw ShareMediaPermissionDeniedException("동영상 저장 권한을 허용해 주세요.")
             }
         }
         withContext(Dispatchers.IO) {

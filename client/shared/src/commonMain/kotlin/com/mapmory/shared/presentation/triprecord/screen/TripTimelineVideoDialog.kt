@@ -1,19 +1,24 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import androidx.compose.foundation.BorderStroke
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.videoAction
+import com.mapmory.shared.analytics.ShareMediaAnalytics
+import com.mapmory.shared.analytics.ShareMediaSource
+import com.mapmory.shared.analytics.ShareMediaAction
+import com.mapmory.shared.analytics.ShareMediaOperation
 import androidx.compose.foundation.background
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,7 +50,7 @@ import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.share.ShareVideoFile
 import com.mapmory.shared.presentation.triprecord.share.TripTimelineVideoPreview
-import com.mapmory.shared.presentation.triprecord.share.rememberTripTimelineVideoNotifier
+import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
 import com.mapmory.shared.presentation.triprecord.share.rememberShareVideoExporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -61,9 +66,11 @@ internal fun TripTimelineVideoDialog(
     onDismiss: () -> Unit,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    val telemetry = remember(analytics) { ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE) }
+    LaunchedEffect(telemetry) { telemetry.action(ShareMediaAction.OPENED) }
     val exporter = rememberShareVideoExporter()
     val scope = rememberCoroutineScope()
-    val notifier = rememberTripTimelineVideoNotifier()
+    val notifier = rememberAnalyticsTripTimelineVideoNotifier()
     val jobState by jobStore.state.collectAsState()
     val jobId = jobState.jobId
     val status = jobState.status
@@ -72,6 +79,7 @@ internal fun TripTimelineVideoDialog(
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var previewAttemptedJobId by remember { mutableStateOf<Long?>(null) }
+    var videoJobId by remember { mutableStateOf<Long?>(null) }
     val startedAtEpochMillis = jobState.startedAtEpochMillis
     val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
     var nowEpochMillis by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
@@ -86,6 +94,7 @@ internal fun TripTimelineVideoDialog(
 
     fun dismissDialog() {
         if (activeJob) notifier.showProgress(jobId)
+        telemetry.action(ShareMediaAction.CLOSED)
         onDismiss()
     }
 
@@ -99,10 +108,10 @@ internal fun TripTimelineVideoDialog(
             }
             return
         }
+        telemetry.action(ShareMediaAction.CREATE_CLICKED)
         busy = true
         creationScope.launch {
             message = null
-            video = null
             try {
                 notifier.requestPermissionIfNeeded()
                 val requestStartedAt = Clock.System.now().toEpochMilliseconds()
@@ -110,11 +119,15 @@ internal fun TripTimelineVideoDialog(
                 jobStore.saveJobId(job.jobId, requestStartedAt)
                 jobStore.updateStatus(job.status)
                 if (job.status == ShareVideoStatus.FAILED) {
+                    video = null
+                    videoJobId = null
                     message = "영상 생성에 실패했어요. 다시 만들어 주세요."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                video = null
+                videoJobId = null
                 message = error.message ?: "영상 생성을 요청하지 못했어요. 다시 시도해 주세요."
             } finally {
                 jobStore.finishCreationRequest()
@@ -123,21 +136,37 @@ internal fun TripTimelineVideoDialog(
         }
     }
 
-    fun downloadVideo() {
-        val activeJobId = jobId ?: return
+    fun regenerateVideo() {
+        val completedJobId = jobId ?: return
+        if (busy || creationInProgress || activeJob) return
+        telemetry.action(ShareMediaAction.REGENERATE_CLICKED)
+        jobStore.clear()
+        notifier.clearProgress(completedJobId)
+        message = null
+        createVideo()
+    }
+
+    fun downloadVideoFor(activeJobId: Long) {
         if (busy) return
         scope.launch {
             busy = true
             message = null
-            video = null
             try {
-                video = analytics.videoAction("preview_download") {
+                val downloadedVideo = analytics.videoAction("preview_download", reportErrors = false) {
                     val download = repository.getDownloadUrl(activeJobId).getOrThrow()
-                    exporter.download(download.downloadUrl, activeJobId)
+                    telemetry.observe(ShareMediaOperation.DOWNLOAD) {
+                        exporter.download(download.downloadUrl, activeJobId, videoJobId)
+                    }
                 }
+                video = downloadedVideo
+                videoJobId = activeJobId
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                if (videoJobId != activeJobId) {
+                    video = null
+                    videoJobId = null
+                }
                 when ((error as? MapmoryApiException)?.code) {
                     "SHARE_VIDEO_NOT_READY" -> {
                         jobStore.updateStatus(ShareVideoStatus.RENDERING)
@@ -163,18 +192,28 @@ internal fun TripTimelineVideoDialog(
         }
     }
 
+    fun downloadVideo() {
+        val activeJobId = jobId ?: return
+        downloadVideoFor(activeJobId)
+    }
+
     fun exportVideo(save: Boolean) {
         val downloadedVideo = video ?: return
         if (busy) return
+        telemetry.action(if (save) ShareMediaAction.SAVE_CLICKED else ShareMediaAction.SHARE_CLICKED)
         scope.launch {
             busy = true
             message = null
             try {
                 if (save) {
-                    analytics.videoAction("save") { exporter.save(downloadedVideo) }
+                    analytics.videoAction("save", reportErrors = false) {
+                        telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(downloadedVideo) }
+                    }
                     message = "동영상을 사진 앱에 저장했어요."
                 } else {
-                    analytics.videoAction("share_sheet") { exporter.share(downloadedVideo) }
+                    analytics.videoAction("share_sheet", reportErrors = false) {
+                        telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(downloadedVideo) }
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -189,9 +228,13 @@ internal fun TripTimelineVideoDialog(
     LaunchedEffect(jobId, status, busy) {
         if (status != ShareVideoStatus.COMPLETED) {
             if (previewAttemptedJobId == jobId) previewAttemptedJobId = null
-        } else if (jobId != null && !busy && video == null && previewAttemptedJobId != jobId) {
+            if (status == ShareVideoStatus.FAILED && videoJobId != null && videoJobId != jobId) {
+                video = null
+                videoJobId = null
+            }
+        } else if (jobId != null && !busy && videoJobId != jobId && previewAttemptedJobId != jobId) {
             previewAttemptedJobId = jobId
-            downloadVideo()
+            downloadVideoFor(jobId)
         }
     }
 
@@ -204,10 +247,9 @@ internal fun TripTimelineVideoDialog(
         ),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(0.96f)
+            modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.96f)
                 .background(TripRecordPalette.current.surface, RoundedCornerShape(28.dp))
-                .padding(horizontal = 20.dp, vertical = 22.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(horizontal = 16.dp, vertical = 18.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -219,121 +261,127 @@ internal fun TripTimelineVideoDialog(
                     Text(if (creationInProgress) "요청 중…" else "닫기", color = TripRecordPalette.current.secondaryText)
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            val statusMessage = when (status) {
-                ShareVideoStatus.PENDING -> "영상 생성 대기 중이에요."
-                ShareVideoStatus.RENDERING -> "여행 기록을 영상으로 만들고 있어요."
-                ShareVideoStatus.COMPLETED -> "여행 영상이 준비됐어요."
-                ShareVideoStatus.FAILED -> "영상 생성에 실패했어요."
-                null -> when {
-                    creationInProgress -> "영상 생성을 요청하고 있어요."
-                    jobId != null -> "저장된 영상 작업을 확인하고 있어요."
-                    else -> "기록한 여행을 타임라인 영상으로 만들어 공유해요."
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            ) {
+                Spacer(Modifier.height(12.dp))
+                val statusMessage = when (status) {
+                    ShareVideoStatus.PENDING -> "영상 생성 대기 중이에요."
+                    ShareVideoStatus.RENDERING -> "여행 기록을 영상으로 만들고 있어요."
+                    ShareVideoStatus.COMPLETED -> null
+                    ShareVideoStatus.FAILED -> "영상 생성에 실패했어요."
+                    null -> when {
+                        creationInProgress -> "영상 생성을 요청하고 있어요."
+                        jobId != null -> "저장된 영상 작업을 확인하고 있어요."
+                        else -> "기록한 여행을 타임라인 영상으로 만들어 공유해요."
+                    }
                 }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(statusMessage, color = TripRecordPalette.current.secondaryText, fontSize = 14.sp)
-                if (busy || activeJob) {
-                    if (activeJob && startedAtEpochMillis != null) {
-                        val elapsedSeconds = ((nowEpochMillis - startedAtEpochMillis).coerceAtLeast(0L) / 1_000L)
-                        Text(
-                            "${elapsedSeconds / 60}:${(elapsedSeconds % 60).toString().padStart(2, '0')} 경과",
-                            color = TripRecordPalette.current.secondaryText,
-                            fontSize = 12.sp,
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    statusMessage?.let {
+                        Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 14.sp)
+                    }
+                    if (busy || activeJob) {
+                        if (activeJob && startedAtEpochMillis != null) {
+                            val elapsedSeconds = ((nowEpochMillis - startedAtEpochMillis).coerceAtLeast(0L) / 1_000L)
+                            Text(
+                                "${elapsedSeconds / 60}:${(elapsedSeconds % 60).toString().padStart(2, '0')} 경과",
+                                color = TripRecordPalette.current.secondaryText,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            color = TripRecordPalette.current.primary,
+                            trackColor = TripRecordPalette.current.primary.copy(alpha = 0.16f),
                         )
                     }
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().height(4.dp),
-                        color = TripRecordPalette.current.primary,
-                        trackColor = TripRecordPalette.current.primary.copy(alpha = 0.16f),
-                    )
                 }
-            }
-            message?.let {
-                Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-            }
-            jobState.statusCheckError?.let {
-                Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-                OutlinedButton(
-                    onClick = jobStore::retryStatusCheck,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                ) { Text("지금 다시 확인") }
-            }
-            if (status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING) {
-                Text(
-                    "화면을 닫아도 서버 생성은 계속돼요. 알림을 허용하면 알림 센터에 진행 중 상태가 남아요. 앱이 백그라운드에 있으면 완료 여부는 다시 열었을 때 확인돼요.",
-                    color = TripRecordPalette.current.secondaryText,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            Spacer(Modifier.height(22.dp))
-            when {
-                video != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("영상 미리보기", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    TripTimelineVideoPreview(
-                        video = video!!,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(
-                            onClick = { exportVideo(save = true) },
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp),
-                        ) { Text("다운로드") }
-                        Button(
-                            onClick = { exportVideo(save = false) },
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
-                        ) { Text("공유하기", color = Color.White) }
-                    }
+                message?.let {
+                    Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
                 }
-                status == ShareVideoStatus.COMPLETED -> Column {
-                    when {
-                        busy -> Text("미리보기를 준비하고 있어요.", color = TripRecordPalette.current.secondaryText, fontSize = 13.sp)
-                        message != null -> OutlinedButton(
-                            onClick = ::downloadVideo,
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape = RoundedCornerShape(14.dp),
-                        ) { Text("미리보기 다시 불러오기") }
-                    }
-                    TextButton(
-                        onClick = {
-                            val completedJobId = jobId ?: return@TextButton
-                            jobStore.clear()
-                            notifier.clearProgress(completedJobId)
-                            video = null
-                            message = null
-                            createVideo()
-                        },
-                        enabled = !busy && !creationInProgress,
-                    ) { Text("최신 기록으로 다시 만들기", color = TripRecordPalette.current.primary) }
+                jobState.statusCheckError?.let {
+                    Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                    OutlinedButton(
+                        onClick = { telemetry.action(ShareMediaAction.STATUS_RETRY_CLICKED); jobStore.retryStatusCheck() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                    ) { Text("지금 다시 확인") }
                 }
-                status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING -> Unit
-                jobId != null && status == null -> Unit
-                else -> Button(
-                    onClick = ::createVideo,
-                    enabled = !busy && !creationInProgress,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
-                ) {
+                if (status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING) {
                     Text(
-                        when {
-                            busy -> "요청 중…"
-                            creationInProgress -> "요청 중…"
-                            status == ShareVideoStatus.FAILED -> "다시 만들기"
-                            jobId == null -> "영상 만들기"
-                            else -> "다시 시도"
-                        },
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
+                        "화면을 닫아도 서버 생성은 계속돼요. 알림을 허용하면 알림 센터에 진행 중 상태가 남아요. 앱이 백그라운드에 있으면 완료 여부는 다시 열었을 때 확인돼요.",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
+                Spacer(Modifier.height(22.dp))
+                when {
+                    video != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("영상 미리보기", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        TripTimelineVideoPreview(
+                            video = video!!,
+                            modifier = Modifier.fillMaxWidth().height(380.dp).clip(RoundedCornerShape(16.dp)),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = { exportVideo(save = true) },
+                                enabled = !busy,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text("다운로드") }
+                            Button(
+                                onClick = { exportVideo(save = false) },
+                                enabled = !busy,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
+                            ) { Text("공유하기", color = Color.White) }
+                        }
+                    }
+                    status == ShareVideoStatus.COMPLETED -> Column {
+                        when {
+                            busy -> Text("미리보기를 준비하고 있어요.", color = TripRecordPalette.current.secondaryText, fontSize = 13.sp)
+                            message != null -> OutlinedButton(
+                                onClick = { telemetry.action(ShareMediaAction.DOWNLOAD_RETRY_CLICKED); downloadVideo() },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text("미리보기 다시 불러오기") }
+                        }
+                    }
+                    status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING -> Unit
+                    jobId != null && status == null -> Unit
+                    else -> Button(
+                        onClick = ::createVideo,
+                        enabled = !busy && !creationInProgress,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
+                    ) {
+                        Text(
+                            when {
+                                busy -> "요청 중…"
+                                creationInProgress -> "요청 중…"
+                                status == ShareVideoStatus.FAILED -> "다시 만들기"
+                                jobId == null -> "영상 만들기"
+                                else -> "다시 시도"
+                            },
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+            if (video != null || status == ShareVideoStatus.COMPLETED) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = ::regenerateVideo,
+                    enabled = !busy && !creationInProgress && !activeJob,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TripRecordPalette.current.primary),
+                    border = BorderStroke(1.dp, TripRecordPalette.current.border),
+                ) { Text("최신 기록으로 다시 만들기") }
             }
         }
     }
