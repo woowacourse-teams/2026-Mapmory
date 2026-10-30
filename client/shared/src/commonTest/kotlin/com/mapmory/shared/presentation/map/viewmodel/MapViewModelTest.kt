@@ -10,6 +10,7 @@ import com.mapmory.shared.domain.repository.MapSummaryRepository
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.runSuspend
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -180,6 +181,27 @@ class MapViewModelTest {
         assertEquals(setOf("KR-26"), viewModel.directlyVisitedProvinceCodes)
         assertEquals(setOf("KR-26"), viewModel.visitedKoreaMapRegionCodes)
         assertTrue(viewModel.visitedKoreaDistrictCodes.isEmpty())
+    }
+
+    @Test
+    fun `기록_수가_0인_시군구는_기록이_없는_지역으로_판단한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val korea = MapRegionSummary(1, "KR", MapRegionType.COUNTRY, "대한민국", 1, MapRegionLevel.LOW)
+        val seoul = MapRegionSummary(11, "11", MapRegionType.PROVINCE, "서울", 1, MapRegionLevel.LOW)
+        val empty = MapRegionSummary(11680, "11680", MapRegionType.DISTRICT, "강남구", 0, MapRegionLevel.NONE)
+        val visited = MapRegionSummary(11650, "11650", MapRegionType.DISTRICT, "서초구", 1, MapRegionLevel.LOW)
+        val repository = object : MapSummaryRepository {
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(listOf(korea))
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) = Result.success(
+                when (regionId) { 1L -> listOf(seoul); 11L -> listOf(empty, visited); else -> emptyList() },
+            )
+        }
+        val viewModel = MapViewModel(repository, catalog)
+        viewModel.refresh()
+
+        assertFalse(viewModel.hasRecords(catalog.requireByCode("11680")))
+        assertTrue(viewModel.hasRecords(catalog.requireByCode("11650")))
+        assertEquals(setOf("11650"), viewModel.visitedDistrictCodes("KR-11"))
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(
