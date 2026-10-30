@@ -31,6 +31,13 @@ class TripStatisticsViewModel(
         }
     }
 
+    private var loadedRevision: Long? = null
+
+    suspend fun refreshIfNeeded(dataRevision: Long) {
+        if (loadedRevision == dataRevision && uiState is TripStatisticsUiState.Success) return
+        refresh(dataRevision)
+    }
+
     suspend fun refresh(dataRevision: Long = InitialDataRevision) {
         val generation = ++loadGeneration
         val hasVisibleStatistics = uiState is TripStatisticsUiState.Success
@@ -63,6 +70,7 @@ class TripStatisticsViewModel(
         val nextState = statistics.toUiState()
         uiState = nextState
         visibleStatisticsRevision = dataRevision
+        loadedRevision = dataRevision
         mapmoryDebugLog(StatisticsLogTag, "ui state updated")
     }
 }

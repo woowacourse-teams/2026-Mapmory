@@ -10,6 +10,16 @@ import kotlin.test.assertTrue
 
 class KoreaMapStaticDataTest {
     @Test
+    fun `전국_지도에서_군위는_대구에_속하고_경북과_겹치지_않는다`() {
+        val gunwi = GeoPoint(128.72472f, 36.16710f)
+        val provinces = GeneratedKoreaMapData.provinces
+        assertEquals("KR-27", provinces.regionAt(gunwi)?.code)
+        assertEquals(null, provinces.filter { it.code == "KR-47" }.regionAt(gunwi))
+        assertEquals("KR-27", provinces.regionAt(GeoPoint(128.6014f, 35.8714f))?.code)
+        assertEquals("KR-47", provinces.regionAt(GeoPoint(128.59343f, 36.36151f))?.code)
+    }
+
+    @Test
     fun `모든_지도_선택_지역은_알려진_시도_코드를_사용한다`() {
         val provinceCodes = GeneratedKoreaMapData.provinces.map { it.code }
         val mapSelectableDistricts = KoreanSelectableDistrictCodes.filter { it.provinceCode != null }

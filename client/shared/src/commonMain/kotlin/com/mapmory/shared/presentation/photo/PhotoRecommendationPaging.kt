@@ -24,6 +24,8 @@ internal const val PhotoRecommendationPageSize = 24
 
 internal fun PhotoRecommendationPagingState.accept(
     page: PhotoRecommendationPage,
+    autoSelectNewPhotos: Boolean = true,
+    preselectedIds: Set<String> = emptySet(),
 ): PhotoRecommendationPagingState? {
     if (generation != null && generation != page.generation) return null
 
@@ -32,25 +34,52 @@ internal fun PhotoRecommendationPagingState.accept(
         .filterNot { photo -> photo.id in existingIds }
         .distinctBy(SelectedPhoto::id)
     val isFirstPage = generation == null
+    val previews = page.photos.filter { it.previewBytes != null }.associateBy(SelectedPhoto::id)
+    val refreshedPhotos = photos.map { previews[it.id] ?: it }
 
     if (!isFirstPage && incoming.isEmpty()) {
-        return copy(hasMore = page.hasMore)
+        return copy(photos = refreshedPhotos, hasMore = page.hasMore)
     }
 
-    val nextPhotos = if (isFirstPage) incoming else photos + incoming
-    val selectedFromIncoming = incoming
+    val nextPhotos = refreshedPhotos + incoming
+    val remainingSlots = (maxSelectionCount - selectedIds.size).coerceAtLeast(0)
+    val matchingPreselectedIds = incoming
         .asSequence()
         .map(SelectedPhoto::id)
+        .filter(preselectedIds::contains)
         .filterNot(selectedIds::contains)
-        .take((maxSelectionCount - selectedIds.size).coerceAtLeast(0))
+        .take(remainingSlots)
         .toSet()
+    val selectedFromIncoming = if (autoSelectNewPhotos) {
+        incoming
+            .asSequence()
+            .map(SelectedPhoto::id)
+            .filterNot(selectedIds::contains)
+            .filterNot(matchingPreselectedIds::contains)
+            .take((remainingSlots - matchingPreselectedIds.size).coerceAtLeast(0))
+            .toSet()
+    } else {
+        emptySet()
+    }
     return copy(
         generation = page.generation,
         photos = nextPhotos,
-        selectedIds = selectedIds + selectedFromIncoming,
+        selectedIds = selectedIds + matchingPreselectedIds + selectedFromIncoming,
         pageIndex = if (isFirstPage) 0 else pageIndex + 1,
         hasMore = page.hasMore,
     )
+}
+
+internal fun PhotoRecommendationPagingState.selectAllLoadedPhotos(): PhotoRecommendationPagingState {
+    if (selectedIds.size >= maxSelectionCount) return this
+    val idsToAdd = photos
+        .asSequence()
+        .map(SelectedPhoto::id)
+        .filterNot(selectedIds::contains)
+        .distinct()
+        .take((maxSelectionCount - selectedIds.size).coerceAtLeast(0))
+        .toSet()
+    return if (idsToAdd.isEmpty()) this else copy(selectedIds = selectedIds + idsToAdd)
 }
 
 internal fun PhotoRecommendationPagingState.toggleSelection(
@@ -64,6 +93,18 @@ internal fun PhotoRecommendationPagingState.toggleSelection(
         selectedIds + photoId
     }
     return copy(selectedIds = nextSelectedIds)
+}
+
+internal fun PhotoRecommendationPagingState.setSelection(
+    photoId: String,
+    selected: Boolean,
+): PhotoRecommendationPagingState {
+    if (photos.none { it.id == photoId }) return this
+    if (selected == (photoId in selectedIds)) return this
+    if (selected && selectedIds.size >= maxSelectionCount) return this
+    return copy(
+        selectedIds = if (selected) selectedIds + photoId else selectedIds - photoId,
+    )
 }
 
 internal fun shouldLoadNextRecommendationPage(

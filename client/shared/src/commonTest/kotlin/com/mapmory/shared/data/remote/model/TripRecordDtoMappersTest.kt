@@ -1,6 +1,7 @@
 package com.mapmory.shared.data.remote.model
 
 import com.mapmory.shared.data.local.StaticRegionCatalog
+import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
 import kotlin.test.Test
@@ -9,6 +10,32 @@ import kotlin.test.assertFailsWith
 
 class ApiDtoMappersTest {
     private val catalog = StaticRegionCatalog()
+
+    @Test
+    fun `서버가_제목을_null로_응답하면_빈_제목으로_매핑한다`() {
+        val listItem = TripRecordListItemDto(
+            id = 101,
+            title = null,
+            regionName = "제주시",
+            startDate = "2026-08-27",
+            endDate = null,
+        ).toDomain()
+        val detail = TripRecordDetailDto(
+            id = 101,
+            title = null,
+            content = "",
+            region = TripRecordRegionDto(
+                country = RegionCodeDto("JP", "일본"),
+            ),
+            startDate = "2026-08-27",
+            endDate = null,
+            createdAt = "2026-08-27T10:30:00",
+            updatedAt = "2026-08-27T10:30:00",
+        ).toDomain(catalog)
+
+        assertEquals("", listItem.title)
+        assertEquals("", detail.title)
+    }
 
     @Test
     fun `목록_썸네일_URL과_만료_시간을_도메인으로_매핑한다`() {
@@ -47,6 +74,71 @@ class ApiDtoMappersTest {
         assertEquals(catalog.requireByCode("50110").id, result.locationId)
         assertEquals("travel-records/guest/a.jpg", result.media.single().objectKey)
         assertEquals(0, result.media.single().sortOrder)
+    }
+
+    @Test
+    fun `상세_응답의_장소_연결을_기록_도메인에_보존한다`() {
+        val result = TripRecordDetailDto(
+            id = 101,
+            title = "판교 산책",
+            content = "",
+            region = TripRecordRegionDto(
+                country = RegionCodeDto("KR", "대한민국"),
+                province = RegionCodeDto("41", "경기도"),
+                district = RegionCodeDto("41130", "성남시"),
+            ),
+            startDate = "2026-10-01",
+            endDate = null,
+            createdAt = "2026-10-01T10:30:00",
+            updatedAt = "2026-10-01T10:30:00",
+            placeId = "geoapify-place-id",
+            placeName = "판교역",
+            placeAttribution = "© OpenStreetMap contributors",
+            placeAttributionUrl = "https://www.openstreetmap.org/copyright",
+        ).toDomain(catalog)
+
+        assertEquals(
+            PlaceReference(
+                placeId = "geoapify-place-id",
+                name = "판교역",
+                attribution = "© OpenStreetMap contributors",
+                attributionUrl = "https://www.openstreetmap.org/copyright",
+            ),
+            result.place,
+        )
+    }
+
+    @Test
+    fun `Google_장소는_이름_없이_장소_연결만_보존한다`() {
+        val result = TripRecordDetailDto(
+            id = 102,
+            title = "경복궁 산책",
+            content = "",
+            region = TripRecordRegionDto(
+                country = RegionCodeDto("KR", "대한민국"),
+                province = RegionCodeDto("11", "서울특별시"),
+                district = RegionCodeDto("11110", "종로구"),
+            ),
+            startDate = "2026-10-08",
+            endDate = null,
+            createdAt = "2026-10-08T10:30:00",
+            updatedAt = "2026-10-08T10:30:00",
+            placeProvider = "GOOGLE",
+            placeId = "ChIJ-gyeongbokgung",
+            placeName = null,
+            placeAttribution = "Google Maps",
+            placeAttributionUrl = "https://www.google.com/maps",
+        ).toDomain(catalog)
+
+        assertEquals(
+            PlaceReference(
+                placeId = "ChIJ-gyeongbokgung",
+                name = null,
+                attribution = "Google Maps",
+                attributionUrl = "https://www.google.com/maps",
+            ),
+            result.place,
+        )
     }
 
     @Test
@@ -96,12 +188,14 @@ class ApiDtoMappersTest {
             startDate = "2026-08-11",
             endDate = null,
             mediaObjectKeys = listOf("travel-records/guest/a.jpg"),
+            place = PlaceReference("geoapify-place-id", "판교역"),
         ).toRequestDto(catalog)
 
         assertEquals("KR", request.countryCode)
         assertEquals("49", request.provinceCode)
         assertEquals("50110", request.districtCode)
         assertEquals(listOf("travel-records/guest/a.jpg"), request.objectKeys)
+        assertEquals("geoapify-place-id", request.placeId)
     }
 
     @Test
@@ -114,12 +208,28 @@ class ApiDtoMappersTest {
             content = "",
             startDate = "2026-08-11",
             endDate = null,
-            mediaObjectKeys = emptyList(),
+            mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
         ).toRequestDto(catalog)
 
         assertEquals("JP", request.countryCode)
         assertEquals(null, request.provinceCode)
         assertEquals(null, request.districtCode)
+    }
+
+    @Test
+    fun `선택_항목이_없는_초안은_기존_API의_빈_값으로_매핑한다`() {
+        val japan = catalog.requireByCode("JP")
+
+        val request = TripRecordDraft(
+            locationId = japan.id,
+            startDate = "2026-08-11",
+            mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
+        ).toRequestDto(catalog)
+
+        assertEquals("", request.title)
+        assertEquals("", request.content)
+        assertEquals(null, request.endDate)
+        assertEquals(emptyList(), request.tagIds)
     }
 
     @Test
@@ -131,9 +241,9 @@ class ApiDtoMappersTest {
                 locationId = japan.id,
                 title = "일본 여행",
                 content = "",
-                startDate = null,
+                startDate = "",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("travel-records/guest/japan.jpg"),
             ).toRequestDto(catalog)
         }
     }
@@ -150,15 +260,25 @@ class ApiDtoMappersTest {
     }
 
     @Test
-    fun `국내_기록은_시군구가_필수이고_제목은_200자로_제한한다`() {
-        val seoul = catalog.requireByCode("KR-11")
+    fun `도_단위_기록은_시군구가_필수이고_제목은_그대로_전송한다`() {
+        val province = catalog.requireByCode("KR-41")
         val japan = catalog.requireByCode("JP")
 
         assertFailsWith<IllegalArgumentException> {
-            draft(locationId = seoul.id, title = "서울 여행").toRequestDto(catalog)
+            draft(locationId = province.id, title = "경기 여행").toRequestDto(catalog)
         }
-        assertFailsWith<IllegalArgumentException> {
-            draft(locationId = japan.id, title = "가".repeat(201)).toRequestDto(catalog)
+        val longTitle = "가".repeat(201)
+        assertEquals(longTitle, draft(locationId = japan.id, title = longTitle).toRequestDto(catalog).title)
+    }
+
+    @Test
+    fun `특별시_광역시_세종_제주_초안은_시도_코드만_전송한다`() {
+        listOf("11", "26", "27", "28", "29", "30", "31", "50", "49").forEach { code ->
+            val location = catalog.requireByCode("KR-$code")
+            val request = draft(location.id, location.name).toRequestDto(catalog)
+            assertEquals("KR", request.countryCode)
+            assertEquals(code, request.provinceCode)
+            assertEquals(null, request.districtCode)
         }
     }
 
@@ -168,6 +288,6 @@ class ApiDtoMappersTest {
         content = "",
         startDate = "2026-08-11",
         endDate = null,
-        mediaObjectKeys = emptyList(),
+        mediaObjectKeys = listOf("travel-records/guest/photo.jpg"),
     )
 }

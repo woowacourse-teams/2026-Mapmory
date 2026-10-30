@@ -2,6 +2,8 @@ package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.domain.model.MapRegionSummary
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
@@ -9,14 +11,22 @@ import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.repository.ProgressReportingTripRecordRepository
 import com.mapmory.shared.domain.repository.TripStatisticsRepository
+import com.mapmory.shared.domain.model.ServiceFeedbackCategory
+import com.mapmory.shared.domain.model.ServiceFeedbackPlatform
+import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
+import com.mapmory.shared.domain.model.ShareVideoDownload
+import com.mapmory.shared.domain.model.ShareVideoJob
+import com.mapmory.shared.domain.repository.ShareVideoRepository
 
 internal class AuthenticatedTripRecordRepository(
     private val session: GuestSessionManager,
     private val delegate: TripRecordRepository,
-) : TripRecordRepository {
+) : ProgressReportingTripRecordRepository {
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         withAuthenticatedSession { delegate.getTripRecords(query) }
 
@@ -25,6 +35,14 @@ internal class AuthenticatedTripRecordRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         withAuthenticatedSession { delegate.createTripRecord(draft) }
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> = withAuthenticatedSession {
+        val reporting = delegate as? ProgressReportingTripRecordRepository
+        reporting?.createTripRecord(draft, onProgress) ?: delegate.createTripRecord(draft)
+    }
 
     override suspend fun updateTripRecord(
         id: Long,
@@ -85,6 +103,58 @@ internal class AuthenticatedTripStatisticsRepository(
     override suspend fun getStatistics(): Result<TripStatistics> =
         session.ensureAuthenticated().fold(
             onSuccess = { delegate.getStatistics() },
+            onFailure = Result.Companion::failure,
+        )
+}
+
+internal class AuthenticatedServiceFeedbackRepository(
+    private val session: GuestSessionManager,
+    private val delegate: ServiceFeedbackRepository,
+) : ServiceFeedbackRepository {
+    override suspend fun submit(
+        category: ServiceFeedbackCategory,
+        content: String,
+        platform: ServiceFeedbackPlatform,
+    ): Result<Unit> = session.ensureAuthenticated().fold(
+        onSuccess = { delegate.submit(category, content, platform) },
+        onFailure = Result.Companion::failure,
+    )
+}
+
+internal class AuthenticatedShareVideoRepository(
+    private val session: GuestSessionManager,
+    private val delegate: ShareVideoRepository,
+) : ShareVideoRepository {
+    override suspend fun createTravelTimeline(): Result<ShareVideoJob> =
+        withAuthenticatedSession(delegate::createTravelTimeline)
+
+    override suspend fun getJob(jobId: Long): Result<ShareVideoJob> =
+        withAuthenticatedSession { delegate.getJob(jobId) }
+
+    override suspend fun getDownloadUrl(jobId: Long): Result<ShareVideoDownload> =
+        withAuthenticatedSession { delegate.getDownloadUrl(jobId) }
+
+    private suspend fun <T> withAuthenticatedSession(
+        request: suspend () -> Result<T>,
+    ): Result<T> = session.ensureAuthenticated().fold(
+        onSuccess = { request() },
+        onFailure = Result.Companion::failure,
+    )
+}
+
+internal class AuthenticatedPlaceRepository(
+    private val session: GuestSessionManager,
+    private val delegate: PlaceRepository,
+) : PlaceRepository {
+    override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> =
+        session.ensureAuthenticated().fold(
+            onSuccess = { delegate.searchPlaces(query, sessionToken) },
+            onFailure = Result.Companion::failure,
+        )
+
+    override suspend fun selectPlace(placeId: String, sessionToken: String): Result<PlaceSelection> =
+        session.ensureAuthenticated().fold(
+            onSuccess = { delegate.selectPlace(placeId, sessionToken) },
             onFailure = Result.Companion::failure,
         )
 }

@@ -5,22 +5,29 @@ import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.MapRegionLevel
 import com.mapmory.shared.domain.model.MapRegionSummary
 import com.mapmory.shared.domain.model.MapRegionType
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRegionSuggestion
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPage
+import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.model.TopRegionStatistics
+import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
 
 fun TripRecordListItemDto.toDomain(): TripRecordSummary = TripRecordSummary(
     id = id,
-    title = title,
+    photoCount = photoCount,
+    title = title.orEmpty(),
     regionName = regionName,
     startDate = startDate,
     endDate = endDate,
@@ -48,7 +55,7 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
     return TripRecordData(
         id = id,
         locationId = location.id,
-        title = title,
+        title = title.orEmpty(),
         content = content,
         startDate = startDate,
         endDate = endDate,
@@ -74,8 +81,43 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
         createdAt = createdAt,
         updatedAt = updatedAt,
         tags = tags.map(TagDto::toDomain),
+        place = placeId?.let { id ->
+            PlaceReference(
+                placeId = id,
+                name = placeName,
+                attribution = placeAttribution,
+                attributionUrl = placeAttributionUrl,
+            )
+        },
     )
 }
+
+fun PlaceCandidateDto.toDomain(): PlaceCandidate = PlaceCandidate(
+    placeId = placeId,
+    name = name,
+    address = address,
+    attribution = attribution,
+    attributionUrl = attributionUrl,
+)
+
+fun PlaceSelectionDto.toDomain(): PlaceSelection = PlaceSelection(
+    place = PlaceReference(
+        placeId = placeId,
+        name = name,
+        attribution = attribution,
+        attributionUrl = attributionUrl,
+        countryCode = countryCode,
+    ),
+    countryCode = countryCode,
+    suggestedRegion = suggestedRegion?.let { region ->
+        PlaceRegionSuggestion(
+            countryCode = region.country.code,
+            provinceCode = region.province?.code,
+            districtCode = region.district?.code,
+        )
+    },
+    manualRegionRequired = manualRegionRequired,
+)
 
 internal data class RegionQuery(
     val countryCode: String,
@@ -92,8 +134,8 @@ internal fun TripRecordQuery.toRegionQuery(regionCatalog: RegionCatalog): Region
     }
 
 internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRecordRequestDto {
-    require(title.length <= MaxTitleLength) { "제목은 200자 이하여야 합니다." }
     dateValidationError()?.let { error -> throw IllegalArgumentException(error) }
+    require(mediaObjectKeys.isNotEmpty()) { TripRecordPhotoRules.RequiredMessage }
     require(mediaObjectKeys.distinct().size == mediaObjectKeys.size) {
         "같은 사진을 중복해서 추가할 수 없습니다."
     }
@@ -107,11 +149,12 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         provinceCode = region.provinceCode,
         districtCode = region.districtCode,
         title = title,
-        content = content,
-        startDate = requireNotNull(startDate),
+        content = content.orEmpty(),
+        startDate = startDate,
         endDate = endDate,
         objectKeys = mediaObjectKeys,
         tagIds = tagIds,
+        placeId = place?.placeId,
     )
 }
 
@@ -134,7 +177,9 @@ private fun Location.toRegionQuery(
     }
 
     regionCode.startsWith(KoreanProvincePrefix) -> {
-        require(allowKoreanProvince) { "대한민국 기록은 시·군·구까지 선택해야 합니다." }
+        require(allowKoreanProvince || isSelectableKoreanProvince()) {
+            "특별시·광역시·세종·제주 외의 국내 지역은 시·군·구까지 선택해 주세요."
+        }
         RegionQuery(
             countryCode = KoreaCountryCode,
             provinceCode = regionCode.removePrefix(KoreanProvincePrefix),
@@ -182,4 +227,3 @@ fun TripStatisticsDto.toDomain(): TripStatistics = TripStatistics(
 private const val KoreaCountryCode = "KR"
 private const val KoreanProvincePrefix = "KR-"
 private const val CountryCodeLength = 2
-private const val MaxTitleLength = 200

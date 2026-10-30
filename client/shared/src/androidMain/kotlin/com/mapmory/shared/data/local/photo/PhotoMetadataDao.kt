@@ -7,6 +7,9 @@ import androidx.room.Upsert
 
 @Dao
 interface PhotoMetadataDao {
+    @Query("SELECT capturedAtMillis FROM photo_metadata WHERE contentUri = :contentUri LIMIT 1")
+    suspend fun capturedAtMillis(contentUri: String): Long?
+
     @Query("SELECT * FROM photo_metadata")
     suspend fun getAll(): List<PhotoMetadataEntity>
 

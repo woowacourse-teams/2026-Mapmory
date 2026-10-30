@@ -12,6 +12,28 @@ import kotlin.test.assertIs
 
 class TripRecordDetailViewModelTest {
     @Test
+    fun `상세_복귀는_본문을_유지하고_수정_후에는_변경된_내용을_조회한다`() = runSuspend {
+        val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        val draft = TripRecordDraft(
+            locationId = 101,
+            title = "수정 전",
+            content = "",
+            startDate = "2026-08-01",
+            mediaObjectKeys = listOf("photo.jpg"),
+        )
+        val record = repository.createTripRecord(draft).getOrThrow()
+        val viewModel = TripRecordDetailViewModel(
+            GetTripRecordUseCase(repository), DeleteTripRecordUseCase(repository),
+        )
+        viewModel.loadIfNeeded(record.id, 0)
+        repository.updateTripRecord(record.id, draft.copy(title = "수정 후")).getOrThrow()
+        viewModel.loadIfNeeded(record.id, 0)
+        assertEquals("수정 전", assertIs<TripRecordDetailUiState.Success>(viewModel.uiState).record.title)
+        viewModel.loadIfNeeded(record.id, 1)
+        assertEquals("수정 후", assertIs<TripRecordDetailUiState.Success>(viewModel.uiState).record.title)
+    }
+
+    @Test
     fun `로드는_성공과_실패에_따라_상태를_변경한다`() {
         runSuspend {
             val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
@@ -22,7 +44,7 @@ class TripRecordDetailViewModelTest {
                     content = "한강을 걸었다.",
                     startDate = "2026-08-01",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("records/1/photo.jpg"),
                 ),
             ).getOrThrow()
             var changeCount = 0

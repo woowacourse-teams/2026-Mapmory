@@ -37,15 +37,13 @@ internal class PhotoMetadataSync(
                 }
             }
             val coordinates = if (
-                shouldReuseCoordinates(
+                shouldReuseLocationMetadata(
                     previousModifiedAtSeconds = previous?.modifiedAtSeconds,
-                    previousLatitude = previous?.latitude,
-                    previousLongitude = previous?.longitude,
                     currentModifiedAtSeconds = candidate.modifiedAtSeconds,
                 )
             ) {
                 reusedCoordinateCount++
-                requireNotNull(previousCoordinates)
+                previousCoordinates
             } else {
                 exifReadCount++
                 readCoordinates(candidate.contentUri)

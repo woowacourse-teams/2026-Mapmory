@@ -15,3 +15,11 @@ enum class LocationType {
     PROVINCE, // 시, 도 단위(서울특별시, 경기도)
     DISTRICT, // 시, 군, 구 단위(강남구, 수원시)
 }
+
+/** 구·군을 고르지 않고 도시 전체를 여행지로 사용할 수 있는 특별시·광역시·세종·제주. */
+fun Location.isSelectableKoreanProvince(): Boolean =
+    countryId == 1L && type == LocationType.PROVINCE && regionCode in SelectableKoreanProvinceCodes
+
+private val SelectableKoreanProvinceCodes = setOf(
+    "KR-11", "KR-26", "KR-27", "KR-28", "KR-29", "KR-30", "KR-31", "KR-50", "KR-49",
+)

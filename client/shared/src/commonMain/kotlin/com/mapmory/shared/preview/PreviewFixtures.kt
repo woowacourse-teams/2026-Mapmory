@@ -13,10 +13,11 @@ import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.toTripRecordItemUiState
+import com.mapmory.shared.presentation.theme.MapmoryTypography
 
 @Composable
 internal fun PreviewSurface(content: @Composable () -> Unit) {
-    MaterialTheme {
+    MaterialTheme(typography = MapmoryTypography()) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,

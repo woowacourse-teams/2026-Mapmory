@@ -24,6 +24,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from math import atan2, tau
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,12 @@ METROPOLITAN_PROVINCES = {
 # between them after projection (for example Ulsan/Gyeongnam and Sejong/Chungnam).
 PROVINCE_OVERRIDE_CODES = frozenset(PROVINCE_NAMES)
 DEFAULT_PROVINCE_OVERRIDE_TOLERANCE = 0.002
+# Finer district geometry is subpixel nationwide; detailed resources keep the full geometry.
+OVERVIEW_DISTRICT_TOLERANCE = 0.008
+DOKDO_PROVINCE_CODE = "KR-47"
+DOKDO_REFERENCE_POINT = (131.86941, 37.24006)
+DOKDO_RING_RADIUS = 0.05
+DOKDO_OVERVIEW_TOLERANCE = 0.00003
 PROVINCE_PREFIXES = tuple(PROVINCE_NAMES.values()) + ("강원도", "전라북도")
 CITY_DISTRICT_PATTERN = re.compile(r"^(.+시).+구$")
 LOCATION_PATTERN = re.compile(
@@ -147,6 +154,20 @@ def simplify_ring(ring: list[list[float]], tolerance: float) -> list[list[float]
     return [[longitude, latitude] for longitude, latitude in simplified]
 
 
+def province_ring_tolerance(
+    code: str,
+    ring: list[list[float]],
+    tolerance: float,
+) -> float:
+    if code == DOKDO_PROVINCE_CODE and all(
+        abs(longitude - DOKDO_REFERENCE_POINT[0]) <= DOKDO_RING_RADIUS
+        and abs(latitude - DOKDO_REFERENCE_POINT[1]) <= DOKDO_RING_RADIUS
+        for longitude, latitude in ring
+    ):
+        return min(tolerance, DOKDO_OVERVIEW_TOLERANCE)
+    return tolerance
+
+
 def read_province_features(
     source: Path,
     simplify_tolerance: float = 0.0,
@@ -165,7 +186,10 @@ def read_province_features(
             continue
         rings = outer_rings(feature.get("geometry", {}))
         if simplify_tolerance > 0:
-            rings = [simplify_ring(ring, simplify_tolerance) for ring in rings]
+            rings = [
+                simplify_ring(ring, province_ring_tolerance(code, ring, simplify_tolerance))
+                for ring in rings
+            ]
             rings = [ring for ring in rings if len(ring) >= 4]
         if rings:
             features.append((code, PROVINCE_NAMES.get(code, properties.get("name", code)), rings))
@@ -342,6 +366,10 @@ def write_provinces(
     if override_source:
         override_features = read_province_features(override_source, override_tolerance)
         features = merge_province_features(features, override_features, PROVINCE_OVERRIDE_CODES)
+    # The 2018 province source predates Gunwi's transfer. Always apply this pinned
+    # correction after source overrides, just as district canonicalization does.
+    corrections = read_province_features(Path(__file__).with_name("data") / "gunwi-province-overrides.geojson")
+    features = merge_province_features(features, corrections, frozenset({"KR-27", "KR-47"}))
     feature_parts = partition_province_features(features)
     names = [
         write_province_part(output, index, part)
@@ -392,6 +420,490 @@ def write_district_resource(output: Path, province_code: str, boundaries: list[B
     )
 
 
+def normalized_edge(
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    return (start, end) if start < end else (end, start)
+
+
+def district_label_point(rings: list[list[list[float]]]) -> tuple[float, float] | None:
+    if not rings:
+        return None
+    ring = max(rings, key=lambda candidate: abs(_ring_area_twice(candidate)))
+    area = _ring_area_twice(ring)
+    if abs(area) > 0.000001:
+        longitude = 0.0
+        latitude = 0.0
+        for index, point in enumerate(ring):
+            next_point = ring[(index + 1) % len(ring)]
+            cross = point[0] * next_point[1] - next_point[0] * point[1]
+            longitude += (point[0] + next_point[0]) * cross
+            latitude += (point[1] + next_point[1]) * cross
+        centroid = (longitude / (3 * area), latitude / (3 * area))
+        if _point_in_ring(centroid, ring):
+            return centroid
+
+    bounds_center = (
+        (min(point[0] for point in ring) + max(point[0] for point in ring)) / 2,
+        (min(point[1] for point in ring) + max(point[1] for point in ring)) / 2,
+    )
+    if _point_in_ring(bounds_center, ring):
+        return bounds_center
+    return tuple(ring[0])
+
+
+def _ring_area_twice(ring: list[list[float]]) -> float:
+    return sum(
+        point[0] * ring[(index + 1) % len(ring)][1]
+        - ring[(index + 1) % len(ring)][0] * point[1]
+        for index, point in enumerate(ring)
+    )
+
+
+def _point_in_ring(point: tuple[float, float], ring: list[list[float]]) -> bool:
+    inside = False
+    previous = ring[-1]
+    for current in ring:
+        cross = (point[1] - previous[1]) * (current[0] - previous[0]) - (
+            point[0] - previous[0]
+        ) * (current[1] - previous[1])
+        if (
+            abs(cross) <= 0.000001
+            and min(previous[0], current[0]) <= point[0] <= max(previous[0], current[0])
+            and min(previous[1], current[1]) <= point[1] <= max(previous[1], current[1])
+        ):
+            return True
+        crosses_y = (current[1] > point[1]) != (previous[1] > point[1])
+        if crosses_y:
+            intersection = (previous[0] - current[0]) * (point[1] - current[1]) / (
+                previous[1] - current[1]
+            ) + current[0]
+            if point[0] < intersection:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def overview_district_labels(boundaries: list[Boundary]) -> list[dict[str, Any]]:
+    labels = []
+    for boundary in boundaries:
+        point = district_label_point(boundary.rings)
+        if point is not None:
+            labels.append({
+                "code": boundary.code,
+                "provinceCode": boundary.province_code,
+                "name": boundary.name,
+                "point": [round(point[0], 5), round(point[1], 5)],
+            })
+    return labels
+
+
+def overview_shared_edge_paths(
+    boundaries: list[Boundary],
+) -> list[tuple[tuple[tuple[str, int], ...], list[tuple[float, float]]]]:
+    edge_owners: dict[
+        tuple[tuple[float, float], tuple[float, float]],
+        set[tuple[str, int]],
+    ] = defaultdict(set)
+    for boundary in boundaries:
+        for ring_index, ring in enumerate(boundary.rings):
+            points = [(float(longitude), float(latitude)) for longitude, latitude in ring]
+            for index, start in enumerate(points):
+                end = points[(index + 1) % len(points)]
+                if start != end:
+                    edge_owners[normalized_edge(start, end)].add((boundary.code, ring_index))
+
+    edges_by_owners: dict[
+        tuple[tuple[str, int], ...],
+        set[tuple[tuple[float, float], tuple[float, float]]],
+    ] = defaultdict(set)
+    for edge, ring_owners in edge_owners.items():
+        if len({code for code, _ in ring_owners}) > 1:
+            edges_by_owners[tuple(sorted(ring_owners))].add(edge)
+
+    paths = []
+    for owners, edges in edges_by_owners.items():
+        adjacency: dict[tuple[float, float], set[tuple[float, float]]] = defaultdict(set)
+        for start, end in edges:
+            adjacency[start].add(end)
+            adjacency[end].add(start)
+        visited = set()
+
+        def append_path(start: tuple[float, float], following: tuple[float, float]) -> None:
+            points = [start]
+            previous = None
+            current = start
+            while True:
+                edge = normalized_edge(current, following)
+                if edge in visited:
+                    break
+                visited.add(edge)
+                points.append(following)
+                previous, current = current, following
+                if len(adjacency[current]) != 2:
+                    break
+                following = next(point for point in adjacency[current] if point != previous)
+            paths.append((owners, points))
+
+        for start in sorted(adjacency):
+            if len(adjacency[start]) == 2:
+                continue
+            for following in sorted(adjacency[start]):
+                if normalized_edge(start, following) not in visited:
+                    append_path(start, following)
+        for start, end in sorted(edges):
+            if normalized_edge(start, end) not in visited:
+                append_path(start, end)
+    return paths
+
+
+def overview_shared_district_pairs(boundaries: list[Boundary]) -> set[tuple[str, str]]:
+    return {
+        tuple(sorted((first[0], second[0])))
+        for owners, _ in overview_shared_edge_paths(boundaries)
+        for index, first in enumerate(owners)
+        for second in owners[index + 1:]
+        if first[0] != second[0]
+    }
+
+
+def _canonical_ring(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    candidates = []
+    for direction in (points, list(reversed(points))):
+        lowest = min(direction)
+        candidates.extend(
+            tuple(direction[index:] + direction[:index])
+            for index, point in enumerate(direction)
+            if point == lowest
+        )
+    return list(min(candidates))
+
+
+def _simplify_shared_path(
+    points: list[tuple[float, float]],
+    tolerance: float,
+) -> list[tuple[float, float]]:
+    if points[0] == points[-1]:
+        canonical = _canonical_ring(points[:-1])
+        simplified = _rdp(canonical + [canonical[0]], tolerance)
+        if simplified[-1] != simplified[0]:
+            simplified.append(simplified[0])
+        return simplified if len(simplified) >= 4 else points
+
+    forward = tuple(points)
+    reversed_direction = tuple(reversed(points)) < forward
+    canonical = list(reversed(points)) if reversed_direction else points
+    simplified = _rdp(canonical, tolerance)
+    return list(reversed(simplified)) if reversed_direction else simplified
+
+
+def simplify_ring_with_shared_anchors(
+    ring: list[list[float]],
+    retained_points: set[tuple[float, float]],
+    removed_points: set[tuple[float, float]],
+    tolerance: float,
+) -> list[list[float]]:
+    points = [(float(longitude), float(latitude)) for longitude, latitude in ring]
+    if points[0] == points[-1]:
+        points.pop()
+    points = [point for point in points if point not in removed_points or point in retained_points]
+    points = [point for index, point in enumerate(points) if index == 0 or point != points[index - 1]]
+    anchors = [index for index, point in enumerate(points) if point in retained_points]
+    if len(points) < 3:
+        return ring
+    if not anchors:
+        return simplify_ring(ring, tolerance)
+
+    start = anchors[0]
+    points = points[start:] + points[:start]
+    anchor_indices = sorted({(index - start) % len(points) for index in anchors})
+    cycle = points + [points[0]]
+    simplified_ring: list[tuple[float, float]] = []
+    for segment_start, segment_end in zip(anchor_indices, anchor_indices[1:] + [len(points)]):
+        simplified = _rdp(cycle[segment_start:segment_end + 1], tolerance)
+        if simplified_ring:
+            simplified_ring.extend(simplified[1:])
+        else:
+            simplified_ring.extend(simplified)
+    if simplified_ring[0] != simplified_ring[-1]:
+        simplified_ring.append(simplified_ring[0])
+    if len(simplified_ring) < 4:
+        return ring
+    return [[longitude, latitude] for longitude, latitude in simplified_ring]
+
+
+def simplify_overview_boundaries(boundaries: list[Boundary]) -> list[Boundary]:
+    # Canonical shared paths keep adjacent district fills and overview strokes aligned.
+    retained_by_ring: dict[tuple[str, int], set[tuple[float, float]]] = defaultdict(set)
+    removed_by_ring: dict[tuple[str, int], set[tuple[float, float]]] = defaultdict(set)
+    for ring_owners, points in overview_shared_edge_paths(boundaries):
+        simplified = _simplify_shared_path(points, OVERVIEW_DISTRICT_TOLERANCE)
+        retained = set(simplified[:-1] if simplified[0] == simplified[-1] else simplified)
+        removed = set(points[:-1] if points[0] == points[-1] else points) - retained
+        for ring_owner in ring_owners:
+            retained_by_ring[ring_owner].update(retained)
+            removed_by_ring[ring_owner].update(removed)
+
+    simplified_boundaries = [
+        Boundary(
+            boundary.province_code,
+            boundary.code,
+            boundary.name,
+            [
+                simplify_ring_with_shared_anchors(
+                    ring,
+                    retained_by_ring[(boundary.code, ring_index)],
+                    removed_by_ring[(boundary.code, ring_index)],
+                    OVERVIEW_DISTRICT_TOLERANCE,
+                )
+                for ring_index, ring in enumerate(boundary.rings)
+            ],
+        )
+        for boundary in boundaries
+    ]
+    if not overview_shared_district_pairs(boundaries) <= overview_shared_district_pairs(simplified_boundaries):
+        raise ValueError("overview simplification separated adjacent district fills")
+    return simplified_boundaries
+
+
+def overview_boundary_lines(boundaries: list[Boundary]) -> list[list[tuple[float, float]]]:
+    # Province grouping excludes coastlines and inter-province seams from the pale overlay.
+    edge_owners: dict[
+        tuple[str, tuple[tuple[float, float], tuple[float, float]]],
+        set[str],
+    ] = defaultdict(set)
+    for boundary in boundaries:
+        for ring in boundary.rings:
+            points = [(float(longitude), float(latitude)) for longitude, latitude in ring]
+            for index, start in enumerate(points):
+                end = points[(index + 1) % len(points)]
+                if start != end:
+                    edge_owners[(boundary.province_code, normalized_edge(start, end))].add(boundary.code)
+
+    # Gunwi moved to Daegu after the province geometry source; retain its missing perimeter.
+    edges = sorted({
+        edge for (_, edge), owners in edge_owners.items()
+        if len(owners) > 1 or "27720" in owners
+    })
+    adjacency: dict[tuple[float, float], set[tuple[float, float]]] = defaultdict(set)
+    for start, end in edges:
+        adjacency[start].add(end)
+        adjacency[end].add(start)
+
+    visited = set()
+    lines = []
+
+    def append_line(start: tuple[float, float], next_point: tuple[float, float]) -> None:
+        points = [start]
+        previous = None
+        current = start
+        following = next_point
+        while True:
+            edge = normalized_edge(current, following)
+            if edge in visited:
+                break
+            visited.add(edge)
+            points.append(following)
+            previous, current = current, following
+            if len(adjacency[current]) != 2:
+                break
+            following = next(point for point in sorted(adjacency[current]) if point != previous)
+
+        if len(points) >= 2:
+            lines.append(points)
+
+    for start in sorted(adjacency):
+        if len(adjacency[start]) == 2:
+            continue
+        for next_point in sorted(adjacency[start]):
+            if normalized_edge(start, next_point) not in visited:
+                append_line(start, next_point)
+    for start, end in edges:
+        if normalized_edge(start, end) not in visited:
+            append_line(start, end)
+    if not lines:
+        raise ValueError("district data has no shared within-province boundaries")
+    return lines
+
+
+def write_overview_district_resource(
+    output: Path,
+    boundaries: list[Boundary],
+    label_boundaries: list[Boundary] | None = None,
+) -> None:
+    labels = overview_district_labels(label_boundaries or boundaries)
+    if len(labels) != len(boundaries) or len({label["code"] for label in labels}) != len(boundaries):
+        raise ValueError("overview district labels must match the canonical district boundaries")
+    payload = {
+        "lines": [
+            [[round(longitude, 5), round(latitude, 5)] for longitude, latitude in line]
+            for line in overview_boundary_lines(boundaries)
+        ],
+        "labels": labels,
+    }
+    (output / "korea-district-overview.json").write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+    )
+
+
+def dissolve_overview_fill_rings(source: Boundary, overview: Boundary) -> Boundary:
+    # Remove constituent-district seams from fills without regenerating visible outlines.
+    source_rings = []
+    owners = defaultdict(set)
+    for ring_index, ring in enumerate(source.rings):
+        points = []
+        for longitude, latitude in ring:
+            point = (round(longitude, 5), round(latitude, 5))
+            if not points or points[-1] != point:
+                points.append(point)
+        if points[0] == points[-1]:
+            points.pop()
+        source_rings.append(points)
+        for start, end in zip(points, points[1:] + points[:1]):
+            owners[normalized_edge(start, end)].add(ring_index)
+    internal_edges = {edge for edge, ring_owners in owners.items() if len(ring_owners) > 1}
+    if not internal_edges:
+        return overview
+
+    exterior_edges = set()
+    matched_rings = set()
+    for ring in overview.rings:
+        if len(ring) < 4:
+            continue
+        simplified = [(round(x, 5), round(y, 5)) for x, y in ring]
+        candidates = [
+            index for index, points in enumerate(source_rings)
+            if set(simplified) <= set(points)
+        ]
+        if len(candidates) != 1:
+            raise ValueError(f"ambiguous overview fill ring: {source.code}")
+        ring_index = candidates[0]
+        matched_rings.add(ring_index)
+        points = source_rings[ring_index]
+        indices = {point: index for index, point in enumerate(points)}
+        for start, end in zip(simplified, simplified[1:]):
+            first, last = indices[start], indices[end]
+            arc = points[first:last + 1] if last > first else points[first:] + points[:last + 1]
+            edges = list(zip(arc, arc[1:]))
+            external = [edge for edge in edges if normalized_edge(*edge) not in internal_edges]
+            if len(external) == len(edges):
+                exterior_edges.add((start, end))
+            elif external:
+                exterior_edges.update(external)
+
+    # Tiny constituent rings may have collapsed during overview simplification.
+    for ring_index, points in enumerate(source_rings):
+        if ring_index in matched_rings:
+            continue
+        edges = list(zip(points, points[1:] + points[:1]))
+        if any(normalized_edge(*edge) in internal_edges for edge in edges):
+            exterior_edges.update(edge for edge in edges if normalized_edge(*edge) not in internal_edges)
+
+    rings = trace_overview_exterior_rings(exterior_edges, source.code)
+    return Boundary(overview.province_code, overview.code, overview.name, rings)
+
+
+def trace_overview_exterior_rings(
+    exterior_edges: set[tuple[tuple[float, float], tuple[float, float]]],
+    code: str,
+) -> list[list[list[float]]]:
+    following = defaultdict(set)
+    incoming = defaultdict(int)
+    for start, end in exterior_edges:
+        following[start].add(end)
+        incoming[end] += 1
+    if any(len(following[point]) != incoming[point] for point in following.keys() | incoming.keys()):
+        raise ValueError(f"unclosed overview fill exterior: {code}")
+    rings = []
+    remaining = set(exterior_edges)
+    while remaining:
+        start, end = min(remaining)
+        ring = [start]
+        previous, current = start, end
+        remaining.remove((previous, current))
+        while current != start:
+            ring.append(current)
+            candidates = [point for point in following[current] if (current, point) in remaining]
+            if not candidates:
+                raise ValueError(f"disconnected overview fill exterior: {code}")
+            reverse_angle = atan2(previous[1] - current[1], previous[0] - current[0])
+            # Clockwise source rings keep point-touching islands in separate exterior cycles.
+            next_point = min(candidates, key=lambda point: (
+                (atan2(point[1] - current[1], point[0] - current[0]) - reverse_angle) % tau,
+                point,
+            ))
+            remaining.remove((current, next_point))
+            previous, current = current, next_point
+        ring.append(start)
+        if len(ring) < 4:
+            raise ValueError(f"degenerate overview fill exterior: {code}")
+        rings.append([[x, y] for x, y in ring])
+    return rings
+
+
+def dissolve_overview_provinces(boundaries: list[Boundary]) -> list[Boundary]:
+    # Cancel exact shared fill edges; preserve winding so enclosed provinces remain holes.
+    grouped: dict[str, list[Boundary]] = defaultdict(list)
+    for boundary in boundaries:
+        grouped[boundary.province_code].append(boundary)
+    provinces = []
+    for code, districts in sorted(grouped.items()):
+        directed_edges = set()
+        for boundary in districts:
+            for ring in boundary.rings:
+                if len(ring) < 4 or ring[0] != ring[-1]:
+                    raise ValueError(f"unclosed overview province source: {boundary.code}")
+                for first, second in zip(ring, ring[1:]):
+                    start = tuple(round(value, 5) for value in first)
+                    end = tuple(round(value, 5) for value in second)
+                    if start == end:
+                        continue
+                    if (start, end) in directed_edges:
+                        raise ValueError(f"duplicate directed overview edge: {code}")
+                    directed_edges.add((start, end))
+        exterior_edges = {edge for edge in directed_edges if tuple(reversed(edge)) not in directed_edges}
+        rings = trace_overview_exterior_rings(exterior_edges, code)
+        if not rings:
+            raise ValueError(f"empty overview province: {code}")
+        provinces.append(Boundary(code, code, PROVINCE_NAMES[code], rings))
+    return provinces
+
+
+def write_overview_polygons_resource(output: Path, boundaries: list[Boundary], filename: str) -> None:
+    payload = {
+        "districts": [
+            {
+                "code": boundary.code,
+                "name": boundary.name,
+                "provinceCode": boundary.province_code,
+                "rings": [
+                    [[round(longitude, 5), round(latitude, 5)] for longitude, latitude in ring]
+                    for ring in boundary.rings
+                    if len(ring) >= 4
+                ],
+            }
+            for boundary in boundaries
+        ],
+    }
+    districts = payload["districts"]
+    if len(districts) != len(boundaries) or len({district["code"] for district in districts}) != len(boundaries):
+        raise ValueError("overview polygons must match the canonical boundaries")
+    (output / filename).write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+    )
+
+
+def write_overview_district_polygons_resource(output: Path, boundaries: list[Boundary]) -> None:
+    write_overview_polygons_resource(output, boundaries, "korea-district-overview-polygons.json")
+
+
+def write_overview_province_polygons_resource(output: Path, boundaries: list[Boundary]) -> None:
+    write_overview_polygons_resource(
+        output, dissolve_overview_provinces(boundaries), "korea-province-overview-polygons.json",
+    )
+
+
 def write_districts(
     resource_output: Path,
     source: Path,
@@ -416,6 +928,14 @@ def write_districts(
         by_province[boundary.province_code].append(boundary)
     for province, values in sorted(by_province.items()):
         write_district_resource(resource_output, province, values)
+    overview_boundaries = simplify_overview_boundaries(boundaries)
+    write_overview_district_resource(resource_output, overview_boundaries, boundaries)
+    fill_boundaries = [
+        dissolve_overview_fill_rings(source, overview)
+        for source, overview in zip(boundaries, overview_boundaries)
+    ]
+    write_overview_district_polygons_resource(resource_output, fill_boundaries)
+    write_overview_province_polygons_resource(resource_output, fill_boundaries)
     print(f"generated {len(boundaries)} display boundaries for {len(by_province)} provinces")
     if skipped:
         print("skipped source features without a canonical app location:")

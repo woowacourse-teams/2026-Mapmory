@@ -7,6 +7,7 @@ plugins {
 
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 val localProperties = Properties().apply {
@@ -15,6 +16,18 @@ val localProperties = Properties().apply {
         localPropertiesFile.inputStream().use(::load)
     }
 }
+
+val debugApiBaseUrl = localProperties
+    .getProperty("MAPMORY_DEBUG_API_BASE_URL")
+    ?.takeIf(String::isNotBlank)
+    ?: "https://dev-api.map-mory.com/api/v1"
+val releaseApiBaseUrl = "https://api.map-mory.com/api/v1"
+val internalStoreFile = providers.environmentVariable("MAPMORY_INTERNAL_STORE_FILE").orNull
+val internalStorePassword = providers.environmentVariable("MAPMORY_INTERNAL_STORE_PASSWORD").orNull
+val internalKeyAlias = providers.environmentVariable("MAPMORY_INTERNAL_KEY_ALIAS").orNull
+val internalKeyPassword = providers.environmentVariable("MAPMORY_INTERNAL_KEY_PASSWORD").orNull
+val hasInternalSigning = listOf(internalStoreFile, internalStorePassword, internalKeyAlias, internalKeyPassword)
+    .all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.mapmory.android"
@@ -25,13 +38,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.compileSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 4
-        versionName = "0.1.3"
-        resValue(
-            type = "string",
-            name = "mapmory_api_base_url",
-            value = localProperties.getProperty("MAPMORY_API_BASE_URL").orEmpty(),
-        )
+        versionCode = 12
+        versionName = "0.1.9"
     }
 
     buildFeatures {
@@ -39,14 +47,55 @@ android {
         resValues = true
     }
 
+    signingConfigs {
+        if (hasInternalSigning) {
+            create("internal") {
+                storeFile = file(requireNotNull(internalStoreFile))
+                storePassword = internalStorePassword
+                keyAlias = internalKeyAlias
+                keyPassword = internalKeyPassword
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            resValue(
+                type = "string",
+                name = "mapmory_api_base_url",
+                value = debugApiBaseUrl,
+            )
+        }
+        create("internal") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".internal"
+            versionNameSuffix = "-internal"
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.findByName("internal")
+            resValue("string", "mapmory_api_base_url", debugApiBaseUrl)
+        }
         release {
             isMinifyEnabled = false
+            resValue(
+                type = "string",
+                name = "mapmory_api_base_url",
+                value = releaseApiBaseUrl,
+            )
         }
     }
 }
 
+tasks.matching { it.name == "processInternalGoogleServices" }.configureEach {
+    enabled = false
+}
+
 dependencies {
+    constraints {
+        implementation("androidx.fragment:fragment:1.3.6") {
+            because("Activity Result permissions require Fragment 1.3+; Play Services pulls in 1.1.0")
+        }
+    }
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation(project(":shared"))
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.activity:activity-ktx:1.11.0")
@@ -56,6 +105,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling:${libs.versions.androidxCompose.get()}")
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-config")
+    implementation(libs.play.app.update)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.ktor.client.core)
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")

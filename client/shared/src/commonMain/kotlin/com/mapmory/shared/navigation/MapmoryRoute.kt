@@ -20,6 +20,18 @@ internal data class EditorRoute(
 internal data object ProfileRoute
 
 @Serializable
+internal data object TripAchievementsRoute
+
+@Serializable
+internal data object SettingsRoute
+
+@Serializable
+internal data object DeveloperToolsRoute
+
+@Serializable
 internal data class DetailRoute(
     val recordId: Long,
+    val locationName: String? = null,
+    val latestDate: String? = null,
+    val photoCount: Int? = null,
 )

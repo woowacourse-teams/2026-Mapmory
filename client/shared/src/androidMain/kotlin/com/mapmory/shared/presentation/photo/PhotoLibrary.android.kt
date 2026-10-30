@@ -2,6 +2,7 @@ package com.mapmory.shared.presentation.photo
 
 import android.Manifest
 import android.content.ContentUris
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +13,7 @@ import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
 import android.os.Trace
 import android.provider.MediaStore
@@ -20,6 +22,8 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.reportFailure
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
+import com.mapmory.shared.data.media.AndroidPhotoPreviewCache
 import com.mapmory.shared.data.local.photo.PhotoMetadataDatabase
 import com.mapmory.shared.domain.model.Location
 import java.io.ByteArrayInputStream
@@ -47,6 +52,14 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import com.mapmory.shared.data.local.photo.PhotoMetadataEntity
 
+private data class PendingAndroidRecommendation(
+    val location: Location,
+    val parentName: String?,
+    val dateRange: PhotoRecommendationDateRange?,
+)
+
+private val lastRecommendationSearch = LastPhotoSearchCache<AndroidRecommendationSession>()
+
 @Composable
 actual fun rememberPhotoLibraryActions(
     onPhotosPicked: (List<SelectedPhoto>) -> Unit,
@@ -57,6 +70,7 @@ actual fun rememberPhotoLibraryActions(
     onRecommendationLoadingChanged: (Boolean) -> Unit,
     onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit,
 ): PhotoLibraryActions {
+    val analytics by rememberUpdatedState(LocalMapmoryAnalytics.current)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val latestPicked by rememberUpdatedState(onPhotosPicked)
@@ -66,10 +80,12 @@ actual fun rememberPhotoLibraryActions(
     val latestLoadingProgressChanged by rememberUpdatedState(onLoadingProgressChanged)
     val latestRecommendationLoadingChanged by rememberUpdatedState(onRecommendationLoadingChanged)
     val latestPermissionRequired by rememberUpdatedState(onPermissionRequired)
-    var pendingRecommendation by remember { mutableStateOf<Pair<Location, String?>?>(null) }
+    var pendingRecommendation by remember { mutableStateOf<PendingAndroidRecommendation?>(null) }
     val recommendationJob = remember { mutableStateOf<Job?>(null) }
     val recommendationGeneration = remember { mutableStateOf(0) }
     val recommendationSession = remember { mutableStateOf<AndroidRecommendationSession?>(null) }
+    val excludedPhotoIds = remember { mutableStateOf<Set<String>>(emptySet()) }
+    val searchCounts = remember { mutableStateOf(0 to 0) }
 
     fun cancelRecommendations() {
         recommendationGeneration.value += 1
@@ -80,7 +96,11 @@ actual fun rememberPhotoLibraryActions(
         latestLoadingChanged(false)
     }
 
-    fun loadRecommendations(target: Location, parentName: String?) {
+    fun loadRecommendations(
+        target: Location,
+        parentName: String?,
+        dateRange: PhotoRecommendationDateRange?,
+    ) {
         recommendationJob.value?.cancel()
         val generation = recommendationGeneration.value + 1
         recommendationGeneration.value = generation
@@ -89,12 +109,20 @@ actual fun rememberPhotoLibraryActions(
         latestLoadingChanged(true)
         recommendationJob.value = scope.launch {
             try {
-                val session = withContext(Dispatchers.IO) {
-                    context.prepareRecommendationSession(target, parentName, generation) { progress ->
-                        latestLoadingProgressChanged(progress)
-                    }
+                val unfilteredSession = withContext(Dispatchers.IO) {
+                    val cached = lastRecommendationSearch.get(target.id, dateRange)
+                    cached?.copy(generation = generation, nextIndex = 0)
+                        ?: context.prepareRecommendationSession(
+                            target, parentName, dateRange, generation,
+                        ) { progress -> latestLoadingProgressChanged(progress) }
+                            ?.also { lastRecommendationSearch.put(target.id, dateRange, it) }
+                }
+                val session = unfilteredSession?.let { found ->
+                    found.copy(candidates = found.candidates.filterNot { it.contentUri in excludedPhotoIds.value })
                 }
                 if (generation != recommendationGeneration.value) return@launch
+                searchCounts.value = (unfilteredSession?.candidates?.size ?: 0) to
+                    ((unfilteredSession?.candidates?.size ?: 0) - (session?.candidates?.size ?: 0))
                 if (session == null) {
                     latestRecommended(PhotoRecommendationPage(generation, emptyList(), hasMore = false))
                     return@launch
@@ -105,11 +133,16 @@ actual fun rememberPhotoLibraryActions(
                 }
                 if (generation == recommendationGeneration.value) {
                     recommendationSession.value = session.copy(nextIndex = page.nextIndex)
-                    latestRecommended(page.asPublicPage())
+                    latestRecommended(page.asPublicPage().copy(
+                        totalMatchingCount = searchCounts.value.first,
+                        excludedCount = searchCounts.value.second,
+                    ))
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
+                Log.e("PhotoRecommendation", "Failed to load recommendation", error)
                 if (generation == recommendationGeneration.value) {
                     latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
                 }
@@ -128,7 +161,6 @@ actual fun rememberPhotoLibraryActions(
         if (!session.hasMore || recommendationJob.value?.isActive == true) return
         val generation = session.generation
         latestRecommendationLoadingChanged(true)
-        latestLoadingChanged(true)
         recommendationJob.value = scope.launch {
             try {
                 val page = withContext(Dispatchers.IO) {
@@ -139,11 +171,71 @@ actual fun rememberPhotoLibraryActions(
                     recommendationSession.value?.generation == generation
                 ) {
                     recommendationSession.value = session.copy(nextIndex = page.nextIndex)
-                    latestRecommended(page.asPublicPage())
+                    latestRecommended(page.asPublicPage().copy(
+                        totalMatchingCount = searchCounts.value.first,
+                        excludedCount = searchCounts.value.second,
+                    ))
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
+                Log.e("PhotoRecommendation", "Failed to load recommendation", error)
+                if (generation == recommendationGeneration.value) {
+                    latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
+                }
+            } finally {
+                if (generation == recommendationGeneration.value) {
+                    latestRecommendationLoadingChanged(false)
+                    latestLoadingChanged(false)
+                    recommendationJob.value = null
+                }
+            }
+        }
+    }
+
+    fun loadRecommendationPagesForSelection(maxPhotos: Int) {
+        val initialSession = recommendationSession.value ?: return
+        latestRecommended(PhotoRecommendationPage(
+            generation = initialSession.generation,
+            photos = initialSession.candidates.take(maxPhotos).map { it.toSelectedPhoto(null) },
+            hasMore = initialSession.hasMore,
+            totalMatchingCount = searchCounts.value.first,
+            excludedCount = searchCounts.value.second,
+        ))
+        if (!initialSession.hasMore) return
+        val activeJob = recommendationJob.value
+        if (activeJob?.isActive == true) {
+            scope.launch {
+                activeJob.join()
+                if (initialSession.generation == recommendationGeneration.value) {
+                    loadRecommendationPagesForSelection(maxPhotos)
+                }
+            }
+            return
+        }
+
+        val generation = initialSession.generation
+        latestRecommendationLoadingChanged(true)
+        recommendationJob.value = scope.launch {
+            try {
+                var session = initialSession
+                while (session.hasMore && session.nextIndex < maxPhotos) {
+                    val page = withContext(Dispatchers.IO) {
+                        context.loadRecommendationPage(session)
+                    }
+                    if (generation != recommendationGeneration.value) return@launch
+                    session = session.copy(nextIndex = page.nextIndex)
+                    recommendationSession.value = session
+                    latestRecommended(page.asPublicPage().copy(
+                        totalMatchingCount = searchCounts.value.first,
+                        excludedCount = searchCounts.value.second,
+                    ))
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                analytics.reportFailure("photo_recommendation", error)
                 if (generation == recommendationGeneration.value) {
                     latestMessage("사진 추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
                 }
@@ -170,7 +262,7 @@ actual fun rememberPhotoLibraryActions(
             }
             canRecommend -> {
                 pendingRecommendation = null
-                loadRecommendations(target.first, target.second)
+                loadRecommendations(target.location, target.parentName, target.dateRange)
             }
             else -> latestPermissionRequired(PhotoLibraryPermissionIssue.DENIED)
         }
@@ -182,7 +274,7 @@ actual fun rememberPhotoLibraryActions(
         val target = pendingRecommendation
         if (target != null && context.canRecommendPhotos()) {
             pendingRecommendation = null
-            loadRecommendations(target.first, target.second)
+            loadRecommendations(target.location, target.parentName, target.dateRange)
         }
     }
 
@@ -200,7 +292,15 @@ actual fun rememberPhotoLibraryActions(
                 val startedAt = SystemClock.elapsedRealtime()
                 try {
                     val result = traceSection("photo.pick.read") {
-                        uris.mapNotNull { uri -> context.readPhoto(uri) }
+                        uris.mapNotNull { uri ->
+                            runCatching {
+                                context.contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                )
+                            }
+                            context.readPhoto(uri, includeOriginalBytes = false)
+                        }
                     }
                     logPhotoPickPerformance(
                         totalMillis = SystemClock.elapsedRealtime() - startedAt,
@@ -212,6 +312,9 @@ actual fun rememberPhotoLibraryActions(
                     Trace.endAsyncSection("photo.pick.total", TraceCookie.Pick)
                 }
             }
+                if (photos.size < uris.size) {
+                    analytics.reportFailure("photo_import", kotlinx.io.IOException())
+                }
                 if (photos.isEmpty()) {
                     latestMessage("선택한 사진을 읽지 못했어요.")
                 } else {
@@ -225,6 +328,7 @@ actual fun rememberPhotoLibraryActions(
 
     return remember(context, galleryPicker, galleryPermissionLauncher, settingsLauncher) {
         PhotoLibraryActions(
+            setExcludedPhotoIds = { excludedPhotoIds.value = it },
             pickFromGallery = {
                 latestLoadingChanged(true)
                 galleryPicker.launch(
@@ -232,27 +336,43 @@ actual fun rememberPhotoLibraryActions(
                 )
             },
             loadNextRecommendationPage = ::loadNextRecommendationPage,
+            loadRecommendationPagesForSelection = ::loadRecommendationPagesForSelection,
             prepareForAdding = { photos, onReady ->
                 scope.launch {
                     val preparedPhotos = withContext(Dispatchers.IO) {
                         photos.mapNotNull { photo ->
-                            val originalBytes = photo.originalBytes
-                                ?: context.readOriginalBytes(Uri.parse(photo.id))
-                            originalBytes?.let { photo.copy(originalBytes = it) }
+                            photo.takeIf { context.canOpenPhoto(Uri.parse(photo.id)) }
                         }
+                    }
+                    if (preparedPhotos.size < photos.size) {
+                        analytics.reportFailure("photo_prepare", kotlinx.io.IOException())
                     }
                     onReady(preparedPhotos)
                 }
             },
             recommendForLocation = { location, parentName ->
+                val request = PendingAndroidRecommendation(location, parentName, dateRange = null)
                 if (!context.hasFullGalleryAccess() && context.canReadGallery()) {
-                    pendingRecommendation = location to parentName
+                    pendingRecommendation = request
                     latestPermissionRequired(PhotoLibraryPermissionIssue.LIMITED)
                 } else if (context.canRecommendPhotos()) {
                     pendingRecommendation = null
-                    loadRecommendations(location, parentName)
+                    loadRecommendations(location, parentName, dateRange = null)
                 } else {
-                    pendingRecommendation = location to parentName
+                    pendingRecommendation = request
+                    galleryPermissionLauncher.launch(requiredRecommendationPermissions())
+                }
+            },
+            recommendForLocationInDateRange = { location, parentName, dateRange ->
+                val request = PendingAndroidRecommendation(location, parentName, dateRange)
+                if (!context.hasFullGalleryAccess() && context.canReadGallery()) {
+                    pendingRecommendation = request
+                    latestPermissionRequired(PhotoLibraryPermissionIssue.LIMITED)
+                } else if (context.canRecommendPhotos()) {
+                    pendingRecommendation = null
+                    loadRecommendations(location, parentName, dateRange)
+                } else {
+                    pendingRecommendation = request
                     galleryPermissionLauncher.launch(requiredRecommendationPermissions())
                 }
             },
@@ -323,6 +443,7 @@ private fun requiredRecommendationPermissions(): Array<String> = buildList {
 private suspend fun Context.prepareRecommendationSession(
     target: Location,
     parentName: String?,
+    dateRange: PhotoRecommendationDateRange?,
     generation: Int,
     onProgress: (PhotoLoadingProgress) -> Unit,
 ): AndroidRecommendationSession? {
@@ -336,20 +457,21 @@ private suspend fun Context.prepareRecommendationSession(
     } ?: return null
     val boundaryLoadMillis = SystemClock.elapsedRealtime() - boundaryStartedAt
     val syncStartedAt = SystemClock.elapsedRealtime()
-    val syncResult = syncPhotoMetadata(onProgress)
+    val syncResult = syncPhotoMetadata(dateRange, onProgress)
     val syncMillis = SystemClock.elapsedRealtime() - syncStartedAt
     val regionFilterStartedAt = SystemClock.elapsedRealtime()
     val matchedPhotos = traceSection("photo.recommend.region_filter") {
-        val candidates = syncResult.photos
-            .asSequence()
+        selectTripPhotos(syncResult.photos
             .sortedByDescending { photo -> photo.capturedAtMillis ?: 0L }
-            .mapNotNull { photo ->
-                val latitude = photo.latitude ?: return@mapNotNull null
-                val longitude = photo.longitude ?: return@mapNotNull null
-                LocatedPhoto(photo, latitude, longitude)
-
-            }
-        selectPhotosInRegion(candidates, region)
+            .map { photo ->
+                TripPhotoCandidate(
+                    value = photo,
+                    capturedAtMillis = photo.capturedAtMillis,
+                    matchesRegion = if (photo.latitude != null && photo.longitude != null) {
+                        region.contains(photo.latitude, photo.longitude)
+                    } else null,
+                )
+            })
     }
     val regionFilterMillis = SystemClock.elapsedRealtime() - regionFilterStartedAt
     return AndroidRecommendationSession(
@@ -369,16 +491,30 @@ private suspend fun Context.loadRecommendationPage(
     val startIndex = session.nextIndex
     val endIndex = (startIndex + PhotoRecommendationPageSize).coerceAtMost(session.candidates.size)
     val previewStartedAt = SystemClock.elapsedRealtime()
+    val previewCache = AndroidPhotoPreviewCache(this)
     val result = traceSection("photo.recommend.preview") {
-        session.candidates.subList(startIndex, endIndex).mapNotNull { photo ->
-            coroutineContext.ensureActive()
-            readPhoto(
-                uri = Uri.parse(photo.contentUri),
-                knownName = photo.displayName,
-                knownCoordinates = requireNotNull(photo.latitude) to requireNotNull(photo.longitude),
-                knownCapturedAtMillis = photo.capturedAtMillis,
-                includeOriginalBytes = false,
-            )
+        buildList {
+            session.candidates.subList(startIndex, endIndex).forEach { photo ->
+                coroutineContext.ensureActive()
+                val cacheKey = photo.localRecommendationPreviewCacheKey()
+                val cachedPreview = previewCache.read(cacheKey)
+                val selectedPhoto = if (cachedPreview != null) {
+                    photo.toSelectedPhoto(cachedPreview)
+                } else {
+                    readPhoto(
+                        uri = Uri.parse(photo.contentUri),
+                        knownName = photo.displayName,
+                        knownCoordinates = photo.latitude?.let { latitude ->
+                            photo.longitude?.let { longitude -> latitude to longitude }
+                        },
+                        knownCapturedAtMillis = photo.capturedAtMillis,
+                        includeOriginalBytes = false,
+                    )?.also { loaded ->
+                        loaded.previewBytes?.let { previewCache.write(cacheKey, it) }
+                    }
+                }
+                selectedPhoto?.let(::add)
+            }
         }
     }
     val previewMillis = SystemClock.elapsedRealtime() - previewStartedAt
@@ -399,21 +535,47 @@ private suspend fun Context.loadRecommendationPage(
     )
 }
 
+private fun PhotoMetadataEntity.localRecommendationPreviewCacheKey(): String =
+    "local-android:$contentUri:$modifiedAtSeconds:$RecommendationPreviewSizePx"
+
+private fun PhotoMetadataEntity.toSelectedPhoto(previewBytes: ByteArray?): SelectedPhoto =
+    SelectedPhoto(
+        id = contentUri,
+        displayName = displayName,
+        previewBytes = previewBytes,
+        fullResolutionUri = contentUri,
+        latitude = latitude,
+        longitude = longitude,
+        capturedAt = formatDate(capturedAtMillis),
+    )
+
 private suspend fun Context.syncPhotoMetadata(
+    dateRange: PhotoRecommendationDateRange?,
     onProgress: (PhotoLoadingProgress) -> Unit,
 ): PhotoMetadataSyncResult {
     val dao = PhotoMetadataDatabase.getInstance(this).photoMetadataDao()
     return PhotoMetadataSync(
         readPrevious = {
             traceSuspendSection("photo.sync.room.read", TraceCookie.RoomRead) {
-                dao.getAll()
+                if (dateRange == null) {
+                    dao.getAll()
+                } else {
+                    dao.getPhotosCapturedBetween(
+                        dateRange.fromInclusiveMillis,
+                        dateRange.untilExclusiveMillis - 1,
+                    )
+                }
             }
         },
-        readCurrent = { queryPhotoMetadataSnapshot() },
+        readCurrent = { queryPhotoMetadataSnapshot(dateRange) },
         readCoordinates = { contentUri -> readCoordinates(Uri.parse(contentUri)) },
         writeSnapshot = { photos, scanId ->
             traceSuspendSection("photo.sync.room.write", TraceCookie.RoomWrite) {
-                dao.replaceSnapshot(photos, scanId)
+                if (dateRange == null) {
+                    dao.replaceSnapshot(photos, scanId)
+                } else {
+                    dao.upsertAll(photos)
+                }
             }
         },
     ).sync { processed, total ->
@@ -421,11 +583,14 @@ private suspend fun Context.syncPhotoMetadata(
     }
 }
 
-internal fun Context.queryPhotoMetadataSnapshot(): List<PhotoMetadataCandidate>? {
+internal fun Context.queryPhotoMetadataSnapshot(
+    dateRange: PhotoRecommendationDateRange? = null,
+): List<PhotoMetadataCandidate>? {
     val projection = arrayOf(
         MediaStore.Images.Media._ID,
         MediaStore.Images.Media.DISPLAY_NAME,
         MediaStore.Images.Media.DATE_TAKEN,
+        MediaStore.Images.Media.DATE_ADDED,
         MediaStore.Images.Media.DATE_MODIFIED,
         MediaStore.Images.Media.MIME_TYPE,
         MediaStore.Images.Media.SIZE,
@@ -433,13 +598,65 @@ internal fun Context.queryPhotoMetadataSnapshot(): List<PhotoMetadataCandidate>?
         MediaStore.Images.Media.HEIGHT,
     )
     return traceSection("photo.sync.mediastore") {
-        contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            "${MediaStore.Images.Media.DATE_TAKEN} DESC",
-        )?.use { cursor ->
+        val dateSelection = dateRange?.let {
+            "((${MediaStore.Images.Media.DATE_TAKEN} >= ? AND " +
+                "${MediaStore.Images.Media.DATE_TAKEN} < ?) OR " +
+                "((${MediaStore.Images.Media.DATE_TAKEN} IS NULL OR " +
+                "${MediaStore.Images.Media.DATE_TAKEN} <= 0) AND " +
+                "${MediaStore.Images.Media.DATE_ADDED} >= ? AND " +
+                "${MediaStore.Images.Media.DATE_ADDED} < ?))"
+        }
+        val screenshotSelection =
+            "((${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} IS NULL OR " +
+                "(${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} NOT LIKE ? AND " +
+                "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} NOT LIKE ?)) AND " +
+                "(${MediaStore.Images.Media.DISPLAY_NAME} IS NULL OR " +
+                "(${MediaStore.Images.Media.DISPLAY_NAME} NOT LIKE ? AND " +
+                "${MediaStore.Images.Media.DISPLAY_NAME} NOT LIKE ?)))"
+        val selection = listOfNotNull(dateSelection, screenshotSelection)
+            .joinToString(separator = " AND ") { "($it)" }
+        val selectionArgs = buildList {
+            dateRange?.let {
+                add(it.fromInclusiveMillis.toString())
+                add(it.untilExclusiveMillis.toString())
+                add((it.fromInclusiveMillis / 1_000L).toString())
+                add((it.untilExclusiveMillis / 1_000L).toString())
+            }
+            addAll(
+                listOf(
+                    "%screenshot%",
+                    "%스크린샷%",
+                    "%screenshot%",
+                    "%스크린샷%",
+                ),
+            )
+        }.toTypedArray()
+        val cursor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val queryArgs = Bundle().apply {
+                putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                putString(
+                    ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
+                    "${MediaStore.Images.Media.DATE_TAKEN} DESC",
+                )
+                putInt(MediaStore.QUERY_ARG_MATCH_FAVORITE, MediaStore.MATCH_INCLUDE)
+            }
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                queryArgs,
+                null,
+            )
+        } else {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                "${MediaStore.Images.Media.DATE_TAKEN} DESC",
+            )
+        }
+        cursor?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             buildList {
                 while (cursor.moveToNext()) {
@@ -455,7 +672,10 @@ internal fun Context.queryPhotoMetadataSnapshot(): List<PhotoMetadataCandidate>?
                             displayName = cursor.getStringOrNull(MediaStore.Images.Media.DISPLAY_NAME)
                                 ?: "여행 사진",
                             capturedAtMillis = cursor.getLongOrNull(MediaStore.Images.Media.DATE_TAKEN)
-                                ?.takeIf { it > 0L },
+                                ?.takeIf { it > 0L }
+                                ?: cursor.getLongOrNull(MediaStore.Images.Media.DATE_ADDED)
+                                    ?.takeIf { it > 0L }
+                                    ?.times(1_000L),
                             modifiedAtSeconds = cursor.getLongOrNull(MediaStore.Images.Media.DATE_MODIFIED) ?: 0L,
                             mimeType = cursor.getStringOrNull(MediaStore.Images.Media.MIME_TYPE),
                             sizeBytes = cursor.getLongOrNull(MediaStore.Images.Media.SIZE) ?: 0L,
@@ -535,7 +755,7 @@ internal fun Context.readPhoto(
     knownName: String? = null,
     knownCoordinates: Pair<Double, Double>? = null,
     knownCapturedAtMillis: Long? = null,
-    includeOriginalBytes: Boolean = true,
+    includeOriginalBytes: Boolean = false,
 ): SelectedPhoto? = try {
 
     val metadata = traceSection("photo.read.metadata") {
@@ -558,6 +778,7 @@ internal fun Context.readPhoto(
             id = uri.toString(),
             displayName = displayName,
             previewBytes = previewBytes,
+            fullResolutionUri = uri.toString(),
             latitude = coordinates?.first,
             longitude = coordinates?.second,
             capturedAt = capturedAt,
@@ -577,6 +798,7 @@ internal fun Context.readPhoto(
         id = uri.toString(),
         displayName = displayName,
         previewBytes = previewBytes,
+        fullResolutionUri = uri.toString(),
         latitude = coordinates?.first,
         longitude = coordinates?.second,
         capturedAt = capturedAt,
@@ -587,6 +809,10 @@ internal fun Context.readPhoto(
 } catch (error: Exception) {
     null
 }
+
+private fun Context.canOpenPhoto(uri: Uri): Boolean = runCatching {
+    contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
+}.getOrDefault(false)
 
 private fun Context.readPreviewBytes(uri: Uri, maxDimension: Int): ByteArray? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
@@ -615,11 +841,6 @@ private fun Context.readPreviewBytes(uri: Uri, maxDimension: Int): ByteArray? {
         bitmap.recycle()
     }
 }
-
-private fun Context.readOriginalBytes(uri: Uri): ByteArray? = runCatching {
-    contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
-        ?.takeIf(ByteArray::isNotEmpty)
-}.getOrNull()
 
 private fun ByteArray.normalizeOrientation(): ByteArray {
     val orientation = try {

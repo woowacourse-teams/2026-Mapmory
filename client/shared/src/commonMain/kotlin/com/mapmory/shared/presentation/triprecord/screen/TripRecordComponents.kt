@@ -1,6 +1,8 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import com.mapmory.shared.presentation.components.MapmoryBackButton
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,23 +16,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -50,40 +49,51 @@ import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 import com.mapmory.shared.preview.PreviewSurface
-import coil3.compose.AsyncImage
+import mapmoryclient.shared.generated.resources.Res
+import mapmoryclient.shared.generated.resources.settings_24px
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 internal fun TripRecordTopBar(
     title: String,
+    titleAlignedStart: Boolean = false,
     onBackClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .statusBarsPadding()
+            .height(56.dp)
+            .padding(horizontal = 12.dp),
     ) {
         if (onBackClick != null) {
-            TripIconButton(
-                label = "←",
-                contentDescription = "뒤로가기",
+            MapmoryBackButton(
+                color = TripRecordPalette.current.headingText,
                 onClick = onBackClick,
+                modifier = Modifier.align(Alignment.CenterStart),
             )
-            Spacer(Modifier.width(14.dp))
-        } else {
-            Spacer(Modifier.width(4.dp))
         }
-        Text(
-            text = title,
-            color = TripRecordPalette.current.text,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.weight(1f))
-        trailing?.invoke()
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                color = TripRecordPalette.current.text,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(if (titleAlignedStart) Alignment.CenterStart else Alignment.Center)
+                    .then(if (titleAlignedStart) Modifier.padding(start = 48.dp) else Modifier),
+            )
+        }
+        trailing?.let { content ->
+            Box(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                contentAlignment = Alignment.Center,
+            ) {
+                content()
+            }
+        }
     }
 }
 
@@ -114,7 +124,7 @@ internal fun TripTagChip(
                     Modifier.border(1.dp, TripRecordPalette.current.border, shape)
                 },
             )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 11.dp, vertical = 4.dp),
     )
 }
@@ -160,7 +170,7 @@ internal fun TripRecordCreateButton(
     Box(
         modifier = modifier
             .padding(end = 28.dp, bottom = 33.dp)
-            .size(44.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(palette.primary)
             .clickable {
@@ -216,6 +226,7 @@ internal fun TripBottomBar(
     onMapClick: () -> Unit = {},
     onCreateClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     backgroundColor: Color = TripRecordPalette.current.background,
     dividerColor: Color = TripRecordPalette.current.line,
     selectedIconColor: Color = TripRecordPalette.current.accent,
@@ -293,6 +304,24 @@ internal fun TripBottomBar(
             unselectedColor = unselectedColor,
             modifier = Modifier.weight(1f),
         )
+        TripBottomItem(
+            tab = TripBottomTab.SETTINGS,
+            selected = selected == TripBottomTab.SETTINGS,
+            onClick = {
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.BOTTOM_NAV_CLICKED,
+                    mapOf(
+                        "from_tab" to selected.name.lowercase(),
+                        "to_tab" to TripBottomTab.SETTINGS.name.lowercase(),
+                    ),
+                )
+                onSettingsClick()
+            },
+            selectedIconColor = selectedIconColor,
+            selectedLabelColor = selectedLabelColor,
+            unselectedColor = unselectedColor,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -300,6 +329,7 @@ internal enum class TripBottomTab(val label: String) {
     MAP("지도"),
     RECORD("일지"),
     PROFILE("통계"),
+    SETTINGS("설정"),
 }
 
 @Composable
@@ -342,6 +372,16 @@ private fun TripBottomIcon(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
+    if (tab == TripBottomTab.SETTINGS) {
+        Image(
+            painter = painterResource(Res.drawable.settings_24px),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(color),
+            modifier = modifier,
+        )
+        return
+    }
+
     Canvas(modifier) {
         val stroke = Stroke(
             width = 1.7.dp.toPx(),
@@ -418,6 +458,8 @@ private fun TripBottomIcon(
                     )
                 }
             }
+
+            TripBottomTab.SETTINGS -> Unit
         }
     }
 }
@@ -425,101 +467,11 @@ private fun TripBottomIcon(
 @Composable
 internal fun TripPhotoPlaceholder(
     modifier: Modifier = Modifier,
-    variant: Int = 0,
     shape: Shape = RoundedCornerShape(18.dp),
 ) {
-    val skyColors = when (variant % 3) {
-        0 -> listOf(Color(0xFFEEA16C), Color(0xFFE56A66), Color(0xFF305C6B))
-        1 -> listOf(Color(0xFFB5C991), Color(0xFF5A896F), Color(0xFF253E4A))
-        else -> listOf(Color(0xFFB88F85), Color(0xFF596D8E), Color(0xFF203846))
-    }
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(Brush.verticalGradient(skyColors)),
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val sun = Offset(size.width * (0.72f - variant.coerceAtMost(2) * 0.12f), size.height * 0.28f)
-            drawCircle(
-                color = Color(0xFFFFE8AB),
-                radius = size.minDimension * 0.09f,
-                center = sun,
-            )
-
-            val backHill = Path().apply {
-                moveTo(0f, size.height * 0.68f)
-                lineTo(size.width * 0.2f, size.height * 0.47f)
-                lineTo(size.width * 0.37f, size.height * 0.65f)
-                lineTo(size.width * 0.58f, size.height * 0.42f)
-                lineTo(size.width, size.height * 0.67f)
-                lineTo(size.width, size.height)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(backHill, color = Color(0xFF456A62))
-
-            val frontHill = Path().apply {
-                moveTo(0f, size.height * 0.82f)
-                lineTo(size.width * 0.32f, size.height * 0.64f)
-                lineTo(size.width * 0.53f, size.height * 0.76f)
-                lineTo(size.width * 0.77f, size.height * 0.55f)
-                lineTo(size.width, size.height * 0.72f)
-                lineTo(size.width, size.height)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(frontHill, color = Color(0xFF1B3C43))
-            drawLine(
-                color = Color.White.copy(alpha = 0.28f),
-                start = Offset(size.width * 0.08f, size.height * 0.8f),
-                end = Offset(size.width * 0.88f, size.height * 0.73f),
-                strokeWidth = size.minDimension * 0.012f,
-            )
-        }
-    }
+    Box(modifier.clip(shape).background(TripRecordPalette.current.imagePlaceholder))
 }
 
-@Composable
-internal fun TripPhotoImage(
-    imageBytes: ByteArray?,
-    fallbackBytes: ByteArray? = null,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    placeholderVariant: Int = 0,
-    shape: Shape = RoundedCornerShape(18.dp),
-) {
-    var useFallback by remember(imageBytes, fallbackBytes) { mutableStateOf(false) }
-    var showPlaceholder by remember(imageBytes, fallbackBytes) { mutableStateOf(true) }
-    val model = if (useFallback || imageBytes == null) fallbackBytes else imageBytes
-
-    if (model == null) {
-        TripPhotoPlaceholder(modifier, placeholderVariant, shape)
-    } else {
-        Box(modifier = modifier.clip(shape)) {
-            if (showPlaceholder) {
-                TripPhotoPlaceholder(
-                    modifier = Modifier.fillMaxSize(),
-                    variant = placeholderVariant,
-                    shape = shape,
-                )
-            }
-            AsyncImage(
-                model = model,
-                contentDescription = contentDescription,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                onLoading = { showPlaceholder = true },
-                onSuccess = { showPlaceholder = false },
-                onError = {
-                    showPlaceholder = true
-                    if (!useFallback && imageBytes != null && fallbackBytes != null) {
-                        useFallback = true
-                    }
-                },
-            )
-        }
-    }
-}
 
 @Composable
 fun TripMapArtwork(

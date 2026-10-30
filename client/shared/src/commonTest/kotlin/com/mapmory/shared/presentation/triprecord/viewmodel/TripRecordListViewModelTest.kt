@@ -7,6 +7,7 @@ import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
+import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
@@ -21,21 +22,125 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
+    @Test
+    fun `태그와_서버를_기다리기_전에_로컬_기록을_표시하고_실패해도_유지한다`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val source = FakeTripRecordRepository { "2026-10-08" }
+        source.createTripRecord(TripRecordDraft(101, "2026-10-08", listOf("photo.jpg"), title = "로컬 여행"))
+        val cached = source.getTripRecords(TripRecordQuery()).getOrThrow()
+        var remoteCalls = 0
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getCachedTripRecords(query: TripRecordQuery) = cached
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                remoteCalls++
+                return Result.failure(IllegalStateException("오프라인"))
+            }
+        }
+        val tags = object : com.mapmory.shared.domain.repository.TagRepository by source {
+            override suspend fun getTags(): Result<List<com.mapmory.shared.domain.model.Tag>> {
+                gate.await()
+                return Result.success(emptyList())
+            }
+        }
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+            getTags = GetTagsUseCase(tags),
+        )
+        val job = launch { viewModel.refreshIfNeeded(null, 0) }
+        yield()
+        val local = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertEquals("로컬 여행", local.records.single().title)
+        assertTrue(local.isRefreshing)
+        assertEquals(0, remoteCalls)
+        gate.complete(Unit)
+        job.join()
+        val failed = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertEquals("로컬 여행", failed.records.single().title)
+        assertEquals("오프라인", failed.refreshError)
+        assertTrue(!failed.isRefreshing)
+        viewModel.refreshIfNeeded(null, 0)
+        assertEquals(2, remoteCalls)
+    }
+
+    @Test
+    fun `로컬_목록은_서버_응답이_도착하면_최신_목록으로_교체한다`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val source = ThumbnailListRepository()
+        val cached = source.getTripRecords(TripRecordQuery()).getOrThrow()
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getCachedTripRecords(query: TripRecordQuery) = cached
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                gate.await()
+                return Result.success(cached.copy(records = emptyList(), totalElements = 0, totalPages = 0))
+            }
+        }
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
+        val job = launch { viewModel.load() }
+        yield()
+        assertEquals(1, assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.size)
+        gate.complete(Unit)
+        job.join()
+        assertTrue(assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.isEmpty())
+    }
+
+    @Test
+    fun `재진입은_동일_리비전의_본문과_썸네일을_재조회하지_않는다`() = runBlocking {
+        val repository = ThumbnailListRepository()
+        var thumbnailRequests = 0
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+            thumbnailLoader = TripRecordThumbnailLoader {
+                thumbnailRequests++
+                TripRecordThumbnailLoadResult.Success(byteArrayOf(1))
+            },
+        )
+        viewModel.refreshIfNeeded(null, 0)
+        val visible = viewModel.uiState
+        viewModel.refreshIfNeeded(null, 0)
+        assertEquals(visible, viewModel.uiState)
+        assertEquals(1, repository.listRequestCount)
+        assertEquals(1, thumbnailRequests)
+
+        viewModel.refreshIfNeeded(null, 1)
+        assertEquals(2, repository.listRequestCount)
+        viewModel.refreshIfNeeded(101, 1)
+        assertEquals(3, repository.listRequestCount)
+        assertEquals(101, viewModel.query.locationId)
+    }
+
     @Test
     fun `선택한_태그_ID로_기록을_필터링한다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-08-31T00:00:00Z" }
         val family = repository.createTag("가족").getOrThrow()
         val food = repository.createTag("맛집").getOrThrow()
         repository.createTripRecord(
-            TripRecordDraft(101, "가족 여행", "", "2026-08-01", null, emptyList(), tagIds = listOf(family.id)),
+            TripRecordDraft(
+                locationId = 101,
+                startDate = "2026-08-01",
+                mediaObjectKeys = listOf("family.jpg"),
+                title = "가족 여행",
+                content = "",
+                tagIds = listOf(family.id),
+            ),
         )
         repository.createTripRecord(
-            TripRecordDraft(101, "맛집 여행", "", "2026-08-02", null, emptyList(), tagIds = listOf(food.id)),
+            TripRecordDraft(
+                locationId = 101,
+                startDate = "2026-08-02",
+                mediaObjectKeys = listOf("food.jpg"),
+                title = "맛집 여행",
+                content = "",
+                tagIds = listOf(food.id),
+            ),
         )
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             getTags = GetTagsUseCase(repository),
         )
 
@@ -53,6 +158,7 @@ class TripRecordListViewModelTest {
         val repository = ThumbnailListRepository()
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             thumbnailLoader = TripRecordThumbnailLoader {
                 thumbnailGate.await()
                 TripRecordThumbnailLoadResult.Success(byteArrayOf(0x01, 0x02))
@@ -81,6 +187,7 @@ class TripRecordListViewModelTest {
         val repository = ThumbnailListRepository(recordCount = 2, expiresFirstResponse = true)
         val viewModel = TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             thumbnailLoader = TripRecordThumbnailLoader { record ->
                 if ("expired" in requireNotNull(record.thumbnailUrl)) {
                     TripRecordThumbnailLoadResult.UrlExpired
@@ -107,10 +214,10 @@ class TripRecordListViewModelTest {
                 content = "",
                 startDate = "2026-08-01",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("before.jpg"),
             ),
         ).getOrThrow()
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
         viewModel.initialize(locationId = 101)
 
         repository.updateTripRecord(
@@ -121,7 +228,7 @@ class TripRecordListViewModelTest {
                 content = "",
                 startDate = "2026-08-01",
                 endDate = null,
-                mediaObjectKeys = emptyList(),
+                mediaObjectKeys = listOf("after.jpg"),
             ),
         ).getOrThrow()
         viewModel.refresh(locationId = 101)
@@ -132,9 +239,72 @@ class TripRecordListViewModelTest {
     }
 
     @Test
+    fun `같은_조건으로_새로고침하는_동안_기존_목록을_유지한다`() = runBlocking {
+        val source = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        source.createTripRecord(
+            TripRecordDraft(
+                locationId = 101,
+                title = "서울 여행",
+                content = "",
+                startDate = "2026-08-01",
+                endDate = null,
+                mediaObjectKeys = listOf("seoul.jpg"),
+            ),
+        ).getOrThrow()
+        val refreshGate = CompletableDeferred<Boolean>()
+        val repository = BlockingRefreshRepository(source, refreshGate)
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
+        viewModel.load()
+
+        val refreshJob = launch { viewModel.load() }
+        yield()
+
+        val refreshing = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(refreshing.isRefreshing)
+        assertEquals("서울 여행", refreshing.records.single().title)
+
+        refreshGate.complete(true)
+        refreshJob.join()
+
+        val refreshed = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(!refreshed.isRefreshing)
+        assertEquals(null, refreshed.refreshError)
+        assertEquals("서울 여행", refreshed.records.single().title)
+    }
+
+    @Test
+    fun `새로고침에_실패해도_기존_목록과_재시도_상태를_유지한다`() = runBlocking {
+        val source = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+        source.createTripRecord(
+            TripRecordDraft(
+                locationId = 101,
+                title = "서울 여행",
+                content = "",
+                startDate = "2026-08-01",
+                endDate = null,
+                mediaObjectKeys = listOf("seoul.jpg"),
+            ),
+        ).getOrThrow()
+        val refreshGate = CompletableDeferred<Boolean>()
+        val repository = BlockingRefreshRepository(source, refreshGate)
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
+        viewModel.load()
+
+        val refreshJob = launch { viewModel.load() }
+        yield()
+        refreshGate.complete(false)
+        refreshJob.join()
+
+        val state = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+        assertTrue(!state.isRefreshing)
+        assertEquals("목록 갱신 실패", state.refreshError)
+        assertEquals("서울 여행", state.records.single().title)
+    }
+
+    @Test
     fun `경로를_반복_초기화해도_현재_필터를_유지한다`() = runSuspend {
         val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
-        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+        val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
 
         viewModel.initialize(locationId = 101)
         viewModel.initialize(locationId = 101)
@@ -155,7 +325,7 @@ class TripRecordListViewModelTest {
                     content = "한강을 걸었다.",
                     startDate = "2026-08-01",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("seoul.jpg"),
                 ),
             )
             repository.createTripRecord(
@@ -165,10 +335,10 @@ class TripRecordListViewModelTest {
                     content = "바다를 보았다.",
                     startDate = "2026-08-02",
                     endDate = null,
-                    mediaObjectKeys = emptyList(),
+                    mediaObjectKeys = listOf("busan.jpg"),
                 ),
             )
-            val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository))
+            val viewModel = TripRecordListViewModel(GetTripRecordsUseCase(repository), GetTripRecordUseCase(repository))
 
             viewModel.load(TripRecordQuery(size = 1))
 
@@ -233,4 +403,19 @@ private class ThumbnailListRepository(
 
     override suspend fun deleteTripRecord(id: Long): Result<Unit> =
         Result.failure(UnsupportedOperationException())
+}
+
+private class BlockingRefreshRepository(
+    private val source: TripRecordRepository,
+    private val refreshGate: CompletableDeferred<Boolean>,
+) : TripRecordRepository by source {
+    private var requestCount = 0
+
+    override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+        requestCount += 1
+        if (requestCount == 2 && !refreshGate.await()) {
+            return Result.failure(IllegalStateException("목록 갱신 실패"))
+        }
+        return source.getTripRecords(query)
+    }
 }

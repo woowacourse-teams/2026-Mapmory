@@ -6,7 +6,10 @@ import com.mapmory.shared.data.auth.AuthTokens
 import com.mapmory.shared.data.remote.AccessTokenProvider
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
 import com.mapmory.shared.data.remote.configureCommonHttpClient
+import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.data.repository.FakeTripRecordRepository
+import com.mapmory.shared.data.settings.MemoryOnboardingPreference
+import com.mapmory.shared.data.settings.MemoryThemePreference
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -30,6 +33,69 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class AppContainerTest {
+    @Test
+    fun `장소_검색과_선택은_초기_인증_실패_후_재시도하면_복구된다`() = runBlocking {
+        for (selectPlace in listOf(false, true)) {
+            var loginRequests = 0
+            var placeRequests = 0
+            val client = HttpClient(MockEngine) {
+                configureCommonHttpClient()
+                engine {
+                    addHandler { request ->
+                        if (request.url.encodedPath == "/api/v1/auth/login/guest") {
+                            loginRequests++
+                            if (loginRequests == 1) {
+                                throw IllegalStateException("네트워크 연결 실패")
+                            }
+                            respondJson(
+                                """{"data":{"accessToken":"guest-access","refreshToken":"guest-refresh","isNewMember":true}}""",
+                            )
+                        } else {
+                            placeRequests++
+                            assertEquals("Bearer guest-access", request.headers[HttpHeaders.Authorization])
+                            if (selectPlace) {
+                                assertEquals("/api/v1/places/test-place", request.url.encodedPath)
+                                respondJson(
+                                    """{"data":{"placeId":"test-place","name":"도쿄역","countryCode":"JP","manualRegionRequired":false}}""",
+                                )
+                            } else {
+                                assertEquals("/api/v1/places/search", request.url.encodedPath)
+                                respondJson("""{"data":[{"placeId":"test-place","name":"도쿄역"}]}""")
+                            }
+                        }
+                    }
+                }
+            }
+            val container = createGuestRemoteAppContainer(
+                client = client,
+                apiBaseUrl = "https://api.example.com/api/v1",
+                tokenStore = TestAuthTokenStore(),
+            )
+            try {
+                // 다른 API에서 인증에 실패한 뒤 장소 기능만으로 복구하는 상황이다.
+                assertTrue(container.tagRepository.getTags().isFailure)
+                assertEquals(1, loginRequests)
+                assertEquals(0, placeRequests)
+                val editor = container.viewModelFactory.createTripRecordEditorViewModel()
+                if (selectPlace) {
+                    editor.selectPlace(
+                        PlaceCandidate(
+                            "test-place", "도쿄역", null, null, null,
+                        ),
+                    )
+                    assertEquals("test-place", editor.uiState.selectedPlace?.placeId)
+                } else {
+                    editor.searchPlaces("도쿄역")
+                    assertEquals("test-place", editor.uiState.placeSearchResults.single().placeId)
+                }
+                assertEquals(2, loginRequests)
+                assertEquals(1, placeRequests)
+            } finally {
+                container.close()
+            }
+        }
+    }
+
     @Test
     fun `게스트_원격_컨테이너는_로그인하고_서버_기록을_저장한_뒤_조회한다`() = runBlocking {
         var requestCount = 0
@@ -76,13 +142,6 @@ class AppContainerTest {
                         }
 
                         5 -> {
-                            assertEquals("GET", request.method.value)
-                            assertEquals("/api/v1/travel-records/101", request.url.encodedPath)
-                            assertEquals("Bearer guest-access", request.headers[HttpHeaders.Authorization])
-                            respondJson(detailResponse("travel-records/10/server-photo.jpg"))
-                        }
-
-                        6 -> {
                             assertEquals("GET", request.method.value)
                             assertEquals("/api/v1/travel-records/101", request.url.encodedPath)
                             assertEquals("Bearer guest-access", request.headers[HttpHeaders.Authorization])
@@ -143,12 +202,12 @@ class AppContainerTest {
             listState.records.single().photos.single().previewBytes?.bytesForDecoding(),
         )
         assertEquals(AuthTokens("guest-access", "guest-refresh"), tokenStore.tokens)
-        assertEquals(7, requestCount)
+        assertEquals(6, requestCount)
         container.close()
     }
 
     @Test
-    fun `조회용_URL은_Object_Key_캐시를_사용해_S3에서_한_번만_읽는다`() = runBlocking {
+    fun `상세 조회는 사진 다운로드 없이 URL을 반환한다`() = runBlocking {
         var requestCount = 0
         val client = HttpClient(MockEngine) {
             configureCommonHttpClient()
@@ -165,16 +224,10 @@ class AppContainerTest {
                             respondJson(detailResponseWithViewUrl("signature=first"))
                         }
 
-                        3 -> {
-                            assertEquals("bucket.example.com", request.url.host)
-                            assertEquals(null, request.headers[HttpHeaders.Authorization])
-                            respond(
-                                content = ByteReadChannel(byteArrayOf(0x01, 0x02, 0x03)),
-                                status = HttpStatusCode.OK,
-                            )
+                        else -> {
+                            assertEquals("api.example.com", request.url.host)
+                            respondJson(detailResponseWithViewUrl("signature=rotated"))
                         }
-
-                        else -> respondJson(detailResponseWithViewUrl("signature=rotated"))
                     }
                 }
             }
@@ -188,9 +241,10 @@ class AppContainerTest {
         val first = container.tripRecordRepository.getTripRecord(101).getOrThrow()
         val second = container.tripRecordRepository.getTripRecord(101).getOrThrow()
 
-        assertContentEquals(byteArrayOf(0x01, 0x02, 0x03), first.media.single().previewBytes)
-        assertContentEquals(byteArrayOf(0x01, 0x02, 0x03), second.media.single().previewBytes)
-        assertEquals(4, requestCount)
+        assertEquals(null, first.media.single().previewBytes)
+        assertEquals(null, second.media.single().previewBytes)
+        assertEquals(first.media.single().url, second.media.single().url)
+        assertEquals(2, requestCount)
         container.close()
     }
 
@@ -201,7 +255,7 @@ class AppContainerTest {
             accessTokenProvider = AccessTokenProvider { "guest-token" },
         )
 
-        assertIs<TripRecordRemoteRepository>(container.tripRecordRepository)
+        assertIs<com.mapmory.shared.data.repository.PhotoUsageTripRecordRepository>(container.tripRecordRepository)
         assertEquals(null, container.mapSummaryRepository.getCachedRootRegions())
         assertEquals(null, container.tripStatisticsRepository.getCachedStatistics())
         container.close()
@@ -210,13 +264,23 @@ class AppContainerTest {
     @Test
     fun `교체_가능한_저장소로_컨테이너를_구성할_수_있다`() {
         val repository = FakeTripRecordRepository { "2026-08-24T00:00:00" }
+        val themePreference = MemoryThemePreference(initialIsDarkTheme = true)
+        val onboardingPreference = MemoryOnboardingPreference(
+            initialHasSeenRecordIntroduction = false,
+        )
 
         val container = createAppContainer(
             tripRecordRepository = repository,
             regionCatalog = StaticRegionCatalog(),
+            themePreference = themePreference,
+            onboardingPreference = onboardingPreference,
         )
 
-        assertSame(repository, container.tripRecordRepository)
+        assertIs<com.mapmory.shared.data.repository.PhotoUsageTripRecordRepository>(container.tripRecordRepository)
+        assertSame(themePreference, container.themePreference)
+        assertSame(onboardingPreference, container.onboardingPreference)
+        assertTrue(container.themePreference.loadIsDarkTheme())
+        assertTrue(!container.onboardingPreference.hasSeenRecordIntroduction())
         assertEquals(null, container.mapSummaryRepository.getCachedRootRegions())
     }
 

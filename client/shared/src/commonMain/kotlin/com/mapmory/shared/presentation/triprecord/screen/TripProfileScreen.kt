@@ -1,10 +1,12 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.mapmory.shared.presentation.components.ScrollToTopEffect
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
@@ -30,20 +31,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mapmory.shared.LocalMapmoryTheme
-import com.mapmory.shared.PrivacyPolicy
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.triprecord.state.TopLocationUiModel
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
@@ -51,8 +49,6 @@ import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiState
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewStatistics
 import kotlin.math.abs
-import com.mapmory.shared.analytics.LocalMapmoryAnalytics
-import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 
 @Composable
 fun TripProfileScreen(
@@ -60,21 +56,18 @@ fun TripProfileScreen(
     onRecordClick: () -> Unit,
     onCreateClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onSettingsClick: () -> Unit = {},
+    onOpenAchievements: () -> Unit = {},
     onRetryClick: () -> Unit = {},
+    showTravelAchievements: Boolean = false,
     statisticsUiState: TripStatisticsUiState = TripStatisticsUiState.Success(TripStatisticsUiModel.Empty),
     modifier: Modifier = Modifier,
 ) {
-    var showSettings by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
-    val theme = LocalMapmoryTheme.current
-    val analytics = LocalMapmoryAnalytics.current
-
     TripRecordBackground(modifier = modifier, backgroundColor = TripRecordPalette.current.pageBackground) {
         Column(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground)) {
-            StatisticsHeader(onSettingsClick = {
-                analytics.logEvent(MapmoryAnalyticsEvent.SETTINGS_OPENED)
-                showSettings = true
-            })
+            StatisticsHeader(
+                statistics = (statisticsUiState as? TripStatisticsUiState.Success)?.statistics,
+            )
 
             when (statisticsUiState) {
                 TripStatisticsUiState.Loading -> TripProfileSkeleton(Modifier.weight(1f))
@@ -97,6 +90,8 @@ fun TripProfileScreen(
 
                 is TripStatisticsUiState.Success -> StatisticsContent(
                     statistics = statisticsUiState.statistics,
+                    showTravelAchievements = showTravelAchievements,
+                    onOpenAchievements = onOpenAchievements,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -107,6 +102,7 @@ fun TripProfileScreen(
                 onRecordClick = onRecordClick,
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
+                onSettingsClick = onSettingsClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,
@@ -115,110 +111,13 @@ fun TripProfileScreen(
             )
         }
     }
-
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            containerColor = TripRecordPalette.current.surface,
-            title = { Text("설정", color = TripRecordPalette.current.headingText) },
-            text = {
-                Column {
-                    Text(
-                        text = "화면 테마",
-                        color = TripRecordPalette.current.bodyText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        ThemeOption(
-                            label = "라이트 모드",
-                            selected = !theme.isDark,
-                            onClick = {
-                                analytics.logEvent(
-                                    MapmoryAnalyticsEvent.THEME_CHANGED,
-                                    mapOf("theme" to "light"),
-                                )
-                                theme.onThemeChange(false)
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ThemeOption(
-                            label = "다크 모드",
-                            selected = theme.isDark,
-                            onClick = {
-                                analytics.logEvent(
-                                    MapmoryAnalyticsEvent.THEME_CHANGED,
-                                    mapOf("theme" to "dark"),
-                                )
-                                theme.onThemeChange(true)
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    if (PrivacyPolicy.URL.isNotBlank()) {
-                        Text(
-                            text = "서비스 정책은 아래 버튼에서 확인할 수 있어요.",
-                            color = TripRecordPalette.current.secondaryText,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 20.dp),
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                if (PrivacyPolicy.URL.isNotBlank()) {
-                    TextButton(onClick = {
-                        analytics.logEvent(MapmoryAnalyticsEvent.PRIVACY_POLICY_OPENED)
-                        uriHandler.openUri(PrivacyPolicy.URL)
-                    }) {
-                        Text("개인정보 처리방침", color = TripRecordPalette.current.primary)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettings = false }) {
-                    Text("닫기", color = TripRecordPalette.current.secondaryText)
-                }
-            },
-        )
-    }
 }
 
 @Composable
-private fun ThemeOption(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun StatisticsHeader(
+    statistics: TripStatisticsUiModel?,
 ) {
-    val shape = RoundedCornerShape(11.dp)
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(if (selected) TripRecordPalette.current.primarySoft else Color.Transparent)
-            .border(
-                width = 1.dp,
-                color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.border,
-                shape = shape,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.bodyText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun StatisticsHeader(onSettingsClick: () -> Unit) {
+    var showSharePreview by rememberSaveable { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.Bottom,
@@ -240,11 +139,15 @@ private fun StatisticsHeader(onSettingsClick: () -> Unit) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Text(
-            text = "⚙",
-            color = TripRecordPalette.current.secondaryText,
-            fontSize = 21.sp,
-            modifier = Modifier.clickable(onClick = onSettingsClick).padding(7.dp),
+        TripSharePreviewButton(
+            contentDescription = "나의 여행 공유 미리보기",
+            onClick = { showSharePreview = true },
+        )
+    }
+    if (showSharePreview && statistics != null) {
+        TripArchiveSharePreviewDialog(
+            statistics = statistics,
+            onDismiss = { showSharePreview = false },
         )
     }
 }
@@ -252,15 +155,21 @@ private fun StatisticsHeader(onSettingsClick: () -> Unit) {
 @Composable
 private fun StatisticsContent(
     statistics: TripStatisticsUiModel,
+    showTravelAchievements: Boolean,
+    onOpenAchievements: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    ScrollToTopEffect(listState)
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp),
     ) {
         item { PassportCard(statistics) }
         item { VisitProgressCard(statistics) }
+        if (showTravelAchievements) item { TripAchievementCollection(statistics, onOpenAchievements) }
         item { RankingCard(statistics.topLocations) }
     }
 }
@@ -486,7 +395,7 @@ private fun RankingRow(index: Int, location: TopLocationUiModel) {
 }
 
 @Composable
-private fun StatsCard(content: @Composable () -> Unit) {
+internal fun StatsCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),

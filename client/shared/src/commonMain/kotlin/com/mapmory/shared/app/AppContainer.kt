@@ -1,9 +1,11 @@
 package com.mapmory.shared.app
 
+import com.mapmory.shared.analytics.*
 import com.mapmory.shared.data.auth.AuthTokenStore
 import com.mapmory.shared.data.auth.GuestSessionManager
 import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.data.media.CachedTripRecordThumbnailLoader
+import com.mapmory.shared.data.media.LocalPhotoDataSource
 import com.mapmory.shared.data.media.MemoryPhotoPreviewCache
 import com.mapmory.shared.data.media.PhotoPreviewCache
 import com.mapmory.shared.data.media.PhotoPreviewLoader
@@ -11,16 +13,25 @@ import com.mapmory.shared.data.remote.AccessTokenProvider
 import com.mapmory.shared.data.remote.AuthRemoteRepository
 import com.mapmory.shared.data.remote.MapSummaryRemoteRepository
 import com.mapmory.shared.data.remote.PhotoUploadRemoteRepository
+import com.mapmory.shared.data.remote.PlaceRemoteRepository
 import com.mapmory.shared.data.remote.PresignedPhotoRemoteSource
 import com.mapmory.shared.data.remote.TagRemoteRepository
 import com.mapmory.shared.data.remote.TripRecordRemoteRepository
 import com.mapmory.shared.data.remote.TripStatisticsRemoteRepository
+import com.mapmory.shared.data.remote.ServiceFeedbackRemoteRepository
+import com.mapmory.shared.data.remote.ShareVideoRemoteRepository
 import com.mapmory.shared.data.remote.createHttpClient
 import com.mapmory.shared.data.remote.installMapmoryAuthRetry
 import com.mapmory.shared.data.repository.AuthenticatedMapSummaryRepository
+import com.mapmory.shared.data.repository.AuthenticatedPlaceRepository
 import com.mapmory.shared.data.repository.AuthenticatedTagRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripRecordRepository
 import com.mapmory.shared.data.repository.AuthenticatedTripStatisticsRepository
+import com.mapmory.shared.data.repository.AuthenticatedServiceFeedbackRepository
+import com.mapmory.shared.data.repository.AuthenticatedShareVideoRepository
+import com.mapmory.shared.data.repository.CachedTripRecordRepository
+import com.mapmory.shared.data.repository.TripRecordListCache
+import com.mapmory.shared.data.repository.MemoryTripRecordListCache
 import com.mapmory.shared.data.repository.CachedMediaTripRecordRepository
 import com.mapmory.shared.data.repository.CachedMapSummaryRepository
 import com.mapmory.shared.data.repository.CachedTripStatisticsRepository
@@ -30,11 +41,22 @@ import com.mapmory.shared.data.repository.MapSummaryCache
 import com.mapmory.shared.data.repository.MemoryMapSummaryCache
 import com.mapmory.shared.data.repository.TripStatisticsCache
 import com.mapmory.shared.data.repository.UploadingTripRecordRepository
+import com.mapmory.shared.data.settings.MemoryOnboardingPreference
+import com.mapmory.shared.data.settings.MemoryTeamDevicePreference
+import com.mapmory.shared.data.settings.MemoryThemePreference
+import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
+import com.mapmory.shared.data.settings.ShareVideoJobStore
+import com.mapmory.shared.data.settings.OnboardingPreference
+import com.mapmory.shared.data.settings.TeamDevicePreference
+import com.mapmory.shared.data.settings.ThemePreference
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.repository.TagRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.repository.TripStatisticsRepository
+import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
+import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
 import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.DeleteTripRecordUseCase
@@ -49,6 +71,10 @@ import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordListViewMo
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripStatisticsViewModel
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoader
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,9 +87,16 @@ interface AppContainer {
     val tripRecordRepository: TripRecordRepository
     val mapSummaryRepository: MapSummaryRepository
     val tripStatisticsRepository: TripStatisticsRepository
+    val serviceFeedbackRepository: ServiceFeedbackRepository?
+    val shareVideoRepository: ShareVideoRepository?
+    val shareVideoJobStore: ShareVideoJobStore
     val tagRepository: TagRepository
+    val themePreference: ThemePreference
+    val onboardingPreference: OnboardingPreference
+    val teamDevicePreference: TeamDevicePreference
     val viewModelFactory: MapmoryViewModelFactory
     val tripRecordRevision: StateFlow<Long>
+    val backgroundTripRecordSaver: BackgroundTripRecordSaver
 
     fun close() = Unit
 }
@@ -81,13 +114,16 @@ interface MapmoryViewModelFactory {
 }
 
 private class DefaultMapmoryViewModelFactory(
+    private val recordedPhotoIndex: com.mapmory.shared.data.media.RecordedPhotoIndex,
     private val repository: TripRecordRepository,
     private val mapSummaryRepository: MapSummaryRepository,
     private val tripStatisticsRepository: TripStatisticsRepository,
     private val tagRepository: TagRepository,
+    private val placeRepository: PlaceRepository?,
     private val regionCatalog: RegionCatalog,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val onTripRecordsChanged: () -> Unit,
+    private val backgroundTripRecordSaver: BackgroundTripRecordSaver,
 ) : MapmoryViewModelFactory {
     override fun createMapViewModel(): MapViewModel = MapViewModel(
         mapSummaryRepository = mapSummaryRepository,
@@ -98,6 +134,7 @@ private class DefaultMapmoryViewModelFactory(
     override fun createTripRecordListViewModel(): TripRecordListViewModel =
         TripRecordListViewModel(
             getTripRecords = GetTripRecordsUseCase(repository),
+            getTripRecord = GetTripRecordUseCase(repository),
             regionCatalog = regionCatalog,
             thumbnailLoader = thumbnailLoader,
             getTags = GetTagsUseCase(tagRepository),
@@ -123,36 +160,71 @@ private class DefaultMapmoryViewModelFactory(
             onTripRecordsChanged = onTripRecordsChanged,
             getTags = GetTagsUseCase(tagRepository),
             createTag = CreateTagUseCase(tagRepository),
+            backgroundTripRecordSaver = backgroundTripRecordSaver,
+            recordedPhotoIndex = recordedPhotoIndex,
+            placeRepository = placeRepository,
         )
 }
 
 private class DefaultAppContainer(
     override val regionCatalog: RegionCatalog,
-    override val tripRecordRepository: TripRecordRepository,
+    tripRecordRepository: TripRecordRepository,
     override val mapSummaryRepository: MapSummaryRepository,
     override val tripStatisticsRepository: TripStatisticsRepository,
+    override val serviceFeedbackRepository: ServiceFeedbackRepository?,
+    override val shareVideoRepository: ShareVideoRepository?,
+    override val shareVideoJobStore: ShareVideoJobStore,
     override val tagRepository: TagRepository,
+    private val placeRepository: PlaceRepository?,
+    override val themePreference: ThemePreference,
+    override val onboardingPreference: OnboardingPreference,
+    override val teamDevicePreference: TeamDevicePreference,
     private val thumbnailLoader: TripRecordThumbnailLoader?,
+    private val photoPreviewCache: PhotoPreviewCache?,
+    backgroundSaveExecution: BackgroundSaveExecution,
     private val onClose: () -> Unit,
+    localPhotoDataSource: LocalPhotoDataSource?,
+    analytics: MapmoryAnalytics,
 ) : AppContainer {
+    private val recordedPhotoIndex = com.mapmory.shared.data.media.RecordedPhotoIndex(photoPreviewCache)
+    override val tripRecordRepository: TripRecordRepository =
+        com.mapmory.shared.data.repository.PhotoUsageTripRecordRepository(tripRecordRepository, recordedPhotoIndex)
+    private val backgroundSaveScope = CoroutineScope(SupervisorJob() + backgroundSaveDispatcher())
     private val mutableTripRecordRevision = MutableStateFlow(0L)
     override val tripRecordRevision: StateFlow<Long> = mutableTripRecordRevision.asStateFlow()
+    private val notifyTripRecordsChanged = {
+        (mapSummaryRepository as? CachedMapSummaryRepository)?.invalidate()
+        (tripStatisticsRepository as? CachedTripStatisticsRepository)?.invalidate()
+        mutableTripRecordRevision.update { revision -> revision + 1 }
+    }
+    override val backgroundTripRecordSaver = BackgroundTripRecordSaver(
+        repository = this.tripRecordRepository,
+        scope = backgroundSaveScope,
+        execution = backgroundSaveExecution,
+        photoPreviewCache = photoPreviewCache,
+        onSaved = notifyTripRecordsChanged,
+        localPhotoDataSource = localPhotoDataSource,
+        analytics = analytics,
+        tripStatisticsRepository = tripStatisticsRepository,
+    )
 
     override val viewModelFactory: MapmoryViewModelFactory = DefaultMapmoryViewModelFactory(
-        repository = tripRecordRepository,
+        recordedPhotoIndex = recordedPhotoIndex,
+        repository = this.tripRecordRepository,
         mapSummaryRepository = mapSummaryRepository,
         tripStatisticsRepository = tripStatisticsRepository,
         tagRepository = tagRepository,
+        placeRepository = placeRepository,
         regionCatalog = regionCatalog,
         thumbnailLoader = thumbnailLoader,
-        onTripRecordsChanged = {
-            (mapSummaryRepository as? CachedMapSummaryRepository)?.invalidate()
-            (tripStatisticsRepository as? CachedTripStatisticsRepository)?.invalidate()
-            mutableTripRecordRevision.update { revision -> revision + 1 }
-        },
+        onTripRecordsChanged = notifyTripRecordsChanged,
+        backgroundTripRecordSaver = backgroundTripRecordSaver,
     )
 
-    override fun close() = onClose()
+    override fun close() {
+        backgroundSaveScope.cancel()
+        onClose()
+    }
 }
 
 fun createAppContainer(
@@ -164,30 +236,52 @@ fun createAppContainer(
     tripStatisticsRepository: TripStatisticsRepository = requireNotNull(
         tripRecordRepository as? TripStatisticsRepository,
     ) { "여행 통계 Repository를 함께 전달해 주세요." },
+    serviceFeedbackRepository: ServiceFeedbackRepository? = null,
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
     tagRepository: TagRepository = requireNotNull(
         tripRecordRepository as? TagRepository,
     ) { "태그 Repository를 함께 전달해 주세요." },
     regionCatalog: RegionCatalog = StaticRegionCatalog(),
+    themePreference: ThemePreference = MemoryThemePreference(),
+    onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     thumbnailLoader: TripRecordThumbnailLoader? = null,
+    photoPreviewCache: PhotoPreviewCache? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    placeRepository: PlaceRepository? = null,
     onClose: () -> Unit = {},
+    localPhotoDataSource: LocalPhotoDataSource? = null,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoRepository: ShareVideoRepository? = null,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
-        delegate = tripStatisticsRepository,
+        delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
         cache = tripStatisticsCache,
     )
     val cachedMapSummary = CachedMapSummaryRepository(
-        delegate = mapSummaryRepository,
+        delegate = AnalyticsMapSummaryRepository(mapSummaryRepository, analytics),
         cache = mapSummaryCache,
     )
     return DefaultAppContainer(
         regionCatalog = regionCatalog,
-        tripRecordRepository = tripRecordRepository,
+        tripRecordRepository = AnalyticsTripRecordRepository(tripRecordRepository, analytics),
         mapSummaryRepository = cachedMapSummary,
         tripStatisticsRepository = cachedTripStatistics,
-        tagRepository = tagRepository,
+        serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
+        shareVideoRepository = shareVideoRepository?.let { AnalyticsShareVideoRepository(it, analytics, shareVideoJobStore) },
+        shareVideoJobStore = shareVideoJobStore,
+        tagRepository = AnalyticsTagRepository(tagRepository, analytics),
+        placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
+        themePreference = themePreference,
+        onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
         thumbnailLoader = thumbnailLoader,
+        photoPreviewCache = photoPreviewCache,
+        backgroundSaveExecution = backgroundSaveExecution,
+        localPhotoDataSource = localPhotoDataSource,
         onClose = onClose,
+        analytics = analytics,
     )
 }
 
@@ -228,7 +322,22 @@ fun createRemoteAppContainer(
             apiBaseUrl = apiBaseUrl,
             accessTokenProvider = accessTokenProvider,
         ),
+        serviceFeedbackRepository = ServiceFeedbackRemoteRepository(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = accessTokenProvider,
+        ),
+        shareVideoRepository = ShareVideoRemoteRepository(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = accessTokenProvider,
+        ),
         tagRepository = TagRemoteRepository(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = accessTokenProvider,
+        ),
+        placeRepository = PlaceRemoteRepository(
             client = client,
             apiBaseUrl = apiBaseUrl,
             accessTokenProvider = accessTokenProvider,
@@ -246,6 +355,15 @@ fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
+    themePreference: ThemePreference = MemoryThemePreference(),
+    onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
+    localPhotoDataSource: LocalPhotoDataSource? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -256,7 +374,16 @@ fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         mapSummaryCache = mapSummaryCache,
         tripStatisticsCache = tripStatisticsCache,
+        tripRecordListCache = tripRecordListCache,
+        themePreference = themePreference,
+        onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
+        shareVideoJobStore = shareVideoJobStore,
+        localPhotoDataSource = localPhotoDataSource,
+        backgroundSaveExecution = backgroundSaveExecution,
+        onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
+        analytics = analytics,
     )
 }
 
@@ -268,15 +395,26 @@ internal fun createGuestRemoteAppContainer(
     photoPreviewCache: PhotoPreviewCache = MemoryPhotoPreviewCache(),
     mapSummaryCache: MapSummaryCache = MemoryMapSummaryCache(),
     tripStatisticsCache: TripStatisticsCache = MemoryTripStatisticsCache(),
+    tripRecordListCache: TripRecordListCache = MemoryTripRecordListCache(),
+    themePreference: ThemePreference = MemoryThemePreference(),
+    onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
+    teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
+    localPhotoDataSource: LocalPhotoDataSource? = null,
+    backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
+    onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
+    analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
 ): AppContainer {
-    if (tokenStore.load() == null) {
+    val discardRecordCache = runCatching { tokenStore.read().tokens == null }.getOrDefault(false)
+    if (discardRecordCache) {
         mapSummaryCache.clear()
         tripStatisticsCache.clear()
     }
     val session = GuestSessionManager(
         gateway = AuthRemoteRepository(client, apiBaseUrl),
         tokenStore = tokenStore,
+        onRefreshFailed = onAuthRefreshFailed,
     )
     client.installMapmoryAuthRetry(
         session = session,
@@ -298,7 +436,22 @@ internal fun createGuestRemoteAppContainer(
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
     )
+    val remoteServiceFeedback = ServiceFeedbackRemoteRepository(
+        client = client,
+        apiBaseUrl = apiBaseUrl,
+        accessTokenProvider = session,
+    )
+    val remoteShareVideos = ShareVideoRemoteRepository(
+        client = client,
+        apiBaseUrl = apiBaseUrl,
+        accessTokenProvider = session,
+    )
     val remoteTags = TagRemoteRepository(
+        client = client,
+        apiBaseUrl = apiBaseUrl,
+        accessTokenProvider = session,
+    )
+    val remotePlaces = PlaceRemoteRepository(
         client = client,
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
@@ -310,6 +463,7 @@ internal fun createGuestRemoteAppContainer(
             accessTokenProvider = session,
         ),
         delegate = remoteTripRecords,
+        localPhotoDataSource = localPhotoDataSource,
     )
     val photoPreviewLoader = PhotoPreviewLoader(
         cache = photoPreviewCache,
@@ -318,17 +472,33 @@ internal fun createGuestRemoteAppContainer(
     val cachedMediaTripRecords = CachedMediaTripRecordRepository(
         delegate = uploadingTripRecords,
         loader = photoPreviewLoader,
+        localPhotoDataSource = localPhotoDataSource,
     )
 
     return createAppContainer(
-        tripRecordRepository = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
+        tripRecordRepository = CachedTripRecordRepository(
+            delegate = AuthenticatedTripRecordRepository(session, cachedMediaTripRecords),
+            cache = tripRecordListCache,
+            discardExistingCache = discardRecordCache,
+        ),
         mapSummaryRepository = AuthenticatedMapSummaryRepository(session, remoteMapSummary),
         mapSummaryCache = mapSummaryCache,
         tripStatisticsRepository = AuthenticatedTripStatisticsRepository(session, remoteTripStatistics),
+        serviceFeedbackRepository = AuthenticatedServiceFeedbackRepository(session, remoteServiceFeedback),
+        shareVideoRepository = AuthenticatedShareVideoRepository(session, remoteShareVideos),
+        shareVideoJobStore = shareVideoJobStore,
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),
+        placeRepository = AuthenticatedPlaceRepository(session, remotePlaces),
         regionCatalog = regionCatalog,
+        themePreference = themePreference,
+        onboardingPreference = onboardingPreference,
+        teamDevicePreference = teamDevicePreference,
         thumbnailLoader = CachedTripRecordThumbnailLoader(photoPreviewLoader),
-        onClose = onClose,
+        photoPreviewCache = photoPreviewCache,
+        backgroundSaveExecution = backgroundSaveExecution,
+        localPhotoDataSource = localPhotoDataSource,
+        onClose = { session.close(); onClose() },
+        analytics = analytics,
     )
 }

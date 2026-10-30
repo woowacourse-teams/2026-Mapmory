@@ -5,11 +5,11 @@ on:
     branches:
       - develop
       - main
-  push:
-    branches:
-      - develop
-      - main
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -36,7 +36,11 @@ jobs:
             ios:
               - '.github/workflows/ios-ci.yml'
               - 'client/iosApp/**'
-              - 'client/shared/**'
+              - 'client/shared/build.gradle.kts'
+              - 'client/shared/src/commonMain/**'
+              - 'client/shared/src/commonTest/**'
+              - 'client/shared/src/iosMain/**'
+              - 'client/shared/src/iosTest/**'
               - 'client/gradle/**'
               - 'client/build.gradle.kts'
               - 'client/settings.gradle.kts'
@@ -63,6 +67,14 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Cache Swift Package dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mapmory-derived-data/SourcePackages
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ hashFiles('client/iosApp/Mapmory.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Check Xcode
         run: xcodebuild -version
@@ -78,4 +90,5 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/mapmory-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ARCHS=arm64 \
             build

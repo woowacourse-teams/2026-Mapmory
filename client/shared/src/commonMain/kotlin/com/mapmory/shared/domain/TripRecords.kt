@@ -12,11 +12,11 @@ class TripRecords(
 
     fun addTripRecord(
         imageUri: String,
-        tripRecordTitle: String,
-        tripRecordDescription: String?,
         tripLocation: String,
-        startTripDate: LocalDate?,
-        endTripDate: LocalDate?,
+        startTripDate: LocalDate,
+        tripRecordTitle: String = "",
+        tripRecordDescription: String? = null,
+        endTripDate: LocalDate? = null,
     ): TripRecords {
         val newRecord = TripRecord(
             imageUrl = imageUri,
@@ -45,7 +45,6 @@ class TripRecords(
         editingStartTripDate: LocalDate?,
         editingEndTripDate: LocalDate?,
         editingLocation: String?,
-        clearStartTripDate: Boolean = false,
         clearEndTripDate: Boolean = false,
     ): TripRecords {
         val record = findTripRecordId(editingRecord.id)
@@ -55,7 +54,7 @@ class TripRecords(
             imageUrl = editingImage ?: record.imageUrl,
             tripRecordTitle = editingTitle ?: record.tripRecordTitle,
             tripRecordDescription = editingDescription ?: record.tripRecordDescription,
-            startTripDate = if (clearStartTripDate) null else editingStartTripDate ?: record.startTripDate,
+            startTripDate = editingStartTripDate ?: record.startTripDate,
             endTripDate = if (clearEndTripDate) null else editingEndTripDate ?: record.endTripDate,
             location = editingLocation ?: record.location,
         )

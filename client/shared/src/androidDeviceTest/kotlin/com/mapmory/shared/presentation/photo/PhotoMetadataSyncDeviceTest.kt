@@ -92,7 +92,7 @@ class PhotoMetadataSyncDeviceTest {
     }
 
     @Test
-    fun `GPS가_없는_사진은_좌표를_얻을_때까지_다시_시도한다`() = runBlocking {
+    fun `GPS가_없는_사진도_변경되지_않으면_조회_결과를_재사용한다`() = runBlocking {
         val photo = candidate(mediaId = 1L, modifiedAtSeconds = 10L)
         val firstResult = sync(
             current = listOf(photo),
@@ -111,11 +111,11 @@ class PhotoMetadataSyncDeviceTest {
             scanId = 2L,
         ).sync()
 
-        assertEquals(1, secondResult.exifReadCount)
-        assertEquals(0, secondResult.reusedCoordinateCount)
-        assertEquals(listOf(photo.contentUri), exifReads)
-        assertEquals(35.1, database.photoMetadataDao().getAll().single().latitude)
-        assertEquals(129.0, database.photoMetadataDao().getAll().single().longitude)
+        assertEquals(0, secondResult.exifReadCount)
+        assertEquals(1, secondResult.reusedCoordinateCount)
+        assertTrue(exifReads.isEmpty())
+        assertEquals(null, database.photoMetadataDao().getAll().single().latitude)
+        assertEquals(null, database.photoMetadataDao().getAll().single().longitude)
     }
 
     @Test

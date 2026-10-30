@@ -41,16 +41,16 @@ class PhotoLibraryAndroidDeviceTest {
             val selectedPhoto = context.readPhoto(fixture.uri)
             assertNotNull(selectedPhoto)
             assertEquals("mapmory-test.jpg", selectedPhoto.displayName)
-            assertTrue(selectedPhoto.originalBytes?.isNotEmpty() == true)
+            assertNull(selectedPhoto.originalBytes)
             assertTrue(selectedPhoto.previewBytes?.isNotEmpty() == true)
 
-            val previewOnlyPhoto = context.readPhoto(
+            val photoWithOriginal = context.readPhoto(
                 uri = fixture.uri,
-                includeOriginalBytes = false,
+                includeOriginalBytes = true,
             )
-            assertNotNull(previewOnlyPhoto)
-            assertNull(previewOnlyPhoto.originalBytes)
-            val previewBytes = requireNotNull(previewOnlyPhoto.previewBytes)
+            assertNotNull(photoWithOriginal)
+            assertTrue(photoWithOriginal.originalBytes?.isNotEmpty() == true)
+            val previewBytes = requireNotNull(photoWithOriginal.previewBytes)
             assertTrue(previewBytes.isNotEmpty())
             val previewBitmap = BitmapFactory.decodeByteArray(
                 previewBytes,

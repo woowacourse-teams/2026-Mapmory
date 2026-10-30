@@ -4,15 +4,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.mapmory.shared.app.BackgroundTripRecordSaver
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRules
+import com.mapmory.shared.domain.model.PlaceSelection
+import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.model.TagRules
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordMediaDraft
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.dateValidationError
+import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.region.RegionCatalog
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.CreateTripRecordUseCase
 import com.mapmory.shared.domain.usecase.CreateTagUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
@@ -20,9 +28,12 @@ import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.domain.usecase.UpdateTripRecordUseCase
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import com.mapmory.shared.presentation.triprecord.isSelectableTripRecordDestination
+import com.mapmory.shared.presentation.triprecord.tripRecordCountryCode
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.toTripRecordPhotoUiState
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class TripRecordEditorViewModel(
     private val createTripRecord: CreateTripRecordUseCase,
@@ -32,8 +43,18 @@ class TripRecordEditorViewModel(
     private val onTripRecordsChanged: () -> Unit = {},
     private val getTags: GetTagsUseCase? = null,
     private val createTag: CreateTagUseCase? = null,
+    private val backgroundTripRecordSaver: BackgroundTripRecordSaver? = null,
+    private val recordedPhotoIndex: com.mapmory.shared.data.media.RecordedPhotoIndex? = null,
+    private val placeRepository: PlaceRepository? = null,
+    private val newPlaceSessionToken: () -> String = ::randomPlaceSessionToken,
 ) : ViewModel() {
+    val recordedPhotoIds = recordedPhotoIndex?.ids ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
+    val pendingPhotoIds = backgroundTripRecordSaver?.pendingPhotoIds ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
     private var isRouteInitialized = false
+    private var placeSearchGeneration = 0
+    private var placeSelectionGeneration = 0
+    private var placeSessionToken: String? = null
+    private var rejectedPlaceName: String? = null
 
     var uiState by mutableStateOf(TripRecordEditorUiState())
         private set
@@ -42,6 +63,10 @@ class TripRecordEditorViewModel(
         private set
 
     fun reset() {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
+        placeSessionToken = null
+        rejectedPlaceName = null
         uiState = TripRecordEditorUiState()
         savedRecordId = null
         isRouteInitialized = false
@@ -53,6 +78,7 @@ class TripRecordEditorViewModel(
     ) {
         if (isRouteInitialized) return
         isRouteInitialized = true
+        recordedPhotoIndex?.initialize()
         loadTags()
         if (recordId == null) {
             startCreating(selectedLocation)
@@ -62,8 +88,13 @@ class TripRecordEditorViewModel(
     }
 
     fun startCreating(location: Location?) {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
+        placeSessionToken = null
+        rejectedPlaceName = null
         uiState = TripRecordEditorUiState(
             selectedLocation = location?.takeIf(Location::isSelectableTripRecordDestination),
+            isPlaceSearchAvailable = placeRepository != null,
             availableTags = uiState.availableTags,
             tagErrorMessage = uiState.tagErrorMessage,
         )
@@ -88,10 +119,16 @@ class TripRecordEditorViewModel(
     }
 
     fun startEditing(record: TripRecordData, location: Location) {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
+        placeSessionToken = null
+        rejectedPlaceName = null
         val allTags = (uiState.availableTags + record.tags).distinctBy { it.id }
         uiState = TripRecordEditorUiState(
             recordId = record.id,
             selectedLocation = location,
+            selectedPlace = record.place,
+            isPlaceSearchAvailable = placeRepository != null,
             title = record.title,
             content = record.content,
             startDate = record.startDate,
@@ -107,7 +144,12 @@ class TripRecordEditorViewModel(
                     longitude = media.longitude,
                     capturedAt = media.capturedAt,
                 ).toTripRecordPhotoUiState(media.sortOrder)
-                    .copy(isUploaded = true)
+                    .copy(
+                        isUploaded = true,
+                        localPhotoId = media.localPreviewKey,
+                        previewUri = media.previewUri,
+                        fullResolutionUri = media.url,
+                    )
             },
             availableTags = allTags,
             selectedTagIds = record.tags.mapTo(linkedSetOf()) { it.id },
@@ -257,9 +299,135 @@ class TripRecordEditorViewModel(
 
     fun selectLocation(location: Location) {
         if (!location.isSelectableTripRecordDestination()) return
+        // 지역을 직접 고르면 장소 검색 세션은 끝난다.
+        placeSessionToken = null
+        val place = uiState.selectedPlace
+        // 다른 나라를 고르면 서버가 PLACE_COUNTRY_MISMATCH로 거절하므로 장소 연결을 뺀다.
+        val placeCountryCode = place?.countryCode
+        val keepsPlace = placeCountryCode == null || placeCountryCode == location.tripRecordCountryCode()
         uiState = uiState.copy(
             selectedLocation = location,
+            selectedPlace = place.takeIf { keepsPlace },
+            placeSelectionErrorMessage = null,
+            manualRegionRequired = false,
         ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+    }
+
+    fun clearPlaceSearch() {
+        placeSearchGeneration += 1
+        placeSelectionGeneration += 1
+        uiState = uiState.copy(
+            placeSearchResults = emptyList(),
+            isSearchingPlaces = false,
+            hasSearchedPlaces = false,
+            placeSearchErrorMessage = null,
+            placeSelectionErrorMessage = null,
+            isSelectingPlace = false,
+        )
+    }
+
+    suspend fun searchPlaces(query: String) {
+        val normalizedQuery = query.trim()
+        val repository = placeRepository ?: return
+        if (!PlaceRules.isSearchableQuery(normalizedQuery)) return
+        // 앱에서 고를 수 없는 장소로 거절한 후보를 같은 이름으로 다시 검색하지 않는다.
+        if (normalizedQuery == rejectedPlaceName) return
+        val generation = placeSearchGeneration
+        uiState = uiState.copy(isSearchingPlaces = true, placeSearchErrorMessage = null)
+        repository.searchPlaces(normalizedQuery, currentPlaceSessionToken()).fold(
+            onSuccess = { candidates ->
+                if (generation == placeSearchGeneration) {
+                    uiState = uiState.copy(
+                        placeSearchResults = candidates.take(PlaceRules.MaxCandidates),
+                        isSearchingPlaces = false,
+                        hasSearchedPlaces = true,
+                    )
+                }
+            },
+            onFailure = { error ->
+                if (generation == placeSearchGeneration) {
+                    uiState = uiState.copy(
+                        placeSearchResults = emptyList(),
+                        isSearchingPlaces = false,
+                        hasSearchedPlaces = true,
+                        placeSearchErrorMessage = when {
+                            error is MapmoryApiException && error.code == "PLACE_PROVIDER_UNAVAILABLE" ->
+                                "장소 검색을 지금 사용할 수 없어요. 잠시 후 다시 시도해 주세요."
+                            else -> error.message ?: "장소를 검색하지 못했습니다."
+                        },
+                    )
+                }
+            },
+        )
+    }
+
+    suspend fun selectPlace(candidate: PlaceCandidate): Location? {
+        val repository = placeRepository ?: return null
+        val generation = ++placeSelectionGeneration
+        uiState = uiState.copy(
+            isSelectingPlace = true,
+            placeSelectionErrorMessage = null,
+            placeSearchResults = emptyList(),
+            isSearchingPlaces = false,
+            hasSearchedPlaces = false,
+        )
+        // 선택 조회로 검색 세션이 끝나므로 다음 검색은 새 토큰을 쓴다.
+        val sessionToken = currentPlaceSessionToken()
+        placeSessionToken = null
+        return repository.selectPlace(candidate.placeId, sessionToken).fold(
+            onSuccess = { selection ->
+                if (generation != placeSelectionGeneration) return@fold null
+                if (selection.isOutsideRegionCatalog(regionCatalog)) {
+                    rejectedPlaceName = candidate.name.trim()
+                    uiState = uiState.copy(
+                        selectedPlace = null,
+                        isSelectingPlace = false,
+                        placeSelectionErrorMessage = PlaceOutsideRegionCatalogMessage,
+                        manualRegionRequired = false,
+                    ).revalidatedAfterChange()
+                    return@fold null
+                }
+                rejectedPlaceName = null
+                // 검색창에 고른 후보의 이름이 들어가므로 같은 이름을 보여 준다.
+                // Google 장소는 선택 응답에 이름이 없다.
+                val place = selection.place.copy(
+                    name = candidate.name,
+                    address = candidate.address,
+                )
+                val location = selection.toSelectableLocation(regionCatalog)
+                uiState = uiState.copy(
+                    selectedPlace = place,
+                    selectedLocation = location,
+                    isSelectingPlace = false,
+                    placeSelectionErrorMessage = null,
+                    manualRegionRequired = location == null ||
+                        (selection.manualRegionRequired && !location.isSelectableKoreanProvince()),
+                ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+                location
+            },
+            onFailure = { error ->
+                if (generation == placeSelectionGeneration) {
+                    uiState = uiState.copy(
+                        isSelectingPlace = false,
+                        placeSelectionErrorMessage = error.message ?: "장소 정보를 불러오지 못했습니다.",
+                    )
+                }
+                null
+            },
+        )
+    }
+
+    private fun currentPlaceSessionToken(): String =
+        placeSessionToken ?: newPlaceSessionToken().also { placeSessionToken = it }
+
+    fun clearSelectedPlace() {
+        placeSelectionGeneration += 1
+        uiState = uiState.copy(
+            selectedPlace = null,
+            isSelectingPlace = false,
+            placeSelectionErrorMessage = null,
+            manualRegionRequired = false,
+        ).revalidatedAfterChange()
     }
 
     fun touchLocation() {
@@ -350,13 +518,25 @@ class TripRecordEditorViewModel(
         ).revalidatedAfterChange()
     }
 
+    /** Creation derives its dates from the chosen photos; editing keeps explicit dates. */
+    fun useSelectedPhotoDates(today: String) {
+        if (uiState.recordId != null) return
+        val dates = uiState.selectedPhotos.mapNotNull { photo ->
+            photo.capturedAt?.take(10)?.replace('.', '-')?.takeIf { value ->
+                runCatching { kotlinx.datetime.LocalDate.parse(value) }.isSuccess
+            }
+        }.sorted()
+        uiState = uiState.copy(
+            startDate = dates.firstOrNull() ?: today,
+            endDate = dates.lastOrNull()?.takeIf { it != dates.first() }.orEmpty(),
+        )
+    }
+
     suspend fun save(): Boolean {
         val state = uiState
         if (state.isPhotoLoading || state.isSaving) return false
         val validationErrors = state.validationErrors()
         if (validationErrors.isNotEmpty()) return fail(validationErrors)
-
-        val location = requireNotNull(state.selectedLocation)
 
         uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
         var availableTags = state.availableTags
@@ -394,31 +574,9 @@ class TripRecordEditorViewModel(
             selectedPendingTagNames = selectedPendingTagNames,
         )
 
-        val draft = TripRecordDraft(
-            locationId = location.id,
-            title = state.title.trim(),
-            content = state.content.trim(),
-            startDate = state.startDate.ifBlank { null },
-            endDate = state.endDate.ifBlank { null },
-            mediaObjectKeys = state.mediaObjectKeys,
-            uploadedMediaObjectKeys = state.selectedPhotos
-                .filter { photo -> photo.isUploaded }
-                .mapTo(mutableSetOf()) { photo -> photo.id },
-            localMedia = state.selectedPhotos.mapIndexed { index, photo ->
-                TripRecordMediaDraft(
-                    objectKey = photo.id,
-                    sortOrder = index,
-                    previewBytes = photo.previewBytes?.bytesForDecoding(),
-                    originalBytes = photo.originalBytes?.bytesForDecoding(),
-                    fileName = photo.displayName,
-                    latitude = photo.latitude,
-                    longitude = photo.longitude,
-                    capturedAt = photo.capturedAt,
-                )
-            },
-            tagIds = availableTags
-                .filter { it.id in selectedTagIds }
-                .map { it.id },
+        val draft = state.toDraft(
+            availableTags = availableTags,
+            selectedTagIds = selectedTagIds,
         )
         val result = state.recordId?.let { updateTripRecord(it, draft) }
             ?: createTripRecord(draft)
@@ -437,16 +595,72 @@ class TripRecordEditorViewModel(
                     isDirty = true,
                     dirtyFields = uiState.dirtyFields + fieldErrors.keys,
                     fieldErrors = fieldErrors,
-                    generalErrorMessage = if (fieldErrors.isEmpty()) {
-                        error.message ?: "여행 기록을 저장하지 못했습니다."
-                    } else {
+                    generalErrorMessage = if (fieldErrors.isNotEmpty()) {
                         null
+                    } else {
+                        error.message ?: "여행 기록을 저장하지 못했습니다."
                     },
                 )
                 false
             },
         )
     }
+
+    suspend fun saveInBackground(): Boolean {
+        val state = uiState
+        if (state.recordId != null) return save()
+        if (state.isPhotoLoading || state.isSaving) return false
+        val validationErrors = state.validationErrors()
+        if (validationErrors.isNotEmpty()) return fail(validationErrors)
+        val saver = backgroundTripRecordSaver ?: return save()
+
+        // 현재 생성 화면에는 태그 입력이 없지만, 추후 다시 노출되더라도 생성 전 태그가
+        // 유실되지 않도록 이 경우에는 기존 저장 경로를 유지한다.
+        if (state.pendingTagNames.any { it in state.selectedPendingTagNames }) return save()
+
+        uiState = state.copy(isSaving = true, fieldErrors = emptyMap(), generalErrorMessage = null)
+        saver.enqueue(
+            state.toDraft(
+                availableTags = state.availableTags,
+                selectedTagIds = state.selectedTagIds,
+            ),
+            locationName = requireNotNull(state.selectedLocation).name,
+        )
+        uiState = uiState.copy(isSaving = false, isDirty = false)
+        return true
+    }
+
+    private fun TripRecordEditorUiState.toDraft(
+        availableTags: List<Tag>,
+        selectedTagIds: Set<Long>,
+    ): TripRecordDraft = TripRecordDraft(
+        locationId = requireNotNull(selectedLocation).id,
+        title = title,
+        content = content.trim().takeIf(String::isNotEmpty),
+        startDate = startDate,
+        endDate = endDate.ifBlank { null },
+        place = uiState.selectedPlace,
+        mediaObjectKeys = mediaObjectKeys,
+        uploadedMediaObjectKeys = selectedPhotos
+            .filter { photo -> photo.isUploaded }
+            .mapTo(mutableSetOf()) { photo -> photo.id },
+        localMedia = selectedPhotos.mapIndexed { index, photo ->
+            TripRecordMediaDraft(
+                objectKey = photo.id,
+                sortOrder = index,
+                previewBytes = photo.previewBytes?.bytesForDecoding(),
+                localPreviewKey = photo.localPhotoId ?: photo.id,
+                originalBytes = photo.originalBytes?.bytesForDecoding(),
+                fileName = photo.displayName,
+                latitude = photo.latitude,
+                longitude = photo.longitude,
+                capturedAt = photo.capturedAt,
+            )
+        },
+        tagIds = availableTags
+            .filter { it.id in selectedTagIds }
+            .map { it.id },
+    )
 
     private fun fail(errors: Map<TripRecordEditorErrorTarget, String>): Boolean {
         uiState = uiState.copy(
@@ -472,6 +686,25 @@ class TripRecordEditorViewModel(
         )
         return false
     }
+}
+
+private fun PlaceSelection.toSelectableLocation(regionCatalog: RegionCatalog?): Location? {
+    val catalog = regionCatalog ?: return null
+    val countryCode = countryCode ?: return null
+    val suggestion = suggestedRegion
+    val location = when {
+        countryCode == KoreaCountryCode && suggestion?.provinceCode != null &&
+            suggestion.districtCode != null -> {
+            val provinceCode = "$KoreanProvincePrefix${suggestion.provinceCode}"
+            catalog.findDistrict(provinceCode, suggestion.districtCode)
+                ?: catalog.findDistrict(provinceCode, suggestion.districtCode.collapseCityDistrictCode())
+        }
+        countryCode == KoreaCountryCode && suggestion?.provinceCode != null ->
+            catalog.findByCode("$KoreanProvincePrefix${suggestion.provinceCode}")
+        countryCode == KoreaCountryCode -> null
+        else -> catalog.findByCode(countryCode)
+    }
+    return location?.takeIf(Location::isSelectableTripRecordDestination)
 }
 
 private fun TripRecordEditorUiState.revalidatedAfterChange(
@@ -502,7 +735,27 @@ private fun TripRecordEditorUiState.revalidatedAfterChange(
             .filterKeys(updatedDirtyFields::contains),
         generalErrorMessage = null,
     )
+
 }
+
+// 앱 지역 목록에 없는 국가(괌 GU, 사이판 MP, 홍콩 HK, 마카오 MO 등)의 장소는 어떤 지역을 골라도
+// 서버가 PLACE_COUNTRY_MISMATCH로 거절하므로 장소를 연결하지 않고 지역을 직접 고르게 한다.
+private fun PlaceSelection.isOutsideRegionCatalog(regionCatalog: RegionCatalog?): Boolean {
+    val catalog = regionCatalog ?: return false
+    val countryCode = countryCode ?: return false
+    return countryCode != KoreaCountryCode && catalog.findByCode(countryCode) == null
+}
+
+@OptIn(ExperimentalUuidApi::class)
+private fun randomPlaceSessionToken(): String = Uuid.random().toString()
+
+private const val PlaceOutsideRegionCatalogMessage =
+    "이 장소가 있는 지역은 아직 앱에서 고를 수 없어요. 지역을 직접 검색해 선택해 주세요."
+private const val KoreaCountryCode = "KR"
+private const val KoreanProvincePrefix = "KR-"
+
+private fun String.collapseCityDistrictCode(): String =
+    if (lastOrNull()?.isDigit() == true) dropLast(1) + "0" else this
 
 private fun TripRecordEditorUiState.withPhotoLimitError(): TripRecordEditorUiState = copy(
     isDirty = true,
@@ -519,7 +772,9 @@ private fun TripRecordEditorErrorTarget.isDateTarget(): Boolean =
 private fun TripRecordEditorUiState.validationErrors(
     dateRangeErrorTarget: TripRecordEditorErrorTarget = TripRecordEditorErrorTarget.END_DATE,
 ): Map<TripRecordEditorErrorTarget, String> = buildMap {
-    if (
+    if (mediaObjectKeys.isEmpty() || selectedPhotos.isEmpty()) {
+        put(TripRecordEditorErrorTarget.PHOTOS, TripRecordPhotoRules.RequiredMessage)
+    } else if (
         mediaObjectKeys.size > TripRecordPhotoRules.MaxPhotosPerRecord ||
         selectedPhotos.size > TripRecordPhotoRules.MaxPhotosPerRecord
     ) {
@@ -530,17 +785,11 @@ private fun TripRecordEditorUiState.validationErrors(
     } else if (!selectedLocation.isSelectableTripRecordDestination()) {
         put(TripRecordEditorErrorTarget.LOCATION, "장소를 선택해 주세요.")
     }
-    if (title.isBlank()) {
-        put(TripRecordEditorErrorTarget.TITLE, "제목을 입력해 주세요.")
-    } else if (title.length > MaxTitleLength) {
-        put(TripRecordEditorErrorTarget.TITLE, "제목은 200자 이하여야 합니다.")
-    }
-
     val dateError = TripRecordDraft(
         locationId = selectedLocation?.id ?: 0L,
         title = title,
         content = content,
-        startDate = startDate.ifBlank { null },
+        startDate = startDate,
         endDate = endDate.ifBlank { null },
         mediaObjectKeys = mediaObjectKeys,
     ).dateValidationError()
@@ -554,8 +803,6 @@ private fun TripRecordEditorUiState.validationErrors(
         put(target, dateError)
     }
 }
-
-private const val MaxTitleLength = 200
 
 internal fun Throwable.toEditorFieldErrors(): Map<TripRecordEditorErrorTarget, String> {
     val apiError = this as? MapmoryApiException
@@ -576,7 +823,8 @@ internal fun Throwable.toEditorFieldErrors(): Map<TripRecordEditorErrorTarget, S
 
         "INVALID_REGION_CODE",
         "INVALID_REGION_TYPE",
-        "REGION_REQUIRED" -> TripRecordEditorErrorTarget.LOCATION
+        "REGION_REQUIRED",
+        "PLACE_COUNTRY_MISMATCH" -> TripRecordEditorErrorTarget.LOCATION
 
         "INVALID_TRAVEL_DATE_RANGE" -> TripRecordEditorErrorTarget.END_DATE
         "TOO_MANY_TAGS", "INVALID_TAG_IDS" -> TripRecordEditorErrorTarget.TAGS

@@ -53,7 +53,7 @@ Firebase Console에서 운영 Bundle ID로 등록된 앱의 파일을 사용한�
 - [ ] Device ID
 - [ ] Product Interaction
 - [ ] Photos or Videos
-- [ ] Other User Content와 태그 이름의 Analytics 사용
+- [ ] Other User Content의 앱 기능 사용과 태그 이름의 Analytics 미전송
 - [ ] Precise Location과 Coarse Location
 - [ ] Other Diagnostic Data의 실제 서버 저장·연결 여부
 - [ ] 각 항목의 목적, 사용자 연결 여부와 Tracking 여부

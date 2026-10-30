@@ -1,22 +1,37 @@
 package com.mapmory.shared.presentation.map.route
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
+import com.mapmory.shared.presentation.map.MapCurrentLocationCacheMaxAgeMillis
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.domain.MapScope
+import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
 import com.mapmory.shared.presentation.map.ui.KoreaMapStatusMessage
 import com.mapmory.shared.presentation.map.ui.MapArtwork
+import com.mapmory.shared.presentation.map.ui.regionAt
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
+import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
 import kotlinx.coroutines.launch
 
@@ -24,18 +39,69 @@ import kotlinx.coroutines.launch
 internal fun MapRoute(
     viewModel: MapViewModel,
     regionCatalog: RegionCatalog,
+    onboardingPreference: OnboardingPreference,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
+    backHandlerOwnerId: String,
     tripRecordRevision: Long,
     onOpenRecords: (Long?) -> Unit,
     onOpenEditor: (Long?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState = viewModel.uiState
     val scope = rememberCoroutineScope()
     val analytics = LocalMapmoryAnalytics.current
     val latestNestedBack = rememberUpdatedState { viewModel.closeProvince() }
-
+    var gestureClosedProvinceCode by remember { mutableStateOf<String?>(null) }
+    val latestGestureBack = rememberUpdatedState {
+        val provinceCode = viewModel.uiState.koreaMap.provinceCodeOrNull()
+        if (provinceCode == null) {
+            false
+        } else {
+            gestureClosedProvinceCode = provinceCode
+            viewModel.closeProvince()
+        }
+    }
+    val latestGestureForward = rememberUpdatedState {
+        val provinceCode = gestureClosedProvinceCode
+        if (provinceCode == null) {
+            false
+        } else {
+            gestureClosedProvinceCode = null
+            scope.launch { viewModel.openProvince(provinceCode) }
+            true
+        }
+    }
+    var showRecordIntroduction by remember(onboardingPreference) {
+        mutableStateOf(!onboardingPreference.hasSeenRecordIntroduction())
+    }
+    var showRegionLabels by remember { mutableStateOf(false) }
+    val currentLocation = viewModel.currentLocation
+    var currentLocationError by remember { mutableStateOf<String?>(null) }
+    var worldLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
+    var koreaLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
+    val currentLocationActions = rememberCurrentLocationActions(
+        onLocation = { point ->
+            viewModel.updateCurrentLocation(point)
+            currentLocationError = null
+            gestureClosedProvinceCode = null
+            when {
+                viewModel.uiState.scope == MapScope.WORLD -> worldLocationFocusRequest++
+                GeneratedKoreaMapData.provinces.regionAt(point) != null -> {
+                    viewModel.closeProvince()
+                    koreaLocationFocusRequest++
+                }
+                else -> {
+                    viewModel.changeScope(MapScope.WORLD)
+                    worldLocationFocusRequest++
+                }
+            }
+        },
+        onError = { currentLocationError = it },
+        // 지도 중심 이동은 기록 장소 선택보다 조금 오래된 시스템 위치도 허용한다.
+        cachedLocationMaxAgeMillis = MapCurrentLocationCacheMaxAgeMillis,
+    )
     LaunchedEffect(Unit) {
         analytics.logEvent(
             MapmoryAnalyticsEvent.SCREEN_VIEW,
@@ -43,12 +109,20 @@ internal fun MapRoute(
         )
     }
 
+    LaunchedEffect(showRecordIntroduction) {
+        if (showRecordIntroduction) analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_VIEWED)
+    }
+
     LaunchedEffect(viewModel, tripRecordRevision) {
-        viewModel.refresh()
+        viewModel.refreshIfNeeded(tripRecordRevision)
     }
 
     DisposableEffect(viewModel, backHandlerRegistry) {
-        val registration = backHandlerRegistry.register {
+        val registration = backHandlerRegistry.register(
+            backHandlerOwnerId,
+            gestureBack = { latestGestureBack.value() },
+            gestureForward = { latestGestureForward.value() },
+        ) {
             latestNestedBack.value()
         }
         onDispose {
@@ -56,7 +130,7 @@ internal fun MapRoute(
         }
     }
 
-    fun openLocation(location: Location) {
+    fun openLocation(location: Location, forceEditor: Boolean = false) {
         val hasRecords = viewModel.hasRecords(location)
         analytics.logEvent(
             MapmoryAnalyticsEvent.MAP_LOCATION_SELECTED,
@@ -65,107 +139,150 @@ internal fun MapRoute(
                 "has_records" to hasRecords.toString(),
             ),
         )
-        if (hasRecords) {
+        if (hasRecords && !forceEditor) {
             onOpenRecords(location.id)
         } else {
+            analytics.logEvent(
+                MapmoryAnalyticsEvent.RECORD_CREATE_STARTED,
+                mapOf("source" to "map_location"),
+            )
             onOpenEditor(location.id)
         }
     }
 
     val selectedProvinceCode = uiState.koreaMap.provinceCodeOrNull()
-    TripMapScreen(
-        modifier = modifier,
-        mapScope = uiState.scope,
-        visitedCount = when {
-            uiState.scope == MapScope.WORLD -> viewModel.visitedCountryCodes.size
-            selectedProvinceCode != null -> viewModel.visitedDistrictCount(selectedProvinceCode)
-            else -> viewModel.visitedProvinceCodes.size
-        },
-        onMapScopeChange = { selectedScope ->
-            analytics.logEvent(
-                MapmoryAnalyticsEvent.MAP_SCOPE_CHANGED,
-                mapOf("scope" to selectedScope.name.lowercase()),
-            )
-            viewModel.changeScope(selectedScope)
-        },
-        tags = uiState.tags,
-        selectedTagId = uiState.selectedTagId,
-        onTagSelected = { tagId ->
-            scope.launch { viewModel.selectTag(tagId) }
-        },
-        mapContent = {
-            when (uiState.scope) {
-                MapScope.WORLD -> MapArtwork(
-                    scope = MapScope.WORLD,
-                    visitedCountryCodes = viewModel.visitedCountryCodes,
-                    onCountryClick = { countryCode ->
-                        if (countryCode == KoreaCountryCode) {
-                            val korea = regionCatalog.findByCode(KoreaCountryCode)
-                            if (korea != null && viewModel.hasRecords(korea)) {
-                                openLocation(korea)
-                            } else {
-                                viewModel.changeScope(MapScope.KOREA)
-                            }
-                        } else {
-                            regionCatalog.findByCode(countryCode)?.let(::openLocation)
-                        }
-                    },
+    Box(modifier = modifier.fillMaxSize()) {
+        TripMapScreen(
+            modifier = Modifier.fillMaxSize(),
+            mapScope = uiState.scope,
+            visitedCount = when {
+                uiState.scope == MapScope.WORLD -> viewModel.visitedCountryCodes.size
+                selectedProvinceCode != null -> viewModel.visitedDistrictCount(selectedProvinceCode)
+                else -> viewModel.visitedProvinceCodes.size
+            },
+            onMapScopeChange = { selectedScope ->
+                gestureClosedProvinceCode = null
+                analytics.logEvent(
+                    MapmoryAnalyticsEvent.MAP_SCOPE_CHANGED,
+                    mapOf("scope" to selectedScope.name.lowercase()),
                 )
-
-                MapScope.KOREA -> when (val mapState = uiState.koreaMap) {
-                    KoreaMapUiState.ProvinceOverview -> MapArtwork(
-                        scope = MapScope.KOREA,
-                        visitedRegionCodes = viewModel.visitedProvinceCodes,
-                        koreaRegions = GeneratedKoreaMapData.provinces,
-                        onRegionClick = { provinceCode ->
-                            analytics.logEvent(
-                                MapmoryAnalyticsEvent.MAP_PROVINCE_SELECTED,
-                                mapOf("province_code" to provinceCode),
-                            )
-                            scope.launch { viewModel.openProvince(provinceCode) }
+                viewModel.changeScope(selectedScope)
+            },
+            showRegionLabels = showRegionLabels,
+            onRegionLabelsToggle = { showRegionLabels = !showRegionLabels },
+            isCurrentLocationLoading = currentLocationActions.isLoading,
+            currentLocationError = currentLocationError,
+            onCurrentLocationClick = {
+                currentLocationError = null
+                currentLocationActions.request()
+            },
+            mapContent = {
+                when (uiState.scope) {
+                    MapScope.WORLD -> MapArtwork(
+                        scope = MapScope.WORLD,
+                        visitedCountryCodes = viewModel.visitedCountryCodes,
+                        currentLocation = currentLocation,
+                        currentLocationFocusRequest = worldLocationFocusRequest,
+                        onCountryClick = { countryCode ->
+                            if (countryCode == KoreaCountryCode) {
+                                viewModel.changeScope(MapScope.KOREA)
+                            } else {
+                                regionCatalog.findByCode(countryCode)?.let(::openLocation)
+                            }
                         },
                     )
 
-                    is KoreaMapUiState.DistrictLoading -> KoreaMapStatusMessage(
-                        "${mapState.provinceCode} 시·군·구 지도를 불러오는 중...",
-                    )
+                    MapScope.KOREA -> when (val mapState = uiState.koreaMap) {
+                        KoreaMapUiState.ProvinceOverview -> MapArtwork(
+                            scope = MapScope.KOREA,
+                            visitedRegionCodes = viewModel.visitedKoreaMapRegionCodes,
+                            koreaRegions = GeneratedKoreaMapData.provinces,
+                            currentLocation = currentLocation,
+                            currentLocationFocusRequest = koreaLocationFocusRequest,
+                            showRegionLabels = showRegionLabels,
+                            isProvinceOverview = true,
+                            onRegionClick = { provinceCode ->
+                                gestureClosedProvinceCode = null
+                                val selectedLocation = regionCatalog.findByCode(provinceCode)
+                                if (selectedLocation?.type == LocationType.DISTRICT) {
+                                    openLocation(selectedLocation, forceEditor = true)
+                                } else {
+                                    analytics.logEvent(
+                                        MapmoryAnalyticsEvent.MAP_PROVINCE_SELECTED,
+                                        mapOf("province_code" to provinceCode),
+                                    )
+                                    scope.launch { viewModel.openProvince(provinceCode) }
+                                }
+                            },
+                        )
 
-                    is KoreaMapUiState.Error -> KoreaMapStatusMessage(
-                        message = mapState.message,
-                        actionLabel = "다시 시도",
-                        onAction = {
-                            scope.launch { viewModel.openProvince(mapState.provinceCode) }
-                        },
-                    )
+                        is KoreaMapUiState.DistrictLoading -> KoreaMapStatusMessage(
+                            "${mapState.provinceCode} 시·군·구 지도를 불러오는 중...",
+                        )
 
-                    is KoreaMapUiState.DistrictDetail -> MapArtwork(
-                        scope = MapScope.KOREA,
-                        visitedRegionCodes = viewModel.visitedDistrictCodes(mapState.provinceCode),
-                        koreaRegions = mapState.regions,
-                        showRegionLabels = true,
-                        onRegionClick = { districtCode ->
-                            regionCatalog.findDistrict(
-                                provinceCode = mapState.provinceCode,
-                                districtCode = districtCode,
-                            )?.let(::openLocation)
-                        },
-                    )
+                        is KoreaMapUiState.Error -> KoreaMapStatusMessage(
+                            message = mapState.message,
+                            actionLabel = "다시 시도",
+                            onAction = {
+                                analytics.emit(MapmoryAnalyticsEvent.MAP_RETRY_CLICKED)
+                                gestureClosedProvinceCode = null
+                                scope.launch { viewModel.openProvince(mapState.provinceCode) }
+                            },
+                        )
+
+                        is KoreaMapUiState.DistrictDetail -> MapArtwork(
+                            scope = MapScope.KOREA,
+                            visitedRegionCodes = viewModel.visitedDistrictCodes(mapState.provinceCode),
+                            koreaRegions = mapState.regions,
+                            currentLocation = currentLocation,
+                            currentLocationFocusRequest = koreaLocationFocusRequest,
+                            showRegionLabels = showRegionLabels,
+                            onRegionClick = { districtCode ->
+                                regionCatalog.findDistrict(
+                                    provinceCode = mapState.provinceCode,
+                                    districtCode = districtCode,
+                                )?.let(::openLocation)
+                            },
+                        )
+                    }
                 }
-            }
-        },
-        onBackClick = {},
-        mapDetailTitle = selectedProvinceCode?.let { provinceCode ->
-            GeneratedKoreaMapData.provinces.firstOrNull { it.code == provinceCode }?.name
-        },
-        mapDetailTotal = (uiState.koreaMap as? KoreaMapUiState.DistrictDetail)?.regions?.size,
-        onMapDetailBackClick = {
-            analytics.logEvent(MapmoryAnalyticsEvent.MAP_DETAIL_BACK_CLICKED)
-            viewModel.closeProvince()
-        },
-        onRecordClick = { onOpenRecords(null) },
-        onCreateClick = { onOpenEditor(null) },
-        onProfileClick = onOpenProfile,
-    )
+            },
+            onBackClick = {},
+            mapDetailTitle = selectedProvinceCode?.let { provinceCode ->
+                GeneratedKoreaMapData.provinces.firstOrNull { it.code == provinceCode }?.name
+            },
+            mapDetailTotal = when {
+                selectedProvinceCode != null -> (uiState.koreaMap as? KoreaMapUiState.DistrictDetail)?.regions?.size
+                uiState.scope == MapScope.KOREA -> viewModel.koreaDistrictCount
+                else -> null
+            },
+            onMapDetailBackClick = {
+                gestureClosedProvinceCode = null
+                analytics.logEvent(MapmoryAnalyticsEvent.MAP_DETAIL_BACK_CLICKED)
+                viewModel.closeProvince()
+            },
+            onRecordClick = { onOpenRecords(null) },
+            onCreateClick = { onOpenEditor(null) },
+            onProfileClick = onOpenProfile,
+            onSettingsClick = onOpenSettings,
+        )
+        if (showRecordIntroduction) {
+            FirstRecordIntroduction(
+                onAddRecord = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "create"))
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_CREATE_STARTED, mapOf("source" to "introduction"))
+                    onboardingPreference.markRecordIntroductionSeen()
+                    showRecordIntroduction = false
+                    onOpenEditor(null)
+                },
+                onExplore = {
+                    analytics.emit(MapmoryAnalyticsEvent.RECORD_INTRODUCTION_COMPLETED, mapOf("action" to "explore"))
+                    onboardingPreference.markRecordIntroductionSeen()
+                    showRecordIntroduction = false
+                },
+            )
+        }
+    }
 }
 
 private fun KoreaMapUiState.provinceCodeOrNull(): String? = when (this) {

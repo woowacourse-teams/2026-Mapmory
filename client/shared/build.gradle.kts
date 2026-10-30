@@ -42,6 +42,7 @@ kotlin {
             implementation(compose.components.resources)
             implementation("org.jetbrains.compose.ui:ui-tooling-preview:${libs.versions.composeMultiplatform.get()}")
             implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
             implementation(libs.jetbrains.androidx.navigation.compose)
             implementation(libs.jetbrains.androidx.lifecycle.viewmodel.compose)
             implementation(libs.ktor.client.core)
@@ -63,6 +64,11 @@ kotlin {
 
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+        }
+
+        jvmTest.dependencies {
+            // Native renderer for pixel-level navigation regression tests.
+            runtimeOnly(compose.desktop.currentOs)
         }
 
         commonTest.dependencies {

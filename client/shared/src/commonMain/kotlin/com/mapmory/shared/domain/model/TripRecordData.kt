@@ -14,6 +14,7 @@ data class TripRecordData(
     val updatedAt: String,
     val thumbnailUrl: String? = null,
     val tags: List<Tag> = emptyList(),
+    val place: PlaceReference? = null,
 )
 
 /** 목록 API가 반환하는 얇은 모델이다. 본문과 전체 미디어는 상세 조회에서만 가져온다. */
@@ -26,6 +27,7 @@ data class TripRecordSummary(
     val thumbnailUrl: String? = null,
     val thumbnailUrlExpiresIn: Long? = null,
     val thumbnailPreviewBytes: ByteArray? = null,
+    val photoCount: Int? = null,
     // 로컬 저장소에서는 기존 사진 표시를 유지하기 위해 아래 값을 함께 보존한다.
     val locationId: Long? = null,
     val content: String = "",
@@ -33,30 +35,33 @@ data class TripRecordSummary(
     val tags: List<Tag> = emptyList(),
 )
 
+@kotlinx.serialization.Serializable
 data class TripRecordDraft(
     val locationId: Long,
-    val title: String,
-    val content: String,
-    val startDate: String?,
-    val endDate: String?,
+    val startDate: String,
     val mediaObjectKeys: List<String>,
+    val title: String = "",
+    val content: String? = null,
+    val endDate: String? = null,
     /** 이미 업로드된 미디어는 키 형식을 해석하지 않고 원본 바이트 없이 그대로 저장한다. */
     val uploadedMediaObjectKeys: Set<String> = emptySet(),
     // API 요청에는 object key만 사용하고, 로컬 저장소에서는 선택한 사진 표시 데이터를 보존한다.
     val localMedia: List<TripRecordMediaDraft> = emptyList(),
     val tagIds: List<Long> = emptyList(),
+    val place: PlaceReference? = null,
 )
 
 object TripRecordPhotoRules {
-    const val MaxPhotosPerRecord = 10
-    const val LimitMessage = "사진은 기록당 최대 10장까지 추가할 수 있습니다."
+    const val MaxPhotosPerRecord = 100
+    const val RequiredMessage = "사진을 한 장 이상 추가해 주세요."
+    const val LimitMessage = "사진은 기록당 최대 100장까지 추가할 수 있습니다."
 
     fun remainingSlots(currentPhotoCount: Int): Int =
         (MaxPhotosPerRecord - currentPhotoCount).coerceAtLeast(0)
 }
 
 fun TripRecordDraft.dateValidationError(): String? = when {
-    startDate == null -> "시작일을 입력해 주세요."
+    startDate.isBlank() -> "시작일을 입력해 주세요."
     !startDate.isValidIsoDate() -> "올바른 시작일을 입력해 주세요."
     endDate != null && !endDate.isValidIsoDate() -> "올바른 종료일을 입력해 주세요."
     endDate != null && endDate < startDate -> "종료일은 시작일보다 빠를 수 없습니다."

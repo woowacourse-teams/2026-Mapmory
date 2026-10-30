@@ -7,18 +7,33 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
 
 class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
-    private val firebaseAnalytics = runCatching {
-        FirebaseApp.initializeApp(context.applicationContext)?.let {
-            FirebaseAnalytics.getInstance(context.applicationContext)
+    private val firebaseAnalytics = context.applicationContext
+        .takeUnless { it.packageName.endsWith(InternalPackageSuffix) }
+        ?.let { applicationContext ->
+            runCatching {
+                FirebaseApp.initializeApp(applicationContext)?.let {
+                    FirebaseAnalytics.getInstance(applicationContext)
+                }
+            }.getOrNull()
         }
-    }.getOrNull()
 
     override fun logEvent(name: String, parameters: Map<String, String>) {
         firebaseAnalytics?.logEvent(
             name,
             Bundle().apply {
-                parameters.forEach { (key, value) -> putString(key, value) }
+                parameters.forEach { (key, value) ->
+                    if (key in setOf("duration_ms", "elapsed_ms", "result_count", "http_status") && value.toLongOrNull() != null) {
+                        putLong(key, value.toLong())
+                    } else putString(key, value)
+                }
+                putString("event_schema_version", "2")
             },
         )
     }
+
+    override fun setUserProperty(name: String, value: String?) {
+        firebaseAnalytics?.setUserProperty(name, value)
+    }
 }
+
+private const val InternalPackageSuffix = ".internal"

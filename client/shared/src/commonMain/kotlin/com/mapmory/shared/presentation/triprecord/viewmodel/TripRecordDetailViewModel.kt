@@ -19,6 +19,15 @@ class TripRecordDetailViewModel(
     var uiState by mutableStateOf<TripRecordDetailUiState>(TripRecordDetailUiState.Idle)
         private set
 
+    private var loadedRevision: Long? = null
+
+    suspend fun loadIfNeeded(id: Long, dataRevision: Long) {
+        val visible = uiState as? TripRecordDetailUiState.Success
+        if (visible?.record?.id == id && loadedRevision == dataRevision) return
+        load(id)
+        if (uiState is TripRecordDetailUiState.Success) loadedRevision = dataRevision
+    }
+
     suspend fun load(id: Long) {
         uiState = TripRecordDetailUiState.Loading
         uiState = getTripRecord(id).fold(

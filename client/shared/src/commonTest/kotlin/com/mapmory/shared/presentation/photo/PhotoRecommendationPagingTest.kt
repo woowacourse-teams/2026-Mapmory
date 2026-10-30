@@ -8,27 +8,76 @@ import kotlin.test.assertTrue
 
 class PhotoRecommendationPagingTest {
     @Test
+    fun `편집 중 기존 사진은 첫 검색 페이지와 병합되고 해제 후 다시 선택되지 않는다`() {
+        val existing = photo(100)
+        val initial = PhotoRecommendationPagingState(
+            photos = listOf(existing), selectedIds = setOf(existing.id),
+        )
+        val first = initial.accept(
+            PhotoRecommendationPage(1, listOf(photo(1)), true), false,
+        )!!
+        assertEquals(listOf(existing.id, photo(1).id), first.photos.map { it.id })
+        val deselected = first.toggleSelection(existing.id)
+        val next = deselected.accept(
+            PhotoRecommendationPage(1, listOf(existing, photo(2)), false), false,
+            preselectedIds = setOf(existing.id),
+        )!!
+        assertFalse(existing.id in next.selectedIds)
+        assertEquals(3, next.photos.size)
+        assertTrue(photo(2).id in next.toggleSelection(photo(2).id).selectedIds)
+    }
+
+    @Test
+    fun `미리보기 없이 100장을 먼저 선택하고 미리보기 도착 시 선택을 유지한다`() {
+        val metadata = (1..100).map { photo(it).copy(previewBytes = null) }
+        val selected = PhotoRecommendationPagingState()
+            .accept(PhotoRecommendationPage(1, metadata, hasMore = true), autoSelectNewPhotos = false)!!
+            .selectAllLoadedPhotos()
+        assertEquals(100, selected.selectedIds.size)
+        assertTrue(selected.photos.all { it.previewBytes == null })
+
+        val deselected = selected.toggleSelection(metadata.first().id)
+        val hydrated = deselected.accept(
+            PhotoRecommendationPage(1, metadata.take(24).map { it.copy(previewBytes = byteArrayOf(1)) }, true),
+            autoSelectNewPhotos = false,
+        )!!
+        assertEquals(deselected.selectedIds, hydrated.selectedIds)
+        assertEquals(100, hydrated.photos.size)
+        assertTrue(hydrated.photos.take(24).all { it.previewBytes != null })
+        val repeated = hydrated.accept(PhotoRecommendationPage(1, metadata, true), false)!!
+        assertTrue(repeated.photos.take(24).all { it.previewBytes != null })
+    }
+
+    @Test
     fun `추천_사진은_24장_단위로_누적된다`() {
         val pages = listOf(
             PhotoRecommendationPage(1, (1..24).map { photo(it) }, hasMore = true),
             PhotoRecommendationPage(1, (25..48).map { photo(it) }, hasMore = true),
-            PhotoRecommendationPage(1, (49..50).map { photo(it) }, hasMore = false),
+            PhotoRecommendationPage(1, (49..72).map { photo(it) }, hasMore = true),
+            PhotoRecommendationPage(1, (73..96).map { photo(it) }, hasMore = true),
+            PhotoRecommendationPage(1, (97..120).map { photo(it) }, hasMore = false),
         )
 
         val first = PhotoRecommendationPagingState().accept(pages[0])
         val second = first?.accept(pages[1])
         val third = second?.accept(pages[2])
+        val fourth = third?.accept(pages[3])
+        val fifth = fourth?.accept(pages[4])
 
         assertNotNull(first)
         assertNotNull(second)
         assertNotNull(third)
+        assertNotNull(fourth)
+        assertNotNull(fifth)
         assertEquals(24, first.photos.size)
         assertEquals(48, second.photos.size)
-        assertEquals(50, third.photos.size)
-        assertEquals(2, third.pageIndex)
-        assertFalse(third.hasMore)
-        assertEquals(50, third.photos.map(SelectedPhoto::id).toSet().size)
-        assertEquals(10, third.selectedIds.size)
+        assertEquals(72, third.photos.size)
+        assertEquals(96, fourth.photos.size)
+        assertEquals(120, fifth.photos.size)
+        assertEquals(4, fifth.pageIndex)
+        assertFalse(fifth.hasMore)
+        assertEquals(120, fifth.photos.map(SelectedPhoto::id).toSet().size)
+        assertEquals(100, fifth.selectedIds.size)
     }
 
     @Test
@@ -50,6 +99,88 @@ class PhotoRecommendationPagingTest {
             .toggleSelection("1")
             .toggleSelection("4")
         assertEquals(setOf("2", "3", "4"), replaced.selectedIds)
+    }
+
+    @Test
+    fun `드래그_선택은_지나간_사진을_같은_상태로_변경한다`() {
+        val initial = requireNotNull(
+            PhotoRecommendationPagingState(maxSelectionCount = 3).accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..4).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+            ),
+        )
+
+        val selected = initial
+            .setSelection("1", selected = true)
+            .setSelection("2", selected = true)
+            .setSelection("3", selected = true)
+            .setSelection("4", selected = true)
+
+        assertEquals(setOf("1", "2", "3"), selected.selectedIds)
+
+        val deselected = selected
+            .setSelection("1", selected = false)
+            .setSelection("2", selected = false)
+
+        assertEquals(setOf("3"), deselected.selectedIds)
+    }
+
+    @Test
+    fun `새_앨범_플로우는_추천_사진을_자동으로_선택하지_않는다`() {
+        val result = PhotoRecommendationPagingState(maxSelectionCount = 3)
+            .accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..5).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+            )
+
+        assertNotNull(result)
+        assertEquals(5, result.photos.size)
+        assertTrue(result.selectedIds.isEmpty())
+    }
+
+    @Test
+    fun `편집할_때_기기_사진_식별자가_같은_사진만_기존_선택으로_복원한다`() {
+        val result = PhotoRecommendationPagingState(maxSelectionCount = 100)
+            .accept(
+                page = PhotoRecommendationPage(
+                    generation = 1,
+                    photos = (1..5).map(::photo),
+                    hasMore = false,
+                ),
+                autoSelectNewPhotos = false,
+                preselectedIds = setOf("2", "4", "missing"),
+            )
+
+        assertNotNull(result)
+        assertEquals(setOf("2", "4"), result.selectedIds)
+    }
+
+    @Test
+    fun `모두_선택은_현재_페이지를_누적하면서도_최대_100장을_넘지_않는다`() {
+        val first = requireNotNull(
+            PhotoRecommendationPagingState(maxSelectionCount = 100).accept(
+                PhotoRecommendationPage(1, (1..72).map(::photo), hasMore = true),
+                autoSelectNewPhotos = false,
+            ),
+        ).selectAllLoadedPhotos()
+        val second = requireNotNull(
+            first.accept(
+                PhotoRecommendationPage(1, (73..120).map(::photo), hasMore = true),
+                autoSelectNewPhotos = false,
+            ),
+        ).selectAllLoadedPhotos()
+
+        assertEquals(72, first.selectedIds.size)
+        assertEquals(100, second.selectedIds.size)
+        assertEquals((1..100).map(Int::toString).toSet(), second.selectedIds)
     }
 
     @Test

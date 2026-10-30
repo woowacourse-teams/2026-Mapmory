@@ -1,15 +1,26 @@
 package com.mapmory.android
 
+import android.Manifest
+import android.os.Build
+import android.os.ParcelFileDescriptor
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Before
 import android.graphics.Bitmap
 import android.graphics.Color
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextReplacement
 import com.mapmory.shared.MapmoryApp
+import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.app.MapmoryViewModelFactory
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
+import org.junit.Assert.assertEquals
 import com.mapmory.shared.presentation.photo.SelectedPhoto
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.runBlocking
@@ -19,6 +30,84 @@ import org.junit.Test
 class MapmoryAppNavigationTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Before
+    fun preparePermissionsForEmptyTestEmulator() {
+        // Opt in only for the temporary emulator fixture. Never grant permissions on a real phone.
+        if (Build.HARDWARE !in setOf("ranchu", "goldfish")) return
+        if (InstrumentationRegistry.getArguments().getString("grantFixturePhotoPermissions") != "true") return
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val galleryPermission = if (Build.VERSION.SDK_INT >= 33) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else Manifest.permission.READ_EXTERNAL_STORAGE
+        val permissions = buildList {
+            add(galleryPermission)
+            if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+        }
+        permissions.forEach { permission ->
+            val result = instrumentation.uiAutomation.executeShellCommand(
+                "pm grant ${instrumentation.targetContext.packageName} $permission",
+            )
+            ParcelFileDescriptor.AutoCloseInputStream(result).use { it.readBytes() }
+        }
+    }
+
+    @Test
+    fun forcedUpdateCannotBeDismissedWithBack() {
+        val update = com.mapmory.shared.update.ForceUpdateState("0.1.8", "https://play.google.com")
+        update.applyMinimumVersion("0.1.9")
+        update.finishCheck()
+        composeRule.setContent { MapmoryApp(container = createInMemoryAppContainer(), updateState = update) }
+        composeRule.onNodeWithText("업데이트가 필요해요").assertIsDisplayed()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        composeRule.onNodeWithText("업데이트가 필요해요").assertIsDisplayed()
+        composeRule.runOnIdle { update.applyMinimumVersion("0.0.0") }
+        composeRule.onNodeWithText("업데이트가 필요해요").assertDoesNotExist()
+    }
+
+    @Test
+    fun `개발자_도구는_디버그_정보가_제공될_때만_설정에서_열린다`() {
+        val container = createInMemoryAppContainer()
+        composeRule.setContent {
+            MapmoryApp(
+                container = container,
+                developerToolsInfo = MapmoryDeveloperToolsInfo(
+                    versionName = "0.1.7",
+                    versionCode = 10L,
+                    applicationId = "com.mapmory.android",
+                    buildType = "debug",
+                    apiBaseUrl = "https://dev-api.map-mory.com/api/v1",
+                    deviceName = "Test device",
+                    androidVersion = "16 (API 36)",
+                ),
+            )
+        }
+
+        openSettings()
+        composeRule.onNodeWithText("개발자 도구").performClick()
+        composeRule.onNodeWithText("versionName").assertIsDisplayed()
+        composeRule.onNodeWithText("0.1.7").assertIsDisplayed()
+        composeRule.onNodeWithText("versionCode").assertIsDisplayed()
+        composeRule.onNodeWithText("10").assertIsDisplayed()
+        composeRule.onNodeWithText("com.mapmory.android").assertDoesNotExist()
+        composeRule.onNodeWithText("개발 서버").assertIsDisplayed()
+        composeRule.onNodeWithText("https://dev-api.map-mory.com/api/v1").assertDoesNotExist()
+        composeRule.onNodeWithText("Test device").assertIsDisplayed()
+    }
+
+    @Test
+    fun `개발자_도구_진입은_정보가_없으면_설정에_노출되지_않는다`() {
+        val container = createInMemoryAppContainer()
+        composeRule.setContent { MapmoryApp(container = container) }
+
+        openSettings()
+
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithText("개발자 도구").fetchSemanticsNodes().size,
+        )
+    }
 
     @Test
     fun `기록_목록_상세_삭제와_편집_화면은_목적지_ViewModel을_사용한다`() {
@@ -48,21 +137,57 @@ class MapmoryAppNavigationTest {
             MapmoryApp(container = container)
         }
 
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("일지").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("일지").performClick()
-        composeRule.onNodeWithContentDescription("계측 테스트 여행").assertIsDisplayed()
-        composeRule.onNodeWithText("계측 테스트 여행").assertIsDisplayed().performClick()
-        composeRule.onNodeWithContentDescription("계측 테스트 여행 사진 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("강남구").assertIsDisplayed()
+        composeRule.onNodeWithText("강남구").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("강남구 사진첩").assertIsDisplayed()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithContentDescription("2026. 08. 24 여행 사진 확대")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeBy(100)
+        // The source and destination coexist while the image's bounds are moving.
+        composeRule.onNodeWithContentDescription("2026. 08. 24 여행 사진 확대").assertExists()
+        composeRule.onNodeWithContentDescription("강남구 확대 사진 1").assertExists()
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithContentDescription("2026. 08. 24 여행 사진 확대").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("강남구 확대 사진 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진첩으로 돌아가기").performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithContentDescription("강남구 확대 사진 1").assertExists()
+        composeRule.onNodeWithContentDescription("2026. 08. 24 여행 사진 확대").assertExists()
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithContentDescription("강남구 확대 사진 1").assertDoesNotExist()
+        composeRule.mainClock.autoAdvance = true
 
         composeRule.onNodeWithContentDescription("더보기").performClick()
         composeRule.onNodeWithText("수정").performClick()
-        composeRule.onNodeWithText("기록 수정하기").assertIsDisplayed()
-        composeRule.onNodeWithText("계측 테스트 여행")
-            .performTextReplacement("수정된 계측 테스트 여행")
-        composeRule.onNodeWithText("저장").performClick()
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("사진 고르기").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("사진 고르기").assertIsDisplayed()
+        composeRule.onNode(hasContentDescription("크게 보기", substring = true), useUnmergedTree = true).performScrollTo().performClick()
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithContentDescription("사진 고르기로 돌아가기").assertIsDisplayed()
+        composeRule.onNode(hasContentDescription("확대 사진", substring = true)).assertIsDisplayed()
+        composeRule.onNodeWithText("선택 해제").performClick()
+        composeRule.onNodeWithText("앨범에 추가").performClick()
+        composeRule.onNodeWithContentDescription("사진 고르기로 돌아가기").performClick()
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithText("사진 고르기").assertIsDisplayed()
+        composeRule.onNodeWithText("수정하기").performClick()
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("강남구 사진첩").fetchSemanticsNodes().isNotEmpty()
+        }
 
-        composeRule.onNodeWithText("수정된 계측 테스트 여행").assertIsDisplayed()
+        composeRule.onNodeWithText("강남구 사진첩").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("뒤로가기").performClick()
-        composeRule.onNodeWithContentDescription("수정된 계측 테스트 여행")
+        composeRule.onNodeWithContentDescription("강남구")
             .assertIsDisplayed()
             .performClick()
 
@@ -74,13 +199,44 @@ class MapmoryAppNavigationTest {
         composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("새 기록 작성").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()
-        composeRule.onNodeWithText("←").performClick()
+        composeRule.onNodeWithText("어디 사진을 불러올까요?").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("뒤로가기").performClick()
         composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
 
         composeRule.onNodeWithText("지도").performClick()
         composeRule.onNodeWithContentDescription("새 기록 작성").performClick()
-        composeRule.onNodeWithText("기록 남기기").assertIsDisplayed()
+        composeRule.onNodeWithText("어디 사진을 불러올까요?").assertIsDisplayed()
+    }
+
+    @Test
+    fun `탭을_반복_이동해도_목록과_통계_ViewModel을_다시_만들지_않는다`() {
+        val original = createInMemoryAppContainer()
+        var listCreations = 0
+        var statisticsCreations = 0
+        val factory = object : MapmoryViewModelFactory by original.viewModelFactory {
+            override fun createTripRecordListViewModel() =
+                original.viewModelFactory.createTripRecordListViewModel().also { listCreations++ }
+            override fun createTripStatisticsViewModel() =
+                original.viewModelFactory.createTripStatisticsViewModel().also { statisticsCreations++ }
+        }
+        val container = object : AppContainer by original {
+            override val viewModelFactory = factory
+        }
+        composeRule.setContent { MapmoryApp(container = container) }
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("일지").fetchSemanticsNodes().isNotEmpty()
+        }
+        repeat(3) {
+            composeRule.onNodeWithText("일지").performClick()
+            composeRule.onNodeWithText("아직 작성한 여행 기록이 없어요.").assertIsDisplayed()
+            composeRule.onNodeWithText("통계").performClick()
+            composeRule.waitForIdle()
+            composeRule.onNodeWithText("지도").performClick()
+        }
+        composeRule.runOnIdle {
+            assertEquals(1, listCreations)
+            assertEquals(1, statisticsCreations)
+        }
     }
 
     private fun createPngBytes(): ByteArray {
@@ -91,5 +247,13 @@ class MapmoryAppNavigationTest {
             bitmap.recycle()
             output.toByteArray()
         }
+    }
+
+    private fun openSettings() {
+        composeRule.waitUntil(15_000) {
+            composeRule.onAllNodesWithText("통계").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("통계").performClick()
+        composeRule.onNodeWithText("⚙").performClick()
     }
 }

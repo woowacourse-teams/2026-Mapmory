@@ -13,6 +13,64 @@ internal class PhotoPreviewLoader(
     private val cache: PhotoPreviewCache,
     private val remoteSource: PhotoRemoteSource,
 ) {
+    suspend fun capturedAt(objectKey: String): String? = try {
+        cache.capturedAt(objectKey)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        try {
+            cache.rememberCapturedAt(objectKey, capturedAt)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // 메타데이터 캐시 실패가 서버 저장 성공을 실패로 바꾸지 않는다.
+        }
+    }
+
+    suspend fun cachedUri(objectKey: String): String? = cache.uri(objectKey)
+
+    suspend fun cachedForDisplay(objectKey: String): PhotoPreviewDisplay? =
+        cache.uri(objectKey)?.let { uri -> PhotoPreviewDisplay(uri = uri) }
+            ?: readCache(objectKey)?.let { bytes -> PhotoPreviewDisplay(bytes = bytes) }
+
+    suspend fun copyCached(fromObjectKey: String, toObjectKey: String): String? {
+        cache.copy(fromObjectKey, toObjectKey)
+        return cache.uri(toObjectKey)
+    }
+
+    suspend fun rememberLocalSource(objectKey: String, localSourceKey: String) {
+        try {
+            cache.linkLocalSource(objectKey, localSourceKey)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // 로컬 식별자 캐시 장애가 기록 저장·표시를 막지 않도록 한다.
+        }
+    }
+
+    suspend fun localSourceKey(objectKey: String): String? = try {
+        cache.localSourceKey(objectKey)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    suspend fun loadForDisplay(
+        objectKey: String,
+        presignedGetUrl: String,
+    ): Result<PhotoPreviewDisplay> {
+        cachedForDisplay(objectKey)?.let { cached -> return Result.success(cached) }
+        return load(objectKey, presignedGetUrl).map { bytes ->
+            cache.uri(objectKey)?.let { uri -> PhotoPreviewDisplay(uri = uri) }
+                ?: PhotoPreviewDisplay(bytes = bytes)
+        }
+    }
+
     suspend fun load(
         objectKey: String,
         presignedGetUrl: String,
@@ -53,6 +111,11 @@ internal class PhotoPreviewLoader(
         }
     }
 }
+
+internal data class PhotoPreviewDisplay(
+    val uri: String? = null,
+    val bytes: ByteArray? = null,
+)
 
 internal fun Throwable.isExpiredPresignedGetUrl(): Boolean =
     this is MapmoryApiException && statusCode == ForbiddenStatusCode

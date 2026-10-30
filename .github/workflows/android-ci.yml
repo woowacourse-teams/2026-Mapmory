@@ -5,11 +5,11 @@ on:
     branches:
       - develop
       - main
-  push:
-    branches:
-      - develop
-      - main
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -36,7 +36,14 @@ jobs:
             android:
               - '.github/workflows/android-ci.yml'
               - 'client/androidApp/**'
-              - 'client/shared/**'
+              - 'client/shared/build.gradle.kts'
+              - 'client/shared/src/commonMain/**'
+              - 'client/shared/src/commonTest/**'
+              - 'client/shared/src/androidMain/**'
+              - 'client/shared/src/androidHostTest/**'
+              - 'client/shared/src/androidDeviceTest/**'
+              - 'client/shared/src/jvmMain/**'
+              - 'client/shared/src/jvmTest/**'
               - 'client/gradle/**'
               - 'client/build.gradle.kts'
               - 'client/settings.gradle.kts'
@@ -72,14 +79,5 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Run common JVM tests
-        run: ./gradlew :shared:jvmTest --no-daemon
-
-      - name: Run Android host tests
-        run: ./gradlew :shared:testAndroidHostTest --no-daemon
-
-      - name: Run Android lint
-        run: ./gradlew :androidApp:lint --no-daemon
-
-      - name: Build Android Debug APK
-        run: ./gradlew :androidApp:assembleDebug --no-daemon
+      - name: Test, lint, and build Android
+        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon

@@ -37,7 +37,7 @@
 
 ```json
 [
-  { "field": "title", "reason": "제목은 필수입니다." }
+  { "field": "countryCode", "reason": "국가 코드는 필수입니다." }
 ]
 ```
 
@@ -153,17 +153,23 @@ travel-records/{memberId}/{uuid}.{extension}
 클라이언트는 발급받은 URL로 S3에 직접 `PUT`하고, 여행 기록 요청에는
 업로드가 완료된 `objectKeys`만 전달한다. Presigned URL은 DB에 저장하지 않는다.
 
+Presigned URL 발급 요청은 최대 10개 파일을 받는다. 앱은 기록당 최대 100장의 사진을 허용하며,
+10장씩 나누어 최대 10회 URL을 발급받은 뒤 각 URL로 업로드한다.
+
 오류 코드는 `INVALID_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `TOO_MANY_FILES`,
 `MEMBER_NOT_FOUND`를 사용한다.
 
 ## 여행 기록 API
 
-여행 기록의 `locationId`는 최종 선택 단계인 `DISTRICT` 지역 ID여야 한다.
-날짜를 입력하지 않으면 두 값 모두 `null`이다. 시작일만 입력하면 서버가 종료일을
-시작일과 같게 저장한다. 종료일만 입력하거나 종료일이 시작일보다 빠르면
+여행지는 지역 코드로 전달한다. 국내 기록은 `countryCode`, `provinceCode`,
+`districtCode`가 모두 필요하고, 해외 기록은 `countryCode`만 전달한다.
+`startDate`는 필수이고 `endDate`는 선택이다. 종료일이 시작일보다 빠르면
 `INVALID_TRAVEL_DATE_RANGE`를 반환한다.
 
-`title`과 `content`는 요청에 포함되어야 하지만 빈 문자열과 공백 문자열을 허용한다.
+앱은 `title`을 필수로 검증하거나 보정하지 않고 사용자가 입력한 값을 그대로 전달한다.
+제목을 입력하지 않으면 빈 문자열(`""`)을 보내며, 제목의 유효성은 서버 응답으로 확인한다.
+현재 개발 서버는 빈 문자열에 `400 VALIDATION_ERROR`와 `제목은 필수입니다.`를 반환한다.
+`content`는 선택이며 누락하거나 `null`로 전달하면 빈 문자열로 정규화한다.
 
 ### 생성
 
@@ -173,10 +179,12 @@ travel-records/{memberId}/{uuid}.{extension}
 
 ```json
 {
-  "locationId": 1,
+  "countryCode": "KR",
+  "provinceCode": "11",
+  "districtCode": "11110",
   "title": "비 오는 날의 종로",
   "content": "골목을 걸으며 오래된 가게들을 기록했다.",
-  "startDate": null,
+  "startDate": "2026-09-25",
   "endDate": null,
   "objectKeys": ["travel-records/10/example.jpg"]
 }

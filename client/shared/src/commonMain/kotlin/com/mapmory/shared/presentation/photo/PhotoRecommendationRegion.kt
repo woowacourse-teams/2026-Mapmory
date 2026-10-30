@@ -136,7 +136,6 @@ private fun pointOnSegment(point: GeoPoint, start: GeoPoint, end: GeoPoint): Boo
         point.latitude in minOf(start.latitude, end.latitude)..maxOf(start.latitude, end.latitude)
 }
 
-internal const val MaxRecommendedPhotos = 12
 internal const val PhotoRecommendationRegionNotFoundMessage = "선택한 장소의 경계를 확인하지 못했어요."
 private const val KoreaCountryId = 1L
 private const val MinimumRingPointCount = 3

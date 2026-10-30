@@ -14,6 +14,24 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class AndroidPhotoPreviewCache(context: Context) : PhotoPreviewCache {
+    private val usagePreferences = context.applicationContext.getSharedPreferences("recorded-photos", Context.MODE_PRIVATE)
+    override suspend fun readRecordedPhotoIndex(): String? = withContext(Dispatchers.IO) {
+        usagePreferences.getString("records", null)
+    }
+    override suspend fun writeRecordedPhotoIndex(value: String) {
+        withContext(Dispatchers.IO) {
+            check(usagePreferences.edit().putString("records", value).commit())
+        }
+    }
+    private val metadataPreferences = context.applicationContext.getSharedPreferences("record-photo-dates", Context.MODE_PRIVATE)
+    override suspend fun capturedAt(objectKey: String): String? = withContext(Dispatchers.IO) {
+        metadataPreferences.getString(objectKey, null)
+    }
+    override suspend fun rememberCapturedAt(objectKey: String, capturedAt: String) {
+        withContext(Dispatchers.IO) {
+            check(metadataPreferences.edit().putString(objectKey, capturedAt).commit())
+        }
+    }
     private val directory = File(context.applicationContext.cacheDir, CacheDirectoryName)
     private val mutex = Mutex()
 
@@ -37,6 +55,48 @@ class AndroidPhotoPreviewCache(context: Context) : PhotoPreviewCache {
                     temporary.delete()
                 }
             }
+        }
+    }
+
+    override suspend fun uri(objectKey: String): String? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            File(directory, objectKeyCacheFileName(objectKey))
+                .takeIf(File::isFile)
+                ?.toURI()
+                ?.toString()
+        }
+    }
+
+    override suspend fun copy(fromObjectKey: String, toObjectKey: String) {
+        if (fromObjectKey == toObjectKey || toObjectKey.isBlank()) return
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val source = File(directory, objectKeyCacheFileName(fromObjectKey))
+                if (!source.isFile) return@withLock
+                if (!directory.exists() && !directory.mkdirs()) return@withLock
+                source.copyTo(File(directory, objectKeyCacheFileName(toObjectKey)), overwrite = true)
+            }
+        }
+    }
+
+    override suspend fun linkLocalSource(objectKey: String, localSourceKey: String) {
+        if (objectKey.isBlank() || localSourceKey.isBlank()) return
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                if (!directory.exists() && !directory.mkdirs()) return@withLock
+                File(directory, "${objectKeyCacheFileName(objectKey)}$LocalSourceSuffix")
+                    .writeText(localSourceKey)
+            }
+        }
+    }
+
+    override suspend fun localSourceKey(objectKey: String): String? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            File(directory, "${objectKeyCacheFileName(objectKey)}$LocalSourceSuffix")
+                .takeIf(File::isFile)
+                ?.takeIf { it.length() in 1..MaxLocalSourceKeyBytes }
+                ?.readText()
+                ?.takeIf(String::isNotBlank)
         }
     }
 }
@@ -131,3 +191,5 @@ private const val CacheDirectoryName = "mapmory-photo-previews"
 private const val MaxPreviewCacheEntryBytes = 5 * 1024 * 1024
 private const val PreviewSizePx = 1280
 private const val PreviewJpegQuality = 85
+private const val LocalSourceSuffix = ".source"
+private const val MaxLocalSourceKeyBytes = 4_096L

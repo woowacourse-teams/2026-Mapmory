@@ -12,6 +12,23 @@ import kotlin.test.assertIs
 
 class TripStatisticsViewModelTest {
     @Test
+    fun `탭_재진입은_통계를_유지하고_기록_변경_시에만_다시_조회한다`() = runSuspend {
+        val repository = StubTripStatisticsRepository(
+            responses = mutableListOf(
+                Result.success(statistics(recordCount = 1, mediaCount = 2)),
+                Result.success(statistics(recordCount = 2, mediaCount = 3)),
+            ),
+        )
+        val viewModel = TripStatisticsViewModel(repository)
+        viewModel.refreshIfNeeded(0)
+        viewModel.refreshIfNeeded(0)
+        assertEquals(1, repository.requestCount)
+        viewModel.refreshIfNeeded(1)
+        assertEquals(2, repository.requestCount)
+        assertEquals(2, assertIs<TripStatisticsUiState.Success>(viewModel.uiState).statistics.recordCount)
+    }
+
+    @Test
     fun `전용_통계_API_응답을_현재_화면_상태로_변환한다`() = runSuspend {
         val repository = StubTripStatisticsRepository(
             responses = mutableListOf(

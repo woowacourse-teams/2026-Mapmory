@@ -24,6 +24,26 @@ data class ApiResponseDto<T>(
 )
 
 @Serializable
+data class ServiceFeedbackRequestDto(
+    val category: String,
+    val content: String,
+    val platform: String,
+)
+
+@Serializable
+data class ShareVideoJobDto(
+    val jobId: Long,
+    val status: String,
+)
+
+@Serializable
+data class ShareVideoDownloadDto(
+    val jobId: Long,
+    val downloadUrl: String,
+    val downloadUrlExpiresIn: Long,
+)
+
+@Serializable
 data class GuestLoginResponseDto(
     val accessToken: String,
     val refreshToken: String,
@@ -91,7 +111,8 @@ data class TagRequestDto(
 @Serializable
 data class TripRecordListItemDto(
     val id: Long,
-    val title: String,
+    val photoCount: Int? = null,
+    val title: String? = null,
     val regionName: String,
     val startDate: String,
     val endDate: String?,
@@ -116,7 +137,7 @@ data class TripRecordRegionDto(
 @Serializable
 data class TripRecordDetailDto(
     val id: Long,
-    val title: String,
+    val title: String? = null,
     val content: String,
     val region: TripRecordRegionDto,
     val startDate: String,
@@ -126,6 +147,31 @@ data class TripRecordDetailDto(
     val tags: List<TagDto> = emptyList(),
     val createdAt: String,
     val updatedAt: String,
+    val placeProvider: String? = null,
+    val placeId: String? = null,
+    val placeName: String? = null,
+    val placeAttribution: String? = null,
+    val placeAttributionUrl: String? = null,
+)
+
+@Serializable
+data class PlaceCandidateDto(
+    val placeId: String,
+    val name: String,
+    val address: String? = null,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
+)
+
+@Serializable
+data class PlaceSelectionDto(
+    val placeId: String,
+    val name: String? = null,
+    val countryCode: String? = null,
+    val suggestedRegion: TripRecordRegionDto? = null,
+    val manualRegionRequired: Boolean = false,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
 )
 
 @Serializable
@@ -148,6 +194,7 @@ data class TripRecordRequestDto(
     val endDate: String?,
     val objectKeys: List<String> = emptyList(),
     val tagIds: List<Long> = emptyList(),
+    val placeId: String? = null,
 )
 
 @Serializable

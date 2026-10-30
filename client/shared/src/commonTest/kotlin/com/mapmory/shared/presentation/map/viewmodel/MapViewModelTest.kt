@@ -15,6 +15,44 @@ import kotlin.test.assertTrue
 
 class MapViewModelTest {
     @Test
+    fun `화면을_다시_그리거나_새로고침해도_확인한_현재위치를_유지한다`() = runSuspend {
+        val repository = object : MapSummaryRepository {
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
+                Result.success(emptyList<MapRegionSummary>())
+        }
+        val viewModel = MapViewModel(repository, StaticRegionCatalog())
+        val point = com.mapmory.shared.presentation.map.domain.GeoPoint(127f, 37f)
+        viewModel.updateCurrentLocation(point)
+        viewModel.refreshIfNeeded(0)
+        assertEquals(point, viewModel.currentLocation)
+        viewModel.refreshIfNeeded(1)
+        assertEquals(point, viewModel.currentLocation)
+    }
+
+    @Test
+    fun `지도_재진입은_열린_지역을_유지하고_같은_데이터를_재조회하지_않는다`() = runSuspend {
+        var requests = 0
+        val repository = object : MapSummaryRepository {
+            override suspend fun getRootRegions(tagId: Long?): Result<List<MapRegionSummary>> {
+                requests++
+                return Result.success(emptyList())
+            }
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
+                Result.success(emptyList<MapRegionSummary>())
+        }
+        val viewModel = MapViewModel(repository, StaticRegionCatalog())
+        viewModel.refreshIfNeeded(0)
+        viewModel.openProvince("KR-11")
+        val visible = viewModel.uiState
+        viewModel.refreshIfNeeded(0)
+        assertEquals(visible, viewModel.uiState)
+        assertEquals(1, requests)
+        viewModel.refreshIfNeeded(1)
+        assertEquals(2, requests)
+    }
+
+    @Test
     fun `캐시된_지도_요약으로_첫_화면을_즉시_구성한다`() {
         val korea = MapRegionSummary(1, "KR", MapRegionType.COUNTRY, "대한민국", 2, MapRegionLevel.LOW)
         val seoul = MapRegionSummary(11, "11", MapRegionType.PROVINCE, "서울특별시", 2, MapRegionLevel.LOW)
@@ -99,12 +137,57 @@ class MapViewModelTest {
         assertTrue(viewModel.hasRecords(seoul))
     }
 
+    @Test
+    fun `전국지도는_기록한_시군구만_방문으로_표시한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository(catalog) { "2026-08-31T00:00:00" }
+        repository.createTripRecord(draft(catalog.requireByCode("41150").id, "의정부 여행"))
+        repository.createTripRecord(draft(catalog.requireByCode("11680").id, "강남 여행"))
+        val viewModel = MapViewModel(repository, catalog)
+
+        viewModel.refresh()
+
+        assertEquals(setOf("41150", "11680"), viewModel.visitedKoreaDistrictCodes)
+        assertEquals(230, viewModel.koreaDistrictCount)
+    }
+
+    @Test
+    fun `시도에_직접_저장한_기록은_방문하지_않은_시군구를_칠하지_않는다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository(catalog) { "2026-08-31T00:00:00" }
+        val seoul = catalog.requireByCode("KR-11")
+        repository.createTripRecord(draft(seoul.id, "서울 기록"))
+        repository.createTripRecord(draft(catalog.requireByCode("11680").id, "강남 기록"))
+        val viewModel = MapViewModel(repository, catalog)
+
+        viewModel.refresh()
+
+        assertEquals(setOf("11680"), viewModel.visitedKoreaDistrictCodes)
+        assertEquals(setOf("KR-11"), viewModel.directlyVisitedProvinceCodes)
+        assertEquals(setOf("KR-11", "11680"), viewModel.visitedKoreaMapRegionCodes)
+        assertTrue(viewModel.hasRecords(seoul))
+    }
+
+    @Test
+    fun `부산에_직접_저장한_기록은_부산_전체를_방문_지역으로_표시한다`() = runSuspend {
+        val catalog = StaticRegionCatalog()
+        val repository = FakeTripRecordRepository(catalog) { "2026-08-31T00:00:00" }
+        repository.createTripRecord(draft(catalog.requireByCode("KR-26").id, "부산 기록"))
+        val viewModel = MapViewModel(repository, catalog)
+
+        viewModel.refresh()
+
+        assertEquals(setOf("KR-26"), viewModel.directlyVisitedProvinceCodes)
+        assertEquals(setOf("KR-26"), viewModel.visitedKoreaMapRegionCodes)
+        assertTrue(viewModel.visitedKoreaDistrictCodes.isEmpty())
+    }
+
     private fun draft(locationId: Long, title: String) = TripRecordDraft(
         locationId = locationId,
         title = title,
         content = "",
         startDate = "2026-08-01",
         endDate = null,
-        mediaObjectKeys = emptyList(),
+        mediaObjectKeys = listOf("records/$locationId/photo.jpg"),
     )
 }

@@ -18,6 +18,60 @@ import kotlin.test.assertIs
 
 class PhotoUploadRemoteRepositoryTest {
     @Test
+    fun recordLimitPhotosAreUploadedInPresignedBatches() = runBlocking {
+        val sources = (1..100).map { index ->
+            PhotoUploadSource(
+                localId = "content://photo/$index",
+                fileName = "photo-$index.jpg",
+                contentType = "image/jpeg",
+                bytes = byteArrayOf(index.toByte()),
+            )
+        }
+        val expectedBatchSizes = List(10) { 10 }
+        var batchIndex = 0
+        var objectIndex = 0
+        val client = HttpClient(MockEngine) {
+            configureCommonHttpClient()
+            engine {
+                addHandler { request ->
+                    when (request.method.value) {
+                        "POST" -> {
+                            val batchSize = expectedBatchSizes.getOrNull(batchIndex++)
+                                ?: error("예상보다 많은 업로드 URL 발급 요청입니다.")
+                            val uploads = List(batchSize) {
+                                objectIndex += 1
+                                """{"objectKey":"travel-records/10/photo-$objectIndex.jpg","presignedUrl":"https://bucket.example.com/$objectIndex.jpg?signature=test","method":"PUT","contentType":"image/jpeg","expiresIn":300}"""
+                            }.joinToString(",")
+                            respondJson("""{"data":{"uploads":[$uploads]}}""")
+                        }
+
+                        "PUT" -> {
+                            respond(
+                                content = ByteReadChannel(""),
+                                status = HttpStatusCode.OK,
+                            )
+                        }
+
+                        else -> error("예상하지 못한 요청입니다: ${request.method.value}")
+                    }
+                }
+            }
+        }
+        val repository = PhotoUploadRemoteRepository(
+            client = client,
+            apiBaseUrl = "https://api.example.com/api/v1",
+            accessTokenProvider = AccessTokenProvider { "guest-access-token" },
+        )
+
+        val uploads = repository.upload(sources).getOrThrow()
+
+        assertEquals(expectedBatchSizes.size, batchIndex)
+        assertEquals(100, uploads.size)
+        assertEquals(sources.map(PhotoUploadSource::localId), uploads.map(UploadedPhoto::localId))
+        client.close()
+    }
+
+    @Test
     fun presignedUrlIsRequestedWithBearerAndBinaryIsPutDirectlyToS3() = runBlocking {
         val originalBytes = byteArrayOf(0x01, 0x02, 0x03, 0x04)
         var requestCount = 0

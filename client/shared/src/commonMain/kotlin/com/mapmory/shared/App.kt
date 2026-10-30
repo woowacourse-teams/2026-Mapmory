@@ -1,6 +1,7 @@
 package com.mapmory.shared
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -15,52 +16,102 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsUserProperty
 import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.MapmoryNavHost
 import com.mapmory.shared.navigation.MapmoryNavigator
+import com.mapmory.shared.navigation.PlatformNavigationGestures
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.presentation.splash.MapmorySplashScreen
+import com.mapmory.shared.presentation.components.ProvideScrollToTop
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalettes
-import kotlinx.coroutines.delay
+import com.mapmory.shared.presentation.theme.MapmoryTypography
+import com.mapmory.shared.update.ForceUpdateState
+import com.mapmory.shared.update.ForceUpdateGate
+import com.mapmory.shared.update.awaitSplashUpdateCheck
 
 @Composable
 fun MapmoryApp(
     container: AppContainer? = null,
     navigation: MapmoryNavigation? = null,
     contentWindowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
-    initialIsDarkTheme: Boolean = false,
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
+    showTimelineLayoutSwitcher: Boolean = developerToolsInfo != null,
+    updateState: ForceUpdateState? = null,
+    onRetryUpdateCheck: () -> Unit = {},
 ) {
-    var isDarkTheme by rememberSaveable { mutableStateOf(initialIsDarkTheme) }
-    val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
-    val themeState = remember(isDarkTheme) {
-        MapmoryThemeState(
-            isDark = isDarkTheme,
-            onThemeChange = { shouldUseDarkTheme ->
-                isDarkTheme = shouldUseDarkTheme
-                latestOnThemeChanged(shouldUseDarkTheme)
-            },
-        )
-    }
     val ownedContainer = remember(container) {
         if (container == null) createInMemoryAppContainer() else null
     }
     val appContainer = requireNotNull(container ?: ownedContainer)
+    val themePreference = appContainer.themePreference
+    var isDarkTheme by remember(themePreference) {
+        mutableStateOf(themePreference.loadIsDarkTheme())
+    }
+    val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
+    LaunchedEffect(themePreference) {
+        latestOnThemeChanged(isDarkTheme)
+    }
+    val themeState = remember(isDarkTheme, themePreference) {
+        MapmoryThemeState(
+            isDark = isDarkTheme,
+            onThemeChange = { shouldUseDarkTheme ->
+                isDarkTheme = shouldUseDarkTheme
+                themePreference.saveIsDarkTheme(shouldUseDarkTheme)
+                latestOnThemeChanged(shouldUseDarkTheme)
+            },
+        )
+    }
+    val teamDevicePreference = appContainer.teamDevicePreference
+    var isTeamDevice by remember(teamDevicePreference) {
+        mutableStateOf(teamDevicePreference.loadIsTeamDevice())
+    }
+    LaunchedEffect(analytics, isTeamDevice) {
+        analytics.setUserProperty(MapmoryAnalyticsUserProperty.IS_TEAM, isTeamDevice.toString())
+    }
+    val teamDeviceState = remember(isTeamDevice, teamDevicePreference, updateState) {
+        TeamDeviceState(
+            appVersion = updateState?.currentVersion.orEmpty(),
+            isTeamDevice = isTeamDevice,
+            onTeamDeviceChange = { enabled ->
+                isTeamDevice = enabled
+                teamDevicePreference.saveIsTeamDevice(enabled)
+            },
+        )
+    }
     val navController = rememberNavController()
     val navigator = remember(navController) { MapmoryNavigator(navController) }
     val backHandlerRegistry = remember { MapmoryBackHandlerRegistry() }
     val latestNavigateBack = rememberUpdatedState {
-        backHandlerRegistry.handleBack() || navigator.navigateBack()
+        updateState?.isBlocking == true ||
+            backHandlerRegistry.handleBack(navController.currentBackStackEntry?.id) ||
+            navigator.navigateBack()
     }
+    var edgeGestureOwnerId by remember { mutableStateOf<String?>(null) }
+    var edgeGestureWasInternal by remember { mutableStateOf(false) }
     var showSplash by rememberSaveable { mutableStateOf(true) }
+    var savedJournalLayout by rememberSaveable { mutableStateOf(TripRecordListLayout.PHOTO.name) }
+    val journalLayout = when (savedJournalLayout) {
+        TripRecordListLayout.TIMELINE.name -> TripRecordListLayout.TIMELINE
+        TripRecordListLayout.COLLECTION.name -> TripRecordListLayout.COLLECTION
+        else -> TripRecordListLayout.PHOTO
+    }
+    var isTravelAchievementsEnabled by rememberSaveable { mutableStateOf(false) }
+    var isMascotPreviewEnabled by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        delay(SplashDurationMillis)
-        showSplash = false
+    LaunchedEffect(updateState) {
+        if (showSplash || updateState?.isChecking == true) {
+            showSplash = true
+            awaitSplashUpdateCheck(updateState, SplashDurationMillis)
+            showSplash = false
+        }
     }
 
     DisposableEffect(navigation, navigator, backHandlerRegistry) {
@@ -72,20 +123,69 @@ fun MapmoryApp(
     }
 
     CompositionLocalProvider(
+        com.mapmory.shared.navigation.LocalNavigationGestureMotion provides remember { com.mapmory.shared.navigation.NavigationGestureMotion() },
         LocalMapmoryTheme provides themeState,
         LocalMapmoryAnalytics provides analytics,
+        LocalTeamDevice provides teamDeviceState,
     ) {
         ProvideTripRecordPalettes(isDark = isDarkTheme) {
-            if (showSplash) {
-                MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
-            } else {
-                MapmoryNavHost(
-                    navController = navController,
-                    navigator = navigator,
-                    container = appContainer,
-                    backHandlerRegistry = backHandlerRegistry,
-                    contentWindowInsets = contentWindowInsets,
-                )
+            MaterialTheme(typography = MapmoryTypography()) {
+                if (showSplash || updateState?.isChecking == true) {
+                    MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
+                } else {
+                    ProvideScrollToTop {
+                        MapmoryNavHost(
+                            navController = navController,
+                            navigator = navigator,
+                            container = appContainer,
+                            backHandlerRegistry = backHandlerRegistry,
+                            contentWindowInsets = contentWindowInsets,
+                            developerToolsInfo = developerToolsInfo,
+                            showTimelineLayoutSwitcher = showTimelineLayoutSwitcher,
+                            journalLayout = journalLayout,
+                            onJournalLayoutChange = { savedJournalLayout = it.name },
+                            isTravelAchievementsEnabled = isTravelAchievementsEnabled,
+                            onTravelAchievementsEnabledChange = { isTravelAchievementsEnabled = it },
+                            isMascotPreviewEnabled = isMascotPreviewEnabled,
+                            onMascotPreviewEnabledChange = { isMascotPreviewEnabled = it },
+                        )
+                        if (updateState?.isBlocking != true) PlatformNavigationGestures(
+                            onBackStarted = {
+                                val ownerId = navController.currentBackStackEntry?.id
+                                edgeGestureOwnerId = ownerId
+                                edgeGestureWasInternal =
+                                    backHandlerRegistry.handleGestureBack(ownerId)
+                                edgeGestureWasInternal || navigator.navigateBackKeepingState()
+                            },
+                            onBackCancelled = {
+                                if (edgeGestureWasInternal) {
+                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId)
+                                } else {
+                                    navigator.navigateForward()
+                                }
+                                edgeGestureOwnerId = null
+                                edgeGestureWasInternal = false
+                            },
+                            onForwardStarted = {
+                                val ownerId = navController.currentBackStackEntry?.id
+                                edgeGestureOwnerId = ownerId
+                                edgeGestureWasInternal =
+                                    backHandlerRegistry.handleGestureForward(ownerId)
+                                edgeGestureWasInternal || navigator.navigateForward()
+                            },
+                            onForwardCancelled = {
+                                if (edgeGestureWasInternal) {
+                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId)
+                                } else {
+                                    navigator.navigateBackKeepingState()
+                                }
+                                edgeGestureOwnerId = null
+                                edgeGestureWasInternal = false
+                            },
+                        )
+                    }
+                }
+                updateState?.let { ForceUpdateGate(it, onRetryUpdateCheck) }
             }
         }
     }

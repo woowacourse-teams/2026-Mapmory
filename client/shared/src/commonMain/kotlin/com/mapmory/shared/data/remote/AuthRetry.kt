@@ -1,16 +1,21 @@
 package com.mapmory.shared.data.remote
 
 import com.mapmory.shared.data.auth.GuestSessionManager
+import com.mapmory.shared.data.remote.model.ProblemDetailDto
 import io.ktor.client.HttpClient
+import io.ktor.client.call.save
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.plugin
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 /**
- * Mapmory 보호 API의 401을 공통 HTTP 경계에서 처리한다.
+ * 만료된 Access Token(EXPIRED_ACCESS_TOKEN)만 공통 HTTP 경계에서 갱신한다.
  *
  * Repository가 요청을 통째로 다시 실행하면 이미 완료된 S3 업로드까지 반복될 수 있다.
  * 따라서 실패한 HTTP 요청 하나만 새 Access Token으로 최대 한 번 재전송한다.
@@ -32,6 +37,14 @@ internal fun HttpClient.installMapmoryAuthRetry(
         ) {
             return@intercept response
         }
+
+        val savedResponse = response.save()
+        val errorCode = apiCall {
+            AuthErrorJson
+                .decodeFromString<ProblemDetailDto>(savedResponse.response.bodyAsText())
+                .code
+        }.getOrNull()
+        if (errorCode != ExpiredAccessTokenCode) return@intercept savedResponse
 
         session.refreshAfterUnauthorized(failedAccessToken).getOrThrow()
         val refreshedAccessToken = session.getAccessToken()
@@ -58,3 +71,5 @@ private fun io.ktor.http.URLBuilder.isSameApi(apiUrl: Url): Boolean = build().le
 }
 
 private const val BearerPrefix = "Bearer "
+private const val ExpiredAccessTokenCode = "EXPIRED_ACCESS_TOKEN"
+private val AuthErrorJson = Json { ignoreUnknownKeys = true }

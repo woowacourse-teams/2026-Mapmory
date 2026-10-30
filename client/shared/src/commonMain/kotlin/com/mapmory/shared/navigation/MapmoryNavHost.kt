@@ -4,12 +4,18 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -17,12 +23,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.logging.mapmoryDebugLog
+import com.mapmory.shared.presentation.developer.DeveloperToolsScreen
 import com.mapmory.shared.presentation.map.route.MapRoute as MapScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripProfileRoute
+import com.mapmory.shared.presentation.triprecord.route.TripAchievementsScreenRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
+import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementBadge
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementUnlockDialog
+import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
+import com.mapmory.shared.presentation.triprecord.screen.newlyEarnedTripAchievementBadges
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 
 @Composable
 internal fun MapmoryNavHost(
@@ -31,18 +46,51 @@ internal fun MapmoryNavHost(
     container: AppContainer,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
+    developerToolsInfo: MapmoryDeveloperToolsInfo?,
+    showTimelineLayoutSwitcher: Boolean,
+    journalLayout: TripRecordListLayout,
+    onJournalLayoutChange: (TripRecordListLayout) -> Unit,
+    isTravelAchievementsEnabled: Boolean,
+    onTravelAchievementsEnabledChange: (Boolean) -> Unit,
+    isMascotPreviewEnabled: Boolean,
+    onMascotPreviewEnabledChange: (Boolean) -> Unit,
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
-    NavHost(
-        navController = navController,
-        startDestination = MapRoute,
-        // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None },
-    ) {
+    val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
+    var newlyEarnedBadges by remember { mutableStateOf<List<TripAchievementBadge>?>(null) }
+    val gestureMotion = LocalNavigationGestureMotion.current
+    LaunchedEffect(container.backgroundTripRecordSaver, developerToolsInfo, isTravelAchievementsEnabled) {
+        container.backgroundTripRecordSaver.completedSaves.collect { completion ->
+            if (developerToolsInfo == null || !isTravelAchievementsEnabled) return@collect
+            val previousStatistics = completion.previousStatistics ?: return@collect
+            val currentStatistics = try {
+                container.tripStatisticsRepository.getStatistics().getOrNull()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@collect
+            val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
+            if (unlocked.isNotEmpty()) {
+                newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+            }
+        }
+    }
+    Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
+        container.shareVideoRepository?.let { repository ->
+            TripTimelineVideoJobMonitor(repository, container.shareVideoJobStore)
+        }
+        NavHost(
+            navController = navController,
+            startDestination = MapRoute,
+            // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
+        ) {
         composable<MapRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(NavigationLogTag, "screen=map")
             }
@@ -53,18 +101,25 @@ internal fun MapmoryNavHost(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 regionCatalog = container.regionCatalog,
+                onboardingPreference = container.onboardingPreference,
                 backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
                 tripRecordRevision = tripRecordRevision,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { locationId ->
                     navigator.navigateToEditor(selectedLocationId = locationId)
                 },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
             )
         }
 
         composable<RecordsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<RecordsRoute>()
+            val requestedLocationId by backStackEntry.savedStateHandle
+                .getStateFlow<Long?>(RecordsLocationKey, route.locationId)
+                .collectAsState()
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(
                     NavigationLogTag,
@@ -77,16 +132,28 @@ internal fun MapmoryNavHost(
             TripRecordListRoute(
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
-                initialLocationId = route.locationId,
+                initialLocationId = requestedLocationId,
                 tripRecordRevision = tripRecordRevision,
+                pendingSaves = backgroundSaves,
+                onRetryPendingSave = container.backgroundTripRecordSaver::retry,
+                onDismissPendingSave = container.backgroundTripRecordSaver::dismissFailure,
                 onOpenMap = navigator::navigateToMap,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
+                shareVideoRepository = container.shareVideoRepository,
+                shareVideoJobStore = container.shareVideoJobStore,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+                layout = journalLayout,
+                showLayoutSwitcher = showTimelineLayoutSwitcher,
+                onLayoutChange = onJournalLayoutChange,
             )
         }
 
         composable<EditorRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<EditorRoute>()
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(
@@ -100,13 +167,16 @@ internal fun MapmoryNavHost(
             }
             TripRecordEditorRoute(
                 modifier = Modifier.windowInsetsPadding(
-                    contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                    contentWindowInsets.only(WindowInsetsSides.Horizontal),
                 ),
                 recordId = route.recordId,
                 selectedLocationId = route.selectedLocationId,
                 viewModel = viewModel,
                 regionCatalog = container.regionCatalog,
+                tripStatisticsRepository = container.tripStatisticsRepository,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
                 backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
                 onBack = { navigator.navigateBack() },
                 onSaved = { wasEditing, recordId ->
                     if (wasEditing) {
@@ -122,8 +192,9 @@ internal fun MapmoryNavHost(
         }
 
         composable<ProfileRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
-                mapmoryDebugLog(NavigationLogTag, "screen=profile")
+                mapmoryDebugLog(NavigationLogTag, "screen=statistics")
             }
             val viewModel = viewModel {
                 container.viewModelFactory.createTripStatisticsViewModel()
@@ -136,10 +207,65 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
+                onOpenAchievements = navigator::navigateToAchievements,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
             )
         }
 
+        composable<TripAchievementsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            if (developerToolsInfo != null && isTravelAchievementsEnabled) {
+                val viewModel = viewModel {
+                    container.viewModelFactory.createTripStatisticsViewModel()
+                }
+                TripAchievementsScreenRoute(
+                    modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                    viewModel = viewModel,
+                    tripRecordRevision = tripRecordRevision,
+                    onBack = { navigator.navigateBack() },
+                )
+            } else {
+                LaunchedEffect(Unit) { navigator.navigateBack() }
+            }
+        }
+
+        composable<SettingsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            LaunchedEffect(backStackEntry) {
+                mapmoryDebugLog(NavigationLogTag, "screen=settings")
+            }
+            TripSettingsRoute(
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                onOpenMap = navigator::navigateToMap,
+                onOpenRecords = navigator::navigateToRecords,
+                onOpenProfile = navigator::navigateToProfile,
+                onOpenSettings = navigator::navigateToSettings,
+                developerToolsInfo = developerToolsInfo,
+                onOpenDeveloperTools = navigator::navigateToDeveloperTools,
+                serviceFeedbackRepository = container.serviceFeedbackRepository,
+            )
+        }
+
+        composable<DeveloperToolsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            if (developerToolsInfo != null) {
+                DeveloperToolsScreen(
+                    info = developerToolsInfo,
+                    isTravelAchievementsEnabled = isTravelAchievementsEnabled,
+                    onTravelAchievementsEnabledChange = onTravelAchievementsEnabledChange,
+                    isMascotPreviewEnabled = isMascotPreviewEnabled,
+                    onMascotPreviewEnabledChange = onMascotPreviewEnabledChange,
+                    onBack = { navigator.navigateBack() },
+                    modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                )
+            } else {
+                LaunchedEffect(Unit) { navigator.navigateBack() }
+            }
+        }
+
         composable<DetailRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             val route = backStackEntry.toRoute<DetailRoute>()
             LaunchedEffect(backStackEntry) {
                 mapmoryDebugLog(
@@ -157,8 +283,13 @@ internal fun MapmoryNavHost(
                     ),
                 ),
                 recordId = route.recordId,
+                initialLocationName = route.locationName,
+                initialLatestDate = route.latestDate,
+                initialPhotoCount = route.photoCount,
                 tripRecordRevision = tripRecordRevision,
                 viewModel = viewModel,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
                 onBack = { navigator.navigateBack() },
                 onEdit = { recordId ->
                     navigator.navigateToEditor(recordId = recordId)
@@ -168,8 +299,17 @@ internal fun MapmoryNavHost(
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
         }
+        }
+
+        newlyEarnedBadges?.let { badges ->
+            if (badges.isNotEmpty()) {
+                TripAchievementUnlockDialog(badges) { newlyEarnedBadges = null }
+            }
+        }
+
     }
 }
 

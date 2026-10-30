@@ -2,14 +2,18 @@ package com.mapmory.shared.data.auth
 
 import android.content.Context
 
-class AndroidAuthTokenStore(context: Context) : AuthTokenStore {
+class AndroidAuthTokenStore(context: Context, apiBaseUrl: String) : AuthTokenStore {
     private val preferences = context.applicationContext.getSharedPreferences(
-        PreferencesName,
+        authTokenStorageKey(apiBaseUrl).let { key ->
+            if (key == "production") PreferencesName else "${PreferencesName}_$key"
+        },
         Context.MODE_PRIVATE,
     )
 
-    override fun load(): AuthTokens? = preferences.getString(TokensKey, null)
-        ?.toAuthTokensOrNull()
+    override fun load(): AuthTokens? {
+        val payload = preferences.getString(TokensKey, null) ?: return null
+        return checkNotNull(payload.toAuthTokensOrNull()) { "저장된 로그인 정보를 읽지 못했습니다." }
+    }
 
     override fun save(tokens: AuthTokens) {
         check(preferences.edit().putString(TokensKey, tokens.toPayload()).commit()) {

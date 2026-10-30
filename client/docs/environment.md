@@ -32,13 +32,20 @@ Kotlin 2.4.10의 공식 KMP 호환 범위에 맞추기 위해 AGP 9.1.0을 사�
 
 ## Mapmory API Base URL
 
-Backend를 연결할 때만 `client/local.properties`에 API 주소를 추가한다.
+빌드 종류에 따라 API 주소를 분리한다.
+
+| 플랫폼 | 테스트 빌드 | 출시 빌드 |
+| --- | --- | --- |
+| Android | `debug`: `https://dev-api.map-mory.com/api/v1` | `release`: `https://api.map-mory.com/api/v1` |
+| iOS | `Debug`: `https://dev-api.map-mory.com/api/v1` | `Release`: `https://api.map-mory.com/api/v1` |
+
+Android에서 로컬 Backend를 연결할 때만 `client/local.properties`에 Debug 전용 주소를 추가한다.
 
 ```properties
-MAPMORY_API_BASE_URL=http://10.0.2.2:8080/api/v1
+MAPMORY_DEBUG_API_BASE_URL=http://10.0.2.2:8080/api/v1
 ```
 
-Android 여행 기록 API 연결은 백엔드·클라이언트 도메인 매핑을 합의한 뒤 추가한다.
+이 값은 Android Debug 빌드에만 적용된다. Release 빌드는 `local.properties`와 무관하게 운영 API를 사용한다.
 Android 에뮬레이터에서 호스트 PC의 `localhost`는 `10.0.2.2`로 접근한다.
 
 ## 현재 검증 상태

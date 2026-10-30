@@ -1,6 +1,12 @@
+import FirebaseCrashlytics
 import FirebaseCore
+import FirebaseMessaging
+import FirebaseRemoteConfig
+import Foundation
 import Shared
 import SwiftUI
+import UIKit
+import UserNotifications
 
 private let lightSystemBarColor = UIColor(
     red: 250.0 / 255.0,
@@ -15,14 +21,33 @@ private let darkSystemBarColor = UIColor(
     alpha: 1
 )
 
+private enum AppConfiguration {
+    static let apiBaseUrl: String = {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "MAPMORY_API_BASE_URL") as? String,
+              !value.isEmpty else {
+            fatalError("MAPMORY_API_BASE_URL is missing from the app configuration")
+        }
+        return value
+    }()
+}
+
 @main
 struct MapmoryApp: App {
+    @UIApplicationDelegateAdaptor(UploadAppDelegate.self) private var appDelegate
     @State private var isDarkTheme = false
+    @Environment(\.scenePhase) private var scenePhase
+    private let forceUpdate: IosForceUpdateController
     private let analyticsLogger: FirebaseAnalyticsLogger
 
     init() {
+#if INTERNAL
+        analyticsLogger = FirebaseAnalyticsLogger(isEnabled: false)
+#else
         FirebaseApp.configure()
+        _ = Crashlytics.crashlytics()
         analyticsLogger = FirebaseAnalyticsLogger()
+#endif
+        forceUpdate = IosForceUpdateController()
     }
 
     var body: some Scene {
@@ -32,7 +57,12 @@ struct MapmoryApp: App {
                 ComposeView(
                     isDarkTheme: $isDarkTheme,
                     analyticsLogger: analyticsLogger,
+                    forceUpdate: forceUpdate,
                 )
+            }
+            .onAppear { forceUpdate.refresh() }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { forceUpdate.refresh() }
             }
             .ignoresSafeArea()
             .preferredColorScheme(isDarkTheme ? .dark : .light)
@@ -43,6 +73,7 @@ struct MapmoryApp: App {
 private struct ComposeView: UIViewControllerRepresentable {
     @Binding var isDarkTheme: Bool
     let analyticsLogger: FirebaseAnalyticsLogger
+    let forceUpdate: IosForceUpdateController
 
     func makeCoordinator() -> Coordinator {
         Coordinator(isDarkTheme: $isDarkTheme)
@@ -50,12 +81,19 @@ private struct ComposeView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let coordinator = context.coordinator
-        let viewController = MainViewControllerKt.MainViewController(
+        let navigation = MapmoryNavigation()
+        let composeViewController = MainViewControllerKt.MainViewController(
+            apiBaseUrl: AppConfiguration.apiBaseUrl,
             onThemeChanged: { isDark in
                 coordinator.updateTheme(isDark.boolValue)
             },
             analytics: analyticsLogger,
+            tokenStore: KeychainAuthTokenStore(apiBaseUrl: AppConfiguration.apiBaseUrl),
+            navigation: navigation,
+            updateState: forceUpdate.state,
+            onRetryUpdateCheck: { forceUpdate.refresh() },
         )
+        let viewController = composeViewController
         applyTheme(to: viewController)
         return viewController
     }
@@ -87,4 +125,172 @@ private struct ComposeView: UIViewControllerRepresentable {
             }
         }
     }
+}
+
+final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+    private static var analyticsEnabled: Bool {
+#if DEBUG || INTERNAL
+        false
+#else
+        true
+#endif
+    }
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        guard FirebaseApp.app() != nil else { return true }
+        Messaging.messaging().delegate = self
+        application.registerForRemoteNotifications()
+        return true
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard fcmToken != nil else { return }
+#if DEBUG || INTERNAL
+        let topic = "mapmory-app-update-dev"
+        let otherTopic = "mapmory-app-update"
+#else
+        let topic = "mapmory-app-update"
+        let otherTopic = "mapmory-app-update-dev"
+#endif
+        Messaging.messaging().subscribe(toTopic: topic) { _ in }
+        Messaging.messaging().unsubscribe(fromTopic: otherTopic) { _ in }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler(
+            notification.request.identifier.hasPrefix("share-video-progress-")
+                ? [.banner]
+                : [.banner, .sound]
+        )
+    }
+
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == "com.mapmory.record-uploads" else {
+            completionHandler()
+            return
+        }
+        MainViewControllerKt.resumeBackgroundUploads(
+            apiBaseUrl: AppConfiguration.apiBaseUrl,
+            tokenStore: KeychainAuthTokenStore(apiBaseUrl: AppConfiguration.apiBaseUrl),
+            analytics: FirebaseAnalyticsLogger(isEnabled: Self.analyticsEnabled)
+        )
+        PhotoUploadTransferKt.handleBackgroundUploadEvents(completion: completionHandler)
+    }
+}
+
+private final class IosForceUpdateController {
+    let state = ForceUpdateState(
+        currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+        storeUrl: "https://apps.apple.com/app/id6807056166"
+    )
+#if DEBUG || INTERNAL
+    private let key = "ios_dev_min_supported_version"
+    private let recommendedVersionKey = "ios_dev_recommended_supported_version"
+#else
+    private let key = "ios_min_supported_version"
+    private let recommendedVersionKey = "ios_recommended_supported_version"
+#endif
+    private var fetching = false
+    private var generation = 0
+    private var didCheckForStoreUpdate = false
+
+    init() {
+        _ = state.applyMinimumVersion(value: UserDefaults.standard.string(forKey: key) ?? "")
+        _ = state.applyRecommendedVersion(value: UserDefaults.standard.string(forKey: recommendedVersionKey) ?? "")
+    }
+
+    func refresh() {
+        checkForStoreUpdate()
+        guard !fetching else { return }
+        guard FirebaseApp.app() != nil else { state.finishCheck(); return }
+        fetching = true
+        generation += 1
+        let request = generation
+        let remote = RemoteConfig.remoteConfig()
+        let settings = RemoteConfigSettings()
+#if DEBUG
+        settings.minimumFetchInterval = 0
+#else
+        settings.minimumFetchInterval = 3600
+#endif
+        settings.fetchTimeout = 10
+        remote.configSettings = settings
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            guard let self, self.generation == request else { return }
+            self.generation += 1
+            self.fetching = false
+            self.state.finishCheck()
+        }
+        remote.ensureInitialized { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.generation == request else { return }
+                self.accept(remote)
+                remote.fetchAndActivate { [weak self] _, error in
+                    DispatchQueue.main.async {
+                        guard let self, self.generation == request else { return }
+                        if error == nil { self.accept(remote) }
+                        self.generation += 1
+                        self.fetching = false
+                        self.state.finishCheck()
+                    }
+                }
+            }
+        }
+    }
+
+    private func accept(_ remote: RemoteConfig) {
+        let minimumVersion = remote.configValue(forKey: key).stringValue
+        if state.applyMinimumVersion(value: minimumVersion) {
+            UserDefaults.standard.set(minimumVersion, forKey: key)
+        }
+        let recommendedVersion = remote.configValue(forKey: recommendedVersionKey).stringValue
+        if state.applyRecommendedVersion(value: recommendedVersion) {
+            UserDefaults.standard.set(recommendedVersion, forKey: recommendedVersionKey)
+        }
+    }
+
+    private func checkForStoreUpdate() {
+#if DEBUG || INTERNAL
+        return
+#else
+        guard !didCheckForStoreUpdate,
+              Bundle.main.bundleIdentifier == "com.mapmory.ios",
+              let installedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              var components = URLComponents(string: "https://itunes.apple.com/lookup") else {
+            return
+        }
+        didCheckForStoreUpdate = true
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "6807056166"),
+            URLQueryItem(name: "country", value: "kr"),
+        ]
+        guard let lookupURL = components.url else { return }
+
+        URLSession.shared.dataTask(with: lookupURL) { data, response, error in
+            guard error == nil,
+                  let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode),
+                  let data,
+                  let results = try? JSONDecoder().decode(AppStoreLookupResponse.self, from: data).results,
+                  let app = results.first,
+                  app.bundleId == "com.mapmory.ios" else {
+                return
+            }
+            let updateAvailable = app.version.compare(installedVersion, options: .numeric) == .orderedDescending
+            DispatchQueue.main.async {
+                self.state.reportStoreUpdateAvailability(isAvailable: updateAvailable)
+            }
+        }.resume()
+#endif
+    }
+}
+
+private struct AppStoreLookupResponse: Decodable {
+    let results: [AppStoreApplication]
+}
+
+private struct AppStoreApplication: Decodable {
+    let bundleId: String
+    let version: String
 }
