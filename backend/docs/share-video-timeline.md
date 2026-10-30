@@ -42,7 +42,7 @@ POST /api/v1/share-videos/travel-timeline
 - 값이 있으면 양수여야 한다. 0·음수는 `400 VALIDATION_ERROR`로 거절한다.
 - 로그인 회원 소유가 아니거나 존재하지 않는 등록은 모두 `404 SHARE_VIDEO_PUSH_TARGET_NOT_FOUND`로 거절하고 작업을 저장하지 않는다.
 - 검증한 ID는 `share_video_job.recipient_push_token_id`에 요청 당시의 값으로 저장한다. 푸시 등록을 삭제해도 영상 작업은 유지한다.
-- 현재 단계는 수신 대상 저장까지이며, 실제 완료 푸시 발송은 Outbox·FCM 구현 후 연결한다.
+- 영상 완료 상태와 알림 Outbox 저장까지 구현했다. Outbox 자동 발송 워커와 FCM·클라이언트 수신은 아직 구현하지 않았다. 자세한 내용은 [알림 팀 가이드](notification-team-guide.md)을 참고한다.
 
 로그인 회원의 여행 기록을 시작일과 ID 순서로 조회한다. 국가 정류장이 두 개보다 적으면 `INSUFFICIENT_TIMELINE_STOPS` 오류를 반환한다.
 
@@ -190,7 +190,8 @@ sequenceDiagram
     participant Scheduler as Spring Scheduler
     participant Worker as ShareVideoWorker
     participant Claimer as ShareVideoJobClaimer
-    participant DB as share_video_job
+    participant DB as DB (share_video_job + notification_outbox)
+    participant Heartbeat as Heartbeat Scheduler
     participant Renderer as ProcessShareVideoRenderer
     participant Remotion as Video Renderer
     participant S3 as S3ShareVideoStorage
@@ -199,18 +200,22 @@ sequenceDiagram
     Scheduler->>Worker: processNext()
     Worker->>Claimer: claimNext()
     Claimer->>DB: 가장 오래된 PENDING 작업 잠금 조회
-    Claimer->>DB: 상태를 RENDERING으로 변경
-    Claimer-->>Worker: jobId + styleId + snapshotJson
+    Claimer->>DB: RENDERING, 선점 토큰·기한과 시도 경로 저장
+    Claimer-->>Worker: jobId + snapshot + 토큰 + 시도 경로
+    Worker->>Heartbeat: 1분 간격으로 선점 연장 예약
     Worker->>Renderer: render(task)
     Renderer->>Remotion: npm run render:worker -- snapshot.json result.mp4 styleId
     Remotion-->>Renderer: result.mp4
     Renderer-->>Worker: 영상 파일 경로
-    Worker->>S3: upload(jobId, videoPath)
-    S3-->>Worker: S3 Object Key
-    Worker->>Updater: complete(jobId, objectKey)
-    Updater->>DB: 상태를 COMPLETED로 변경
+    Worker->>S3: 시도별 objectKey로 uploadAttempt
+    S3-->>Worker: 업로드 완료
+    Worker->>Updater: completeClaimed(jobId, token, objectKey)
+    Updater->>DB: 한 트랜잭션에서 COMPLETED와 Outbox 저장
+    Worker->>Heartbeat: 연장 예약 취소
     Worker->>Renderer: cleanup(renderedVideo)
 ```
+
+수신 등록 ID가 없으면 Outbox를 만들지 않는다. 선점 만료 또는 서버 종료로 남은 영상 작업을 자동으로 복구하는 워커와 실제 알림 발송은 아직 없다. 진행 상태는 [알림 팀 가이드](notification-team-guide.md)를 참고한다.
 
 ## 작업 시간 및 운영 관측 데이터
 

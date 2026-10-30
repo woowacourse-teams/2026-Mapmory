@@ -1,12 +1,18 @@
 package com.mapmory.backend.notification.domain;
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationOutboxRepository extends JpaRepository<NotificationOutbox, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT outbox FROM NotificationOutbox outbox WHERE outbox.id = :id")
+    Optional<NotificationOutbox> findByIdForUpdate(@Param("id") Long id);
 
     // 지금 발송할 수 있는 대기 알림을 하나 잠금
     @Query(value = """

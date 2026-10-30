@@ -160,4 +160,94 @@ public class NotificationOutbox extends BaseEntity {
         this.leaseExpiresAt = null;
         this.nextAttemptAt = nowUtc;
     }
+
+    public boolean markSent(final String claimToken, final LocalDateTime nowUtc) {
+        if (!hasValidClaim(claimToken, nowUtc)) {
+            return false;
+        }
+        this.status = NotificationOutboxStatus.SENT;
+        this.attemptCount++;
+        this.sentAt = nowUtc;
+        this.lastErrorCode = null;
+        clearClaim();
+        return true;
+    }
+
+    public boolean scheduleRetry(
+            final String claimToken,
+            final String errorCode,
+            final LocalDateTime nowUtc,
+            final LocalDateTime nextAttemptAt
+    ) {
+        Objects.requireNonNull(nowUtc);
+        Objects.requireNonNull(nextAttemptAt);
+        if (nextAttemptAt.isBefore(nowUtc)) {
+            throw new IllegalArgumentException("다음 시도 시각은 현재보다 빠를 수 없습니다.");
+        }
+        if (!hasValidClaim(claimToken, nowUtc)) {
+            return false;
+        }
+        validateErrorCode(errorCode);
+        this.status = NotificationOutboxStatus.PENDING;
+        this.attemptCount++;
+        this.nextAttemptAt = nextAttemptAt;
+        this.lastErrorCode = errorCode;
+        clearClaim();
+        return true;
+    }
+
+    public boolean markFailed(final String claimToken, final String errorCode, final LocalDateTime nowUtc) {
+        if (!hasValidClaim(claimToken, nowUtc)) {
+            return false;
+        }
+        validateErrorCode(errorCode);
+        this.status = NotificationOutboxStatus.FAILED;
+        this.attemptCount++;
+        this.lastErrorCode = errorCode;
+        clearClaim();
+        return true;
+    }
+
+    public boolean markSkipped(final String claimToken, final String reasonCode, final LocalDateTime nowUtc) {
+        if (!hasValidClaim(claimToken, nowUtc)) {
+            return false;
+        }
+        validateErrorCode(reasonCode);
+        this.status = NotificationOutboxStatus.SKIPPED;
+        this.lastErrorCode = reasonCode;
+        clearClaim();
+        return true;
+    }
+
+    private boolean hasValidClaim(final String claimToken, final LocalDateTime nowUtc) {
+        Objects.requireNonNull(nowUtc);
+        return claimToken != null
+                && status == NotificationOutboxStatus.PROCESSING
+                && claimToken.equals(this.claimToken)
+                && leaseExpiresAt != null
+                && leaseExpiresAt.isAfter(nowUtc);
+    }
+
+    private void clearClaim() {
+        this.claimToken = null;
+        this.leaseExpiresAt = null;
+    }
+
+    private void validateErrorCode(final String errorCode) {
+        if (errorCode == null || errorCode.isBlank() || errorCode.length() > 100) {
+            throw new IllegalArgumentException("오류 코드는 1자 이상 100자 이하여야 합니다.");
+        }
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public String getLastErrorCode() {
+        return lastErrorCode;
+    }
+
+    public LocalDateTime getSentAt() {
+        return sentAt;
+    }
 }

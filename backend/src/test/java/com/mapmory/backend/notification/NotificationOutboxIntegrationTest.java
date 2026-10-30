@@ -10,6 +10,7 @@ import com.mapmory.backend.notification.domain.NotificationOutboxRepository;
 import com.mapmory.backend.notification.domain.NotificationOutboxStatus;
 import com.mapmory.backend.notification.worker.ClaimedNotification;
 import com.mapmory.backend.notification.worker.NotificationOutboxClaimer;
+import com.mapmory.backend.notification.worker.NotificationOutboxResultService;
 import com.mapmory.backend.sharevideo.ShareVideoJob;
 import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.ShareVideoJobRepository;
@@ -45,7 +46,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 @DataJpaTest
 @Import({ShareVideoJobUpdater.class, ShareVideoNotificationOutboxWriter.class,
-        NotificationOutboxClaimer.class, NotificationOutboxIntegrationTest.TestBeans.class})
+        NotificationOutboxClaimer.class, NotificationOutboxResultService.class,
+        NotificationOutboxIntegrationTest.TestBeans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
 
@@ -56,6 +58,7 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
     @Autowired private MemberRepository memberRepository;
     @Autowired private NotificationOutboxRepository outboxRepository;
     @Autowired private NotificationOutboxClaimer claimer;
+    @Autowired private NotificationOutboxResultService resultService;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private JsonMapper jsonMapper;
@@ -237,6 +240,67 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
         assertThat(outboxRepository.findById(ready.getId()).orElseThrow().getStatus())
                 .isEqualTo(NotificationOutboxStatus.PROCESSING);
         assertThat(claimer.claimNext()).isEmpty();
+    }
+
+    @Test
+    void 현재_선점의_발송_성공을_기록한다() {
+        NotificationOutbox outbox = saveOutbox("sent", NOW);
+        ClaimedNotification claim = claimer.claimNext().orElseThrow();
+
+        assertThat(resultService.markSent(outbox.getId(), "wrong-token")).isFalse();
+        assertThat(resultService.markSent(outbox.getId(), claim.claimToken())).isTrue();
+        assertThat(resultService.markSent(outbox.getId(), claim.claimToken())).isFalse();
+
+        NotificationOutbox saved = outboxRepository.findById(outbox.getId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(NotificationOutboxStatus.SENT);
+        assertThat(saved.getAttemptCount()).isEqualTo(1);
+        assertThat(saved.getSentAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void 재시도를_예약하면_예정_시각까지_다시_선점하지_않는다() {
+        NotificationOutbox outbox = saveOutbox("retry", NOW);
+        ClaimedNotification claim = claimer.claimNext().orElseThrow();
+
+        assertThat(resultService.scheduleRetry(outbox.getId(), claim.claimToken(), "TEMPORARY", NOW.plusMinutes(1)))
+                .isTrue();
+        NotificationOutbox saved = outboxRepository.findById(outbox.getId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(NotificationOutboxStatus.PENDING);
+        assertThat(saved.getAttemptCount()).isEqualTo(1);
+        assertThat(saved.getLastErrorCode()).isEqualTo("TEMPORARY");
+        assertThat(saved.getNextAttemptAt()).isEqualTo(NOW.plusMinutes(1));
+        assertThat(claimer.claimNext()).isEmpty();
+    }
+
+    @Test
+    void 최종_실패와_수신_대상_없음을_기록한다() {
+        NotificationOutbox failed = saveOutbox("failed", NOW);
+        ClaimedNotification failedClaim = claimer.claimNext().orElseThrow();
+        assertThat(resultService.markFailed(failed.getId(), failedClaim.claimToken(), "PERMANENT")).isTrue();
+
+        NotificationOutbox skipped = saveOutbox("skipped", NOW);
+        ClaimedNotification skippedClaim = claimer.claimNext().orElseThrow();
+        assertThat(resultService.markSkipped(skipped.getId(), skippedClaim.claimToken(), "NO_RECIPIENT")).isTrue();
+
+        NotificationOutbox failedResult = outboxRepository.findById(failed.getId()).orElseThrow();
+        NotificationOutbox skippedResult = outboxRepository.findById(skipped.getId()).orElseThrow();
+        assertThat(failedResult.getStatus()).isEqualTo(NotificationOutboxStatus.FAILED);
+        assertThat(failedResult.getAttemptCount()).isEqualTo(1);
+        assertThat(skippedResult.getStatus()).isEqualTo(NotificationOutboxStatus.SKIPPED);
+        assertThat(skippedResult.getAttemptCount()).isZero();
+        assertThat(skippedResult.getLastErrorCode()).isEqualTo("NO_RECIPIENT");
+    }
+
+    @Test
+    void 만료된_선점은_결과를_저장할_수_없다() {
+        NotificationOutbox outbox = NotificationOutbox.pending("VIDEO_COMPLETED", "expired-result", "{}", 1L, 1L, NOW);
+        String token = UUID.randomUUID().toString();
+        outbox.claim(token, NOW);
+        outboxRepository.saveAndFlush(outbox);
+
+        assertThat(resultService.markSent(outbox.getId(), token)).isFalse();
+        assertThat(outboxRepository.findById(outbox.getId()).orElseThrow().getStatus())
+                .isEqualTo(NotificationOutboxStatus.PROCESSING);
     }
 
     @Test
