@@ -160,6 +160,19 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 
 작업 ID·회원 ID·파일 경로·다운로드 URL·여행 내용은 이벤트 파라미터로 전송하지 않는다. 기존 플랫폼 Firebase 수집 활성화 설정을 따르며, Debug/Internal에서의 실제 수신은 별도 확인해야 한다.
 
+## 여행 기록 한 건 공유 (Android/iOS 공통)
+
+| 이벤트 | 파라미터 | 의미 |
+| --- | --- | --- |
+| `record_share_preview_opened` | 없음 | 기록 한 건의 공유 미리보기가 표시됨 |
+| `record_share_action` | `action=save_image/share_sheet`, `outcome=started/success/failure/cancelled` | 공유 이미지 저장 또는 시스템 공유 화면 열기 시도와 결과 |
+
+`save_image`의 성공은 사진 보관함 저장 완료를 뜻한다. `share_sheet`의 성공은 플랫폼 공유 UI 표시 요청이 반환된 것을 뜻하며, 다른 앱에서 실제로 공유·게시됐거나 사용자가 공유를 완료했다는 뜻은 아니다. `cancelled`는 코루틴 취소만 의미하며 시스템 공유 화면을 닫은 사용자 행동을 나타내지 않는다.
+
+기록 ID, 제목, 장소, 사진·파일 경로, 공유 대상 앱은 이벤트에 포함하지 않는다. 기록별 공유 동작은 공통 Compose 흐름에서 계측하므로 Android와 iOS가 같은 이벤트 계약을 사용한다.
+
+`record_share_action`은 버튼 클릭부터 이미지 캡처와 저장·공유 시트 호출까지 한 번의 전체 시도를 나타낸다. `share_media_operation_*`은 이미지 캡처, 저장, 공유 시트 등 단계별 결과를 기록한다. 두 이벤트 계열은 분석 범위가 다르므로 건수를 합산하지 않는다. 상세 계측이 실제 예외를 보고하므로 상위 이벤트에서 `app_error`를 중복 발행하지 않는다. 권한 거부는 상위 액션에서 `failure`, 상세 operation에서 `permission_denied`로 남기며 `app_error`에는 포함하지 않는다.
+
 ## iOS 사진 로딩 진단
 
 - `photo_load_failed(stage, error_domain, error_code)`는 로딩 단계의 실패다. PhotoKit 실패 후 원본/PHPicker 재시도로 복구할 수 있으므로 최종 누락 사진 수와 같지 않다. 촬영일이 없는 사진의 `capture_date_missing`도 이미지 표시 실패를 의미하지 않는다.
@@ -169,7 +182,7 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 
 ### 기존 영상 이벤트와의 호환성 (PR #487 통합)
 
-`video_opened`, `video_action`, `video_generation_result`와 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 같은 실제 작업을 두 관점으로 기록하므로 두 이벤트 체계의 건수를 합산하지 않는다.
+`video_opened`, `video_action`, `video_generation_result`와 기록 공유의 `record_share_*` 이벤트, 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 기존 이벤트는 제품 행동 집계를 위한 상위 이벤트이고, 상세 이벤트는 단계별 성공·실패와 오류 진단용이므로 두 계열의 건수를 합산하지 않는다.
 
 - 현재 `video_opened`는 일지의 영상 만들기 클릭(`source=journal`), `share_media_action/action=opened`는 다이얼로그가 열린 시점이다.
 - 기존 `preview_download`는 URL 요청부터 파일 확보까지 포함한다. 상세 계측은 `download_url`과 `download`를 분리한다.

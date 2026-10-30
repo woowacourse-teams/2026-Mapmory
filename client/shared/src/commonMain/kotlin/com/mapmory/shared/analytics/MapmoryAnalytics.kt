@@ -46,6 +46,8 @@ object MapmoryAnalyticsEvent {
     const val RECORD_DELETE_STARTED = "record_delete_started"
     const val RECORD_DELETED = "record_deleted"
     const val RECORD_PHOTO_OPENED = "record_photo_opened"
+    const val RECORD_SHARE_PREVIEW_OPENED = "record_share_preview_opened"
+    const val RECORD_SHARE_ACTION = "record_share_action"
     const val PHOTO_RECOMMENDATION_PAGE_LOADED = "photo_recommendation_page_loaded"
     const val PHOTO_PERMISSION_REQUIRED = "photo_permission_required"
     const val FEEDBACK_OPENED = "feedback_opened"

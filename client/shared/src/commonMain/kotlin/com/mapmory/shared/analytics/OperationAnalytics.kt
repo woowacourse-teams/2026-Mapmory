@@ -51,6 +51,28 @@ internal fun MapmoryAnalytics.reportFailure(
     })
 }
 
+internal suspend fun <T> MapmoryAnalytics.trackAction(
+    eventName: String,
+    operation: String,
+    action: String,
+    reportErrors: Boolean = true,
+    block: suspend () -> T,
+): T {
+    emit(eventName, mapOf("action" to action, "outcome" to "started"))
+    return try {
+        block().also {
+            emit(eventName, mapOf("action" to action, "outcome" to "success"))
+        }
+    } catch (error: CancellationException) {
+        emit(eventName, mapOf("action" to action, "outcome" to "cancelled"))
+        throw error
+    } catch (error: Exception) {
+        emit(eventName, mapOf("action" to action, "outcome" to "failure"))
+        if (reportErrors) reportFailure(operation, error)
+        throw error
+    }
+}
+
 /** One event per repository invocation; retries are separate attempts. Cancellation is excluded. */
 internal suspend fun <T> MapmoryAnalytics.observeOperation(
     operation: String,
