@@ -43,6 +43,9 @@ class TripRecordListViewModel(
     var query by mutableStateOf(TripRecordQuery())
         private set
 
+    val selectedLocationName: String?
+        get() = query.locationId?.let { regionCatalog?.findById(it)?.name }
+
     var availableTags by mutableStateOf<List<Tag>>(emptyList())
         private set
 

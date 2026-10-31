@@ -57,6 +57,7 @@ internal fun TripRecordListRoute(
         shareVideoRepository = shareVideoRepository,
         shareVideoJobStore = shareVideoJobStore,
         uiState = viewModel.uiState,
+        selectedLocationName = viewModel.selectedLocationName,
         filter = TripRecordFilterUiState(
             locationId = viewModel.query.locationId,
             tags = viewModel.availableTags,
