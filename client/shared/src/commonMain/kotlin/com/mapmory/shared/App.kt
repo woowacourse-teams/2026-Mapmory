@@ -43,7 +43,7 @@ fun MapmoryApp(
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
-    showTimelineLayoutSwitcher: Boolean = developerToolsInfo != null,
+    showTimelineLayoutSwitcher: Boolean = true,
     updateState: ForceUpdateState? = null,
     onRetryUpdateCheck: () -> Unit = {},
 ) {

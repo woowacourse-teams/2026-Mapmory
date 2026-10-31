@@ -34,6 +34,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -480,9 +481,9 @@ internal fun JournalLayoutSwitcher(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         listOf(
-            TripRecordListLayout.PHOTO to "A 사진",
-            TripRecordListLayout.TIMELINE to "B 시간",
-            TripRecordListLayout.COLLECTION to "C 정리",
+            TripRecordListLayout.PHOTO to "사진",
+            TripRecordListLayout.TIMELINE to "시간순",
+            TripRecordListLayout.COLLECTION to "여행지별",
         ).forEach { (option, label) ->
             val selected = layout == option
             Text(
@@ -604,7 +605,7 @@ private fun JournalHeader(recordCount: Int, layout: TripRecordListLayout) {
             Text(
                 text = when (layout) {
                     TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
-                    TripRecordListLayout.COLLECTION -> "현재 페이지 기록을 여행지별로 모아보기"
+                    TripRecordListLayout.COLLECTION -> "이 페이지 기록을 여행지별로 모아보기"
                     TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
                 },
                 color = TripRecordPalette.current.secondaryText,
@@ -613,7 +614,7 @@ private fun JournalHeader(recordCount: Int, layout: TripRecordListLayout) {
             )
         }
         Text(
-            text = "${recordCount}개",
+            text = "현재 목록 ${recordCount}개",
             color = TripRecordPalette.current.secondaryText,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
@@ -1985,25 +1986,35 @@ private fun PageControls(
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        OutlinedButton(
+            onClick = onPreviousPageClick,
+            enabled = page > 0,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = TripRecordPalette.current.accent,
+                disabledContentColor = TripRecordPalette.current.muted,
+            ),
+            border = BorderStroke(1.dp, TripRecordPalette.current.border),
+        ) {
+            Text("‹ 이전")
+        }
         Text(
-            text = "‹ 이전",
-            color = if (page > 0) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
-            modifier = Modifier.clickable(enabled = page > 0, onClick = onPreviousPageClick),
-        )
-        Text(
-            text = "${page + 1} / $totalPages",
-            color = TripRecordPalette.current.contentOnMedia,
+            text = "${page + 1} / $totalPages 페이지",
+            color = TripRecordPalette.current.headingText,
             fontSize = 12.sp,
         )
-        Text(
-            text = "다음 ›",
-            color = if (page + 1 < totalPages) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
-            modifier = Modifier.clickable(
-                enabled = page + 1 < totalPages,
-                onClick = onNextPageClick,
+        OutlinedButton(
+            onClick = onNextPageClick,
+            enabled = page + 1 < totalPages,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = TripRecordPalette.current.accent,
+                disabledContentColor = TripRecordPalette.current.muted,
             ),
-        )
+            border = BorderStroke(1.dp, TripRecordPalette.current.border),
+        ) {
+            Text("다음 ›")
+        }
     }
 }
 
@@ -2030,7 +2041,7 @@ fun TripRecordListScreenPreview() {
 }
 
 @Preview(
-    name = "여행 기록 C 정리형",
+    name = "여행 기록 여행지별",
     showBackground = true,
     widthDp = 412,
     heightDp = 900,

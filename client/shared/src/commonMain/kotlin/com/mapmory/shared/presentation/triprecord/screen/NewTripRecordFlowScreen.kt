@@ -1504,12 +1504,19 @@ private fun LocationStep(
                 }
             }
             currentLocationError?.let { message ->
-                Text(
-                    text = message,
-                    color = TripRecordPalette.current.danger,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text(
+                        text = message,
+                        color = TripRecordPalette.current.danger,
+                        fontSize = 12.sp,
+                    )
+                    TextButton(
+                        onClick = onCurrentLocationClick,
+                        enabled = !currentLocationLoading,
+                    ) {
+                        Text("현재 위치 다시 시도", color = TripRecordPalette.current.primary)
+                    }
+                }
             }
             uiState.selectedPlace?.let { place ->
                 SelectedPlaceCard(
