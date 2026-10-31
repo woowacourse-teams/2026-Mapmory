@@ -51,6 +51,7 @@ import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.data.OverviewDistrictData
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
 import kotlin.coroutines.cancellation.CancellationException
@@ -68,6 +69,8 @@ fun KoreaMapArtwork(
     visitedRegionCodes: Set<String> = emptySet(),
     showRegionLabels: Boolean = false,
     isProvinceOverview: Boolean = false,
+    searchFocusRegionCode: String? = null,
+    searchFocusRequest: Int = 0,
     currentLocation: GeoPoint? = null,
     currentLocationFocusRequest: Int = 0,
     onRegionClick: (String) -> Unit = {},
@@ -78,10 +81,12 @@ fun KoreaMapArtwork(
     val coroutineScope = rememberCoroutineScope()
     val currentOnRegionClick by rememberUpdatedState(onRegionClick)
     val textMeasurer = rememberTextMeasurer()
+    val searchFocusPulse = rememberMapSearchFocusPulse(searchFocusRegionCode)
     var zoom by rememberSaveable(regions, isProvinceOverview) {
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
     val isDark = LocalMapmoryTheme.current.isDark
+    val searchFocusColor = TripRecordPalette.current.primary
     val baseLabelFontSize = when {
         isProvinceOverview -> 6f
         regions.size >= 35 -> 8f
@@ -197,6 +202,9 @@ fun KoreaMapArtwork(
                             lineTo(end.x, end.y)
                         }
                     },
+                    outlineRingPaths = visibleRings.map { ring ->
+                        Path().apply { addProjectedRing(ring, projection) }
+                    },
                     smallIslandPath = if (smallIslandRings.isEmpty()) {
                         null
                     } else {
@@ -234,6 +242,7 @@ fun KoreaMapArtwork(
     }
     var pan by rememberSaveable(regions, stateSaver = MapPanSaver) { mutableStateOf(Offset.Zero) }
     var lastLocationFocusRequest by rememberSaveable { mutableStateOf(0) }
+    var lastSearchFocusRequest by rememberSaveable { mutableStateOf(0) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(currentLocation, currentLocationFocusRequest, projection, viewportSize) {
         if (currentLocation == null || currentLocationFocusRequest == 0 ||
@@ -247,6 +256,29 @@ fun KoreaMapArtwork(
             viewportSize = viewportSize,
         )
         lastLocationFocusRequest = currentLocationFocusRequest
+    }
+    LaunchedEffect(
+        searchFocusRegionCode,
+        searchFocusRequest,
+        displayedRegions,
+        projection,
+        viewportSize,
+        isProvinceOverview,
+    ) {
+        if (searchFocusRequest == 0 || searchFocusRequest == lastSearchFocusRequest || !projection.isValid) {
+            return@LaunchedEffect
+        }
+        val point = displayedRegions.firstOrNull { it.code == searchFocusRegionCode }?.labelPoint()
+            ?: return@LaunchedEffect
+        val targetZoom = if (isProvinceOverview) ProvinceSearchFocusZoom else DistrictSearchFocusZoom
+        val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+        zoom = targetZoom
+        pan = projection.clampPan(
+            pan = (center - projection.project(point)) * targetZoom,
+            zoom = targetZoom,
+            viewportSize = viewportSize,
+        )
+        lastSearchFocusRequest = searchFocusRequest
     }
     val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
@@ -334,225 +366,265 @@ fun KoreaMapArtwork(
         return
     }
 
-    Canvas(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundColor)
-            .onSizeChanged { viewportSize = it }
-            .pointerInput(viewportSize, projection) {
-                detectTransformGestures(
-                    panZoomLock = true,
-                ) { centroid, panChange, zoomChange, _ ->
-                    // Read state directly: several pointer events may arrive before recomposition.
-                    val next = transformKoreaMapGesture(
-                        MapTransform(zoom, pan), centroid, panChange, zoomChange, viewportSize,
-                    )
-                    zoom = next.zoom
-                    val boundedPan = projection.clampPan(next.pan, next.zoom, viewportSize)
-                    pan = resistKoreaMapOverscroll(next.pan, boundedPan)
+    Box(modifier = modifier.fillMaxSize()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundColor)
+                .onSizeChanged { viewportSize = it }
+                .pointerInput(viewportSize, projection) {
+                    detectTransformGestures(
+                        panZoomLock = true,
+                    ) { centroid, panChange, zoomChange, _ ->
+                        // Read state directly: several pointer events may arrive before recomposition.
+                        val next = transformKoreaMapGesture(
+                            MapTransform(zoom, pan), centroid, panChange, zoomChange, viewportSize,
+                        )
+                        zoom = next.zoom
+                        val boundedPan = projection.clampPan(next.pan, next.zoom, viewportSize)
+                        pan = resistKoreaMapOverscroll(next.pan, boundedPan)
+                    }
                 }
-            }
-            // Observe release without consuming input so taps and the standard pinch detector still work.
-            .pointerInput(viewportSize, projection) {
-                try {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                        settleJob?.cancel()
-                        do {
-                            val event = awaitPointerEvent(PointerEventPass.Final)
-                        } while (event.changes.any { it.pressed })
-                        val target = projection.clampPan(pan, zoom, viewportSize)
-                        if (target != pan) {
-                            settleJob = coroutineScope.launch {
-                                Animatable(pan, Offset.VectorConverter).animateTo(target, tween(180)) {
-                                    pan = value
+                // Observe release without consuming input so taps and the standard pinch detector still work.
+                .pointerInput(viewportSize, projection) {
+                    try {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            settleJob?.cancel()
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                            } while (event.changes.any { it.pressed })
+                            val target = projection.clampPan(pan, zoom, viewportSize)
+                            if (target != pan) {
+                                settleJob = coroutineScope.launch {
+                                    Animatable(pan, Offset.VectorConverter).animateTo(target, tween(180)) {
+                                        pan = value
+                                    }
                                 }
                             }
                         }
+                    } finally {
+                        settleJob?.cancel()
                     }
-                } finally {
-                    settleJob?.cancel()
                 }
-            }
-                .pointerInput(
-                    viewportSize,
-                    projection,
-                    displayedRegions,
-                    overviewDistricts,
-                    isProvinceOverview,
-                    showRegionLabels,
-                    preparedLabels,
-                    dokdoTapCenter,
-                    dokdoTapRadius,
-                ) {
-                detectTapGestures { position ->
-                    val transform = MapTransform(zoom, pan)
-                    val mapPoint = projection.unproject(position, transform, viewportSize)
-                    val dokdoScreenCenter = dokdoTapCenter?.let { tapCenter ->
-                        transformMapPoint(tapCenter, transform, viewportSize)
-                    }
-                    val tappedDokdo = dokdoScreenCenter?.let { markerCenter ->
-                        val delta = position - markerCenter
-                        delta.x * delta.x + delta.y * delta.y <= dokdoTapRadius * dokdoTapRadius
-                    } == true
-                    val labelRegion = if (showRegionLabels) {
-                        preparedLabels.mapNotNull { label ->
-                            val labelCenter = transformMapPoint(label.center, transform, viewportSize)
-                            val horizontalDistance = abs(position.x - labelCenter.x)
-                            val verticalDistance = abs(position.y - labelCenter.y)
-                            if (horizontalDistance <= label.layout.size.width / 2f + labelHitPadding &&
-                                verticalDistance <= label.layout.size.height / 2f + labelHitPadding
-                            ) {
-                                label.code to (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance)
-                            } else {
-                                null
+                    .pointerInput(
+                        viewportSize,
+                        projection,
+                        displayedRegions,
+                        overviewDistricts,
+                        isProvinceOverview,
+                        showRegionLabels,
+                        preparedLabels,
+                        dokdoTapCenter,
+                        dokdoTapRadius,
+                    ) {
+                    detectTapGestures { position ->
+                        val transform = MapTransform(zoom, pan)
+                        val mapPoint = projection.unproject(position, transform, viewportSize)
+                        val dokdoScreenCenter = dokdoTapCenter?.let { tapCenter ->
+                            transformMapPoint(tapCenter, transform, viewportSize)
+                        }
+                        val tappedDokdo = dokdoScreenCenter?.let { markerCenter ->
+                            val delta = position - markerCenter
+                            delta.x * delta.x + delta.y * delta.y <= dokdoTapRadius * dokdoTapRadius
+                        } == true
+                        val labelRegion = if (showRegionLabels) {
+                            preparedLabels.mapNotNull { label ->
+                                val labelCenter = transformMapPoint(label.center, transform, viewportSize)
+                                val horizontalDistance = abs(position.x - labelCenter.x)
+                                val verticalDistance = abs(position.y - labelCenter.y)
+                                if (horizontalDistance <= label.layout.size.width / 2f + labelHitPadding &&
+                                    verticalDistance <= label.layout.size.height / 2f + labelHitPadding
+                                ) {
+                                    label.code to (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance)
+                                } else {
+                                    null
+                                }
+                            }.minByOrNull { it.second }?.first
+                        } else {
+                            null
+                        }
+                        if (tappedDokdo) {
+                            currentOnRegionClick(DokdoDistrictCode)
+                        } else if (labelRegion != null) {
+                            currentOnRegionClick(labelRegion)
+                        } else {
+                            val region = displayedRegions.regionAt(mapPoint)
+                            val district = if (isProvinceOverview) overviewDistricts.orEmpty().regionAt(mapPoint) else null
+                            val selectedCode = when {
+                                district?.code == GunwiDistrictCode -> district.code
+                                isProvinceOverview && region?.code !in MetropolitanCityLabels -> district?.code ?: region?.code
+                                else -> region?.code
                             }
-                        }.minByOrNull { it.second }?.first
-                    } else {
-                        null
-                    }
-                    if (tappedDokdo) {
-                        currentOnRegionClick(DokdoDistrictCode)
-                    } else if (labelRegion != null) {
-                        currentOnRegionClick(labelRegion)
-                    } else {
-                        val region = displayedRegions.regionAt(mapPoint)
-                        val district = if (isProvinceOverview) overviewDistricts.orEmpty().regionAt(mapPoint) else null
-                        val selectedCode = when {
-                            district?.code == GunwiDistrictCode -> district.code
-                            isProvinceOverview && region?.code !in MetropolitanCityLabels -> district?.code ?: region?.code
-                            else -> region?.code
+                            selectedCode?.let(currentOnRegionClick)
                         }
-                        selectedCode?.let(currentOnRegionClick)
                     }
-                }
-            },
-    ) {
-        if (!projection.isValid) return@Canvas
-        val transform = MapTransform(zoom, pan)
-        val outlineWidth = max(0.8f, size.minDimension * 0.003f)
-        val center = Offset(size.width / 2f, size.height / 2f)
+                },
+        ) {
+            if (!projection.isValid) return@Canvas
+            val transform = MapTransform(zoom, pan)
+            val outlineWidth = max(0.8f, size.minDimension * 0.003f)
+            val center = Offset(size.width / 2f, size.height / 2f)
 
-        withTransform({
-            translate(transform.pan.x, transform.pan.y)
-            scale(transform.zoom, transform.zoom, pivot = center)
-        }) {
-            preparedRegions.forEach { prepared ->
-                val isVisited = prepared.region.code in visitedRegionCodes
-                val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
-                drawPath(path = prepared.fillPath, color = fillColor)
-                if (transform.zoom >= OverviewIslandRevealZoom) {
-                    prepared.smallIslandPath?.let { islandPath ->
-                        drawPath(path = islandPath, color = fillColor)
+            withTransform({
+                translate(transform.pan.x, transform.pan.y)
+                scale(transform.zoom, transform.zoom, pivot = center)
+            }) {
+                preparedRegions.forEach { prepared ->
+                    val isVisited = prepared.region.code in visitedRegionCodes
+                    val isSearchFocused = prepared.region.code == searchFocusRegionCode
+                    val fillColor = if (isVisited) visitedFillColor else unvisitedFillColor
+                    drawPath(path = prepared.fillPath, color = fillColor)
+                    if (transform.zoom >= OverviewIslandRevealZoom) {
+                        prepared.smallIslandPath?.let { islandPath ->
+                            drawPath(path = islandPath, color = fillColor)
+                        }
+                    }
+                    prepared.dokdoPath?.let { dokdoPath ->
+                        val dokdoFillColor = if (DokdoDistrictCode in visitedRegionCodes) {
+                            visitedFillColor
+                        } else {
+                            unvisitedFillColor
+                        }
+                        drawPath(path = dokdoPath, color = dokdoFillColor)
                     }
                 }
-                prepared.dokdoPath?.let { dokdoPath ->
-                    val dokdoFillColor = if (DokdoDistrictCode in visitedRegionCodes) {
-                        visitedFillColor
-                    } else {
-                        unvisitedFillColor
-                    }
-                    drawPath(path = dokdoPath, color = dokdoFillColor)
-                }
-            }
 
-            preparedVisitedDistricts.forEach { district ->
-                // Use the province silhouette only to apply the same small-island visibility mask.
-                clipPath(district.clipPath) {
-                    drawPath(path = district.fillPath, color = visitedFillColor)
-                }
-                if (transform.zoom >= OverviewIslandRevealZoom) {
-                    district.smallIslandClipPath?.let { islands ->
-                        clipPath(islands) {
-                            drawPath(path = district.fillPath, color = visitedFillColor)
+                preparedVisitedDistricts.forEach { district ->
+                    // Use the province silhouette only to apply the same small-island visibility mask.
+                    clipPath(district.clipPath) {
+                        drawPath(path = district.fillPath, color = visitedFillColor)
+                    }
+                    if (transform.zoom >= OverviewIslandRevealZoom) {
+                        district.smallIslandClipPath?.let { islands ->
+                            clipPath(islands) {
+                                drawPath(path = district.fillPath, color = visitedFillColor)
+                            }
                         }
                     }
                 }
-            }
 
-            overviewDistrictOutlinePath?.let { path ->
-                drawPath(
-                    path = path,
-                    color = overviewDistrictOutlineColor,
-                    style = Stroke(width = max(0.45f, outlineWidth * 0.48f) / transform.zoom),
-                )
-            }
-
-            preparedRegions.forEach { prepared ->
-                val isVisited = prepared.region.code in visitedRegionCodes
-                val outlineColor = when {
-                    isProvinceOverview -> overviewProvinceOutlineColor
-                    isVisited -> visitedOutlineColor
-                    else -> unvisitedOutlineColor
+                overviewDistrictOutlinePath?.let { path ->
+                    drawPath(
+                        path = path,
+                        color = overviewDistrictOutlineColor,
+                        style = Stroke(width = max(0.45f, outlineWidth * 0.48f) / transform.zoom),
+                    )
                 }
-                drawPath(
-                    path = prepared.outlinePath,
-                    color = outlineColor,
-                    style = Stroke(width = outlineWidth / transform.zoom),
-                )
-                if (transform.zoom >= OverviewIslandRevealZoom) {
-                    prepared.smallIslandPath?.let { islandPath ->
+
+                preparedRegions.forEach { prepared ->
+                    val isVisited = prepared.region.code in visitedRegionCodes
+                    val isSearchFocused = prepared.region.code == searchFocusRegionCode
+                    val outlineColor = when {
+                        isSearchFocused -> searchFocusColor.copy(alpha = 0.30f)
+                        isProvinceOverview -> overviewProvinceOutlineColor
+                        isVisited -> visitedOutlineColor
+                        else -> unvisitedOutlineColor
+                    }
+                    drawPath(
+                        path = prepared.outlinePath,
+                        color = outlineColor,
+                        style = Stroke(width = (if (isSearchFocused) outlineWidth * 2.5f else outlineWidth) / transform.zoom),
+                    )
+                    if (transform.zoom >= OverviewIslandRevealZoom) {
+                        prepared.smallIslandPath?.let { islandPath ->
+                            drawPath(
+                                path = islandPath,
+                                color = outlineColor,
+                                style = Stroke(width = outlineWidth / transform.zoom),
+                            )
+                        }
+                    }
+                    prepared.dokdoPath?.let { dokdoPath ->
+                        val dokdoOutlineColor = if (DokdoDistrictCode in visitedRegionCodes) {
+                            visitedOutlineColor
+                        } else {
+                            unvisitedOutlineColor
+                        }
+                        val displayedDokdoOutlineColor = if (isProvinceOverview) {
+                            overviewProvinceOutlineColor
+                        } else {
+                            dokdoOutlineColor
+                        }
                         drawPath(
-                            path = islandPath,
-                            color = outlineColor,
+                            path = dokdoPath,
+                            color = displayedDokdoOutlineColor,
                             style = Stroke(width = outlineWidth / transform.zoom),
                         )
                     }
                 }
-                prepared.dokdoPath?.let { dokdoPath ->
-                    val dokdoOutlineColor = if (DokdoDistrictCode in visitedRegionCodes) {
-                        visitedOutlineColor
-                    } else {
-                        unvisitedOutlineColor
-                    }
-                    val displayedDokdoOutlineColor = if (isProvinceOverview) {
-                        overviewProvinceOutlineColor
-                    } else {
-                        dokdoOutlineColor
-                    }
-                    drawPath(
-                        path = dokdoPath,
-                        color = displayedDokdoOutlineColor,
-                        style = Stroke(width = outlineWidth / transform.zoom),
+            }
+
+            // Keep region labels readable with the same background at every map depth.
+            preparedLabels.forEach { label ->
+                val labelCenter = transformMapPoint(label.center, transform, viewportSize)
+                val labelBounds = androidx.compose.ui.geometry.Rect(
+                    left = labelCenter.x - label.layout.size.width / 2f - labelHorizontalPadding,
+                    top = labelCenter.y - label.layout.size.height / 2f - labelVerticalPadding,
+                    right = labelCenter.x + label.layout.size.width / 2f + labelHorizontalPadding,
+                    bottom = labelCenter.y + label.layout.size.height / 2f + labelVerticalPadding,
+                )
+                drawRoundRect(
+                    color = if (isDark) Color(0xFF121B18).copy(alpha = 0.94f) else Color(0xFFF9FCFA).copy(alpha = 0.96f),
+                    topLeft = labelBounds.topLeft,
+                    size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
+                )
+                drawRoundRect(
+                    color = if (isDark) Color(0xFF3D6653) else Color(0xFFD5E2D9),
+                    topLeft = labelBounds.topLeft,
+                    size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
+                    style = Stroke(width = labelBorderWidth),
+                )
+                drawText(
+                    textLayoutResult = label.layout,
+                    topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
+                )
+            }
+
+            currentLocation?.let { point ->
+                val locationCenter = transformMapPoint(projection.project(point), transform, viewportSize)
+                drawCircle(Color.White, radius = 9.dp.toPx(), center = locationCenter)
+                drawCircle(Color(0xFF2F80ED), radius = 6.dp.toPx(), center = locationCenter)
+            }
+
+        }
+
+        Canvas(Modifier.fillMaxSize()) {
+            val focusedCode = searchFocusRegionCode ?: return@Canvas
+            val focusedRegion = preparedRegions.firstOrNull { it.region.code == focusedCode } ?: return@Canvas
+            if (!projection.isValid) return@Canvas
+
+            val transform = MapTransform(zoom, pan)
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val outlineWidth = max(0.8f, size.minDimension * 0.003f)
+            withTransform({
+                translate(transform.pan.x, transform.pan.y)
+                scale(transform.zoom, transform.zoom, pivot = center)
+            }) {
+                focusedRegion.outlineRingPaths.forEach { path ->
+                    drawMapSearchFocusPulse(
+                        path = path,
+                        pulse = searchFocusPulse.value,
+                        color = searchFocusColor,
+                        outlineWidth = outlineWidth * 2.5f / transform.zoom,
+                        canvasScale = transform.zoom,
                     )
+                }
+                if (transform.zoom >= OverviewIslandRevealZoom) {
+                    focusedRegion.smallIslandPath?.let { path ->
+                        drawMapSearchFocusPulse(
+                            path = path,
+                            pulse = searchFocusPulse.value,
+                            color = searchFocusColor,
+                            outlineWidth = outlineWidth * 2.5f / transform.zoom,
+                            canvasScale = transform.zoom,
+                        )
+                    }
                 }
             }
         }
-
-        // Keep region labels readable with the same background at every map depth.
-        preparedLabels.forEach { label ->
-            val labelCenter = transformMapPoint(label.center, transform, viewportSize)
-            val labelBounds = androidx.compose.ui.geometry.Rect(
-                left = labelCenter.x - label.layout.size.width / 2f - labelHorizontalPadding,
-                top = labelCenter.y - label.layout.size.height / 2f - labelVerticalPadding,
-                right = labelCenter.x + label.layout.size.width / 2f + labelHorizontalPadding,
-                bottom = labelCenter.y + label.layout.size.height / 2f + labelVerticalPadding,
-            )
-            drawRoundRect(
-                color = if (isDark) Color(0xFF121B18).copy(alpha = 0.94f) else Color(0xFFF9FCFA).copy(alpha = 0.96f),
-                topLeft = labelBounds.topLeft,
-                size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
-            )
-            drawRoundRect(
-                color = if (isDark) Color(0xFF3D6653) else Color(0xFFD5E2D9),
-                topLeft = labelBounds.topLeft,
-                size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
-                style = Stroke(width = labelBorderWidth),
-            )
-            drawText(
-                textLayoutResult = label.layout,
-                topLeft = labelCenter - Offset(label.layout.size.width / 2f, label.layout.size.height / 2f),
-            )
-        }
-
-        currentLocation?.let { point ->
-            val locationCenter = transformMapPoint(projection.project(point), transform, viewportSize)
-            drawCircle(Color.White, radius = 9.dp.toPx(), center = locationCenter)
-            drawCircle(Color(0xFF2F80ED), radius = 6.dp.toPx(), center = locationCenter)
-        }
-
     }
 }
 
@@ -590,6 +662,7 @@ private data class PreparedKoreaRegion(
     val region: ProvincePolygon,
     val fillPath: Path,
     val outlinePath: Path,
+    val outlineRingPaths: List<Path>,
     val smallIslandPath: Path?,
     val dokdoPath: Path?,
 )
@@ -612,6 +685,8 @@ private data class PreparedKoreaLabel(
 private const val MinZoom = 1f
 private const val MaxZoom = 18f
 private const val MaxLabelZoomScaleIncrease = 1.2f
+private const val ProvinceSearchFocusZoom = 2.2f
+private const val DistrictSearchFocusZoom = 2.8f
 private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f

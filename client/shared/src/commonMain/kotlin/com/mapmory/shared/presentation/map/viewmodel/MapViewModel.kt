@@ -4,17 +4,34 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceRegionSuggestion
+import com.mapmory.shared.domain.model.PlaceRules
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.MapRegionSummary
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.presentation.map.state.KoreaMapUiState
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+data class MapPlaceSearchState(
+    val query: String = "",
+    val results: List<PlaceCandidate> = emptyList(),
+    val isSearching: Boolean = false,
+    val isSelecting: Boolean = false,
+    val hasSearched: Boolean = false,
+    val isSelectedPlace: Boolean = false,
+    val errorMessage: String? = null,
+)
 
 data class MapUiState(
     val scope: MapScope = MapScope.WORLD,
@@ -25,12 +42,18 @@ data class MapUiState(
     val tags: List<Tag> = emptyList(),
     val selectedTagId: Long? = null,
     val errorMessage: String? = null,
+    val placeSearch: MapPlaceSearchState = MapPlaceSearchState(),
+    val searchFocusCountryCode: String? = null,
+    val searchFocusProvinceCode: String? = null,
+    val searchFocusRegionCode: String? = null,
+    val searchFocusRequest: Int = 0,
 )
 
 class MapViewModel(
     private val mapSummaryRepository: MapSummaryRepository,
     private val regionCatalog: RegionCatalog,
     private val getTags: GetTagsUseCase? = null,
+    private val placeRepository: PlaceRepository? = null,
 ) : ViewModel() {
     var uiState by mutableStateOf(mapSummaryRepository.cachedUiState())
         private set
@@ -43,6 +66,124 @@ class MapViewModel(
     }
 
     private var loadedRevision: Long? = null
+    private var placeSearchGeneration = 0
+    private var placeSelectionGeneration = 0
+    private var placeSessionToken: String? = null
+    private var selectedPlaceQuery: String? = null
+
+    fun updatePlaceSearchQuery(query: String) {
+        placeSearchGeneration++
+        placeSelectionGeneration++
+        selectedPlaceQuery = null
+        if (query.isBlank()) placeSessionToken = null
+        uiState = uiState.copy(
+            placeSearch = MapPlaceSearchState(query = query.take(PlaceRules.MaxQueryLength)),
+        )
+    }
+
+    suspend fun searchPlaces(query: String = uiState.placeSearch.query) {
+        val normalizedQuery = query.trim()
+        val repository = placeRepository ?: return
+        if (uiState.placeSearch.query.trim() != normalizedQuery ||
+            selectedPlaceQuery == normalizedQuery ||
+            !PlaceRules.isSearchableQuery(normalizedQuery)
+        ) {
+            return
+        }
+
+        val generation = ++placeSearchGeneration
+        uiState = uiState.copy(
+            placeSearch = uiState.placeSearch.copy(isSearching = true, errorMessage = null),
+        )
+        repository.searchPlaces(normalizedQuery, currentPlaceSessionToken()).fold(
+            onSuccess = { candidates ->
+                if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
+                    uiState = uiState.copy(
+                        placeSearch = uiState.placeSearch.copy(
+                            results = candidates.take(PlaceRules.MaxCandidates),
+                            isSearching = false,
+                            hasSearched = true,
+                        ),
+                    )
+                }
+            },
+            onFailure = { error ->
+                if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
+                    uiState = uiState.copy(
+                        placeSearch = uiState.placeSearch.copy(
+                            results = emptyList(),
+                            isSearching = false,
+                            hasSearched = true,
+                            errorMessage = error.message ?: "장소를 검색하지 못했습니다.",
+                        ),
+                    )
+                }
+            },
+        )
+    }
+
+    suspend fun selectSearchResult(candidate: PlaceCandidate): Boolean {
+        val repository = placeRepository ?: return false
+        placeSearchGeneration++
+        val generation = ++placeSelectionGeneration
+        val sessionToken = currentPlaceSessionToken()
+        placeSessionToken = null
+        uiState = uiState.copy(
+            placeSearch = uiState.placeSearch.copy(
+                results = emptyList(),
+                isSearching = false,
+                isSelecting = true,
+                hasSearched = false,
+                errorMessage = null,
+            ),
+        )
+
+        return repository.selectPlace(candidate.placeId, sessionToken).fold(
+            onSuccess = { selection ->
+                if (generation != placeSelectionGeneration) return@fold false
+                val focus = selection.toMapSearchFocus(regionCatalog)
+                if (focus == null) {
+                    uiState = uiState.copy(
+                        placeSearch = uiState.placeSearch.copy(
+                            isSelecting = false,
+                            errorMessage = "검색한 장소의 지역 정보를 지도에서 찾지 못했습니다.",
+                        ),
+                    )
+                    return@fold false
+                }
+
+                uiState = uiState.copy(
+                    scope = focus.scope,
+                    placeSearch = MapPlaceSearchState(query = candidate.name, isSelectedPlace = true),
+                    searchFocusCountryCode = focus.countryCode,
+                    searchFocusProvinceCode = focus.provinceCode,
+                    searchFocusRegionCode = focus.regionCode,
+                    searchFocusRequest = uiState.searchFocusRequest + 1,
+                )
+                selectedPlaceQuery = candidate.name.trim()
+                if (focus.scope == MapScope.KOREA && focus.provinceCode != null) {
+                    openProvince(focus.provinceCode)
+                } else {
+                    closeProvince()
+                }
+                true
+            },
+            onFailure = { error ->
+                if (generation == placeSelectionGeneration) {
+                    uiState = uiState.copy(
+                        placeSearch = uiState.placeSearch.copy(
+                            isSelecting = false,
+                            errorMessage = error.message ?: "장소 정보를 불러오지 못했습니다.",
+                        ),
+                    )
+                }
+                false
+            },
+        )
+    }
+
+    private fun currentPlaceSessionToken(): String =
+        placeSessionToken ?: randomPlaceSessionToken().also { placeSessionToken = it }
 
     suspend fun refreshIfNeeded(dataRevision: Long) {
         if (loadedRevision == dataRevision && uiState.errorMessage == null) return
@@ -233,6 +374,57 @@ private fun MapSummaryRepository.cachedUiState(): MapUiState {
         districtsByProvince = districtsByProvince,
     )
 }
+
+private data class MapSearchFocus(
+    val scope: MapScope,
+    val countryCode: String,
+    val provinceCode: String? = null,
+    val regionCode: String? = null,
+)
+
+private fun PlaceSelection.toMapSearchFocus(regionCatalog: RegionCatalog): MapSearchFocus? {
+    val countryCode = countryCode ?: suggestedRegion?.countryCode ?: return null
+    if (countryCode != KoreaCountryCode) {
+        return if (regionCatalog.findByCode(countryCode) != null) {
+            MapSearchFocus(scope = MapScope.WORLD, countryCode = countryCode)
+        } else {
+            null
+        }
+    }
+
+    val provinceCode = suggestedRegion?.provinceCode?.toKoreanProvinceCode()
+    val districtCode = suggestedRegion?.districtCode
+    val district = if (provinceCode != null && !districtCode.isNullOrBlank()) {
+        regionCatalog.findDistrict(provinceCode, districtCode)
+            ?: regionCatalog.findDistrict(provinceCode, districtCode.collapseCityDistrictCode())
+    } else {
+        null
+    }
+    if (district != null && provinceCode != null) {
+        return MapSearchFocus(
+            scope = MapScope.KOREA,
+            countryCode = KoreaCountryCode,
+            provinceCode = provinceCode,
+            regionCode = district.regionCode,
+        )
+    }
+
+    val province = provinceCode?.takeIf { regionCatalog.findByCode(it) != null }
+    return MapSearchFocus(
+        scope = MapScope.KOREA,
+        countryCode = KoreaCountryCode,
+        regionCode = province,
+    )
+}
+
+private fun String.toKoreanProvinceCode(): String =
+    if (startsWith(KoreanProvincePrefix)) this else "$KoreanProvincePrefix$this"
+
+private fun String.collapseCityDistrictCode(): String =
+    if (lastOrNull()?.isDigit() == true) dropLast(1) + "0" else this
+
+@OptIn(ExperimentalUuidApi::class)
+private fun randomPlaceSessionToken(): String = Uuid.random().toString()
 
 private const val KoreaCountryCode = "KR"
 private const val KoreanProvincePrefix = "KR-"

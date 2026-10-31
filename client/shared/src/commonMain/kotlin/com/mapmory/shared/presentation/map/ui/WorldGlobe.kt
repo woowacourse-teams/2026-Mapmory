@@ -32,6 +32,7 @@ import com.mapmory.shared.presentation.map.math.clipToFrontHemisphere
 import com.mapmory.shared.presentation.map.math.projectToScreen
 import com.mapmory.shared.presentation.map.math.toSphere
 import com.mapmory.shared.presentation.triprecord.screen.TripMapPalette
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -40,6 +41,8 @@ import kotlin.math.min
 @Composable
 internal fun WorldGlobe(
     visitedCountryCodes: Set<String>,
+    searchFocusCountryCode: String?,
+    searchFocusRequest: Int,
     currentLocation: GeoPoint?,
     currentLocationFocusRequest: Int,
     onCountryClick: (String) -> Unit,
@@ -50,6 +53,7 @@ internal fun WorldGlobe(
     var latitude by rememberSaveable { mutableStateOf(0f) }
     var zoom by rememberSaveable { mutableStateOf(1f) }
     var lastLocationFocusRequest by rememberSaveable { mutableStateOf(0) }
+    var lastSearchFocusRequest by rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(currentLocation, currentLocationFocusRequest) {
         val point = currentLocation ?: return@LaunchedEffect
         if (currentLocationFocusRequest == 0 || currentLocationFocusRequest == lastLocationFocusRequest) {
@@ -74,6 +78,16 @@ internal fun WorldGlobe(
     }
 
     val countries = remember { GeneratedWorldMapData.countries }
+    val searchFocusPulse = rememberMapSearchFocusPulse(searchFocusCountryCode)
+    LaunchedEffect(searchFocusCountryCode, searchFocusRequest, countries) {
+        if (searchFocusRequest == 0 || searchFocusRequest == lastSearchFocusRequest) return@LaunchedEffect
+        val target = countries.firstOrNull { it.code == searchFocusCountryCode }
+            ?.let(::countryFocusPoint) ?: return@LaunchedEffect
+        longitude = -target.longitude * PI.toFloat() / 180f
+        latitude = target.latitude * PI.toFloat() / 180f
+        zoom = SearchFocusZoom
+        lastSearchFocusRequest = searchFocusRequest
+    }
     val baseRings = remember(countries) {
         countries.flatMap { country ->
             country.rings.map { ring ->
@@ -82,6 +96,7 @@ internal fun WorldGlobe(
         }
     }
     val colors = TripMapPalette.current
+    val searchFocusColor = TripRecordPalette.current.primary
 
     Box(
         modifier = modifier
@@ -171,15 +186,24 @@ internal fun WorldGlobe(
                 path.close()
 
                 val isVisited = country.code in visitedCountryCodes
+                val isSearchFocused = country.code == searchFocusCountryCode
                 drawPath(
                     path = path,
                     color = if (isVisited) colors.globeVisitedFill else colors.globeUnvisitedFill,
                 )
-                drawPath(
-                    path = path,
-                    color = if (isVisited) colors.globeVisitedOutline else colors.globeUnvisitedOutline,
-                    style = Stroke(width = if (isVisited) 1.25.dp.toPx() else 0.85.dp.toPx()),
-                )
+                if (isSearchFocused) {
+                    drawPath(
+                        path = path,
+                        color = searchFocusColor.copy(alpha = 0.30f),
+                        style = Stroke(width = 2.4.dp.toPx()),
+                    )
+                } else {
+                    drawPath(
+                        path = path,
+                        color = if (isVisited) colors.globeVisitedOutline else colors.globeUnvisitedOutline,
+                        style = Stroke(width = if (isVisited) 1.25.dp.toPx() else 0.85.dp.toPx()),
+                    )
+                }
             }
 
             drawCircle(
@@ -207,6 +231,31 @@ internal fun WorldGlobe(
             }
 
         }
+
+        Canvas(Modifier.fillMaxSize()) {
+            val focusedCode = searchFocusCountryCode ?: return@Canvas
+            val globeRadius = min(size.width, size.height) * 0.42f * zoom
+            val center = Offset(size.width / 2f, size.height / 2f)
+            baseRings.asSequence()
+                .filter { (country, _) -> country.code == focusedCode }
+                .forEach { (_, points) ->
+                    val clipped = clipToFrontHemisphere(points.map(rotation::rotate))
+                    if (clipped.size < 3) return@forEach
+
+                    val path = Path()
+                    clipped.forEachIndexed { index, point ->
+                        val screen = projectToScreen(point, center, globeRadius)
+                        if (index == 0) path.moveTo(screen.x, screen.y) else path.lineTo(screen.x, screen.y)
+                    }
+                    path.close()
+                    drawMapSearchFocusPulse(
+                        path = path,
+                        pulse = searchFocusPulse.value,
+                        color = searchFocusColor,
+                        outlineWidth = 2.4.dp.toPx(),
+                    )
+                }
+        }
     }
 }
 
@@ -215,6 +264,18 @@ private const val RotationSensitivity = 1.35f
 private const val MaxTilt = 1.3f
 private const val MinZoom = 0.75f
 private const val MaxZoom = 8f
+private const val SearchFocusZoom = 1.55f
+internal fun countryFocusPoint(country: CountryPolygon): GeoPoint? {
+    val largestRing = country.rings.maxByOrNull { it.size } ?: return null
+    if (largestRing.isEmpty()) return null
+    val mean = largestRing.map(GeoPoint::toSphere).reduce { total, point -> total + point } * (1f / largestRing.size)
+    if (mean.x == 0f && mean.y == 0f && mean.z == 0f) return largestRing.first()
+    val normalized = mean.normalized()
+    return GeoPoint(
+        longitude = atan2(normalized.x, normalized.z) * 180f / PI.toFloat(),
+        latitude = asin(normalized.y.coerceIn(-1f, 1f)) * 180f / PI.toFloat(),
+    )
+}
 
 
 private fun countryAtScreenPoint(

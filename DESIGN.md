@@ -76,7 +76,7 @@
 - Typography: 앱과 랜딩 페이지 모두 LINE Seed Sans KR을 기본 서체로 사용한다. Regular와 Bold를 공통 글꼴로 제공하고, Material 3의 `Typography` 역할(display, headline, title, body, label)을 우선 적용한다. 새 화면은 개별 폰트 패밀리를 지정하지 않고 공통 역할을 사용한다.
 - Spacing/layout rhythm: `4 / 8 / 12 / 16 / 20 / 24 / 32 px`
 - Shape/radius/elevation: 카드 20 px 이하, 입력·버튼 14 px, 칩·필 9999 px. 화면 캔버스 외곽은 각진 형태. 그림자는 최소화한다.
-- Motion: 현재 정적 시안만 정의한다. 실제 구현 시에는 전환과 선택 상태에 짧고 절제된 모션만 사용한다.
+- Motion: 검색으로 선택된 지역은 강조색 테두리를 항상 유지하고, 약 1.8초 주기로 흰빛이 부드럽게 돌았다가 원래 강조색으로 돌아온다. 선택 상태는 정적인 테두리만으로도 식별되며 날카로운 점멸은 사용하지 않는다.
 - Imagery/iconography: 온보딩은 실제 앱 화면 캡처를 우선 사용해 사용자가 도착할 화면을 이해하게 한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
 
 ## Components
@@ -103,7 +103,7 @@
 - Keyboard/focus behavior: HTML 변환본은 링크와 버튼을 순서대로 포커스할 수 있어야 하며, Compose 구현은 의미 있는 클릭 라벨을 제공한다.
 - Contrast/readability: 본문·배경 대비를 확보하고, 선택 상태를 색상만으로 구분하지 않는다.
 - Screen-reader semantics: 지도, 탭, 필터, 기록 카드, 주요 행동에 역할과 상태를 전달한다.
-- Reduced motion and sensory considerations: 모션은 별도 정의 전까지 사용하지 않는다.
+- Reduced motion and sensory considerations: 검색 강조는 느리고 낮은 대비로 제한하며, 채움색과 고정 테두리만으로도 선택 상태를 알 수 있게 한다.
 
 ## Responsive behavior
 

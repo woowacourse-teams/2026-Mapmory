@@ -14,12 +14,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
+import com.mapmory.shared.domain.model.PlaceRules
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.map.MapCurrentLocationCacheMaxAgeMillis
@@ -33,6 +35,7 @@ import com.mapmory.shared.presentation.map.ui.regionAt
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
 import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -51,6 +54,7 @@ internal fun MapRoute(
 ) {
     val uiState = viewModel.uiState
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
     val analytics = LocalMapmoryAnalytics.current
     val latestNestedBack = rememberUpdatedState { viewModel.closeProvince() }
     var gestureClosedProvinceCode by remember { mutableStateOf<String?>(null) }
@@ -117,6 +121,13 @@ internal fun MapRoute(
         viewModel.refreshIfNeeded(tripRecordRevision)
     }
 
+    LaunchedEffect(uiState.placeSearch.query, uiState.placeSearch.isSelectedPlace) {
+        val query = uiState.placeSearch.query
+        if (uiState.placeSearch.isSelectedPlace || !PlaceRules.isSearchableQuery(query)) return@LaunchedEffect
+        delay(PlaceSearchDebounceMillis)
+        viewModel.searchPlaces(query)
+    }
+
     DisposableEffect(viewModel, backHandlerRegistry) {
         val registration = backHandlerRegistry.register(
             backHandlerOwnerId,
@@ -168,6 +179,14 @@ internal fun MapRoute(
                 )
                 viewModel.changeScope(selectedScope)
             },
+            placeSearch = uiState.placeSearch,
+            onPlaceSearchQueryChange = viewModel::updatePlaceSearchQuery,
+            onPlaceSearchSubmit = { scope.launch { viewModel.searchPlaces() } },
+            onPlaceSearchResultClick = { candidate ->
+                scope.launch {
+                    if (viewModel.selectSearchResult(candidate)) keyboardController?.hide()
+                }
+            },
             showRegionLabels = showRegionLabels,
             onRegionLabelsToggle = { showRegionLabels = !showRegionLabels },
             isCurrentLocationLoading = currentLocationActions.isLoading,
@@ -181,6 +200,8 @@ internal fun MapRoute(
                     MapScope.WORLD -> MapArtwork(
                         scope = MapScope.WORLD,
                         visitedCountryCodes = viewModel.visitedCountryCodes,
+                        searchFocusCountryCode = uiState.searchFocusCountryCode,
+                        searchFocusRequest = uiState.searchFocusRequest,
                         currentLocation = currentLocation,
                         currentLocationFocusRequest = worldLocationFocusRequest,
                         onCountryClick = { countryCode ->
@@ -196,6 +217,8 @@ internal fun MapRoute(
                         KoreaMapUiState.ProvinceOverview -> MapArtwork(
                             scope = MapScope.KOREA,
                             visitedRegionCodes = viewModel.visitedKoreaMapRegionCodes,
+                            searchFocusRegionCode = uiState.searchFocusRegionCode,
+                            searchFocusRequest = uiState.searchFocusRequest,
                             koreaRegions = GeneratedKoreaMapData.provinces,
                             currentLocation = currentLocation,
                             currentLocationFocusRequest = koreaLocationFocusRequest,
@@ -233,6 +256,8 @@ internal fun MapRoute(
                         is KoreaMapUiState.DistrictDetail -> MapArtwork(
                             scope = MapScope.KOREA,
                             visitedRegionCodes = viewModel.visitedDistrictCodes(mapState.provinceCode),
+                            searchFocusRegionCode = uiState.searchFocusRegionCode,
+                            searchFocusRequest = uiState.searchFocusRequest,
                             koreaRegions = mapState.regions,
                             currentLocation = currentLocation,
                             currentLocationFocusRequest = koreaLocationFocusRequest,
@@ -293,3 +318,4 @@ private fun KoreaMapUiState.provinceCodeOrNull(): String? = when (this) {
 }
 
 private const val KoreaCountryCode = "KR"
+private const val PlaceSearchDebounceMillis = 350L
