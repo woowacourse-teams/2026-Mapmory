@@ -64,8 +64,10 @@ class NavigationBackRenderingTest {
             assertTrue(secondCapture.isCompleted)
             screen.value = Color.Blue
             motion.backProgress = 1f
+            repeat(2) { render() }
             assertEquals(Color.Blue, render()[80, 20])
             motion.clearBackCover()
+            repeat(2) { render() }
             assertEquals(Color.Blue, render()[80, 20], "Removing cover must not flash outgoing content")
         } finally {
             scene.close()

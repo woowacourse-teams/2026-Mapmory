@@ -248,7 +248,7 @@ fun KoreaMapArtwork(
         )
         lastLocationFocusRequest = currentLocationFocusRequest
     }
-    val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
+    val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFFFEFF)
     val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
     val unvisitedFillColor = if (isDark) Color(0xFF1B2536) else Color(0xFFE7EFE9)
     val visitedOutlineColor = if (isDark) {
