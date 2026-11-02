@@ -2,6 +2,7 @@ package com.mapmory.backend.auth.web;
 
 import com.mapmory.backend.auth.application.AppleWithdrawalService;
 import com.mapmory.backend.auth.application.AuthService;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.web.dto.AppleLoginRequest;
 import com.mapmory.backend.auth.web.dto.AppleWithdrawalRequest;
 import com.mapmory.backend.auth.web.dto.GoogleLoginRequest;
@@ -11,7 +12,6 @@ import com.mapmory.backend.auth.web.dto.LogoutRequest;
 import com.mapmory.backend.auth.web.dto.RefreshRequest;
 import com.mapmory.backend.auth.web.dto.TokenResponse;
 import com.mapmory.backend.common.dto.ApiResponse;
-import com.mapmory.backend.member.AuthProvider;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,7 +43,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.KAKAO, request.idToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.KAKAO, request.idToken(), authenticatedMemberId)));
     }
 
     /**
@@ -55,7 +55,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.GOOGLE, request.idToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.GOOGLE, request.idToken(), authenticatedMemberId)));
     }
 
     /**
@@ -67,7 +67,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.APPLE, request.identityToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.APPLE, request.identityToken(), authenticatedMemberId)));
     }
 
     @PostMapping("/login/guest")

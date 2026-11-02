@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.member.AuthProvider;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import org.junit.jupiter.api.Test;
 
 class KakaoIdentityAdapterTest {
@@ -15,7 +15,7 @@ class KakaoIdentityAdapterTest {
 
     @Test
     void 카카오_제공자를_맡는다() {
-        assertThat(adapter.provider()).isEqualTo(AuthProvider.KAKAO);
+        assertThat(adapter.provider()).isEqualTo(SocialProvider.KAKAO);
     }
 
     @Test

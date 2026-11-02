@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.member.AuthProvider;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import org.junit.jupiter.api.Test;
 
 class GoogleIdentityAdapterTest {
@@ -15,7 +15,7 @@ class GoogleIdentityAdapterTest {
 
     @Test
     void 구글_제공자를_맡는다() {
-        assertThat(adapter.provider()).isEqualTo(AuthProvider.GOOGLE);
+        assertThat(adapter.provider()).isEqualTo(SocialProvider.GOOGLE);
     }
 
     @Test

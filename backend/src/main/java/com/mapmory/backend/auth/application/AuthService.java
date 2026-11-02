@@ -3,12 +3,12 @@ package com.mapmory.backend.auth.application;
 import com.mapmory.backend.auth.application.model.AuthTokens;
 import com.mapmory.backend.auth.application.model.LoginResult;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.auth.token.refresh.RefreshTokenService;
 import com.mapmory.backend.auth.token.refresh.RotatedRefreshToken;
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.MemberJoinService;
 import com.mapmory.backend.member.application.SocialAccountConflict;
@@ -59,7 +59,7 @@ public class AuthService {
      * 소셜 토큰 검증(공개키 조회)은 트랜잭션 밖에서 한 번만 한다. 재시도할 때 다시 검증하지 않고,
      * 외부를 기다리는 동안 커넥션을 쥐고 있지 않는다.
      */
-    public LoginResult loginWithSocial(AuthProvider provider, String token, Long authenticatedMemberId) {
+    public LoginResult loginWithSocial(SocialProvider provider, String token, Long authenticatedMemberId) {
         SocialIdentity identity = socialIdentityPorts.verify(provider, token);
         try {
             return transactionTemplate.execute(status -> joinWithSocial(provider, identity, authenticatedMemberId));
@@ -71,9 +71,9 @@ public class AuthService {
         }
     }
 
-    private LoginResult joinWithSocial(AuthProvider provider, SocialIdentity identity, Long authenticatedMemberId) {
+    private LoginResult joinWithSocial(SocialProvider provider, SocialIdentity identity, Long authenticatedMemberId) {
         SocialJoin join = memberJoinService.joinWithSocial(
-                provider, identity.providerId(), identity.name(), authenticatedMemberId);
+                provider.toAuthProvider(), identity.providerId(), identity.name(), authenticatedMemberId);
         return issueTokens(join.member(), join.type() == SocialJoinType.SOCIAL_JOINED, join.guestAbandoned());
     }
 

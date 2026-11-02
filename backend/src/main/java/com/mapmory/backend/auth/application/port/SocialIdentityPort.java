@@ -1,7 +1,7 @@
 package com.mapmory.backend.auth.application.port;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.member.AuthProvider;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 
 /**
  * 앱이 소셜 SDK로 받은 토큰을 검증해 신원을 돌려주는 포트.
@@ -12,7 +12,7 @@ import com.mapmory.backend.member.AuthProvider;
  */
 public interface SocialIdentityPort {
 
-    AuthProvider provider();
+    SocialProvider provider();
 
     SocialIdentity verify(String token);
 }
