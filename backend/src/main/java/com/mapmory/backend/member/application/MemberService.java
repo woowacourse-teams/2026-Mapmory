@@ -38,10 +38,19 @@ public class MemberService {
         return findActiveMember(memberId);
     }
 
-    /** 탈퇴 완료 여부를 확인할 때 사용한다. 탈퇴 대상 규칙은 findWithdrawableMember를 따른다. */
+    /**
+     * 애플 탈퇴가 탈퇴 대상을 확인할 때 사용한다. 탈퇴 대상 규칙은 findWithdrawableMember를 따른다.
+     *
+     * 버려진 뒤 탈퇴된 행(#576 전 일반 탈퇴로 생겼을 수 있다)도 버려진 게스트라 401 INACTIVE_MEMBER로 둔다.
+     * 공통 규칙은 탈퇴 여부를 먼저 봐 이 행을 돌려주므로, 그대로 두면 게스트라 400 NOT_APPLE_MEMBER가 된다. (ADR 0025)
+     */
     @Transactional(readOnly = true)
     public Member findForWithdrawal(Long memberId) {
-        return findWithdrawableMember(memberId);
+        Member member = findWithdrawableMember(memberId);
+        if (member.isAbandoned()) {
+            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
+        }
+        return member;
     }
 
     @Transactional
