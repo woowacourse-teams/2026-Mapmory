@@ -1358,6 +1358,7 @@ Authorization: Bearer {accessToken}
 - 이미 발급된 Access Token은 만료(최대 30분)까지 남지만, 회원 정보 API는 `401 INACTIVE_MEMBER`, 토큰 재발급은 `401 INVALID_REFRESH_TOKEN`이다.
 - 같은 소셜 계정으로 다시 로그인하면 **새 회원**으로 가입한다(`isNewMember: true`). 탈퇴 전 기록은 이어지지 않는다.
 - 이미 탈퇴했으면 아무것도 하지 않고 `204`를 반환한다.
+- 버려진 게스트의 Access Token이면 `401 INACTIVE_MEMBER`다. 탈퇴한 적이 없으므로 탈퇴 처리하지 않는다.
 - 탈퇴한 게스트의 Access Token을 실어 소셜 로그인하면 승격하지 않고 새 회원으로 가입한다.
 
 #### Response `204 No Content`
