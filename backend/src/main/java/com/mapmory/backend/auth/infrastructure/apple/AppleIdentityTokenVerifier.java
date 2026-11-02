@@ -32,7 +32,9 @@ class AppleIdentityTokenVerifier {
     }
 
     AppleUser verify(String identityToken) {
-        return new AppleUser(decode(identityToken).getSubject());
+        Jwt jwt = decode(identityToken);
+        // aud가 설정한 클라이언트 ID 중 하나인지는 디코더의 검증 규칙이 이미 확인했다. 애플은 aud를 하나만 넣는다.
+        return new AppleUser(jwt.getSubject(), jwt.getAudience().getFirst());
     }
 
     private Jwt decode(String identityToken) {

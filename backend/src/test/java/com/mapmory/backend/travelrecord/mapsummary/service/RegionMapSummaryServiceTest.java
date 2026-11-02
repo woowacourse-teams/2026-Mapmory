@@ -10,11 +10,12 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.RegionErrorCode;
-import com.mapmory.backend.region.RegionType;
-import com.mapmory.backend.region.RegionRepository;
-import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.region.application.RegionResolver;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.tag.TagService;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCache;
 import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCacheProperties;
@@ -181,7 +182,7 @@ class RegionMapSummaryServiceTest {
 
     private RegionMapSummaryService service() {
         return new RegionMapSummaryService(
-                regionRepository,
+                new RegionResolver(regionRepository),
                 regionMapSummaryRepository,
                 levelPolicy,
                 tagService,

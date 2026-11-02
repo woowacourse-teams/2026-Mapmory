@@ -10,8 +10,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.common.exception.BusinessException;
-import io.github.bucket4j.BucketConfiguration;
 import com.zaxxer.hikari.HikariDataSource;
+import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.mysql.MySQLSelectForUpdateBasedProxyManager;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -167,7 +167,8 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
                 bucketManager,
                 config.googleRequestPace(properties),
                 config.googleAutocompleteBudget(properties),
-                config.googleDetailsBudget(properties)
+                config.googleDetailsBudget(properties),
+                clock
         );
     }
 

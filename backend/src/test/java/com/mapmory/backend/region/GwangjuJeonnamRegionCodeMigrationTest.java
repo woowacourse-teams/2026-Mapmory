@@ -2,6 +2,7 @@ package com.mapmory.backend.region;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mapmory.backend.region.domain.Region;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;

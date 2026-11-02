@@ -1,6 +1,6 @@
 # Mapmory ERD
 
-> 기준일: 2026-10-22 · 기준 스키마: Flyway V1~V14 + 사용자 생성 태그 구현 전 설계 + 그룹 공유 구현 전 설계(V28)
+> 기존 전체 ERD는 2026-10-22 설계를 포함한다. 알림·공유 영상 부분은 로컬 코드와 V25·V33~V42 기준으로 별도 갱신했다. 실제 배포 DB 상태는 확인하지 않았다.
 
 이 문서는 현재 운영 스키마와 다음 구현 대상인 태그 스키마를 함께 보여준다.
 
@@ -27,6 +27,10 @@ erDiagram
     ALBUM ||--o{ ALBUM_ENTRY : contains
     TRAVEL_RECORD ||..o{ ALBUM_ENTRY : "id only (no FK)"
     MEMBER ||--o{ PUSH_TOKEN : registers
+    MEMBER ||--o{ SHARE_VIDEO_JOB : requests
+    PUSH_TOKEN ||..o{ SHARE_VIDEO_JOB : "recipient ID only, no FK"
+    PUSH_TOKEN ||..o{ NOTIFICATION_OUTBOX : "recipient ID only, no FK"
+    MEMBER ||..o{ NOTIFICATION_OUTBOX : "member ID only, no FK"
 
     MEMBER {
         bigint id PK
@@ -145,6 +149,35 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+
+    SHARE_VIDEO_JOB {
+        bigint id PK
+        bigint member_id FK
+        bigint recipient_push_token_id
+        varchar status
+        char claim_token
+        datetime lease_expires_at
+        char attempt_id
+        varchar attempt_object_key
+    }
+
+    NOTIFICATION_OUTBOX {
+        bigint id PK
+        varchar event_type
+        varchar event_key
+        json payload
+        bigint member_id
+        bigint push_token_id
+        varchar status
+        int attempt_count
+        datetime next_attempt_at
+        char claim_token
+        datetime lease_expires_at
+        varchar last_error_code
+        datetime sent_at
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
 ## 테이블 상태와 역할
@@ -163,7 +196,11 @@ erDiagram
 | 구현 전 설계 | `group_invitation` | 초대 링크 토큰, 6자리 코드, 만료 시각을 저장한다. |
 | 구현 전 설계 | `album` | 그룹 앨범의 이름, 지역, 연 사람을 저장한다. |
 | 구현 전 설계 | `album_entry` | 앨범에 담긴 여행 기록 id와 담은 회원을 저장한다. |
-| 구현 전 설계 | `push_token` | 앨범 알림을 받을 회원 기기의 FCM 토큰을 저장한다. |
+| 구현됨 | `push_token` | 회원 기기의 FCM 토큰과 플랫폼을 저장한다. |
+| 구현됨 | `share_video_job` | 영상 요청, 처리 상태와 수신 등록 ID를 저장한다. |
+| 구현됨 | `notification_outbox` | 기기별 알림 발송 작업과 처리 상태를 저장한다. |
+| 구현됨 | `notification_setting` | 회원이 끈 알림 종류를 저장한다. 행이 없으면 모두 켜짐이다. |
+| 구현됨 | `push_outbox` | 앨범 쓰기와 같은 트랜잭션에 적어 두고 스케줄러가 꺼내 보내는 알림이다. |
 
 ## 현재 구현 스키마
 
@@ -325,7 +362,7 @@ CONSTRAINT fk_travel_record_tag_tag
 
 - 사진은 각자 자기 `travel_record`에 저장한다. 앨범은 기록을 id로만 가리키고 내용을 복사하지 않는다.
 - `album_entry.travel_record_id`에는 FK를 걸지 않는다(ADR 0017 결정 2, 애그리거트 사이는 id 참조). 기록 삭제는 이벤트로 받아 그룹이 항목을 지운다.
-- 한 기록을 여러 앨범에 담을 수 있고, 한 앨범에는 멤버당 기록 하나다.
+- 한 기록을 여러 앨범에 담을 수 있고, 한 앨범에 한 멤버가 기록을 여럿 담을 수 있다. 같은 기록은 한 번만 담긴다(V36).
 - 앨범 기간은 저장하지 않고 담긴 기록의 기간으로 계산한다.
 - `group`은 MySQL 예약어라 `travel_group`으로 둔다.
 
@@ -391,11 +428,11 @@ CONSTRAINT fk_travel_record_tag_tag
 | `created_at` | `DATETIME` | NOT NULL | 담은 시각. 연 사람을 넘길 순서 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 
-`UNIQUE(album_id, member_id)`로 한 앨범에 멤버당 기록 하나만 담는다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
+`UNIQUE(album_id, travel_record_id)`로 한 앨범에 같은 기록을 한 번만 담는다. 처음에는 `UNIQUE(album_id, member_id)`(멤버당 기록 하나)였고 V36에서 바꿨다. `INDEX(travel_record_id)`로 기록이 지워졌을 때 그 기록이 담긴 모든 항목을 찾는다.
 
 ### `push_token`
 
-그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0022 결정 7). 마이그레이션은 알림 태스크(T6)에서 따로 추가한다.
+그룹원이 앨범에 올리면 다른 멤버에게 알림을 보내려고 기기 토큰을 저장한다(ADR 0022 결정 7). 마이그레이션은 `V37__create_push_token.sql`이다.
 
 | 컬럼 | 타입 | 제약조건 | 설명 |
 | --- | --- | --- | --- |
@@ -406,7 +443,80 @@ CONSTRAINT fk_travel_record_tag_tag
 | `created_at` | `DATETIME` | NOT NULL | 등록 시각 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 등록 시각 |
 
-같은 토큰을 다른 회원이 등록하면(기기에서 계정을 바꿈) `member_id`를 새 회원으로 바꾼다. `INDEX(member_id)`로 그룹 멤버들의 토큰을 모은다.
+같은 토큰을 다른 회원이 등록하면 기존 등록을 삭제하고 새 등록을 만들어 ID를 바꾼다. `INDEX(member_id)`로 회원의 등록을 조회한다.
+
+## 알림과 영상 작업 현재 스키마
+
+아래는 이 작업과 관련된 필드다. 전체 필드·제약은 각 Flyway 마이그레이션이 기준이다. `share_video_job`은 V25·V33~V35·V40·V42, `notification_outbox`는 V41에서 정의한다.
+
+### `share_video_job`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK | 영상 작업 ID |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 요청 회원 |
+| `video_type`, `style_id`, `status` | `VARCHAR` | NOT NULL | 유형·스타일·작업 상태 |
+| `snapshot_json` | `JSON` | NOT NULL | 렌더링용 스냅샷 |
+| `result_object_key`, `failure_reason` | `VARCHAR` | NULL | 완료 객체 경로·실패 사유 |
+| `started_at`, `finished_at` | `DATETIME` | NULL | 시작·종료 시각 |
+| `failure_code` | `VARCHAR(50)` | NULL | 실패 코드 |
+| `render_duration_ms`, `upload_duration_ms` | `BIGINT` | NULL | 단계별 소요 시간 |
+| `recipient_push_token_id` | `BIGINT` | NULL, FK 없음 | 요청 당시 수신 등록 ID |
+| `claim_token`, `lease_expires_at` | `CHAR(36)`, `DATETIME` | NULL | 영상 워커 선점 토큰과 기한 |
+| `attempt_id`, `attempt_object_key` | `CHAR(36)`, `VARCHAR(500)` | NULL | 생성 시도와 시도별 S3 경로 |
+| `created_at`, `updated_at` | `DATETIME` | NOT NULL | 생성·갱신 시각 |
+
+`INDEX(status, lease_expires_at, id)`는 V42에 추가했다. 기한이 지난 영상 작업의 **자동 복구 워커는 아직 없다**.
+
+### `notification_outbox`
+
+한 행이 한 사건을 한 등록 기기에 발송하기 위한 작업이다. 회원 ID와 등록 ID에는 FK가 없다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK | Outbox 행 ID |
+| `event_type` | `VARCHAR(40)` | NOT NULL | 이벤트 유형. 영상은 `VIDEO_COMPLETED` |
+| `event_key` | `VARCHAR(160)` | NOT NULL, `utf8mb4_bin` | 사건 식별 키. 예: `video:15:completed` |
+| `payload` | `JSON` | NOT NULL | 유형별 최소 데이터. 예: `{"jobId":15}` |
+| `member_id`, `push_token_id` | `BIGINT` | NOT NULL, FK 없음 | 요청 당시 회원과 기기 등록 ID |
+| `status` | `VARCHAR(20)` | NOT NULL | `PENDING`, `PROCESSING`, `SENT`, `FAILED`, `SKIPPED` |
+| `attempt_count`, `next_attempt_at` | `INT`, `DATETIME` | NOT NULL | 기록된 시도 수와 다음 시도 시각 |
+| `claim_token`, `lease_expires_at` | `CHAR(36)`, `DATETIME` | NULL | 알림 워커의 선점 토큰과 기한 |
+| `last_error_code`, `sent_at` | `VARCHAR(100)`, `DATETIME` | NULL | 최근 오류 코드와 FCM 접수 기록 시각 |
+| `created_at`, `updated_at` | `DATETIME` | NOT NULL | 생성·갱신 시각 |
+
+`UNIQUE(event_key, push_token_id)`는 행이 보관되는 동안 중복 이벤트 저장을 방지한다. `INDEX(status, next_attempt_at, id)`와 `INDEX(status, lease_expires_at, id)`는 대기 항목과 만료된 선점 조회에 사용한다. 영상 알림 워커에는 FCM 발송 어댑터가 연결되어 있지만, 실제 Firebase 인증과 기기 수신은 검증되지 않았다. 세부 상태와 클래스 관계는 [알림 팀 가이드](notification-team-guide.md)를 참고한다.
+
+### `notification_setting`
+
+회원이 그룹 앨범 알림을 끌 수 있게 한다(ADR 0022 2026-10-29 보완). 마이그레이션은 `V38__create_notification_setting.sql`이다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `member_id` | `BIGINT` | PK, FK → `member.id` | 설정한 회원 |
+| `group_album` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | 그룹 앨범 알림을 받는지 |
+| `created_at` | `DATETIME` | NOT NULL | 처음 바꾼 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막으로 바꾼 시각 |
+
+행이 없는 회원은 켜짐이다. 기기가 아니라 회원 단위라 다른 기기로 로그인해도 따라간다.
+
+### `push_outbox`
+
+앨범 알림을 앨범 쓰기와 같은 트랜잭션에 적어 두고 스케줄러가 꺼내 보낸다(ADR 0022 2026-10-29 보완: 아웃박스). 마이그레이션은 `V39__create_push_outbox.sql`이다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 알림 식별자 |
+| `type` | `VARCHAR(30)` | NOT NULL | `ALBUM_UPDATED` |
+| `payload` | `JSON` | NOT NULL | 보낼 때 다시 읽는 이벤트(그룹·앨범·올린 사람·받을 멤버) |
+| `status` | `VARCHAR(10)` | NOT NULL | `PENDING`, `SENT`, `FAILED` |
+| `attempts` | `INT` | NOT NULL, DEFAULT 0 | 실패한 횟수. 5번째 실패면 `FAILED` |
+| `next_attempt_at` | `DATETIME(6)` | NOT NULL | 이 시각부터 보낼 차례. 집어 가면 5분 뒤로 미룬다(처리 중 잠금) |
+| `last_error` | `VARCHAR(500)` | NULL | 마지막 실패 이유 |
+| `created_at` | `DATETIME` | NOT NULL | 적은 시각 |
+| `updated_at` | `DATETIME` | NOT NULL | 마지막으로 바뀐 시각. 끝난 지 7일 지나면 지운다 |
+
+`INDEX(status, next_attempt_at)`로 보낼 차례인 행을 찾는다. 다른 서버가 잡은 행은 `FOR UPDATE SKIP LOCKED`로 건너뛴다.
 
 ## 관계 및 삭제 정책
 
@@ -423,6 +533,7 @@ CONSTRAINT fk_travel_record_tag_tag
 - 참조 중인 Region은 삭제하지 않는다. 행정구역 개편은 이력·코드 변경 정책으로 처리한다.
 - `travel_group` 1 : N `group_member`, `group_invitation`, `album`
 - `album` 1 : N `album_entry`
+- 여행 기록을 지우면 그룹이 이벤트를 받아 그 기록의 `album_entry`를 지우고, 항목이 없어진 `album`도 지운다(FK가 없어 DB가 하지 않는다).
 - `travel_record` 1 : N `album_entry` (id 참조, FK 없음)
 - 그룹 테이블의 FK에는 CASCADE를 걸지 않는다. 나가기·그룹 삭제·기록 삭제 연쇄는 애플리케이션이 처리한다.
 - 여행 기록이 삭제되면 그 기록의 `album_entry`를 모두 지운다. 그 기록이 앨범을 연 기록이면 가장 먼저 담은 멤버가 연 사람이 된다.

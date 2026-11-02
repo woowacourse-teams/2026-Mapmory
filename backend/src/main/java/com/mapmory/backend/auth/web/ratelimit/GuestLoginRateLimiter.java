@@ -26,11 +26,7 @@ public class GuestLoginRateLimiter {
     private final Duration window;
     private final Clock clock;
 
-    public GuestLoginRateLimiter(GuestLoginRateLimitProperties properties) {
-        this(properties, Clock.systemUTC());
-    }
-
-    GuestLoginRateLimiter(GuestLoginRateLimitProperties properties, Clock clock) {
+    public GuestLoginRateLimiter(GuestLoginRateLimitProperties properties, Clock clock) {
         this.capacity = properties.capacity();
         this.window = properties.window();
         this.clock = clock;

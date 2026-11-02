@@ -1,8 +1,14 @@
 package com.mapmory.backend.upload.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.mock;
 
+import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
+import com.mapmory.backend.member.exception.MemberErrorCode;
 import com.mapmory.backend.upload.PresignedUpload;
 import com.mapmory.backend.upload.domain.UploadPolicy;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
@@ -29,7 +35,8 @@ class UploadServiceTest {
         UploadService uploadService = new UploadService(
                 new UploadPolicy(TEN_MEGABYTES, 10),
                 new S3ObjectKeyGenerator(storageProperties()),
-                provider
+                provider,
+                mock(ActiveMemberGuard.class)
         );
         List<UploadFileCommand> files = List.of(
                 new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
@@ -58,6 +65,24 @@ class UploadServiceTest {
                         1024L
                 )
         );
+    }
+
+    @Test
+    void 활동_중이_아닌_회원에게는_Presigned_URL을_발급하지_않는다() {
+        FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
+        ActiveMemberGuard guard = mock(ActiveMemberGuard.class);
+        willThrow(new BusinessException(MemberErrorCode.INACTIVE_MEMBER)).given(guard).require(10L);
+        UploadService uploadService = new UploadService(
+                new UploadPolicy(TEN_MEGABYTES, 10),
+                new S3ObjectKeyGenerator(storageProperties()),
+                provider,
+                guard
+        );
+
+        assertThatThrownBy(() -> uploadService.createPresignedUrls(member(),
+                List.of(new UploadFileCommand("jeju.jpg", "image/jpeg", 1024L))))
+                .isInstanceOf(BusinessException.class);
+        assertThat(provider.requests).isEmpty();
     }
 
     private static S3StorageProperties storageProperties() {

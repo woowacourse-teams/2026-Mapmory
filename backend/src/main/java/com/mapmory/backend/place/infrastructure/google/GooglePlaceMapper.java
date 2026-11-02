@@ -1,7 +1,9 @@
 package com.mapmory.backend.place.infrastructure.google;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
-import com.mapmory.backend.place.application.model.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,17 +25,17 @@ class GooglePlaceMapper {
             if (name == null) {
                 name = text(prediction.path("text").path("text"));
             }
-            if (placeId == null || name == null) {
+            // 고를 수 없는 후보는 뺀다. 형식이 맞지 않는 ID는 선택 API가 거절한다.
+            if (!PlaceId.isValid(placeId) || name == null) {
                 continue;
             }
             String address = text(prediction.path("structuredFormat").path("secondaryText").path("text"));
-            candidates.add(new PlaceCandidate(placeId, name, address,
-                    GooglePlacesClient.ATTRIBUTION, GooglePlacesClient.ATTRIBUTION_URL));
+            candidates.add(new PlaceCandidate(PlaceId.from(placeId), name, address, GooglePlacesClient.PROVIDER));
         }
         return List.copyOf(candidates);
     }
 
-    Optional<PlaceDetails> details(JsonNode response, String placeId) {
+    Optional<PlaceDetails> details(JsonNode response, PlaceId placeId) {
         JsonNode components = response.path("addressComponents");
         if (!components.isArray()) {
             return Optional.empty();
@@ -43,27 +45,25 @@ class GooglePlaceMapper {
         return Optional.of(new PlaceDetails(
                 placeId,
                 null,
-                countryCode(components),
-                GooglePlacesClient.ATTRIBUTION,
-                GooglePlacesClient.ATTRIBUTION_URL,
-                addressAreas(components)));
+                address(components),
+                GooglePlacesClient.PROVIDER));
     }
 
-    /** 시·도부터 작은 단위 순서의 주소 이름. 시·도가 없으면 빈 목록이다. */
-    private static List<String> addressAreas(JsonNode components) {
+    private static RegionAddress address(JsonNode components) {
         String province = componentText(components, "administrative_area_level_1");
-        if (province == null) {
-            return List.of();
-        }
+        return new RegionAddress(countryCode(components), province, subAreas(components, province));
+    }
+
+    // 세종처럼 시·도와 같은 이름이 locality로 다시 오면 뺀다.
+    private static List<String> subAreas(JsonNode components, String province) {
         List<String> areas = new ArrayList<>();
-        areas.add(province);
         for (String type : AREA_TYPES) {
             String name = componentText(components, type);
-            if (name != null && !areas.contains(name)) {
+            if (name != null && !name.equals(province) && !areas.contains(name)) {
                 areas.add(name);
             }
         }
-        return List.copyOf(areas);
+        return areas;
     }
 
     private static String componentText(JsonNode components, String wantedType) {

@@ -4,22 +4,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.application.port.SocialIdentityPort;
-import com.mapmory.backend.member.AuthProvider;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class SocialIdentityPortsTest {
 
-    private static final FakePort KAKAO = new FakePort(AuthProvider.KAKAO, "kakao-id");
-    private static final FakePort GOOGLE = new FakePort(AuthProvider.GOOGLE, "google-sub");
-    private static final FakePort APPLE = new FakePort(AuthProvider.APPLE, "apple-sub");
+    private static final FakePort KAKAO = new FakePort(SocialProvider.KAKAO, "kakao-id");
+    private static final FakePort GOOGLE = new FakePort(SocialProvider.GOOGLE, "google-sub");
+    private static final FakePort APPLE = new FakePort(SocialProvider.APPLE, "apple-sub");
 
     @Test
     void 제공자에_맞는_포트로_토큰을_확인한다() {
         SocialIdentityPorts ports = new SocialIdentityPorts(List.of(KAKAO, GOOGLE, APPLE));
 
-        SocialIdentity identity = ports.verify(AuthProvider.GOOGLE, "token");
+        SocialIdentity identity = ports.verify(SocialProvider.GOOGLE, "token");
 
         assertThat(identity.providerId()).isEqualTo("google-sub");
     }
@@ -32,20 +32,21 @@ class SocialIdentityPortsTest {
     }
 
     @Test
-    void 게스트는_소셜_로그인으로_확인할_수_없다() {
-        SocialIdentityPorts ports = new SocialIdentityPorts(List.of(KAKAO, GOOGLE, APPLE));
-
-        assertThatThrownBy(() -> ports.verify(AuthProvider.GUEST, "token"))
-                .isInstanceOf(IllegalStateException.class);
+    void 포트가_없는_제공자가_여럿이면_모두_알린다() {
+        assertThatThrownBy(() -> new SocialIdentityPorts(List.of(KAKAO)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("GOOGLE")
+                .hasMessageContaining("APPLE");
     }
 
     @Test
     void 같은_제공자의_포트가_둘이면_만들_수_없다() {
         List<SocialIdentityPort> duplicated =
-                List.of(KAKAO, GOOGLE, APPLE, new FakePort(AuthProvider.KAKAO, "second"));
+                List.of(KAKAO, GOOGLE, APPLE, new FakePort(SocialProvider.KAKAO, "second"));
 
         assertThatThrownBy(() -> new SocialIdentityPorts(duplicated))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("둘 이상");
     }
 
     @Test
@@ -57,7 +58,7 @@ class SocialIdentityPortsTest {
                 .hasMessageContaining("provider()가 null");
     }
 
-    private record FakePort(AuthProvider provider, String providerId) implements SocialIdentityPort {
+    private record FakePort(SocialProvider provider, String providerId) implements SocialIdentityPort {
 
         @Override
         public SocialIdentity verify(String token) {

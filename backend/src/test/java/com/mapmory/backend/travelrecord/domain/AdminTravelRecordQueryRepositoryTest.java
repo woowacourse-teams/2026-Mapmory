@@ -3,8 +3,8 @@ package com.mapmory.backend.travelrecord.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
@@ -23,6 +23,8 @@ import org.springframework.data.domain.PageRequest;
 @DataJpaTest
 @DisplayName("관리자 여행 기록 집계 Repository")
 class AdminTravelRecordQueryRepositoryTest extends MySqlTestContainerSupport {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     @Autowired
     private EntityManager entityManager;
@@ -114,7 +116,7 @@ class AdminTravelRecordQueryRepositoryTest extends MySqlTestContainerSupport {
     }
 
     private TravelRecord saveRecord(Member member, Region region) {
-        return persist(TravelRecord.of(member, region, "기록 " + UUID.randomUUID(), "내용", LocalDate.of(2026, 8, 31), null));
+        return persist(TravelRecord.of(member, region, "기록 " + UUID.randomUUID(), "내용", LocalDate.of(2026, 8, 31), null, TODAY));
     }
 
     private void saveMedia(TravelRecord travelRecord, int count) {

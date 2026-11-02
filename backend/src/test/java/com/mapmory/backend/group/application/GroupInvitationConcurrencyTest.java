@@ -10,6 +10,7 @@ import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.zaxxer.hikari.HikariDataSource;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 초대 수락이 동시에 들어와도 30명을 넘지 않는지 실제 DB로 확인한다.
+ *
+ * <p>동시에 보내는 수락은 커넥션 풀 크기를 넘지 않는다. 넘으면 남는 수락은 앞선 수락이 커밋될 때까지 커넥션을 기다리는데,
+ * 앞선 수락은 그룹 행 잠금 때문에 하나씩 끝나서 통합 테스트의 커넥션 대기 시간(500ms)을 넘길 수 있다.
+ * 이 테스트가 보려는 것은 커넥션 대기가 아니라 행 잠금 아래의 인원 제한이다.
  */
 class GroupInvitationConcurrencyTest extends IntegrationTest {
 
@@ -40,6 +45,9 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private HikariDataSource dataSource;
+
     @Test
     void 동시에_수락해도_서른_명을_넘지_않는다() throws Exception {
         Member owner = socialMember();
@@ -51,7 +59,7 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
         jdbcTemplate.update("UPDATE travel_group SET member_count = 28 WHERE id = ?", group.getId());
         GroupInvitation invitation = groupInvitationService.create(owner.getId(), group.getId());
         List<Long> joiners = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < dataSource.getMaximumPoolSize(); i++) {
             joiners.add(socialMember().getId());
         }
 
@@ -60,6 +68,7 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
         assertThat(memberCount(group)).isEqualTo(30);
         assertThat(outcomes).containsOnly("OK", "GROUP_FULL");
         assertThat(outcomes).filteredOn("OK"::equals).hasSize(2);
+        assertThat(outcomes).filteredOn("GROUP_FULL"::equals).isNotEmpty();
     }
 
     @Test

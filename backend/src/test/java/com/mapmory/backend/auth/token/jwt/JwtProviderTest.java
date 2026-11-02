@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 class JwtProviderTest {
@@ -13,7 +16,7 @@ class JwtProviderTest {
     private static final String SECRET = "unit-test-secret-key-for-jwt-provider-0123456789";
 
     private final JwtProvider jwtProvider =
-            new JwtProvider(new JwtProperties(SECRET, Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(365)));
+            new JwtProvider(new JwtProperties(SECRET, Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(365)), Clock.systemUTC());
 
     @Test
     void 발급한_토큰에서_memberId를_다시_읽는다() {
@@ -25,10 +28,22 @@ class JwtProviderTest {
     @Test
     void 만료된_토큰은_ExpiredJwtException을_던진다() {
         JwtProvider expiredProvider =
-                new JwtProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)));
+                new JwtProvider(new JwtProperties(SECRET, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)), Clock.systemUTC());
         String expiredToken = expiredProvider.issueAccessToken(1L);
 
         assertThatThrownBy(() -> jwtProvider.parseMemberId(expiredToken))
+                .isInstanceOf(ExpiredJwtException.class);
+    }
+
+    @Test
+    void 만료는_발급과_같은_시계로_확인한다() {
+        Clock past = Clock.fixed(Instant.parse("2020-01-01T00:00:00Z"), ZoneOffset.UTC);
+        JwtProvider pastProvider =
+                new JwtProvider(new JwtProperties(SECRET, Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(365)), past);
+        String token = pastProvider.issueAccessToken(1L);
+
+        assertThat(pastProvider.parseMemberId(token)).isEqualTo(1L);
+        assertThatThrownBy(() -> jwtProvider.parseMemberId(token))
                 .isInstanceOf(ExpiredJwtException.class);
     }
 
@@ -43,7 +58,7 @@ class JwtProviderTest {
     @Test
     void 다른_키로_서명한_토큰은_검증에_실패한다() {
         JwtProvider otherKeyProvider =
-                new JwtProvider(new JwtProperties("another-secret-key-totally-different-0123456789", Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(365)));
+                new JwtProvider(new JwtProperties("another-secret-key-totally-different-0123456789", Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(365)), Clock.systemUTC());
         String token = otherKeyProvider.issueAccessToken(1L);
 
         assertThatThrownBy(() -> jwtProvider.parseMemberId(token))

@@ -3,8 +3,8 @@ package com.mapmory.backend.travelrecord.mapsummary.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -23,6 +23,8 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 @DataJpaTest
 @DisplayName("지역 지도 요약 Repository")
 class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     @Autowired
     private EntityManager entityManager;
@@ -263,7 +265,8 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
                     "테스트 기록 " + sequence,
                     "내용",
                     LocalDate.of(2026, 8, 11),
-                    null
+                    null,
+                    TODAY
             ));
         }
         return count;
@@ -276,7 +279,8 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
                 title,
                 "내용",
                 LocalDate.of(2026, 8, 11),
-                null
+                null,
+                TODAY
         );
     }
 

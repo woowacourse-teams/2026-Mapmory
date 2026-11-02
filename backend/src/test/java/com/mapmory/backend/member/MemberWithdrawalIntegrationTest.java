@@ -180,6 +180,37 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
     }
 
+    // 남은 access token으로 데이터나 비용(S3, 렌더러)을 만드는 경로는 막는다. 파기 대상에서 빠지는 데이터가 생기지 않게 한다.
+    @Test
+    void 탈퇴한_회원의_남은_access_token으로_기록_업로드_공유_영상을_만들면_401_INACTIVE_MEMBER다() throws Exception {
+        String accessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
+        withdraw(accessToken).andExpect(status().isNoContent());
+        // 사진 검사와 S3 확인을 지나야 회원 확인까지 간다.
+        willReturn(true).given(uploadedObjectChecker).exists(anyString());
+        String photoKey = photoKeyOfLatestMember("tokyo.jpg");
+
+        mockMvc.perform(post("/api/v1/travel-records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"countryCode":"JP","title":"도쿄","content":"","startDate":"2026-08-11","objectKeys":["%s"]}
+                                """.formatted(photoKey)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        mockMvc.perform(post("/api/v1/uploads/presigned-urls")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"files":[{"fileName":"tokyo.jpg","contentType":"image/jpeg","fileSize":1024}]}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        mockMvc.perform(post("/api/v1/share-videos/travel-timeline")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+    }
+
     @Test
     void 토큰이_없으면_401이다() throws Exception {
         mockMvc.perform(delete("/api/v1/members/me"))

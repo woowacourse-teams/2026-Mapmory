@@ -6,6 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 기록의 국가는 COALESCE(root_id, id)로 구한다. 국가는 root가 없어 자기 자신이고, 하위 지역의 root는 국가다
+ * (Region.country()와 같은 규칙). 상위 지역은 대한민국이면 시·도, 해외면 국가로 묶는다.
+ * 대한민국 국가 코드는 쿼리에 적지 않고 호출하는 쪽이 Region.KOREA로 넘긴다.
+ */
 public interface TravelStatisticsRepository extends Repository<TravelRecord, Long> {
 
     @Query(value = """
@@ -18,7 +23,7 @@ public interface TravelStatisticsRepository extends Repository<TravelRecord, Lon
                        WHERE media_record.member_id = :memberId
                    ) AS mediaCount,
                    COUNT(DISTINCT CASE
-                       WHEN country_region.region_code = 'KR'
+                       WHEN country_region.region_code = :koreaCode
                         AND recorded_region.region_type = 'DISTRICT'
                        THEN recorded_region.id
                    END) AS visitedKoreaDistrictCount
@@ -29,7 +34,10 @@ public interface TravelStatisticsRepository extends Repository<TravelRecord, Lon
               ON country_region.id = COALESCE(recorded_region.root_id, recorded_region.id)
             WHERE travel_record.member_id = :memberId
             """, nativeQuery = true)
-    TravelStatisticsSummaryQueryResult findSummary(@Param("memberId") Long memberId);
+    TravelStatisticsSummaryQueryResult findSummary(
+            @Param("memberId") Long memberId,
+            @Param("koreaCode") String koreaCode
+    );
 
     @Query(value = """
             SELECT DISTINCT country_region.region_code
@@ -56,10 +64,10 @@ public interface TravelStatisticsRepository extends Repository<TravelRecord, Lon
               ON country_region.id = COALESCE(recorded_region.root_id, recorded_region.id)
             JOIN region aggregate_region
               ON aggregate_region.id = CASE
-                  WHEN country_region.region_code = 'KR'
+                  WHEN country_region.region_code = :koreaCode
                    AND recorded_region.region_type = 'DISTRICT'
                   THEN recorded_region.parent_id
-                  WHEN country_region.region_code = 'KR'
+                  WHEN country_region.region_code = :koreaCode
                    AND recorded_region.region_type = 'PROVINCE'
                   THEN recorded_region.id
                   ELSE country_region.id
@@ -72,5 +80,8 @@ public interface TravelStatisticsRepository extends Repository<TravelRecord, Lon
             ORDER BY COUNT(travel_record.id) DESC, aggregate_region.id ASC
             LIMIT 3
             """, nativeQuery = true)
-    List<TopRegionQueryResult> findTopRegions(@Param("memberId") Long memberId);
+    List<TopRegionQueryResult> findTopRegions(
+            @Param("memberId") Long memberId,
+            @Param("koreaCode") String koreaCode
+    );
 }

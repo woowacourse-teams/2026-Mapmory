@@ -4,6 +4,7 @@ import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -26,13 +27,15 @@ public class RefreshTokenService {
     private final RefreshTokenReuseMonitor reuseMonitor;
     private final Duration refreshTokenValidity;
     private final Duration guestRefreshTokenValidity;
+    private final Clock clock;
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
             RefreshTokenGenerator refreshTokenGenerator,
             RefreshTokenHasher refreshTokenHasher,
             RefreshTokenReuseMonitor reuseMonitor,
-            JwtProperties jwtProperties
+            JwtProperties jwtProperties,
+            Clock clock
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.refreshTokenGenerator = refreshTokenGenerator;
@@ -40,12 +43,13 @@ public class RefreshTokenService {
         this.reuseMonitor = reuseMonitor;
         this.refreshTokenValidity = jwtProperties.refreshTokenValidity();
         this.guestRefreshTokenValidity = jwtProperties.guestRefreshTokenValidity();
+        this.clock = clock;
     }
 
     @Transactional
     public String issue(Member member) {
         String rawToken = refreshTokenGenerator.generate();
-        LocalDateTime expiresAt = LocalDateTime.now().plus(validityFor(member));
+        LocalDateTime expiresAt = LocalDateTime.now(clock).plus(validityFor(member));
         refreshTokenRepository.save(RefreshToken.issue(member, refreshTokenHasher.hash(rawToken), expiresAt));
         return rawToken;
     }
@@ -79,7 +83,7 @@ public class RefreshTokenService {
                 .findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         if (refreshToken.isRevoked()) {
             return handleReuse(refreshToken, now);
         }
@@ -147,7 +151,7 @@ public class RefreshTokenService {
      */
     @Transactional
     public void revokeAll(Long memberId) {
-        refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now());
+        refreshTokenRepository.revokeAllActiveByMemberId(memberId, LocalDateTime.now(clock));
     }
 
     /**
@@ -163,7 +167,7 @@ public class RefreshTokenService {
      */
     @Transactional
     public void revoke(String rawToken) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         refreshTokenRepository.findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
                 .ifPresent(token -> {
                     token.revoke(now);

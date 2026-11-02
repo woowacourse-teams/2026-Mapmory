@@ -1,6 +1,6 @@
 package com.mapmory.backend.travelrecord.statistics.dto;
 
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.statistics.model.TopRegionStatistics;
 
 public record TopRegionResponse(

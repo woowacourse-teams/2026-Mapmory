@@ -74,6 +74,13 @@ apple:
   # 웹·Android에서 Services ID로 로그인하게 되면 그 ID도 추가한다. 비어 있으면 모든 애플 로그인을 거부한다. (ADR 0020)
   client-ids: ${APPLE_CLIENT_IDS:}
   jwk-set-uri: https://appleid.apple.com/auth/keys
+  # 애플 회원이 탈퇴할 때 애플 토큰을 철회하는 데 쓴다(앱스토어 심사 지침 5.1.1(v)). 로그인에는 필요 없다.
+  # 비어 있으면 애플 회원 탈퇴가 APPLE_UNAVAILABLE(503)로 실패한다. (ADR 0025)
+  team-id: ${APPLE_TEAM_ID:}
+  key-id: ${APPLE_KEY_ID:}
+  private-key: ${APPLE_PRIVATE_KEY:}
+  token-uri: https://appleid.apple.com/auth/token
+  revoke-uri: https://appleid.apple.com/auth/revoke
 
 travel-record:
   map-summary:
@@ -148,6 +155,16 @@ share-video:
     work-directory: ${SHARE_VIDEO_WORK_DIRECTORY:${java.io.tmpdir}/mapmory/share-videos}
     render-timeout: ${SHARE_VIDEO_RENDER_TIMEOUT:10m}
     npm-command: ${SHARE_VIDEO_NPM_COMMAND:npm}
+
+notification:
+  fcm:
+    enabled: ${NOTIFICATION_FCM_ENABLED:false}
+    project-id: ${FCM_PROJECT_ID:}
+  outbox:
+    # 앨범 알림 아웃박스를 이 서버가 비울지. API를 받지 않는 렌더러 서버에서는 false로 끈다.
+    enabled: ${NOTIFICATION_OUTBOX_ENABLED:true}
+    # 앞 차례가 끝난 뒤 이 시간만큼 기다렸다가 보낼 차례인 알림을 다시 본다.
+    poll-delay: ${NOTIFICATION_OUTBOX_POLL_DELAY:2s}
 
 waitlist:
   cors:

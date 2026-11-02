@@ -1,5 +1,7 @@
 package com.mapmory.backend.travelrecord.domain;
 
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.tag.Tag;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +21,13 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
      */
     @EntityGraph(attributePaths = {"region", "region.parent", "region.root"})
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
+
+    /**
+     * 다른 컨텍스트에 기록을 묶어 넘길 때 쓴다(TravelRecordQuery). 회원과 지역은 즉시 로딩이라
+     * 함께 읽지 않으면 기록마다 조회가 한 번씩 더 나간다. 없는 id는 결과에서 빠진다.
+     */
+    @EntityGraph(attributePaths = {"member", "region"})
+    List<TravelRecord> findAllByIdIn(Collection<Long> ids);
 
     /**
      * startDate가 같으면 TravelRecord.id 순서로 고정
@@ -58,6 +67,31 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
             @Param("travelRecordIds") Collection<Long> travelRecordIds
     );
 
+    /**
+     * TravelRecordTag도 애그리거트 내부 엔티티라 루트 리포지토리에서 조회한다. 상세 화면의 태그를 만든 순서로 읽는다.
+     */
+    @Query("""
+        SELECT trt.tag
+        FROM TravelRecordTag trt
+        WHERE trt.travelRecord.id = :travelRecordId
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<Tag> findTagsByTravelRecordId(@Param("travelRecordId") Long travelRecordId);
+
+    /**
+     * 목록 화면의 태그용. 한 페이지의 연결을 태그와 함께 한 번에 읽는다.
+     */
+    @Query("""
+        SELECT trt
+        FROM TravelRecordTag trt
+        JOIN FETCH trt.tag
+        WHERE trt.travelRecord.id IN :travelRecordIds
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<TravelRecordTag> findTagLinksByTravelRecordIdIn(
+            @Param("travelRecordIds") Collection<Long> travelRecordIds
+    );
+
     @Query("""
         SELECT tr
         FROM TravelRecord tr
@@ -74,6 +108,19 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
             @Param("tagId") Long tagId,
             Pageable pageable
     );
+
+    /**
+     * 지역 안의 기록을 찾는다. 국가는 그 아래 모든 지역, 시·도는 그 아래 시·군·구, 시·군·구는 자신만 포함한다.
+     * 하위 지역의 parent는 바로 위 지역이고 root는 국가라서, 단위마다 조건 두 개로 찾도록 쿼리를 나눈다.
+     * 지도 요약(RegionMapSummaryRepository)도 같은 포함 관계로 센다.
+     */
+    default Page<TravelRecord> findByMemberIdInRegion(Long memberId, Region region, Long tagId, Pageable pageable) {
+        return switch (region.getRegionType()) {
+            case COUNTRY -> findByMemberIdAndCountryIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+            case PROVINCE -> findByMemberIdAndProvinceIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+            case DISTRICT -> findByMemberIdAndRegionIdAndOptionalTagId(memberId, region.getId(), tagId, pageable);
+        };
+    }
 
     @Query("""
         SELECT tr

@@ -1,9 +1,9 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.place.application.model.PlaceDetails;
-import com.mapmory.backend.place.application.model.SelectedPlace;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
-import com.mapmory.backend.region.RegionSuggester;
+import com.mapmory.backend.place.domain.PlaceDetails;
+import com.mapmory.backend.place.domain.PlaceId;
+import com.mapmory.backend.region.application.RegionSuggester;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,8 +18,8 @@ public class PlaceSelectionService {
     }
 
     public SelectedPlace select(String placeId, String sessionToken) {
-        PlaceDetails place = placeLookupPort.findForSelection(placeId, sessionToken);
+        PlaceDetails place = placeLookupPort.findDetails(PlaceId.from(placeId), sessionToken);
         return new SelectedPlace(place,
-                regionSuggester.suggest(place.countryCode(), place.addressAreas()).orElse(null));
+                regionSuggester.suggest(place.address()).orElse(null));
     }
 }

@@ -47,7 +47,8 @@ class MemberPlaceRateLimiterIntegrationTest extends IntegrationTest {
         return new MemberPlaceRateLimiter(
                 bucketManager,
                 config.memberSearchLimit(properties),
-                config.memberSelectionLimit(properties)
+                config.memberSelectionLimit(properties),
+                clock
         );
     }
 

@@ -1,9 +1,9 @@
 package com.mapmory.backend.travelrecord.mapsummary.dto;
 
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
-import java.util.List;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
+import java.util.List;
 
 public record RegionMapSummaryResponse(
         Long regionId,

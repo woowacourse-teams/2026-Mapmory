@@ -17,8 +17,10 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.event.GuestAbandoned;
-import org.junit.jupiter.api.Test;
+import com.mapmory.backend.recordmedia.ExpiringUrl;
 import java.time.Duration;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -292,9 +294,15 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
                   "districtCode": "50110",
                   "title": "%s",
                   "content": "기록 본문",
-                  "startDate": "2026-08-01"
+                  "startDate": "2026-08-01",
+                  "objectKeys": ["%s"]
                 }
-                """.formatted(title);
+                """.formatted(title, photoKeyOfLatestMember(UUID.randomUUID() + ".jpg"));
+        // 기록에는 사진이 1장 이상 있어야 한다. 방금 로그인한 게스트에게 발급한 형식의 키이고,
+        // S3 확인은 통과시키고 조회 URL 서명은 대신한다(테스트에는 AWS 자격 증명이 없다).
+        willReturn(true).given(uploadedObjectChecker).exists(anyString());
+        willReturn(new ExpiringUrl("https://download.example/photo.jpg", 300L))
+                .given(recordMediaUrlService).createViewUrl(anyString());
 
         mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -304,7 +312,7 @@ class GuestPromotionIntegrationTest extends IntegrationTest {
     }
 
     private String expiredAccessToken(Long memberId) {
-        return new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)))
+        return new JwtProvider(new JwtProperties(secret, Duration.ofSeconds(-1), Duration.ofDays(14), Duration.ofDays(365)), clock)
                 .issueAccessToken(memberId);
     }
 

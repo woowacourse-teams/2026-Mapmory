@@ -1,7 +1,8 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.place.application.model.PlaceCandidate;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
+import com.mapmory.backend.place.domain.PlaceCandidate;
+import com.mapmory.backend.place.domain.SearchQuery;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,6 @@ public class PlaceSearchService {
     }
 
     public List<PlaceCandidate> search(String query, String sessionToken) {
-        return placeLookupPort.search(query.strip(), sessionToken);
+        return placeLookupPort.search(SearchQuery.from(query), sessionToken);
     }
 }

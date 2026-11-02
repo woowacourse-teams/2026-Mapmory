@@ -2,6 +2,8 @@ package com.mapmory.backend.sharevideo;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.application.ActiveMemberGuard;
+import com.mapmory.backend.notification.application.PushTokenService;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshot;
 import com.mapmory.backend.sharevideo.timeline.TravelTimelineSnapshotFactory;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -19,24 +21,30 @@ public class ShareVideoService {
     private final ShareVideoJobRepository shareVideoJobRepository;
     private final ShareVideoDownloadUrlService downloadUrlService;
     private final JsonMapper jsonMapper;
+    private final ActiveMemberGuard activeMemberGuard;
+    private final PushTokenService pushTokenService;
 
     public ShareVideoService(
             TravelRecordRepository travelRecordRepository,
             TravelTimelineSnapshotFactory snapshotFactory,
             ShareVideoJobRepository shareVideoJobRepository,
             ShareVideoDownloadUrlService downloadUrlService,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            ActiveMemberGuard activeMemberGuard,
+            PushTokenService pushTokenService
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.snapshotFactory = snapshotFactory;
         this.shareVideoJobRepository = shareVideoJobRepository;
         this.downloadUrlService = downloadUrlService;
         this.jsonMapper = jsonMapper;
+        this.activeMemberGuard = activeMemberGuard;
+        this.pushTokenService = pushTokenService;
     }
 
     @Transactional
     public ShareVideoJob createTravelTimeline(final Member member) {
-        return createTravelTimeline(member, ShareVideoStyle.defaultStyle());
+        return createTravelTimeline(member, ShareVideoStyle.defaultStyle(), null);
     }
 
     @Transactional
@@ -44,6 +52,26 @@ public class ShareVideoService {
             final Member member,
             final ShareVideoStyle styleId
     ) {
+        return createTravelTimeline(member, styleId, null);
+    }
+
+    @Transactional
+    public ShareVideoJob createTravelTimeline(
+            final Member member,
+            final ShareVideoStyle styleId,
+            final Long pushTokenId
+    ) {
+        // 탈퇴 뒤 남은 access token으로 렌더링을 맡기지 못하게 한다.
+        activeMemberGuard.require(member.getId());
+
+        // 알림을 요청한 경우에만 수신 등록의 소유권을 확인한다.
+        if (pushTokenId != null
+                && !pushTokenService.isOwnedBy(pushTokenId, member.getId())) {
+            throw new BusinessException(
+                    ShareVideoErrorCode.SHARE_VIDEO_PUSH_TARGET_NOT_FOUND
+            );
+        }
+
         final ShareVideoStyle resolvedStyle;
         if (styleId == null) {
             resolvedStyle = ShareVideoStyle.defaultStyle();
@@ -63,7 +91,8 @@ public class ShareVideoService {
                 member,
                 "TRAVEL_TIMELINE",
                 resolvedStyle,
-                snapshotJson
+                snapshotJson,
+                pushTokenId
         );
 
         return shareVideoJobRepository.save(job);

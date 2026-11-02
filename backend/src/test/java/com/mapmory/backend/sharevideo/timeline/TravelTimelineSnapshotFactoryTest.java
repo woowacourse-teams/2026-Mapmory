@@ -3,8 +3,8 @@ package com.mapmory.backend.sharevideo.timeline;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.member.Member;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class TravelTimelineSnapshotFactoryTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 26);
 
     private final TravelTimelineSnapshotFactory factory = new TravelTimelineSnapshotFactory();
     private final Member member = Member.of("타임라인 테스트 회원", UUID.randomUUID());
@@ -94,7 +96,8 @@ class TravelTimelineSnapshotFactoryTest {
                 "여행 기록",
                 "",
                 startDate,
-                endDate
+                endDate,
+                TODAY
         );
         ReflectionTestUtils.setField(record, "id", id);
         return record;

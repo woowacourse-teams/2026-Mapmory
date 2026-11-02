@@ -1,8 +1,8 @@
 package com.mapmory.backend.auth.infrastructure.google;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.application.port.SocialIdentityPort;
-import com.mapmory.backend.member.AuthProvider;
 import org.springframework.stereotype.Component;
 
 /** 구글 ID token을 검증해 sub와 이름을 꺼낸다. (ADR 0019) */
@@ -16,8 +16,8 @@ public class GoogleIdentityAdapter implements SocialIdentityPort {
     }
 
     @Override
-    public AuthProvider provider() {
-        return AuthProvider.GOOGLE;
+    public SocialProvider provider() {
+        return SocialProvider.GOOGLE;
     }
 
     @Override

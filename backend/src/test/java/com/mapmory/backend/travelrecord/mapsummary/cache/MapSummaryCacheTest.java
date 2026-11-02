@@ -2,7 +2,7 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

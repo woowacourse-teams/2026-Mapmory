@@ -6,9 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
-import com.mapmory.backend.region.Region;
-import com.mapmory.backend.region.RegionRepository;
-import com.mapmory.backend.region.RegionType;
+import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.region.domain.RegionRepository;
+import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -101,14 +101,29 @@ class GroupRepositoryTest extends MySqlTestContainerSupport {
     }
 
     @Test
-    void 한_앨범에는_멤버당_기록이_하나다() {
+    void 한_앨범에_같은_기록은_한_번만_담긴다() {
         TravelGroup group = travelGroupRepository.saveAndFlush(TravelGroup.create("도쿄 친구들", owner.getId(), NOW));
         Album album = albumRepository.saveAndFlush(Album.open(group.getId(), "도쿄 3박 4일", japan(), owner.getId(), 101L));
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO album_entry (album_id, travel_record_id, member_id) VALUES (?, ?, ?)",
-                album.getId(), 102L, owner.getId()))
+                album.getId(), 101L, owner.getId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 한_앨범에_같은_멤버의_다른_기록은_담긴다() {
+        TravelGroup group = travelGroupRepository.saveAndFlush(TravelGroup.create("도쿄 친구들", owner.getId(), NOW));
+        Album album = albumRepository.saveAndFlush(Album.open(group.getId(), "도쿄 3박 4일", japan(), owner.getId(), 101L));
+
+        jdbcTemplate.update(
+                "INSERT INTO album_entry (album_id, travel_record_id, member_id) VALUES (?, ?, ?)",
+                album.getId(), 102L, owner.getId());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM album_entry WHERE album_id = ? AND member_id = ?",
+                Long.class, album.getId(), owner.getId()))
+                .isEqualTo(2L);
     }
 
     @Test
@@ -121,6 +136,6 @@ class GroupRepositoryTest extends MySqlTestContainerSupport {
     }
 
     private Region japan() {
-        return regionRepository.findByParentIsNullAndRegionTypeAndRegionCode(RegionType.COUNTRY, "JP").orElseThrow();
+        return regionRepository.findByParentIdAndRegionTypeAndRegionCode(null, RegionType.COUNTRY, "JP").orElseThrow();
     }
 }
