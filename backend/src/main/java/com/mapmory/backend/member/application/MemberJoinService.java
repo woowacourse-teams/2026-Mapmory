@@ -97,11 +97,22 @@ public class MemberJoinService {
         eventPublisher.publishEvent(new GuestAbandoned(guest.getId(), guest.getAbandonedAt()));
     }
 
+    /**
+     * 승격하거나 버릴 게스트를 잠그고 읽는다.
+     *
+     * 같은 게스트가 소셜 로그인을 연타하면 두 요청이 모두 활동 중인 게스트로 읽고 각자 승격한다. UPDATE끼리라
+     * UNIQUE 위반이 나지 않아 AuthService의 재시도에도 걸리지 않는다. 늦은 쪽의 승격이 refresh를 모두 폐기하면서
+     * 먼저 끝난 쪽이 방금 발급한 refresh까지 폐기하거나, 둘이 refresh를 폐기·발급하다 데드락이 난다. (#574)
+     * 잠그면 늦은 쪽은 먼저 온 쪽의 커밋을 기다렸다가 승격된 회원을 읽어 게스트 없음이 되고, 기존 회원으로 들어온다.
+     *
+     * joinWithSocial의 첫 조회여야 한다. MySQL REPEATABLE READ는 첫 일반 조회에서 스냅샷을 만들므로,
+     * 이 잠금 조회가 먼저여야 뒤의 findByProviderAndProviderId가 먼저 온 쪽의 커밋을 본다.
+     */
     private Optional<Member> findGuest(Long memberId) {
         if (memberId == null) {
             return Optional.empty();
         }
-        return memberRepository.findById(memberId)
+        return memberRepository.findByIdForUpdate(memberId)
                 .filter(Member::isGuest)
                 .filter(Member::isActive);
     }
