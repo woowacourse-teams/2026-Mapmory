@@ -38,14 +38,10 @@ public class MemberService {
         return findActiveMember(memberId);
     }
 
-    /** 탈퇴 완료 여부를 확인할 때 사용한다. 없는 회원과 버려진 게스트는 허용하지 않는다. */
+    /** 탈퇴 완료 여부를 확인할 때 사용한다. 탈퇴 대상 규칙은 findWithdrawableMember를 따른다. */
     @Transactional(readOnly = true)
     public Member findForWithdrawal(Long memberId) {
-        Member member = findMember(memberId);
-        if (member.isAbandoned()) {
-            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
-        }
-        return member;
+        return findWithdrawableMember(memberId);
     }
 
     @Transactional
@@ -58,7 +54,8 @@ public class MemberService {
     /**
      * 탈퇴한다. 게스트도 같다.
      *
-     * 이미 탈퇴했으면 아무것도 하지 않는다(멱등). 처음 탈퇴할 때만 MemberWithdrawn을 발행하고,
+     * 이미 탈퇴했으면 아무것도 하지 않는다(멱등). 버려진 게스트는 탈퇴한 적이 없으므로 401 INACTIVE_MEMBER다.
+     * 204 멱등은 본인 탈퇴의 재시도(응답 유실)를 위한 것이다. (#576) 처음 탈퇴할 때만 MemberWithdrawn을 발행하고,
      * auth가 같은 트랜잭션에서 refresh 토큰을 모두 폐기한다. 이미 발급된 access token(최대 30분)은 남는다. (ADR 0021)
      *
      * 애플 회원은 애플 토큰을 먼저 철회해야 하므로 여기서 탈퇴할 수 없다. 재인증을 받는 애플 회원 탈퇴
@@ -66,7 +63,7 @@ public class MemberService {
      */
     @Transactional
     public void withdraw(Long memberId) {
-        Member member = findMember(memberId);
+        Member member = findWithdrawableMember(memberId);
         if (member.isWithdrawn()) {
             return;
         }
@@ -81,7 +78,7 @@ public class MemberService {
      */
     @Transactional
     public void withdrawUnlinked(Long memberId) {
-        Member member = findMember(memberId);
+        Member member = findWithdrawableMember(memberId);
         if (member.isWithdrawn()) {
             return;
         }
@@ -91,6 +88,26 @@ public class MemberService {
     private void markWithdrawn(Member member) {
         member.withdraw(LocalDateTime.now(clock));
         eventPublisher.publishEvent(new MemberWithdrawn(member.getId(), member.getProvider(), member.getWithdrawnAt()));
+    }
+
+    /**
+     * 탈퇴 대상 회원을 찾는다. 일반 탈퇴와 애플 탈퇴가 같은 규칙을 쓴다.
+     *
+     *   - 없는 회원: 401 INACTIVE_MEMBER
+     *   - 이미 탈퇴함: 그대로 돌려준다. 호출부가 아무것도 하지 않고 204로 끝낸다(본인 탈퇴의 재시도).
+     *   - 버려진 게스트: 401 INACTIVE_MEMBER. 탈퇴한 적이 없고, 다른 계정으로 로그인하면서 토큰이 죽었다.
+     *
+     * 탈퇴 여부를 버려짐보다 먼저 본다. 예전 버그로 버려진 뒤 탈퇴된 행이 있어도 재요청이 204로 끝난다. (#576)
+     */
+    private Member findWithdrawableMember(Long memberId) {
+        Member member = findMember(memberId);
+        if (member.isWithdrawn()) {
+            return member;
+        }
+        if (member.isAbandoned()) {
+            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
+        }
+        return member;
     }
 
     private Member findActiveMember(Long memberId) {
