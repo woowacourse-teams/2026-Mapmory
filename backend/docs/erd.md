@@ -485,7 +485,7 @@ CONSTRAINT fk_travel_record_tag_tag
 | `last_error_code`, `sent_at` | `VARCHAR(100)`, `DATETIME` | NULL | 최근 오류 코드와 FCM 접수 기록 시각 |
 | `created_at`, `updated_at` | `DATETIME` | NOT NULL | 생성·갱신 시각 |
 
-`UNIQUE(event_key, push_token_id)`는 행이 보관되는 동안 중복 이벤트 저장을 방지한다. `INDEX(status, next_attempt_at, id)`와 `INDEX(status, lease_expires_at, id)`는 대기 항목과 만료된 선점 조회에 사용한다. 결과 기록 서비스의 실제 FCM 호출은 아직 연결되지 않았다. 세부 상태와 클래스 관계는 [알림 팀 가이드](notification-team-guide.md)를 참고한다.
+`UNIQUE(event_key, push_token_id)`는 행이 보관되는 동안 중복 이벤트 저장을 방지한다. `INDEX(status, next_attempt_at, id)`와 `INDEX(status, lease_expires_at, id)`는 대기 항목과 만료된 선점 조회에 사용한다. 영상 알림 워커에는 FCM 발송 어댑터가 연결되어 있지만, 실제 Firebase 인증과 기기 수신은 검증되지 않았다. 세부 상태와 클래스 관계는 [알림 팀 가이드](notification-team-guide.md)를 참고한다.
 
 ### `notification_setting`
 
