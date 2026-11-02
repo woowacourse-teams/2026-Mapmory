@@ -68,6 +68,17 @@ public class MemberJoinService {
     }
 
     /**
+     * 이 소셜 계정으로 가입한 회원이 있는지 확인한다.
+     *
+     * 동시에 들어온 첫 로그인이 무결성 위반으로 실패했을 때, 그것이 같은 소셜 계정의 먼저 가입한 회원 때문인지
+     * 판단하는 데 쓴다. 예외의 제약 이름을 해석하지 않으므로 DB 방언이나 제약 이름에 묶이지 않는다. (#461)
+     * 호출 시점에 실패한 트랜잭션은 이미 롤백되어 끝났으므로, 그 상태에 영향받지 않고 조회한다.
+     */
+    public boolean hasSocialAccount(AuthProvider provider, String providerId) {
+        return memberRepository.existsByProviderAndProviderId(provider, providerId);
+    }
+
+    /**
      * 로그인 없이 서비스를 사용하기 위한 게스트 회원을 만든다.
      *
      * 소셜 로그인과 달리 외부에 물어볼 신원이 없으므로 식별자를 서버가 발급한다. (ADR 0015)
