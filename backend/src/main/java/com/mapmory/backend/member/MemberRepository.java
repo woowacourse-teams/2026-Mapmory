@@ -1,17 +1,25 @@
 package com.mapmory.backend.member;
 
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
     Optional<Member> findByProviderAndProviderId(AuthProvider provider, String providerId);
+
+    // 게스트 승격·버림 판단 시 행 잠금(SELECT ... FOR UPDATE). 같은 게스트로 소셜 로그인이 동시에 와도 직렬화되어
+    // 둘 다 게스트로 읽고 각자 승격하는 경쟁을 막는다. (#574)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id")
+    Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
     @Query("""
         SELECT m FROM Member m
