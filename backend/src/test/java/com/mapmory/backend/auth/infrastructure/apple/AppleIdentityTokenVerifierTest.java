@@ -40,10 +40,13 @@ class AppleIdentityTokenVerifierTest {
     }
 
     @Test
-    void 유효한_identity_token이면_sub를_반환한다() throws Exception {
+    void 유효한_identity_token이면_sub와_토큰이_발급된_앱을_반환한다() throws Exception {
         String identityToken = sign(appleKey, claims().build());
 
-        assertThat(verifier.verify(identityToken).subject()).isEqualTo("001234.abcdef0123456789.0123");
+        AppleUser user = verifier.verify(identityToken);
+
+        assertThat(user.subject()).isEqualTo("001234.abcdef0123456789.0123");
+        assertThat(user.clientId()).isEqualTo(BUNDLE_ID);
     }
 
     @Test

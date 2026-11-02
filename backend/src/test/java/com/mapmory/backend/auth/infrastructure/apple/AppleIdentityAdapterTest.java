@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
-import com.mapmory.backend.member.AuthProvider;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import org.junit.jupiter.api.Test;
 
 class AppleIdentityAdapterTest {
@@ -15,12 +15,12 @@ class AppleIdentityAdapterTest {
 
     @Test
     void 애플_제공자를_맡는다() {
-        assertThat(adapter.provider()).isEqualTo(AuthProvider.APPLE);
+        assertThat(adapter.provider()).isEqualTo(SocialProvider.APPLE);
     }
 
     @Test
     void 애플_sub를_신원으로_바꾸고_이름은_비워_둔다() {
-        given(appleIdentityTokenVerifier.verify("identity-token")).willReturn(new AppleUser("001234.abcdef.0123"));
+        given(appleIdentityTokenVerifier.verify("identity-token")).willReturn(new AppleUser("001234.abcdef.0123", "com.mapmory.ios"));
 
         SocialIdentity identity = adapter.verify("identity-token");
 

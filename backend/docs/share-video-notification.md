@@ -4,7 +4,7 @@
 - 상태: 기기 등록·영상 수신 대상 연결, 영상 완료와 Outbox의 같은 트랜잭션 저장, 영상 알림 발송 워커와 FCM 호출 코드까지 로컬에 반영했다. 실제 FCM·앱 수신과 배포 여부는 미검증이다. 상세 내용은 [팀 가이드](notification-team-guide.md)를 참고한다.
 - 구현: [#545](https://github.com/woowacourse-teams/2026-Mapmory/issues/545)
 - 후속 리팩토링: [#553](https://github.com/woowacourse-teams/2026-Mapmory/issues/553)
-- 결정 배경: [ADR 0025](adr/0025-share-video-notification-registration.md)
+- 결정 배경: [ADR 0026](adr/0026-share-video-notification-registration.md)
 
 ## 확정한 범위
 
@@ -150,7 +150,7 @@ UNIQUE 제약으로 중복 행이 저장되지 않도록 하고, 패자는 토�
 - 영상 요청은 선택적인 `pushTokenId`를 받는다. 없으면 영상 생성만 수행한다. 양수가 아닌 ID는 400으로 거절한다.
 - 서버는 로그인 회원이 소유한 등록 ID인지 검증한다. 다른 회원의 행 ID만 알아서는 연결할 수 없다.
 - 요청 시 확인한 등록 ID를 `ShareVideoJob.recipientPushTokenId`에 저장한다. 없는 등록·다른 회원 소유는 같은 404 오류로 거절한다. 기존 PushToken 엔티티는 변경하지 않는다.
-- `V38__add_share_video_recipient_push_token_id.sql`로 `share_video_job.recipient_push_token_id BIGINT NULL`을 추가한다. 기존 작업과 알림 없는 요청은 NULL을 사용한다.
+- `V40__add_share_video_recipient_push_token_id.sql`로 `share_video_job.recipient_push_token_id BIGINT NULL`을 추가한다. 기존 작업과 알림 없는 요청은 NULL을 사용한다.
 - Outbox에는 요청 당시 회원 ID와 등록 ID를 보존한다. 완료 시 회원의 전체 토큰을 조회해 대상을 다시 선택하지 않는다.
 - 발송 직전 해당 ID의 행이 존재하고 소유 회원이 요청 당시 회원과 같은지 확인한다. 탈퇴 회원에게 발송하지 않는다.
 - 행이 사라지면 대상 없음으로 발송을 생략한다. 같은 토큰 값으로 새 행이 생겨도 과거 알림을 옮기지 않는다.
@@ -202,7 +202,7 @@ UNIQUE 제약으로 중복 행이 저장되지 않도록 하고, 패자는 토�
 - Service 3건: 수신 ID 저장, 소유권 거절 시 작업 미생성, 기존 호출의 알림 없는 생성.
 - Controller 7건: 수신 ID 전달, 본문·ID 생략 3가지, 0·음수 거절, 사용할 수 없는 등록의 404 응답.
 - Repository 1건: DB에 수신 ID 저장·재조회 후 푸시 등록을 삭제해도 영상 작업 유지.
-- 기존 Service 테스트의 생성자 주입을 보완했고, Flyway 버전 중복을 제거해 V38로 검증했다.
+- 당시 기존 Service 테스트의 생성자 주입을 보완하고 V38로 검증했다. 이후 개발 브랜치의 마이그레이션과 충돌해 V40으로 번호를 변경했다.
 
 - 통합 테스트는 Testcontainers의 로컬 MySQL을 사용했다. 운영 API·DB를 호출하지 않았다.
 - 전체 백엔드 테스트·지속적인 동시 요청 부하·FCM 발송·클라이언트 기기 수신은 검증하지 않았다. 동시성 통합 검증은 같은 토큰에 대한 동시 최초 등록 2건으로 한정한다.

@@ -4,7 +4,6 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.group.domain.Album;
 import com.mapmory.backend.group.domain.AlbumRepository;
-import com.mapmory.backend.group.domain.GroupMember;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
@@ -14,7 +13,6 @@ import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.travelrecord.api.RecordBrief;
 import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
-import java.util.List;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -133,12 +131,8 @@ public class AlbumService {
 
     // 알림은 커밋된 뒤 따로 보낸다(ADR 0022 결정 7). 받을 멤버는 그룹 잠금 아래에서 정한다.
     private void publishUpdated(TravelGroup group, Album album, Long actorMemberId) {
-        List<Long> recipients = group.getMembers().stream()
-                .map(GroupMember::getMemberId)
-                .filter(memberId -> !memberId.equals(actorMemberId))
-                .toList();
-        eventPublisher.publishEvent(new AlbumUpdated(
-                group.getId(), group.getName(), album.getId(), album.getName(), actorMemberId, recipients));
+        eventPublisher.publishEvent(new AlbumUpdated(group.getId(), group.getName(), album.getId(), album.getName(),
+                actorMemberId, group.otherMemberIds(actorMemberId)));
     }
 
     private Album findAlbum(Long albumId, Long groupId) {

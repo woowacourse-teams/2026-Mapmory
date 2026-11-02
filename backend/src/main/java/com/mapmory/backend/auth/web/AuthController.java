@@ -1,7 +1,10 @@
 package com.mapmory.backend.auth.web;
 
+import com.mapmory.backend.auth.application.AppleWithdrawalService;
 import com.mapmory.backend.auth.application.AuthService;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.web.dto.AppleLoginRequest;
+import com.mapmory.backend.auth.web.dto.AppleWithdrawalRequest;
 import com.mapmory.backend.auth.web.dto.GoogleLoginRequest;
 import com.mapmory.backend.auth.web.dto.KakaoLoginRequest;
 import com.mapmory.backend.auth.web.dto.LoginResponse;
@@ -9,7 +12,6 @@ import com.mapmory.backend.auth.web.dto.LogoutRequest;
 import com.mapmory.backend.auth.web.dto.RefreshRequest;
 import com.mapmory.backend.auth.web.dto.TokenResponse;
 import com.mapmory.backend.common.dto.ApiResponse;
-import com.mapmory.backend.member.AuthProvider;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AppleWithdrawalService appleWithdrawalService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AppleWithdrawalService appleWithdrawalService) {
         this.authService = authService;
+        this.appleWithdrawalService = appleWithdrawalService;
     }
 
     /**
@@ -39,7 +43,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.KAKAO, request.idToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.KAKAO, request.idToken(), authenticatedMemberId)));
     }
 
     /**
@@ -51,7 +55,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.GOOGLE, request.idToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.GOOGLE, request.idToken(), authenticatedMemberId)));
     }
 
     /**
@@ -63,7 +67,7 @@ public class AuthController {
             @AuthenticationPrincipal Long authenticatedMemberId
     ) {
         return ApiResponse.from(LoginResponse.from(
-                authService.loginWithSocial(AuthProvider.APPLE, request.identityToken(), authenticatedMemberId)));
+                authService.loginWithSocial(SocialProvider.APPLE, request.identityToken(), authenticatedMemberId)));
     }
 
     @PostMapping("/login/guest")
@@ -79,6 +83,20 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request.refreshToken());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 애플 회원 탈퇴. 애플 토큰을 철회한 뒤 탈퇴한다. 인증이 필요한 경로다.
+     *
+     * 애플 처리(키·애플 API)는 auth가 맡으므로 회원 탈퇴(DELETE /members/me)와 경로를 나눈다. (ADR 0025)
+     */
+    @PostMapping("/apple/withdrawal")
+    public ResponseEntity<Void> withdrawApple(
+            @Valid @RequestBody AppleWithdrawalRequest request,
+            @AuthenticationPrincipal Long memberId
+    ) {
+        appleWithdrawalService.withdraw(memberId, request.identityToken(), request.authorizationCode());
         return ResponseEntity.noContent().build();
     }
 }

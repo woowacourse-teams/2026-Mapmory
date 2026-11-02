@@ -132,6 +132,16 @@ public class TravelGroup extends BaseEntity {
         return members.stream().anyMatch(member -> member.isMember(memberId));
     }
 
+    /**
+     * 이 회원을 뺀 멤버들. 한 멤버가 앨범에 올리면 나머지가 알림을 받는다(ADR 0022 결정 7).
+     */
+    public List<Long> otherMemberIds(Long memberId) {
+        return members.stream()
+                .filter(member -> !member.isMember(memberId))
+                .map(GroupMember::getMemberId)
+                .toList();
+    }
+
     private static String validateName(String name) {
         if (name == null || name.isBlank()) {
             throw new BusinessException(GroupErrorCode.INVALID_GROUP_NAME);

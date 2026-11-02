@@ -52,6 +52,16 @@ class TravelGroupTest {
     }
 
     @Test
+    void 올린_사람을_뺀_멤버들에게_알린다() {
+        TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
+        group.join(2L, NOW.plusMinutes(1));
+        group.join(3L, NOW.plusMinutes(2));
+
+        assertThat(group.otherMemberIds(2L)).containsExactly(1L, 3L);
+        assertThat(TravelGroup.create("혼자", 1L, NOW).otherMemberIds(1L)).isEmpty();
+    }
+
+    @Test
     void 만든_사람이_첫_멤버이자_방장이다() {
         TravelGroup group = TravelGroup.create("도쿄 친구들", 1L, NOW);
 

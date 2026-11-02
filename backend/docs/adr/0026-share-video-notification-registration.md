@@ -1,4 +1,4 @@
-# ADR 0025. 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선한다
+# ADR 0026. 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선한다
 
 - 상태: 제안 (기존 엔티티 유지·요청 기기 대상·Outbox 적용은 사용자와 합의, 기기 등록 API는 로컬 구현·검증 완료)
 - 날짜: 2026-10-29
@@ -62,6 +62,6 @@
 기기 등록·해제 API와 서비스의 트랜잭션·충돌 처리를 로컬 코드에 반영했다.
 2026-10-29에 `./gradlew test --tests 'com.mapmory.backend.notification.*'`를 실행해 관련 20개 테스트가 통과했다. 같은 토큰의 동시 최초 등록 2건과 외부 트랜잭션 롤백 후 독립 등록 유지도 확인했다.
 영상 요청에 선택적 pushTokenId를 연결하고, 소유권 검증 후 작업에 저장하는 부분까지 구현했다.
-V38로 share_video_job에 nullable recipient_push_token_id를 추가했다. PushToken 엔티티·push_token 스키마는 유지한다.
+V40으로 share_video_job에 nullable recipient_push_token_id를 추가한다. PushToken 엔티티·push_token 스키마는 유지한다. 원래 작성된 V38은 개발 브랜치의 기존 V38과 충돌해 번호를 변경했다.
 알림·공유 영상 관련 테스트 68개가 통과했으며 수신 ID 저장·입력 검증·소유권 거절·등록 삭제 후 작업 유지도 확인했다.
 위 내용은 당시 검증 기록이다. 이후 Outbox 저장·선점·결과 기록 메서드가 추가되었다. 실제 FCM 발송과 클라이언트 연동은 아직 구현하지 않았다. 최신 상태는 [알림 팀 가이드](../notification-team-guide.md)를 따른다.
