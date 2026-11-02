@@ -157,6 +157,9 @@ share-video:
     npm-command: ${SHARE_VIDEO_NPM_COMMAND:npm}
 
 notification:
+  fcm:
+    enabled: ${NOTIFICATION_FCM_ENABLED:false}
+    project-id: ${FCM_PROJECT_ID:}
   outbox:
     # 앨범 알림 아웃박스를 이 서버가 비울지. API를 받지 않는 렌더러 서버에서는 false로 끈다.
     enabled: ${NOTIFICATION_OUTBOX_ENABLED:true}
