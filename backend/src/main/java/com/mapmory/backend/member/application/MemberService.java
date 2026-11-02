@@ -38,19 +38,10 @@ public class MemberService {
         return findActiveMember(memberId);
     }
 
-    /**
-     * 애플 탈퇴가 탈퇴 대상을 확인할 때 사용한다. 탈퇴 대상 규칙은 findWithdrawableMember를 따른다.
-     *
-     * 버려진 뒤 탈퇴된 행(#576 전 일반 탈퇴로 생겼을 수 있다)도 버려진 게스트라 401 INACTIVE_MEMBER로 둔다.
-     * 공통 규칙은 탈퇴 여부를 먼저 봐 이 행을 돌려주므로, 그대로 두면 게스트라 400 NOT_APPLE_MEMBER가 된다. (ADR 0025)
-     */
+    /** 애플 탈퇴가 탈퇴 대상을 확인할 때 사용한다. 탈퇴 대상 규칙은 findWithdrawableMember를 따른다. */
     @Transactional(readOnly = true)
     public Member findForWithdrawal(Long memberId) {
-        Member member = findWithdrawableMember(memberId);
-        if (member.isAbandoned()) {
-            throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
-        }
-        return member;
+        return findWithdrawableMember(memberId);
     }
 
     @Transactional
@@ -103,16 +94,14 @@ public class MemberService {
      * 탈퇴 대상 회원을 찾는다. 일반 탈퇴와 애플 탈퇴가 같은 규칙을 쓴다.
      *
      *   - 없는 회원: 401 INACTIVE_MEMBER
-     *   - 이미 탈퇴함: 그대로 돌려준다. 호출부가 아무것도 하지 않고 204로 끝낸다(본인 탈퇴의 재시도).
      *   - 버려진 게스트: 401 INACTIVE_MEMBER. 탈퇴한 적이 없고, 다른 계정으로 로그인하면서 토큰이 죽었다.
+     *   - 이미 탈퇴함: 그대로 돌려준다. 호출부가 아무것도 하지 않고 204로 끝낸다(본인 탈퇴의 재시도).
      *
-     * 탈퇴 여부를 버려짐보다 먼저 본다. 예전 버그로 버려진 뒤 탈퇴된 행이 있어도 재요청이 204로 끝난다. (#576)
+     * 버려짐을 탈퇴 여부보다 먼저 본다. 예전 버그(#576)로 버려진 뒤 탈퇴된 행도 버려진 게스트라 두 경로 모두 401이다.
+     * 정상 흐름에서는 탈퇴한 게스트가 버려지지 않는다(승격·버림은 활동 중인 게스트만 대상).
      */
     private Member findWithdrawableMember(Long memberId) {
         Member member = findMember(memberId);
-        if (member.isWithdrawn()) {
-            return member;
-        }
         if (member.isAbandoned()) {
             throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
         }
