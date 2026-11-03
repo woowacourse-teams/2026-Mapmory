@@ -60,6 +60,13 @@ internal class CachedTripRecordRepository(
     override suspend fun deleteTripRecord(id: Long) =
         delegate.deleteTripRecord(id).onSuccess { invalidate() }
 
+    internal suspend fun clearForAccountChange() = mutex.withLock {
+        revision++
+        needsReset = true
+        cache.clear()
+        needsReset = false
+    }
+
     private suspend fun invalidate() {
         mutex.withLock {
             revision++
