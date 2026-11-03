@@ -5,6 +5,7 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
@@ -25,6 +26,41 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
+    @Test
+    fun `시간순_전환은_여행_날짜_정렬을_적용하고_페이지_이동에도_유지한다`() = runBlocking {
+        var createdAtDay = 7
+        val source = FakeTripRecordRepository {
+            "2026-08-${createdAtDay++}T00:00:00Z"
+        }
+        source.createTripRecord(
+            TripRecordDraft(101, "2026-08-15", listOf("recent.jpg"), title = "최근 여행"),
+        )
+        source.createTripRecord(
+            TripRecordDraft(101, "2026-08-01", listOf("past.jpg"), title = "과거 여행"),
+        )
+        val requests = mutableListOf<TripRecordQuery>()
+        val repository = object : TripRecordRepository by source {
+            override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
+                requests += query
+                return source.getTripRecords(query)
+            }
+        }
+        val viewModel = TripRecordListViewModel(
+            GetTripRecordsUseCase(repository),
+            GetTripRecordUseCase(repository),
+        )
+
+        viewModel.load(TripRecordQuery(size = 1))
+        viewModel.refreshIfNeeded(null, 0, TripRecordSort.TRAVEL_DATE_DESC)
+
+        assertEquals("최근 여행", assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.single().title)
+        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requests.last().sort)
+        viewModel.nextPage()
+        assertEquals("과거 여행", assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.single().title)
+        assertEquals(1, requests.last().page)
+        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requests.last().sort)
+    }
+
     @Test
     fun `태그와_서버를_기다리기_전에_로컬_기록을_표시하고_실패해도_유지한다`() = runBlocking {
         val gate = CompletableDeferred<Unit>()

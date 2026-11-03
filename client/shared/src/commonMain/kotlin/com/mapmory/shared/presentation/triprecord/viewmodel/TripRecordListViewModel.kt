@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.region.RegionCatalog
@@ -74,8 +75,17 @@ class TripRecordListViewModel(
         load(refreshTagsFirst = true)
     }
 
-    suspend fun refreshIfNeeded(locationId: Long?, dataRevision: Long) {
-        if (loadedRevision == dataRevision && query.locationId == locationId &&
+    suspend fun refreshIfNeeded(
+        locationId: Long?,
+        dataRevision: Long,
+        sort: TripRecordSort = query.sort,
+    ) {
+        if (query.sort != sort) {
+            collectionLoadGeneration++
+            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
+            query = query.copy(sort = sort, page = 0)
+        }
+        if (loadedRevision == dataRevision && loadedQuery == query && query.locationId == locationId &&
             (uiState as? TripRecordListUiState.Success)?.refreshError == null &&
             uiState is TripRecordListUiState.Success
         ) return

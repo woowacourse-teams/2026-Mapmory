@@ -41,6 +41,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -533,6 +534,23 @@ class TravelRecordServiceTest {
         verify(travelRecordRepository).findByMemberIdAndOptionalTagId(eq(10L), eq(null), captor.capture());
         assertThat(captor.getValue().getPageSize()).isEqualTo(20);
         verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/a.jpg");
+    }
+
+    @Test
+    void 시간순_목록은_여행_시작일과_생성시각_순으로_정렬한다() {
+        when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        travelRecordService.findAll(
+                member, null, null, null, null, 0, 20, TravelRecordListOrder.TRAVEL_DATE_DESC
+        );
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(travelRecordRepository).findByMemberIdAndOptionalTagId(eq(10L), eq(null), captor.capture());
+        assertThat(captor.getValue().getSort().stream().map(Sort.Order::getProperty).toList())
+                .containsExactly("period.startDate", "createdAt", "id");
+        assertThat(captor.getValue().getSort().stream().map(Sort.Order::getDirection).toList())
+                .containsOnly(Sort.Direction.DESC);
     }
 
     @Test

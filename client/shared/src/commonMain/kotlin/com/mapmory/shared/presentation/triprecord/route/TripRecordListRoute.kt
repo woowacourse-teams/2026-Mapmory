@@ -8,6 +8,7 @@ import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.app.BackgroundTripRecordSave
 import com.mapmory.shared.data.settings.ShareVideoJobStore
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
@@ -48,8 +49,13 @@ internal fun TripRecordListRoute(
         )
     }
 
-    LaunchedEffect(viewModel, initialLocationId, tripRecordRevision) {
-        viewModel.refreshIfNeeded(initialLocationId, tripRecordRevision)
+    LaunchedEffect(viewModel, initialLocationId, tripRecordRevision, layout) {
+        val sort = if (layout == TripRecordListLayout.TIMELINE) {
+            TripRecordSort.TRAVEL_DATE_DESC
+        } else {
+            TripRecordSort.CREATED_AT_DESC
+        }
+        viewModel.refreshIfNeeded(initialLocationId, tripRecordRevision, sort)
     }
 
     TripRecordListScreen(
