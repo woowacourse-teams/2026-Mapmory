@@ -57,11 +57,13 @@ internal fun TripSettingsScreen(
     onMapClick: () -> Unit,
     onRecordClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onGroupClick: () -> Unit = {},
     onSettingsClick: () -> Unit,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     onOpenDeveloperTools: () -> Unit,
     onSubmitFeedback: suspend (ServiceFeedbackCategory, String) -> Result<Unit>,
     modifier: Modifier = Modifier,
+    accountContent: @Composable () -> Unit = {},
 ) {
     var showFeedback by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
@@ -98,6 +100,8 @@ internal fun TripSettingsScreen(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+
+                accountContent()
 
                 Column(
                     Modifier
@@ -226,6 +230,7 @@ internal fun TripSettingsScreen(
                 onRecordClick = onRecordClick,
                 onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick,
+                onGroupClick = onGroupClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,

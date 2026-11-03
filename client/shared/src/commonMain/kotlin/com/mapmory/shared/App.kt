@@ -1,6 +1,12 @@
 package com.mapmory.shared
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -94,9 +100,11 @@ fun MapmoryApp(
             },
         )
     }
-    val navController = rememberNavController()
+    val accountState = appContainer.accountSession?.state?.collectAsState()?.value
+    val accountGeneration = accountState?.generation ?: 0L
+    val navController = key(accountGeneration) { rememberNavController() }
     val navigator = remember(navController) { MapmoryNavigator(navController) }
-    val backHandlerRegistry = remember { MapmoryBackHandlerRegistry() }
+    val backHandlerRegistry = remember(accountGeneration) { MapmoryBackHandlerRegistry() }
     val latestNavigateBack = rememberUpdatedState {
         updateState?.isBlocking == true ||
             backHandlerRegistry.handleBack(navController.currentBackStackEntry?.id) ||
@@ -131,6 +139,7 @@ fun MapmoryApp(
     }
 
     CompositionLocalProvider(
+        com.mapmory.shared.presentation.triprecord.screen.LocalGroupFeatureEnabled provides true,
         com.mapmory.shared.navigation.LocalNavigationGestureMotion provides remember { com.mapmory.shared.navigation.NavigationGestureMotion() },
         LocalMapmoryTheme provides themeState,
         LocalMapmoryAnalytics provides analytics,
@@ -167,7 +176,7 @@ fun MapmoryApp(
                             },
                             onBackCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateForward()
                                 }
@@ -183,7 +192,7 @@ fun MapmoryApp(
                             },
                             onForwardCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateBackKeepingState()
                                 }
@@ -191,6 +200,30 @@ fun MapmoryApp(
                                 edgeGestureWasInternal = false
                             },
                         )
+                    }
+                }
+                if (accountState?.pendingLogout == true && !accountState.transitioning) {
+                    val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = {},
+                        title = { androidx.compose.material3.Text("로그아웃을 마무리해 주세요") },
+                        text = { androidx.compose.material3.Text(logoutUi?.message ?: "로그인 정보와 계정 화면을 정리하고 있어요. 다시 시도해 주세요.") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(
+                                onClick = { appContainer.accountLoginController?.logout() },
+                                enabled = logoutUi?.busy != true,
+                            ) { androidx.compose.material3.Text("로그아웃 다시 시도") }
+                        },
+                    )
+                }
+                if (accountState?.transitioning == true) {
+                    androidx.compose.ui.window.Dialog(onDismissRequest = {}) {
+                        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+                            androidx.compose.foundation.layout.Column(Modifier.padding(28.dp)) {
+                                androidx.compose.material3.CircularProgressIndicator()
+                                androidx.compose.material3.Text(if (accountState.pendingLogout) "로그아웃하고 있어요" else "계정을 확인하고 있어요")
+                            }
+                        }
                     }
                 }
                 updateState?.let { ForceUpdateGate(it, onRetryUpdateCheck) }

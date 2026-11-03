@@ -16,6 +16,27 @@ import kotlin.test.assertTrue
 
 class MapmoryNavigationHistoryTest {
     @Test
+    fun `group tab preserves entry state across tab switches and back forward`() = onUiThread {
+        val fixture = Fixture()
+        fixture.navigator.navigateToGroups()
+        val group = fixture.controller.currentBackStackEntry!!
+        fixture.compose.onTransitionComplete(group)
+        group.savedStateHandle["albumId"] = "jeju"
+        fixture.navigator.navigateToMap()
+        fixture.compose.onTransitionComplete(group)
+        fixture.navigator.navigateToGroups()
+        val restored = fixture.controller.currentBackStackEntry!!
+        assertEquals(group.id, restored.id)
+        assertEquals("jeju", restored.savedStateHandle.get<String>("albumId"))
+        fixture.compose.onTransitionComplete(restored)
+        assertTrue(fixture.navigator.navigateBackKeepingState())
+        fixture.compose.onTransitionComplete(restored)
+        assertTrue(fixture.navigator.navigateForward())
+        assertEquals(group.id, fixture.controller.currentBackStackEntry!!.id)
+        fixture.close()
+    }
+
+    @Test
     fun `rapid map taps keep only the first editor and allow a new location after back`() = onUiThread {
         val fixture = Fixture()
         val origin = fixture.controller.currentBackStackEntry!!.id
@@ -170,6 +191,7 @@ class MapmoryNavigationHistoryTest {
             setViewModelStore(store)
             graph = createGraph(startDestination = MapRoute) {
                 composable<MapRoute> {}
+                composable<GroupsRoute> {}
                 composable<EditorRoute> {}
                 composable<DetailRoute> {}
             }
