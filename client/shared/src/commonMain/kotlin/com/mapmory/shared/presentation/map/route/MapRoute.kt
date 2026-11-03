@@ -83,6 +83,7 @@ internal fun MapRoute(
     var showRegionLabels by remember { mutableStateOf(false) }
     val currentLocation = viewModel.currentLocation
     var currentLocationError by remember { mutableStateOf<String?>(null) }
+    var explicitlySubmittedPlaceSearch by remember { mutableStateOf<String?>(null) }
     var worldLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
     var koreaLocationFocusRequest by rememberSaveable { mutableIntStateOf(0) }
     val currentLocationActions = rememberCurrentLocationActions(
@@ -121,11 +122,20 @@ internal fun MapRoute(
         viewModel.refreshIfNeeded(tripRecordRevision)
     }
 
-    LaunchedEffect(uiState.placeSearch.query, uiState.placeSearch.isSelectedPlace) {
+    LaunchedEffect(
+        uiState.placeSearch.query,
+        uiState.placeSearch.isSelectedPlace,
+        explicitlySubmittedPlaceSearch,
+    ) {
         val query = uiState.placeSearch.query
-        if (uiState.placeSearch.isSelectedPlace || !PlaceRules.isSearchableQuery(query)) return@LaunchedEffect
+        if (explicitlySubmittedPlaceSearch == query ||
+            uiState.placeSearch.isSelectedPlace ||
+            !PlaceRules.isSearchableQuery(query)
+        ) {
+            return@LaunchedEffect
+        }
         delay(PlaceSearchDebounceMillis)
-        viewModel.searchPlaces(query)
+        scope.launch { viewModel.searchPlaces(query) }
     }
 
     DisposableEffect(viewModel, backHandlerRegistry) {
@@ -180,8 +190,14 @@ internal fun MapRoute(
                 viewModel.changeScope(selectedScope)
             },
             placeSearch = uiState.placeSearch,
-            onPlaceSearchQueryChange = viewModel::updatePlaceSearchQuery,
-            onPlaceSearchSubmit = { scope.launch { viewModel.searchPlaces() } },
+            onPlaceSearchQueryChange = { query ->
+                explicitlySubmittedPlaceSearch = null
+                viewModel.updatePlaceSearchQuery(query)
+            },
+            onPlaceSearchSubmit = {
+                explicitlySubmittedPlaceSearch = uiState.placeSearch.query
+                scope.launch { viewModel.searchPlaces() }
+            },
             onPlaceSearchResultClick = { candidate ->
                 scope.launch {
                     if (viewModel.selectSearchResult(candidate)) keyboardController?.hide()

@@ -71,6 +71,7 @@ class MapViewModel(
     private var provinceLoadGeneration = 0
     private var placeSessionToken: String? = null
     private var selectedPlaceQuery: String? = null
+    private var inFlightPlaceSearch: Pair<Int, String>? = null
 
     fun updatePlaceSearchQuery(query: String) {
         placeSearchGeneration++
@@ -93,35 +94,44 @@ class MapViewModel(
             return
         }
 
-        val generation = ++placeSearchGeneration
+        val generation = placeSearchGeneration
+        val request = generation to normalizedQuery
+        if (inFlightPlaceSearch == request) return
+        inFlightPlaceSearch = request
         uiState = uiState.copy(
             placeSearch = uiState.placeSearch.copy(isSearching = true, errorMessage = null),
         )
-        repository.searchPlaces(normalizedQuery, currentPlaceSessionToken()).fold(
-            onSuccess = { candidates ->
-                if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
-                    uiState = uiState.copy(
-                        placeSearch = uiState.placeSearch.copy(
-                            results = candidates.take(PlaceRules.MaxCandidates),
-                            isSearching = false,
-                            hasSearched = true,
-                        ),
-                    )
-                }
-            },
-            onFailure = { error ->
-                if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
-                    uiState = uiState.copy(
-                        placeSearch = uiState.placeSearch.copy(
-                            results = emptyList(),
-                            isSearching = false,
-                            hasSearched = true,
-                            errorMessage = error.message ?: "장소를 검색하지 못했습니다.",
-                        ),
-                    )
-                }
-            },
-        )
+        try {
+            repository.searchPlaces(normalizedQuery, currentPlaceSessionToken()).fold(
+                onSuccess = { candidates ->
+                    if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
+                        uiState = uiState.copy(
+                            placeSearch = uiState.placeSearch.copy(
+                                results = candidates.take(PlaceRules.MaxCandidates),
+                                isSearching = false,
+                                hasSearched = true,
+                            ),
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    if (generation == placeSearchGeneration && uiState.placeSearch.query.trim() == normalizedQuery) {
+                        uiState = uiState.copy(
+                            placeSearch = uiState.placeSearch.copy(
+                                results = emptyList(),
+                                isSearching = false,
+                                hasSearched = true,
+                                errorMessage = error.message ?: "장소를 검색하지 못했습니다.",
+                            ),
+                        )
+                    }
+                },
+            )
+        } finally {
+            if (inFlightPlaceSearch == request) {
+                inFlightPlaceSearch = null
+            }
+        }
     }
 
     suspend fun selectSearchResult(candidate: PlaceCandidate): Boolean {

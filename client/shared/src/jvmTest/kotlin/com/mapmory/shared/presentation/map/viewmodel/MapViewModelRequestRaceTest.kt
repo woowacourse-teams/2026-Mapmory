@@ -14,10 +14,43 @@ import com.mapmory.shared.presentation.map.state.KoreaMapUiState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MapViewModelRequestRaceTest {
+    @Test
+    fun `같은_검색어_요청이_진행_중이면_중복_저장소_호출을_막는다`() = runBlocking {
+        val requestStarted = CompletableDeferred<Unit>()
+        val requestGate = CompletableDeferred<Unit>()
+        var searchRequests = 0
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> {
+                searchRequests++
+                requestStarted.complete(Unit)
+                requestGate.await()
+                return Result.success(emptyList())
+            }
+
+            override suspend fun selectPlace(placeId: String, sessionToken: String) =
+                Result.failure<PlaceSelection>(error("Not used in this test"))
+        }
+        val viewModel = MapViewModel(mapSummaryRepository(), StaticRegionCatalog(), placeRepository = placeRepository)
+        viewModel.updatePlaceSearchQuery("강남구")
+
+        val firstSearch = launch { viewModel.searchPlaces() }
+        requestStarted.await()
+        val duplicateSearch = launch { viewModel.searchPlaces() }
+        yield()
+
+        assertEquals(1, searchRequests)
+        requestGate.complete(Unit)
+        firstSearch.join()
+        duplicateSearch.join()
+        assertEquals(1, searchRequests)
+    }
+
     @Test
     fun `이전_검색_상세_응답은_나중에_선택한_지역을_덮어쓰지_않는다`() = runBlocking {
         val seoulStarted = CompletableDeferred<Unit>()
