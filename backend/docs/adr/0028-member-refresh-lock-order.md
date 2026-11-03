@@ -80,6 +80,7 @@
 
 ## 검증
 
-- `GuestPromotionRefreshIntegrationTest`: 게스트의 refresh 갱신과 승격을 20회 동시에 보내도 데드락이 없다.
+- `GuestPromotionRefreshIntegrationTest`: 게스트의 refresh 갱신과 승격, 갱신과 버림을 각각 20회 동시에 보내도 데드락이 없다. 버림은 게스트와 기존 회원 두 행을 잠그는 유일한 흐름이라 따로 본다.
+- 로그아웃은 회원을 잠그지 않고 refresh를 INSERT하지 않아 회원 잠금을 기다릴 일이 없으므로 동시성 테스트를 두지 않는다. 로그아웃에 회원 잠금이나 INSERT가 생기면 테스트를 추가한다.
 - `WithdrawalRefreshRotationIntegrationTest`: 탈퇴와 refresh 갱신을 20회 동시에 보내도 데드락이 없고, 쓸 수 있는 refresh가 남지 않는다.
 - SQL 로그에서 회전은 `select member_id …` → `… from member … for share of m1_0` → `… from refresh_token … for update of rt1_0` 순서로 나간다.
