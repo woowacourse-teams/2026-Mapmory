@@ -73,6 +73,7 @@ fun TripMapScreen(
     onRecordClick: () -> Unit = onBackClick,
     onCreateClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onGroupClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -173,6 +174,7 @@ fun TripMapScreen(
                 onCreateClick = onCreateClick,
                 onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick,
+                onGroupClick = onGroupClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,
