@@ -15,13 +15,19 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     Optional<Member> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
+    // 소셜 로그인이 기존 회원을 잠그기 전에 id만 읽는다. 엔티티를 먼저 읽으면 영속성 컨텍스트에 남아,
+    // 뒤의 잠금 조회(findByIdForShare)가 잠근 시점의 값이 아니라 먼저 읽은 값을 돌려준다. (#584)
+    @Query("select m.id from Member m where m.provider = :provider and m.providerId = :providerId")
+    Optional<Long> findIdByProviderAndProviderId(
+            @Param("provider") AuthProvider provider, @Param("providerId") String providerId);
+
     // 회원을 바꾸고 refresh를 폐기하는 흐름(승격·버림·탈퇴)의 행 잠금(SELECT ... FOR UPDATE). 같은 회원의 요청을 직렬화하고,
     // 잠그는 순서를 회원 → refresh로 맞춘다. (#574, ADR 0028)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
-    // refresh 회전 시 공유 잠금(SELECT ... FOR SHARE). 승격·탈퇴처럼 회원을 먼저 잠그고 refresh를 폐기하는 흐름과
+    // refresh 회전과 소셜 로그인의 기존 회원 확인 시 공유 잠금(SELECT ... FOR SHARE). 승격·탈퇴처럼 회원을 먼저 잠그고 refresh를 폐기하는 흐름과
     // 잠그는 순서를 회원 → refresh로 맞춰 데드락을 막는다. 회전끼리는 서로 막지 않는다. (#579, ADR 0028)
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("select m from Member m where m.id = :id")
