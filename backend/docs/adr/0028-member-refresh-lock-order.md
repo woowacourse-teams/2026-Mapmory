@@ -34,6 +34,7 @@
 | 흐름 | 회원 | refresh |
 |---|---|---|
 | 게스트 승격·버림 (`MemberJoinService#findGuest`) | `FOR UPDATE` | 일괄 폐기 |
+| 소셜 로그인의 기존 회원 확인 (`MemberJoinService#findRegistered`) | 기존 회원 `FOR SHARE` (게스트 다음) | 기존 회원에게 새 토큰 INSERT |
 | 탈퇴 (`MemberService#withdraw`, `#withdrawUnlinked`) | `FOR UPDATE` | 일괄 폐기 |
 | refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 제시 토큰 `FOR UPDATE` → 후속 토큰 `FOR UPDATE`, 새 토큰 INSERT |
 | 로그아웃 (`RefreshTokenService#revoke`) | 잠그지 않음 | 제시 토큰 `FOR UPDATE` → 후속 토큰 `FOR UPDATE` |
@@ -69,9 +70,14 @@
 - refresh를 INSERT하는 것도 회원을 잠그는 일이다. refresh를 먼저 잠그고 INSERT하는 흐름을 만들지 않는다.
 - 회원 이벤트(`GuestPromoted`, `GuestAbandoned`, `MemberWithdrawn`)를 발행하는 서비스는 발행 전에 회원을 `FOR UPDATE`로 잠근다. 리스너가 같은 트랜잭션에서 refresh를 잠근다.
 - 두 회원을 함께 잠그면 **게스트 → 기존 회원** 순서로 잠근다. 지금 두 회원을 잠그는 흐름은 버림 하나다
-  (게스트 `FOR UPDATE` → 게스트 refresh 일괄 폐기 → 기존 회원에게 refresh INSERT로 기존 회원 공유 잠금).
+  (게스트 `FOR UPDATE` → 기존 회원 `FOR SHARE`(`findRegistered`) → 게스트 refresh 일괄 폐기 → 기존 회원에게 refresh INSERT).
   기존 회원을 먼저 잠그고 게스트를 잠그는 흐름이 생기면 버림과 데드락이 난다.
   예: ADR 0021이 열어 둔 "버려진 게스트의 기록을 기존 회원에게 합치기"를 만들 때 이 순서를 따른다.
+
+  > 2026-11-04 구현 업데이트(#584): 기존 회원을 잠그지 않고 읽던 것을 `FOR SHARE`로 읽고 활동 중인지 확인한다.
+  > 읽은 뒤 그 회원의 탈퇴가 먼저 커밋되면 탈퇴한 회원에게 토큰을 발급하고 게스트를 버렸다. 잠그면 탈퇴의 커밋을 기다렸다가
+  > 탈퇴된 회원을 읽어 기존 회원이 없는 것으로 본다(게스트는 승격, 없으면 새로 가입). FK 확인으로 어차피 걸릴 공유 잠금을 앞당긴 것이다.
+  > 엔티티를 먼저 읽으면 잠금 조회가 영속성 컨텍스트의 옛 값을 돌려주므로, id만 먼저 읽고(`findIdByProviderAndProviderId`) 잠금 조회로 처음 읽는다.
 
 ## 검토한 대안
 
@@ -124,5 +130,6 @@
 - `GuestPromotionRefreshIntegrationTest`: 게스트의 refresh 갱신과 승격, 갱신과 버림을 각각 20회 동시에 보내도 데드락이 없다. 버림은 게스트와 기존 회원 두 행을 잠그는 유일한 흐름이라 따로 본다.
 - 로그아웃은 회원을 잠그지 않고 refresh를 INSERT하지 않아 회원 잠금을 기다릴 일이 없으므로, **회원 잠금에 대해서는** 동시성 테스트를 두지 않는다.
   로그아웃에 회원 잠금이나 INSERT가 생기면 테스트를 추가한다. refresh 행끼리는 위 "예외"의 데드락 가능성이 있으며, 이는 #467에서 다룬다.
+- `SocialLoginDuringWithdrawalIntegrationTest`: 기존 회원의 탈퇴와 같은 소셜 계정의 로그인(게스트 있음·없음)을 각각 30회 겹쳐도 탈퇴한 회원에게 쓸 수 있는 refresh가 남지 않고, 버려지지 않은 게스트는 승격된다(#584).
 - `WithdrawalRefreshRotationIntegrationTest`: 탈퇴와 refresh 갱신을 20회 동시에 보내도 데드락이 없고, 쓸 수 있는 refresh가 남지 않는다.
 - SQL 로그에서 회전은 `select member_id …` → `… from member … for share of m1_0` → `… from refresh_token … for update of rt1_0` 순서로 나간다.
