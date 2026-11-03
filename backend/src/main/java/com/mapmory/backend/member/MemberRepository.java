@@ -15,11 +15,17 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     Optional<Member> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
-    // 게스트 승격·버림 판단 시 행 잠금(SELECT ... FOR UPDATE). 같은 게스트로 소셜 로그인이 동시에 와도 직렬화되어
-    // 둘 다 게스트로 읽고 각자 승격하는 경쟁을 막는다. (#574)
+    // 회원을 바꾸고 refresh를 폐기하는 흐름(승격·버림·탈퇴)의 행 잠금(SELECT ... FOR UPDATE). 같은 회원의 요청을 직렬화하고,
+    // 잠그는 순서를 회원 → refresh로 맞춘다. (#574, ADR 0028)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
+
+    // refresh 회전 시 공유 잠금(SELECT ... FOR SHARE). 승격·탈퇴처럼 회원을 먼저 잠그고 refresh를 폐기하는 흐름과
+    // 잠그는 순서를 회원 → refresh로 맞춰 데드락을 막는다. 회전끼리는 서로 막지 않는다. (#579, ADR 0028)
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select m from Member m where m.id = :id")
+    Optional<Member> findByIdForShare(@Param("id") Long id);
 
     @Query("""
         SELECT m FROM Member m

@@ -68,6 +68,20 @@ class RefreshTokenReuseMonitorTest {
     }
 
     @Test
+    void 회전_외_폐기_토큰은_INFO와_카운터를_남긴다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "400003", "소현", UUID.randomUUID());
+
+        monitor.revokedPresented(token(member));
+
+        ILoggingEvent event = appender.list.getFirst();
+        assertThat(event.getLevel().toString()).isEqualTo("INFO");
+        assertThat(fields(event))
+                .containsEntry("event", "REVOKED_REFRESH_TOKEN_PRESENTED")
+                .containsEntry("provider", "KAKAO");
+        assertThat(count("REVOKED_PRESENTED", "KAKAO")).isEqualTo(1.0);
+    }
+
+    @Test
     void 토큰_해시는_로그에_남기지_않는다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "400002", "소현", UUID.randomUUID());
 

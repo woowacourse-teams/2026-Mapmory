@@ -4,6 +4,7 @@ import com.mapmory.backend.auth.exception.AuthErrorCode;
 import com.mapmory.backend.auth.token.jwt.JwtProperties;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.MemberRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -15,13 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
  * refresh 토큰 발급·회전·폐기.
  *
  * 원문(raw)은 RefreshTokenGenerator로 받아 클라이언트에만 반환하고, 서버는 RefreshTokenHasher로 만든 해시만 저장한다.
- * 회전 시 기존 토큰을 폐기하고, 이미 폐기된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
+ * 회전 시 기존 토큰을 폐기하고, 이미 회전된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
  * 유효한 토큰을 모두 폐기한다. 단, 게스트의 회전 응답 유실은 재발급한다. (ADR 0023)
  */
 @Service
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private final MemberRepository memberRepository;
     private final RefreshTokenGenerator refreshTokenGenerator;
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenReuseMonitor reuseMonitor;
@@ -31,6 +33,7 @@ public class RefreshTokenService {
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
+            MemberRepository memberRepository,
             RefreshTokenGenerator refreshTokenGenerator,
             RefreshTokenHasher refreshTokenHasher,
             RefreshTokenReuseMonitor reuseMonitor,
@@ -38,6 +41,7 @@ public class RefreshTokenService {
             Clock clock
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.memberRepository = memberRepository;
         this.refreshTokenGenerator = refreshTokenGenerator;
         this.refreshTokenHasher = refreshTokenHasher;
         this.reuseMonitor = reuseMonitor;
@@ -69,23 +73,32 @@ public class RefreshTokenService {
      * 회전. 기존 토큰을 폐기하고 새 토큰을 발급해, 둘을 회전 체인(replacedById)으로 잇는다.
      *
      * 토큰 행에 비관적 락(FOR UPDATE)을 걸어 같은 토큰 동시 사용의 이중 회전을 막는다.
+     * 그 전에 회원 행을 공유 잠금해 잠그는 순서를 회원 → refresh로 맞춘다(lockMemberOf).
      * 반환값으로 결과를 구분한다.
      *   - 유효: 새 토큰을 담아 반환(Optional.of)
-     *   - 재사용(이미 폐기된 토큰): 게스트의 응답 유실이면 재발급하고, 아니면 탈취로 간주해
+     *   - 재사용(이미 회전된 토큰): 게스트의 응답 유실이면 재발급하고, 아니면 탈취로 간주해
      *     회원의 유효 토큰을 모두 폐기하고 Optional.empty 반환
      *     (폐기를 커밋해야 하므로 여기서 예외를 던지지 않는다. 401 변환은 호출부가 한다.)
+     *   - 회전 외 이유(로그아웃·승격·버림·탈퇴)로 폐기된 토큰: 다른 토큰은 건드리지 않고 Optional.empty 반환.
+     *     같은 토큰을 가진 사람이 둘이라는 신호가 아니다. 이미 쓸 수 없는 토큰이라 훔친 사람도 401로 끝나고,
+     *     진짜 탈취는 누가 먼저 회전하든 회전된 토큰이 다시 오므로 위에서 잡힌다. (#579)
      *   - 활동 중이 아닌 회원: 토큰만 폐기하고 Optional.empty 반환
      *   - 없음/만료: 남길 부작용이 없으므로 예외로 던진다.
      */
     @Transactional
     public Optional<RotatedRefreshToken> rotate(String rawToken) {
-        RefreshToken refreshToken = refreshTokenRepository
-                .findByTokenHashForUpdate(refreshTokenHasher.hash(rawToken))
+        String tokenHash = refreshTokenHasher.hash(rawToken);
+        lockMemberOf(tokenHash);
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
         LocalDateTime now = LocalDateTime.now(clock);
-        if (refreshToken.isRevoked()) {
+        if (refreshToken.isRotated()) {
             return handleReuse(refreshToken, now);
+        }
+        if (refreshToken.isRevoked()) {
+            reuseMonitor.revokedPresented(refreshToken);
+            return Optional.empty();
         }
         if (refreshToken.isExpired(now)) {
             throw new BusinessException(AuthErrorCode.EXPIRED_REFRESH_TOKEN);
@@ -101,7 +114,23 @@ public class RefreshTokenService {
     }
 
     /**
-     * 폐기된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
+     * 토큰 주인의 회원 행을 공유 잠금한다. refresh를 잠그기 전에 불러야 한다.
+     *
+     * 새 refresh를 INSERT하면 FK 확인으로 회원 행에 공유 잠금이 걸린다. refresh를 먼저 잠그면 순서가 refresh → 회원이 되어,
+     * 회원 → refresh 순서로 잠그는 승격·탈퇴(회원 FOR UPDATE 뒤 refresh 일괄 폐기)와 서로를 기다리다 데드락이 난다. (#579, ADR 0028)
+     * 회원을 먼저 잠가 순서를 회원 → refresh로 맞춘다. 공유 잠금이라 같은 회원의 회전끼리는 서로 막지 않는다.
+     *
+     * 회원 id를 읽는 조회는 잠그지 않으므로 REPEATABLE READ 스냅샷을 만들지만, 뒤의 회원·refresh 조회는 잠금 조회라
+     * 최신 커밋을 읽는다. 그래서 아래의 활동 중 확인과 폐기 확인은 잠근 시점의 값으로 한다.
+     */
+    private void lockMemberOf(String tokenHash) {
+        Long memberId = refreshTokenRepository.findMemberIdByTokenHash(tokenHash)
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+        memberRepository.findByIdForShare(memberId);
+    }
+
+    /**
+     * 회전된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
      *
      * 게스트는 다시 로그인할 수단이 없어, 탈취로 보고 전체 폐기하면 계정을 영구히 잃는다.
      * 응답 유실이라면 후속 토큰은 경과 시간과 무관하게 아직 쓰이지 않았다(쓰였다면 회전으로 폐기됐다).
@@ -124,11 +153,8 @@ public class RefreshTokenService {
         return Optional.empty();
     }
 
-    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken revoked, LocalDateTime now) {
-        if (revoked.getReplacedById() == null) {
-            return Optional.empty();
-        }
-        return refreshTokenRepository.findByIdForUpdate(revoked.getReplacedById())
+    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken rotated, LocalDateTime now) {
+        return refreshTokenRepository.findByIdForUpdate(rotated.getReplacedById())
                 .filter(successor -> !successor.isRevoked() && !successor.isExpired(now));
     }
 

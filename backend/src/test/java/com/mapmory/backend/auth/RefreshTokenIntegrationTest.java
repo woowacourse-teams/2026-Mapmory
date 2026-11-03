@@ -167,6 +167,34 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 로그아웃한_refresh가_다시_와도_탈취로_보지_않아_다른_기기의_refresh는_유효하다() throws Exception {
+        String loggedOut = login(300_007L);
+        String otherDevice = login(300_007L);
+        logout(loggedOut);
+
+        mockMvc.perform(refreshRequest(loggedOut))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 회전_외_이유로_폐기된_refresh가_다시_오면_재사용이_아닌_폐기_토큰_카운터가_오른다() throws Exception {
+        double reusedBefore = reuseCount("REVOKED_ALL", "KAKAO");
+        double presentedBefore = reuseCount("REVOKED_PRESENTED", "KAKAO");
+        String loggedOut = login(300_008L);
+        logout(loggedOut);
+
+        mockMvc.perform(refreshRequest(loggedOut))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(reuseCount("REVOKED_ALL", "KAKAO")).isEqualTo(reusedBefore);
+        assertThat(reuseCount("REVOKED_PRESENTED", "KAKAO")).isEqualTo(presentedBefore + 1);
+    }
+
+    @Test
     void 이미_회전된_refresh로_로그아웃하면_후속_토큰까지_폐기한다() throws Exception {
         String previous = login(300_006L);
         String current = refresh(previous);

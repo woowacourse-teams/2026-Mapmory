@@ -31,3 +31,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0025](0025-apple-withdrawal-token-revocation.md) | 애플 회원은 탈퇴할 때 다시 인증받아 애플 토큰을 철회한 뒤 탈퇴 | 제안 |
 | [0026](0026-share-video-notification-registration.md) | 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선 | 제안 |
 | [0027](0027-shared-notification-outbox.md) | 영상 알림 Outbox를 기기별로 기록 | 제안 |
+| [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 제안 |
