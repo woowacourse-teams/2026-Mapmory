@@ -5,9 +5,15 @@ import com.mapmory.shared.data.repository.FakeTripRecordRepository
 import com.mapmory.shared.domain.model.MapRegionLevel
 import com.mapmory.shared.domain.model.MapRegionSummary
 import com.mapmory.shared.domain.model.MapRegionType
+import com.mapmory.shared.domain.model.PlaceCandidate
+import com.mapmory.shared.domain.model.PlaceReference
+import com.mapmory.shared.domain.model.PlaceRegionSuggestion
+import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.repository.MapSummaryRepository
+import com.mapmory.shared.domain.repository.PlaceRepository
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
+import com.mapmory.shared.presentation.map.domain.MapScope
 import com.mapmory.shared.runSuspend
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -180,6 +186,41 @@ class MapViewModelTest {
         assertEquals(setOf("KR-26"), viewModel.directlyVisitedProvinceCodes)
         assertEquals(setOf("KR-26"), viewModel.visitedKoreaMapRegionCodes)
         assertTrue(viewModel.visitedKoreaDistrictCodes.isEmpty())
+    }
+
+    @Test
+    fun `장소_검색_결과를_선택하면_대한민국_지역_지도로_이동한다`() = runSuspend {
+        val candidate = PlaceCandidate("place-1", "강남구", "서울특별시", null, null)
+        val placeRepository = object : PlaceRepository {
+            override suspend fun searchPlaces(query: String, sessionToken: String) = Result.success(listOf(candidate))
+            override suspend fun selectPlace(placeId: String, sessionToken: String) = Result.success(
+                PlaceSelection(
+                    place = PlaceReference(placeId, "강남구"),
+                    countryCode = "KR",
+                    suggestedRegion = PlaceRegionSuggestion("KR", "11", "11680"),
+                    manualRegionRequired = false,
+                ),
+            )
+        }
+        val summaryRepository = object : MapSummaryRepository {
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
+                Result.success(emptyList<MapRegionSummary>())
+        }
+        val viewModel = MapViewModel(
+            mapSummaryRepository = summaryRepository,
+            regionCatalog = StaticRegionCatalog(),
+            placeRepository = placeRepository,
+        )
+
+        viewModel.updatePlaceSearchQuery("강남구")
+        viewModel.searchPlaces()
+        assertTrue(viewModel.selectSearchResult(candidate))
+
+        assertEquals(MapScope.KOREA, viewModel.uiState.scope)
+        assertEquals("KR-11", viewModel.uiState.searchFocusProvinceCode)
+        assertEquals("11680", viewModel.uiState.searchFocusRegionCode)
+        assertTrue(viewModel.uiState.placeSearch.isSelectedPlace)
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(
