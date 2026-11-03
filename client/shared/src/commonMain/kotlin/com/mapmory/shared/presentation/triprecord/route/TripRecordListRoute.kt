@@ -76,8 +76,8 @@ internal fun TripRecordListRoute(
         backHandlerRegistry = backHandlerRegistry,
         backHandlerOwnerId = backHandlerOwnerId,
         photoCollectionLoadState = viewModel.photoCollectionLoadState,
-        onLoadPhotoCollection = { locationName ->
-            scope.launch { viewModel.loadPhotoCollection(locationName) }
+        onLoadPhotoCollection = { locationId, locationName ->
+            scope.launch { viewModel.loadPhotoCollection(locationId, locationName) }
         },
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,

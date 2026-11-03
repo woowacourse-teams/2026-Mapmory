@@ -20,10 +20,24 @@ sealed interface TripRecordListUiState {
 
 sealed interface TripRecordPhotoCollectionLoadState {
     data object Idle : TripRecordPhotoCollectionLoadState
-    data class Loading(val locationName: String) : TripRecordPhotoCollectionLoadState
+    data class Loading(
+        val locationName: String,
+        val locationId: Long? = null,
+    ) : TripRecordPhotoCollectionLoadState {
+        val key: String get() = locationId?.let { "region:$it" } ?: "name:$locationName"
+    }
     data class Loaded(
         val locationName: String,
         val records: List<TripRecordItemUiState>,
-    ) : TripRecordPhotoCollectionLoadState
-    data class Error(val locationName: String, val message: String) : TripRecordPhotoCollectionLoadState
+        val locationId: Long? = null,
+    ) : TripRecordPhotoCollectionLoadState {
+        val key: String get() = locationId?.let { "region:$it" } ?: "name:$locationName"
+    }
+    data class Error(
+        val locationName: String,
+        val message: String,
+        val locationId: Long? = null,
+    ) : TripRecordPhotoCollectionLoadState {
+        val key: String get() = locationId?.let { "region:$it" } ?: "name:$locationName"
+    }
 }

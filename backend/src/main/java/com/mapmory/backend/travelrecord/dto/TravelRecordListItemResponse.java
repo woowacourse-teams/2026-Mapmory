@@ -15,7 +15,8 @@ public record TravelRecordListItemResponse(
         LocalDate endDate,
         String thumbnailUrl,
         Long thumbnailUrlExpiresIn,
-        List<TagSummaryResponse> tags
+        List<TagSummaryResponse> tags,
+        RegionDetailResponse region
 ) {
     public static TravelRecordListItemResponse from(
             TravelRecord travelRecord,
@@ -30,7 +31,8 @@ public record TravelRecordListItemResponse(
                 travelRecord.getEndDate(),
                 thumbnailUrl == null ? null : thumbnailUrl.url(),
                 thumbnailUrl == null ? null : thumbnailUrl.expiresIn(),
-                tags.stream().map(TagSummaryResponse::from).toList()
+                tags.stream().map(TagSummaryResponse::from).toList(),
+                RegionDetailResponse.from(travelRecord.getRegion())
         );
     }
 }

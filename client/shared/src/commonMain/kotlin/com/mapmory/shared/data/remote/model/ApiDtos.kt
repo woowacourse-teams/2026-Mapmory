@@ -119,6 +119,7 @@ data class TripRecordListItemDto(
     val thumbnailUrl: String? = null,
     val thumbnailUrlExpiresIn: Long? = null,
     val tags: List<TagDto> = emptyList(),
+    val region: TripRecordRegionDto? = null,
 )
 
 @Serializable
