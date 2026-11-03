@@ -206,6 +206,7 @@ private class DefaultAppContainer(
         onSaved = notifyTripRecordsChanged,
         localPhotoDataSource = localPhotoDataSource,
         analytics = analytics,
+        tripStatisticsRepository = tripStatisticsRepository,
     )
 
     override val viewModelFactory: MapmoryViewModelFactory = DefaultMapmoryViewModelFactory(
