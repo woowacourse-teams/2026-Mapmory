@@ -78,7 +78,7 @@
 - Typography: 앱과 랜딩 페이지 모두 LINE Seed Sans KR을 기본 서체로 사용한다. Regular와 Bold를 공통 글꼴로 제공하고, Material 3의 `Typography` 역할(display, headline, title, body, label)을 우선 적용한다. 새 화면은 개별 폰트 패밀리를 지정하지 않고 공통 역할을 사용한다.
 - Spacing/layout rhythm: `4 / 8 / 12 / 16 / 20 / 24 / 32 px`
 - Shape/radius/elevation: 카드 20 px 이하, 입력·버튼 14 px, 칩·필 9999 px. 화면 캔버스 외곽은 각진 형태. 그림자는 최소화한다.
-- Motion: 현재 정적 시안만 정의한다. 실제 구현 시에는 전환과 선택 상태에 짧고 절제된 모션만 사용한다.
+- Motion: 검색으로 선택된 지역은 강조색 테두리를 항상 유지하고, 약 1.8초 주기로 흰빛이 부드럽게 돌았다가 원래 강조색으로 돌아온다. 선택 상태는 정적인 테두리만으로도 식별되며 날카로운 점멸은 사용하지 않는다.
 - Imagery/iconography: 온보딩은 실제 앱 화면 캡처를 우선 사용해 사용자가 도착할 화면을 이해하게 한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
 
 ## Components
@@ -105,7 +105,7 @@
 - Keyboard/focus behavior: HTML 변환본은 링크와 버튼을 순서대로 포커스할 수 있어야 하며, Compose 구현은 의미 있는 클릭 라벨을 제공한다.
 - Contrast/readability: 본문·배경 대비를 확보하고, 선택 상태를 색상만으로 구분하지 않는다.
 - Screen-reader semantics: 지도, 탭, 필터, 기록 카드, 주요 행동에 역할과 상태를 전달한다.
-- Reduced motion and sensory considerations: 모션은 별도 정의 전까지 사용하지 않는다.
+- Reduced motion and sensory considerations: 검색 강조는 느리고 낮은 대비로 제한하며, 채움색과 고정 테두리만으로도 선택 상태를 알 수 있게 한다.
 
 ## Responsive behavior
 
@@ -162,7 +162,7 @@
 ## Experimental travel achievements
 
 - Scope: 실험실에서 켜는 여행 기록 배지와 업적 공유 카드.
-- Visual direction: 배지마다 여행 기록 핀과 지역 간 경로처럼 맵모리만의 상징을 사용한다. 업적 일러스트 안에서는 선명한 색과 메달형 실루엣으로 달성감을 주고, 주변 통계 화면은 기존 차분한 팔레트를 유지한다.
+- Visual direction: 모리의 연두색 몸체, 크림색 얼굴, 짙은 초록 잎, 주황색 위치 핀을 배지와 공유한다. 잎이 살짝 드러나는 둥근 형태와 부드러운 음영을 쓰고, 기록 핀과 지역 경로 상징으로 업적 종류를 구분한다. 주변 통계 화면은 기존 차분한 팔레트를 유지한다.
 - States: 획득 여부는 색상만으로 구분하지 않는다. 진행 수치, 요구 조건, 달성 상태를 함께 표시한다.
 - Sharing: 앱 안의 배지와 공유 카드에서 같은 일러스트를 재사용하고, 업적명과 실제 달성 조건을 정확히 담는다.
 - Avoid: Duolingo 캐릭터나 배지 그림을 복제하지 않는다. 단순 숫자 원형을 업적 일러스트 대신 쓰지 않는다.

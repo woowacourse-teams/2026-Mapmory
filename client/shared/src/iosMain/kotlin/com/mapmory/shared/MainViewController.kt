@@ -11,6 +11,7 @@ import kotlin.native.Platform
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.app.IosBackgroundSaveExecution
 import com.mapmory.shared.data.auth.AuthTokenStore
+import com.mapmory.shared.data.media.configureIosPhotoImageLoader
 import com.mapmory.shared.data.media.IosLocalPhotoDataSource
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.repository.IosMapSummaryCache
@@ -84,12 +85,17 @@ fun MainViewController(
     navigation: MapmoryNavigation,
     updateState: com.mapmory.shared.update.ForceUpdateState,
     onRetryUpdateCheck: () -> Unit,
+    socialLoginLauncher: com.mapmory.shared.presentation.auth.SocialLoginLauncher,
 ): platform.UIKit.UIViewController {
+    configureIosPhotoImageLoader()
     iosAnalytics = analytics
     val container = getIosContainer(apiBaseUrl, tokenStore)
     return ComposeUIViewController(configure = {
         endEdgePanGestureBehavior = EndEdgePanGestureBehavior.Forward
     }) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides socialLoginLauncher,
+        ) {
         MapmoryApp(
             container = container,
             navigation = navigation,
@@ -100,5 +106,6 @@ fun MainViewController(
             analytics = analytics,
             showTimelineLayoutSwitcher = Platform.isDebugBinary,
         )
+        }
     }
 }
