@@ -1,5 +1,6 @@
 package com.mapmory.shared.analytics
 
+import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
 import com.mapmory.shared.domain.model.*
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import kotlinx.coroutines.CancellationException
@@ -19,7 +20,7 @@ class VideoAnalyticsTest {
             override suspend fun createTravelTimeline() = Result.success(ShareVideoJob(1, ShareVideoStatus.COMPLETED))
             override suspend fun getJob(jobId: Long) = Result.success(ShareVideoJob(jobId, ShareVideoStatus.COMPLETED))
             override suspend fun getDownloadUrl(jobId: Long): Result<ShareVideoDownload> = error("unused")
-        }, analytics)
+        }, analytics, MemoryShareVideoJobStore())
         repository.createTravelTimeline()
         repeat(5) { repository.getJob(1) }
         assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.VIDEO_GENERATION_RESULT })
@@ -41,4 +42,36 @@ class VideoAnalyticsTest {
         }
         assertEquals("saved", analytics.videoAction("save") { "saved" })
     }
+    @Test fun detailedAndLegacySaveReportOneErrorAndRunOnce() = runBlocking {
+        val analytics = Recorder()
+        val telemetry = ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE)
+        var calls = 0
+        assertFailsWith<IllegalStateException> {
+            analytics.videoAction("save", reportErrors = false) {
+                telemetry.observe(ShareMediaOperation.SAVE) { calls++; error("save failed") }
+            }
+        }
+        assertEquals(1, calls)
+        assertEquals(1, analytics.events.count { it.first == MapmoryAnalyticsEvent.APP_ERROR })
+        assertEquals(listOf("started", "failure"), analytics.events
+            .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
+        assertEquals("failure", analytics.events.single {
+            it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED
+        }.second["outcome"])
+    }
+
+    @Test fun shareReturnKeepsSuccessAndHandoffWithoutRepeatingExport() = runBlocking {
+        val analytics = Recorder()
+        val telemetry = ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE)
+        var calls = 0
+        analytics.videoAction("share_sheet", reportErrors = false) {
+            telemetry.observe(ShareMediaOperation.SHARE_SHEET) { calls++ }
+        }
+        assertEquals(1, calls)
+        assertEquals("success", analytics.events.last { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.second["outcome"])
+        assertEquals("handoff", analytics.events.single {
+            it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED
+        }.second["outcome"])
+    }
+
 }

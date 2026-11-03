@@ -1,6 +1,8 @@
 package com.mapmory.shared.analytics
 
+import com.mapmory.shared.data.remote.MapmoryConnectionException
 import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.presentation.triprecord.share.ShareVideoPlaybackException
 import kotlinx.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
@@ -15,7 +17,9 @@ internal fun MapmoryAnalytics.emit(name: String, parameters: Map<String, String>
     }
 }
 
-internal fun MapmoryAnalytics.reportFailure(operation: String, error: Throwable) {
+internal fun MapmoryAnalytics.reportFailure(
+    operation: String, error: Throwable, context: Map<String, String> = emptyMap(),
+) {
     if (error is CancellationException) return
     val category = when (error) {
         is MapmoryApiException -> when (error.statusCode) {
@@ -24,12 +28,15 @@ internal fun MapmoryAnalytics.reportFailure(operation: String, error: Throwable)
             in 500..599 -> "server"
             else -> "request_rejected"
         }
+        is MapmoryConnectionException -> "io"
         is SerializationException -> "data_contract"
         is IOException -> "io"
+        is ShareVideoPlaybackException -> "media_playback"
         is IllegalArgumentException, is IllegalStateException -> "client_logic"
         else -> "unknown"
     }
     emit(MapmoryAnalyticsEvent.APP_ERROR, buildMap {
+        putAll(context)
         put("operation", operation)
         put("error_category", category)
         // A triage hint, not a claim that responsibility has been established.

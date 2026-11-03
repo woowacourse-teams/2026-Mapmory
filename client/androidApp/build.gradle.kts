@@ -38,8 +38,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.compileSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 11
-        versionName = "0.1.8"
+        versionCode = 12
+        versionName = "0.1.9"
     }
 
     buildFeatures {
@@ -105,6 +105,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling:${libs.versions.androidxCompose.get()}")
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
+    implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-config")
     implementation(libs.play.app.update)
     implementation(libs.firebase.crashlytics)
