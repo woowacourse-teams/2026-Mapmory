@@ -28,6 +28,7 @@ internal fun TripRecordListRoute(
     onOpenEditor: () -> Unit,
     onOpenDetail: (Long, String?, String?, Int?) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
     shareVideoRepository: ShareVideoRepository?,
     shareVideoJobStore: ShareVideoJobStore,
@@ -98,5 +99,6 @@ internal fun TripRecordListRoute(
         },
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
+        onGroupClick = onOpenGroups,
     )
 }
