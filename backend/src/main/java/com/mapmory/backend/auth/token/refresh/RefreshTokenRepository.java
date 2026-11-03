@@ -14,6 +14,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    // 회전이 refresh를 잠그기 전에 회원부터 잠그려고 회원 id만 읽는다. 잠그지 않는 조회다. (#579)
+    @Query("select r.member.id from RefreshToken r where r.tokenHash = :tokenHash")
+    Optional<Long> findMemberIdByTokenHash(@Param("tokenHash") String tokenHash);
+
     // 회전 검증 시 행 잠금(SELECT ... FOR UPDATE). 같은 토큰으로 동시 요청이 와도 직렬화되어
     // "한 refresh가 두 번 회전"되는 경쟁을 막는다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

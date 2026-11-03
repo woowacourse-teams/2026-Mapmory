@@ -21,6 +21,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
+    // refresh 회전 시 공유 잠금(SELECT ... FOR SHARE). 승격·탈퇴처럼 회원을 먼저 잠그고 refresh를 폐기하는 흐름과
+    // 잠그는 순서를 회원 → refresh로 맞춰 데드락을 막는다. 회전끼리는 서로 막지 않는다. (#579)
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select m from Member m where m.id = :id")
+    Optional<Member> findByIdForShare(@Param("id") Long id);
+
     @Query("""
         SELECT m FROM Member m
         WHERE (:provider IS NULL OR m.provider = :provider)

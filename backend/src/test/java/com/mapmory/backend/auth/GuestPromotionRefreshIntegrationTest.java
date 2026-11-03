@@ -10,8 +10,15 @@ import com.mapmory.backend.auth.application.model.LoginResult;
 import com.mapmory.backend.auth.application.model.SocialIdentity;
 import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.token.refresh.RefreshTokenService;
+import com.mapmory.backend.auth.token.refresh.RotatedRefreshToken;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.MemberJoinService;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -24,6 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  * loginWithSocial은 트랜잭션 밖에서 불러야 하므로(Propagation.NEVER) 테스트 메서드에 트랜잭션을 두지 않는다.
  */
 class GuestPromotionRefreshIntegrationTest extends IntegrationTest {
+
+    private static final int ATTEMPTS = 20;
 
     @Autowired
     private AuthService authService;
@@ -43,6 +52,40 @@ class GuestPromotionRefreshIntegrationTest extends IntegrationTest {
         assertThat(refreshTokenService.rotate(guestRefresh)).isEmpty();
 
         assertThat(refreshTokenService.rotate(promoted.tokens().refreshToken())).isPresent();
+    }
+
+    @Test
+    void 게스트의_refresh_갱신과_승격이_동시에_와도_데드락_없이_소셜_refresh가_유효하다() throws Exception {
+        // 회전은 refresh → 회원(FK 확인) 순서로, 승격은 회원 → refresh 순서로 잠그면 서로를 기다린다.
+        // 겹치는 순간이 매번 생기지는 않으므로 여러 번 시도한다.
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
+                Member guest = memberJoinService.joinAsGuest();
+                String guestRefresh = refreshTokenService.issue(guest);
+                String kakaoId = String.valueOf(500_101L + attempt);
+                willReturn(new SocialIdentity(kakaoId, "소현")).given(kakaoIdentityAdapter).verify(anyString());
+
+                CountDownLatch start = new CountDownLatch(1);
+                Future<Optional<RotatedRefreshToken>> rotated = executor.submit(() -> {
+                    start.await();
+                    return refreshTokenService.rotate(guestRefresh);
+                });
+                Future<LoginResult> promoted = executor.submit(() -> {
+                    start.await();
+                    return authService.loginWithSocial(SocialProvider.KAKAO, "kakao-id-token", guest.getId());
+                });
+                start.countDown();
+
+                rotated.get(10, TimeUnit.SECONDS);
+                String socialRefresh = promoted.get(10, TimeUnit.SECONDS).tokens().refreshToken();
+                assertThat(refreshTokenService.rotate(socialRefresh))
+                        .as("시도 %d: 승격으로 받은 refresh가 유효해야 한다", attempt + 1)
+                        .isPresent();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private LoginResult loginWithKakao(String kakaoId, Long guestId) {
