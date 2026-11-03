@@ -14,7 +14,7 @@ class RefreshTokenTest {
 
     @Test
     void 이미_폐기된_토큰을_다시_폐기해도_처음_폐기된_시각을_그대로_둔다() {
-        RefreshToken token = RefreshToken.issue(member(), "hash", NOW.plusDays(14));
+        RefreshToken token = RefreshToken.issue(RefreshTokenFamily.open(member()), member(), "hash", NOW.plusDays(14));
         token.revoke(NOW);
 
         token.revoke(NOW.plusHours(1));

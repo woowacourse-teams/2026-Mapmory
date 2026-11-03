@@ -93,7 +93,7 @@ class RefreshTokenReuseMonitorTest {
     }
 
     private RefreshToken token(Member member) {
-        return RefreshToken.issue(member, "token-hash", LocalDateTime.now().plusDays(1));
+        return RefreshToken.issue(RefreshTokenFamily.open(member), member, "token-hash", LocalDateTime.now().plusDays(1));
     }
 
     private double count(String outcome, String provider) {
