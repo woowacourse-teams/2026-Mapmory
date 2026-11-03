@@ -2,6 +2,9 @@
 
 Mapmory 백엔드의 주요 설계 결정을 기록한다.
 
+> 번호는 파일 이름의 번호를 따른다. 0009는 두 파일(지역 지도 요약, 인증)이 같은 번호를 쓰고, 다른 문서와 코드 주석은
+> 인증 ADR을 "ADR 0009"로 참조한다. 0012는 비어 있다.
+
 | 번호 | 결정 | 상태 |
 | --- | --- | --- |
 | [0001](0001-infrastructure-design.md) | 인프라 설계 | 승인 |
@@ -12,23 +15,23 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0006](0006-use-problem-details-for-api-errors.md) | API 오류 응답에 Problem Details 사용 | 채택 |
 | [0007](0007-travel-record-country-and-location.md) | 여행 기록의 국가와 세부 지역 저장 방식 | 대체됨 (ADR 0008) |
 | [0008](0008-unify-country-and-location-as-region.md) | 국가와 행정구역을 Region 계층으로 통합 | 채택 |
-| [0009](0009-region-map-summary-api.md) | Region 지도 요약 API와 테스트 범위 | 채택 | 
-| [0010](0009-authentication-with-spring-security-and-jwt.md) | 인증·인가에 Spring Security와 자체 JWT 사용 | 채택 |
-| [0011](0010-social-login-and-member-identifier.md) | 소셜 로그인(카카오 토큰 검증)과 회원 식별자 분리 | 채택 |
-| [0012](0011-refresh-token-rotation.md) | refresh 토큰 해시 저장·회전·폐기와 재사용 감지 | 채택 |
+| [0009 (지역 지도 요약)](0009-region-map-summary-api.md) | Region 지도 요약 API와 테스트 범위 | 채택 |
+| [0009 (인증)](0009-authentication-with-spring-security-and-jwt.md) | 인증·인가에 Spring Security와 자체 JWT 사용 | 채택 |
+| [0010](0010-social-login-and-member-identifier.md) | 소셜 로그인(카카오 토큰 검증)과 회원 식별자 분리 | 채택 |
+| [0011](0011-refresh-token-rotation.md) | refresh 토큰 해시 저장·회전·폐기와 재사용 감지 | 채택 |
 | [0013](0013-user-created-tags-and-travel-record-association.md) | 사용자 생성 태그와 여행 기록 연결 설계 | 채택 |
 | [0014](0014-application-logging-and-metrics.md) | 애플리케이션 로그와 메트릭 공통 관측 규칙 | 채택 |
 | [0015](0015-guest-login.md) | 게스트 로그인의 인증 파이프라인 재사용과 회원 승격 | 채택 |
 | [0016](0016-travel-statistics-read-model.md) | 여행 통계 읽기 모델과 지역 집계 단계 | 채택 |
 | [0017](0017-domain-layering-and-aggregate-boundaries.md) | 도메인 계층 구조와 애그리거트 경계 | 채택 |
 | [0018](0018-verify-uploaded-object-before-linking.md) | 기록에 붙는 S3 객체의 저장 시점 실존 검증 | 채택 |
-| [0019](0019-google-login-with-id-token.md) | 구글 로그인은 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
-| [0020](0020-apple-login-with-identity-token.md) | 애플 로그인은 앱이 전달한 identity token을 JWKS로 검증 | 제안 |
-| [0021](0021-member-withdrawal-and-abandoned-guest.md) | 회원 탈퇴와 버려진 게스트는 행을 남기고 이벤트로 알림 | 제안 |
+| [0019](0019-google-login-with-id-token.md) | 구글 로그인은 앱이 전달한 ID token을 JWKS로 검증 | 채택 |
+| [0020](0020-apple-login-with-identity-token.md) | 애플 로그인은 앱이 전달한 identity token을 JWKS로 검증 | 채택 |
+| [0021](0021-member-withdrawal-and-abandoned-guest.md) | 회원 탈퇴와 버려진 게스트는 행을 남기고 이벤트로 알림 | 채택 |
 | [0022](0022-group-sharing-albums.md) | 그룹 공유는 저장은 각자 기록에, 보기는 앨범 하나로 | 제안 |
-| [0023](0023-guest-refresh-lost-rotation.md) | 게스트의 refresh 회전 응답 유실은 후속 토큰이 쓰이지 않았을 때만 재발급 | 제안 |
-| [0024](0024-kakao-login-with-id-token.md) | 카카오 로그인도 앱이 전달한 ID token을 JWKS로 검증 | 제안 |
-| [0025](0025-apple-withdrawal-token-revocation.md) | 애플 회원은 탈퇴할 때 다시 인증받아 애플 토큰을 철회한 뒤 탈퇴 | 제안 |
+| [0023](0023-guest-refresh-lost-rotation.md) | 게스트의 refresh 회전 응답 유실은 후속 토큰이 쓰이지 않았을 때만 재발급 | 채택 |
+| [0024](0024-kakao-login-with-id-token.md) | 카카오 로그인도 앱이 전달한 ID token을 JWKS로 검증 | 채택 |
+| [0025](0025-apple-withdrawal-token-revocation.md) | 애플 회원은 탈퇴할 때 다시 인증받아 애플 토큰을 철회한 뒤 탈퇴 | 채택 |
 | [0026](0026-share-video-notification-registration.md) | 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선 | 제안 |
 | [0027](0027-shared-notification-outbox.md) | 영상 알림 Outbox를 기기별로 기록 | 제안 |
-| [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 제안 |
+| [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 채택 |
