@@ -22,7 +22,7 @@ class FirebaseAnalyticsLogger(context: Context) : MapmoryAnalytics {
             name,
             Bundle().apply {
                 parameters.forEach { (key, value) ->
-                    if (key in setOf("duration_ms", "result_count", "http_status") && value.toLongOrNull() != null) {
+                    if (key in setOf("duration_ms", "elapsed_ms", "result_count", "http_status") && value.toLongOrNull() != null) {
                         putLong(key, value.toLong())
                     } else putString(key, value)
                 }

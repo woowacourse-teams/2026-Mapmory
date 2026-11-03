@@ -26,6 +26,18 @@ object MapmoryAnalyticsUserProperty {
 }
 
 object MapmoryAnalyticsEvent {
+    const val GROUP_ACTION = "group_action"
+    const val GROUP_VIEWED = "group_viewed"
+    const val GROUP_ACTION_REJECTED = "group_action_rejected"
+    const val GROUP_PREVIEW_RESULT = "group_preview_result"
+    const val SOCIAL_LOGIN_VIEWED = "social_login_viewed"
+    const val SOCIAL_LOGIN_STARTED = "social_login_started"
+    const val SOCIAL_LOGIN_COMPLETED = "social_login_completed"
+    const val SHARE_MEDIA_ACTION = "share_media_action"
+    const val SHARE_MEDIA_OPERATION_STARTED = "share_media_operation_started"
+    const val SHARE_MEDIA_OPERATION_COMPLETED = "share_media_operation_completed"
+    const val SHARE_VIDEO_STATUS_CHANGED = "share_video_status_changed"
+
     const val VIDEO_OPENED = "video_opened"
     const val VIDEO_ACTION = "video_action"
     const val VIDEO_GENERATION_RESULT = "video_generation_result"
@@ -41,6 +53,8 @@ object MapmoryAnalyticsEvent {
     const val RECORD_DELETE_STARTED = "record_delete_started"
     const val RECORD_DELETED = "record_deleted"
     const val RECORD_PHOTO_OPENED = "record_photo_opened"
+    const val RECORD_SHARE_PREVIEW_OPENED = "record_share_preview_opened"
+    const val RECORD_SHARE_ACTION = "record_share_action"
     const val PHOTO_RECOMMENDATION_PAGE_LOADED = "photo_recommendation_page_loaded"
     const val PHOTO_PERMISSION_REQUIRED = "photo_permission_required"
     const val FEEDBACK_OPENED = "feedback_opened"

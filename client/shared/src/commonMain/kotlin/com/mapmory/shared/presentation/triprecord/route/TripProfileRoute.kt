@@ -18,6 +18,7 @@ internal fun TripProfileRoute(
     onOpenRecords: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAchievements: () -> Unit,
     showTravelAchievements: Boolean = false,
@@ -47,6 +48,7 @@ internal fun TripProfileRoute(
         onCreateClick = onOpenEditor,
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
+        onGroupClick = onOpenGroups,
         onRetryClick = {
             analytics.logEvent(MapmoryAnalyticsEvent.STATISTICS_RETRY_CLICKED)
             scope.launch { viewModel.refresh(dataRevision = tripRecordRevision) }
