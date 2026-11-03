@@ -111,9 +111,21 @@ internal fun TripRecordListRoute(
         },
         onRetryClick = {
             analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RETRY_CLICKED)
-            scope.launch { viewModel.refresh(initialLocationId) }
+            scope.launch { retryTripRecordList(viewModel, initialLocationId, layout) }
         },
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
     )
+}
+
+internal suspend fun retryTripRecordList(
+    viewModel: TripRecordListViewModel,
+    locationId: Long?,
+    layout: TripRecordListLayout,
+) {
+    viewModel.refresh(locationId)
+    val refreshedState = viewModel.uiState as? TripRecordListUiState.Success ?: return
+    if (layout == TripRecordListLayout.COLLECTION && refreshedState.refreshError == null) {
+        viewModel.loadPhotoCollectionIndex()
+    }
 }
