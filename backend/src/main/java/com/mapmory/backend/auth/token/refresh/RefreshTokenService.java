@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
  * refresh 토큰 발급·회전·폐기.
  *
  * 원문(raw)은 RefreshTokenGenerator로 받아 클라이언트에만 반환하고, 서버는 RefreshTokenHasher로 만든 해시만 저장한다.
- * 회전 시 기존 토큰을 폐기하고, 이미 폐기된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
+ * 회전 시 기존 토큰을 폐기하고, 이미 회전된 토큰이 다시 제시되면(탈취 의심) 해당 회원의
  * 유효한 토큰을 모두 폐기한다. 단, 게스트의 회전 응답 유실은 재발급한다. (ADR 0023)
  */
 @Service
@@ -71,9 +71,12 @@ public class RefreshTokenService {
      * 토큰 행에 비관적 락(FOR UPDATE)을 걸어 같은 토큰 동시 사용의 이중 회전을 막는다.
      * 반환값으로 결과를 구분한다.
      *   - 유효: 새 토큰을 담아 반환(Optional.of)
-     *   - 재사용(이미 폐기된 토큰): 게스트의 응답 유실이면 재발급하고, 아니면 탈취로 간주해
+     *   - 재사용(이미 회전된 토큰): 게스트의 응답 유실이면 재발급하고, 아니면 탈취로 간주해
      *     회원의 유효 토큰을 모두 폐기하고 Optional.empty 반환
      *     (폐기를 커밋해야 하므로 여기서 예외를 던지지 않는다. 401 변환은 호출부가 한다.)
+     *   - 회전 외 이유(로그아웃·승격·버림·탈퇴)로 폐기된 토큰: 다른 토큰은 건드리지 않고 Optional.empty 반환.
+     *     같은 토큰을 가진 사람이 둘이라는 신호가 아니다. 이미 쓸 수 없는 토큰이라 훔친 사람도 401로 끝나고,
+     *     진짜 탈취는 누가 먼저 회전하든 회전된 토큰이 다시 오므로 위에서 잡힌다. (#579)
      *   - 활동 중이 아닌 회원: 토큰만 폐기하고 Optional.empty 반환
      *   - 없음/만료: 남길 부작용이 없으므로 예외로 던진다.
      */
@@ -84,8 +87,12 @@ public class RefreshTokenService {
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
         LocalDateTime now = LocalDateTime.now(clock);
-        if (refreshToken.isRevoked()) {
+        if (refreshToken.isRotated()) {
             return handleReuse(refreshToken, now);
+        }
+        if (refreshToken.isRevoked()) {
+            reuseMonitor.revokedPresented(refreshToken);
+            return Optional.empty();
         }
         if (refreshToken.isExpired(now)) {
             throw new BusinessException(AuthErrorCode.EXPIRED_REFRESH_TOKEN);
@@ -101,7 +108,7 @@ public class RefreshTokenService {
     }
 
     /**
-     * 폐기된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
+     * 회전된 토큰이 다시 왔다. 탈취로 보고 회원의 토큰을 모두 폐기하되, 게스트의 회전 응답 유실이면 재발급한다. (ADR 0023)
      *
      * 게스트는 다시 로그인할 수단이 없어, 탈취로 보고 전체 폐기하면 계정을 영구히 잃는다.
      * 응답 유실이라면 후속 토큰은 경과 시간과 무관하게 아직 쓰이지 않았다(쓰였다면 회전으로 폐기됐다).
@@ -124,11 +131,8 @@ public class RefreshTokenService {
         return Optional.empty();
     }
 
-    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken revoked, LocalDateTime now) {
-        if (revoked.getReplacedById() == null) {
-            return Optional.empty();
-        }
-        return refreshTokenRepository.findByIdForUpdate(revoked.getReplacedById())
+    private Optional<RefreshToken> findUnusedSuccessor(RefreshToken rotated, LocalDateTime now) {
+        return refreshTokenRepository.findByIdForUpdate(rotated.getReplacedById())
                 .filter(successor -> !successor.isRevoked() && !successor.isExpired(now));
     }
 

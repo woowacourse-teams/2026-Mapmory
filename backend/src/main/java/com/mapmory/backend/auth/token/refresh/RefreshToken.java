@@ -65,6 +65,13 @@ public class RefreshToken {
         return revokedAt != null;
     }
 
+    /**
+     * 회전으로 폐기됐다. 로그아웃이나 일괄 폐기로 폐기된 토큰은 후속을 가리키지 않는다.
+     */
+    public boolean isRotated() {
+        return replacedById != null;
+    }
+
     public boolean isExpired(LocalDateTime now) {
         return !expiresAt.isAfter(now);
     }
