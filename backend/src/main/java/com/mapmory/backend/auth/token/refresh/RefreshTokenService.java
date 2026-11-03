@@ -117,7 +117,7 @@ public class RefreshTokenService {
      * 토큰 주인의 회원 행을 공유 잠금한다. refresh를 잠그기 전에 불러야 한다.
      *
      * 새 refresh를 INSERT하면 FK 확인으로 회원 행에 공유 잠금이 걸린다. refresh를 먼저 잠그면 순서가 refresh → 회원이 되어,
-     * 회원 → refresh 순서로 잠그는 승격(회원 FOR UPDATE 뒤 refresh 일괄 폐기)과 서로를 기다리다 데드락이 난다. (#579)
+     * 회원 → refresh 순서로 잠그는 승격·탈퇴(회원 FOR UPDATE 뒤 refresh 일괄 폐기)와 서로를 기다리다 데드락이 난다. (#579, ADR 0028)
      * 회원을 먼저 잠가 순서를 회원 → refresh로 맞춘다. 공유 잠금이라 같은 회원의 회전끼리는 서로 막지 않는다.
      *
      * 회원 id를 읽는 조회는 잠그지 않으므로 REPEATABLE READ 스냅샷을 만들지만, 뒤의 회원·refresh 조회는 잠금 조회라

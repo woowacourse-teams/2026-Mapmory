@@ -63,7 +63,7 @@ public class MemberService {
      */
     @Transactional
     public void withdraw(Long memberId) {
-        Member member = findWithdrawableMember(memberId);
+        Member member = lockWithdrawableMember(memberId);
         if (member.isWithdrawn()) {
             return;
         }
@@ -78,7 +78,7 @@ public class MemberService {
      */
     @Transactional
     public void withdrawUnlinked(Long memberId) {
-        Member member = findWithdrawableMember(memberId);
+        Member member = lockWithdrawableMember(memberId);
         if (member.isWithdrawn()) {
             return;
         }
@@ -101,7 +101,22 @@ public class MemberService {
      * 정상 흐름에서는 탈퇴한 게스트가 버려지지 않는다(승격·버림은 활동 중인 게스트만 대상).
      */
     private Member findWithdrawableMember(Long memberId) {
-        Member member = findMember(memberId);
+        return requireWithdrawable(findMember(memberId));
+    }
+
+    /**
+     * 탈퇴시킬 회원을 잠그고 읽는다. 규칙은 findWithdrawableMember와 같다.
+     *
+     * 탈퇴는 MemberWithdrawn으로 refresh를 모두 폐기한다. 회원을 먼저 잠가야 잠그는 순서가 refresh 회전과 같은
+     * 회원 → refresh가 된다. 잠그지 않으면 refresh 폐기가 먼저, 회원 UPDATE가 커밋 때 나가 순서가 반대가 되어
+     * 회원을 공유 잠금한 채 refresh를 기다리는 회전과 데드락이 난다. (ADR 0028)
+     */
+    private Member lockWithdrawableMember(Long memberId) {
+        return requireWithdrawable(memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER)));
+    }
+
+    private Member requireWithdrawable(Member member) {
         if (member.isAbandoned()) {
             throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
         }
