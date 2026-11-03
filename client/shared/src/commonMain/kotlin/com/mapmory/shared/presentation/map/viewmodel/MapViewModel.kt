@@ -68,12 +68,14 @@ class MapViewModel(
     private var loadedRevision: Long? = null
     private var placeSearchGeneration = 0
     private var placeSelectionGeneration = 0
+    private var provinceLoadGeneration = 0
     private var placeSessionToken: String? = null
     private var selectedPlaceQuery: String? = null
 
     fun updatePlaceSearchQuery(query: String) {
         placeSearchGeneration++
         placeSelectionGeneration++
+        invalidateProvinceLoad()
         selectedPlaceQuery = null
         if (query.isBlank()) placeSessionToken = null
         uiState = uiState.copy(
@@ -125,7 +127,9 @@ class MapViewModel(
     suspend fun selectSearchResult(candidate: PlaceCandidate): Boolean {
         val repository = placeRepository ?: return false
         placeSearchGeneration++
-        val generation = ++placeSelectionGeneration
+        placeSelectionGeneration++
+        invalidateProvinceLoad()
+        val generation = placeSelectionGeneration
         val sessionToken = currentPlaceSessionToken()
         placeSessionToken = null
         uiState = uiState.copy(
@@ -162,11 +166,12 @@ class MapViewModel(
                 )
                 selectedPlaceQuery = candidate.name.trim()
                 if (focus.scope == MapScope.KOREA && focus.provinceCode != null) {
-                    openProvince(focus.provinceCode)
+                    openProvince(focus.provinceCode, generation)
+                    generation == placeSelectionGeneration
                 } else {
                     closeProvince()
+                    true
                 }
-                true
             },
             onFailure = { error ->
                 if (generation == placeSelectionGeneration) {
@@ -185,6 +190,17 @@ class MapViewModel(
     private fun currentPlaceSessionToken(): String =
         placeSessionToken ?: randomPlaceSessionToken().also { placeSessionToken = it }
 
+    private fun invalidateProvinceLoad() {
+        provinceLoadGeneration++
+        if (uiState.koreaMap is KoreaMapUiState.DistrictLoading) {
+            uiState = uiState.copy(koreaMap = KoreaMapUiState.ProvinceOverview)
+        }
+    }
+
+    private fun isCurrentProvinceLoad(generation: Int, selectionGeneration: Int?): Boolean =
+        generation == provinceLoadGeneration &&
+            (selectionGeneration == null || selectionGeneration == placeSelectionGeneration)
+
     suspend fun refreshIfNeeded(dataRevision: Long) {
         if (loadedRevision == dataRevision && uiState.errorMessage == null) return
         refresh()
@@ -192,6 +208,7 @@ class MapViewModel(
     }
 
     suspend fun refresh() {
+        val openProvinceRequestGeneration = provinceLoadGeneration
         val openProvinceCode = when (val mapState = uiState.koreaMap) {
             is KoreaMapUiState.DistrictLoading -> mapState.provinceCode
             is KoreaMapUiState.DistrictDetail -> mapState.provinceCode
@@ -236,7 +253,9 @@ class MapViewModel(
             selectedTagId = selectedTagId,
             errorMessage = null,
         )
-        openProvinceCode?.let { provinceCode -> openProvince(provinceCode) }
+        if (openProvinceRequestGeneration == provinceLoadGeneration) {
+            openProvinceCode?.let { provinceCode -> openProvince(provinceCode) }
+        }
     }
 
     fun changeScope(scope: MapScope) {
@@ -250,7 +269,9 @@ class MapViewModel(
         refresh()
     }
 
-    suspend fun openProvince(provinceCode: String) {
+    suspend fun openProvince(provinceCode: String, selectionGeneration: Int? = null) {
+        if (selectionGeneration != null && selectionGeneration != placeSelectionGeneration) return
+        val generation = ++provinceLoadGeneration
         val visibleDetail = uiState.koreaMap as? KoreaMapUiState.DistrictDetail
         if (visibleDetail?.provinceCode != provinceCode) {
             uiState = uiState.copy(koreaMap = KoreaMapUiState.DistrictLoading(provinceCode))
@@ -259,6 +280,7 @@ class MapViewModel(
         val province = uiState.koreaProvinces.firstOrNull { it.code == serverProvinceCode }
         val summaries = uiState.districtsByProvince[provinceCode] ?: province?.let { summary ->
             mapSummaryRepository.getChildRegions(summary.regionId, uiState.selectedTagId).getOrElse { error ->
+                if (!isCurrentProvinceLoad(generation, selectionGeneration)) return
                 uiState = uiState.copy(
                     koreaMap = KoreaMapUiState.Error(
                         provinceCode = provinceCode,
@@ -268,6 +290,7 @@ class MapViewModel(
                 return
             }
         }.orEmpty()
+        if (!isCurrentProvinceLoad(generation, selectionGeneration)) return
         uiState = uiState.copy(
             districtsByProvince = uiState.districtsByProvince + (provinceCode to summaries),
         )
@@ -295,9 +318,18 @@ class MapViewModel(
     }
 
     fun closeProvince(): Boolean {
-        if (uiState.koreaMap == KoreaMapUiState.ProvinceOverview) return false
-        uiState = uiState.copy(koreaMap = KoreaMapUiState.ProvinceOverview)
-        return true
+        val wasOpen = uiState.koreaMap != KoreaMapUiState.ProvinceOverview
+        placeSelectionGeneration++
+        invalidateProvinceLoad()
+        if (wasOpen) {
+            uiState = uiState.copy(
+                koreaMap = KoreaMapUiState.ProvinceOverview,
+                placeSearch = uiState.placeSearch.copy(isSelecting = false),
+            )
+        } else if (uiState.placeSearch.isSelecting) {
+            uiState = uiState.copy(placeSearch = uiState.placeSearch.copy(isSelecting = false))
+        }
+        return wasOpen
     }
 
     fun hasRecords(location: Location): Boolean = when {
