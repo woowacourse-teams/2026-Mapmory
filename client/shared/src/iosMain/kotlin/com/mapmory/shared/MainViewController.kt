@@ -11,6 +11,7 @@ import kotlin.native.Platform
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.app.IosBackgroundSaveExecution
 import com.mapmory.shared.data.auth.AuthTokenStore
+import com.mapmory.shared.data.media.configureIosPhotoImageLoader
 import com.mapmory.shared.data.media.IosLocalPhotoDataSource
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.repository.IosMapSummaryCache
@@ -86,6 +87,7 @@ fun MainViewController(
     onRetryUpdateCheck: () -> Unit,
     socialLoginLauncher: com.mapmory.shared.presentation.auth.SocialLoginLauncher,
 ): platform.UIKit.UIViewController {
+    configureIosPhotoImageLoader()
     iosAnalytics = analytics
     val container = getIosContainer(apiBaseUrl, tokenStore)
     return ComposeUIViewController(configure = {

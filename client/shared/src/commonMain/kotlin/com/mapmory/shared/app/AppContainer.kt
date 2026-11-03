@@ -217,6 +217,7 @@ private class DefaultAppContainer(
         localPhotoDataSource = localPhotoDataSource,
         analytics = analytics,
         canEnqueue = { accountSession?.state?.value?.let { !it.transitioning && !it.pendingLogin && !it.pendingLogout } != false },
+        tripStatisticsRepository = tripStatisticsRepository,
     )
 
     init {
@@ -304,7 +305,7 @@ fun createAppContainer(
         mapSummaryRepository = session?.let { AuthenticatedMapSummaryRepository(it, cachedMapSummary) } ?: cachedMapSummary,
         tripStatisticsRepository = session?.let { AuthenticatedTripStatisticsRepository(it, cachedTripStatistics) } ?: cachedTripStatistics,
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
-        shareVideoRepository = shareVideoRepository?.let { com.mapmory.shared.analytics.AnalyticsShareVideoRepository(it, analytics) },
+        shareVideoRepository = shareVideoRepository?.let { AnalyticsShareVideoRepository(it, analytics, shareVideoJobStore) },
         shareVideoJobStore = shareVideoJobStore,
         tagRepository = AnalyticsTagRepository(tagRepository, analytics),
         placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },

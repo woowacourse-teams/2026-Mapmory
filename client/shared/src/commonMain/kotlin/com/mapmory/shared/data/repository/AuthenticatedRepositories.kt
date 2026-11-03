@@ -28,7 +28,7 @@ internal class AuthenticatedTripRecordRepository(
     private val delegate: TripRecordRepository,
 ) : ProgressReportingTripRecordRepository {
     override suspend fun getCachedTripRecords(query: TripRecordQuery): TripRecordPage? =
-        session.withAuthenticatedSession { Result.success(delegate.getCachedTripRecords(query)) }.getOrNull()
+        session.withLocalAccountLease { delegate.getCachedTripRecords(query) }
 
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         withAuthenticatedSession { delegate.getTripRecords(query) }

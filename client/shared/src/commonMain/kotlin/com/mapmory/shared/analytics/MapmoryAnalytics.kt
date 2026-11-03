@@ -33,6 +33,11 @@ object MapmoryAnalyticsEvent {
     const val SOCIAL_LOGIN_VIEWED = "social_login_viewed"
     const val SOCIAL_LOGIN_STARTED = "social_login_started"
     const val SOCIAL_LOGIN_COMPLETED = "social_login_completed"
+    const val SHARE_MEDIA_ACTION = "share_media_action"
+    const val SHARE_MEDIA_OPERATION_STARTED = "share_media_operation_started"
+    const val SHARE_MEDIA_OPERATION_COMPLETED = "share_media_operation_completed"
+    const val SHARE_VIDEO_STATUS_CHANGED = "share_video_status_changed"
+
     const val VIDEO_OPENED = "video_opened"
     const val VIDEO_ACTION = "video_action"
     const val VIDEO_GENERATION_RESULT = "video_generation_result"

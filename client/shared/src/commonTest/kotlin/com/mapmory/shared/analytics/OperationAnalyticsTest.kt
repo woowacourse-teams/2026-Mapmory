@@ -1,11 +1,21 @@
 package com.mapmory.shared.analytics
 
 import com.mapmory.shared.data.remote.MapmoryApiException
+import com.mapmory.shared.presentation.triprecord.share.ShareVideoPlaybackException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class OperationAnalyticsTest {
+    @Test fun `native playback errors are not attributed to client logic`() {
+        val analytics = RecordingAnalytics()
+        analytics.reportFailure("share_video_preview_playback", ShareVideoPlaybackException(-11800))
+        val failure = analytics.events.single().second
+        assertEquals("media_playback", failure["error_category"])
+        assertEquals("undetermined", failure["owner_hint"])
+        assertEquals("ShareVideoPlaybackException", failure["error_type"])
+    }
+
     @Test fun `failure counts once and never includes raw error data`() = runBlocking {
         val analytics = RecordingAnalytics()
         val error = MapmoryApiException(500, "SECRET_CODE", "private title", "private content", "/private/path", emptyList())

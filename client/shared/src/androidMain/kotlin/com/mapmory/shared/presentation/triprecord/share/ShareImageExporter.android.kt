@@ -42,7 +42,7 @@ internal actual fun rememberShareImageExporter(): ShareImageExporter {
                     permission[0] = result
                     try {
                         launcher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        check(result.await()) { "사진 저장 권한을 허용해 주세요." }
+                        if (!result.await()) throw ShareMediaPermissionDeniedException("사진 저장 권한을 허용해 주세요.")
                     } finally {
                         permission[0] = null
                     }

@@ -7,6 +7,7 @@ import android.os.Looper
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.FirebaseApp
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import com.mapmory.shared.update.ForceUpdateState
@@ -15,7 +16,8 @@ class AndroidForceUpdateController(context: Context) {
     private val isDevelopment = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 ||
         context.packageName.endsWith(".internal")
     private val isProductionRelease = context.packageName == "com.mapmory.android" && !isDevelopment
-    private val key = if (isDevelopment) "android_dev_min_supported_version" else "android_min_supported_version"
+    private val minimumVersionKey = if (isDevelopment) "android_dev_min_supported_version" else "android_min_supported_version"
+    private val recommendedVersionKey = if (isDevelopment) "android_dev_recommended_supported_version" else "android_recommended_supported_version"
     private val preferences = context.getSharedPreferences("force_update_policy", Context.MODE_PRIVATE)
     val state = ForceUpdateState(
         currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty(),
@@ -29,7 +31,13 @@ class AndroidForceUpdateController(context: Context) {
     private val appUpdateManager by lazy { AppUpdateManagerFactory.create(context.applicationContext) }
 
     init {
-        state.applyMinimumVersion(preferences.getString(key, "").orEmpty())
+        state.applyMinimumVersion(preferences.getString(minimumVersionKey, "").orEmpty())
+        state.applyRecommendedVersion(preferences.getString(recommendedVersionKey, "").orEmpty())
+        remoteConfig?.let {
+            FirebaseMessaging.getInstance().subscribeToTopic(if (isDevelopment) "mapmory-app-update-dev" else "mapmory-app-update")
+            FirebaseMessaging.getInstance().unsubscribeFromTopic(if (isDevelopment) "mapmory-app-update" else "mapmory-app-update-dev")
+            ensureAppUpdateNotificationChannel(context)
+        }
     }
 
     fun refresh() {
@@ -61,10 +69,10 @@ class AndroidForceUpdateController(context: Context) {
             .continueWithTask { remote.ensureInitialized() }
             .addOnCompleteListener {
                 if (request != generation) return@addOnCompleteListener
-                accept(remote.getString(key))
+                accept(remote)
                 remote.fetchAndActivate().addOnCompleteListener { result ->
                     if (request != generation) return@addOnCompleteListener
-                    if (result.isSuccessful) accept(remote.getString(key))
+                    if (result.isSuccessful) accept(remote)
                     handler.removeCallbacks(timeout)
                     fetching = false
                     state.finishCheck()
@@ -72,8 +80,15 @@ class AndroidForceUpdateController(context: Context) {
             }
     }
 
-    private fun accept(value: String) {
-        if (state.applyMinimumVersion(value)) preferences.edit().putString(key, value.trim()).apply()
+    private fun accept(remote: FirebaseRemoteConfig) {
+        val minimumVersion = remote.getString(minimumVersionKey)
+        if (state.applyMinimumVersion(minimumVersion)) {
+            preferences.edit().putString(minimumVersionKey, minimumVersion.trim()).apply()
+        }
+        val recommendedVersion = remote.getString(recommendedVersionKey)
+        if (state.applyRecommendedVersion(recommendedVersion)) {
+            preferences.edit().putString(recommendedVersionKey, recommendedVersion.trim()).apply()
+        }
     }
 
     fun close() {
