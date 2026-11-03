@@ -28,6 +28,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 승격하면 게스트 refresh를 모두 폐기한다. 앱이 저장해 둔 게스트 refresh로 갱신을 시도하는 것은 탈취가 아니므로,
  * 방금 받은 소셜 refresh까지 폐기하면 안 된다.
  *
+ * 이미 가입한 소셜 계정으로 로그인해 게스트가 버려질 때도 게스트 refresh를 모두 폐기하므로, 동시성은 둘 다 확인한다. (ADR 0028)
+ *
  * loginWithSocial은 트랜잭션 밖에서 불러야 하므로(Propagation.NEVER) 테스트 메서드에 트랜잭션을 두지 않는다.
  */
 class GuestPromotionRefreshIntegrationTest extends IntegrationTest {
@@ -81,6 +83,42 @@ class GuestPromotionRefreshIntegrationTest extends IntegrationTest {
                 String socialRefresh = promoted.get(10, TimeUnit.SECONDS).tokens().refreshToken();
                 assertThat(refreshTokenService.rotate(socialRefresh))
                         .as("시도 %d: 승격으로 받은 refresh가 유효해야 한다", attempt + 1)
+                        .isPresent();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void 게스트의_refresh_갱신과_버림이_동시에_와도_데드락_없이_기존_회원의_refresh가_유효하다() throws Exception {
+        // 버림은 게스트를 FOR UPDATE로 잠그고 게스트 refresh를 일괄 폐기한 뒤, 기존 회원의 refresh를 INSERT하며
+        // 그 회원도 FK 확인으로 공유 잠금한다. 두 회원을 잠그는 유일한 흐름이라 승격과 따로 확인한다.
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
+                String kakaoId = String.valueOf(500_201L + attempt);
+                loginWithKakao(kakaoId, null);
+                Member guest = memberJoinService.joinAsGuest();
+                String guestRefresh = refreshTokenService.issue(guest);
+
+                CountDownLatch start = new CountDownLatch(1);
+                Future<Optional<RotatedRefreshToken>> rotated = executor.submit(() -> {
+                    start.await();
+                    return refreshTokenService.rotate(guestRefresh);
+                });
+                Future<LoginResult> abandoned = executor.submit(() -> {
+                    start.await();
+                    return authService.loginWithSocial(SocialProvider.KAKAO, "kakao-id-token", guest.getId());
+                });
+                start.countDown();
+
+                rotated.get(10, TimeUnit.SECONDS);
+                LoginResult login = abandoned.get(10, TimeUnit.SECONDS);
+                int tried = attempt + 1;
+                assertThat(login.guestAbandoned()).as("시도 %d: 게스트를 버려야 한다", tried).isTrue();
+                assertThat(refreshTokenService.rotate(login.tokens().refreshToken()))
+                        .as("시도 %d: 기존 회원으로 받은 refresh가 유효해야 한다", tried)
                         .isPresent();
             }
         } finally {
