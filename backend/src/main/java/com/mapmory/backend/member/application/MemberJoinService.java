@@ -45,7 +45,7 @@ public class MemberJoinService {
     public SocialJoin joinWithSocial(AuthProvider provider, String providerId, String providerName, Long guestMemberId) {
         Optional<Member> guest = findGuest(guestMemberId);
 
-        Optional<Member> registered = memberRepository.findByProviderAndProviderId(provider, providerId);
+        Optional<Member> registered = findRegistered(provider, providerId);
         if (registered.isPresent()) {
             guest.ifPresent(this::abandon);
             return new SocialJoin(registered.get(), SocialJoinType.EXISTING_ACCOUNT, guest.isPresent());
@@ -106,8 +106,26 @@ public class MemberJoinService {
      * 잠그면 늦은 쪽은 먼저 온 쪽의 커밋을 기다렸다가 승격된 회원을 읽어 게스트 없음이 되고, 기존 회원으로 들어온다.
      *
      * joinWithSocial의 첫 조회여야 한다. MySQL REPEATABLE READ는 첫 일반 조회에서 스냅샷을 만들므로,
-     * 이 잠금 조회가 먼저여야 뒤의 findByProviderAndProviderId가 먼저 온 쪽의 커밋을 본다.
+     * 이 잠금 조회가 먼저여야 뒤의 기존 회원 조회(findRegistered)가 먼저 온 쪽의 커밋을 본다.
      */
+    /**
+     * 이 소셜 계정으로 가입한 활동 중인 회원을 공유 잠금으로 읽는다.
+     *
+     * 잠그지 않고 읽으면, 읽은 뒤 그 회원의 탈퇴가 먼저 커밋되어도 읽은 결과로 그 회원에게 토큰을 발급하고
+     * 게스트를 버린다. 탈퇴한 회원에게 쓸 수 있는 refresh가 남는다. (#584)
+     * 잠그면 진행 중인 탈퇴의 커밋을 기다렸다가 최신 행을 읽는다. 탈퇴했으면 기존 회원이 없는 것으로 보아,
+     * 게스트는 승격되고 게스트가 없으면 새로 가입한다. 탈퇴 뒤 다시 가입하는 것과 같다.
+     *
+     * 반대로 이 잠금 뒤에 탈퇴가 오면 탈퇴가 로그인의 커밋을 기다렸다가 방금 발급한 refresh까지 폐기한다.
+     * 어차피 새 refresh INSERT의 FK 확인으로 걸릴 공유 잠금을 앞당긴 것이라 잠금이 늘지 않는다.
+     * findGuest 다음에 부른다. 두 회원을 잠그는 순서는 게스트 → 기존 회원이다. (ADR 0028)
+     */
+    private Optional<Member> findRegistered(AuthProvider provider, String providerId) {
+        return memberRepository.findIdByProviderAndProviderId(provider, providerId)
+                .flatMap(memberRepository::findByIdForShare)
+                .filter(Member::isActive);
+    }
+
     private Optional<Member> findGuest(Long memberId) {
         if (memberId == null) {
             return Optional.empty();
