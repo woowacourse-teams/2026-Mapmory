@@ -64,3 +64,5 @@ ADR 0015의 3단계 중 [1] 신원 확인만 구글용으로 추가하고, [2] �
 - Android Credential Manager는 `serverClientId`로 지정한 **웹** 클라이언트 ID를 `aud`로
   넣는다. Android 클라이언트 ID만 등록하면 검증에 실패한다.
 - 공개키를 받아오지 못하면 `GOOGLE_UNAVAILABLE`(503)로 응답한다.
+- `nonce`는 아직 검증하지 않는다. 탈취한 ID token 재사용 위험은 토큰 만료(`exp`)와 `aud` 검증으로 줄인다.
+  재생 공격 방어가 필요해지면 세 제공자를 함께 다룬다(ADR 0020, ADR 0024).
