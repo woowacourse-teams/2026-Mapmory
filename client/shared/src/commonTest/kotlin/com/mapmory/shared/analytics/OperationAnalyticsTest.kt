@@ -75,6 +75,33 @@ class OperationAnalyticsTest {
         assertEquals("record_share_save_image", analytics.events.last().second["operation"])
     }
 
+    @Test fun `tracked share action records image capture failure`() = runBlocking {
+        val analytics = RecordingAnalytics()
+        val telemetry = ShareMediaAnalytics(analytics, ShareMediaSource.RECORD)
+        val error = IllegalStateException("private image conversion detail")
+
+        assertSame(error, assertFailsWith<IllegalStateException> {
+            analytics.trackAction(
+                eventName = "record_share_action",
+                operation = "record_share_save_image",
+                action = "save_image",
+                reportErrors = false,
+            ) {
+                telemetry.observe(ShareMediaOperation.IMAGE_CAPTURE) { throw error }
+            }
+        })
+
+        assertEquals(
+            listOf("started", "failure"),
+            analytics.events.filter { it.first == "record_share_action" }.map { it.second.getValue("outcome") },
+        )
+        val captureStarted = analytics.events.single { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_STARTED }
+        assertEquals("image_capture", captureStarted.second["operation"])
+        val captureCompleted = analytics.events.single { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED }
+        assertEquals("failure", captureCompleted.second["outcome"])
+        assertFalse(analytics.events.toString().contains("private image conversion detail"))
+    }
+
     @Test fun `tracked action propagates cancellation without classifying it as failure`() = runBlocking {
         val analytics = RecordingAnalytics()
         assertFailsWith<CancellationException> {
