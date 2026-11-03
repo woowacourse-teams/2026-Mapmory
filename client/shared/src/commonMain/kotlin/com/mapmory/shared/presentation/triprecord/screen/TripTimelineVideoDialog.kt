@@ -74,6 +74,30 @@ internal fun shouldExpandTripTimelineVideoDialog(
     status: ShareVideoStatus?,
 ): Boolean = hasPreview || status == ShareVideoStatus.COMPLETED
 
+internal data class TripTimelineDownloadedPreview(
+    val video: ShareVideoFile,
+    val jobId: Long,
+)
+
+internal suspend fun downloadTripTimelineVideoPreview(
+    currentPreview: TripTimelineDownloadedPreview?,
+    jobId: Long,
+    download: suspend (protectedJobId: Long?) -> ShareVideoFile,
+): TripTimelineDownloadedPreview = TripTimelineDownloadedPreview(
+    video = download(currentPreview?.jobId),
+    jobId = jobId,
+)
+
+internal fun shouldShowTripTimelineVideoRetryButton(
+    jobId: Long?,
+    status: ShareVideoStatus?,
+    videoJobId: Long?,
+    previewAttemptedJobId: Long?,
+    busy: Boolean,
+    hasFailureMessage: Boolean,
+): Boolean = jobId != null && status == ShareVideoStatus.COMPLETED && videoJobId != jobId &&
+    previewAttemptedJobId == jobId && !busy && hasFailureMessage
+
 internal fun tripTimelineVideoDialogHeightFraction(expanded: Boolean): Float =
     if (expanded) 0.82f else 0.44f
 
@@ -94,11 +118,12 @@ internal fun TripTimelineVideoDialog(
     val jobId = jobState.jobId
     val status = jobState.status
     val creationInProgress = jobState.isCreationRequestInProgress
-    var video by remember { mutableStateOf<ShareVideoFile?>(null) }
+    var downloadedPreview by remember { mutableStateOf<TripTimelineDownloadedPreview?>(null) }
+    val video = downloadedPreview?.video
+    val videoJobId = downloadedPreview?.jobId
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var previewAttemptedJobId by remember { mutableStateOf<Long?>(null) }
-    var videoJobId by remember { mutableStateOf<Long?>(null) }
     var selectedStyle by remember { mutableStateOf(ShareVideoStyle.CLASSIC) }
     var showStyleSheet by remember { mutableStateOf(false) }
     var showFullscreenPreview by remember { mutableStateOf(false) }
@@ -177,12 +202,13 @@ internal fun TripTimelineVideoDialog(
             busy = true
             message = null
             try {
-                val downloadedVideo = analytics.videoAction("preview_download") {
-                    val download = repository.getDownloadUrl(activeJobId).getOrThrow()
-                    exporter.download(download.downloadUrl, activeJobId, videoJobId)
+                val nextPreview = analytics.videoAction("preview_download") {
+                    downloadTripTimelineVideoPreview(downloadedPreview, activeJobId) { protectedJobId ->
+                        val download = repository.getDownloadUrl(activeJobId).getOrThrow()
+                        exporter.download(download.downloadUrl, activeJobId, protectedJobId)
+                    }
                 }
-                video = downloadedVideo
-                videoJobId = activeJobId
+                downloadedPreview = nextPreview
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -339,6 +365,22 @@ internal fun TripTimelineVideoDialog(
                             if (!showFullscreenPreview) {
                                 message?.let {
                                     Text(it, color = TripRecordPalette.current.secondaryText, fontSize = 12.sp)
+                                }
+                                if (
+                                    shouldShowTripTimelineVideoRetryButton(
+                                        jobId = jobId,
+                                        status = status,
+                                        videoJobId = videoJobId,
+                                        previewAttemptedJobId = previewAttemptedJobId,
+                                        busy = busy,
+                                        hasFailureMessage = message != null,
+                                    )
+                                ) {
+                                    OutlinedButton(
+                                        onClick = ::downloadVideo,
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                    ) { Text("새 미리보기 다시 불러오기") }
                                 }
                                 if (message == null && videoJobId != jobId && status == ShareVideoStatus.FAILED) {
                                     Text(
