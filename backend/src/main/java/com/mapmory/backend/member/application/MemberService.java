@@ -44,9 +44,15 @@ public class MemberService {
         return findWithdrawableMember(memberId);
     }
 
+    /**
+     * 닉네임을 바꾼다.
+     *
+     * 회원을 잠그고 읽는다. Member는 UPDATE할 때 모든 컬럼을 쓰므로, 잠그지 않으면 읽은 뒤 커밋된 탈퇴·승격을
+     * 처음 읽은 값으로 덮어써 되돌린다. 잠그면 늦은 쪽이 기다렸다가 최신 행을 읽는다. (#591, ADR 0028)
+     */
     @Transactional
     public Member changeNickname(Long memberId, String nickname) {
-        Member member = findActiveMember(memberId);
+        Member member = requireActive(lockMember(memberId));
         member.changeNickname(nickname);
         return member;
     }
@@ -112,8 +118,7 @@ public class MemberService {
      * 회원을 공유 잠금한 채 refresh를 기다리는 회전과 데드락이 난다. (ADR 0028)
      */
     private Member lockWithdrawableMember(Long memberId) {
-        return requireWithdrawable(memberRepository.findByIdForUpdate(memberId)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER)));
+        return requireWithdrawable(lockMember(memberId));
     }
 
     private Member requireWithdrawable(Member member) {
@@ -124,7 +129,10 @@ public class MemberService {
     }
 
     private Member findActiveMember(Long memberId) {
-        Member member = findMember(memberId);
+        return requireActive(findMember(memberId));
+    }
+
+    private Member requireActive(Member member) {
         if (!member.isActive()) {
             throw new BusinessException(MemberErrorCode.INACTIVE_MEMBER);
         }
@@ -133,6 +141,11 @@ public class MemberService {
 
     private Member findMember(Long memberId) {
         return memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
+    }
+
+    private Member lockMember(Long memberId) {
+        return memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
     }
 }

@@ -21,8 +21,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     Optional<Long> findIdByProviderAndProviderId(
             @Param("provider") AuthProvider provider, @Param("providerId") String providerId);
 
-    // 회원을 바꾸고 refresh를 폐기하는 흐름(승격·버림·탈퇴)의 행 잠금(SELECT ... FOR UPDATE). 같은 회원의 요청을 직렬화하고,
-    // 잠그는 순서를 회원 → refresh로 맞춘다. (#574, ADR 0028)
+    // 회원을 바꾸는 흐름(승격·버림·탈퇴·닉네임 변경)의 행 잠금(SELECT ... FOR UPDATE). 같은 회원의 요청을 직렬화하고,
+    // refresh를 폐기하는 흐름은 잠그는 순서를 회원 → refresh로 맞춘다. (#574, ADR 0028)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForUpdate(@Param("id") Long id);

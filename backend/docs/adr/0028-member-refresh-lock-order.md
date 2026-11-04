@@ -26,7 +26,7 @@
 
 트랜잭션의 첫 잠금으로 회원 행을 명시적으로 잠그고, 그다음 refresh 행을 잠근다.
 
-- **회원을 바꾸는 흐름**(승격·버림·탈퇴)은 회원을 `FOR UPDATE`(`MemberRepository#findByIdForUpdate`)로 잠근다.
+- **회원을 바꾸는 흐름**(승격·버림·탈퇴·닉네임 변경)은 회원을 `FOR UPDATE`(`MemberRepository#findByIdForUpdate`)로 잠근다.
 - **회원을 읽기만 하는 흐름**(refresh 회전)은 회원을 `FOR SHARE`(`MemberRepository#findByIdForShare`)로 잠근다. 같은 회원의 회전끼리는 서로 막지 않는다.
 - refresh 토큰을 다루는 흐름(회전·재사용 판정·로그아웃)은 회원 다음에 **세션(`refresh_token_family`) 행을 `FOR UPDATE`로 잠근 뒤** 토큰을 잠근다(#467). 순서는 **회원 → 세션 → refresh**다.
   같은 세션의 작업은 세션 행에서 직렬화되므로, 그 안에서 토큰을 어떤 순서로 잠그든(제시 토큰 → 후속 토큰, 세션 일괄 UPDATE) 엇갈리지 않는다. 다른 세션끼리는 서로 막지 않는다.
@@ -37,9 +37,13 @@
 | 게스트 승격·버림 (`MemberJoinService#findGuest`) | `FOR UPDATE` | 일괄 폐기 |
 | 소셜 로그인의 기존 회원 확인 (`MemberJoinService#findRegistered`) | 기존 회원 `FOR SHARE` (게스트 다음) | 기존 회원에게 새 토큰 INSERT |
 | 탈퇴 (`MemberService#withdraw`, `#withdrawUnlinked`) | `FOR UPDATE` | 일괄 폐기 |
+| 닉네임 변경 (`MemberService#changeNickname`) | `FOR UPDATE` | 다루지 않음 |
 | refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 `FOR UPDATE` → 새 토큰 INSERT |
 | 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 → 후속 토큰 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
 | 로그아웃 (`RefreshTokenService#revoke`) | `FOR SHARE` | 세션 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
+
+닉네임 변경은 refresh를 다루지 않아 데드락과는 관계없지만 같은 이유로 잠근다(#591). `Member`는 UPDATE할 때 모든 컬럼을 쓰므로,
+잠그지 않고 읽은 뒤 커밋하면 그사이 커밋된 탈퇴·승격을 처음 읽은 값으로 덮어써 되돌린다.
 
 ### 예외: 재사용 판정의 일괄 폐기는 refresh끼리의 순서를 따르지 않는다
 
