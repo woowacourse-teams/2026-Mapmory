@@ -11,13 +11,15 @@ import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.net.ConnectException;
-import java.net.http.HttpConnectTimeoutException;
-import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +65,9 @@ public class GooglePlacesClient implements PlaceLookupPort {
     /**
      * Google 호출에만 따로 잰 타임아웃을 건다. 공통 값(spring.http.clients)은 재지 않은 JWKS·애플 호출이 계속 쓴다.
      * 관측(http.client.requests)은 자동 구성된 Builder에 남아 있어 그대로 기록된다.
+     *
+     * <p>연결 풀은 분당 한도(requests-per-minute)만큼 둔다. 분당 한도가 한꺼번에 몰려도 동시에 부를 수 있는
+     * Google 호출 수의 상한이라, 풀에서 연결을 기다리는 요청이 생기지 않는다.
      */
     @Autowired
     public GooglePlacesClient(
@@ -71,11 +76,12 @@ public class GooglePlacesClient implements PlaceLookupPort {
             @Value("${google.places.api-key:}") String apiKey,
             @Value("${google.places.connect-timeout}") Duration connectTimeout,
             @Value("${google.places.read-timeout}") Duration readTimeout,
+            @Value("${google.places.rate-limit.requests-per-minute}") int maxConnections,
             GoogleRequestLimiter requestLimiter,
             CircuitBreaker circuitBreaker
     ) {
-        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout)), baseUrl, apiKey, requestLimiter,
-                circuitBreaker);
+        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout, maxConnections)), baseUrl, apiKey,
+                requestLimiter, circuitBreaker);
     }
 
     GooglePlacesClient(
@@ -97,13 +103,20 @@ public class GooglePlacesClient implements PlaceLookupPort {
     }
 
     /**
-     * JDK HttpClient로 고정한다. detect()는 클래스패스에 Apache HttpClient가 있으면 그것을 고르는데,
-     * firebase-admin이 Apache HttpClient를 끌고 와 실제로 Apache가 골라진다. Apache는 read-timeout을 패킷 사이 대기로,
-     * 연결 실패를 자기 예외(ConnectTimeoutException)로 다뤄, 요청 전체 한도와 CONNECT/RESPONSE 구분, 미과금 환불 판정이
-     * 모두 JDK 기준이라 맞지 않는다.
+     * Apache HttpClient로 고정한다. 클래스패스에 따라 골라지게 두면 라이브러리 하나로 타임아웃의 뜻이 몰래 바뀐다.
+     *
+     * <p>connect는 TCP와 TLS 연결까지, read는 연결된 뒤 응답을 기다리는 한도다. 둘이 따로라 잰 값에서 바로 정한다.
+     * 재시도는 끈다. Apache는 GET이 503이면 1초 뒤 다시 보내는데, 우리는 다시 보내지 않고 바로 실패로 답한다.
+     * 풀에서 연결을 기다리는 한도는 connect와 같게 둔다. 풀이 동시 호출 상한만큼 커서 보통은 기다리지 않는다.
      */
-    static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
-        return ClientHttpRequestFactoryBuilder.jdk()
+    static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout, int maxConnections) {
+        return ClientHttpRequestFactoryBuilder.httpComponents()
+                .withHttpClientCustomizer(client -> client.disableAutomaticRetries())
+                .withConnectionManagerCustomizer(pool -> pool
+                        .setMaxConnTotal(maxConnections)
+                        .setMaxConnPerRoute(maxConnections))
+                .withDefaultRequestConfigCustomizer(request -> request
+                        .setConnectionRequestTimeout(Timeout.of(connectTimeout)))
                 .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout));
     }
 
@@ -190,16 +203,17 @@ public class GooglePlacesClient implements PlaceLookupPort {
     }
 
     /**
-     * 타임아웃이 연결 단계였는지 응답 대기였는지 남긴다. 둘 다 요청 전체 한도(read-timeout) 안에서 끊기므로
-     * 예외 종류로만 구분된다. 연결이면 Google에 닿지 못한 것이고, 응답이면 Google이 늦게 답한 것이다.
+     * 타임아웃이 어느 단계였는지 남긴다. POOL이면 우리 풀에서 연결을 못 받은 것이고, CONNECT면 Google에 닿지 못한 것이고,
+     * RESPONSE면 Google이 늦게 답한 것이다. Apache의 연결 타임아웃은 응답 타임아웃(SocketTimeoutException)을
+     * 상속하므로 바깥 예외부터 보고 연결을 먼저 가린다.
      */
     private static void logTimeout(RestClientException exception) {
         if (!(exception instanceof ResourceAccessException)) {
             return;
         }
         for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
-            if (cause instanceof HttpTimeoutException) {
-                String phase = cause instanceof HttpConnectTimeoutException ? "CONNECT" : "RESPONSE";
+            String phase = timeoutPhase(cause);
+            if (phase != null) {
                 log.atWarn()
                         .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
                         .addKeyValue("phase", phase)
@@ -209,9 +223,23 @@ public class GooglePlacesClient implements PlaceLookupPort {
         }
     }
 
+    private static String timeoutPhase(Throwable cause) {
+        if (cause instanceof ConnectionRequestTimeoutException) {
+            return "POOL";
+        }
+        if (cause instanceof ConnectTimeoutException) {
+            return "CONNECT";
+        }
+        if (cause instanceof SocketTimeoutException) {
+            return "RESPONSE";
+        }
+        return null;
+    }
+
     /**
      * Google이 과금하지 않는 실패인지 본다. 5xx는 Google이 처리하지 못한 것이고, 연결하지 못한 요청은 Google에 닿지 않았다.
-     * 연결한 뒤 답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어 과금된 것으로 본다.
+     * 풀에서 연결을 못 받은 요청도 보내지 않았다. 연결한 뒤 답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어
+     * 과금된 것으로 본다.
      */
     private static boolean notBilled(RestClientException exception) {
         if (exception instanceof HttpServerErrorException) {
@@ -221,7 +249,8 @@ public class GooglePlacesClient implements PlaceLookupPort {
             return false;
         }
         for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
-            if (cause instanceof ConnectException || cause instanceof HttpConnectTimeoutException) {
+            if (cause instanceof ConnectException || cause instanceof ConnectTimeoutException
+                    || cause instanceof ConnectionRequestTimeoutException) {
                 return true;
             }
         }

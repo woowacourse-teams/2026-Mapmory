@@ -54,12 +54,11 @@ google:
   places:
     # Places API (New) 키. 비어 있으면 장소 검색과 선택이 PLACE_PROVIDER_UNAVAILABLE로 실패한다. (docs/place-search.md)
     api-key: ${GOOGLE_PLACES_API_KEY:}
-    # dev EC2에서 잰 응답 대기 p99가 약 300ms라(2026-11-04, 자동완성·상세 각 200번) 그 3배쯤인 1초로 끊는다.
-    # JDK HttpClient의 read 타임아웃은 연결 시간까지 포함한 요청 전체의 한도다.
-    # 첫 SYN을 잃으면 리눅스는 1초 뒤에 다시 보내므로, 전체 1초 안에서는 재전송이 성공할 수 없다.
-    # 그래서 connect는 정상 연결만 기다리면 된다. 잰 연결(TCP+TLS)은 최대 134ms라 0.5초로 두고, 안 되면 0.5초에 포기한다.
+    # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GooglePlacesClient).
+    # connect는 TCP+TLS 연결 한도다. 잰 연결 최대가 134ms라 400ms로 둔다.
+    # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99가 약 300ms라 1초로 둔다. 둘을 합쳐 최악 1.4초쯤 기다린다.
     # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
-    connect-timeout: 500ms
+    connect-timeout: 400ms
     read-timeout: 1s
     rate-limit:
       # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
