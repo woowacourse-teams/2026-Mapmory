@@ -39,6 +39,16 @@ class KoreanAddressRegionMatcherIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 독도_짧은_주소의_낱말로_실제_지역_데이터에서_울릉군을_찾는다() {
+        Region district = matcher.match(new RegionAddress(null, null, List.of("울릉군", "울릉읍", "독도리"))).orElseThrow();
+
+        RegionDetailResponse response = RegionDetailResponse.from(district);
+
+        assertThat(response.province().code()).isEqualTo("47");
+        assertThat(response.district().code()).isEqualTo("47940");
+    }
+
+    @Test
     void 시도가_없는_주소의_시군구_이름이_실제_지역_데이터에서_겹치면_고르지_않는다() {
         assertThat(matcher.match(new RegionAddress("KR", null, List.of("중구")))).isEmpty();
         assertThat(matcher.match(new RegionAddress("KR", null, List.of("고성군")))).isEmpty();

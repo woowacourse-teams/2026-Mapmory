@@ -45,13 +45,35 @@ class GooglePlaceMapper {
         return Optional.of(new PlaceDetails(
                 placeId,
                 null,
-                address(components),
+                address(components, text(response.path("shortFormattedAddress"))),
                 GooglePlacesClient.PROVIDER));
     }
 
-    private static RegionAddress address(JsonNode components) {
+    private static RegionAddress address(JsonNode components, String shortAddress) {
         String province = componentText(components, "administrative_area_level_1");
-        return new RegionAddress(countryCode(components), province, subAreas(components, province));
+        String countryCode = countryCode(components);
+        List<String> subAreas = subAreas(components, province);
+        if (countryCode == null && shortAddress != null) {
+            // 독도처럼 Google이 구성요소에서 상위 지역을 모두 빼는 장소가 있다(독도리: 구성요소 "독도리"뿐,
+            // 짧은 주소 "울릉군 울릉읍 독도리"). 이때만 짧은 주소의 낱말을 큰 단위부터 덧붙인다.
+            subAreas = withShortAddressWords(subAreas, shortAddress);
+        }
+        return new RegionAddress(countryCode, province, subAreas);
+    }
+
+    private static List<String> withShortAddressWords(List<String> subAreas, String shortAddress) {
+        List<String> areas = new ArrayList<>();
+        for (String word : shortAddress.split("\\s+")) {
+            if (!word.isBlank() && !areas.contains(word)) {
+                areas.add(word);
+            }
+        }
+        for (String area : subAreas) {
+            if (!areas.contains(area)) {
+                areas.add(area);
+            }
+        }
+        return areas;
     }
 
     // 세종처럼 시·도와 같은 이름이 locality로 다시 오면 뺀다.
