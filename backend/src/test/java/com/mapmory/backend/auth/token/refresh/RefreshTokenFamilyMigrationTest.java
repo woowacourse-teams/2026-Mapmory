@@ -10,8 +10,8 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
+import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("refresh 토큰 세션 묶음 마이그레이션 (#467)")
 class RefreshTokenFamilyMigrationTest {
@@ -21,8 +21,7 @@ class RefreshTokenFamilyMigrationTest {
     @Test
     @DisplayName("회전 체인의 끝 토큰이 같은 토큰끼리 한 세션으로 묶인다")
     void groupsTokensBySameTerminal() {
-        try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")) {
-            mysql.start();
+        try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
             JdbcTemplate jdbc = jdbcTemplate(mysql);
 
@@ -54,8 +53,7 @@ class RefreshTokenFamilyMigrationTest {
     @Test
     @DisplayName("체인이 재귀 깊이 기본값(1000)보다 길어도 한 세션으로 묶인다")
     void groupsLongChain() {
-        try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")) {
-            mysql.start();
+        try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
             JdbcTemplate jdbc = jdbcTemplate(mysql);
             long member = insertMember(jdbc);
@@ -78,8 +76,7 @@ class RefreshTokenFamilyMigrationTest {
     @Test
     @DisplayName("마이그레이션 뒤 새 세션은 기존 세션 id와 겹치지 않는다")
     void newFamilyIdDoesNotCollide() {
-        try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")) {
-            mysql.start();
+        try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
             JdbcTemplate jdbc = jdbcTemplate(mysql);
             long member = insertMember(jdbc);
@@ -118,7 +115,7 @@ class RefreshTokenFamilyMigrationTest {
         return ((Number) row.get("member_id")).longValue();
     }
 
-    private void migrateTo(MySQLContainer<?> mysql, String version) {
+    private void migrateTo(MigrationTestDatabase mysql, String version) {
         Flyway.configure()
                 .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
                 .locations("classpath:db/migration")
@@ -127,7 +124,7 @@ class RefreshTokenFamilyMigrationTest {
                 .migrate();
     }
 
-    private void migrateAll(MySQLContainer<?> mysql) {
+    private void migrateAll(MigrationTestDatabase mysql) {
         Flyway.configure()
                 .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
                 .locations("classpath:db/migration")
@@ -135,7 +132,7 @@ class RefreshTokenFamilyMigrationTest {
                 .migrate();
     }
 
-    private JdbcTemplate jdbcTemplate(MySQLContainer<?> mysql) {
-        return new JdbcTemplate(new DriverManagerDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword()));
+    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
+        return new JdbcTemplate(new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true));
     }
 }

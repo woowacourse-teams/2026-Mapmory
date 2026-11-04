@@ -7,8 +7,8 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
+import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("Clock으로 만든 시각을 UTC로 맞추는 마이그레이션")
 class ClockTimestampUtcMigrationTest {
@@ -20,8 +20,7 @@ class ClockTimestampUtcMigrationTest {
     @Test
     @DisplayName("KST로 저장된 시각을 9시간 앞당기고 updated_at과 빈 값은 그대로 둔다")
     void shiftsClockTimestampsToUtc() {
-        try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")) {
-            mysql.start();
+        try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrate(mysql, MigrationVersion.fromVersion("31"));
 
             JdbcTemplate jdbcTemplate = jdbcTemplate(mysql);
@@ -54,7 +53,7 @@ class ClockTimestampUtcMigrationTest {
         }
     }
 
-    private void migrate(MySQLContainer<?> mysql, MigrationVersion target) {
+    private void migrate(MigrationTestDatabase mysql, MigrationVersion target) {
         Flyway.configure()
                 .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
                 .locations("classpath:db/migration")
@@ -63,8 +62,8 @@ class ClockTimestampUtcMigrationTest {
                 .migrate();
     }
 
-    private JdbcTemplate jdbcTemplate(MySQLContainer<?> mysql) {
-        return new JdbcTemplate(new DriverManagerDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword()));
+    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
+        return new JdbcTemplate(new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true));
     }
 
     private long insertMember(JdbcTemplate jdbcTemplate, String uuid, String promotedAt) {

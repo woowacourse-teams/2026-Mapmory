@@ -21,6 +21,10 @@ public abstract class MySqlTestContainerSupport {
         registry.add("spring.datasource.password", MYSQL_CONTAINER::getPassword);
     }
 
+    static MySQLContainer<?> sharedContainer() {
+        return MYSQL_CONTAINER;
+    }
+
     private static MySQLContainer<?> startContainer() {
         MySQLContainer<?> container = new MySQLContainer<>("mysql:8.4");
         container.start();
