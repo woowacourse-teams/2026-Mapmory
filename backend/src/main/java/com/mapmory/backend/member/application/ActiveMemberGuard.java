@@ -5,6 +5,7 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.exception.MemberErrorCode;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -26,6 +27,20 @@ public class ActiveMemberGuard {
     @Transactional(readOnly = true)
     public Member require(Long memberId) {
         return memberRepository.findById(memberId)
+                .filter(Member::isActive)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
+    }
+
+    /**
+     * 회원을 공유 잠금(FOR SHARE)하고 활동 중인지 확인한다. 트랜잭션이 끝날 때까지 탈퇴·버림이 기다린다.
+     *
+     * <p>탈퇴가 커밋된 뒤 회원의 데이터를 지우는 경로가 있으면, 확인만 통과한 요청이 그 뒤에 커밋해 데이터가 남을 수 있다.
+     * 이 메서드로 확인하면 탈퇴가 그 요청의 커밋을 기다리므로 정리가 그 데이터까지 지운다. 탈퇴가 먼저면 여기서 기다렸다가 거절한다.
+     * 잠금은 트랜잭션이 있어야 유지되므로 트랜잭션 없이 부르면 실패한다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Member requireLocked(Long memberId) {
+        return memberRepository.findByIdForShare(memberId)
                 .filter(Member::isActive)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
     }

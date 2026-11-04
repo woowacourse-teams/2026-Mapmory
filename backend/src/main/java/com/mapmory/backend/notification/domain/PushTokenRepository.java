@@ -27,6 +27,11 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
     @Query("DELETE FROM PushToken t WHERE t.token IN :tokens")
     void deleteAllByTokenIn(@Param("tokens") Collection<String> tokens);
 
+    // 탈퇴하거나 버려진 회원의 기기를 모두 지운다.
+    @Modifying
+    @Query("DELETE FROM PushToken t WHERE t.memberId = :memberId")
+    void deleteAllByMemberId(@Param("memberId") Long memberId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PushToken p WHERE p.token = :token")
     Optional<PushToken> findByTokenForUpdate(@Param("token") String token);

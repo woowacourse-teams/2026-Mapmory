@@ -54,6 +54,10 @@
   게스트 승격(`GuestPromoted`, ADR 0015 #460)도 같은 리스너가 받는다.
   같은 트랜잭션이라 폐기가 실패하면 탈퇴도 롤백된다. member가 `RefreshTokenService`를 직접 부르지 않으므로
   의존 방향은 auth → member로 유지된다.
+- **notification**: `InactiveMemberListener`가 커밋 뒤에 받아 회원의 기기 토큰을 모두 지운다(#546). `GuestAbandoned`도 같다.
+  기기 토큰은 파기 기간을 기다리지 않는다. 남겨 두면 그룹 알림이 그 기기로 계속 가고, 지운 뒤에는 등록 경로가 막혀 다시 생기지 않는다.
+  실패해도 탈퇴·로그인은 그대로 두고 `PUSH_TOKEN_CLEANUP_FAILED` 로그로 남긴다.
+  등록은 회원을 `FOR SHARE`로 읽어 탈퇴보다 먼저 커밋되게 한다. 일반 조회로 확인하면 확인을 통과한 등록이 정리가 끝난 뒤 커밋해 토큰이 남는다.
 - **다른 컨텍스트**(그룹·여행 기록·미디어): 아직 받지 않는다. 받을 때는 탈퇴가 커밋된 뒤에 처리하도록
   `@TransactionalEventListener(phase = AFTER_COMMIT)`를 쓴다.
 

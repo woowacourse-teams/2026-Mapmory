@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -65,7 +66,8 @@ public class PushTokenService {
     // 같은 객체의 private 메서드에 @Transactional을 붙이는 대신
     // 위의 TransactionTemplate 실행 범위 안에서 호출한다.
     private PushToken registerInTransaction(Long memberId, String token, PushPlatform platform) {
-        activeMemberGuard.require(memberId);
+        // 탈퇴가 커밋된 뒤 토큰을 지우므로, 확인만 통과한 등록이 그 뒤에 커밋하면 토큰이 남는다. 회원을 잠가 탈퇴가 기다리게 한다.
+        activeMemberGuard.requireLocked(memberId);
 
         PushToken existing = pushTokenRepository
                 .findByTokenForUpdate(token)
@@ -110,6 +112,16 @@ public class PushTokenService {
     public void unregister(Long memberId, Long pushTokenId) {
         // token 값이 같더라도 새로 생성된 다른 등록 ID는 삭제하지 않는다.
         pushTokenRepository.deleteByIdAndMemberId(pushTokenId, memberId);
+    }
+
+    /**
+     * 회원의 기기 토큰을 모두 지운다. 탈퇴하거나 버려진 회원을 정리할 때 쓴다.
+     *
+     * 탈퇴·로그인이 커밋된 뒤에 불린다. 끝난 트랜잭션에 참여하면 커밋되지 않으므로 새 트랜잭션을 연다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void removeAllOf(Long memberId) {
+        pushTokenRepository.deleteAllByMemberId(memberId);
     }
 
     /**

@@ -38,6 +38,7 @@
 | 소셜 로그인의 기존 회원 확인 (`MemberJoinService#findRegistered`) | 기존 회원 `FOR SHARE` (게스트 다음) | 기존 회원에게 새 토큰 INSERT |
 | 탈퇴 (`MemberService#withdraw`, `#withdrawUnlinked`) | `FOR UPDATE` | 일괄 폐기 |
 | 닉네임 변경 (`MemberService#changeNickname`) | `FOR UPDATE` | 다루지 않음 |
+| 기기 토큰 등록 (`PushTokenService#register`) | `FOR SHARE` | 다루지 않음 (회원 다음에 `push_token`을 잠근다) |
 | refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 `FOR UPDATE` → 새 토큰 INSERT |
 | 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 → 후속 토큰 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
 | 로그아웃 (`RefreshTokenService#revoke`) | `FOR SHARE` | 세션 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |

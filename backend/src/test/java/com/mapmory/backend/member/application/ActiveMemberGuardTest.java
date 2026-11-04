@@ -31,6 +31,26 @@ class ActiveMemberGuardTest {
     }
 
     @Test
+    void 잠그고_읽어_활동_중인_회원을_돌려준다() {
+        Member member = Member.ofGuest("guest-1", "게스트", UUID.randomUUID());
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(member));
+
+        assertThat(guard.requireLocked(1L)).isSameAs(member);
+    }
+
+    @Test
+    void 잠그고_읽어도_탈퇴한_회원은_사용할_수_없다() {
+        Member member = Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID());
+        member.withdraw(NOW);
+        when(memberRepository.findByIdForShare(1L)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> guard.requireLocked(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.INACTIVE_MEMBER);
+    }
+
+    @Test
     void 탈퇴한_회원은_사용할_수_없는_회원이다() {
         Member member = Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID());
         member.withdraw(NOW);

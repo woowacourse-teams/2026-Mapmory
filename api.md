@@ -1354,6 +1354,7 @@ Authorization: Bearer {accessToken}
 
 - 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
 - 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
+- 등록한 기기 토큰(`/push-tokens`)을 모두 지운다. 그 기기로 알림이 가지 않는다. 버려진 게스트도 같다.
 - 이미 발급된 Access Token은 만료(최대 30분)까지 남지만, 회원 정보 API는 `401 INACTIVE_MEMBER`, 토큰 재발급은 `401 INVALID_REFRESH_TOKEN`이다.
 - 같은 소셜 계정으로 다시 로그인하면 **새 회원**으로 가입한다(`isNewMember: true`). 탈퇴 전 기록은 이어지지 않는다.
 - 이미 탈퇴했으면 아무것도 하지 않고 `204`를 반환한다.
