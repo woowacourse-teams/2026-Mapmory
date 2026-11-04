@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.Mockito.mock;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
@@ -18,9 +21,11 @@ import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -85,6 +90,39 @@ class GooglePlacesTimeoutTest {
                             .extracting(exception -> ((BusinessException) exception).getErrorCode())
                             .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE));
         });
+    }
+
+    @Test
+    void 클래스패스에_Apache_HttpClient가_있어도_JDK_HttpClient로_부른다() {
+        Object factory = GooglePlacesClient.requestFactory(Duration.ofMillis(500), Duration.ofSeconds(1));
+
+        assertThat(factory).isInstanceOf(JdkClientHttpRequestFactory.class);
+    }
+
+    @Test
+    void 실제로_응답을_기다리다_끊기면_RESPONSE_타임아웃으로_남긴다() {
+        delayMillis = 2_000;
+        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            contextRunner.withPropertyValues(properties()).run(context -> {
+                GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
+
+                assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
+                        .isInstanceOf(BusinessException.class);
+            });
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .filteredOn(event -> event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
+                        .anyMatch(pair -> "event".equals(pair.key) && "GOOGLE_PLACES_TIMEOUT".equals(pair.value)))
+                .singleElement()
+                .satisfies(event -> assertThat(event.getKeyValuePairs())
+                        .anyMatch(pair -> "phase".equals(pair.key) && "RESPONSE".equals(pair.value)));
     }
 
     @Test

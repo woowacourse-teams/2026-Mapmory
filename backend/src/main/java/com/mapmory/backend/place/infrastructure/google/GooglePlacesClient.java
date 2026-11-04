@@ -96,8 +96,14 @@ public class GooglePlacesClient implements PlaceLookupPort {
         }
     }
 
+    /**
+     * JDK HttpClient로 고정한다. detect()는 클래스패스에 Apache HttpClient가 있으면 그것을 고르는데,
+     * firebase-admin이 Apache HttpClient를 끌고 와 실제로 Apache가 골라진다. Apache는 read-timeout을 패킷 사이 대기로,
+     * 연결 실패를 자기 예외(ConnectTimeoutException)로 다뤄, 요청 전체 한도와 CONNECT/RESPONSE 구분, 미과금 환불 판정이
+     * 모두 JDK 기준이라 맞지 않는다.
+     */
     static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
-        return ClientHttpRequestFactoryBuilder.detect()
+        return ClientHttpRequestFactoryBuilder.jdk()
                 .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout));
     }
 
