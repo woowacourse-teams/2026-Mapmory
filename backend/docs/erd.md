@@ -224,6 +224,7 @@ erDiagram
 | `name` | `VARCHAR(50)` | NOT NULL | 회원 표시 이름 |
 | `provider` | `VARCHAR(20)` | NULL | `KAKAO` 등 소셜 로그인 제공자 |
 | `provider_id` | `VARCHAR(255)` | NULL | 소셜 제공자가 발급한 회원 식별자 |
+| `purged_at` | `DATETIME` | NULL | 탈퇴·버려진 뒤 회원 데이터를 파기한 시각. 행은 남긴다 |
 | `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 
