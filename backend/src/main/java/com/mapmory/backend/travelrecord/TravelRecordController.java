@@ -53,7 +53,8 @@ public class TravelRecordController {
             @RequestParam(required = false) String districtCode,
             @RequestParam(required = false) @Positive Long tagId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "CREATED_AT_DESC") TravelRecordListOrder orderBy
     ) {
         TravelRecordSummaries summaries = travelRecordService.findAll(
                 member,
@@ -62,7 +63,8 @@ public class TravelRecordController {
                 districtCode,
                 tagId,
                 page,
-                size
+                size,
+                orderBy
         );
         TravelRecordListResponse response = TravelRecordListResponse.from(summaries);
 

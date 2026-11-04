@@ -311,7 +311,9 @@ class TravelRecordControllerTest {
                         300L
                 ))
         );
-        when(travelRecordService.findAll(MEMBER, null, null, null, null, 0, 20))
+        when(travelRecordService.findAll(
+                MEMBER, null, null, null, null, 0, 20, TravelRecordListOrder.CREATED_AT_DESC
+        ))
                 .thenReturn(summaries);
 
         mockMvcWithLoginMember().perform(get("/api/v1/travel-records"))
@@ -319,6 +321,23 @@ class TravelRecordControllerTest {
                 .andExpect(jsonPath("$.data.items[0].thumbnailUrl")
                         .value("https://download.example/mapmory/travel-records/a.jpg"))
                 .andExpect(jsonPath("$.data.items[0].thumbnailUrlExpiresIn").value(300L));
+    }
+
+    @Test
+    void 여행_일지_목록에서_여행_날짜_정렬을_요청한다() throws Exception {
+        when(travelRecordService.findAll(
+                MEMBER, null, null, null, null, 0, 20, TravelRecordListOrder.TRAVEL_DATE_DESC
+        )).thenReturn(new TravelRecordSummaries(
+                new PageImpl<>(List.of(), PageRequest.of(0, 20), 0), Map.of(), Map.of()
+        ));
+
+        mockMvcWithLoginMember().perform(get("/api/v1/travel-records")
+                        .param("orderBy", "TRAVEL_DATE_DESC"))
+                .andExpect(status().isOk());
+
+        verify(travelRecordService).findAll(
+                MEMBER, null, null, null, null, 0, 20, TravelRecordListOrder.TRAVEL_DATE_DESC
+        );
     }
 
     @Test
