@@ -113,6 +113,16 @@ public class PushTokenService {
     }
 
     /**
+     * 회원들의 기기 토큰을 모두 지운다.
+     *
+     * @return 지운 토큰 수
+     */
+    @Transactional
+    public int removeAllOf(Collection<Long> memberIds) {
+        return pushTokenRepository.deleteAllByMemberIdIn(memberIds);
+    }
+
+    /**
      * 해당 푸시 등록이 회원에게 속하는지 확인한다.
      * 없거나 다른 회원의 등록이면 false를 반환한다.
      */

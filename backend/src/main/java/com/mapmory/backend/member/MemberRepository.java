@@ -3,7 +3,9 @@ package com.mapmory.backend.member;
 
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -48,6 +50,10 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             @Param("memberId") Long memberId,
             Pageable pageable
     );
+
+    // 활동 중이 아닌 회원. Member#isActive와 같은 조건이다.
+    @Query("select m.id from Member m where m.id in :ids and (m.withdrawnAt is not null or m.abandonedAt is not null)")
+    Set<Long> findInactiveIdsAmong(@Param("ids") Collection<Long> ids);
 
     long countByProvider(AuthProvider provider);
 
