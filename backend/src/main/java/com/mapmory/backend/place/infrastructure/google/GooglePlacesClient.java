@@ -12,14 +12,19 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.net.ConnectException;
 import java.net.http.HttpConnectTimeoutException;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -54,10 +59,28 @@ public class GooglePlacesClient implements PlaceLookupPort {
     private final CircuitBreaker circuitBreaker;
     private final GooglePlaceMapper mapper = new GooglePlaceMapper();
 
+    /**
+     * Google 호출에만 따로 잰 타임아웃을 건다. 공통 값(spring.http.clients)은 재지 않은 JWKS·애플 호출이 계속 쓴다.
+     * 관측(http.client.requests)은 자동 구성된 Builder에 남아 있어 그대로 기록된다.
+     */
+    @Autowired
     public GooglePlacesClient(
             RestClient.Builder builder,
             @Value("${google.places.base-url:https://places.googleapis.com}") String baseUrl,
             @Value("${google.places.api-key:}") String apiKey,
+            @Value("${google.places.connect-timeout}") Duration connectTimeout,
+            @Value("${google.places.read-timeout}") Duration readTimeout,
+            GoogleRequestLimiter requestLimiter,
+            CircuitBreaker circuitBreaker
+    ) {
+        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout)), baseUrl, apiKey, requestLimiter,
+                circuitBreaker);
+    }
+
+    GooglePlacesClient(
+            RestClient.Builder builder,
+            String baseUrl,
+            String apiKey,
             GoogleRequestLimiter requestLimiter,
             CircuitBreaker circuitBreaker
     ) {
@@ -70,6 +93,11 @@ public class GooglePlacesClient implements PlaceLookupPort {
                     .addKeyValue("event", "GOOGLE_PLACES_NOT_CONFIGURED")
                     .log("GOOGLE_PLACES_API_KEY가 없어 장소 검색과 선택이 실패한다");
         }
+    }
+
+    static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
+        return ClientHttpRequestFactoryBuilder.detect()
+                .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout));
     }
 
     /** 키를 뺀 뒤에는 새 Google 장소를 받지 않도록 제공자 장애로 알린다. */

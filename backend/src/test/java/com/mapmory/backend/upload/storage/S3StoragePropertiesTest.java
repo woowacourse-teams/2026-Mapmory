@@ -22,9 +22,11 @@ class S3StoragePropertiesTest {
                     "upload.storage.s3.region=ap-northeast-2",
                     "upload.storage.s3.key-prefix=mapmory",
                     "upload.storage.s3.signed-url-expiration=PT5M",
-                    "upload.storage.s3.client.attempt-timeout=2s",
-                    "upload.storage.s3.client.total-timeout=6s",
-                    "upload.storage.s3.client.max-attempts=3"
+                    "upload.storage.s3.client.attempt-timeout=1s",
+                    "upload.storage.s3.client.total-timeout=3s",
+                    "upload.storage.s3.client.max-attempts=3",
+                    "upload.storage.s3.client.video-upload-attempt-timeout=10s",
+                    "upload.storage.s3.client.video-upload-total-timeout=30s"
             );
 
     @ParameterizedTest
@@ -86,9 +88,11 @@ class S3StoragePropertiesTest {
                         "upload.storage.s3.bucket=mapmory-test",
                         "upload.storage.s3.region=ap-northeast-2",
                         "upload.storage.s3.signed-url-expiration=PT5M",
-                        "upload.storage.s3.client.attempt-timeout=2s",
-                        "upload.storage.s3.client.total-timeout=6s",
-                        "upload.storage.s3.client.max-attempts=3"
+                        "upload.storage.s3.client.attempt-timeout=1s",
+                        "upload.storage.s3.client.total-timeout=3s",
+                        "upload.storage.s3.client.max-attempts=3",
+                    "upload.storage.s3.client.video-upload-attempt-timeout=10s",
+                    "upload.storage.s3.client.video-upload-total-timeout=30s"
                 )
                 .run(context -> {
                     assertThat(context).hasFailed();
