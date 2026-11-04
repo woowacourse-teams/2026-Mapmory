@@ -49,3 +49,27 @@ jobs:
 
       - name: Test and build
         run: ./gradlew clean build --no-daemon
+
+      - name: Show slowest test classes
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob
+          import xml.etree.ElementTree as ET
+
+          rows = []
+          for path in glob.glob("build/test-results/test/*.xml"):
+              suite = ET.parse(path).getroot()
+              case = suite.find("testcase")
+              name = case.get("classname").rsplit(".", 1)[-1] if case is not None else suite.get("name")
+              rows.append((float(suite.get("time", 0)), int(suite.get("tests", 0)), name))
+          rows.sort(reverse=True)
+          total = sum(r[0] for r in rows)
+          print("### 오래 걸린 테스트 클래스 10개")
+          print(f"전체 {len(rows)}개 클래스, {sum(r[1] for r in rows)}개 테스트, 합계 {total:.0f}초")
+          print()
+          print("| 시간(초) | 테스트 수 | 클래스 |")
+          print("|---:|---:|---|")
+          for seconds, tests, name in rows[:10]:
+              print(f"| {seconds:.1f} | {tests} | `{name}` |")
+          PY
