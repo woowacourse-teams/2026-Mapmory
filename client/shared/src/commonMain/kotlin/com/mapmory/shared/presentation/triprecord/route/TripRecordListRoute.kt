@@ -85,8 +85,8 @@ internal fun TripRecordListRoute(
         backHandlerOwnerId = backHandlerOwnerId,
         photoCollectionLoadState = viewModel.photoCollectionLoadState,
         photoCollectionIndexState = viewModel.photoCollectionIndexState,
-        onLoadPhotoCollection = { locationName ->
-            scope.launch { viewModel.loadPhotoCollection(locationName) }
+        onLoadPhotoCollection = { locationId, locationName ->
+            scope.launch { viewModel.loadPhotoCollection(locationId, locationName) }
         },
         onLoadPhotoCollectionIndex = {
             scope.launch { viewModel.loadPhotoCollectionIndex() }
