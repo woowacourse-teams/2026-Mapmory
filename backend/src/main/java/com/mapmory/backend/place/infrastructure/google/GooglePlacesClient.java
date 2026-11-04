@@ -53,7 +53,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
 
     // Place Details Essentials: 국가와 시·도·시·군·구 판정용 주소 구성요소만 받는다. 좌표와 이름은 받지 않는다.
     // displayName(Pro)을 넣으면 세션을 닫는 상세 조회가 Enterprise + Atmosphere로 과금된다.
-    private static final String FIELD_MASK = "id,addressComponents";
+    private static final String FIELD_MASK = "id,addressComponents,shortFormattedAddress";
     private static final String LANGUAGE = "ko";
 
     private final RestClient restClient;

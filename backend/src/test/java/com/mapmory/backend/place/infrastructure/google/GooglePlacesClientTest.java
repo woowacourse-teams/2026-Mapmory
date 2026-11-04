@@ -113,7 +113,7 @@ class GooglePlacesClientTest {
     void 선택_조회는_같은_세션_토큰으로_주소_구성요소만_받는다() {
         server.expect(requestToUriTemplate(BASE_URL + "/v1/places/{id}?languageCode=ko&sessionToken=session-1",
                         "ChIJ-gyeong"))
-                .andExpect(header("X-Goog-FieldMask", "id,addressComponents"))
+                .andExpect(header("X-Goog-FieldMask", "id,addressComponents,shortFormattedAddress"))
                 .andRespond(withSuccess("""
                         {"id":"ChIJ-gyeong",
                          "addressComponents":[
@@ -132,7 +132,7 @@ class GooglePlacesClientTest {
     @Test
     void 지역을_정하는_조회는_Essentials_필드만_요청해_이름과_좌표를_받지_않는다() {
         server.expect(requestToUriTemplate(BASE_URL + "/v1/places/{id}?languageCode=ko", "ChIJ-bundang"))
-                .andExpect(header("X-Goog-FieldMask", "id,addressComponents"))
+                .andExpect(header("X-Goog-FieldMask", "id,addressComponents,shortFormattedAddress"))
                 .andRespond(withSuccess("""
                         {"id":"ChIJ-bundang","addressComponents":[
                            {"longText":"분당구","types":["sublocality_level_1","sublocality","political"]},
@@ -159,6 +159,33 @@ class GooglePlacesClientTest {
     @Test
     void API_키를_뺀_뒤에는_Google_장소를_기록에_붙이지_않는다() {
         assertError(() -> unconfiguredClient().provider(), "PLACE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
+    void 구성요소에_국가가_없으면_짧은_주소의_낱말로_지역_이름을_보충한다() {
+        // Google 독도리 상세(2026-11-04 확인): 구성요소는 "독도리"뿐, 짧은 주소는 "울릉군 울릉읍 독도리"다.
+        server.expect(queryParam("languageCode", "ko"))
+                .andRespond(withSuccess("""
+                        {"id":"ChIJ-dokdo","shortFormattedAddress":"울릉군 울릉읍 독도리","addressComponents":[
+                           {"longText":"독도리","shortText":"독도리","types":["sublocality_level_3","sublocality","political"]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findDetails(PlaceId.from("ChIJ-dokdo"), null).address())
+                .isEqualTo(new RegionAddress(null, null, List.of("울릉군", "울릉읍", "독도리")));
+    }
+
+    @Test
+    void 구성요소에_국가가_있으면_짧은_주소를_쓰지_않는다() {
+        server.expect(queryParam("languageCode", "ko"))
+                .andRespond(withSuccess("""
+                        {"id":"ChIJ-daecheon","shortFormattedAddress":"보령시 신흑동 대천해수욕장","addressComponents":[
+                           {"longText":"대천해수욕장","types":["beach","natural_feature","establishment"]},
+                           {"longText":"보령시","types":["locality","political"]},
+                           {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findDetails(PlaceId.from("ChIJ-daecheon"), null).address())
+                .isEqualTo(new RegionAddress("KR", null, List.of("보령시")));
     }
 
     @Test
