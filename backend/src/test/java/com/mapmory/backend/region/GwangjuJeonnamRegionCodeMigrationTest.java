@@ -3,14 +3,13 @@ package com.mapmory.backend.region;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.support.MigrationTestDatabase;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
 
 @DisplayName("광주·전남 Region 코드 복원 마이그레이션")
 class GwangjuJeonnamRegionCodeMigrationTest {
@@ -48,11 +47,10 @@ class GwangjuJeonnamRegionCodeMigrationTest {
     @Test
     @DisplayName("Region ID와 기존 여행 기록을 보존하며 27개 코드를 변경한다")
     void restoresCanonicalCodesWithoutChangingRegionIds() {
-        try (MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")) {
-            mysql.start();
+        try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateToVersion18(mysql);
 
-            JdbcTemplate jdbcTemplate = jdbcTemplate(mysql);
+            JdbcTemplate jdbcTemplate = mysql.jdbcTemplate();
             long memberId = insertMember(jdbcTemplate);
             long gwangjuRegionId = findRegionId(jdbcTemplate, "12210");
             long jeonnamRegionId = findRegionId(jdbcTemplate, "12110");
@@ -73,7 +71,7 @@ class GwangjuJeonnamRegionCodeMigrationTest {
         }
     }
 
-    private void migrateToVersion18(MySQLContainer<?> mysql) {
+    private void migrateToVersion18(MigrationTestDatabase mysql) {
         Flyway.configure()
                 .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
                 .locations("classpath:db/migration")
@@ -82,21 +80,12 @@ class GwangjuJeonnamRegionCodeMigrationTest {
                 .migrate();
     }
 
-    private void migrateAll(MySQLContainer<?> mysql) {
+    private void migrateAll(MigrationTestDatabase mysql) {
         Flyway.configure()
                 .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
                 .locations("classpath:db/migration")
                 .load()
                 .migrate();
-    }
-
-    private JdbcTemplate jdbcTemplate(MySQLContainer<?> mysql) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(
-                mysql.getJdbcUrl(),
-                mysql.getUsername(),
-                mysql.getPassword()
-        );
-        return new JdbcTemplate(dataSource);
     }
 
     private long insertMember(JdbcTemplate jdbcTemplate) {
