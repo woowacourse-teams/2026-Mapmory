@@ -207,6 +207,45 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 두_단계_이전_refresh로_로그아웃해도_그_세션의_최신_refresh까지_폐기한다() throws Exception {
+        String first = login(300_009L);
+        String second = refresh(first);
+        String latest = refresh(second);
+
+        logout(first);
+
+        mockMvc.perform(refreshRequest(latest))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 로그아웃은_그_세션만_폐기하고_다른_기기의_세션은_남긴다() throws Exception {
+        String loggedOut = login(300_010L);
+        String otherDevice = login(300_010L);
+
+        logout(refresh(loggedOut));
+
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 재사용으로_탈취를_감지하면_그_세션만_폐기하고_다른_기기의_세션은_남긴다() throws Exception {
+        String stolen = login(300_011L);
+        String otherDevice = login(300_011L);
+        String latest = refresh(stolen);
+
+        mockMvc.perform(refreshRequest(stolen))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(refreshRequest(latest))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void 로그아웃과_재발급이_겹쳐도_로그아웃_뒤_쓸_수_있는_refresh가_남지_않는다() throws Exception {
         // 로그아웃이 회전 커밋 전에 읽은 값으로 덮어쓰면, 회전으로 나간 후속 토큰이 살아남는다. (#462)
         // 겹치는 순간이 매번 생기지는 않으므로 여러 번 시도한다.

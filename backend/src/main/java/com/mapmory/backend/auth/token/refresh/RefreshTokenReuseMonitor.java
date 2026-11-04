@@ -29,7 +29,7 @@ class RefreshTokenReuseMonitor {
     }
 
     /**
-     * 탈취로 보고 회원의 refresh를 모두 폐기했다.
+     * 탈취로 보고 그 세션의 refresh를 모두 폐기했다. (#467)
      *
      * successorUnused가 true면 후속 토큰을 아무도 쓰지 않았다. 소셜 회원이라면 회전 응답 유실로 강제 로그아웃됐을 가능성이 크다.
      */
@@ -37,7 +37,7 @@ class RefreshTokenReuseMonitor {
         withContext(log.atWarn(), reused)
                 .addKeyValue("event", "REFRESH_TOKEN_REUSE_DETECTED")
                 .addKeyValue("successorUnused", successorUnused)
-                .log("폐기된 refresh 토큰이 다시 와 회원의 refresh를 모두 폐기했다");
+                .log("회전된 refresh 토큰이 다시 와 그 세션의 refresh를 모두 폐기했다");
         count(Outcome.REVOKED_ALL, reused.getMember());
     }
 

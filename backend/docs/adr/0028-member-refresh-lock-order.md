@@ -2,7 +2,7 @@
 
 - 상태: 채택
 - 날짜: 2026-11-03
-- 관련: #574, #579, ADR 0021, ADR 0023
+- 관련: #574, #579, #467, ADR 0021, ADR 0023
 
 ## 문제
 
@@ -28,17 +28,18 @@
 
 - **회원을 바꾸는 흐름**(승격·버림·탈퇴)은 회원을 `FOR UPDATE`(`MemberRepository#findByIdForUpdate`)로 잠근다.
 - **회원을 읽기만 하는 흐름**(refresh 회전)은 회원을 `FOR SHARE`(`MemberRepository#findByIdForShare`)로 잠근다. 같은 회원의 회전끼리는 서로 막지 않는다.
-- refresh 행끼리는 **제시된 토큰 → 후속 토큰** 순서로 잠근다(ADR 0023, #462).
-- 회원 행을 건드리지 않고 refresh 행만 잠그는 흐름은 회원을 잠그지 않아도 된다. 로그아웃(`RefreshTokenService#revoke`)은 refresh를 UPDATE만 하고 INSERT하지 않으므로 회원 잠금이 생기지 않는다.
+- refresh 토큰을 다루는 흐름(회전·재사용 판정·로그아웃)은 회원 다음에 **세션(`refresh_token_family`) 행을 `FOR UPDATE`로 잠근 뒤** 토큰을 잠근다(#467). 순서는 **회원 → 세션 → refresh**다.
+  같은 세션의 작업은 세션 행에서 직렬화되므로, 그 안에서 토큰을 어떤 순서로 잠그든(제시 토큰 → 후속 토큰, 세션 일괄 UPDATE) 엇갈리지 않는다. 다른 세션끼리는 서로 막지 않는다.
+- 로그아웃은 회원 행을 바꾸지 않지만 회원을 `FOR SHARE`로 먼저 잠근다. 승격·탈퇴가 회원을 쥔 채 회원의 refresh를 일괄 폐기하므로 순서를 맞춘다.
 
 | 흐름 | 회원 | refresh |
 |---|---|---|
 | 게스트 승격·버림 (`MemberJoinService#findGuest`) | `FOR UPDATE` | 일괄 폐기 |
 | 소셜 로그인의 기존 회원 확인 (`MemberJoinService#findRegistered`) | 기존 회원 `FOR SHARE` (게스트 다음) | 기존 회원에게 새 토큰 INSERT |
 | 탈퇴 (`MemberService#withdraw`, `#withdrawUnlinked`) | `FOR UPDATE` | 일괄 폐기 |
-| refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 제시 토큰 `FOR UPDATE` → 후속 토큰 `FOR UPDATE`, 새 토큰 INSERT |
-| 로그아웃 (`RefreshTokenService#revoke`) | 잠그지 않음 | 제시 토큰 `FOR UPDATE` → 후속 토큰 `FOR UPDATE` |
-| 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 제시 토큰 `FOR UPDATE` → 후속 토큰 `FOR UPDATE` → **회원의 refresh 전체 일괄 UPDATE** (아래 예외) |
+| refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 `FOR UPDATE` → 새 토큰 INSERT |
+| 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 → 후속 토큰 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
+| 로그아웃 (`RefreshTokenService#revoke`) | `FOR SHARE` | 세션 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
 
 ### 예외: 재사용 판정의 일괄 폐기는 refresh끼리의 순서를 따르지 않는다
 
@@ -59,10 +60,16 @@
 피해자와 탈취자가 서로 다른 회전된 토큰으로 동시에 재사용해도 같은 순환이 생길 수 있다. 이 경우는 코드 분석이며 재현하지 않았다.
 탈취 판정이라는 드문 경로와 겹쳐야 하므로 지금은 두고, 세션(계열) 단위 폐기로 바꿀 때(#467) 함께 정리한다.
 
-### 회전은 회원 id를 잠그지 않는 조회로 먼저 얻는다
+> 2026-11-04 구현 업데이트(#467): 해소했다. 회전·재사용 판정·로그아웃이 토큰보다 세션(`refresh_token_family`) 행을 먼저
+> `FOR UPDATE`로 잠가, 같은 세션의 작업이 세션 행에서 직렬화된다. 일괄 폐기도 회원 전체가 아니라 그 세션만 대상으로 한다.
+> 위 시나리오를 100회 동시에 출발시키는 `LogoutReuseConcurrencyIntegrationTest`는 확인할 때 수정 전 코드에서 데드락으로 실패했고, 수정 후 통과한다.
+> 데드락이 드물어 수정 전 코드에서 매번 실패하지는 않는다.
 
-회전은 토큰 원문만 받으므로 회원 id를 모른다. `RefreshTokenRepository#findMemberIdByTokenHash`로 회원 id를 읽고, 회원을 공유 잠금한 뒤 refresh를 `FOR UPDATE`로 다시 읽는다.
-첫 조회가 REPEATABLE READ 스냅샷을 만들지만, 뒤의 두 조회는 잠금 조회라 최신 커밋을 읽는다. 폐기 여부와 회원 상태는 잠근 뒤의 값으로 판단한다.
+### 회전·로그아웃은 회원·세션 id를 잠그지 않는 조회로 먼저 얻는다
+
+회전·로그아웃은 토큰 원문만 받으므로 회원과 세션 id를 모른다. `RefreshTokenRepository#findOwnerByTokenHash`로 두 id를 읽고(#467 전에는 `findMemberIdByTokenHash`로 회원 id만),
+회원을 공유 잠금하고 세션을 잠근 뒤 refresh를 `FOR UPDATE`로 다시 읽는다.
+첫 조회가 REPEATABLE READ 스냅샷을 만들지만, 뒤의 조회는 모두 잠금 조회라 최신 커밋을 읽는다. 폐기 여부와 회원 상태는 잠근 뒤의 값으로 판단한다.
 
 ### 새 흐름을 추가할 때
 
@@ -128,8 +135,8 @@
 ## 검증
 
 - `GuestPromotionRefreshIntegrationTest`: 게스트의 refresh 갱신과 승격, 갱신과 버림을 각각 20회 동시에 보내도 데드락이 없다. 버림은 게스트와 기존 회원 두 행을 잠그는 유일한 흐름이라 따로 본다.
-- 로그아웃은 회원을 잠그지 않고 refresh를 INSERT하지 않아 회원 잠금을 기다릴 일이 없으므로, **회원 잠금에 대해서는** 동시성 테스트를 두지 않는다.
-  로그아웃에 회원 잠금이나 INSERT가 생기면 테스트를 추가한다. refresh 행끼리는 위 "예외"의 데드락 가능성이 있으며, 이는 #467에서 다룬다.
+- `LogoutReuseConcurrencyIntegrationTest`: 같은 세션의 로그아웃(P)과 재사용 판정(R)을 100회 동시에 보내도 데드락이 없고, 세션의 최신 refresh가 남지 않는다(#467).
+  수정 전에도 데드락은 드물어(동시 출발 300회 중 1~4회) 이 테스트가 매번 실패하지는 않는다. 회귀를 막는 안전망이다.
 - `SocialLoginDuringWithdrawalIntegrationTest`: 기존 회원의 탈퇴와 같은 소셜 계정의 로그인(게스트 있음·없음)을 각각 30회 겹쳐도 탈퇴한 회원에게 쓸 수 있는 refresh가 남지 않고, 버려지지 않은 게스트는 승격된다(#584).
 - `WithdrawalRefreshRotationIntegrationTest`: 탈퇴와 refresh 갱신을 20회 동시에 보내도 데드락이 없고, 쓸 수 있는 refresh가 남지 않는다.
 - SQL 로그에서 회전은 `select member_id …` → `… from member … for share of m1_0` → `… from refresh_token … for update of rt1_0` 순서로 나간다.

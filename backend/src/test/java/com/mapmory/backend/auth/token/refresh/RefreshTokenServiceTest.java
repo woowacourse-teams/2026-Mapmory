@@ -34,6 +34,7 @@ class RefreshTokenServiceTest {
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final RefreshTokenService refreshTokenService = new RefreshTokenService(
             refreshTokenRepository,
+            mock(RefreshTokenFamilyRepository.class),
             mock(MemberRepository.class),
             new SecureRandomRefreshTokenGenerator(),
             new Sha256RefreshTokenHasher(),

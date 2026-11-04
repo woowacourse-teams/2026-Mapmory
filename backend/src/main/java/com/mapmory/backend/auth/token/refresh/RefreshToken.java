@@ -19,6 +19,7 @@ import org.hibernate.annotations.CreationTimestamp;
  * 원문은 클라이언트에만 두고, 서버는 해시(tokenHash)만 저장한다.
  * 회전(rotation) 시 기존 토큰을 revoke하고 새 토큰을 발급하며, 로그아웃 시에도 revoke한다.
  * 회전으로 폐기된 토큰은 후속 토큰의 id(replacedById)를 남긴다. (ADR 0023)
+ * 로그인 한 번에서 회전으로 이어진 토큰은 같은 세션(family)에 속한다. (#467)
  */
 @Entity
 @Table(name = "refresh_token")
@@ -31,6 +32,10 @@ public class RefreshToken {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "family_id", nullable = false)
+    private RefreshTokenFamily family;
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
@@ -51,14 +56,18 @@ public class RefreshToken {
     protected RefreshToken() {
     }
 
-    private RefreshToken(Member member, String tokenHash, LocalDateTime expiresAt) {
+    private RefreshToken(RefreshTokenFamily family, Member member, String tokenHash, LocalDateTime expiresAt) {
+        this.family = family;
         this.member = member;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
     }
 
-    public static RefreshToken issue(Member member, String tokenHash, LocalDateTime expiresAt) {
-        return new RefreshToken(member, tokenHash, expiresAt);
+    /**
+     * 세션에 새 토큰을 발급한다. 로그인이면 새 세션, 회전·재발급이면 이전 토큰의 세션이다.
+     */
+    public static RefreshToken issue(RefreshTokenFamily family, Member member, String tokenHash, LocalDateTime expiresAt) {
+        return new RefreshToken(family, member, tokenHash, expiresAt);
     }
 
     public boolean isRevoked() {
@@ -121,5 +130,9 @@ public class RefreshToken {
 
     public Member getMember() {
         return member;
+    }
+
+    public RefreshTokenFamily getFamily() {
+        return family;
     }
 }
