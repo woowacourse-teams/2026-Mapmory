@@ -79,6 +79,13 @@
 - Motion: 현재 정적 시안만 정의한다. 실제 구현 시에는 전환과 선택 상태에 짧고 절제된 모션만 사용한다.
 - Imagery/iconography: 온보딩은 실제 앱 화면 캡처를 우선 사용해 사용자가 도착할 화면을 이해하게 한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
 
+## Color theme variants
+
+- Appearance (`라이트 모드` / `다크 모드`) and color family are independent preferences.
+- `맵모리 그린` is the default family. `오션 블루` uses the same layouts and component hierarchy, with blue accents and coordinated map fills in both light and dark modes.
+- The blue family uses `#2876C7` as its light-mode primary and `#56B3F2` as its dark-mode primary. Page and surface colors remain quiet so the map and travel photos stay prominent.
+- App colors belong in `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`, and `TripKoreaMapPalette`. Statistics share cards follow the selected theme. Intentional photo editorial share artwork keeps its own art-directed colors.
+
 ## Components
 
 - Existing components to reuse:
@@ -130,7 +137,7 @@
 ## Implementation constraints
 
 - Framework/styling system: Compose Multiplatform 공통 UI. HTML/CSS 파일은 Figma 반입과 화면 시안 검토용 산출물이다.
-- Design-token constraints: 색상은 `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`를 기준으로 한다. 화면별 팔레트 값은 기존 앱 UI와의 호환을 위해 유지하며, 새 화면은 해당 토큰을 재사용한다.
+- Design-token constraints: 색상은 `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`, `TripKoreaMapPalette`를 기준으로 한다. 화면별 팔레트 값은 기존 앱 UI와의 호환을 위해 유지하며, 새 화면은 해당 토큰을 재사용한다.
 - Performance constraints: 지도는 외부 지도 SDK에 의존하지 않는 방향을 유지한다. 대용량 이미지는 시안 외 실제 앱 UI에 무분별하게 넣지 않는다.
 - Compatibility constraints: Android minSdk 28, iOS deployment target 16.0을 기준으로 한다.
 - Test/screenshot expectations: 기록·상세·작성·지도 화면의 다크 모드 대비와 선택 상태를 프리뷰 또는 에뮬레이터에서 확인한다.

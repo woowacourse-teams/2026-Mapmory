@@ -55,13 +55,21 @@ fun MapmoryApp(
     var isDarkTheme by remember(themePreference) {
         mutableStateOf(themePreference.loadIsDarkTheme())
     }
+    var colorTheme by remember(themePreference) {
+        mutableStateOf(themePreference.loadColorTheme())
+    }
     val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
     LaunchedEffect(themePreference) {
         latestOnThemeChanged(isDarkTheme)
     }
-    val themeState = remember(isDarkTheme, themePreference) {
+    val themeState = remember(isDarkTheme, colorTheme, themePreference) {
         MapmoryThemeState(
             isDark = isDarkTheme,
+            colorTheme = colorTheme,
+            onColorThemeChange = { selectedTheme ->
+                colorTheme = selectedTheme
+                themePreference.saveColorTheme(selectedTheme)
+            },
             onThemeChange = { shouldUseDarkTheme ->
                 isDarkTheme = shouldUseDarkTheme
                 themePreference.saveIsDarkTheme(shouldUseDarkTheme)
@@ -128,7 +136,7 @@ fun MapmoryApp(
         LocalMapmoryAnalytics provides analytics,
         LocalTeamDevice provides teamDeviceState,
     ) {
-        ProvideTripRecordPalettes(isDark = isDarkTheme) {
+        ProvideTripRecordPalettes(isDark = isDarkTheme, colorTheme = colorTheme) {
             MaterialTheme(typography = MapmoryTypography()) {
                 if (showSplash || updateState?.isChecking == true) {
                     MapmorySplashScreen(contentWindowInsets = contentWindowInsets)

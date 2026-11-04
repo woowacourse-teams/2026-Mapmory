@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
-import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
 import com.mapmory.shared.presentation.map.data.GeneratedKoreaMapData
 import com.mapmory.shared.presentation.map.data.OverviewDistrictData
@@ -53,6 +52,8 @@ import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
+import com.mapmory.shared.presentation.triprecord.screen.TripKoreaMapPalette
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -81,7 +82,7 @@ fun KoreaMapArtwork(
     var zoom by rememberSaveable(regions, isProvinceOverview) {
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
-    val isDark = LocalMapmoryTheme.current.isDark
+    val mapColors = TripKoreaMapPalette.current
     val baseLabelFontSize = when {
         isProvinceOverview -> 6f
         regions.size >= 35 -> 8f
@@ -89,20 +90,14 @@ fun KoreaMapArtwork(
         else -> 11f
     }
     val labelStyle = TextStyle(
-        color = if (isProvinceOverview) {
-            if (isDark) Color(0xFFE0E9E2) else Color(0xFF34443A)
-        } else if (isDark) {
-            Color(0xFF7085A8)
-        } else {
-            Color(0xFF6B786F)
-        },
+        color = if (isProvinceOverview) mapColors.provinceLabelText else mapColors.labelText,
         fontSize = (baseLabelFontSize * koreaMapLabelZoomScale(zoom)).sp,
         fontWeight = FontWeight.Bold,
     )
     val overviewDistrictLabelStyle = labelStyle.copy(
-        color = if (isDark) Color(0xFFAAB6AD) else Color(0xFF5D6E62),
+        color = mapColors.districtOverviewLabelText,
     )
-    val visitedOverviewLabelColor = if (isDark) Color(0xFFE0E9E2) else Color(0xFF07170F)
+    val visitedOverviewLabelColor = mapColors.visitedOverviewLabelText
     val labelHitPadding = with(LocalDensity.current) {
         (if (isProvinceOverview) 4.dp else 12.dp).toPx()
     }
@@ -248,21 +243,19 @@ fun KoreaMapArtwork(
         )
         lastLocationFocusRequest = currentLocationFocusRequest
     }
-    val backgroundColor = if (isDark) Color(0xFF121518) else Color(0xFFFAFCFB)
-    val visitedFillColor = if (isDark) Color(0xFF35C987) else Color(0xFF4D9272)
-    val unvisitedFillColor = if (isDark) Color(0xFF1B2536) else Color(0xFFE7EFE9)
-    val visitedOutlineColor = if (isDark) {
-        Color(0xFF8AEBC1).copy(alpha = 0.60f)
-    } else {
-        Color(0xFF2F7659).copy(alpha = 0.50f)
-    }
-    val unvisitedOutlineColor = (if (isDark) Color(0xFF65738A) else Color(0xFFA7B9AC)).copy(alpha = 0.70f)
-    val overviewDistrictOutlineColor = (if (isDark) Color(0xFF36453D) else Color(0xFFBECAC1)).copy(alpha = 0.70f)
-    val overviewProvinceOutlineColor = (if (isDark) Color(0xFF9AAFA0) else Color(0xFF526157)).copy(alpha = 0.70f)
+    val backgroundColor = mapColors.background
+    val visitedFillColor = mapColors.visitedFill
+    val unvisitedFillColor = mapColors.unvisitedFill
+    val visitedOutlineColor = mapColors.visitedOutline
+    val unvisitedOutlineColor = mapColors.unvisitedOutline
+    val overviewDistrictOutlineColor = mapColors.overviewDistrictOutline
+    val overviewProvinceOutlineColor = mapColors.overviewProvinceOutline
     val preparedLabels = remember(
         displayedRegions,
         projection,
         labelStyle,
+        overviewDistrictLabelStyle,
+        visitedOverviewLabelColor,
         showRegionLabels,
         isProvinceOverview,
         overviewData,
@@ -318,7 +311,14 @@ fun KoreaMapArtwork(
                 PreparedKoreaLabel(
                     code = region.code,
                     center = projection.project(labelPoint),
-                    layout = textMeasurer.measure(region.name, labelStyle),
+                    layout = textMeasurer.measure(
+                        region.name,
+                        if (region.code in visitedRegionCodes) {
+                            labelStyle.copy(color = visitedOverviewLabelColor)
+                        } else {
+                            labelStyle
+                        },
+                    ),
                 )
             }
         }
@@ -529,13 +529,13 @@ fun KoreaMapArtwork(
                 bottom = labelCenter.y + label.layout.size.height / 2f + labelVerticalPadding,
             )
             drawRoundRect(
-                color = if (isDark) Color(0xFF121B18).copy(alpha = 0.94f) else Color(0xFFF9FCFA).copy(alpha = 0.96f),
+                color = mapColors.labelBackground,
                 topLeft = labelBounds.topLeft,
                 size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
             )
             drawRoundRect(
-                color = if (isDark) Color(0xFF3D6653) else Color(0xFFD5E2D9),
+                color = mapColors.labelBorder,
                 topLeft = labelBounds.topLeft,
                 size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
@@ -660,7 +660,7 @@ fun KoreaMapStatusMessage(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF111518)),
+            .background(TripRecordPalette.current.pageBackground),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
         Column(
@@ -668,7 +668,7 @@ fun KoreaMapStatusMessage(
             horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(text = message, color = Color(0xFFEAF7F1))
+            Text(text = message, color = TripRecordPalette.current.headingText)
             actionLabel?.let {
                 Button(onClick = onAction) { Text(it) }
             }

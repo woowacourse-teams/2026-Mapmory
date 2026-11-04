@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -25,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +35,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapmory.shared.MapmoryColorTheme
 import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.LocalTeamDevice
 import com.mapmory.shared.PrivacyPolicy
@@ -132,6 +136,44 @@ internal fun TripSettingsScreen(
                                     mapOf("theme" to "dark"),
                                 )
                                 theme.onThemeChange(true)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Text(
+                        text = "강조 색상",
+                        color = TripRecordPalette.current.bodyText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ThemeOption(
+                            label = "맵모리 그린",
+                            selected = theme.colorTheme == MapmoryColorTheme.GREEN,
+                            swatch = Color(0xFF4D9272),
+                            onClick = {
+                                analytics.logEvent(
+                                    MapmoryAnalyticsEvent.THEME_CHANGED,
+                                    mapOf("color_theme" to "green"),
+                                )
+                                theme.onColorThemeChange(MapmoryColorTheme.GREEN)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ThemeOption(
+                            label = "오션 블루",
+                            selected = theme.colorTheme == MapmoryColorTheme.BLUE,
+                            swatch = Color(0xFF2876C7),
+                            onClick = {
+                                analytics.logEvent(
+                                    MapmoryAnalyticsEvent.THEME_CHANGED,
+                                    mapOf("color_theme" to "blue"),
+                                )
+                                theme.onColorThemeChange(MapmoryColorTheme.BLUE)
                             },
                             modifier = Modifier.weight(1f),
                         )
@@ -264,6 +306,7 @@ private fun SettingsAction(
 private fun ThemeOption(
     label: String,
     selected: Boolean,
+    swatch: Color? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -281,6 +324,12 @@ private fun ThemeOption(
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        swatch?.let {
+            androidx.compose.foundation.layout.Box(
+                Modifier.size(14.dp).background(it, CircleShape),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         Text(
             text = label,
             color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.bodyText,
