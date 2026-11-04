@@ -25,10 +25,7 @@ public class RegionSuggester {
     public Optional<Region> suggest(RegionAddress address) {
         String countryCode = address.countryCode();
         if (countryCode == null) {
-            if (address.subAreas().isEmpty()) {
-                return Optional.empty();
-            }
-            return addressRegionMatcher.match(address);
+            return address.hasAreaNames() ? addressRegionMatcher.match(address) : Optional.empty();
         }
 
         if (!Region.KOREA.equals(countryCode)) {
