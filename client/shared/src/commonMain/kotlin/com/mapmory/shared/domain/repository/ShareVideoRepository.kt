@@ -2,9 +2,10 @@ package com.mapmory.shared.domain.repository
 
 import com.mapmory.shared.domain.model.ShareVideoDownload
 import com.mapmory.shared.domain.model.ShareVideoJob
+import com.mapmory.shared.domain.model.ShareVideoStyle
 
 interface ShareVideoRepository {
-    suspend fun createTravelTimeline(): Result<ShareVideoJob>
+    suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob>
 
     suspend fun getJob(jobId: Long): Result<ShareVideoJob>
 

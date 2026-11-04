@@ -160,6 +160,62 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 
 작업 ID·회원 ID·파일 경로·다운로드 URL·여행 내용은 이벤트 파라미터로 전송하지 않는다. 기존 플랫폼 Firebase 수집 활성화 설정을 따르며, Debug/Internal에서의 실제 수신은 별도 확인해야 한다.
 
+## 소셜 제공자 인증 계측 (2026-10-23)
+
+설정의 계정 연결 패널에 Google/Kakao/Apple 제공자 인증을 계측한다. 현재 맵모리 계정 교환 API는 미연결이므로 이 성공을 계정 로그인/게스트 승격 완료로 해석하지 않는다.
+
+| 이벤트 | 발생 지점·필드 |
+| --- | --- |
+| `social_login_viewed` | 실제 launcher가 있는 패널 진입당 1회. 재구성 중복 제외. |
+| `social_login_started` | 활성 제공자 버튼을 눌러 launcher를 호출할 때. `provider=google/kakao/apple`. 진행 중 추가 탭은 차단한다. |
+| `social_login_completed` | SDK 결과 콜백 또는 동기 예외. `provider`, `outcome=success/cancelled/failure`, `duration_ms`. 인증 시도당 최초 결과만 수집한다. 재시도는 새 시도다. |
+| 기존 `app_error` | SDK 실패 결과는 `operation=social_provider_auth`, `error_type=provider_failure`, `error_category=unknown`, `owner_hint=undetermined`. SDK 경계가 메시지만 제공하므로 실패 원인을 임의 추정하지 않는다. 동기 Exception은 기존 오류 분류로 실제 타입을 기록한다. |
+
+공통 문맥은 `source=settings`, `stage=provider_auth`, `account_linked=false`, `event_schema_version=2`다. `success`는 제공자 인증 증명 획득만 의미하며 기존 로그인 완료 이벤트를 추가 발행하지 않는다. 사용자 취소와 CancellationException은 cancelled 결과이며 app_error를 만들지 않는다. 원래 Exception/취소 전파를 유지하고 logger 실패는 인증 결과를 바꾸지 않는다.
+
+콜백 결과는 화면이 닫힌 뒤 도착해도 기록한다. UI 갱신 여부는 기존 패널 생명주기 조건을 따른다. 중복 SDK 콜백은 결과·오류·UI 전달 모두 한 번만 처리한다. 패널 재구성으로 인증을 재실행하지 않는다.
+
+토큰·authorization code·nonce·소셜 이름·이메일·SDK 오류 메시지·URL·credential 원문은 수집하지 않는다. 제공자 SDK 내부에서만 발생하고 콜백으로 전달되지 않는 예외, 프로세스 종료로 영영 도착하지 않는 결과는 이 계측에서 수집할 수 없다. 따라서 started와 completed의 차이를 모두 인증 실패로 간주하면 안 된다.
+
+실제 Firebase DebugView 수신, 제공자 콘솔 설정, GA4 맞춤 정의, 실제 계정 인증과 서버 교환 검증은 별도다. 기존 Debug/Internal의 수집 설정은 유지한다.
+
+## 그룹 탭 실제 계정 로그인
+
+그룹 로그인 연결은 [인증 설계 및 오류 복구](auth/group-social-login.md)를 따른다. 기존 `social_login_*`는 제공자 인증 의미를 유지하고 `source=group_tab`을 전달한다. `auth_login_started/completed`는 맵모리 계정 전환을 별도로 측정한다. `login(method)`는 서버 교환·기기 저장·회원 확인·캐시 전환이 끝난 사용자 로그인에서만 발행하며 자동 복원/그룹 목록 재시도에서는 발행하지 않는다. `auth_login_completed`의 `pending`은 서버 반영 여부 또는 로컬 저장/확인 미완료를 뜻하고 확정 실패율과 구분한다. 그룹 목록은 `group_list_loaded(execution_mode=live, outcome=success/failure/login_required)`로 측정한다. 정책 차단·정상 취소는 `app_error`에서 제외한다. 새 이벤트에는 제공자 증명·토큰·회원/그룹 식별자·이름·원본 오류 메시지를 포함하지 않는다. 기존 미리보기 지표와 운영 목록 지표를 합산하지 않는다.
+
+### 계정 로그아웃
+
+| 이벤트 | 시점 | 필드 |
+| --- | --- | --- |
+| `auth_logout_completed` | 명시적 로그아웃 또는 복구 재시도 결과 | source=settings, provider, outcome, stage, duration_ms |
+| `logout` | 서버 폐기와 기기 토큰·캐시 정리 완료 | source=settings, provider |
+
+표식 저장 실패/통신 실패/삭제 실패는 로그아웃 성공으로 처리하지 않는다. 취소는 서버 요청과 logout 이벤트를 발생시키지 않는다. 실제 토큰·회원명·이메일·원본 오류 메시지는 수집하지 않는다.
+
+## 그룹 미리보기 행동·오류 계측 (2026-10-23)
+
+현재 그룹 화면의 54개 행동, 화면/시트 표시, 정책 거절, 실제 Exception을 추가했다. 상세 콜백 목록과 제외 범위는 [그룹 계측 점검표](design/group-analytics-coverage.md)에 있다.
+
+- 신규 이벤트: `group_action(action)`, `group_viewed`, `group_action_rejected(reason)`, `group_preview_result(outcome)`.
+- 모든 신규 그룹 이벤트는 `execution_mode=preview/unavailable`, `data_origin=sample`로 구분한다. 샘플 성공·실패를 기존 기록 저장 성공·삭제 성공·운영 작업 실패 이벤트로 발행하지 않는다.
+- 그룹 행동·삭제 준비·입력 갱신·상태 저장/복원의 실제 Exception은 기존 `app_error` 계약에 `feature=group`, 화면·행동·실행 모드 문맥을 추가한다. 기존 호출의 파라미터는 변하지 않는다.
+- 취소와 정책 거절은 앱 오류로 집계하지 않는다. 이미지 표시 실패와 하단 탭 클릭은 기존 공통 이벤트를 재사용하며 중복 발행하지 않는다.
+- 그룹/회원/기록/사진 식별자와 입력값·예외 메시지는 전송하지 않는다. 기존 기록 이벤트의 record_id 계약은 유지한다.
+- 수신/GA4 맞춤 정의 등록은 별도다. 새 필드가 필요하면 `action`, `screen`, `overlay`, `execution_mode`, `data_origin`, `stage`, `target_type`, `input_type`, `reason`, `feature`를 분석 목적에 맞게 등록한다.
+
+## 여행 기록 한 건 공유 (Android/iOS 공통)
+
+| 이벤트 | 파라미터 | 의미 |
+| --- | --- | --- |
+| `record_share_preview_opened` | 없음 | 기록 한 건의 공유 미리보기가 표시됨 |
+| `record_share_action` | `action=save_image/share_sheet`, `outcome=started/success/failure/cancelled` | 공유 이미지 저장 또는 시스템 공유 화면 열기 시도와 결과 |
+
+`save_image`의 성공은 사진 보관함 저장 완료를 뜻한다. `share_sheet`의 성공은 플랫폼 공유 UI 표시 요청이 반환된 것을 뜻하며, 다른 앱에서 실제로 공유·게시됐거나 사용자가 공유를 완료했다는 뜻은 아니다. `cancelled`는 코루틴 취소만 의미하며 시스템 공유 화면을 닫은 사용자 행동을 나타내지 않는다.
+
+기록 ID, 제목, 장소, 사진·파일 경로, 공유 대상 앱은 이벤트에 포함하지 않는다. 기록별 공유 동작은 공통 Compose 흐름에서 계측하므로 Android와 iOS가 같은 이벤트 계약을 사용한다.
+
+`record_share_action`은 버튼 클릭부터 이미지 캡처와 저장·공유 시트 호출까지 한 번의 전체 시도를 나타낸다. `share_media_operation_*`은 이미지 캡처, 저장, 공유 시트 등 단계별 결과를 기록한다. 두 이벤트 계열은 분석 범위가 다르므로 건수를 합산하지 않는다. 상세 계측이 실제 예외를 보고하므로 상위 이벤트에서 `app_error`를 중복 발행하지 않는다. 권한 거부는 상위 액션에서 `failure`, 상세 operation에서 `permission_denied`로 남기며 `app_error`에는 포함하지 않는다.
+
 ## iOS 사진 로딩 진단
 
 - `photo_load_failed(stage, error_domain, error_code)`는 로딩 단계의 실패다. PhotoKit 실패 후 원본/PHPicker 재시도로 복구할 수 있으므로 최종 누락 사진 수와 같지 않다. 촬영일이 없는 사진의 `capture_date_missing`도 이미지 표시 실패를 의미하지 않는다.
@@ -169,7 +225,7 @@ Debug/Internal의 기존 비활성화 설정은 유지한다. 실수신은 수�
 
 ### 기존 영상 이벤트와의 호환성 (PR #487 통합)
 
-`video_opened`, `video_action`, `video_generation_result`와 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 같은 실제 작업을 두 관점으로 기록하므로 두 이벤트 체계의 건수를 합산하지 않는다.
+`video_opened`, `video_action`, `video_generation_result`와 기록 공유의 `record_share_*` 이벤트, 상세 `share_media_*` / `share_video_status_changed` 이벤트를 함께 유지한다. 기존 이벤트는 제품 행동 집계를 위한 상위 이벤트이고, 상세 이벤트는 단계별 성공·실패와 오류 진단용이므로 두 계열의 건수를 합산하지 않는다.
 
 - 현재 `video_opened`는 일지의 영상 만들기 클릭(`source=journal`), `share_media_action/action=opened`는 다이얼로그가 열린 시점이다.
 - 기존 `preview_download`는 URL 요청부터 파일 확보까지 포함한다. 상세 계측은 `download_url`과 `download`를 분리한다.
