@@ -41,23 +41,23 @@ class KoreanAddressRegionMatcher {
      * 주소에 시·도가 없을 때만 시·군·구를 전국에서 찾는다.
      */
     public Optional<Region> match(RegionAddress address) {
-        Optional<Region> country = regionResolver.findCountryIfPresent(Region.KOREA);
+        Optional<Region> korea = regionResolver.findCountryIfPresent(Region.KOREA);
         if (address.province() == null) {
-            return country.flatMap(korea -> uniqueDistrictInKorea(korea, address.subAreas()));
+            return korea.flatMap(country -> uniqueDistrictInCountry(country, address.subAreas()));
         }
-        return country
-                .flatMap(korea -> regionResolver.children(korea, RegionType.PROVINCE).stream()
+        return korea
+                .flatMap(country -> regionResolver.children(country, RegionType.PROVINCE).stream()
                         .filter(province -> sameProvince(province.getName(), address.province()))
                         .findFirst())
                 .flatMap(province -> district(province, address.subAreas()));
     }
 
     // 작은 단위 이름부터 본다. 이름이 여러 시·도에 있으면 다음 이름으로 넘어가고, 끝까지 하나로 정해지지 않으면 빈 값이다.
-    private Optional<Region> uniqueDistrictInKorea(Region korea, List<String> names) {
+    private Optional<Region> uniqueDistrictInCountry(Region country, List<String> names) {
         if (names.isEmpty()) {
             return Optional.empty();
         }
-        List<Region> districts = regionResolver.children(korea, RegionType.PROVINCE).stream()
+        List<Region> districts = regionResolver.children(country, RegionType.PROVINCE).stream()
                 .flatMap(province -> regionResolver.children(province, RegionType.DISTRICT).stream())
                 .toList();
         for (int i = names.size() - 1; i >= 0; i--) {
