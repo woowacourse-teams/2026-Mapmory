@@ -3,9 +3,7 @@ package com.mapmory.backend.notification.application;
 import com.mapmory.backend.member.api.MemberQuery;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.application.port.PushSender;
-import com.mapmory.backend.notification.domain.NotificationSettingRepository;
 import com.mapmory.backend.notification.domain.PushToken;
-import com.mapmory.backend.notification.domain.PushTokenRepository;
 import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Component;
@@ -19,29 +17,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class AlbumPushDelivery {
 
-    private final PushTokenRepository pushTokenRepository;
+    private final PushRecipients pushRecipients;
     private final PushTokenService pushTokenService;
     private final MemberQuery memberQuery;
     private final PushSender pushSender;
-    private final NotificationSettingRepository notificationSettingRepository;
 
-    public AlbumPushDelivery(PushTokenRepository pushTokenRepository, PushTokenService pushTokenService,
-                             MemberQuery memberQuery, PushSender pushSender,
-                             NotificationSettingRepository notificationSettingRepository) {
-        this.pushTokenRepository = pushTokenRepository;
+    public AlbumPushDelivery(PushRecipients pushRecipients, PushTokenService pushTokenService,
+                             MemberQuery memberQuery, PushSender pushSender) {
+        this.pushRecipients = pushRecipients;
         this.pushTokenService = pushTokenService;
         this.memberQuery = memberQuery;
         this.pushSender = pushSender;
-        this.notificationSettingRepository = notificationSettingRepository;
     }
 
     // 읽기만 하고 트랜잭션을 열지 않는다. 발송을 기다리는 동안 커넥션을 쥐지 않는다. 지우기는 PushTokenService가 한다.
     public void deliver(AlbumPushPayload payload) {
-        List<Long> recipients = recipientsWithAlbumOn(activeAmong(payload.recipientMemberIds()));
-        if (recipients.isEmpty()) {
-            return;
-        }
-        List<PushToken> tokens = pushTokenRepository.findAllByMemberIdIn(recipients);
+        List<PushToken> tokens = pushRecipients.albumDevicesOf(payload.recipientMemberIds());
         if (tokens.isEmpty()) {
             return;
         }
@@ -52,24 +43,5 @@ public class AlbumPushDelivery {
                 .toList();
 
         pushTokenService.removeInvalid(pushSender.send(messages));
-    }
-
-    // 보낼 때 거른다. 탈퇴하거나 버려진 회원의 기기 토큰은 하루 한 번 지우므로(InactivePushTokenCleanup) 그때까지 남아 있다.
-    private List<Long> activeAmong(List<Long> memberIds) {
-        Set<Long> inactive = memberQuery.inactiveAmong(memberIds);
-        return memberIds.stream()
-                .filter(memberId -> !inactive.contains(memberId))
-                .toList();
-    }
-
-    // 보낼 때 거른다. 끄기 전에 적힌 알림도 끈 뒤에는 가지 않는다.
-    private List<Long> recipientsWithAlbumOn(List<Long> memberIds) {
-        if (memberIds.isEmpty()) {
-            return memberIds;
-        }
-        Set<Long> off = notificationSettingRepository.findGroupAlbumOffAmong(memberIds);
-        return memberIds.stream()
-                .filter(memberId -> !off.contains(memberId))
-                .toList();
     }
 }
