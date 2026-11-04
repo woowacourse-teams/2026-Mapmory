@@ -143,6 +143,8 @@ upload:
         max-attempts: 3
         video-upload-attempt-timeout: 10s
         video-upload-total-timeout: 30s
+        delete-attempt-timeout: 10s
+        delete-total-timeout: 30s
 
 media:
   view:
