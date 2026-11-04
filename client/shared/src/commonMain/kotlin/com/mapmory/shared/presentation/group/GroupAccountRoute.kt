@@ -36,7 +36,6 @@ internal fun GroupAccountRoute(
     var retry by remember { mutableStateOf(0) }
     var restoring by remember { mutableStateOf(true) }
     var restoreError by remember { mutableStateOf<String?>(null) }
-    var noticeDismissed by remember { mutableStateOf(false) }
     LaunchedEffect(session, account?.generation, retry) {
         session?.state?.first { !it.transitioning }
         restoring = true; restoreError = null
@@ -87,11 +86,6 @@ internal fun GroupAccountRoute(
                 onSettingsClick = onSettingsClick, onGroupClick = { retry++ })
         }
 
-        if (account?.guestAbandoned == true && !noticeDismissed) AlertDialog(
-            onDismissRequest = { noticeDismissed = true }, title = { Text("기존 계정으로 로그인했어요") },
-            text = { Text("이 계정의 기록으로 전환했어요. 게스트로 남긴 기록은 자동으로 합쳐지지 않아요.") },
-            confirmButton = { TextButton(onClick = { noticeDismissed = true }) { Text("확인") } },
-        )
         }
     }
 }

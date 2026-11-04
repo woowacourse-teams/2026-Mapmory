@@ -48,6 +48,14 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
         UserDefaults.standard.set(provider, forKey: legacyKey + "_pending_provider")
     }
 
+    func recentLoginProvider() throws -> AuthPendingRead {
+        AuthPendingRead(provider: UserDefaults.standard.string(forKey: legacyKey + "_recent_login_provider"))
+    }
+
+    func saveRecentLoginProvider(provider: String) throws {
+        UserDefaults.standard.set(provider, forKey: legacyKey + "_recent_login_provider")
+    }
+
     func clear() throws {
         let status = SecItemDelete(baseQuery() as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
