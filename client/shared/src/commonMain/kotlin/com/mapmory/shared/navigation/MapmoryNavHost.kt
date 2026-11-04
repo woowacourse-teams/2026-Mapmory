@@ -82,7 +82,8 @@ internal fun MapmoryNavHost(
         }
         NavHost(
             navController = navController,
-            startDestination = MapRoute,
+            startDestination = if ((container.accountSession?.state?.value?.generation ?: 0) > 0 &&
+                container.accountSession?.state?.value?.stage != "logged_out") GroupsRoute else MapRoute,
             // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },
@@ -110,6 +111,7 @@ internal fun MapmoryNavHost(
                     navigator.navigateToEditor(selectedLocationId = locationId)
                 },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
             )
         }
@@ -143,6 +145,7 @@ internal fun MapmoryNavHost(
                 },
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 shareVideoRepository = container.shareVideoRepository,
                 shareVideoJobStore = container.shareVideoJobStore,
@@ -193,6 +196,33 @@ internal fun MapmoryNavHost(
             )
         }
 
+        composable<GroupsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            com.mapmory.shared.presentation.group.GroupAccountRoute(
+                container = container,
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                onMapClick = navigator::navigateToMap,
+                onRecordClick = { navigator.navigateToRecords() },
+                onProfileClick = navigator::navigateToProfile,
+                onSettingsClick = navigator::navigateToSettings,
+                onOpenPreview = if (developerToolsInfo != null) navigator::navigateToGroupPreview else null,
+            )
+        }
+
+        composable<GroupPreviewRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            com.mapmory.shared.presentation.group.GroupRoute(
+                onMapClick = navigator::navigateToMap,
+                onRecordClick = { navigator.navigateToRecords() },
+                onProfileClick = navigator::navigateToProfile,
+                onSettingsClick = navigator::navigateToSettings,
+                previewEnabled = developerToolsInfo != null,
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+            )
+        }
+
         composable<ProfileRoute> { backStackEntry ->
             SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
             LaunchedEffect(backStackEntry) {
@@ -209,6 +239,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 onOpenAchievements = navigator::navigateToAchievements,
                 showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
@@ -242,10 +273,13 @@ internal fun MapmoryNavHost(
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 developerToolsInfo = developerToolsInfo,
                 onOpenDeveloperTools = navigator::navigateToDeveloperTools,
                 serviceFeedbackRepository = container.serviceFeedbackRepository,
+                accountSession = container.accountSession,
+                accountController = container.accountLoginController,
             )
         }
 

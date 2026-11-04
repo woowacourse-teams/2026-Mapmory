@@ -27,6 +27,7 @@ import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.domain.usecase.UpdateTripRecordUseCase
 import com.mapmory.shared.presentation.photo.SelectedPhoto
+import com.mapmory.shared.presentation.triprecord.isJejuProvince
 import com.mapmory.shared.presentation.triprecord.isSelectableTripRecordDestination
 import com.mapmory.shared.presentation.triprecord.tripRecordCountryCode
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
@@ -377,6 +378,16 @@ class TripRecordEditorViewModel(
         return repository.selectPlace(candidate.placeId, sessionToken).fold(
             onSuccess = { selection ->
                 if (generation != placeSelectionGeneration) return@fold null
+                if (selection.isJejuProvinceOnly(candidate)) {
+                    uiState = uiState.copy(
+                        selectedPlace = null,
+                        selectedLocation = null,
+                        isSelectingPlace = false,
+                        placeSelectionErrorMessage = JejuProvincePlaceSelectionMessage,
+                        manualRegionRequired = true,
+                    ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+                    return@fold null
+                }
                 if (selection.isOutsideRegionCatalog(regionCatalog)) {
                     rejectedPlaceName = candidate.name.trim()
                     uiState = uiState.copy(
@@ -707,6 +718,18 @@ private fun PlaceSelection.toSelectableLocation(regionCatalog: RegionCatalog?): 
     return location?.takeIf(Location::isSelectableTripRecordDestination)
 }
 
+private fun PlaceSelection.isJejuProvinceOnly(candidate: PlaceCandidate): Boolean {
+    val region = suggestedRegion
+    val isProvinceOnlySuggestion = region != null &&
+        (countryCode ?: region.countryCode) == KoreaCountryCode &&
+        region.provinceCode?.removePrefix(KoreanProvincePrefix) == KoreanJejuProvinceCode &&
+        region.districtCode.isNullOrBlank()
+    val normalizedName = candidate.name.filterNot(Char::isWhitespace)
+    return isProvinceOnlySuggestion ||
+        normalizedName == "제주도" ||
+        normalizedName == "제주특별자치도"
+}
+
 private fun TripRecordEditorUiState.revalidatedAfterChange(
     dirtyTarget: TripRecordEditorErrorTarget? = null,
 ): TripRecordEditorUiState {
@@ -751,8 +774,11 @@ private fun randomPlaceSessionToken(): String = Uuid.random().toString()
 
 private const val PlaceOutsideRegionCatalogMessage =
     "이 장소가 있는 지역은 아직 앱에서 고를 수 없어요. 지역을 직접 검색해 선택해 주세요."
+private const val JejuProvincePlaceSelectionMessage =
+    "제주도 전체는 기록 지역으로 선택할 수 없어요. 제주시 또는 서귀포시를 검색해 주세요."
 private const val KoreaCountryCode = "KR"
 private const val KoreanProvincePrefix = "KR-"
+private const val KoreanJejuProvinceCode = "49"
 
 private fun String.collapseCityDistrictCode(): String =
     if (lastOrNull()?.isDigit() == true) dropLast(1) + "0" else this
@@ -782,7 +808,10 @@ private fun TripRecordEditorUiState.validationErrors(
     }
     if (selectedLocation == null) {
         put(TripRecordEditorErrorTarget.LOCATION, "장소를 선택해 주세요.")
-    } else if (!selectedLocation.isSelectableTripRecordDestination()) {
+    } else if (
+        !selectedLocation.isSelectableTripRecordDestination() &&
+        !(recordId != null && selectedLocation.isJejuProvince())
+    ) {
         put(TripRecordEditorErrorTarget.LOCATION, "장소를 선택해 주세요.")
     }
     val dateError = TripRecordDraft(
