@@ -37,7 +37,7 @@ public class AlbumPushDelivery {
 
     // 읽기만 하고 트랜잭션을 열지 않는다. 발송을 기다리는 동안 커넥션을 쥐지 않는다. 지우기는 PushTokenService가 한다.
     public void deliver(AlbumPushPayload payload) {
-        List<Long> recipients = recipientsWithAlbumOn(payload.recipientMemberIds());
+        List<Long> recipients = recipientsWithAlbumOn(activeAmong(payload.recipientMemberIds()));
         if (recipients.isEmpty()) {
             return;
         }
@@ -52,6 +52,14 @@ public class AlbumPushDelivery {
                 .toList();
 
         pushTokenService.removeInvalid(pushSender.send(messages));
+    }
+
+    // 보낼 때 거른다. 탈퇴하거나 버려진 회원의 기기 토큰은 하루 한 번 지우므로(InactivePushTokenCleanup) 그때까지 남아 있다.
+    private List<Long> activeAmong(List<Long> memberIds) {
+        Set<Long> inactive = memberQuery.inactiveAmong(memberIds);
+        return memberIds.stream()
+                .filter(memberId -> !inactive.contains(memberId))
+                .toList();
     }
 
     // 보낼 때 거른다. 끄기 전에 적힌 알림도 끈 뒤에는 가지 않는다.

@@ -95,6 +95,35 @@ class AlbumPushDeliveryTest {
     }
 
     @Test
+    void 탈퇴했거나_버려진_멤버에게는_토큰이_남아_있어도_보내지_않는다() {
+        given(memberQuery.inactiveAmong(List.of(2L, 4L))).willReturn(Set.of(2L));
+        given(pushTokenRepository.findAllByMemberIdIn(List.of(4L))).willReturn(
+                List.of(new PushToken(4L, "phone-b", PushPlatform.IOS)));
+        given(memberQuery.nicknamesOf(any())).willReturn(Map.of(1L, "민호"));
+        given(pushSender.send(anyList())).willReturn(List.of());
+
+        delivery.deliver(EVENT);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PushMessage>> sent = ArgumentCaptor.forClass(List.class);
+        verify(pushSender).send(sent.capture());
+        assertThat(sent.getValue()).extracting(PushMessage::token).containsExactly("phone-b");
+    }
+
+    @Test
+    void 받을_멤버가_모두_탈퇴했으면_보내지_않는다() {
+        given(memberQuery.inactiveAmong(List.of(2L, 4L))).willReturn(Set.of(2L, 4L));
+        given(pushTokenRepository.findAllByMemberIdIn(any())).willReturn(
+                List.of(new PushToken(2L, "phone-a", PushPlatform.ANDROID)));
+        given(memberQuery.nicknamesOf(any())).willReturn(Map.of(1L, "민호"));
+        given(pushSender.send(anyList())).willReturn(List.of());
+
+        delivery.deliver(EVENT);
+
+        verify(pushSender, never()).send(anyList());
+    }
+
+    @Test
     void 받을_멤버나_기기가_없으면_보내지_않는다() {
         delivery.deliver(new AlbumPushPayload(3L, "제주 가족", 7L, "도쿄 3월", 1L, List.of()));
         given(pushTokenRepository.findAllByMemberIdIn(any())).willReturn(List.of());
