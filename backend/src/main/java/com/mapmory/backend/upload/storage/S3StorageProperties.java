@@ -58,11 +58,15 @@ public record S3StorageProperties(
      * S3 호출을 기다리는 한도. S3가 멈춰도 요청 스레드를 오래 쥐지 않게 한다.
      *
      * attemptTimeout은 한 번 시도의 한도이고, totalTimeout은 재시도까지 합친 호출 하나의 한도다.
+     * 둘 다 사진 확인(HEAD) 같은 작은 요청 기준이다. 공유 영상 업로드는 파일 크기에 따라 걸리는 시간이
+     * 달라서 videoUploadAttemptTimeout과 videoUploadTotalTimeout을 따로 쓴다.
      */
     public record Client(
             @NotNull @DurationMin(millis = 1) Duration attemptTimeout,
             @NotNull @DurationMin(millis = 1) Duration totalTimeout,
-            @Positive int maxAttempts
+            @Positive int maxAttempts,
+            @NotNull @DurationMin(millis = 1) Duration videoUploadAttemptTimeout,
+            @NotNull @DurationMin(millis = 1) Duration videoUploadTotalTimeout
     ) {
     }
 

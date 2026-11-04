@@ -19,7 +19,8 @@ class MediaViewUrlConfigTest {
     private final MediaViewUrlConfig config = new MediaViewUrlConfig();
     private final S3StorageProperties s3StorageProperties = new S3StorageProperties(
             "bucket", "ap-northeast-2", "mapmory", Duration.ofMinutes(5),
-            new S3StorageProperties.Client(Duration.ofSeconds(2), Duration.ofSeconds(6), 3)
+            new S3StorageProperties.Client(Duration.ofSeconds(1), Duration.ofSeconds(3), 3,
+                            Duration.ofSeconds(10), Duration.ofSeconds(30))
     );
 
     @TempDir

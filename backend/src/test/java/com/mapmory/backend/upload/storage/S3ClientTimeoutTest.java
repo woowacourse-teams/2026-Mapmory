@@ -34,7 +34,7 @@ class S3ClientTimeoutTest {
             .withUserConfiguration(S3StorageConfig.class, S3UploadedObjectChecker.class);
 
     @Test
-    void S3가_답하지_않으면_6초_안에_세_번_시도하고_저장소_장애로_끝낸다() throws IOException {
+    void S3가_답하지_않으면_3초_안에_세_번_시도하고_저장소_장애로_끝낸다() throws IOException {
         try (SilentS3 s3 = SilentS3.start()) {
             contextRunner
                     .withSystemProperties(
@@ -45,7 +45,7 @@ class S3ClientTimeoutTest {
                     .run(context -> {
                         UploadedObjectChecker checker = context.getBean(UploadedObjectChecker.class);
 
-                        assertTimeoutPreemptively(Duration.ofSeconds(10), () ->
+                        assertTimeoutPreemptively(Duration.ofSeconds(5), () ->
                                 assertThatThrownBy(() -> checker.exists("travel-records/1/photo.jpg"))
                                         .isInstanceOf(BusinessException.class)
                                         .extracting(exception -> ((BusinessException) exception).getErrorCode())

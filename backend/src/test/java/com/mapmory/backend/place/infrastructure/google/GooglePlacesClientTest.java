@@ -33,11 +33,12 @@ import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
-import java.net.http.HttpConnectTimeoutException;
-import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -202,6 +203,46 @@ class GooglePlacesClientTest {
     }
 
     @Test
+    void 연결_단계에서_끊긴_타임아웃은_CONNECT로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new ConnectTimeoutException("Connect to https://places.googleapis.com failed: Connect timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:CONNECT:WARN");
+    }
+
+    @Test
+    void 응답을_기다리다_끊긴_타임아웃은_RESPONSE로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new SocketTimeoutException("Read timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:RESPONSE:WARN");
+    }
+
+    @Test
+    void 풀에서_연결을_못_받은_타임아웃은_POOL로_남기고_한도를_돌려준다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new ConnectionRequestTimeoutException("Timeout deadline: 400 MILLISECONDS");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:POOL:WARN");
+        verify(limiter).refundAutocomplete();
+    }
+
+    @Test
     void 없는_장소_ID는_ERROR로_알리지_않는다() {
         server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
@@ -262,7 +303,7 @@ class GooglePlacesClientTest {
         @Test
         void 타임아웃과_연결_오류도_실패로_센다() {
             server.expect(ExpectedCount.times(3), requestTo(AUTOCOMPLETE_URL))
-                    .andRespond(withException(new HttpTimeoutException("Request cancelled")));
+                    .andRespond(withException(new SocketTimeoutException("Read timed out")));
             server.expect(ExpectedCount.times(2), requestTo(AUTOCOMPLETE_URL))
                     .andRespond(withException(new ConnectException("Connection refused")));
             searchFails(5);
@@ -386,12 +427,12 @@ class GooglePlacesClientTest {
         }
 
         // 연결하지 못한 요청은 Google에 닿지 않아 과금되지 않는다. 시험 호출이 연결을 못 할 때도 여기에 해당한다.
-        // 예외는 실제 클라이언트(JDK HttpClient)가 연결 거부, 2초 연결 타임아웃, 없는 호스트에서 던지는 것과 같다.
+        // 예외는 실제 클라이언트(Apache HttpClient)가 연결 거부, 연결 타임아웃, 없는 호스트에서 던지는 것과 같다.
         @Test
         void 연결조차_못_했으면_돌려준다() {
             server.expect(method(HttpMethod.POST)).andRespond(withException(new ConnectException()));
             server.expect(method(HttpMethod.POST))
-                    .andRespond(withException(new HttpConnectTimeoutException("HTTP connect timed out")));
+                    .andRespond(withException(new ConnectTimeoutException("Connect to https://places.googleapis.com failed: Connect timed out")));
             server.expect(method(HttpMethod.GET)).andRespond(withException(new ConnectException()));
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
@@ -402,11 +443,11 @@ class GooglePlacesClientTest {
             verify(limiter).refundDetails();
         }
 
-        // 연결한 뒤 3초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
+        // 연결한 뒤 1초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
         @Test
         void 연결한_뒤_답을_기다리다_끊겼거나_4xx면_돌려주지_않는다() {
             server.expect(method(HttpMethod.POST))
-                    .andRespond(withException(new HttpTimeoutException("Request cancelled")));
+                    .andRespond(withException(new SocketTimeoutException("Read timed out")));
             server.expect(method(HttpMethod.POST)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
             server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
