@@ -16,11 +16,16 @@ internal class AlbumNavigationState {
         revision++
         selectedPhoto.value = null
         detail.value = null
+        pick.value = false
+        rename.value = false
     }
 
     /** Returns true only when this response enters a different album screen. */
     fun showAlbum(album: AlbumDetail): Boolean {
         val entered = detail.value?.id != album.id
+        val selectedId = detail.value?.entries?.flatMap { it.photos }?.find { it.viewUrl == selectedPhoto.value }?.id
+        selectedPhoto.value = if (entered || selectedId == null) null
+            else album.entries.flatMap { it.photos }.find { it.id == selectedId }?.viewUrl
         detail.value = album
         return entered
     }

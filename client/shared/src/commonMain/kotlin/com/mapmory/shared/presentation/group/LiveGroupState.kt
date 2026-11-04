@@ -15,12 +15,13 @@ import com.mapmory.shared.domain.group.GroupSummary as RemoteGroupSummary
 import com.mapmory.shared.domain.group.IssuedGroupInvitation
 import com.mapmory.shared.domain.repository.GroupRepository
 
-internal enum class LiveGroupSheet { CREATE, JOIN, INVITE, RENAME }
+internal enum class LiveGroupSheet { CREATE, JOIN, INVITE, RENAME, LEAVE }
 
 /** All actions use server responses. No sample group IDs, members or invitations enter this state. */
 internal class LiveGroupState(
     private val repository: GroupRepository,
     private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    private val onMembershipConfirmed: (Long) -> Unit = {},
 ) {
     var groups by mutableStateOf<List<RemoteGroupSummary>?>(null)
         private set
@@ -44,6 +45,8 @@ internal class LiveGroupState(
         val invitation: IssuedGroupInvitation?, val preview: GroupInvitationPreview?, val error: String?,
     )
     private var forward: NavigationSnapshot? = null
+    private var membershipRevision = 0L
+    private val removedAtRevision = mutableMapOf<Long, Long>()
 
     fun gestureBack(): Boolean {
         if (busy) return true
@@ -89,10 +92,31 @@ internal class LiveGroupState(
 
     fun resetPreview() { if (!busy) { preview = null; error = null } }
 
+    fun removeGroup(id: Long) {
+        membershipRevision++
+        removedAtRevision[id] = membershipRevision
+        forward = null
+        groups = groups?.filterNot { it.id == id }
+        if (group?.id == id) {
+            group = null
+            sheet = null
+            invitation = null
+            preview = null
+            error = null
+        }
+    }
+
     suspend fun load() = perform {
         val started = TimeSource.Monotonic.markNow()
+        val requestedRevision = membershipRevision
         val result = repository.groups()
-        result.onSuccess { groups = it }.onFailure {
+        result.onSuccess { fresh ->
+            // A departure during this read invalidates only that group's membership.
+            // Discarding the whole response leaves a newly composed screen with no groups.
+            val visible = fresh.filterNot { (removedAtRevision[it.id] ?: 0L) > requestedRevision }
+            groups = visible
+            group?.id?.takeIf { id -> visible.none { it.id == id } }?.let(::removeGroup)
+        }.onFailure {
             error = message(it)
             analytics.reportFailure("group_list", it, mapOf("source" to "group_tab", "execution_mode" to "live"))
         }
@@ -104,7 +128,7 @@ internal class LiveGroupState(
     }
 
     suspend fun openGroup(id: Long) = perform {
-        repository.getGroup(id).onSuccess { group = it }.onFailure { error = message(it) }
+        repository.getGroup(id).onSuccess { group = it; onMembershipConfirmed(it.id) }.onFailure { error = message(it) }
     }
 
     suspend fun create(name: String) {
@@ -151,6 +175,7 @@ internal class LiveGroupState(
     }
 
     private fun showGroup(detail: GroupDetail) {
+        onMembershipConfirmed(detail.id)
         group = detail
         val existing = groups.orEmpty()
         val albumCount = existing.firstOrNull { it.id == detail.id }?.albumCount ?: 0

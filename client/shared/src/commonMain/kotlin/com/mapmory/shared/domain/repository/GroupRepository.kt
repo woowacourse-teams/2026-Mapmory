@@ -10,6 +10,8 @@ interface GroupRepository {
     suspend fun createGroup(name: String): Result<GroupDetail>
     suspend fun getGroup(groupId: Long): Result<GroupDetail>
     suspend fun renameGroup(groupId: Long, name: String): Result<GroupDetail>
+    /** Removes membership and shared entries; personal records remain on the server. */
+    suspend fun leaveGroup(groupId: Long): Result<Unit>
     suspend fun createInvitation(groupId: Long): Result<IssuedGroupInvitation>
 
     /** Guest sessions may preview invitations; accepting requires a social account. */
