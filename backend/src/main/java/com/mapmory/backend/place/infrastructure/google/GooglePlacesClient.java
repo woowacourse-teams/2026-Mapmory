@@ -12,6 +12,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.net.ConnectException;
 import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -159,6 +160,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
         } catch (CallNotPermittedException exception) {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         } catch (RestClientException exception) {
+            logTimeout(exception);
             if (notBilled(exception)) {
                 refund.run();
             }
@@ -179,6 +181,26 @@ public class GooglePlacesClient implements PlaceLookupPort {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }
         return body;
+    }
+
+    /**
+     * 타임아웃이 연결 단계였는지 응답 대기였는지 남긴다. 둘 다 요청 전체 한도(read-timeout) 안에서 끊기므로
+     * 예외 종류로만 구분된다. 연결이면 Google에 닿지 못한 것이고, 응답이면 Google이 늦게 답한 것이다.
+     */
+    private static void logTimeout(RestClientException exception) {
+        if (!(exception instanceof ResourceAccessException)) {
+            return;
+        }
+        for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpTimeoutException) {
+                String phase = cause instanceof HttpConnectTimeoutException ? "CONNECT" : "RESPONSE";
+                log.atWarn()
+                        .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
+                        .addKeyValue("phase", phase)
+                        .log("Google Places 호출이 타임아웃으로 끊겼다: {}", phase);
+                return;
+            }
+        }
     }
 
     /**

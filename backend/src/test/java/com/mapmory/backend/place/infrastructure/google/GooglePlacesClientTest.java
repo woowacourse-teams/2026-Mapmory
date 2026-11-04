@@ -202,6 +202,32 @@ class GooglePlacesClientTest {
     }
 
     @Test
+    void 연결_단계에서_끊긴_타임아웃은_CONNECT로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new HttpConnectTimeoutException("HTTP connect timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:CONNECT:WARN");
+    }
+
+    @Test
+    void 응답을_기다리다_끊긴_타임아웃은_RESPONSE로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new HttpTimeoutException("request timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:RESPONSE:WARN");
+    }
+
+    @Test
     void 없는_장소_ID는_ERROR로_알리지_않는다() {
         server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
