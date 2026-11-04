@@ -48,6 +48,13 @@ interface AuthTokenStore {
 
     @Throws(Exception::class)
     fun markPendingProvider(provider: String?) = Unit
+
+    /** Non-secret login hint, retained after logout and isolated with this environment's store. */
+    @Throws(Exception::class)
+    fun recentLoginProvider(): AuthPendingRead = AuthPendingRead(null)
+
+    @Throws(Exception::class)
+    fun saveRecentLoginProvider(provider: String) = Unit
 }
 
 internal interface AuthGateway {
@@ -77,7 +84,9 @@ internal class GuestSessionManager(
     private val elapsedMillis: () -> Long = run { val start = TimeSource.Monotonic.markNow(); { start.elapsedNow().inWholeMilliseconds } },
     private val onRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
 ) : AccessTokenProvider, AccountSession {
-    private val accountState = MutableStateFlow(AccountState())
+    private val accountState = MutableStateFlow(AccountState(recentLoginProvider = runCatching {
+        tokenStore.recentLoginProvider().provider?.let { MemberProvider.valueOf(it) }?.takeUnless { it == MemberProvider.GUEST }
+    }.getOrNull()))
     override val state: StateFlow<AccountState> = accountState.asStateFlow()
     private val operationMutex = Mutex()
     private var activeOperations = 0
@@ -94,7 +103,7 @@ internal class GuestSessionManager(
     init {
         // Block cache reads before the first network request after an interrupted logout.
         if (runCatching { tokenStore.pendingProvider().provider }.getOrNull()?.startsWith("LOGOUT") == true) {
-            accountState.value = AccountState(pendingLogout = true, stage = "logout_recovery")
+            accountState.value = state.value.copy(pendingLogout = true, stage = "logout_recovery")
         }
     }
 
@@ -156,7 +165,10 @@ internal class GuestSessionManager(
         }
         return withAuthenticatedSession {
             gateway.member(checkNotNull(tokens).accessToken).also { result ->
-                result.onSuccess { accountState.value = state.value.copy(member = it) }
+                result.onSuccess {
+                    rememberLoginProvider(it.provider)
+                    accountState.value = state.value.copy(member = it)
+                }
             }
         }
     }
@@ -219,7 +231,8 @@ internal class GuestSessionManager(
                     pendingProviderName = null
                     omitPreviousSession = false
                     accountState.value = AccountState(transitioning = true,
-                        generation = state.value.generation + 1, stage = "logged_out")
+                        generation = state.value.generation + 1, stage = "logged_out",
+                        recentLoginProvider = state.value.recentLoginProvider)
                     Result.success(Unit)
                 }
             }
@@ -327,11 +340,20 @@ internal class GuestSessionManager(
         accountState.value = state.value.copy(stage = "account_switch")
         onAccountChanged()
         tokenStore.markPendingProvider(null)
+        rememberLoginProvider(member.provider)
         accountState.value = AccountState(member = member, transitioning = true,
-            generation = pendingGeneration, guestAbandoned = pendingAbandoned, stage = "completed")
+            generation = pendingGeneration, guestAbandoned = pendingAbandoned, stage = "completed",
+            recentLoginProvider = state.value.recentLoginProvider)
         socialTokensReceived = false
         omitPreviousSession = false
         return Result.success(member)
+    }
+
+    private fun rememberLoginProvider(provider: MemberProvider) {
+        if (provider == MemberProvider.GUEST) return
+        // A convenience hint must never turn a valid authentication into a failed login.
+        runCatching { tokenStore.saveRecentLoginProvider(provider.name) }
+        accountState.value = state.value.copy(recentLoginProvider = provider)
     }
 
     private val authenticationMutex = Mutex()
