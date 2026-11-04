@@ -27,22 +27,15 @@ import kotlin.test.assertTrue
 
 class TripRecordListViewModelTest {
     @Test
-    fun `시간순_전환은_여행_날짜_정렬을_적용하고_페이지_이동에도_유지한다`() = runBlocking {
-        var createdAtDay = 7
-        val source = FakeTripRecordRepository {
-            "2026-08-${createdAtDay++}T00:00:00Z"
-        }
-        source.createTripRecord(
-            TripRecordDraft(101, "2026-08-15", listOf("recent.jpg"), title = "최근 여행"),
-        )
-        source.createTripRecord(
-            TripRecordDraft(101, "2026-08-01", listOf("past.jpg"), title = "과거 여행"),
-        )
-        val requests = mutableListOf<TripRecordQuery>()
+    fun `시간순_전환은_여행날짜_정렬을_요청하고_첫_페이지부터_불러온다`() = runBlocking {
+        val requestedQueries = mutableListOf<TripRecordQuery>()
+        val source = FakeTripRecordRepository { "2026-10-08T00:00:00Z" }
         val repository = object : TripRecordRepository by source {
             override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> {
-                requests += query
-                return source.getTripRecords(query)
+                requestedQueries += query
+                return Result.success(
+                    TripRecordPage(emptyList(), query.page, query.size, totalElements = 21, totalPages = 2),
+                )
             }
         }
         val viewModel = TripRecordListViewModel(
@@ -50,15 +43,13 @@ class TripRecordListViewModelTest {
             GetTripRecordUseCase(repository),
         )
 
-        viewModel.load(TripRecordQuery(size = 1))
+        viewModel.refreshIfNeeded(null, 0)
+        viewModel.nextPage()
         viewModel.refreshIfNeeded(null, 0, TripRecordSort.TRAVEL_DATE_DESC)
 
-        assertEquals("최근 여행", assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.single().title)
-        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requests.last().sort)
-        viewModel.nextPage()
-        assertEquals("과거 여행", assertIs<TripRecordListUiState.Success>(viewModel.uiState).records.single().title)
-        assertEquals(1, requests.last().page)
-        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requests.last().sort)
+        assertEquals(1, requestedQueries[1].page)
+        assertEquals(TripRecordSort.TRAVEL_DATE_DESC, requestedQueries[2].sort)
+        assertEquals(0, requestedQueries[2].page)
     }
 
     @Test

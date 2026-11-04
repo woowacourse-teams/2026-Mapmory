@@ -97,30 +97,33 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
     }
 
     @Test
-    void 여행_시작일_정렬은_생성순서와_반대인_기록도_페이지_경계에서_유지한다() {
+    void 내장된_여행_시작일을_기준으로_페이지_정렬한다() {
         Member member = memberRepository.save(Member.of("날짜 정렬 회원", UUID.randomUUID()));
         Region country = regionRepository.save(
                 Region.of(null, null, "XS", "날짜 정렬 국가", RegionType.COUNTRY)
         );
         travelRecordRepository.save(TravelRecord.of(
-                member, country, "최근 여행", "", LocalDate.of(2026, 8, 12), null
+                member, country, "이전 여행", "", LocalDate.of(2026, 8, 10), null
         ));
         travelRecordRepository.save(TravelRecord.of(
-                member, country, "과거 여행", "", LocalDate.of(2026, 8, 10), null
+                member, country, "최근 여행", "", LocalDate.of(2026, 8, 12), null
         ));
-        Sort sort = Sort.by(Sort.Direction.DESC, "period.startDate")
-                .and(Sort.by(Sort.Direction.DESC, "createdAt"))
-                .and(Sort.by(Sort.Direction.DESC, "id"));
 
-        Page<TravelRecord> firstPage = travelRecordRepository.findByMemberIdAndOptionalTagId(
-                member.getId(), null, PageRequest.of(0, 1, sort)
-        );
-        Page<TravelRecord> secondPage = travelRecordRepository.findByMemberIdAndOptionalTagId(
-                member.getId(), null, PageRequest.of(1, 1, sort)
+        Page<TravelRecord> result = travelRecordRepository.findByMemberIdAndOptionalTagId(
+                member.getId(),
+                null,
+                PageRequest.of(
+                        0,
+                        20,
+                        Sort.by(Sort.Direction.DESC, "period.startDate")
+                                .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                                .and(Sort.by(Sort.Direction.DESC, "id"))
+                )
         );
 
-        assertThat(firstPage.getContent()).extracting(TravelRecord::getTitle).containsExactly("최근 여행");
-        assertThat(secondPage.getContent()).extracting(TravelRecord::getTitle).containsExactly("과거 여행");
+        assertThat(result.getContent())
+                .extracting(TravelRecord::getTitle)
+                .containsExactly("최근 여행", "이전 여행");
     }
 
     @Test

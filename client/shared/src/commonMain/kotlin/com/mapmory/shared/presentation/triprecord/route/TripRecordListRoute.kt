@@ -14,6 +14,7 @@ import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordListScreen
 import com.mapmory.shared.presentation.triprecord.state.TripRecordFilterUiState
+import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordListViewModel
 import kotlinx.coroutines.launch
 
@@ -51,12 +52,18 @@ internal fun TripRecordListRoute(
     }
 
     LaunchedEffect(viewModel, initialLocationId, tripRecordRevision, layout) {
-        val sort = if (layout == TripRecordListLayout.TIMELINE) {
-            TripRecordSort.TRAVEL_DATE_DESC
-        } else {
-            TripRecordSort.CREATED_AT_DESC
+        viewModel.refreshIfNeeded(
+            initialLocationId,
+            tripRecordRevision,
+            sort = if (layout == TripRecordListLayout.TIMELINE) {
+                TripRecordSort.TRAVEL_DATE_DESC
+            } else {
+                TripRecordSort.CREATED_AT_DESC
+            },
+        )
+        if (layout == TripRecordListLayout.COLLECTION && viewModel.uiState is TripRecordListUiState.Success) {
+            viewModel.loadPhotoCollectionIndex()
         }
-        viewModel.refreshIfNeeded(initialLocationId, tripRecordRevision, sort)
     }
 
     TripRecordListScreen(
@@ -76,8 +83,12 @@ internal fun TripRecordListRoute(
         backHandlerRegistry = backHandlerRegistry,
         backHandlerOwnerId = backHandlerOwnerId,
         photoCollectionLoadState = viewModel.photoCollectionLoadState,
+        photoCollectionIndexState = viewModel.photoCollectionIndexState,
         onLoadPhotoCollection = { locationId, locationName ->
             scope.launch { viewModel.loadPhotoCollection(locationId, locationName) }
+        },
+        onLoadPhotoCollectionIndex = {
+            scope.launch { viewModel.loadPhotoCollectionIndex() }
         },
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,
@@ -101,10 +112,22 @@ internal fun TripRecordListRoute(
         },
         onRetryClick = {
             analytics.logEvent(MapmoryAnalyticsEvent.JOURNAL_RETRY_CLICKED)
-            scope.launch { viewModel.refresh(initialLocationId) }
+            scope.launch { retryTripRecordList(viewModel, initialLocationId, layout) }
         },
         onProfileClick = onOpenProfile,
         onSettingsClick = onOpenSettings,
         onGroupClick = onOpenGroups,
     )
+}
+
+internal suspend fun retryTripRecordList(
+    viewModel: TripRecordListViewModel,
+    locationId: Long?,
+    layout: TripRecordListLayout,
+) {
+    viewModel.refresh(locationId)
+    val refreshedState = viewModel.uiState as? TripRecordListUiState.Success ?: return
+    if (layout == TripRecordListLayout.COLLECTION && refreshedState.refreshError == null) {
+        viewModel.loadPhotoCollectionIndex()
+    }
 }
