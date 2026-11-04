@@ -2,13 +2,12 @@ package com.mapmory.backend.common.time;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mapmory.backend.support.MigrationTestDatabase;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("Clock으로 만든 시각을 UTC로 맞추는 마이그레이션")
 class ClockTimestampUtcMigrationTest {
@@ -23,7 +22,7 @@ class ClockTimestampUtcMigrationTest {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrate(mysql, MigrationVersion.fromVersion("31"));
 
-            JdbcTemplate jdbcTemplate = jdbcTemplate(mysql);
+            JdbcTemplate jdbcTemplate = mysql.jdbcTemplate();
             long promoted = insertMember(jdbcTemplate, "00000000-0000-0000-0000-000000000032", KST);
             long untouched = insertMember(jdbcTemplate, "00000000-0000-0000-0000-000000000033", null);
             jdbcTemplate.update("INSERT INTO launch_waitlist (email, consented_at, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -60,10 +59,6 @@ class ClockTimestampUtcMigrationTest {
                 .target(target)
                 .load()
                 .migrate();
-    }
-
-    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
-        return new JdbcTemplate(new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true));
     }
 
     private long insertMember(JdbcTemplate jdbcTemplate, String uuid, String promotedAt) {

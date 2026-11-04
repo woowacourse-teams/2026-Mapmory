@@ -3,14 +3,13 @@ package com.mapmory.backend.region;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.support.MigrationTestDatabase;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("광주·전남 Region 코드 복원 마이그레이션")
 class GwangjuJeonnamRegionCodeMigrationTest {
@@ -51,7 +50,7 @@ class GwangjuJeonnamRegionCodeMigrationTest {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateToVersion18(mysql);
 
-            JdbcTemplate jdbcTemplate = jdbcTemplate(mysql);
+            JdbcTemplate jdbcTemplate = mysql.jdbcTemplate();
             long memberId = insertMember(jdbcTemplate);
             long gwangjuRegionId = findRegionId(jdbcTemplate, "12210");
             long jeonnamRegionId = findRegionId(jdbcTemplate, "12110");
@@ -87,11 +86,6 @@ class GwangjuJeonnamRegionCodeMigrationTest {
                 .locations("classpath:db/migration")
                 .load()
                 .migrate();
-    }
-
-    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
-        SingleConnectionDataSource dataSource = new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true);
-        return new JdbcTemplate(dataSource);
     }
 
     private long insertMember(JdbcTemplate jdbcTemplate) {

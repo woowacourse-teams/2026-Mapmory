@@ -2,13 +2,12 @@ package com.mapmory.backend.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mapmory.backend.support.MigrationTestDatabase;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("회원 닉네임 추가 마이그레이션")
 class MemberNicknameMigrationTest {
@@ -19,7 +18,7 @@ class MemberNicknameMigrationTest {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateToVersion23(mysql);
 
-            JdbcTemplate jdbcTemplate = jdbcTemplate(mysql);
+            JdbcTemplate jdbcTemplate = mysql.jdbcTemplate();
             insertMember(jdbcTemplate, "00000000-0000-0000-0000-000000000024", "소현");
             insertMember(jdbcTemplate, "00000000-0000-0000-0000-000000000025", "회원12345");
             insertMember(jdbcTemplate, "00000000-0000-0000-0000-000000000026", "  ");
@@ -48,11 +47,6 @@ class MemberNicknameMigrationTest {
                 .locations("classpath:db/migration")
                 .load()
                 .migrate();
-    }
-
-    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
-        SingleConnectionDataSource dataSource = new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true);
-        return new JdbcTemplate(dataSource);
     }
 
     private void insertMember(JdbcTemplate jdbcTemplate, String uuid, String name) {

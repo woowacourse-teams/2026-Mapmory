@@ -2,6 +2,7 @@ package com.mapmory.backend.auth.token.refresh;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mapmory.backend.support.MigrationTestDatabase;
 import java.sql.Timestamp;
 import java.util.Map;
 import java.util.UUID;
@@ -10,8 +11,6 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import com.mapmory.backend.support.MigrationTestDatabase;
 
 @DisplayName("refresh 토큰 세션 묶음 마이그레이션 (#467)")
 class RefreshTokenFamilyMigrationTest {
@@ -23,7 +22,7 @@ class RefreshTokenFamilyMigrationTest {
     void groupsTokensBySameTerminal() {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
-            JdbcTemplate jdbc = jdbcTemplate(mysql);
+            JdbcTemplate jdbc = mysql.jdbcTemplate();
 
             long memberA = insertMember(jdbc);
             long memberB = insertMember(jdbc);
@@ -55,7 +54,7 @@ class RefreshTokenFamilyMigrationTest {
     void groupsLongChain() {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
-            JdbcTemplate jdbc = jdbcTemplate(mysql);
+            JdbcTemplate jdbc = mysql.jdbcTemplate();
             long member = insertMember(jdbc);
 
             long next = insertToken(jdbc, member, null);
@@ -78,7 +77,7 @@ class RefreshTokenFamilyMigrationTest {
     void newFamilyIdDoesNotCollide() {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create()) {
             migrateTo(mysql, "42");
-            JdbcTemplate jdbc = jdbcTemplate(mysql);
+            JdbcTemplate jdbc = mysql.jdbcTemplate();
             long member = insertMember(jdbc);
             long token = insertToken(jdbc, member, null);
 
@@ -132,7 +131,4 @@ class RefreshTokenFamilyMigrationTest {
                 .migrate();
     }
 
-    private JdbcTemplate jdbcTemplate(MigrationTestDatabase mysql) {
-        return new JdbcTemplate(new SingleConnectionDataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword(), true));
-    }
 }
