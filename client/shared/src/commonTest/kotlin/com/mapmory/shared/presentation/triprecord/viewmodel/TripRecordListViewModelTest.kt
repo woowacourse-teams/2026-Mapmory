@@ -5,8 +5,8 @@ import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
-import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripRecordSort
+import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
