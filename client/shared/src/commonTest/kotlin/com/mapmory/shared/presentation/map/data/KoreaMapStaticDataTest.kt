@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.map.data
 import com.mapmory.shared.domain.model.KoreanSelectableDistrictCodes
 import com.mapmory.shared.presentation.map.domain.GeoPoint
 import com.mapmory.shared.presentation.map.domain.ProvincePolygon
+import com.mapmory.shared.presentation.map.ui.selectedKoreaMapRegionCode
 import com.mapmory.shared.presentation.map.ui.regionAt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,6 +15,9 @@ class KoreaMapStaticDataTest {
         val gunwi = GeoPoint(128.72472f, 36.16710f)
         val provinces = GeneratedKoreaMapData.provinces
         assertEquals("KR-27", provinces.regionAt(gunwi)?.code)
+        assertEquals("KR-27", selectedKoreaMapRegionCode(provinces.regionAt(gunwi)?.code, "27720", true))
+        assertEquals("27720", selectedKoreaMapRegionCode("27720", null, false))
+        assertEquals("41590", selectedKoreaMapRegionCode("KR-41", "41590", true))
         assertEquals(null, provinces.filter { it.code == "KR-47" }.regionAt(gunwi))
         assertEquals("KR-27", provinces.regionAt(GeoPoint(128.6014f, 35.8714f))?.code)
         assertEquals("KR-47", provinces.regionAt(GeoPoint(128.59343f, 36.36151f))?.code)

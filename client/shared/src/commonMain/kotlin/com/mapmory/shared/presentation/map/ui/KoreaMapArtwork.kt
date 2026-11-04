@@ -450,11 +450,7 @@ fun KoreaMapArtwork(
                         } else {
                             val region = displayedRegions.regionAt(mapPoint)
                             val district = if (isProvinceOverview) overviewDistricts.orEmpty().regionAt(mapPoint) else null
-                            val selectedCode = when {
-                                district?.code == GunwiDistrictCode -> district.code
-                                isProvinceOverview && region?.code !in MetropolitanCityLabels -> district?.code ?: region?.code
-                                else -> region?.code
-                            }
+                            val selectedCode = selectedKoreaMapRegionCode(region?.code, district?.code, isProvinceOverview)
                             selectedCode?.let(currentOnRegionClick)
                         }
                     }
@@ -690,7 +686,6 @@ private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f
 private const val OverviewIslandRevealZoom = 1.8f
-private const val GunwiDistrictCode = "27720"
 private const val DaeguProvinceCode = "KR-27"
 private const val DokdoProvinceCode = "KR-47"
 private const val DokdoDistrictCode = "47940"
@@ -1062,3 +1057,6 @@ private val MapPanSaver = listSaver<Offset, Float>(
     save = { listOf(it.x, it.y) },
     restore = { Offset(it[0], it[1]) },
 )
+
+internal fun selectedKoreaMapRegionCode(regionCode: String?, districtCode: String?, isProvinceOverview: Boolean): String? =
+    if (isProvinceOverview && regionCode !in MetropolitanCityLabels) districtCode ?: regionCode else regionCode
