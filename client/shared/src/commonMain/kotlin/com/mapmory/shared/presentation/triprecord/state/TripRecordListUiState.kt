@@ -11,6 +11,7 @@ sealed interface TripRecordListUiState {
         val totalPages: Int,
         val isRefreshing: Boolean = false,
         val refreshError: String? = null,
+        val totalElements: Long = records.size.toLong(),
     ) : TripRecordListUiState
 
     data class Error(
@@ -26,4 +27,11 @@ sealed interface TripRecordPhotoCollectionLoadState {
         val records: List<TripRecordItemUiState>,
     ) : TripRecordPhotoCollectionLoadState
     data class Error(val locationName: String, val message: String) : TripRecordPhotoCollectionLoadState
+}
+
+sealed interface TripRecordPhotoCollectionIndexState {
+    data object Idle : TripRecordPhotoCollectionIndexState
+    data object Loading : TripRecordPhotoCollectionIndexState
+    data class Loaded(val records: List<TripRecordItemUiState>) : TripRecordPhotoCollectionIndexState
+    data class Error(val message: String) : TripRecordPhotoCollectionIndexState
 }
