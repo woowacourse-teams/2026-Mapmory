@@ -7,21 +7,13 @@ internal suspend fun <T> MapmoryAnalytics.videoAction(
     action: String,
     reportErrors: Boolean = true,
     block: suspend () -> T,
-): T {
-    emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "started"))
-    return try {
-        block().also {
-            emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "success"))
-        }
-    } catch (error: CancellationException) {
-        emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "cancelled"))
-        throw error
-    } catch (error: Exception) {
-        emit(MapmoryAnalyticsEvent.VIDEO_ACTION, mapOf("action" to action, "outcome" to "failure"))
-        if (reportErrors) reportFailure("video_$action", error)
-        throw error
-    }
-}
+): T = trackAction(
+    eventName = MapmoryAnalyticsEvent.VIDEO_ACTION,
+    operation = "video_$action",
+    action = action,
+    reportErrors = reportErrors,
+    block = block,
+)
 
 /** Legacy request events alongside detailed telemetry, which owns app_error reporting. */
 internal suspend fun <T> MapmoryAnalytics.videoActionResult(

@@ -4,6 +4,7 @@ import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.domain.model.ShareVideoJob
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -24,10 +25,10 @@ internal class AnalyticsShareVideoRepository(
     private val startedHere = mutableMapOf<Long, Long>()
     private val queryFailures = mutableMapOf<Long, String>()
 
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> {
+    override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> {
         val started = nowMillis()
         return telemetry.observeResult(ShareMediaOperation.CREATE_REQUEST) {
-            analytics.videoActionResult("create_request", delegate::createTravelTimeline)
+            analytics.videoActionResult("create_request") { delegate.createTravelTimeline(style) }
         }
             .onSuccess { job ->
                 mutex.withLock { startedHere[job.jobId] = started }

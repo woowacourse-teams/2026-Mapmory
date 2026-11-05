@@ -7,6 +7,7 @@ import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
 import com.mapmory.shared.domain.model.ShareVideoDownload
 import com.mapmory.shared.domain.model.ShareVideoJob
 import com.mapmory.shared.domain.model.ShareVideoStatus
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -17,7 +18,7 @@ class AnalyticsShareVideoRepositoryTest {
         var current = Result.success(ShareVideoJob(987654321, ShareVideoStatus.PENDING))
         var createError: Exception? = null
         var throwCreateError = false
-        override suspend fun createTravelTimeline(): Result<ShareVideoJob> {
+        override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> {
             createError?.let { if (throwCreateError) throw it else return Result.failure(it) }
             return current
         }
@@ -32,7 +33,7 @@ class AnalyticsShareVideoRepositoryTest {
     @Test fun `accepted request is not completed rendering and normal polls are quiet`() = runBlocking {
         val backend = Backend(); val analytics = RecordingAnalytics(); var now = 1000L
         val repository = AnalyticsShareVideoRepository(backend, analytics, MemoryShareVideoJobStore()) { now }
-        repository.createTravelTimeline().getOrThrow()
+        repository.createTravelTimeline(ShareVideoStyle.CLASSIC).getOrThrow()
         assertEquals(listOf("pending"), analytics.statuses().map { it.second["status"] })
         repeat(5) { repository.getJob(987654321) }
         backend.current = Result.success(ShareVideoJob(987654321, ShareVideoStatus.RENDERING))
@@ -91,9 +92,11 @@ class AnalyticsShareVideoRepositoryTest {
         val error = IllegalStateException("private body")
         backend.createError = error
         val repository = AnalyticsShareVideoRepository(backend, analytics, MemoryShareVideoJobStore())
-        assertSame(error, repository.createTravelTimeline().exceptionOrNull())
+        assertSame(error, repository.createTravelTimeline(ShareVideoStyle.CLASSIC).exceptionOrNull())
         backend.throwCreateError = true
-        assertSame(error, assertFailsWith<IllegalStateException> { repository.createTravelTimeline() })
+        assertSame(error, assertFailsWith<IllegalStateException> {
+            repository.createTravelTimeline(ShareVideoStyle.CLASSIC)
+        })
         assertEquals(2, analytics.errors().size)
         assertEquals(listOf("started", "failure", "started", "failure"), analytics.events
             .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
@@ -104,7 +107,7 @@ class AnalyticsShareVideoRepositoryTest {
         val backend = Backend(); val analytics = RecordingAnalytics()
         backend.createError = CancellationException()
         val repository = AnalyticsShareVideoRepository(backend, analytics, MemoryShareVideoJobStore())
-        assertFailsWith<CancellationException> { repository.createTravelTimeline() }
+        assertFailsWith<CancellationException> { repository.createTravelTimeline(ShareVideoStyle.CLASSIC) }
         assertEquals(listOf("started", "cancelled"), analytics.events
             .filter { it.first == MapmoryAnalyticsEvent.VIDEO_ACTION }.map { it.second["outcome"] })
         backend.current = Result.failure(CancellationException())
@@ -132,7 +135,7 @@ class AnalyticsShareVideoRepositoryTest {
         )
         try {
             val repository = assertNotNull(container.shareVideoRepository)
-            repository.createTravelTimeline()
+            repository.createTravelTimeline(ShareVideoStyle.CLASSIC)
             assertEquals("https://private.example/video?token=secret", repository.getDownloadUrl(987654321).getOrThrow().downloadUrl)
             assertEquals(listOf("create_request", "download_url"), analytics.events
                 .filter { it.first == MapmoryAnalyticsEvent.SHARE_MEDIA_OPERATION_COMPLETED }.map { it.second["operation"] })

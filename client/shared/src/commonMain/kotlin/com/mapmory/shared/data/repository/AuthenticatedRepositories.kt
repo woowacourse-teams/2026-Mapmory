@@ -21,6 +21,7 @@ import com.mapmory.shared.domain.model.ServiceFeedbackPlatform
 import com.mapmory.shared.domain.repository.ServiceFeedbackRepository
 import com.mapmory.shared.domain.model.ShareVideoDownload
 import com.mapmory.shared.domain.model.ShareVideoJob
+import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 
 internal class AuthenticatedTripRecordRepository(
@@ -28,7 +29,7 @@ internal class AuthenticatedTripRecordRepository(
     private val delegate: TripRecordRepository,
 ) : ProgressReportingTripRecordRepository {
     override suspend fun getCachedTripRecords(query: TripRecordQuery): TripRecordPage? =
-        session.withAuthenticatedSession { Result.success(delegate.getCachedTripRecords(query)) }.getOrNull()
+        session.withLocalAccountLease { delegate.getCachedTripRecords(query) }
 
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         withAuthenticatedSession { delegate.getTripRecords(query) }
@@ -116,8 +117,8 @@ internal class AuthenticatedShareVideoRepository(
     private val session: GuestSessionManager,
     private val delegate: ShareVideoRepository,
 ) : ShareVideoRepository {
-    override suspend fun createTravelTimeline(): Result<ShareVideoJob> =
-        withAuthenticatedSession(delegate::createTravelTimeline)
+    override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> =
+        withAuthenticatedSession { delegate.createTravelTimeline(style) }
 
     override suspend fun getJob(jobId: Long): Result<ShareVideoJob> =
         withAuthenticatedSession { delegate.getJob(jobId) }

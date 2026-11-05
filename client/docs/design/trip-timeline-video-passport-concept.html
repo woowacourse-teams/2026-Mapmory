@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapmory · 여행 영상 완성 경험 시안</title>
+  <style>
+    :root {
+      --canvas: #eef2ef;
+      --paper: #fafcfb;
+      --surface: #fff;
+      --line: #e3e9e5;
+      --ink: #1f2924;
+      --body: #5f6e66;
+      --muted: #87938c;
+      --green: #4d9272;
+      --green-soft: #e8f2ec;
+      --night: #111715;
+      --font: "LINE Seed Sans KR", Pretendard, "Apple SD Gothic Neo", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font); }
+    button { font: inherit; cursor: pointer; }
+    .page { max-width: 1480px; margin: 0 auto; padding: 32px; }
+    .eyebrow { color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+    h1 { margin: 10px 0 8px; font-size: clamp(25px, 3vw, 36px); letter-spacing: -.045em; }
+    .intro { max-width: 810px; margin: 0; color: var(--body); font-size: 14px; line-height: 1.7; }
+    .notice-concept {
+      display: flex; align-items: center; gap: 14px; margin: 22px 0 26px; padding: 14px 16px;
+      border: 1px solid var(--line); border-radius: 16px; background: var(--paper);
+    }
+    .app-mark { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 12px; background: var(--green); color: white; font-size: 15px; font-weight: 800; }
+    .notice-copy { flex: 1; min-width: 0; }
+    .notice-copy strong { display: block; margin-bottom: 3px; font-size: 13px; }
+    .notice-copy p { margin: 0; color: var(--body); font-size: 12px; line-height: 1.5; }
+    .notice-label { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 800; }
+    .notice-note { margin: -17px 0 26px 4px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .board { min-width: 0; }
+    .board-title { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; }
+    .step { color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+    .board-desc { min-height: 38px; margin: 0 0 11px; color: var(--body); font-size: 11px; line-height: 1.55; }
+    .screen { position: relative; display: flex; height: 790px; flex-direction: column; overflow: hidden; background: var(--paper); }
+    .topbar { display: flex; height: 58px; flex: 0 0 auto; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+    .icon-button { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: 18px; }
+    .topbar-title { flex: 1; font-size: 14px; font-weight: 700; }
+    .quiet-link { border: 0; background: transparent; color: var(--green); font-size: 11px; font-weight: 700; }
+    .content { min-height: 0; flex: 1; padding: 18px 18px 12px; }
+    .ready-label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 800; }
+    .ready-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .headline { margin: 12px 0 6px; font-size: 21px; line-height: 1.28; letter-spacing: -.04em; }
+    .subtitle { margin: 0; color: var(--body); font-size: 11px; }
+    .cover {
+      position: relative; height: 335px; margin-top: 16px; overflow: hidden; border-radius: 20px; background: #34423b;
+      color: white; isolation: isolate;
+    }
+    .cover-photo { position: absolute; inset: 0; overflow: hidden; }
+    .cover-photo img { position: absolute; top: 0; left: 0; width: 100%; height: auto; transform: translateY(-53%); opacity: .95; }
+    .cover::after { position: absolute; z-index: 0; inset: 0; background: linear-gradient(180deg, rgba(12,19,16,.04) 15%, rgba(12,19,16,.08) 42%, rgba(12,19,16,.78) 100%); content: ""; }
+    .cover-top { position: absolute; z-index: 1; top: 13px; left: 13px; right: 13px; display: flex; align-items: center; justify-content: space-between; }
+    .cover-chip { padding: 6px 8px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; background: rgba(20,30,25,.35); color: white; font-size: 9px; font-weight: 700; backdrop-filter: blur(8px); }
+    .play-button { position: absolute; z-index: 2; top: 50%; left: 50%; display: grid; width: 56px; height: 56px; transform: translate(-50%, -50%); place-items: center; border: 1px solid rgba(255,255,255,.7); border-radius: 50%; background: rgba(20,30,25,.36); color: white; font-size: 20px; backdrop-filter: blur(8px); }
+    .cover-bottom { position: absolute; z-index: 1; right: 16px; bottom: 16px; left: 16px; }
+    .cover-location { margin-bottom: 5px; color: rgba(255,255,255,.82); font-size: 9px; letter-spacing: .12em; }
+    .cover-title { font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
+    .cover-caption { margin-top: 4px; color: rgba(255,255,255,.82); font-size: 10px; }
+    .journey-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 13px; }
+    .journey-meta strong { display: block; font-size: 12px; }
+    .journey-meta span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .photo-count { align-self: center; padding: 8px 10px; border-radius: 12px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .journey-line { display: flex; align-items: center; gap: 7px; margin-top: 13px; color: var(--body); font-size: 9px; }
+    .journey-line i { display: block; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
+    .journey-line b { height: 1px; flex: 1; background: var(--line); }
+    .style-link { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-top: 14px; padding: 12px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--body); text-align: left; font-size: 11px; }
+    .style-link strong { color: var(--green); font-size: 11px; }
+    .actions { display: flex; gap: 9px; padding: 12px 16px 18px; border-top: 1px solid var(--line); background: var(--paper); }
+    .action { display: grid; min-height: 48px; flex: 1; place-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 700; }
+    .action.primary { border-color: var(--green); background: var(--green); color: white; }
+    .mini-note { margin: 9px 2px 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .fullscreen { background: #101411; color: white; }
+    .fullscreen .topbar { border-color: rgba(255,255,255,.12); background: rgba(16,20,17,.8); }
+    .fullscreen .icon-button { border-color: rgba(255,255,255,.26); background: rgba(255,255,255,.12); color: white; }
+    .fullscreen .topbar-title { color: white; }
+    .full-photo { position: absolute; inset: 58px 0 145px; overflow: hidden; background: #34423b; }
+    .full-photo img { position: absolute; top: 0; left: 0; width: 100%; height: auto; min-height: 100%; transform: translateY(-53%); object-fit: cover; opacity: .9; }
+    .full-photo::after { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.18), transparent 28%, transparent 58%, rgba(0,0,0,.64)); content: ""; }
+    .full-photo .play-button { width: 64px; height: 64px; }
+    .full-info { position: absolute; z-index: 1; right: 18px; bottom: 165px; left: 18px; }
+    .full-info .cover-location { font-size: 10px; }
+    .full-info .cover-title { font-size: 21px; }
+    .timeline { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: rgba(255,255,255,.76); font-size: 9px; }
+    .track { height: 3px; flex: 1; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.35); }
+    .track::before { display: block; width: 32%; height: 100%; border-radius: inherit; background: #fff; content: ""; }
+    .fullscreen .actions { margin-top: auto; border-color: rgba(255,255,255,.12); background: #101411; }
+    .fullscreen .action { border-color: rgba(255,255,255,.23); background: transparent; color: white; }
+    .fullscreen .action.primary { border-color: var(--green); background: var(--green); }
+    .behind { position: absolute; inset: 58px 0 0; display: flex; flex-direction: column; padding: 18px; }
+    .behind .cover { height: 280px; flex: 0 0 auto; margin: 0; }
+    .behind-lines { margin-top: 18px; }
+    .behind-line { height: 11px; margin: 10px 0; border-radius: 99px; background: #edf1ee; }
+    .behind-line.short { width: 56%; }
+    .shade { position: absolute; z-index: 3; inset: 58px 0 0; background: rgba(20,29,24,.42); }
+    .sheet { position: absolute; z-index: 4; right: 0; bottom: 0; left: 0; padding: 18px 18px 20px; border-radius: 22px 22px 0 0; background: var(--paper); box-shadow: 0 -12px 36px rgba(20,29,24,.16); }
+    .grabber { width: 34px; height: 4px; margin: 0 auto 14px; border-radius: 99px; background: #d4ddd7; }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .sheet-head strong { font-size: 17px; }
+    .sheet-head button { border: 0; background: transparent; color: var(--muted); font-size: 19px; }
+    .sheet-subtitle { margin: 0 0 14px; color: var(--body); font-size: 10px; line-height: 1.5; }
+    .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .choice { min-height: 74px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--body); text-align: left; }
+    .choice.selected { border-color: var(--green); background: var(--green-soft); color: var(--ink); }
+    .choice-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+    .choice strong { font-size: 10px; }
+    .radio { display: grid; width: 15px; height: 15px; place-items: center; border: 1px solid #b7c4bc; border-radius: 50%; color: transparent; font-size: 9px; }
+    .choice.selected .radio { border-color: var(--green); background: var(--green); color: white; }
+    .swatch { height: 20px; margin-top: 8px; border-radius: 7px; background: linear-gradient(110deg, #32483c, #a8bcae 48%, #53645a); }
+    .choice:nth-child(2) .swatch { background: radial-gradient(circle at 65% 30%, #95c8ad 0 2px, transparent 3px), linear-gradient(110deg, #132624, #487e6c, #18221e); }
+    .choice:nth-child(3) .swatch { background: radial-gradient(circle at 40% 45%, #718ae0 0 1px, transparent 2px), linear-gradient(110deg, #121c33, #514881, #151923); }
+    .choice:nth-child(4) .swatch { background: linear-gradient(180deg, #293d50, #8295a0 52%, #26392f 53%, #526f5d); }
+    .replace-note { display: flex; gap: 8px; margin: 12px 0; padding: 10px; border-radius: 11px; background: #f0f4f1; color: var(--body); font-size: 9px; line-height: 1.45; }
+    .replace-note strong { color: var(--green); white-space: nowrap; }
+    .sheet-cta { display: grid; width: 100%; min-height: 48px; place-items: center; border: 0; border-radius: 14px; background: var(--green); color: white; font-size: 11px; font-weight: 800; }
+    .toast { position: fixed; z-index: 10; right: 24px; bottom: 24px; max-width: 360px; padding: 12px 16px; transform: translateY(12px); border-radius: 12px; background: #26332b; color: white; font-size: 12px; opacity: 0; pointer-events: none; transition: .2s ease; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .footer-note { margin-top: 22px; padding: 14px 16px; border-left: 3px solid var(--green); background: rgba(250,252,251,.72); color: var(--body); font-size: 11px; line-height: 1.65; }
+    .footer-note strong { color: var(--ink); }
+    @media (max-width: 1000px) { .boards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 650px) {
+      .page { padding: 20px 16px; }
+      .notice-concept { align-items: flex-start; }
+      .notice-label { display: none; }
+      .boards { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+      .board-desc { min-height: 0; }
+      .screen { height: min(790px, 176vw); min-height: 690px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="eyebrow">MAPMORY · TRAVEL VIDEO CONCEPT</div>
+    <h1>여행을 한 편으로 완성하고, 더 크게 보고, 간직하기</h1>
+    <p class="intro">여행여권의 ‘여행을 지역별로 모으고 결과물로 완성하는’ 경험에서 힌트를 얻되, 맵모리의 중심인 장소와 실제 기록 사진이 주인공이 되도록 구성한 비교 시안입니다.</p>
+
+    <section class="notice-concept" aria-label="완성 알림 시안">
+      <div class="app-mark">M</div>
+      <div class="notice-copy">
+        <strong>Mapmory　·　지금</strong>
+        <p>여행 영상이 완성됐어요. 탭해서 미리 보고 사진 앱에 저장하거나 공유해 보세요.</p>
+      </div>
+      <span class="notice-label">백그라운드 완료 알림 시안</span>
+    </section>
+    <p class="notice-note">알림은 화면 표현 시안입니다. 앱이 백그라운드이거나 종료된 상태에서 전달하려면 서버 완료 이벤트와 FCM/APNs 푸시 연결이 필요합니다.</p>
+
+    <section class="boards" aria-label="여행 영상 완료 경험">
+      <article class="board">
+        <h2 class="board-title"><span class="step">01</span> 완성된 여행 영상</h2>
+        <p class="board-desc">여행 정보와 기록 사진 수를 함께 보여주고, 대표 프레임을 눌러 바로 재생합니다.</p>
+        <div class="screen">
+          <header class="topbar">
+            <button class="icon-button" aria-label="뒤로">‹</button>
+            <span class="topbar-title">여행 타임라인</span>
+            <button class="quiet-link">닫기</button>
+          </header>
+          <div class="content">
+            <span class="ready-label"><i class="ready-dot"></i> 영상이 완성됐어요</span>
+            <h3 class="headline">이번 여행의 순간을<br>한 편으로 담았어요</h3>
+            <p class="subtitle">제주 여행 기록과 사진을 한 편으로 모았어요.</p>
+            <div class="cover preview-trigger" role="button" tabindex="0" aria-label="전체 화면으로 영상 미리보기">
+              <div class="cover-photo"><img src="../onboarding/references/prototype-journal.jpg" alt="맵모리 여행 기록 시안에 사용된 제주 사진"></div>
+              <div class="cover-top"><span class="cover-chip">TRAVEL VIDEO</span><span class="cover-chip">00:28</span></div>
+              <span class="play-button" aria-hidden="true">▶</span>
+              <div class="cover-bottom"><div class="cover-location">JEJU · KOREA</div><div class="cover-title">제주에서 보낸 시간</div><div class="cover-caption">여행 기록 1개 · 사진 7장</div></div>
+            </div>
+            <div class="journey-meta">
+              <div><strong>2026. 06. 26 — 07. 11</strong><span>기록한 여행을 영상으로 모았어요</span></div>
+              <span class="photo-count">제주 · 사진 7장</span>
+            </div>
+            <div class="journey-line" aria-label="사진이 여행 영상으로 정리되는 흐름"><i></i><span>사진 7장</span><b></b><i></i><span>여행 기록</span><b></b><i></i><span>영상 1편</span></div>
+            <button class="style-link open-style"><span>영상 스타일</span><strong>다른 스타일로 바꾸기　›</strong></button>
+          </div>
+          <footer class="actions">
+            <button class="action save-action">사진 앱에 저장</button>
+            <button class="action primary share-action">공유하기</button>
+          </footer>
+        </div>
+        <p class="mini-note">완료 결과가 중심. 저장·공유는 결과물 액션으로 분리하고, 스타일 편집은 보조 행동으로 둡니다.</p>
+      </article>
+
+      <article class="board">
+        <h2 class="board-title"><span class="step">02</span> 전체화면 미리보기</h2>
+        <p class="board-desc">작은 플레이어에서 한 번 누르면 영상 감상에 집중할 수 있는 화면으로 확장합니다.</p>
+        <div class="screen fullscreen">
+          <header class="topbar">
+            <button class="icon-button" aria-label="닫기">×</button>
+            <span class="topbar-title">제주에서 보낸 시간</span>
+            <button class="quiet-link" style="color:#b8d4c4">•••</button>
+          </header>
+          <div class="full-photo">
+            <img src="../onboarding/references/prototype-journal.jpg" alt="여행 영상 프레임 예시">
+            <button class="play-button full-play" aria-label="영상 재생">▶</button>
+            <div class="full-info">
+              <div class="cover-location">JEJU · 2026. 06. 26 — 07. 11</div>
+              <div class="cover-title">제주에서 보낸 시간</div>
+              <div class="timeline"><span class="time-current">00:08</span><span class="track"></span><span>00:28</span></div>
+            </div>
+          </div>
+          <footer class="actions">
+            <button class="action save-action">사진 앱에 저장</button>
+            <button class="action primary share-action">공유하기</button>
+          </footer>
+        </div>
+        <p class="mini-note">전체화면에서는 닫기 위치를 고정하고, 재생 위치와 저장·공유도 계속 접근 가능하게 둡니다.</p>
+      </article>
+
+      <article class="board">
+        <h2 class="board-title"><span class="step">03</span> 스타일 변경과 재생성</h2>
+        <p class="board-desc">스타일 선택은 별도 시트로 분리해 저장·공유와 헷갈리지 않게 합니다.</p>
+        <div class="screen">
+          <header class="topbar">
+            <button class="icon-button" aria-label="뒤로">‹</button>
+            <span class="topbar-title">여행 타임라인</span>
+            <button class="quiet-link">닫기</button>
+          </header>
+          <div class="behind">
+            <span class="ready-label"><i class="ready-dot"></i> 완성된 영상</span>
+            <div class="cover" style="margin-top:14px">
+              <div class="cover-photo"><img src="../onboarding/references/prototype-journal.jpg" alt="현재 완성된 영상 프레임"></div>
+              <button class="play-button" aria-label="재생">▶</button>
+              <div class="cover-bottom"><div class="cover-location">JEJU · KOREA</div><div class="cover-title">제주에서 보낸 시간</div></div>
+            </div>
+            <div class="behind-lines"><div class="behind-line"></div><div class="behind-line short"></div></div>
+          </div>
+          <div class="shade"></div>
+          <section class="sheet" aria-label="영상 스타일 변경">
+            <div class="grabber"></div>
+            <div class="sheet-head"><strong>영상 스타일 바꾸기</strong><button class="close-style" aria-label="닫기">×</button></div>
+            <p class="sheet-subtitle">원하는 분위기를 고르면 새 영상으로 만들어 드려요.</p>
+            <div class="choices" role="radiogroup" aria-label="영상 스타일">
+              <button class="choice selected" aria-checked="true" role="radio"><span class="choice-top"><strong>현재 버전</strong><i class="radio">✓</i></span><i class="swatch"></i></button>
+              <button class="choice" aria-checked="false" role="radio"><span class="choice-top"><strong>확대 지구본</strong><i class="radio">✓</i></span><i class="swatch"></i></button>
+              <button class="choice" aria-checked="false" role="radio"><span class="choice-top"><strong>우주 배경</strong><i class="radio">✓</i></span><i class="swatch"></i></button>
+              <button class="choice" aria-checked="false" role="radio"><span class="choice-top"><strong>지평선 지구본</strong><i class="radio">✓</i></span><i class="swatch"></i></button>
+            </div>
+            <p class="replace-note"><strong>다시 만들기</strong><span>새 영상이 준비되는 동안 지금 영상은 계속 볼 수 있어요. 완성되면 새 버전으로 바뀝니다.</span></p>
+            <button class="sheet-cta regenerate-action">이 스타일로 다시 만들기</button>
+          </section>
+        </div>
+        <p class="mini-note">한 번의 요청은 선택한 스타일 하나를 생성합니다. 여러 완성본을 동시에 비교하는 것처럼 표현하지 않습니다.</p>
+      </article>
+    </section>
+
+    <p class="footer-note"><strong>디자인 기준:</strong> 여행여권의 지역별 수집·여행별 결과물 경험에서 착안하고, 맵모리는 실제 장소·여행 기록·선택 사진을 연결하는 데 초점을 둡니다. 이 파일은 인터랙션이 포함된 디자인 시안이며 앱 동작이나 서버 푸시를 구현하지 않습니다.</p>
+  </main>
+  <div class="toast" role="status" aria-live="polite"></div>
+  <script>
+    const toast = document.querySelector('.toast');
+    let toastTimer;
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+    document.querySelectorAll('.preview-trigger').forEach((trigger) => {
+      const open = () => document.querySelector('.fullscreen').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      trigger.addEventListener('click', open);
+      trigger.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') open(); });
+    });
+    document.querySelectorAll('.open-style').forEach((button) => button.addEventListener('click', () => document.querySelector('.sheet').scrollIntoView({ behavior: 'smooth', block: 'center' })));
+    document.querySelector('.close-style').addEventListener('click', () => showToast('스타일 선택을 닫는 동작의 시안입니다.'));
+    document.querySelectorAll('.choice').forEach((choice) => choice.addEventListener('click', () => {
+      document.querySelectorAll('.choice').forEach((item) => { item.classList.remove('selected'); item.setAttribute('aria-checked', 'false'); });
+      choice.classList.add('selected');
+      choice.setAttribute('aria-checked', 'true');
+    }));
+    document.querySelectorAll('.save-action').forEach((button) => button.addEventListener('click', () => showToast('사진 앱 저장 완료 안내의 시안이에요.')));
+    document.querySelectorAll('.share-action').forEach((button) => button.addEventListener('click', () => showToast('공유 메뉴가 열리는 자리입니다.')));
+    document.querySelectorAll('.full-play').forEach((button) => button.addEventListener('click', () => {
+      const playing = button.textContent.trim() === '▶';
+      button.textContent = playing ? 'Ⅱ' : '▶';
+      showToast(playing ? '재생 중인 화면의 시안입니다.' : '일시 정지했어요.');
+    }));
+    document.querySelector('.regenerate-action').addEventListener('click', () => showToast('선택한 스타일로 새 영상 생성 요청을 보내는 시안입니다.'));
+  </script>
+</body>
+</html>

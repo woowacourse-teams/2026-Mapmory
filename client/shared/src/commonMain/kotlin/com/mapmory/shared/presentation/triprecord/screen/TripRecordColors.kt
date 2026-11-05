@@ -75,12 +75,12 @@ internal data class TripStatisticsColors(
 )
 
 private val LightTripRecordColors = TripRecordColors(
-    background = Color(0xFFFAFCFB), surface = Color.White, surfaceElevated = Color(0xFFF7FAF8),
+    background = Color(0xFFFFFEFF), surface = Color.White, surfaceElevated = Color(0xFFF7FAF8),
     line = Color(0xFFE1E7E3), text = Color(0xFF1F2924), muted = Color(0xFF89948E),
     accent = Color(0xFF4D9272), accentSoft = Color(0xFFE9F2ED), danger = Color(0xFFC94C57),
     photoRecommendText = Color(0xFFBB4D56), photoRecommendBackground = Color(0xFFFFF1F1),
     photoRecommendBorder = Color(0xFFDB6A70), photoGalleryBackground = Color(0xFFF3F7F4),
-    photoGalleryBorder = Color(0xFFB7C8BC), pageBackground = Color(0xFFFAFCFB),
+    photoGalleryBorder = Color(0xFFB7C8BC), pageBackground = Color(0xFFFFFEFF),
     softSurface = Color(0xFFF0F4F1), imagePlaceholder = Color(0xFFE4E4E4), border = Color(0xFFE4E9E6), primary = Color(0xFF4D9272),
     primarySoft = Color(0xFFE9F2ED), secondaryAccent = Color(0xFF4A896B), onPrimary = Color.White,
     headingText = Color(0xFF1F2924), bodyText = Color(0xFF5F6E66), secondaryText = Color(0xFF89948E),
@@ -90,7 +90,7 @@ private val LightTripRecordColors = TripRecordColors(
 )
 
 private val DarkTripRecordColors = TripRecordColors(
-    background = Color(0xFF111518), surface = Color(0xFF1A1E22), surfaceElevated = Color(0xFF102A32),
+    background = Color(0xFF121518), surface = Color(0xFF1A1E22), surfaceElevated = Color(0xFF102A32),
     line = Color(0xFF1B363E), text = Color(0xFFE9F4F2), muted = Color(0xFF81999E),
     accent = Color(0xFF35C988), accentSoft = Color(0xFF123E3A), danger = Color(0xFFFF6264),
     photoRecommendText = Color.White, photoRecommendBackground = Color(0xFF382125),
@@ -109,7 +109,7 @@ private val LightTripMapColors = TripMapColors(
     scopeSelectedBackground = Color.White, scopeSelectedText = Color(0xFF2D4539),
     scopeUnselectedText = Color(0xFF7A8880), tagBackground = Color(0xFFF7FAF8),
     tagText = Color(0xFF6B786F), tagSelectedText = Color.White, dashboardBadgeText = Color(0xFF4A896B),
-    globeBackground = Color(0xFFFAFCFB), globeOuterGlow = Color(0xFF789587).copy(alpha = 0.08f),
+    globeBackground = Color(0xFFFFFEFF), globeOuterGlow = Color(0xFF789587).copy(alpha = 0.08f),
     globeGradientCenter = Color(0xFFF8FAF8), globeGradientMiddle = Color(0xFFF0F4F1),
     globeGradientEdge = Color(0xFFE7EDE9), globeVisitedFill = Color(0xFF4D9272),
     globeUnvisitedFill = Color(0xFFDCE4DF),

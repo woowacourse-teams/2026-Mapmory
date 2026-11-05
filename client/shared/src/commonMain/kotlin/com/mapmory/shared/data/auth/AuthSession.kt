@@ -122,6 +122,19 @@ internal class GuestSessionManager(
         finally { withContext(NonCancellable) { operationMutex.withLock { activeOperations-- } } }
     }
 
+    /** Read local data under an account lease without refreshing credentials. */
+    internal suspend fun <T> withLocalAccountLease(read: suspend () -> T): T? {
+        val allowed = operationMutex.withLock {
+            val pending = runCatching { tokenStore.pendingProvider().provider }.getOrElse { return@withLock false }
+            if (pending != null || state.value.transitioning || state.value.pendingLogin || state.value.pendingLogout) false
+            else { activeOperations++; true }
+        }
+        if (!allowed) return null
+        return try { read() } finally {
+            withContext(NonCancellable) { operationMutex.withLock { activeOperations-- } }
+        }
+    }
+
     override suspend fun restore(): Result<AccountMember> {
         try {
             val pending = tokenStore.pendingProvider().provider
@@ -250,6 +263,9 @@ internal class GuestSessionManager(
                     accountState.value = state.value.copy(stage = "session_prepare")
                     val recovering = state.value.pendingLogin
                     if (recovering) {
+                        if (state.value.recoveryRequired && !recoverInvalidSession) {
+                            return@withContext Result.failure(IllegalStateException("기존 세션을 제외한 로그인 확인이 필요해요."))
+                        }
                         val expected = tokenStore.pendingProvider().provider?.substringBefore(':')
                         if (expected != credential.first.name) return@withContext Result.failure(
                             IllegalStateException("이전에 선택한 로그인 방식으로 다시 인증해 주세요."))
@@ -295,6 +311,12 @@ internal class GuestSessionManager(
                 // A rejection is definite. Transport/5xx failures may have committed on the server.
                 if (error is MapmoryApiException && error.statusCode in 400..499) {
                     // HttpSend already retries EXPIRED_ACCESS_TOKEN at most once.
+                    if (error.code == "INVALID_ACCESS_TOKEN") {
+                        omitPreviousSession = true
+                        pendingCredential = null
+                        accountState.value = state.value.copy(needsProviderProof = true, recoveryRequired = true)
+                        return Result.failure(error)
+                    }
                     if (error.code in setOf("INACTIVE_MEMBER", "INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN")) {
                         omitPreviousSession = true
                         return Result.failure(error)
