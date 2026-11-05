@@ -22,6 +22,8 @@ import com.mapmory.shared.data.auth.MemberProvider
 internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLoginController) {
     val account by session.state.collectAsState()
     val ui by controller.state.collectAsState()
+    val launcher = LocalSocialLoginLauncher.current
+    var confirmWithdrawal by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
     var restoreFailed by remember { mutableStateOf(false) }
     LaunchedEffect(session) {
@@ -49,8 +51,13 @@ internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLo
                         drawCircle(palette.primary, radius = size.width * 0.3f, center = Offset(size.width / 2, size.height * 0.85f))
                     }
                 }
-                TextButton(onClick = { confirm = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
-                    Text("로그아웃")
+                Row {
+                    TextButton(onClick = { confirm = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
+                        Text("로그아웃")
+                    }
+                    TextButton(onClick = { confirmWithdrawal = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
+                        Text("회원 탈퇴")
+                    }
                 }
             }
             ui.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -58,6 +65,13 @@ internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLo
             Text("계정 정보를 불러오지 못했어요. 연결 상태를 확인한 뒤 화면을 다시 열어 주세요.", color = palette.muted, style = MaterialTheme.typography.bodySmall)
         }
     }
+    if (confirmWithdrawal) AlertDialog(
+        onDismissRequest = { confirmWithdrawal = false },
+        title = { Text("정말 탈퇴할까요?") },
+        text = { Text("탈퇴하면 저장한 기록을 다시 볼 수 없으며, 다시 가입해도 복구할 수 없어요.") },
+        confirmButton = { TextButton(onClick = { confirmWithdrawal = false; controller.withdraw(launcher) }) { Text("회원 탈퇴") } },
+        dismissButton = { TextButton(onClick = { confirmWithdrawal = false }) { Text("취소") } },
+    )
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         title = { Text("로그아웃할까요?") },

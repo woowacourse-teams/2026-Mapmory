@@ -41,6 +41,38 @@ class AccountLoginController(
         }
     }
 
+    fun withdraw(launcher: SocialLoginLauncher?) {
+        if (mutableState.value.busy) return
+        val apple = session.state.value.member?.provider == MemberProvider.APPLE ||
+            (session.state.value.pendingWithdrawal && session.state.value.recentLoginProvider == MemberProvider.APPLE)
+        mutableState.value = LoginUiState(busy = true)
+        fun submit(identityToken: String? = null, authorizationCode: String? = null) {
+            scope.launch {
+                val result = session.withdraw(identityToken, authorizationCode)
+                mutableState.value = LoginUiState(message = when {
+                    result.isSuccess -> null
+                    result.exceptionOrNull() is WithdrawalUnconfirmedException -> result.exceptionOrNull()?.message
+                    else -> "탈퇴를 완료하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."
+                })
+            }
+        }
+        if (!apple) { submit(); return }
+        if (launcher == null || SocialProvider.APPLE !in launcher.providers) {
+            mutableState.value = LoginUiState(message = "Apple 재인증을 사용할 수 없어요. 다시 시도해 주세요.")
+            return
+        }
+        try {
+            launcher.launch(SocialProvider.APPLE) { result ->
+                val credential = (result as? SocialLoginSuccess)?.credential
+                if (!credential?.idToken.isNullOrBlank() && !credential?.authorizationCode.isNullOrBlank()) {
+                    submit(credential?.idToken, credential?.authorizationCode)
+                } else mutableState.value = LoginUiState(message = "Apple 재인증을 완료하지 못했어요. 다시 시도해 주세요.")
+            }
+        } catch (error: Exception) {
+            mutableState.value = LoginUiState(message = "Apple 재인증을 시작하지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
     fun launch(launcher: SocialLoginLauncher, provider: SocialProvider, recoverInvalidSession: Boolean = false) {
         if (!mutableState.compareAndSet(mutableState.value.takeIf { !it.busy } ?: return, LoginUiState(busy = true))) return
         val started = TimeSource.Monotonic.markNow()

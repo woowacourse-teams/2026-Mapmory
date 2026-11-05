@@ -202,17 +202,31 @@ fun MapmoryApp(
                         )
                     }
                 }
+                var dismissedWithdrawalNotice by remember(accountState?.generation) { mutableStateOf(false) }
+                if (accountState?.withdrawalUnconfirmed == true && !dismissedWithdrawalNotice) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { dismissedWithdrawalNotice = true },
+                        title = { androidx.compose.material3.Text("탈퇴 결과를 확인하지 못했어요") },
+                        text = { androidx.compose.material3.Text("로그인 정보가 만료되어 탈퇴 여부를 확인할 수 없어요. 그룹 탭에서 다시 로그인해 계정을 확인하고, 필요한 경우 탈퇴를 다시 진행해 주세요.") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = { dismissedWithdrawalNotice = true }) {
+                                androidx.compose.material3.Text("확인")
+                            }
+                        },
+                    )
+                }
+                val withdrawalLauncher = com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher.current
                 if (accountState?.pendingLogout == true && !accountState.transitioning) {
                     val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = {},
-                        title = { androidx.compose.material3.Text("로그아웃을 마무리해 주세요") },
+                        title = { androidx.compose.material3.Text(if (accountState.pendingWithdrawal) "회원 탈퇴를 마무리해 주세요" else "로그아웃을 마무리해 주세요") },
                         text = { androidx.compose.material3.Text(logoutUi?.message ?: "로그인 정보와 계정 화면을 정리하고 있어요. 다시 시도해 주세요.") },
                         confirmButton = {
                             androidx.compose.material3.TextButton(
-                                onClick = { appContainer.accountLoginController?.logout() },
+                                onClick = { if (accountState.pendingWithdrawal) appContainer.accountLoginController?.withdraw(withdrawalLauncher) else appContainer.accountLoginController?.logout() },
                                 enabled = logoutUi?.busy != true,
-                            ) { androidx.compose.material3.Text("로그아웃 다시 시도") }
+                            ) { androidx.compose.material3.Text(if (accountState.pendingWithdrawal) "회원 탈퇴 다시 시도" else "로그아웃 다시 시도") }
                         },
                     )
                 }
@@ -221,7 +235,7 @@ fun MapmoryApp(
                         androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
                             androidx.compose.foundation.layout.Column(Modifier.padding(28.dp)) {
                                 androidx.compose.material3.CircularProgressIndicator()
-                                androidx.compose.material3.Text(if (accountState.pendingLogout) "로그아웃하고 있어요" else "계정을 확인하고 있어요")
+                                androidx.compose.material3.Text(if (accountState.pendingWithdrawal) "회원 탈퇴를 처리하고 있어요" else if (accountState.pendingLogout) "로그아웃하고 있어요" else "계정을 확인하고 있어요")
                             }
                         }
                     }
