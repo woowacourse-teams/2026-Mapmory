@@ -6,9 +6,13 @@ import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.BucketExceptions.BucketExecutionException;
 import io.github.bucket4j.ConsumptionProbe;
+import io.github.bucket4j.TokensInheritanceStrategy;
+import io.github.bucket4j.distributed.BucketProxy;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import java.time.Clock;
 import java.time.YearMonth;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,6 +37,8 @@ public class GoogleRequestLimiter {
     private final Budget details;
     private final Budget geocode;
     private final long freeAlertAt;
+    // 무료 사용량 알림을 보낸 월 한도 키. 환불로 남은 개수가 되돌아가도 같은 달에 다시 울리지 않게 한다(서버마다 한 번).
+    private final Map<String, Boolean> freeUsageAlerted = new ConcurrentHashMap<>();
     private final Clock clock;
 
     public GoogleRequestLimiter(
@@ -92,7 +98,7 @@ public class GoogleRequestLimiter {
     private void consume(Budget budget) {
         ConsumptionProbe probe;
         try {
-            probe = bucketManager.getProxy(budget.key(clock), budget::configuration).tryConsumeAndReturnRemaining(1);
+            probe = bucket(budget).tryConsumeAndReturnRemaining(1);
         } catch (BucketExecutionException exception) {
             // 한도 저장소가 장애일 때 외부 API를 호출하면 사용량을 통제할 수 없다.
             log.atError()
@@ -108,10 +114,20 @@ public class GoogleRequestLimiter {
         alertIfFreeUsageRunningOut(budget, probe.getRemainingTokens());
     }
 
+    /**
+     * 이번 달 버킷. 상한을 바꿔 배포하면 이미 만든 이번 달 버킷에도 새 상한을 적용한다. 버전은 상한 값이라 올렸을 때만
+     * 바뀌고, ADDITIVE라 이미 쓴 개수는 그대로 두고 늘어난 만큼만 남은 개수에 더한다. 상한을 낮추면 다음 달부터 적용된다.
+     */
+    private BucketProxy bucket(Budget budget) {
+        return bucketManager.builder()
+                .withImplicitConfigurationReplacement(budget.capacity(), TokensInheritanceStrategy.ADDITIVE)
+                .build(budget.key(clock), budget::configuration);
+    }
+
     // 돌려주지 못하면 실제보다 많이 쓴 것으로 셀 뿐이다. 이미 정해진 Google 장애 응답을 돌려주기 실패로 바꾸지 않는다.
     private void refund(Budget budget) {
         try {
-            bucketManager.getProxy(budget.key(clock), budget::configuration).addTokens(1);
+            bucket(budget).addTokens(1);
         } catch (BucketExecutionException exception) {
             log.atWarn()
                     .addKeyValue("event", "GOOGLE_PLACES_BUDGET_REFUND_FAILED")
@@ -149,7 +165,8 @@ public class GoogleRequestLimiter {
      */
     private void alertIfFreeUsageRunningOut(Budget budget, long remaining) {
         long capacity = budget.capacity();
-        if (freeAlertAt >= capacity || capacity - remaining != freeAlertAt) {
+        if (freeAlertAt >= capacity || capacity - remaining != freeAlertAt
+                || freeUsageAlerted.putIfAbsent(budget.key(clock), true) != null) {
             return;
         }
         log.atError()

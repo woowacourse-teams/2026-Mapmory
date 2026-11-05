@@ -96,8 +96,9 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            for (int i = 0; i < 5; i++) {
+            for (int call = 1; call <= 5; call++) {
                 limiter.reserveGeocode();
+                assertThat(appender.list).hasSize(call < 3 ? 0 : 1);
             }
         } finally {
             logger.detachAppender(appender);
@@ -107,6 +108,41 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
                 .extracting(event -> field(event, "event") + ":" + field(event, "budget") + ":" + field(event, "used")
                         + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_FREE_USAGE:geocode:3:ERROR");
+    }
+
+    @Test
+    void 돌려받아_같은_사용량을_다시_지나도_무료_사용량_알림은_한_달에_한_번이다() {
+        GoogleRequestLimiter limiter = limiter(10, 10, 10_000, 2);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            limiter.reserveGeocode();
+            limiter.reserveGeocode();
+            limiter.refundGeocode();
+            limiter.reserveGeocode();
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).extracting(event -> field(event, "event"))
+                .containsExactly("GOOGLE_PLACES_FREE_USAGE");
+    }
+
+    // 배포 전에 9,000으로 만든 이번 달 버킷이 남아 있어도 올린 상한까지 쓸 수 있어야 한다.
+    @Test
+    void 상한을_올려_배포하면_이미_만든_이번_달_버킷에도_새_상한을_적용한다() {
+        // 이전 코드처럼 버전 없이 상한 2로 만들고 다 쓴 버킷
+        BucketConfiguration old = BucketConfiguration.builder()
+                .addLimit(bandwidth -> bandwidth.capacity(2).refillIntervally(2, Duration.ofDays(31)))
+                .build();
+        bucketManager.getProxy("google:autocomplete:" + YearMonth.now(ZoneOffset.UTC), () -> old).tryConsume(2);
+
+        GoogleRequestLimiter after = limiter(4, 2, 10_000);
+        after.reserveAutocomplete();
+        after.reserveAutocomplete();
+        assertError(after::reserveAutocomplete, "PLACE_SEARCH_BUDGET_EXHAUSTED");
     }
 
     @Test
