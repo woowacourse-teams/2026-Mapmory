@@ -1,6 +1,7 @@
 package com.mapmory.backend.sharevideo;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +27,16 @@ public interface ShareVideoJobRepository extends JpaRepository<ShareVideoJob, Lo
 
     @Query("SELECT job.attemptObjectKey FROM ShareVideoJob job WHERE job.member.id = :memberId AND job.attemptObjectKey IS NOT NULL")
     List<String> findAttemptKeysByMemberId(@Param("memberId") Long memberId);
+
+    // 대기 중이거나 렌더링 중인 작업이 있는지. 있으면 새 시도본이 올라올 수 있다.
+    @Query("""
+        SELECT COUNT(job) > 0 FROM ShareVideoJob job
+        WHERE job.member.id = :memberId AND job.status IN :statuses
+    """)
+    boolean existsByMemberIdAndStatusIn(
+            @Param("memberId") Long memberId,
+            @Param("statuses") Collection<ShareVideoStatus> statuses
+    );
 
     // 회원 데이터 파기. 객체를 지운 뒤에 부른다.
     @Modifying

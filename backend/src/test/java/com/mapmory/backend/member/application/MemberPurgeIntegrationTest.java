@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -162,6 +164,31 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
         assertThat(memberRepository.findById(failing).orElseThrow().getPurgedAt()).isNotNull();
     }
 
+    /**
+     * 렌더러가 키를 조회한 뒤에 새 시도본을 올리면, 행이 지워져 어떤 키였는지 알 수 없는 객체가 남는다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "RENDERING"})
+    void 끝나지_않은_공유_영상이_있으면_이번에는_건너뛰고_끝난_뒤_다시_지운다(String status) {
+        Long member = withdrawnDaysAgo(31);
+        recordOf(member, "mapmory/travel-records/7/" + status + ".jpg", null);
+        videoOf(member, status, null, null);
+
+        assertThat(memberPurgeService.run()).isZero();
+
+        verify(objectDeleter, never()).delete(anyCollection());
+        assertThat(count("share_video_job", member)).isEqualTo(1);
+        assertThat(count("travel_record", member)).isEqualTo(1);
+        assertThat(memberRepository.findById(member).orElseThrow().getPurgedAt()).isNull();
+
+        jdbcTemplate.update("UPDATE share_video_job SET status = 'FAILED' WHERE member_id = ?", member);
+
+        assertThat(memberPurgeService.run()).isEqualTo(1);
+
+        assertThat(count("share_video_job", member)).isZero();
+        assertThat(count("travel_record", member)).isZero();
+    }
+
     private Member social() {
         return Member.ofOAuth(AuthProvider.KAKAO, UUID.randomUUID().toString(), "지수", UUID.randomUUID());
     }
@@ -202,10 +229,14 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
     }
 
     private void videoOf(Long memberId, String resultKey, String attemptKey) {
+        videoOf(memberId, "COMPLETED", resultKey, attemptKey);
+    }
+
+    private void videoOf(Long memberId, String status, String resultKey, String attemptKey) {
         jdbcTemplate.update("""
                 INSERT INTO share_video_job (member_id, video_type, status, snapshot_json, result_object_key, attempt_object_key)
-                VALUES (?, 'TRAVEL_TIMELINE', 'COMPLETED', '{}', ?, ?)
-                """, memberId, resultKey, attemptKey);
+                VALUES (?, 'TRAVEL_TIMELINE', ?, '{}', ?, ?)
+                """, memberId, status, resultKey, attemptKey);
     }
 
     private void settingOf(Long memberId) {
