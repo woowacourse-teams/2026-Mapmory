@@ -98,6 +98,7 @@ internal fun TripRecordListScreen(
     onProfileClick: () -> Unit = {},
     onGroupClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    videoCountryCount: Int? = null,
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore? = null,
     layout: TripRecordListLayout = TripRecordListLayout.PHOTO,
@@ -259,6 +260,7 @@ internal fun TripRecordListScreen(
                 ) {
                     if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
+                            countryCount = videoCountryCount,
                             onClick = {
                                 analytics.logEvent(
                                     MapmoryAnalyticsEvent.VIDEO_OPENED,
@@ -436,6 +438,7 @@ internal fun TripRecordListScreen(
 
 @Composable
 private fun TripTimelineVideoEntry(
+    countryCount: Int?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -453,14 +456,18 @@ private fun TripTimelineVideoEntry(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            Box(
+            if (countryCount == null || countryCount < 2) Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(palette.surface),
+                    .clip(RoundedCornerShape(13.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("▶", color = palette.primary, fontSize = 13.sp)
+                if (countryCount != null) {
+                    CircularProgressIndicator(progress = { countryCount / 2f }, modifier = Modifier.fillMaxSize().padding(2.dp), color = palette.primary, trackColor = palette.border, strokeWidth = 3.dp)
+                    Text("$countryCount/2", color = palette.primary, fontSize = 10.sp)
+                } else {
+                    Text("—", color = palette.muted)
+                }
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -471,11 +478,11 @@ private fun TripTimelineVideoEntry(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = "내 여행 기록을 타임라인 영상으로 모아요",
+                if (countryCount == null || countryCount < 2) Text(
+                    text = "2개국 이상에 여행 기록을 남기면 만들 수 있어요",
                     color = palette.secondaryText,
                     fontSize = 11.sp,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -625,12 +632,8 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout, loca
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (locationName != null) "이 지역에 남긴 여행 기록" else when (layout) {
-                    TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
-                    TripRecordListLayout.COLLECTION -> "여행 기록을 여행지별로 모아보기"
-                    TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
-                },
+            if (locationName != null) Text(
+                text = "이 지역에 남긴 여행 기록",
                 color = TripRecordPalette.current.secondaryText,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp),

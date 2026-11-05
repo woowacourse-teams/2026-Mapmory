@@ -132,6 +132,7 @@ internal fun MapmoryNavHost(
                 container.viewModelFactory.createTripRecordListViewModel()
             }
             TripRecordListRoute(
+                statisticsRepository = container.tripStatisticsRepository,
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 initialLocationId = requestedLocationId,

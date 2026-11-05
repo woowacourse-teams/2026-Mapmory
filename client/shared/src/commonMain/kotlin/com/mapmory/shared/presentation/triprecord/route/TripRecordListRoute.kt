@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.route
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun TripRecordListRoute(
+    statisticsRepository: com.mapmory.shared.domain.repository.TripStatisticsRepository,
     viewModel: TripRecordListViewModel,
     initialLocationId: Long?,
     tripRecordRevision: Long,
@@ -41,6 +44,11 @@ internal fun TripRecordListRoute(
     onLayoutChange: (TripRecordListLayout) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var countryCount by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    LaunchedEffect(statisticsRepository, tripRecordRevision) {
+        countryCount = null
+        countryCount = statisticsRepository.getStatistics().getOrNull()?.visitedCountryCount?.coerceIn(0, 2)?.toInt()
+    }
     val scope = rememberCoroutineScope()
     val analytics = LocalMapmoryAnalytics.current
 
@@ -68,6 +76,7 @@ internal fun TripRecordListRoute(
 
     TripRecordListScreen(
         modifier = modifier,
+        videoCountryCount = countryCount,
         shareVideoRepository = shareVideoRepository,
         shareVideoJobStore = shareVideoJobStore,
         uiState = viewModel.uiState,
