@@ -49,7 +49,11 @@ class AccountLoginController(
         fun submit(identityToken: String? = null, authorizationCode: String? = null) {
             scope.launch {
                 val result = session.withdraw(identityToken, authorizationCode)
-                mutableState.value = LoginUiState(message = if (result.isSuccess) null else "탈퇴를 완료하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.")
+                mutableState.value = LoginUiState(message = when {
+                    result.isSuccess -> null
+                    result.exceptionOrNull() is WithdrawalUnconfirmedException -> result.exceptionOrNull()?.message
+                    else -> "탈퇴를 완료하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."
+                })
             }
         }
         if (!apple) { submit(); return }

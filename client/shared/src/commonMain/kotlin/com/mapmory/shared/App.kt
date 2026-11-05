@@ -202,6 +202,19 @@ fun MapmoryApp(
                         )
                     }
                 }
+                var dismissedWithdrawalNotice by remember(accountState?.generation) { mutableStateOf(false) }
+                if (accountState?.withdrawalUnconfirmed == true && !dismissedWithdrawalNotice) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { dismissedWithdrawalNotice = true },
+                        title = { androidx.compose.material3.Text("탈퇴 결과를 확인하지 못했어요") },
+                        text = { androidx.compose.material3.Text("로그인 정보가 만료되어 탈퇴 여부를 확인할 수 없어요. 그룹 탭에서 다시 로그인해 계정을 확인하고, 필요한 경우 탈퇴를 다시 진행해 주세요.") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = { dismissedWithdrawalNotice = true }) {
+                                androidx.compose.material3.Text("확인")
+                            }
+                        },
+                    )
+                }
                 val withdrawalLauncher = com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher.current
                 if (accountState?.pendingLogout == true && !accountState.transitioning) {
                     val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value

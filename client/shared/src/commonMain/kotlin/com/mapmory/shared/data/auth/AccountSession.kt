@@ -14,6 +14,7 @@ data class AccountState(
     val pendingLogin: Boolean = false,
     val pendingLogout: Boolean = false,
     val pendingWithdrawal: Boolean = false,
+    val withdrawalUnconfirmed: Boolean = false,
     val generation: Long = 0,
     val guestAbandoned: Boolean = false,
     val stage: String = "idle",
@@ -37,3 +38,5 @@ internal class AccountTransitionException : IllegalStateException("계정을 연
 internal class AccountBusyException : IllegalStateException("진행 중인 요청이나 저장을 마친 후 다시 로그인해 주세요.")
 internal class PendingAccountException : IllegalStateException("로그인 결과 확인이 필요해요. 그룹 탭에서 이어서 진행해 주세요.")
 internal class PendingLogoutException : IllegalStateException("로그아웃을 마무리해야 해요. 다시 시도해 주세요.")
+
+internal class WithdrawalUnconfirmedException : IllegalStateException("탈퇴 결과를 확인하지 못했어요. 그룹 탭에서 다시 로그인해 계정을 확인하고, 필요한 경우 탈퇴를 다시 진행해 주세요.")
