@@ -1,11 +1,14 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import com.mapmory.shared.presentation.components.ScrollToTopEffect
 
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import com.mapmory.shared.presentation.components.MapmoryBackButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +37,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,11 +48,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collect
 import com.mapmory.shared.app.BackgroundSaveStatus
 import com.mapmory.shared.app.BackgroundTripRecordSave
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
@@ -89,8 +96,7 @@ internal fun TripRecordListScreen(
     pendingSaves: List<BackgroundTripRecordSave> = emptyList(),
     onRetryPendingSave: (Long) -> Unit = {},
     onDismissPendingSave: (Long) -> Unit = {},
-    onPreviousPageClick: () -> Unit,
-    onNextPageClick: () -> Unit,
+    onLoadMore: () -> Unit = {},
     onCreateClick: () -> Unit,
     onMapClick: () -> Unit,
     onRecordClick: (Long) -> Unit,
@@ -100,6 +106,10 @@ internal fun TripRecordListScreen(
     onSettingsClick: () -> Unit = {},
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore? = null,
+    videoCountryCount: Int? = null,
+    hasSeenVideoPreview: Boolean = false,
+    onVideoPreviewOpened: () -> Unit = {},
+    retryVideoCountryCount: (() -> Unit)? = null,
     layout: TripRecordListLayout = TripRecordListLayout.PHOTO,
     showLayoutSwitcher: Boolean = false,
     onLayoutChange: (TripRecordListLayout) -> Unit = {},
@@ -259,7 +269,10 @@ internal fun TripRecordListScreen(
                 ) {
                     if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
+                            countryCount = videoCountryCount,
+                            compact = hasSeenVideoPreview,
                             onClick = {
+                                onVideoPreviewOpened()
                                 analytics.logEvent(
                                     MapmoryAnalyticsEvent.VIDEO_OPENED,
                                     mapOf("source" to "journal"),
@@ -341,10 +354,15 @@ internal fun TripRecordListScreen(
                                         showLayoutSwitcher = showLayoutSwitcher && hasScrollableRecordList,
                                         layout = layout,
                                         onLayoutChange = changeLayout,
+                                        canLoadMore = uiState.page + 1 < uiState.totalPages,
+                                        isLoadingMore = uiState.isLoadingMore,
+                                        loadMoreError = uiState.loadMoreError,
+                                        onLoadMore = onLoadMore,
                                         modifier = Modifier.weight(1f),
                                     )
                                     TripRecordListLayout.PHOTO -> TripRecordPhotoList(
                                         records = uiState.records,
+                                        totalRecordCount = uiState.totalElements,
                                         pendingSaves = pendingSaves,
                                         onRetryPendingSave = onRetryPendingSave,
                                         onDismissPendingSave = onDismissPendingSave,
@@ -352,6 +370,10 @@ internal fun TripRecordListScreen(
                                         showLayoutSwitcher = showLayoutSwitcher && hasScrollableRecordList,
                                         layout = layout,
                                         onLayoutChange = changeLayout,
+                                        canLoadMore = uiState.page + 1 < uiState.totalPages,
+                                        isLoadingMore = uiState.isLoadingMore,
+                                        loadMoreError = uiState.loadMoreError,
+                                        onLoadMore = onLoadMore,
                                         modifier = Modifier.weight(1f),
                                     )
                                     TripRecordListLayout.COLLECTION -> TripRecordPhotoCollectionList(
@@ -371,26 +393,6 @@ internal fun TripRecordListScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
-                            }
-                            if (layout != TripRecordListLayout.COLLECTION && uiState.totalPages > 1) {
-                                PageControls(
-                                    page = uiState.page,
-                                    totalPages = uiState.totalPages,
-                                    onPreviousPageClick = {
-                                        analytics.logEvent(
-                                            MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
-                                            mapOf("direction" to "previous"),
-                                        )
-                                        onPreviousPageClick()
-                                    },
-                                    onNextPageClick = {
-                                        analytics.logEvent(
-                                            MapmoryAnalyticsEvent.JOURNAL_PAGE_CHANGED,
-                                            mapOf("direction" to "next"),
-                                        )
-                                        onNextPageClick()
-                                    },
-                                )
                             }
                         }
                     }
@@ -429,62 +431,130 @@ internal fun TripRecordListScreen(
             repository = shareVideoRepository,
             jobStore = shareVideoJobStore ?: remember { MemoryShareVideoJobStore() },
             creationScope = videoCreationScope,
+            countryCount = videoCountryCount,
+            retryCountryCount = retryVideoCountryCount,
             onDismiss = { showTimelineVideo = false },
         )
     }
 }
 
 @Composable
-private fun TripTimelineVideoEntry(
+internal fun TripTimelineVideoEntry(
+    countryCount: Int?,
+    compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = TripRecordPalette.current
+    val canCreate = canCreateTripTimelineVideo(countryCount)
+    if (compact) {
+        Card(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = palette.primarySoft),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Canvas(Modifier.size(20.dp)) {
+                    drawPath(
+                        Path().apply {
+                            moveTo(size.width * 0.3f, size.height * 0.2f)
+                            lineTo(size.width * 0.8f, size.height * 0.5f)
+                            lineTo(size.width * 0.3f, size.height * 0.8f)
+                            close()
+                        },
+                        color = palette.primary,
+                    )
+                }
+                Text(
+                    "여행 영상 보기",
+                    modifier = Modifier.weight(1f),
+                    color = palette.primary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Canvas(Modifier.size(20.dp)) {
+                    val center = Offset(size.width * 0.65f, size.height * 0.5f)
+                    drawLine(palette.primary, Offset(size.width * 0.4f, size.height * 0.25f), center, 2.dp.toPx(), StrokeCap.Round)
+                    drawLine(palette.primary, center, Offset(size.width * 0.4f, size.height * 0.75f), 2.dp.toPx(), StrokeCap.Round)
+                }
+            }
+        }
+        return
+    }
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, palette.border),
-        colors = CardDefaults.cardColors(containerColor = palette.primarySoft),
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(palette.surface),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("▶", color = palette.primary, fontSize = 13.sp)
-            }
-            Column(Modifier.weight(1f)) {
+            if (countryCount != null && !canCreate) {
                 Text(
-                    text = "일지 영상 만들기",
-                    color = palette.headingText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "내 여행 기록을 타임라인 영상으로 모아요",
-                    color = palette.secondaryText,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    "기록을 모으는 중",
+                    color = palette.primary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
-                text = "›",
-                color = palette.primary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium,
+                if (canCreate) "내 여행 영상을 만들 수 있어요" else "지도 위로 다시 보는 여행",
+                color = palette.headingText,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.Bold,
             )
+            Text(
+                "여행지가 지도 위에서 시간순으로 이어져요.",
+                color = palette.secondaryText,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+            )
+            if (countryCount != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    repeat(2) { index ->
+                        Box(
+                            Modifier.weight(1f).height(4.dp).background(
+                                if (countryCount > index) palette.primary else palette.border,
+                                RoundedCornerShape(2.dp),
+                            ),
+                        )
+                    }
+                }
+                Text(
+                    "기록한 국가 ${countryCount.coerceIn(0, 2)}/2곳",
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+            }
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = if (canCreate) null else BorderStroke(1.dp, palette.border),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (canCreate) palette.primary else palette.primarySoft,
+                    contentColor = if (canCreate) palette.onPrimary else palette.primary,
+                ),
+            ) {
+                Text(if (canCreate) "영상 스타일 미리보기" else "예시 영상 보기")
+            }
         }
     }
 }
@@ -625,12 +695,8 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout, loca
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (locationName != null) "이 지역에 남긴 여행 기록" else when (layout) {
-                    TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
-                    TripRecordListLayout.COLLECTION -> "여행 기록을 여행지별로 모아보기"
-                    TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
-                },
+            if (locationName != null) Text(
+                text = "이 지역에 남긴 여행 기록",
                 color = TripRecordPalette.current.secondaryText,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp),
@@ -683,6 +749,7 @@ private fun TripRecordList(
 @Composable
 private fun TripRecordPhotoList(
     records: List<TripRecordItemUiState>,
+    totalRecordCount: Long,
     pendingSaves: List<BackgroundTripRecordSave>,
     onRetryPendingSave: (Long) -> Unit,
     onDismissPendingSave: (Long) -> Unit,
@@ -690,10 +757,15 @@ private fun TripRecordPhotoList(
     showLayoutSwitcher: Boolean,
     layout: TripRecordListLayout,
     onLayoutChange: (TripRecordListLayout) -> Unit,
+    canLoadMore: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     ScrollToTopEffect(listState)
+    LoadNextPageWhenNearEnd(listState, canLoadMore, isLoadingMore, loadMoreError, onLoadMore)
     val featuredRecord = records.firstOrNull()
     LazyColumn(
         state = listState,
@@ -754,7 +826,7 @@ private fun TripRecordPhotoList(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "${records.size - 1}개",
+                            "${(totalRecordCount - 1).coerceAtLeast(0)}개",
                             color = TripRecordPalette.current.secondaryText,
                             fontSize = 11.sp,
                         )
@@ -775,6 +847,11 @@ private fun TripRecordPhotoList(
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
+            }
+        }
+        if (isLoadingMore || loadMoreError != null) {
+            item(key = "load-more-status") {
+                LoadMoreFooter(isLoadingMore, loadMoreError, onLoadMore)
             }
         }
     }
@@ -1669,10 +1746,15 @@ private fun TripRecordTimelineList(
     showLayoutSwitcher: Boolean,
     layout: TripRecordListLayout,
     onLayoutChange: (TripRecordListLayout) -> Unit,
+    canLoadMore: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     ScrollToTopEffect(listState)
+    LoadNextPageWhenNearEnd(listState, canLoadMore, isLoadingMore, loadMoreError, onLoadMore)
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxWidth(),
@@ -1723,6 +1805,65 @@ private fun TripRecordTimelineList(
             }
             items(monthRecords, key = { record -> "record-${record.id}" }) { record ->
                 TimelineTripRecordCard(record, onClick = { onRecordClick(record.id) })
+            }
+        }
+        if (isLoadingMore || loadMoreError != null) {
+            item(key = "load-more-status") {
+                LoadMoreFooter(isLoadingMore, loadMoreError, onLoadMore)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadNextPageWhenNearEnd(
+    listState: LazyListState,
+    canLoadMore: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
+) {
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(listState, canLoadMore, isLoadingMore, loadMoreError) {
+        snapshotFlow {
+            val layout = listState.layoutInfo
+            layout.visibleItemsInfo.lastOrNull()?.index to layout.totalItemsCount
+        }.collect { (lastVisibleIndex, totalItems) ->
+            if (canLoadMore && !isLoadingMore && loadMoreError == null &&
+                lastVisibleIndex != null && lastVisibleIndex >= totalItems - 3
+            ) {
+                currentOnLoadMore()
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadMoreFooter(
+    isLoading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = TripRecordPalette.current.primary,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                "기록을 더 불러오는 중",
+                modifier = Modifier.padding(start = 8.dp),
+                color = TripRecordPalette.current.secondaryText,
+                fontSize = 12.sp,
+            )
+        } else if (error != null) {
+            TextButton(onClick = onRetry) {
+                Text("기록을 불러오지 못했어요. 다시 시도", color = TripRecordPalette.current.primary)
             }
         }
     }
@@ -2052,50 +2193,6 @@ private fun EmptyTripRecords(
     }
 }
 
-@Composable
-private fun PageControls(
-    page: Int,
-    totalPages: Int,
-    onPreviousPageClick: () -> Unit,
-    onNextPageClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(
-            onClick = onPreviousPageClick,
-            enabled = page > 0,
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = TripRecordPalette.current.accent,
-                disabledContentColor = TripRecordPalette.current.muted,
-            ),
-            border = BorderStroke(1.dp, TripRecordPalette.current.border),
-        ) {
-            Text("‹ 이전")
-        }
-        Text(
-            text = "${page + 1} / $totalPages 페이지",
-            color = TripRecordPalette.current.headingText,
-            fontSize = 12.sp,
-        )
-        OutlinedButton(
-            onClick = onNextPageClick,
-            enabled = page + 1 < totalPages,
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = TripRecordPalette.current.accent,
-                disabledContentColor = TripRecordPalette.current.muted,
-            ),
-            border = BorderStroke(1.dp, TripRecordPalette.current.border),
-        ) {
-            Text("다음 ›")
-        }
-    }
-}
-
 @Preview(
     name = "여행 기록 목록",
     showBackground = true,
@@ -2108,8 +2205,6 @@ fun TripRecordListScreenPreview() {
         TripRecordListScreen(
             uiState = TripRecordListUiState.Success(previewUiRecords, page = 0, totalPages = 3),
             filter = TripRecordFilterUiState(),
-            onPreviousPageClick = {},
-            onNextPageClick = {},
             onCreateClick = {},
             onMapClick = {},
             onRecordClick = {},
@@ -2133,8 +2228,6 @@ fun TripRecordCollectionListScreenPreview() {
             layout = TripRecordListLayout.COLLECTION,
             photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Loaded(previewUiRecords),
             showLayoutSwitcher = true,
-            onPreviousPageClick = {},
-            onNextPageClick = {},
             onCreateClick = {},
             onMapClick = {},
             onRecordClick = {},
@@ -2179,8 +2272,6 @@ fun EmptyTripRecordListScreenPreview() {
         TripRecordListScreen(
             uiState = TripRecordListUiState.Success(emptyList(), page = 0, totalPages = 0),
             filter = TripRecordFilterUiState(),
-            onPreviousPageClick = {},
-            onNextPageClick = {},
             onCreateClick = {},
             onMapClick = {},
             onRecordClick = {},
@@ -2201,8 +2292,6 @@ fun LoadingTripRecordListScreenPreview() {
         TripRecordListScreen(
             uiState = TripRecordListUiState.Loading,
             filter = TripRecordFilterUiState(),
-            onPreviousPageClick = {},
-            onNextPageClick = {},
             onCreateClick = {},
             onMapClick = {},
             onRecordClick = {},
@@ -2223,8 +2312,6 @@ fun ErrorTripRecordListScreenPreview() {
         TripRecordListScreen(
             uiState = TripRecordListUiState.Error("여행 기록을 불러오지 못했어요."),
             filter = TripRecordFilterUiState(),
-            onPreviousPageClick = {},
-            onNextPageClick = {},
             onCreateClick = {},
             onMapClick = {},
             onRecordClick = {},

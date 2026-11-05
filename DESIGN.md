@@ -81,6 +81,13 @@
 - Motion: 검색으로 선택된 지역은 강조색 테두리를 항상 유지하고, 약 1.8초 주기로 흰빛이 부드럽게 돌았다가 원래 강조색으로 돌아온다. 선택 상태는 정적인 테두리만으로도 식별되며 날카로운 점멸은 사용하지 않는다.
 - Imagery/iconography: 온보딩은 실제 앱 화면 캡처를 우선 사용해 사용자가 도착할 화면을 이해하게 한다. 지도는 실제 경계 데이터를 기반으로 표현한다.
 
+## Color theme variants
+
+- Appearance (`라이트 모드` / `다크 모드`) and color family are independent preferences.
+- `맵모리 그린` is the default family. `오션 블루` uses the same layouts and component hierarchy, with blue accents and coordinated map fills in both light and dark modes.
+- The blue family uses `#246DBB` as its light-mode primary and `#6EA9F3` as its dark-mode primary. Page and surface colors remain quiet so the map and travel photos stay prominent.
+- App colors belong in `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`, and `TripKoreaMapPalette`. Statistics share cards follow the selected theme. Intentional photo editorial share artwork keeps its own art-directed colors.
+
 ## Components
 
 - Existing components to reuse:
@@ -133,7 +140,7 @@
 ## Implementation constraints
 
 - Framework/styling system: Compose Multiplatform 공통 UI. HTML/CSS 파일은 Figma 반입과 화면 시안 검토용 산출물이다.
-- Design-token constraints: 색상은 `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`를 기준으로 한다. 화면별 팔레트 값은 기존 앱 UI와의 호환을 위해 유지하며, 새 화면은 해당 토큰을 재사용한다.
+- Design-token constraints: 색상은 `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`, `TripKoreaMapPalette`를 기준으로 한다. 화면별 팔레트 값은 기존 앱 UI와의 호환을 위해 유지하며, 새 화면은 해당 토큰을 재사용한다.
 - Performance constraints: 지도는 외부 지도 SDK에 의존하지 않는 방향을 유지한다. 대용량 이미지는 시안 외 실제 앱 UI에 무분별하게 넣지 않는다.
 - Compatibility constraints: Android minSdk 28, iOS deployment target 16.0을 기준으로 한다.
 - Test/screenshot expectations: 기록·상세·작성·지도 화면의 다크 모드 대비와 선택 상태를 프리뷰 또는 에뮬레이터에서 확인한다.
@@ -169,8 +176,10 @@
 
 ## Travel timeline video
 
+- Journal entry: 처음에는 설명과 국가 진행 상태를 펼치고, 미리보기를 확인하면 한 줄로 접는다. 내부 여백은 16dp, 요소 간격은 8/12dp, 터치 높이는 최소 48dp로 맞춘다. 접힌 행의 재생과 화살표는 20dp 도형 아이콘으로 텍스트와 중앙 정렬한다.
+
 - Scope: 여행 기록 화면에서 타임라인 영상을 만들고 미리보기, 저장, 공유하는 흐름.
-- Goals: 생성 전 설정은 화면 높이의 44%인 작은 팝업으로 보이고, 생성 완료 후에는 다이얼로그 한 화면에서 미리보기, 전체 화면 재생, 저장, 공유를 할 수 있다. 스타일 변경은 별도 선택 시트에서 새 영상을 요청한다.
+- Goals: 생성 전에는 스타일별 지도 예시와 생성 버튼을 콘텐츠 높이에 맞춘 팝업으로 보여주며, 화면 높이의 94%를 넘지 않는다. 생성 완료 후에는 다이얼로그 한 화면에서 미리보기, 전체 화면 재생, 저장, 공유를 할 수 있다. 스타일 변경은 별도 선택 시트에서 새 영상을 요청한다.
 - Current behavior: 스타일 4종 중 하나를 선택해 서버에 생성 요청을 보내고, 완료된 작업의 영상을 내려받아 한 개씩 미리 본다. 여러 스타일의 영상을 한 번에 만들거나 나란히 비교하는 API는 확인되지 않았다.
 - States: 초기 설정 → 생성 대기/진행 → 완료 및 미리보기 → 저장 성공/실패. 생성은 앱을 닫아도 서버에서 계속되며, 앱 내부에서는 기존 진행 상태 알림을 사용한다.
 - Palette: 기존 `TripRecordPalette`의 라이트·다크 테마를 재사용한다. HTML 시안은 라이트 팔레트 기본값(`#FAFCFB`, `#4D9272`, `#1F2924`)으로 작성했다.

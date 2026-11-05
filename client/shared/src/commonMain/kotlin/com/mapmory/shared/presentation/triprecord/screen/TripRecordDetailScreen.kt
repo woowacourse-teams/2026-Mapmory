@@ -462,7 +462,7 @@ private fun TripRecordPhotoAlbum(
                     testTag = "album-scrollbar",
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
+                        .padding(top = 8.dp, bottom = 8.dp),
                 )
             }
         }
@@ -1167,4 +1167,4 @@ internal fun detailAlbumHeroHeight(availableHeight: Dp): Dp =
     (availableHeight * 0.34f).coerceIn(220.dp, 300.dp)
 
 internal fun detailAlbumPhotoSize(availableWidth: Dp, columnCount: Int): Dp =
-    ((availableWidth - 56.dp - 1.dp * (columnCount - 1)) / columnCount).coerceAtLeast(1.dp)
+    ((availableWidth - 40.dp - 1.dp * (columnCount - 1)) / columnCount).coerceAtLeast(1.dp)

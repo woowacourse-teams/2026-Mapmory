@@ -98,7 +98,6 @@ import org.jetbrains.compose.resources.painterResource
 private val EditorialInk = Color(0xFF192720)
 private val EditorialGreen = Color(0xFF4D9272)
 private val TicketPaper = Color(0xFFF8F7F3)
-private val ShareBackdrop = Color(0xFF15231F)
 
 @Composable
 internal fun TripSharePreviewButton(
@@ -248,6 +247,7 @@ private fun SharePreviewDialog(
     onDismiss: () -> Unit,
     poster: @Composable (Int, Modifier) -> Unit,
 ) {
+    val colors = TripRecordPalette.current
     val analytics = LocalMapmoryAnalytics.current
     val telemetry = remember(analytics, source) { ShareMediaAnalytics(analytics, source) }
     LaunchedEffect(telemetry) { telemetry.action(ShareMediaAction.OPENED) }
@@ -325,7 +325,7 @@ private fun SharePreviewDialog(
     ) {
         Column(
             Modifier.fillMaxSize()
-                .background(ShareBackdrop)
+                .background(colors.background)
                 .padding(top = 8.dp, bottom = 20.dp),
         ) {
             Row(
@@ -335,31 +335,31 @@ private fun SharePreviewDialog(
             ) {
                 if (pageTitleAbovePreview) {
                     Column(verticalArrangement = Arrangement.Center) {
-                        Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(title, color = colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(
                             pageTitles[pagerState.currentPage],
-                            color = Color(0xFFAABDB1),
+                            color = colors.secondaryText,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                         )
                     }
                 } else {
-                    Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(title, color = colors.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
                 IconButton(onClick = ::dismissPreview, enabled = !exporting) {
                     Box(
-                        Modifier.size(36.dp).background(Color(0xFF2A3C32), RoundedCornerShape(12.dp)),
+                        Modifier.size(36.dp).background(colors.surfaceElevated, RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(painterResource(Res.drawable.close_outlined_24px), "공유 화면 닫기",
-                            tint = Color(0xFFD2DFD7), modifier = Modifier.size(18.dp))
+                            tint = colors.text, modifier = Modifier.size(18.dp))
                     }
                 }
             }
             if (pageTitles.size > 1) {
                 Text(
                     text = supportingText,
-                    color = Color(0xFFAABDB1),
+                    color = colors.secondaryText,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(start = 22.dp, bottom = 8.dp),
                 )
@@ -388,7 +388,7 @@ private fun SharePreviewDialog(
             if (!pageTitleAbovePreview) {
                 Text(
                     pageTitles[pagerState.currentPage],
-                    color = Color(0xFFE5EDE8),
+                    color = colors.text,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp),
@@ -413,7 +413,7 @@ private fun SharePreviewDialog(
                 ) {
                     Text(
                         "사진을 불러오지 못했어요.",
-                        color = Color(0xFFE5EDE8),
+                        color = colors.text,
                         fontSize = 12.sp,
                         modifier = Modifier.weight(1f),
                     )
@@ -421,7 +421,7 @@ private fun SharePreviewDialog(
                         onClick = { telemetry.action(ShareMediaAction.PHOTO_RETRY_CLICKED); feedback = null; currentCapture.retryPhotos() },
                         enabled = !exporting && !pagerState.isScrollInProgress,
                     ) {
-                        Text("다시 시도", color = Color(0xFF9CC5AB))
+                        Text("다시 시도", color = colors.primary)
                     }
                 }
             }
@@ -436,7 +436,7 @@ private fun SharePreviewDialog(
                     shape = RoundedCornerShape(16.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE9F2ED), contentColor = Color(0xFF294F3C),
+                        containerColor = colors.primarySoft, contentColor = colors.text,
                     ),
                 ) {
                     Icon(painterResource(Res.drawable.download_outlined_24px), null, modifier = Modifier.size(20.dp))
@@ -450,7 +450,7 @@ private fun SharePreviewDialog(
                     shape = RoundedCornerShape(16.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EditorialGreen, contentColor = Color.White,
+                        containerColor = colors.primary, contentColor = colors.onPrimary,
                     ),
                 ) {
                     Icon(painterResource(Res.drawable.share_outlined_24px), null, modifier = Modifier.size(20.dp))
@@ -470,6 +470,7 @@ private fun RecordSharePhotoSelector(
     onSelect: (String) -> Unit,
 ) {
     if (photos.size <= 1) return
+    val colors = TripRecordPalette.current
     val selectedIndex = photos.indexOfFirst { it.id == selectedPhotoId }.let { if (it < 0) 0 else it }
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp)) {
         Row(
@@ -477,8 +478,8 @@ private fun RecordSharePhotoSelector(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("대표 사진", color = Color(0xFFE5EDE8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text("${selectedIndex + 1} / ${photos.size}", color = Color(0xFFAABDB1), fontSize = 11.sp)
+            Text("대표 사진", color = colors.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("${selectedIndex + 1} / ${photos.size}", color = colors.secondaryText, fontSize = 11.sp)
         }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 22.dp),
@@ -497,7 +498,7 @@ private fun RecordSharePhotoSelector(
                         )
                         .border(
                             width = if (selected) 2.dp else 1.dp,
-                            color = if (selected) Color(0xFF9CC5AB) else Color(0xFF53665A),
+                            color = if (selected) colors.primary else colors.border,
                             shape = shape,
                         )
                         .semantics { contentDescription = "대표 사진 ${index + 1} 선택" },
@@ -699,27 +700,28 @@ private fun ShareRecordFooter(record: TripRecordItemUiState, color: Color) {
 
 @Composable
 private fun ArchivePoster(statistics: TripStatisticsUiModel, modifier: Modifier) {
+    val colors = TripRecordPalette.current
     PosterFrame(modifier) {
-        Column(Modifier.fillMaxSize().background(Color(0xFFFBFBF8)).padding(horizontal = 26.dp, vertical = 26.dp)) {
+        Column(Modifier.fillMaxSize().background(colors.surface).padding(horizontal = 26.dp, vertical = 26.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("MAPMORY", color = Color(0xFF75897D), fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text("MY TRAVEL DATA", color = Color(0xFF849087), fontSize = 8.sp, letterSpacing = 1.sp)
+                Text("MAPMORY", color = colors.secondaryText, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text("MY TRAVEL DATA", color = colors.secondaryText, fontSize = 8.sp, letterSpacing = 1.sp)
             }
-            Text("여행이 쌓인 만큼", color = EditorialInk, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-            Text("내가 남긴 기록을 숫자로 돌아봐요", color = Color(0xFF829087), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-            Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(1.dp).background(Color(0xFFDCE4DE)))
+            Text("여행이 쌓인 만큼", color = colors.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            Text("내가 남긴 기록을 숫자로 돌아봐요", color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(1.dp).background(colors.border))
             Row(
                 Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ArchiveMetric(statistics.recordCount.toString().padStart(2, '0'), "여행 기록", Modifier.weight(1f))
-                Box(Modifier.width(1.dp).height(57.dp).background(Color(0xFFDCE4DE)))
+                Box(Modifier.width(1.dp).height(57.dp).background(colors.border))
                 ArchiveMetric(statistics.photoCount.toString().padStart(2, '0'), "사진", Modifier.weight(1f).padding(start = 18.dp))
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFDCE4DE)))
-            Text("자주 기록한 장소", color = Color(0xFF77857D), fontSize = 10.sp, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+            Text("자주 기록한 장소", color = colors.secondaryText, fontSize = 10.sp, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
             if (statistics.topLocations.isEmpty()) {
-                Text("기록한 장소가 생기면 여기에 표시돼요", color = Color(0xFF87938A), fontSize = 11.sp)
+                Text("기록한 장소가 생기면 여기에 표시돼요", color = colors.secondaryText, fontSize = 11.sp)
             } else {
                 val locations = statistics.topLocations.take(3)
                 val maxVisitCount = locations.maxOf { it.visitCount }.coerceAtLeast(1)
@@ -729,19 +731,19 @@ private fun ArchivePoster(statistics: TripStatisticsUiModel, modifier: Modifier)
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(location.locationName, color = EditorialInk, fontSize = 11.sp, modifier = Modifier.width(54.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(Color(0xFFE3E9E4))) {
-                            Box(Modifier.fillMaxWidth(location.visitCount.toFloat() / maxVisitCount).height(4.dp).background(Color(0xFF7BA88F), CircleShape))
+                        Text(location.locationName, color = colors.text, fontSize = 11.sp, modifier = Modifier.width(54.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(colors.primarySoft)) {
+                            Box(Modifier.fillMaxWidth(location.visitCount.toFloat() / maxVisitCount).height(4.dp).background(colors.primary, CircleShape))
                         }
-                        Text("${location.visitCount}회", color = Color(0xFF7C8981), fontSize = 9.sp)
+                        Text("${location.visitCount}회", color = colors.secondaryText, fontSize = 9.sp)
                     }
                 }
             }
             Spacer(Modifier.weight(1f))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFDCE4DE)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${statistics.travelerName}의 여행 기록", color = Color(0xFF839188), fontSize = 10.sp)
-                Text("mapmory", color = EditorialInk, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("${statistics.travelerName}의 여행 기록", color = colors.secondaryText, fontSize = 10.sp)
+                Text("mapmory", color = colors.text, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -840,9 +842,10 @@ private fun TripAchievementPoster(achievement: TripAchievementBadge, modifier: M
 
 @Composable
 private fun ArchiveMetric(value: String, label: String, modifier: Modifier = Modifier) {
+    val colors = TripRecordPalette.current
     Column(modifier) {
-        Text(value, color = EditorialGreen, fontSize = 43.sp, fontWeight = FontWeight.Light, lineHeight = 47.sp)
-        Text(label, color = Color(0xFF75837A), fontSize = 10.sp)
+        Text(value, color = colors.primary, fontSize = 43.sp, fontWeight = FontWeight.Light, lineHeight = 47.sp)
+        Text(label, color = colors.secondaryText, fontSize = 10.sp)
     }
 }
 

@@ -1,14 +1,20 @@
 package com.mapmory.shared.presentation.triprecord.route
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.app.BackgroundTripRecordSave
+import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.domain.model.TripRecordSort
+import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
@@ -34,6 +40,8 @@ internal fun TripRecordListRoute(
     onOpenSettings: () -> Unit,
     shareVideoRepository: ShareVideoRepository?,
     shareVideoJobStore: ShareVideoJobStore,
+    onboardingPreference: OnboardingPreference,
+    tripStatisticsRepository: TripStatisticsRepository,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
     layout: TripRecordListLayout = TripRecordListLayout.PHOTO,
@@ -66,10 +74,32 @@ internal fun TripRecordListRoute(
         }
     }
 
+    var countryCount by remember(tripStatisticsRepository, tripRecordRevision) { mutableStateOf<Int?>(null) }
+    var countryCountFailed by remember(tripStatisticsRepository, tripRecordRevision) { mutableStateOf(false) }
+    var countryCountAttempt by remember { mutableStateOf(0) }
+    LaunchedEffect(shareVideoRepository, tripStatisticsRepository, tripRecordRevision, countryCountAttempt) {
+        if (shareVideoRepository == null) return@LaunchedEffect
+        countryCountFailed = false
+        val result = tripStatisticsRepository.getStatistics()
+        countryCount = result.getOrNull()?.visitedCountryCodes?.toSet()?.size
+        countryCountFailed = result.isFailure
+    }
+
+    var hasSeenVideoPreview by remember(onboardingPreference) {
+        mutableStateOf(onboardingPreference.hasSeenVideoPreview())
+    }
+
     TripRecordListScreen(
         modifier = modifier,
         shareVideoRepository = shareVideoRepository,
         shareVideoJobStore = shareVideoJobStore,
+        videoCountryCount = countryCount,
+        hasSeenVideoPreview = hasSeenVideoPreview,
+        onVideoPreviewOpened = {
+            onboardingPreference.markVideoPreviewSeen()
+            hasSeenVideoPreview = true
+        },
+        retryVideoCountryCount = if (countryCountFailed) ({ countryCountAttempt++ }) else null,
         uiState = viewModel.uiState,
         selectedLocationName = viewModel.selectedLocationName,
         filter = TripRecordFilterUiState(
@@ -93,11 +123,8 @@ internal fun TripRecordListRoute(
         },
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,
-        onPreviousPageClick = {
-            scope.launch { viewModel.previousPage() }
-        },
-        onNextPageClick = {
-            scope.launch { viewModel.nextPage() }
+        onLoadMore = {
+            scope.launch { viewModel.loadNextPage() }
         },
         onCreateClick = onOpenEditor,
         onMapClick = onOpenMap,

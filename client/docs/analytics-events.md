@@ -31,7 +31,7 @@ Android/iOS Firebase 어댑터는 `event_schema_version="2"`를 붙인다. `dura
 | 사진 권한 | `photo_permission_required(permission_state)` | limited/denied/restricted는 안내 이벤트. 앱 오류 아님 |
 | 사진 실패 | `app_error(operation=photo_recommendation/photo_import/photo_prepare/photo_picker_open/photo_display)` | 기존 예외 처리 지점 또는 일부/전체 읽기 실패에서 수집. 이미지 표시는 대체 이미지까지 실패한 경우 입력별 1회, URL/바이트 미전송 |
 | 태그·장소 | 공통 조회/생성/검색/선택 operation + `tag_created` | 태그 이름·검색어·장소 ID·세션 토큰 미전송 |
-| 통계·설정 | 기존 화면·통계 재시도·설정 열기·테마·정책 이벤트 | 통계 조회 결과는 공통 operation |
+| 통계·설정 | 기존 화면·통계 재시도·설정 열기·라이트/다크 모드·색상 테마·정책 이벤트 | 통계 조회 결과는 공통 operation |
 | 의견 보내기 | `feedback_opened`, `feedback_submitted(category)` + 공통 operation | 의견 본문 미전송 |
 | 인증 갱신 | `auth_session_refresh_failed(platform=ios, stage, error_type)` | 기존 iOS callback·Debug binary 제외 조건·파라미터 유지. 같은 실패가 상위 operation 오류로도 나타날 수 있어 서로 합산하지 않음 |
 

@@ -10,6 +10,12 @@ enum class MapmoryThemePalette(val storageValue: String) {
     }
 }
 
+internal fun legacyThemePalette(value: String?): MapmoryThemePalette? = when (value) {
+    "GREEN" -> MapmoryThemePalette.MAPMORY_GREEN
+    "BLUE" -> MapmoryThemePalette.OCEAN_BLUE
+    else -> null
+}
+
 interface ThemePreference {
     fun loadIsDarkTheme(): Boolean
 

@@ -1,6 +1,12 @@
 package com.mapmory.shared.presentation.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -33,10 +39,9 @@ internal fun SocialLoginPanel(
             }) { Text("계정으로 로그인") } },
             dismissButton = { TextButton(onClick = { recoveryProvider = null }) { Text("취소") } })
     }
-    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("계정 연결", style = MaterialTheme.typography.titleMedium)
-        Text("처음 연결하는 계정은 지금 기록을 이어서 사용할 수 있어요. 이미 사용한 계정으로 로그인하면 해당 계정의 기록으로 전환돼요.",
-            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).background(palette.surface, RoundedCornerShape(16.dp)).border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("그룹은 로그인 후 이용할 수 있어요", color = palette.headingText, style = MaterialTheme.typography.titleMedium)
+        Text("로그인하고 함께 여행 기록을 모아보세요.", color = palette.muted, style = MaterialTheme.typography.bodyMedium)
         if (account?.pendingLogin == true) {
             Text("이전 로그인 확인이 필요해요. 먼저 결과 확인을 눌러 주세요. 앱을 다시 실행했다면 이전과 같은 방식과 계정으로 인증해 주세요.")
             if (account.needsProviderProof.not()) {
@@ -44,10 +49,14 @@ internal fun SocialLoginPanel(
             }
         }
         measured?.providers?.filter { account?.recoveryProvider == null || it.name == account.recoveryProvider.name }?.forEach { provider ->
-            if (account?.recentLoginProvider?.name == provider.name) {
-                Text("최근 로그인", color = palette.primary, style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.End))
-            }
+            val recent = account?.recentLoginProvider?.name == provider.name
+            Column(Modifier.fillMaxWidth()) {
+                if (recent) {
+                    Text("최근 로그인", color = palette.onPrimary, style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.align(Alignment.End).padding(end = 12.dp).background(palette.primary, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
+                    Box(Modifier.align(Alignment.End).padding(end = 20.dp).size(width = 8.dp, height = 4.dp).background(palette.primary))
+                }
+                Box(if (recent) Modifier.fillMaxWidth().semantics { stateDescription = "최근 로그인" }.border(2.dp, palette.primary, RoundedCornerShape(12.dp)).padding(4.dp) else Modifier.fillMaxWidth()) {
             SocialLoginButton(provider = provider, onClick = {
                 if (controller != null) {
                     if (account?.recoveryRequired == true) recoveryProvider = provider
@@ -63,7 +72,10 @@ internal fun SocialLoginPanel(
             }, enabled = !ui.busy && account?.transitioning != true &&
                     (account?.pendingLogin != true || account.needsProviderProof),
                 modifier = Modifier.fillMaxWidth())
+                }
+            }
         }
+        Text("처음 연결하는 계정은 지금 기록을 이어서 사용할 수 있어요. 이미 사용한 계정으로 로그인하면 해당 계정의 기록으로 전환돼요.", color = palette.muted, style = MaterialTheme.typography.bodySmall)
         if (measured == null) Text("이 기기에서 로그인 화면을 준비하지 못했어요.")
         if (ui.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         (ui.message ?: previewMessage)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }

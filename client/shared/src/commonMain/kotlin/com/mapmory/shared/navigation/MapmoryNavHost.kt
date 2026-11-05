@@ -149,6 +149,8 @@ internal fun MapmoryNavHost(
                 onOpenSettings = navigator::navigateToSettings,
                 shareVideoRepository = container.shareVideoRepository,
                 shareVideoJobStore = container.shareVideoJobStore,
+                onboardingPreference = container.onboardingPreference,
+                tripStatisticsRepository = container.tripStatisticsRepository,
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 layout = journalLayout,
