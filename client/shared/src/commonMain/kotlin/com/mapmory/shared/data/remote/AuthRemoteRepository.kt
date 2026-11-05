@@ -10,6 +10,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.get
+import io.ktor.client.request.delete
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.bearerAuth
 import com.mapmory.shared.data.auth.*
@@ -62,6 +63,23 @@ internal class AuthRemoteRepository(
             .toAuthTokens()
     }
 
+    override suspend fun withdraw(accessToken: String, identityToken: String?, authorizationCode: String?): Result<Unit> = apiCall {
+        if (identityToken != null && authorizationCode != null) {
+            client.post("$authUrl/apple/withdrawal") {
+                timeout { requestTimeoutMillis = 20_000 }
+                bearerAuth(accessToken)
+                contentType(ContentType.Application.Json)
+                setBody(AppleWithdrawalRequest(identityToken, authorizationCode))
+            }.requireSuccess()
+        } else {
+            client.delete("${authUrl.removeSuffix("/auth")}/members/me") {
+                timeout { requestTimeoutMillis = 20_000 }
+                bearerAuth(accessToken)
+            }.requireSuccess()
+        }
+        Unit
+    }
+
     override suspend fun logout(refreshToken: String): Result<Unit> = apiCall {
         client.post("$authUrl/logout") {
             timeout { requestTimeoutMillis = 20_000 }
@@ -89,3 +107,5 @@ private fun TokenResponseDto.toAuthTokens(): AuthTokens = AuthTokens(
     val refreshToken: String,
     val guestAbandoned: Boolean = false,
 )
+
+@Serializable private class AppleWithdrawalRequest(val identityToken: String, val authorizationCode: String)

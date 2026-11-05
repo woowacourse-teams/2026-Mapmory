@@ -13,6 +13,7 @@ data class AccountState(
     val transitioning: Boolean = false,
     val pendingLogin: Boolean = false,
     val pendingLogout: Boolean = false,
+    val pendingWithdrawal: Boolean = false,
     val generation: Long = 0,
     val guestAbandoned: Boolean = false,
     val stage: String = "idle",
@@ -29,6 +30,7 @@ interface AccountSession {
     suspend fun login(provider: MemberProvider, idToken: String, recoverInvalidSession: Boolean = false): Result<AccountMember>
     suspend fun resumeLogin(): Result<AccountMember>
     suspend fun logout(): Result<Unit> = Result.failure(UnsupportedOperationException())
+    suspend fun withdraw(identityToken: String? = null, authorizationCode: String? = null): Result<Unit> = Result.failure(UnsupportedOperationException())
 }
 
 internal class AccountTransitionException : IllegalStateException("계정을 연결하고 있어요. 잠시 후 다시 시도해 주세요.")

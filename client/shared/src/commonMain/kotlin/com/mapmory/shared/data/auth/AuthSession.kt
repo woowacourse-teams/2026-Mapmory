@@ -65,6 +65,7 @@ internal interface AuthGateway {
         Result.failure(UnsupportedOperationException())
     suspend fun member(accessToken: String): Result<AccountMember> = Result.failure(UnsupportedOperationException())
     suspend fun logout(refreshToken: String): Result<Unit> = Result.failure(UnsupportedOperationException())
+    suspend fun withdraw(accessToken: String, identityToken: String?, authorizationCode: String?): Result<Unit> = Result.failure(UnsupportedOperationException())
 }
 
 internal class SocialSessionTokens(val tokens: AuthTokens, val guestAbandoned: Boolean)
@@ -103,7 +104,7 @@ internal class GuestSessionManager(
     init {
         // Block cache reads before the first network request after an interrupted logout.
         if (runCatching { tokenStore.pendingProvider().provider }.getOrNull()?.startsWith("LOGOUT") == true) {
-            accountState.value = state.value.copy(pendingLogout = true, stage = "logout_recovery")
+            accountState.value = state.value.copy(pendingLogout = true, pendingWithdrawal = tokenStore.pendingProvider().provider?.startsWith("LOGOUT:withdraw") == true, stage = "logout_recovery")
         }
     }
 
@@ -197,7 +198,16 @@ internal class GuestSessionManager(
         return changeAccount(null)
     }
 
-    override suspend fun logout(): Result<Unit> {
+    override suspend fun logout(): Result<Unit> = endSession(false, null, null)
+
+    override suspend fun withdraw(identityToken: String?, authorizationCode: String?): Result<Unit> =
+        endSession(true, identityToken, authorizationCode)
+
+    private suspend fun endSession(withdraw: Boolean, identityToken: String?, authorizationCode: String?): Result<Unit> {
+        if (withdraw && !state.value.pendingLogout) {
+            val ready = ensureAuthenticated()
+            if (ready.isFailure) return ready
+        }
         val denied = operationMutex.withLock {
             when {
                 state.value.transitioning -> AccountTransitionException()
@@ -217,15 +227,18 @@ internal class GuestSessionManager(
                     if (!canChangeAccount()) return@withLock Result.failure(AccountBusyException())
                     if (marker == null) {
                         accountState.value = state.value.copy(stage = "logout_prepare")
-                        tokenStore.markPendingProvider("LOGOUT")
-                        marker = "LOGOUT"
+                        tokenStore.markPendingProvider(if (withdraw) "LOGOUT:withdraw" else "LOGOUT")
+                        marker = if (withdraw) "LOGOUT:withdraw" else "LOGOUT"
                     }
-                    accountState.value = state.value.copy(pendingLogout = true, stage = "logout_server")
-                    if (marker != "LOGOUT:revoked" && current != null) {
-                        gateway.logout(current.refreshToken).getOrElse { return@withLock Result.failure(it) }
+                    accountState.value = state.value.copy(pendingLogout = true, pendingWithdrawal = marker.startsWith("LOGOUT:withdraw"), stage = "logout_server")
+                    if (marker.startsWith("LOGOUT:withdraw") && marker != "LOGOUT:withdraw:revoked" && current == null) return@withLock Result.failure(IllegalStateException("탈퇴 결과를 확인할 로그인 정보가 없어요."))
+                    if (marker != "LOGOUT:revoked" && marker != "LOGOUT:withdraw:revoked" && current != null) {
+                        if (marker.startsWith("LOGOUT:withdraw")) {
+                            gateway.withdraw(current.accessToken, identityToken, authorizationCode).getOrElse { return@withLock Result.failure(it) }
+                        } else gateway.logout(current.refreshToken).getOrElse { return@withLock Result.failure(it) }
                     }
                     // Revoke is idempotent; a lost response may safely be submitted again.
-                    tokenStore.markPendingProvider("LOGOUT:revoked")
+                    tokenStore.markPendingProvider(if (marker.startsWith("LOGOUT:withdraw")) "LOGOUT:withdraw:revoked" else "LOGOUT:revoked")
                     accountState.value = state.value.copy(stage = "logout_store")
                     tokenStore.clear()
                     tokens = null
