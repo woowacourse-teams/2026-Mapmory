@@ -53,8 +53,7 @@ import com.mapmory.shared.presentation.map.domain.ProvincePolygon
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewVisitedRegions
-import com.mapmory.shared.presentation.triprecord.screen.TripMapPalette
-import com.mapmory.shared.presentation.triprecord.screen.TripStatisticsPalette
+import com.mapmory.shared.presentation.triprecord.screen.TripKoreaMapPalette
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -86,10 +85,8 @@ fun KoreaMapArtwork(
     var zoom by rememberSaveable(regions, isProvinceOverview) {
         mutableStateOf(if (isProvinceOverview) 1.5f else 1f)
     }
-    val mapColors = TripMapPalette.current
-    val recordColors = TripRecordPalette.current
-    val statisticsColors = TripStatisticsPalette.current
-    val searchFocusColor = recordColors.primary
+    val mapColors = TripKoreaMapPalette.current
+    val searchFocusColor = TripRecordPalette.current.primary
     val baseLabelFontSize = when {
         isProvinceOverview -> 6f
         regions.size >= 35 -> 8f
@@ -97,12 +94,14 @@ fun KoreaMapArtwork(
         else -> 11f
     }
     val labelStyle = TextStyle(
-        color = if (isProvinceOverview) recordColors.bodyText else recordColors.secondaryText,
+        color = if (isProvinceOverview) mapColors.provinceLabelText else mapColors.labelText,
         fontSize = (baseLabelFontSize * koreaMapLabelZoomScale(zoom)).sp,
         fontWeight = FontWeight.Bold,
     )
-    val overviewDistrictLabelStyle = labelStyle.copy(color = recordColors.bodyText)
-    val visitedOverviewLabelColor = mapColors.koreaVisitedLabelText
+    val overviewDistrictLabelStyle = labelStyle.copy(
+        color = mapColors.districtOverviewLabelText,
+    )
+    val visitedOverviewLabelColor = mapColors.visitedOverviewLabelText
     val labelHitPadding = with(LocalDensity.current) {
         (if (isProvinceOverview) 4.dp else 12.dp).toPx()
     }
@@ -275,17 +274,19 @@ fun KoreaMapArtwork(
         )
         lastSearchFocusRequest = searchFocusRequest
     }
-    val backgroundColor = mapColors.globeBackground
-    val visitedFillColor = mapColors.globeVisitedFill
-    val unvisitedFillColor = mapColors.globeUnvisitedFill
-    val visitedOutlineColor = mapColors.globeVisitedOutline
-    val unvisitedOutlineColor = mapColors.globeUnvisitedOutline
-    val overviewDistrictOutlineColor = statisticsColors.mapOutline.copy(alpha = 0.70f)
-    val overviewProvinceOutlineColor = recordColors.bodyText.copy(alpha = 0.70f)
+    val backgroundColor = TripRecordPalette.current.pageBackground
+    val visitedFillColor = mapColors.visitedFill
+    val unvisitedFillColor = mapColors.unvisitedFill
+    val visitedOutlineColor = mapColors.visitedOutline
+    val unvisitedOutlineColor = mapColors.unvisitedOutline
+    val overviewDistrictOutlineColor = mapColors.overviewDistrictOutline
+    val overviewProvinceOutlineColor = mapColors.overviewProvinceOutline
     val preparedLabels = remember(
         displayedRegions,
         projection,
         labelStyle,
+        overviewDistrictLabelStyle,
+        visitedOverviewLabelColor,
         showRegionLabels,
         isProvinceOverview,
         overviewData,
@@ -341,7 +342,14 @@ fun KoreaMapArtwork(
                 PreparedKoreaLabel(
                     code = region.code,
                     center = projection.project(labelPoint),
-                    layout = textMeasurer.measure(region.name, labelStyle),
+                    layout = textMeasurer.measure(
+                        region.name,
+                        if (region.code in visitedRegionCodes) {
+                            labelStyle.copy(color = visitedOverviewLabelColor)
+                        } else {
+                            labelStyle
+                        },
+                    ),
                 )
             }
         }
@@ -442,11 +450,7 @@ fun KoreaMapArtwork(
                         } else {
                             val region = displayedRegions.regionAt(mapPoint)
                             val district = if (isProvinceOverview) overviewDistricts.orEmpty().regionAt(mapPoint) else null
-                            val selectedCode = when {
-                                district?.code == GunwiDistrictCode -> district.code
-                                isProvinceOverview && region?.code !in MetropolitanCityLabels -> district?.code ?: region?.code
-                                else -> region?.code
-                            }
+                            val selectedCode = selectedKoreaMapRegionCode(region?.code, district?.code, isProvinceOverview)
                             selectedCode?.let(currentOnRegionClick)
                         }
                     }
@@ -556,13 +560,13 @@ fun KoreaMapArtwork(
                     bottom = labelCenter.y + label.layout.size.height / 2f + labelVerticalPadding,
                 )
                 drawRoundRect(
-                    color = recordColors.surface.copy(alpha = 0.96f),
+                    color = mapColors.labelBackground,
                     topLeft = labelBounds.topLeft,
                     size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
                 )
                 drawRoundRect(
-                    color = recordColors.border,
+                    color = mapColors.labelBorder,
                     topLeft = labelBounds.topLeft,
                     size = androidx.compose.ui.geometry.Size(labelBounds.width, labelBounds.height),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(labelCornerRadius),
@@ -682,7 +686,6 @@ private const val PanSlackFraction = 0.1f
 private const val BoundaryEpsilon = 0.000001f
 private const val OverviewIslandAreaThreshold = 20f
 private const val OverviewIslandRevealZoom = 1.8f
-private const val GunwiDistrictCode = "27720"
 private const val DaeguProvinceCode = "KR-27"
 private const val DokdoProvinceCode = "KR-47"
 private const val DokdoDistrictCode = "47940"
@@ -1054,3 +1057,6 @@ private val MapPanSaver = listSaver<Offset, Float>(
     save = { listOf(it.x, it.y) },
     restore = { Offset(it[0], it[1]) },
 )
+
+internal fun selectedKoreaMapRegionCode(regionCode: String?, districtCode: String?, isProvinceOverview: Boolean): String? =
+    if (isProvinceOverview && regionCode !in MetropolitanCityLabels) districtCode ?: regionCode else regionCode

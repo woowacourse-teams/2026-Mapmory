@@ -8,6 +8,13 @@ class AndroidOnboardingPreference(context: Context) : OnboardingPreference {
         Context.MODE_PRIVATE,
     )
 
+    override fun hasSeenVideoPreview(): Boolean =
+        preferences.getBoolean(HasSeenVideoPreviewKey, false)
+
+    override fun markVideoPreviewSeen() {
+        preferences.edit().putBoolean(HasSeenVideoPreviewKey, true).apply()
+    }
+
     override fun hasSeenRecordIntroduction(): Boolean =
         preferences.getBoolean(HasSeenRecordIntroductionKey, false)
 
@@ -18,3 +25,5 @@ class AndroidOnboardingPreference(context: Context) : OnboardingPreference {
 
 private const val PreferencesName = "mapmory_settings"
 private const val HasSeenRecordIntroductionKey = "has_seen_record_introduction"
+
+private const val HasSeenVideoPreviewKey = "mapmory_has_seen_video_preview"

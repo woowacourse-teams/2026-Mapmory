@@ -1,5 +1,6 @@
 package com.mapmory.shared.presentation.triprecord
 
+import com.mapmory.shared.presentation.triprecord.screen.canCreateTripTimelineVideo
 import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineDownloadedPreview
 import com.mapmory.shared.presentation.triprecord.screen.downloadTripTimelineVideoPreview
@@ -14,6 +15,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TripTimelineVideoDialogTest {
+    @Test
+    fun videoCreationRequiresTwoRecordedCountries() {
+        assertFalse(canCreateTripTimelineVideo(null))
+        assertFalse(canCreateTripTimelineVideo(0))
+        assertFalse(canCreateTripTimelineVideo(1))
+        assertTrue(canCreateTripTimelineVideo(2))
+        assertTrue(canCreateTripTimelineVideo(3))
+    }
+
     @Test
     fun `영상이 없고 생성이 끝나지 않았으면 컴팩트 높이를 사용한다`() {
         assertFalse(shouldExpandTripTimelineVideoDialog(hasPreview = false, status = null))
