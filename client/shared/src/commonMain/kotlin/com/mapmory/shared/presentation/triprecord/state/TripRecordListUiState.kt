@@ -12,6 +12,8 @@ sealed interface TripRecordListUiState {
         val isRefreshing: Boolean = false,
         val refreshError: String? = null,
         val totalElements: Long = records.size.toLong(),
+        val isLoadingMore: Boolean = false,
+        val loadMoreError: String? = null,
     ) : TripRecordListUiState
 
     data class Error(

@@ -2455,7 +2455,6 @@ private fun PhotoPickerStep(
                     Column(Modifier.padding(start = 20.dp, end = 24.dp)) {
                         PhotoPickerHeader(
                             locationName = locationName,
-                            selectedCount = pagingState.selectedIds.size,
                         )
                         if (showRecordedFilter) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2478,6 +2477,7 @@ private fun PhotoPickerStep(
                 stickyHeader {
                     PhotoPickerActionsRow(
                         hasPhotos = pagingState.photos.isNotEmpty(),
+                        selectedCount = pagingState.selectedIds.size,
                         allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
                         onAllToggle = onAllToggle,
                         onPickFromGallery = onPickFromGallery,
@@ -2711,7 +2711,6 @@ private fun CoverPhotoSelectionStep(
 @Composable
 private fun PhotoPickerHeader(
     locationName: String,
-    selectedCount: Int,
 ) {
     Column {
         Text(
@@ -2734,12 +2733,6 @@ private fun PhotoPickerHeader(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = "${selectedCount}장 선택",
-                color = TripRecordPalette.current.accent,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }
@@ -2747,6 +2740,7 @@ private fun PhotoPickerHeader(
 @Composable
 private fun PhotoPickerActionsRow(
     hasPhotos: Boolean,
+    selectedCount: Int,
     allSelected: Boolean,
     onAllToggle: () -> Unit,
     onPickFromGallery: () -> Unit,
@@ -2757,6 +2751,18 @@ private fun PhotoPickerActionsRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Text(
+            text = "${selectedCount}장 선택",
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(TripRecordPalette.current.primarySoft)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            color = TripRecordPalette.current.accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+        )
         if (hasPhotos) {
             FlowSmallButton(
                 label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",

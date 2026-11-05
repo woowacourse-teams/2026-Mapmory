@@ -72,8 +72,15 @@ class LocationPhotoCreationTest {
             composeRule.onNodeWithText("계속 작성").performClick()
             composeRule.onNodeWithText("사진 고르기").assertIsDisplayed()
             composeRule.onNodeWithTag("photo-picker-list").performScrollToIndex(8)
+            composeRule.onNodeWithText("0장 선택").assertIsDisplayed()
             composeRule.onNodeWithText("추천 사진 모두 선택").assertIsDisplayed()
             composeRule.onNodeWithContentDescription("사진첩에서 선택").assertIsDisplayed()
+            composeRule.onNodeWithText("추천 사진 모두 선택").performClick()
+            composeRule.waitUntil(15_000) {
+                composeRule.onAllNodesWithText("14장 선택").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithText("14장 선택").assertIsDisplayed()
+            composeRule.onNodeWithText("추천 사진 선택 해제").assertIsDisplayed()
             composeRule.onNodeWithTag("photo-picker-list").performScrollToIndex(0)
             composeRule.onNodeWithContentDescription("뒤로가기").performClick()
             composeRule.onNodeWithText("작성 중인 기록이 있어요").assertIsDisplayed()
