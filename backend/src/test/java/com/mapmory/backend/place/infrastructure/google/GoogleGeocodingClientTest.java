@@ -35,9 +35,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-class GoogleReverseGeocodeTest {
+class GoogleGeocodingClientTest {
 
-    private static final String PLACES_URL = "https://places.google.test";
     private static final String GEOCODING_URL = "https://geocode.google.test";
     private static final Coordinate DAEGU_JUNG_GU = new Coordinate(35.8694, 128.6062);
     private static final GoogleCircuitBreakerProperties BREAKER =
@@ -48,7 +47,7 @@ class GoogleReverseGeocodeTest {
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
     private final CircuitBreaker breaker = GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock);
-    private final GooglePlacesClient client = new GooglePlacesClient(builder, PLACES_URL, GEOCODING_URL, "test-key",
+    private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder, GEOCODING_URL, "test-key",
             limiter, breaker);
 
     @Test
@@ -116,7 +115,7 @@ class GoogleReverseGeocodeTest {
                         .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE)));
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
-                .containsExactly("GOOGLE_PLACES_REJECTED:ERROR");
+                .containsExactly("GOOGLE_GEOCODING_REJECTED:ERROR");
         // 좌표와 키는 로그 어디에도(원인 예외 포함) 남기지 않는다.
         assertThat(logs).allSatisfy(event -> assertThat(rendered(event))
                 .doesNotContain("35.86", "128.60", "test-key"));
@@ -179,7 +178,7 @@ class GoogleReverseGeocodeTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGeocodingClient.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

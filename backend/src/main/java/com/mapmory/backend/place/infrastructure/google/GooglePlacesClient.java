@@ -2,39 +2,30 @@ package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
-import com.mapmory.backend.place.application.port.ReverseGeocodePort;
-import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
-import com.mapmory.backend.region.domain.RegionAddress;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
-import org.apache.hc.client5.http.ConnectTimeoutException;
-import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -46,13 +37,10 @@ import tools.jackson.databind.JsonNode;
  * <p>검색은 사진을 찾기 위한 도구다. Google이 준 후보 이름은 응답에만 쓰고 저장하지 않는다. 상세 조회는 이름과
  * 좌표 없이 주소 구성요소(Essentials)만 받아 국가와 시·도·시·군·구를 추천한다.
  *
- * <p>사진 좌표 → 지역은 Geocoding API v4의 역지오코딩으로 주소 구성요소만 받는다. 좌표와 결과는 저장하지 않는다.
- * 같은 키, 같은 연결 풀, 같은 서킷 브레이커와 분당 한도를 쓰고 월 한도만 따로 센다.
- *
  * <p>Google이 멈추면 서킷 브레이커가 열려 한도를 확인하기 전에 바로 실패한다. 실패 기준은 {@link GoogleCircuitBreakerConfig}에 있다.
  */
 @Component
-public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
+public class GooglePlacesClient implements PlaceLookupPort {
 
     private static final Logger log = LoggerFactory.getLogger(GooglePlacesClient.class);
 
@@ -62,12 +50,8 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     // displayName(Pro)을 넣으면 세션을 닫는 상세 조회가 Enterprise + Atmosphere로 과금된다.
     private static final String FIELD_MASK = "id,addressComponents,shortFormattedAddress";
     private static final String LANGUAGE = "ko";
-    static final String GEOCODING_BASE_URL = "https://geocode.googleapis.com";
-    // 역지오코딩은 국가·시·도·시·군·구 판정용 주소 구성요소만 받는다.
-    private static final String GEOCODING_FIELD_MASK = "results.addressComponents";
 
     private final RestClient restClient;
-    private final RestClient geocodingClient;
     private final String apiKey;
     private final GoogleRequestLimiter requestLimiter;
     private final CircuitBreaker circuitBreaker;
@@ -84,16 +68,15 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     public GooglePlacesClient(
             RestClient.Builder builder,
             @Value("${google.places.base-url:https://places.googleapis.com}") String baseUrl,
-            @Value("${google.geocoding.base-url:" + GEOCODING_BASE_URL + "}") String geocodingBaseUrl,
             @Value("${google.places.api-key:}") String apiKey,
             @Value("${google.places.connect-timeout}") Duration connectTimeout,
             @Value("${google.places.read-timeout}") Duration readTimeout,
             @Value("${google.places.rate-limit.requests-per-minute}") int maxConnections,
             GoogleRequestLimiter requestLimiter,
-            CircuitBreaker circuitBreaker
+            @Qualifier("googlePlacesCircuitBreaker") CircuitBreaker circuitBreaker
     ) {
-        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout, maxConnections)), baseUrl,
-                geocodingBaseUrl, apiKey, requestLimiter, circuitBreaker);
+        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout, maxConnections)), baseUrl, apiKey,
+                requestLimiter, circuitBreaker);
     }
 
     GooglePlacesClient(
@@ -103,19 +86,6 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
             GoogleRequestLimiter requestLimiter,
             CircuitBreaker circuitBreaker
     ) {
-        this(builder, baseUrl, GEOCODING_BASE_URL, apiKey, requestLimiter, circuitBreaker);
-    }
-
-    GooglePlacesClient(
-            RestClient.Builder builder,
-            String baseUrl,
-            String geocodingBaseUrl,
-            String apiKey,
-            GoogleRequestLimiter requestLimiter,
-            CircuitBreaker circuitBreaker
-    ) {
-        // 같은 요청 팩토리(연결 풀, 타임아웃)를 나눠 쓰고 주소만 다르다.
-        this.geocodingClient = builder.clone().baseUrl(geocodingBaseUrl).build();
         this.restClient = builder.baseUrl(baseUrl).build();
         this.apiKey = apiKey;
         this.requestLimiter = requestLimiter;
@@ -161,7 +131,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);
         }
-        JsonNode response = call(false, false, requestLimiter::reserveAutocomplete, requestLimiter::refundAutocomplete,
+        JsonNode response = call(false, requestLimiter::reserveAutocomplete, requestLimiter::refundAutocomplete,
                 () -> restClient.post()
                         .uri("/v1/places:autocomplete")
                         .header("X-Goog-Api-Key", apiKey)
@@ -176,7 +146,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     @Override
     public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
         requireConfigured();
-        JsonNode response = call(true, false, requestLimiter::reserveDetails, requestLimiter::refundDetails,
+        JsonNode response = call(true, requestLimiter::reserveDetails, requestLimiter::refundDetails,
                 () -> restClient.get()
                         .uri(uri -> {
                             uri.path("/v1/places/{placeId}").queryParam("languageCode", LANGUAGE);
@@ -193,33 +163,8 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
                 .orElseThrow(() -> new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND));
     }
 
-    /**
-     * 좌표를 주소 구성요소로 바꾼다(Geocoding API v4). 키는 URL이 아닌 헤더로 보낸다. 좌표는 v4가 GET 쿼리로만 받아
-     * URL에 실리지만, HTTPS로 암호화되고 우리 로그·메트릭에는 남기지 않는다(메트릭은 경로 템플릿만 쓴다).
-     *
-     * <p>v4는 실패를 HTTP 상태로 알린다. 4xx(키 거절 등)는 Google이 과금하지 않아 월 한도를 돌려주고 ERROR로 알리며,
-     * 5xx는 서킷 브레이커가 실패로 센다. 주소가 없는 좌표는 결과가 비어 오고 빈 값이다.
-     */
-    @Override
-    public Optional<RegionAddress> findAddress(Coordinate coordinate) {
-        requireConfigured();
-        JsonNode response = call(false, true, requestLimiter::reserveGeocode, requestLimiter::refundGeocode,
-                () -> geocodingClient.get()
-                        .uri(uri -> uri.path("/v4/geocode/location")
-                                .queryParam("location.latitude", coordinate.latitudeText())
-                                .queryParam("location.longitude", coordinate.longitudeText())
-                                .queryParam("languageCode", LANGUAGE)
-                                .build())
-                        .header("X-Goog-Api-Key", apiKey)
-                        .header("X-Goog-FieldMask", GEOCODING_FIELD_MASK)
-                        .retrieve()
-                        .body(JsonNode.class));
-        return mapper.geocodedAddress(response);
-    }
-
     // 회로가 열려 있으면 한도를 확인하기 전에 막아, 부르지 않을 요청이 한도를 쓰지 않게 한다.
-    // refundClientErrors: 4xx도 과금하지 않는 API(Geocoding은 성공한 요청만 과금)는 4xx에도 한도를 돌려준다.
-    private JsonNode call(boolean placeLookup, boolean refundClientErrors, Runnable reserve, Runnable refund, Supplier<JsonNode> request) {
+    private JsonNode call(boolean placeLookup, Runnable reserve, Runnable refund, Supplier<JsonNode> request) {
         JsonNode body;
         try {
             body = circuitBreaker.executeSupplier(() -> {
@@ -230,7 +175,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         } catch (RestClientException exception) {
             logTimeout(exception);
-            if (notBilled(exception) || (refundClientErrors && isClientError(exception))) {
+            if (GoogleFailures.notBilled(exception)) {
                 refund.run();
             }
             if (placeLookup && exception instanceof RestClientResponseException response && isUnknownPlace(response)) {
@@ -252,63 +197,14 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
         return body;
     }
 
-    /**
-     * 타임아웃이 어느 단계였는지 남긴다. POOL이면 우리 풀에서 연결을 못 받은 것이고, CONNECT면 Google에 닿지 못한 것이고,
-     * RESPONSE면 Google이 늦게 답한 것이다. Apache의 연결 타임아웃은 응답 타임아웃(SocketTimeoutException)을
-     * 상속하므로 바깥 예외부터 보고 연결을 먼저 가린다.
-     */
     private static void logTimeout(RestClientException exception) {
-        if (!(exception instanceof ResourceAccessException)) {
-            return;
+        String phase = GoogleFailures.timeoutPhase(exception);
+        if (phase != null) {
+            log.atWarn()
+                    .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
+                    .addKeyValue("phase", phase)
+                    .log("Google Places 호출이 타임아웃으로 끊겼다: {}", phase);
         }
-        for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
-            String phase = timeoutPhase(cause);
-            if (phase != null) {
-                log.atWarn()
-                        .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
-                        .addKeyValue("phase", phase)
-                        .log("Google Places 호출이 타임아웃으로 끊겼다: {}", phase);
-                return;
-            }
-        }
-    }
-
-    private static String timeoutPhase(Throwable cause) {
-        if (cause instanceof ConnectionRequestTimeoutException) {
-            return "POOL";
-        }
-        if (cause instanceof ConnectTimeoutException) {
-            return "CONNECT";
-        }
-        if (cause instanceof SocketTimeoutException) {
-            return "RESPONSE";
-        }
-        return null;
-    }
-
-    /**
-     * Google이 과금하지 않는 실패인지 본다. 5xx는 Google이 처리하지 못한 것이고, 연결하지 못한 요청은 Google에 닿지 않았다.
-     * 풀에서 연결을 못 받은 요청도 보내지 않았다. 연결한 뒤 답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어
-     * 과금된 것으로 본다.
-     */
-    private static boolean notBilled(RestClientException exception) {
-        if (exception instanceof HttpServerErrorException) {
-            return true;
-        }
-        if (!(exception instanceof ResourceAccessException)) {
-            return false;
-        }
-        for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
-            if (cause instanceof ConnectException || cause instanceof ConnectTimeoutException
-                    || cause instanceof ConnectionRequestTimeoutException) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isClientError(RestClientException exception) {
-        return exception instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError();
     }
 
     /** 장소 ID가 없거나 잘못된 경우만 PLACE_NOT_FOUND다. 잘못된 키도 400으로 오므로 제공자 장애로 본다. */
