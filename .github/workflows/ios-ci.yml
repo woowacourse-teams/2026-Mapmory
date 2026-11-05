@@ -52,7 +52,20 @@ jobs:
     # Required check name on develop and main.
     name: Build iOS Simulator
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.ios == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Check Swift syntax
+        run: git ls-files -z -- "client/iosApp/*.swift" | xargs -0 xcrun swiftc -frontend -parse
+
+  ios-device:
+    name: Build unsigned iOS app
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-26
     timeout-minutes: 30
 
@@ -68,8 +81,6 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
       - name: Cache Swift Package dependencies
         uses: actions/cache@v4
