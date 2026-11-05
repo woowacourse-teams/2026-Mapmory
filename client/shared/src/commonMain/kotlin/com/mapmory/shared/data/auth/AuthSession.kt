@@ -65,6 +65,7 @@ internal interface AuthGateway {
         Result.failure(UnsupportedOperationException())
     suspend fun member(accessToken: String): Result<AccountMember> = Result.failure(UnsupportedOperationException())
     suspend fun logout(refreshToken: String): Result<Unit> = Result.failure(UnsupportedOperationException())
+    suspend fun withdraw(accessToken: String, identityToken: String?, authorizationCode: String?): Result<Unit> = Result.failure(UnsupportedOperationException())
 }
 
 internal class SocialSessionTokens(val tokens: AuthTokens, val guestAbandoned: Boolean)
@@ -103,7 +104,7 @@ internal class GuestSessionManager(
     init {
         // Block cache reads before the first network request after an interrupted logout.
         if (runCatching { tokenStore.pendingProvider().provider }.getOrNull()?.startsWith("LOGOUT") == true) {
-            accountState.value = state.value.copy(pendingLogout = true, stage = "logout_recovery")
+            accountState.value = state.value.copy(pendingLogout = true, pendingWithdrawal = tokenStore.pendingProvider().provider?.startsWith("LOGOUT:withdraw") == true, stage = "logout_recovery")
         }
     }
 
@@ -197,7 +198,16 @@ internal class GuestSessionManager(
         return changeAccount(null)
     }
 
-    override suspend fun logout(): Result<Unit> {
+    override suspend fun logout(): Result<Unit> = endSession(false, null, null)
+
+    override suspend fun withdraw(identityToken: String?, authorizationCode: String?): Result<Unit> =
+        endSession(true, identityToken, authorizationCode)
+
+    private suspend fun endSession(withdraw: Boolean, identityToken: String?, authorizationCode: String?): Result<Unit> {
+        if (withdraw && !state.value.pendingLogout) {
+            val ready = ensureAuthenticated()
+            if (ready.isFailure) return ready
+        }
         val denied = operationMutex.withLock {
             when {
                 state.value.transitioning -> AccountTransitionException()
@@ -217,15 +227,25 @@ internal class GuestSessionManager(
                     if (!canChangeAccount()) return@withLock Result.failure(AccountBusyException())
                     if (marker == null) {
                         accountState.value = state.value.copy(stage = "logout_prepare")
-                        tokenStore.markPendingProvider("LOGOUT")
-                        marker = "LOGOUT"
+                        tokenStore.markPendingProvider(if (withdraw) "LOGOUT:withdraw" else "LOGOUT")
+                        marker = if (withdraw) "LOGOUT:withdraw" else "LOGOUT"
                     }
-                    accountState.value = state.value.copy(pendingLogout = true, stage = "logout_server")
-                    if (marker != "LOGOUT:revoked" && current != null) {
+                    accountState.value = state.value.copy(pendingLogout = true, pendingWithdrawal = marker.startsWith("LOGOUT:withdraw"), stage = "logout_server")
+                    var unconfirmed = marker == "LOGOUT:withdraw:unconfirmed"
+                    if (marker == "LOGOUT:withdraw") {
+                        val result = retryWithdrawal(current, identityToken, authorizationCode)
+                        val error = result.exceptionOrNull()
+                        if (error is WithdrawalUnconfirmedException) unconfirmed = true
+                        else if (error != null) return@withLock Result.failure(error)
+                    } else if (marker == "LOGOUT" && current != null) {
                         gateway.logout(current.refreshToken).getOrElse { return@withLock Result.failure(it) }
                     }
-                    // Revoke is idempotent; a lost response may safely be submitted again.
-                    tokenStore.markPendingProvider("LOGOUT:revoked")
+                    // Persist the outcome before deleting tokens; cleanup may itself need a restart.
+                    tokenStore.markPendingProvider(when {
+                        unconfirmed -> "LOGOUT:withdraw:unconfirmed"
+                        marker.startsWith("LOGOUT:withdraw") -> "LOGOUT:withdraw:revoked"
+                        else -> "LOGOUT:revoked"
+                    })
                     accountState.value = state.value.copy(stage = "logout_store")
                     tokenStore.clear()
                     tokens = null
@@ -245,8 +265,9 @@ internal class GuestSessionManager(
                     omitPreviousSession = false
                     accountState.value = AccountState(transitioning = true,
                         generation = state.value.generation + 1, stage = "logged_out",
+                        withdrawalUnconfirmed = unconfirmed,
                         recentLoginProvider = state.value.recentLoginProvider)
-                    Result.success(Unit)
+                    if (unconfirmed) Result.failure(WithdrawalUnconfirmedException()) else Result.success(Unit)
                 }
             }
         } catch (error: Exception) {
@@ -255,6 +276,29 @@ internal class GuestSessionManager(
         } finally {
             accountState.value = state.value.copy(transitioning = false)
         }
+    }
+
+    /** Runs only under authenticationMutex, while ordinary account operations remain blocked. */
+    private suspend fun retryWithdrawal(current: AuthTokens?, identityToken: String?, authorizationCode: String?): Result<Unit> {
+        if (current == null) return Result.failure(WithdrawalUnconfirmedException())
+        // A refresh response may have rotated the token before local persistence failed.
+        if (pendingPersistence) persistTokens().getOrElse { return Result.failure(it) }
+        val active = tokens ?: current
+        val first = gateway.withdraw(active.accessToken, identityToken, authorizationCode)
+        val error = first.exceptionOrNull() as? MapmoryApiException ?: return first
+        if (error.statusCode != 401 || error.code !in setOf("EXPIRED_ACCESS_TOKEN", "INVALID_ACCESS_TOKEN")) return first
+        val refreshed = gateway.refresh(active.refreshToken)
+        val refreshError = refreshed.exceptionOrNull()
+        if (refreshError != null) {
+            // Revocation may mean withdrawal succeeded, or simply that the session expired.
+            // Neither proves deletion: release the unusable session and ask for sign-in again.
+            return if (refreshError is MapmoryApiException && refreshError.statusCode == 401 &&
+                refreshError.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN", "INACTIVE_MEMBER")) {
+                Result.failure(WithdrawalUnconfirmedException())
+            } else Result.failure(refreshError)
+        }
+        acceptIssuedTokens(refreshed.getOrThrow()).getOrElse { return Result.failure(it) }
+        return gateway.withdraw(checkNotNull(tokens).accessToken, identityToken, authorizationCode)
     }
 
     private suspend fun changeAccount(credential: Pair<MemberProvider, String>?, recoverInvalidSession: Boolean = false): Result<AccountMember> {
