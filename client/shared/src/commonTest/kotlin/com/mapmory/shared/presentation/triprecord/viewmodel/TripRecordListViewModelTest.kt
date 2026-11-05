@@ -76,7 +76,7 @@ class TripRecordListViewModelTest {
         )
 
         viewModel.refreshIfNeeded(null, 0)
-        viewModel.nextPage()
+        viewModel.loadNextPage()
         viewModel.refreshIfNeeded(null, 0, TripRecordSort.TRAVEL_DATE_DESC)
 
         assertEquals(1, requestedQueries[1].page)
@@ -360,7 +360,7 @@ class TripRecordListViewModelTest {
     }
 
     @Test
-    fun `로드는_성공과_실패에_따라_상태를_변경한다`() {
+    fun `목록_스크롤_다음_페이지를_기존_기록에_이어_붙인다`() {
         runSuspend {
             val repository = FakeTripRecordRepository(
                 now = { "2026-08-07T00:00:00Z" },
@@ -392,13 +392,11 @@ class TripRecordListViewModelTest {
             val success = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
             assertEquals("서울 여행", success.records.single().title)
 
-            viewModel.nextPage()
-            val nextPage = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
-            assertEquals("부산 여행", nextPage.records.single().title)
-
-            viewModel.previousPage()
-            val previousPage = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
-            assertEquals("서울 여행", previousPage.records.single().title)
+            viewModel.loadNextPage()
+            val loadedMore = assertIs<TripRecordListUiState.Success>(viewModel.uiState)
+            assertEquals(listOf("서울 여행", "부산 여행"), loadedMore.records.map { it.title })
+            assertEquals(1, loadedMore.page)
+            assertTrue(!loadedMore.isLoadingMore)
 
             viewModel.load(TripRecordQuery(size = 0))
 

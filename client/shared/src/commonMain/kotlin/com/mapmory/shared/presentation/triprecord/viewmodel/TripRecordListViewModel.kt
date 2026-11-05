@@ -394,13 +394,42 @@ class TripRecordListViewModel(
         }
     }
 
-    suspend fun previousPage() {
-        if (query.page > 0) load(query.copy(page = query.page - 1))
-    }
-
-    suspend fun nextPage() {
+    suspend fun loadNextPage() {
         val state = uiState as? TripRecordListUiState.Success ?: return
-        if (query.page + 1 < state.totalPages) load(query.copy(page = query.page + 1))
+        if (state.isLoadingMore || state.page + 1 >= state.totalPages) return
+
+        val generation = loadGeneration
+        val nextQuery = query.copy(page = state.page + 1)
+        uiState = state.copy(isLoadingMore = true, loadMoreError = null)
+        val page = getTripRecords(nextQuery).getOrElse { error ->
+            if (generation == loadGeneration) {
+                (uiState as? TripRecordListUiState.Success)?.let { current ->
+                    uiState = current.copy(
+                        isLoadingMore = false,
+                        loadMoreError = error.message ?: "기록을 더 불러오지 못했습니다.",
+                    )
+                }
+            }
+            return
+        }
+        if (generation != loadGeneration) return
+
+        val current = uiState as? TripRecordListUiState.Success ?: return
+        uiState = current.copy(
+            records = (current.records + page.records.map(::toUiState)).distinctBy(TripRecordItemUiState::id),
+            page = page.page,
+            totalPages = page.totalPages,
+            isLoadingMore = false,
+            loadMoreError = null,
+        )
+
+        val expiredRecordIds = loadThumbnails(page.records, generation)
+        if (expiredRecordIds.isEmpty() || generation != loadGeneration) return
+        val refreshedById = getTripRecords(nextQuery).getOrNull()
+            ?.records
+            ?.associateBy(TripRecordSummary::id)
+            ?: return
+        loadThumbnails(expiredRecordIds.mapNotNull(refreshedById::get), generation)
     }
 }
 
