@@ -95,22 +95,6 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
-                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
-                    ) {
-                        MapmoryApp(
-                            container = appViewModel.container,
-                            navigation = navigation,
-                            analytics = analyticsLogger,
-                            contentWindowInsets = WindowInsets.safeDrawing,
-                            onThemeChanged = { isDarkTheme = it },
-                            developerToolsInfo = developerToolsInfo,
-                            updateState = appViewModel.forceUpdate.state,
-                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
-                        )
-                    }
-
                     BackHandler {
                         if (navigation.popBackStack()) {
                             lastBackPressedAt = 0L
@@ -128,6 +112,24 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
+                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
+                    ) {
+                        MapmoryApp(
+                            container = appViewModel.container,
+                            navigation = navigation,
+                            analytics = analyticsLogger,
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            onThemeChanged = { isDarkTheme = it },
+                            developerToolsInfo = developerToolsInfo,
+                            updateState = appViewModel.forceUpdate.state,
+                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
+                        )
+                    }
+
+
                 }
             }
         }

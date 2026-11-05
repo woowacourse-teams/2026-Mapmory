@@ -274,7 +274,6 @@ internal fun GroupRoute(
                             }, Modifier.fillMaxWidth())
                             TextButton(onClick = { act(GroupAction.FAILURE_SIMULATED) { openSheet(GroupSheet.FAILED) } }) { Text("실패 상태 보기") }
                             TextButton(onClick = { act(GroupAction.UNKNOWN_SIMULATED) { openSheet(GroupSheet.UNKNOWN) } }) { Text("연결 끊김 상태 보기") }
-                            TextButton(onClick = { act(GroupAction.SAVE_CLOSED) { dismissSheet() } }) { Text("닫기") }
                         }
                         GroupSheet.FAILED, GroupSheet.UNKNOWN -> {
                             GroupMuted(if (sheet == GroupSheet.FAILED) when (saveStage) {
