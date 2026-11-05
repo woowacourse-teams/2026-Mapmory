@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.MapmoryThemeState
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -21,7 +22,12 @@ class TripTimelineVideoEntryRenderingTest {
                 var height = 0
                 val scene = ImageComposeScene(width = 354, height = 320) {
                     CompositionLocalProvider(
-                        LocalMapmoryTheme provides MapmoryThemeState(isDark = dark, onThemeChange = {}),
+                        LocalMapmoryTheme provides MapmoryThemeState(
+                            isDark = dark,
+                            palette = MapmoryThemePalette.MAPMORY_GREEN,
+                            onThemeChange = {},
+                            onPaletteChange = {},
+                        ),
                     ) {
                         ProvideTripRecordPalettes(isDark = dark) {
                             TripRecordTheme {
