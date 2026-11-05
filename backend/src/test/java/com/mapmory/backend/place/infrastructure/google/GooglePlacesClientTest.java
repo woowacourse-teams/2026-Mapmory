@@ -34,6 +34,7 @@ import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -66,7 +67,7 @@ class GooglePlacesClientTest {
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-14T00:00:00Z"));
     private final GooglePlacesClient client = new GooglePlacesClient(builder.baseUrl(BASE_URL).build(),
-            api("test-key"), limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+            api("test-key"), guard(limiter, clock));
 
     @Test
     void 자동완성_후보를_장소명과_보조_주소로_반환한다() {
@@ -506,7 +507,7 @@ class GooglePlacesClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleCallGuard.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -520,7 +521,7 @@ class GooglePlacesClientTest {
 
     private GooglePlacesClient unconfiguredClient() {
         return new GooglePlacesClient(RestClient.builder().baseUrl(BASE_URL).build(), api(""),
-                mock(GoogleRequestLimiter.class), GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+                guard(mock(GoogleRequestLimiter.class), clock));
     }
 
     private static GoogleApiProperties api(String apiKey) {
@@ -533,5 +534,10 @@ class GooglePlacesClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
                         .isEqualTo(expectedCode));
+    }
+
+    static GoogleCallGuard guard(GoogleRequestLimiter limiter, Clock clock) {
+        return new GoogleCallGuard(limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock),
+                GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.GEOCODING));
     }
 }

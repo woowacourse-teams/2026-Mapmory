@@ -46,11 +46,12 @@ class GoogleGeocodingClientTest {
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
-    private final CircuitBreaker breaker = GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock);
+    private final CircuitBreaker breaker =
+            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.GEOCODING);
     private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
             new GoogleApiProperties("test-key", "https://places.google.test", GEOCODING_URL,
                     Duration.ofMillis(400), Duration.ofSeconds(1)),
-            limiter, breaker);
+            new GoogleCallGuard(limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock), breaker));
 
     @Test
     void 키는_헤더로_보내고_좌표를_한국어_주소_구성요소로_바꾼다() {
@@ -180,7 +181,7 @@ class GoogleGeocodingClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGeocodingClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleCallGuard.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

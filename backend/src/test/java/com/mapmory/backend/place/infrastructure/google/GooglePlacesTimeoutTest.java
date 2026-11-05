@@ -62,7 +62,10 @@ class GooglePlacesTimeoutTest {
             .withBean("googlePlacesCircuitBreaker", CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
                     new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
                     Clock.systemUTC()))
-            .withUserConfiguration(GooglePlacesClientConfig.class, GooglePlacesClient.class);
+            .withBean("googleGeocodingCircuitBreaker", CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
+                    new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
+                    Clock.systemUTC(), GoogleApi.Host.GEOCODING))
+            .withUserConfiguration(GooglePlacesClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
 
     @BeforeEach
     void startGoogle() throws IOException {
@@ -195,7 +198,7 @@ class GooglePlacesTimeoutTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleCallGuard.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
