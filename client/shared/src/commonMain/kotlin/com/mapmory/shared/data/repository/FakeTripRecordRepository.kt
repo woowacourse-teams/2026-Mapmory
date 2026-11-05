@@ -14,6 +14,7 @@ import com.mapmory.shared.domain.model.TripRecordMedia
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordPhotoRules
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripStatistics
 import com.mapmory.shared.domain.model.TopRegionStatistics
@@ -46,15 +47,24 @@ class FakeTripRecordRepository(
             (query.locationId == null || record.locationId == query.locationId) &&
                 (query.tagId == null || record.tags.any { tag -> tag.id == query.tagId })
         }
-        val totalPages = (filteredRecords.size + query.size - 1) / query.size
-        val pageRecords = filteredRecords.drop(query.page * query.size).take(query.size)
+        val orderedRecords = if (query.sort == TripRecordSort.TRAVEL_DATE_DESC) {
+            filteredRecords.sortedWith(
+                compareByDescending<TripRecordData> { it.startDate }
+                    .thenByDescending { it.createdAt }
+                    .thenByDescending { it.id },
+            )
+        } else {
+            filteredRecords
+        }
+        val totalPages = (orderedRecords.size + query.size - 1) / query.size
+        val pageRecords = orderedRecords.drop(query.page * query.size).take(query.size)
 
         return Result.success(
             TripRecordPage(
                 records = pageRecords.map(TripRecordData::toSummary),
                 page = query.page,
                 size = query.size,
-                totalElements = filteredRecords.size.toLong(),
+                totalElements = orderedRecords.size.toLong(),
                 totalPages = totalPages,
             ),
         )
