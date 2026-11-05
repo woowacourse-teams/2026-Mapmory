@@ -18,6 +18,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.rememberNavController
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
@@ -40,6 +43,7 @@ import com.mapmory.shared.presentation.triprecord.screen.TripRecordTheme
 import com.mapmory.shared.update.ForceUpdateState
 import com.mapmory.shared.update.ForceUpdateGate
 import com.mapmory.shared.update.awaitSplashUpdateCheck
+import kotlin.time.TimeSource
 
 @Composable
 fun MapmoryApp(
@@ -57,6 +61,23 @@ fun MapmoryApp(
         if (container == null) createInMemoryAppContainer() else null
     }
     val appContainer = requireNotNull(container ?: ownedContainer)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var foregroundSince by remember(lifecycle) {
+        mutableStateOf(
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) TimeSource.Monotonic.markNow() else null,
+        )
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> foregroundSince = TimeSource.Monotonic.markNow()
+                Lifecycle.Event.ON_STOP -> foregroundSince = null
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     val themePreference = appContainer.themePreference
     var isDarkTheme by remember(themePreference) {
         mutableStateOf(themePreference.loadIsDarkTheme())
@@ -155,6 +176,7 @@ fun MapmoryApp(
                             navController = navController,
                             navigator = navigator,
                             container = appContainer,
+                            foregroundSince = foregroundSince,
                             backHandlerRegistry = backHandlerRegistry,
                             contentWindowInsets = contentWindowInsets,
                             developerToolsInfo = developerToolsInfo,

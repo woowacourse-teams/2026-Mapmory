@@ -254,22 +254,25 @@ class BackgroundTripRecordSaver internal constructor(
                 drafts.remove(id)
                 serverSaveStarted.remove(id)
                 updatePendingPhotoIds()
-                persist()
-                completed?.let(execution::onCompleted)
-                onSaved()
-                completedSavesChannel.trySend(
-                    BackgroundTripRecordCompletion(
-                        recordId = record.id,
-                        previousStatistics = previousStatistics,
-                        locationName = completed?.locationName.orEmpty(),
-                        photoCount = completed?.photoCount ?: record.media.size,
-                        thumbnailUrl = record.thumbnailUrl ?: record.media.minByOrNull { it.sortOrder }?.url,
-                        thumbnailBytes = completionThumbnail(draft),
-                        completedAt = completedAt,
-                    ),
-                )
-                // Workers must stay alive until persistence and completion delivery have finished.
-                mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
+                try {
+                    persist()
+                    completedSavesChannel.trySend(
+                        BackgroundTripRecordCompletion(
+                            recordId = record.id,
+                            previousStatistics = previousStatistics,
+                            locationName = completed?.locationName.orEmpty(),
+                            photoCount = completed?.photoCount ?: record.media.size,
+                            thumbnailUrl = record.thumbnailUrl ?: record.media.minByOrNull { it.sortOrder }?.url,
+                            thumbnailBytes = completionThumbnail(draft),
+                            completedAt = completedAt,
+                        ),
+                    )
+                    completed?.let(execution::onCompleted)
+                    onSaved()
+                } finally {
+                    // Keep completed saves out of retry UI even if a local callback fails.
+                    mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
+                }
             },
             onFailure = { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
