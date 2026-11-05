@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -47,7 +46,7 @@ import tools.jackson.databind.JsonNode;
  * <p>검색은 사진을 찾기 위한 도구다. Google이 준 후보 이름은 응답에만 쓰고 저장하지 않는다. 상세 조회는 이름과
  * 좌표 없이 주소 구성요소(Essentials)만 받아 국가와 시·도·시·군·구를 추천한다.
  *
- * <p>사진 좌표 → 지역은 Geocoding API의 역지오코딩으로 주소 구성요소만 받는다. 좌표와 결과는 저장하지 않는다.
+ * <p>사진 좌표 → 지역은 Geocoding API v4의 역지오코딩으로 주소 구성요소만 받는다. 좌표와 결과는 저장하지 않는다.
  * 같은 키, 같은 연결 풀, 같은 서킷 브레이커와 분당 한도를 쓰고 월 한도만 따로 센다.
  *
  * <p>Google이 멈추면 서킷 브레이커가 열려 한도를 확인하기 전에 바로 실패한다. 실패 기준은 {@link GoogleCircuitBreakerConfig}에 있다.
@@ -63,7 +62,9 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     // displayName(Pro)을 넣으면 세션을 닫는 상세 조회가 Enterprise + Atmosphere로 과금된다.
     private static final String FIELD_MASK = "id,addressComponents,shortFormattedAddress";
     private static final String LANGUAGE = "ko";
-    static final String GEOCODING_BASE_URL = "https://maps.googleapis.com";
+    static final String GEOCODING_BASE_URL = "https://geocode.googleapis.com";
+    // 역지오코딩은 국가·시·도·시·군·구 판정용 주소 구성요소만 받는다.
+    private static final String GEOCODING_FIELD_MASK = "results.addressComponents";
 
     private final RestClient restClient;
     private final RestClient geocodingClient;
@@ -160,7 +161,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);
         }
-        JsonNode response = call(false, requestLimiter::reserveAutocomplete, requestLimiter::refundAutocomplete,
+        JsonNode response = call(false, false, requestLimiter::reserveAutocomplete, requestLimiter::refundAutocomplete,
                 () -> restClient.post()
                         .uri("/v1/places:autocomplete")
                         .header("X-Goog-Api-Key", apiKey)
@@ -175,7 +176,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     @Override
     public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
         requireConfigured();
-        JsonNode response = call(true, requestLimiter::reserveDetails, requestLimiter::refundDetails,
+        JsonNode response = call(true, false, requestLimiter::reserveDetails, requestLimiter::refundDetails,
                 () -> restClient.get()
                         .uri(uri -> {
                             uri.path("/v1/places/{placeId}").queryParam("languageCode", LANGUAGE);
@@ -193,50 +194,28 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     }
 
     /**
-     * 좌표를 주소 구성요소로 바꾼다. Geocoding API는 실패도 HTTP 200에 status로 알린다. 주소가 없는 좌표(ZERO_RESULTS)만
-     * 빈 값이고, 키 거절·쿼터 초과처럼 고칠 때까지 계속되는 실패는 ERROR로 알리고 제공자 장애로 답한다.
-     * Google 쪽 일시 오류(UNKNOWN_ERROR)는 5xx와 같게 다뤄, 서킷 브레이커가 실패로 세고 월 한도를 돌려준다.
-     * 좌표는 로그에 남기지 않는다.
+     * 좌표를 주소 구성요소로 바꾼다(Geocoding API v4). 키는 URL이 아닌 헤더로 보낸다. 좌표는 v4가 GET 경로로만 받아
+     * URL에 실리지만, HTTPS로 암호화되고 우리 로그·메트릭에는 남기지 않는다(메트릭은 경로 템플릿만 쓴다).
+     *
+     * <p>v4는 실패를 HTTP 상태로 알린다. 4xx(키 거절 등)는 Google이 과금하지 않아 월 한도를 돌려주고 ERROR로 알리며,
+     * 5xx는 서킷 브레이커가 실패로 센다. 주소가 없는 좌표는 결과가 비어 오고 빈 값이다.
      */
     @Override
     public Optional<RegionAddress> findAddress(Coordinate coordinate) {
         requireConfigured();
-        JsonNode response = call(false, requestLimiter::reserveGeocode, requestLimiter::refundGeocode,
-                () -> failOnGeocodingServerError(geocodingClient.get()
-                        .uri(uri -> uri.path("/maps/api/geocode/json")
-                                .queryParam("latlng", coordinate.toLatLng())
-                                .queryParam("language", LANGUAGE)
-                                .queryParam("key", apiKey)
-                                .build())
+        JsonNode response = call(false, true, requestLimiter::reserveGeocode, requestLimiter::refundGeocode,
+                () -> geocodingClient.get()
+                        .uri("/v4/geocode/location/{latLng}?languageCode={language}", coordinate.toLatLng(), LANGUAGE)
+                        .header("X-Goog-Api-Key", apiKey)
+                        .header("X-Goog-FieldMask", GEOCODING_FIELD_MASK)
                         .retrieve()
-                        .body(JsonNode.class)));
-        String status = response.path("status").asString("");
-        return switch (status) {
-            case "OK" -> mapper.geocodedAddress(response);
-            case "ZERO_RESULTS" -> Optional.empty();
-            default -> {
-                // REQUEST_DENIED(키에 Geocoding API가 허용되지 않음), OVER_QUERY_LIMIT, INVALID_REQUEST.
-                // Google은 이 응답을 사용량에 세지 않는다. 키를 고칠 때까지 월 한도가 새지 않도록 돌려준다.
-                requestLimiter.refundGeocode();
-                log.atError()
-                        .addKeyValue("event", "GOOGLE_GEOCODING_REJECTED")
-                        .addKeyValue("status", status)
-                        .log("Google Geocoding이 요청을 거절했다: {}", status);
-                throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
-            }
-        };
-    }
-
-    private static JsonNode failOnGeocodingServerError(JsonNode body) {
-        if (body != null && "UNKNOWN_ERROR".equals(body.path("status").asString(""))) {
-            throw HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "Geocoding UNKNOWN_ERROR",
-                    null, null, null);
-        }
-        return body;
+                        .body(JsonNode.class));
+        return mapper.geocodedAddress(response);
     }
 
     // 회로가 열려 있으면 한도를 확인하기 전에 막아, 부르지 않을 요청이 한도를 쓰지 않게 한다.
-    private JsonNode call(boolean placeLookup, Runnable reserve, Runnable refund, Supplier<JsonNode> request) {
+    // refundClientErrors: 4xx도 과금하지 않는 API(Geocoding은 성공한 요청만 과금)는 4xx에도 한도를 돌려준다.
+    private JsonNode call(boolean placeLookup, boolean refundClientErrors, Runnable reserve, Runnable refund, Supplier<JsonNode> request) {
         JsonNode body;
         try {
             body = circuitBreaker.executeSupplier(() -> {
@@ -247,7 +226,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         } catch (RestClientException exception) {
             logTimeout(exception);
-            if (notBilled(exception)) {
+            if (notBilled(exception) || (refundClientErrors && isClientError(exception))) {
                 refund.run();
             }
             if (placeLookup && exception instanceof RestClientResponseException response && isUnknownPlace(response)) {
@@ -322,6 +301,10 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
             }
         }
         return false;
+    }
+
+    private static boolean isClientError(RestClientException exception) {
+        return exception instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError();
     }
 
     /** 장소 ID가 없거나 잘못된 경우만 PLACE_NOT_FOUND다. 잘못된 키도 400으로 오므로 제공자 장애로 본다. */
