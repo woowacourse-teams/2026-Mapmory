@@ -41,6 +41,15 @@ class AccountLoginController(
         }
     }
 
+    fun leaveWithdrawalRecovery() {
+        if (mutableState.value.busy) return
+        mutableState.value = LoginUiState(busy = true)
+        scope.launch {
+            val result = session.leaveWithdrawalRecovery()
+            mutableState.value = LoginUiState(message = result.exceptionOrNull()?.message)
+        }
+    }
+
     fun withdraw(launcher: SocialLoginLauncher?) {
         if (mutableState.value.busy) return
         val apple = session.state.value.member?.provider == MemberProvider.APPLE ||

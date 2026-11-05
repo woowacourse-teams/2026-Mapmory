@@ -219,14 +219,22 @@ fun MapmoryApp(
                 if (accountState?.pendingLogout == true && !accountState.transitioning) {
                     val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value
                     androidx.compose.material3.AlertDialog(
-                        onDismissRequest = {},
+                        onDismissRequest = {
+                            if (accountState.pendingWithdrawal) appContainer.accountLoginController?.leaveWithdrawalRecovery()
+                        },
                         title = { androidx.compose.material3.Text(if (accountState.pendingWithdrawal) "회원 탈퇴를 마무리해 주세요" else "로그아웃을 마무리해 주세요") },
-                        text = { androidx.compose.material3.Text(logoutUi?.message ?: "로그인 정보와 계정 화면을 정리하고 있어요. 다시 시도해 주세요.") },
+                        text = { androidx.compose.material3.Text(logoutUi?.message ?: if (accountState.pendingWithdrawal) "탈퇴가 중단됐어요. 다시 시도하거나 닫을 수 있어요. 닫으면 기기의 로그인 정보를 정리해요. 탈퇴 결과는 다시 로그인해 확인해 주세요." else "로그인 정보와 계정 화면을 정리하고 있어요. 다시 시도해 주세요.") },
                         confirmButton = {
                             androidx.compose.material3.TextButton(
                                 onClick = { if (accountState.pendingWithdrawal) appContainer.accountLoginController?.withdraw(withdrawalLauncher) else appContainer.accountLoginController?.logout() },
                                 enabled = logoutUi?.busy != true,
                             ) { androidx.compose.material3.Text(if (accountState.pendingWithdrawal) "회원 탈퇴 다시 시도" else "로그아웃 다시 시도") }
+                        },
+                        dismissButton = {
+                            if (accountState.pendingWithdrawal) androidx.compose.material3.TextButton(
+                                onClick = { appContainer.accountLoginController?.leaveWithdrawalRecovery() },
+                                enabled = logoutUi?.busy != true,
+                            ) { androidx.compose.material3.Text("닫기") }
                         },
                     )
                 }
