@@ -27,6 +27,7 @@ class SocialSessionTest {
         var refreshCalls = 0
         var guestCalls = 0
         var memberFailure = false
+        var invalidAccess = false
         var exchangeFailure = false
         var expired = false
         var invalidRefresh = false
@@ -41,6 +42,7 @@ class SocialSessionTest {
         override suspend fun socialLogin(provider: MemberProvider, idToken: String, accessToken: String?): Result<SocialSessionTokens> {
             exchangeCalls++; bearer = accessToken
             exchangeBlock?.invoke()
+            if (invalidAccess) return Result.failure(apiError("INVALID_ACCESS_TOKEN"))
             if (expired) return Result.failure(apiError("EXPIRED_ACCESS_TOKEN"))
             if (exchangeFailure) return Result.failure(IllegalStateException("response lost"))
             return Result.success(SocialSessionTokens(social, true))
@@ -89,6 +91,31 @@ class SocialSessionTest {
             session.restore().getOrThrow()
             assertEquals("GOOGLE", store.recent)
             assertEquals(MemberProvider.GOOGLE, session.state.value.recentLoginProvider)
+        } finally { session.close() }
+    }
+
+    @Test fun invalidAccessRequiresFreshProviderProofAndOmitsPreviousSession() = runBlocking {
+        val gateway = Gateway().apply { invalidAccess = true }
+        val session = GuestSessionManager(gateway, Store())
+        try {
+            assertTrue(session.login(MemberProvider.GOOGLE, "old-proof").isFailure)
+            assertTrue(session.state.value.needsProviderProof)
+            assertTrue(session.state.value.recoveryRequired)
+            gateway.invalidAccess = false
+            session.login(MemberProvider.GOOGLE, "new-proof", recoverInvalidSession = true).getOrThrow()
+            assertNull(gateway.bearer)
+            assertFalse(session.state.value.pendingLogin)
+        } finally { session.close() }
+    }
+
+    @Test fun localAccountLeaseDoesNotAuthenticateAndBlocksPendingTransitions() = runBlocking {
+        val store = Store(); val gateway = Gateway(); val session = GuestSessionManager(gateway, store)
+        try {
+            assertEquals("cached", session.withLocalAccountLease { "cached" })
+            assertEquals(0, gateway.guestCalls)
+            assertEquals(0, gateway.refreshCalls)
+            store.pending = "GOOGLE"
+            assertNull(session.withLocalAccountLease { "wrong account" })
         } finally { session.close() }
     }
 

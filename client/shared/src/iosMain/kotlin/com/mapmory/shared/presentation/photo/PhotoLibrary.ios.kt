@@ -13,18 +13,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.mapmory.shared.data.media.originalPhotoDate
+import com.mapmory.shared.data.media.photoDisplayJpeg
+import com.mapmory.shared.data.media.loadIosAssetPhotoPreview
+import com.mapmory.shared.data.media.IosLocalPhotoDataSource
+import com.mapmory.shared.data.media.LocalPhotoDataSource
+import platform.Foundation.NSError
+import platform.Photos.PHImageErrorKey
+import platform.Photos.PHImageCancelledKey
+import platform.Photos.PHImageResultIsDegradedKey
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.media.cacheIosPickerPhoto
 import com.mapmory.shared.data.media.isIosLocalPhotoAvailable
 import com.mapmory.shared.domain.model.Location
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
-import platform.CoreFoundation.CFRelease
-import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGSizeMake
-import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSDateFormatter
@@ -35,11 +40,6 @@ import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.NSURL
 import platform.Foundation.getBytes
 import platform.Foundation.NSSortDescriptor
-import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
-import platform.ImageIO.CGImageSourceCreateWithData
-import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
-import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
-import platform.ImageIO.kCGImageSourceThumbnailMaxPixelSize
 import platform.Photos.PHAccessLevelReadWrite
 import platform.Photos.PHAsset
 import platform.Photos.PHAssetMediaTypeImage
@@ -63,7 +63,6 @@ import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationDidBecomeActiveNotification
 import platform.UIKit.UIApplicationOpenSettingsURLString
-import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
@@ -154,8 +153,9 @@ private data class PendingIosRecommendation(
     val dateRange: PhotoRecommendationDateRange?,
 )
 
-private class IosPhotoLibraryController(
+internal class IosPhotoLibraryController(
     private val scope: CoroutineScope,
+    private val localPhotoDataSource: LocalPhotoDataSource = IosLocalPhotoDataSource(),
 ) : NSObject(), PHPickerViewControllerDelegateProtocol {
     var analytics: MapmoryAnalytics = NoOpMapmoryAnalytics
     var onPhotosPicked: (List<SelectedPhoto>) -> Unit = {}
@@ -167,6 +167,8 @@ private class IosPhotoLibraryController(
     var onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit = {}
     private var recommendationJob: Job? = null
     private var fullResolutionRequestId: Int? = null
+    private var fullResolutionJob: Job? = null
+    private var fullResolutionGeneration = 0
     private var recommendationGeneration = 0
     private var recommendationSession: IosRecommendationSession? = null
     var excludedPhotoIds: Set<String> = emptySet()
@@ -217,6 +219,11 @@ private class IosPhotoLibraryController(
                     "pick_total_ms=${startedAtMillis?.let(::elapsedMillis) ?: 0} " +
                         "requested_photos=${results.size} loaded_photos=${loaded.size}",
                 )
+                analytics.logEvent("photo_load_completed", mapOf(
+                    "requested" to results.size.toString(),
+                    "succeeded" to loaded.size.toString(),
+                    "failed" to (results.size - loaded.size).toString(),
+                ))
                 if (loaded.size < results.size) {
                     analytics.reportFailure("photo_import", kotlinx.io.IOException())
                 }
@@ -562,16 +569,34 @@ private class IosPhotoLibraryController(
     private fun loadPickerResult(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
         val asset = result.assetIdentifier?.let(::assetForIdentifier)
         if (asset != null) {
-            loadAssetPreview(asset, completion)
+            loadAssetPreview(asset) { photo ->
+                if (photo != null) completion(photo) else loadPickerData(result, completion)
+            }
             return
         }
-        result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, _ ->
+        loadPickerData(result, completion)
+    }
+
+    private fun photoFailure(stage: String, error: NSError? = null) {
+        val parameters = mapOf("stage" to stage, "error_domain" to (error?.domain ?: "mapmory"),
+            "error_code" to (error?.code?.toString() ?: "missing_result"))
+        println("Mapmory photo_load_failed: $parameters")
+        onMain { analytics.logEvent("photo_load_failed", parameters) }
+    }
+
+    private fun loadPickerData(result: PHPickerResult, completion: (SelectedPhoto?) -> Unit) {
+        result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, error ->
             if (data == null || data.length == 0UL) {
+                photoFailure("picker_data", error)
                 onMain { completion(null) }
                 return@loadDataRepresentationForTypeIdentifier
             }
-            val localId = cacheIosPickerPhoto(data)
-            val previewBytes = data.toPreviewByteArray(RecommendationPreviewSizePx)
+            val date = data.originalPhotoDate()
+            if (date == null) photoFailure("capture_date_missing")
+            val previewBytes = data.photoDisplayJpeg(RecommendationPreviewSizePx)
+            val localId = if (previewBytes != null) cacheIosPickerPhoto(data) else null
+            if (previewBytes != null && localId == null) photoFailure("original_cache")
+            if (previewBytes == null) photoFailure("picker_thumbnail")
             onMain {
                 completion(
                     if (localId != null && previewBytes != null) SelectedPhoto(
@@ -579,6 +604,7 @@ private class IosPhotoLibraryController(
                         displayName = result.itemProvider.suggestedName ?: "여행 사진",
                         previewBytes = previewBytes,
                         originalBytes = null,
+                        capturedAt = date,
                     ) else null,
                 )
             }
@@ -601,6 +627,10 @@ private class IosPhotoLibraryController(
                 remaining -= 1
                 val available = loaded.filterNotNull()
                 if (remaining == 0) {
+                    analytics.logEvent("photo_load_completed", mapOf(
+                        "requested" to assets.size.toString(), "succeeded" to available.size.toString(),
+                        "failed" to (assets.size - available.size).toString(),
+                    ))
                     completion(available)
                 }
             }
@@ -640,23 +670,40 @@ private class IosPhotoLibraryController(
             ),
             contentMode = PHImageContentModeAspectFit,
             options = options,
-        ) { image, _ ->
+        ) { image, info ->
+            if (info?.get(PHImageResultIsDegradedKey) == true) return@requestImageForAsset
+            val error = info?.get(PHImageErrorKey) as? NSError
+            if (image == null) photoFailure(
+                if (info?.get(PHImageCancelledKey) == true) "preview_cancelled" else "asset_preview", error)
+
             val previewBytes = image
                 ?.let { UIImageJPEGRepresentation(it, PreviewJpegQuality) }
                 ?.toByteArray()
+            if (image != null && previewBytes == null) photoFailure("jpeg_encode")
             onMain {
                 if (didComplete) return@onMain
                 didComplete = true
-                completion(previewBytes?.let(asset::toSelectedPhoto))
-                if (previewBytes != null) {
-                    scope.launch {
-                        withContext(Dispatchers.Default) {
-                            previewCache.write(cacheKey, previewBytes)
-                        }
+                scope.launch {
+                    // Recommendation results have no PHPicker provider; retry their original resource.
+                    val availablePreview = previewBytes ?: loadAssetOriginalPreview(asset)
+                    completion(availablePreview?.let(asset::toSelectedPhoto))
+                    if (availablePreview != null) withContext(Dispatchers.Default) {
+                        previewCache.write(cacheKey, availablePreview)
                     }
                 }
             }
         }
+    }
+
+    private suspend fun loadAssetOriginalPreview(asset: PHAsset): ByteArray? = try {
+        withContext(Dispatchers.Default) {
+            loadIosAssetPhotoPreview(asset, RecommendationPreviewSizePx)
+        }.also { if (it == null) photoFailure("asset_original_preview") }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        analytics.reportFailure("photo_original_preview", error)
+        null
     }
 
     fun prepareForAdding(
@@ -676,6 +723,25 @@ private class IosPhotoLibraryController(
         completion: (ByteArray?) -> Unit,
     ) {
         cancelFullResolutionPreview()
+        val generation = fullResolutionGeneration
+        // Picker fallback IDs point at our original cache, not at PHAsset identifiers.
+        if (photo.id.startsWith("mapmory-cache://")) {
+            fullResolutionJob = scope.launch {
+                val bytes = try {
+                    withContext(Dispatchers.Default) { localPhotoDataSource.read(photo.id) }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    analytics.reportFailure("photo_cached_original", error)
+                    null
+                }
+                if (generation == fullResolutionGeneration) {
+                    if (bytes == null) photoFailure("cached_full_resolution")
+                    completion(bytes ?: photo.originalBytes)
+                }
+            }
+            return
+        }
         val asset = assetForIdentifier(photo.id)
         if (asset == null) {
             completion(photo.originalBytes)
@@ -691,13 +757,19 @@ private class IosPhotoLibraryController(
         fullResolutionRequestId = PHImageManager.defaultManager().requestImageDataAndOrientationForAsset(
             asset = asset,
             options = options,
-        ) { data, _, _, _ ->
+        ) { data, _, _, info ->
+            if (data == null) photoFailure("full_resolution", info?.get(PHImageErrorKey) as? NSError)
             val bytes = data?.toByteArray()
-            onMain { completion(bytes) }
+            onMain {
+                if (generation == fullResolutionGeneration) completion(bytes)
+            }
         }
     }
 
     fun cancelFullResolutionPreview() {
+        ++fullResolutionGeneration
+        fullResolutionJob?.cancel()
+        fullResolutionJob = null
         fullResolutionRequestId?.let { PHImageManager.defaultManager().cancelImageRequest(it) }
         fullResolutionRequestId = null
     }
@@ -740,39 +812,6 @@ private fun NSData.toByteArray(): ByteArray {
     return ByteArray(length.toInt()).also { bytes ->
         bytes.usePinned { pinned -> getBytes(pinned.addressOf(0), length) }
     }
-}
-
-private fun NSData.toPreviewByteArray(maxDimension: Int): ByteArray? {
-    val retainedData = CFBridgingRetain(this) ?: return null
-    val imageSource = CGImageSourceCreateWithData(retainedData.reinterpret(), null)
-    CFRelease(retainedData)
-    if (imageSource == null) return null
-
-    val thumbnailOptions = mapOf(
-        kCGImageSourceCreateThumbnailFromImageAlways to true,
-        kCGImageSourceCreateThumbnailWithTransform to true,
-        kCGImageSourceThumbnailMaxPixelSize to maxDimension,
-    )
-    val retainedOptions = CFBridgingRetain(thumbnailOptions) ?: run {
-        CFRelease(imageSource.reinterpret())
-        return null
-    }
-    val thumbnail = CGImageSourceCreateThumbnailAtIndex(
-        imageSource,
-        0UL,
-        retainedOptions.reinterpret(),
-    )
-    CFRelease(retainedOptions)
-    CFRelease(imageSource.reinterpret())
-    if (thumbnail == null) return null
-
-    val previewImage = UIImage.imageWithCGImage(thumbnail)
-    CGImageRelease(thumbnail)
-    val previewData = UIImageJPEGRepresentation(
-        previewImage,
-        PreviewJpegQuality,
-    ) ?: return null
-    return previewData.toByteArray()
 }
 
 private fun topViewController(): UIViewController? {

@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class TripRecordDestinationTest {
     @Test
-    fun `국내는_특별시_광역시_세종_제주과_시군구를_여행지_선택지에_포함한다`() {
+    fun `국내는_특별시_광역시_세종과_시군구를_여행지_선택지에_포함한다`() {
         val seoul = location(1, 1, "KR-11", "서울특별시", LocationType.PROVINCE)
         val gangnam = location(2, 1, "11680", "강남구", LocationType.DISTRICT)
         val korea = location(3, 3, "KR", "대한민국", LocationType.PROVINCE)
@@ -20,14 +20,16 @@ class TripRecordDestinationTest {
     }
 
     @Test
-    fun `특별시_광역시_세종_제주_전체를_허용하고_그외_도_단위는_허용하지_않는다`() {
+    fun `특별시_광역시_세종은_허용하고_제주와_그외_도_전체는_허용하지_않는다`() {
         val catalog = com.mapmory.shared.data.local.StaticRegionCatalog()
-        listOf("11", "26", "27", "28", "29", "30", "31", "50", "49").forEach { code ->
+        listOf("11", "26", "27", "28", "29", "30", "31", "50").forEach { code ->
             assertTrue(catalog.requireByCode("KR-$code").isSelectableTripRecordDestination())
         }
-        listOf("41", "42", "43", "44", "45", "46", "47", "48").forEach { code ->
+        listOf("41", "42", "43", "44", "45", "46", "47", "48", "49").forEach { code ->
             assertFalse(catalog.requireByCode("KR-$code").isSelectableTripRecordDestination())
         }
+        assertTrue(catalog.requireByCode("50110").isSelectableTripRecordDestination())
+        assertTrue(catalog.requireByCode("50130").isSelectableTripRecordDestination())
     }
 
     @Test
@@ -44,12 +46,15 @@ class TripRecordDestinationTest {
             location(1, 1, "KR-11", "서울특별시", LocationType.PROVINCE),
             gangnam,
             gangnam.copy(id = 20),
+            location(4, 1, "KR-49", "제주특별자치도", LocationType.PROVINCE),
+            location(5, 1, "50110", "제주시", LocationType.DISTRICT),
+            location(6, 1, "50130", "서귀포시", LocationType.DISTRICT),
             location(3, 3, "KR", "대한민국", LocationType.PROVINCE),
             location(100, 100, "JP", "일본", LocationType.PROVINCE),
         )
 
         assertEquals(
-            listOf("KR-11", "11680", "JP"),
+            listOf("KR-11", "11680", "50110", "50130", "JP"),
             locations.selectableTripRecordDestinations().map(Location::regionCode),
         )
     }

@@ -141,6 +141,7 @@ private class DefaultMapmoryViewModelFactory(
         mapSummaryRepository = mapSummaryRepository,
         regionCatalog = regionCatalog,
         getTags = GetTagsUseCase(tagRepository),
+        placeRepository = placeRepository,
     )
 
     override fun createTripRecordListViewModel(): TripRecordListViewModel =
@@ -242,6 +243,7 @@ private class DefaultAppContainer(
         localPhotoDataSource = localPhotoDataSource,
         analytics = analytics,
         canEnqueue = { accountSession?.state?.value?.let { !it.transitioning && !it.pendingLogin && !it.pendingLogout } != false },
+        tripStatisticsRepository = tripStatisticsRepository,
     )
 
     init {

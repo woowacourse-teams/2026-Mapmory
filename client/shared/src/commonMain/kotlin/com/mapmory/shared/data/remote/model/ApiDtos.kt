@@ -37,6 +37,11 @@ data class ShareVideoJobDto(
 )
 
 @Serializable
+data class CreateShareVideoRequestDto(
+    val styleId: String,
+)
+
+@Serializable
 data class ShareVideoDownloadDto(
     val jobId: Long,
     val downloadUrl: String,
@@ -119,6 +124,7 @@ data class TripRecordListItemDto(
     val thumbnailUrl: String? = null,
     val thumbnailUrlExpiresIn: Long? = null,
     val tags: List<TagDto> = emptyList(),
+    val region: TripRecordRegionDto? = null,
 )
 
 @Serializable

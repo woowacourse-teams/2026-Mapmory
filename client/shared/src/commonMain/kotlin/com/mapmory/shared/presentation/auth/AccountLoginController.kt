@@ -111,7 +111,7 @@ internal fun loginErrorMessage(stage: String, error: Throwable): String = when {
     error is MapmoryApiException && error.code in setOf("INVALID_GOOGLE_TOKEN", "INVALID_KAKAO_TOKEN", "INVALID_APPLE_TOKEN") ->
         "인증 정보를 확인하지 못했어요. 로그인 버튼을 눌러 다시 인증해 주세요."
     error is MapmoryApiException && error.statusCode == 429 -> "요청이 많아요. 잠시 후 다시 시도해 주세요."
-    error is MapmoryApiException && error.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN", "INACTIVE_MEMBER") ->
+    error is MapmoryApiException && error.code in setOf("INVALID_ACCESS_TOKEN", "INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN", "INACTIVE_MEMBER") ->
         "기존 세션을 복구하지 못했어요. 로그인 버튼을 누르면 계정으로 다시 로그인할 수 있어요."
     error is AccountBusyException || error is AccountTransitionException || error is PendingAccountException -> error.message!!
     stage == "token_store" -> "로그인은 확인했지만 기기에 저장하지 못했어요. 앱을 닫지 말고 결과 확인을 다시 눌러 주세요."

@@ -45,4 +45,28 @@ class ForceUpdateStateTest {
         state.dismissStoreUpdate()
         assertFalse(state.isStoreUpdateAvailable)
     }
+
+    @Test fun recommendedUpdateCanBeDismissedUntilPolicyChanges() {
+        val state = ForceUpdateState("0.1.9", "https://example.com")
+        assertTrue(state.applyRecommendedVersion("0.2.0"))
+        assertTrue(state.isRecommendedUpdateAvailable)
+
+        state.dismissOptionalUpdate()
+        assertFalse(state.isRecommendedUpdateAvailable)
+        assertTrue(state.applyRecommendedVersion("0.2.0"))
+        assertFalse(state.isRecommendedUpdateAvailable)
+
+        assertTrue(state.applyRecommendedVersion("0.2.1"))
+        assertTrue(state.isRecommendedUpdateAvailable)
+    }
+
+    @Test fun invalidRecommendedPolicyCannotClearAcceptedVersion() {
+        val state = ForceUpdateState("0.1.9", "https://example.com")
+        assertTrue(state.applyRecommendedVersion("0.2.0"))
+
+        listOf("", "-1", "1.x", "1.2.3.4").forEach {
+            assertFalse(state.applyRecommendedVersion(it))
+            assertTrue(state.isRecommendedUpdateAvailable)
+        }
+    }
 }
