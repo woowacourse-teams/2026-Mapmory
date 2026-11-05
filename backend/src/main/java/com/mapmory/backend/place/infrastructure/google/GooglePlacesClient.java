@@ -1,6 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.common.http.ExternalCallFailure;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
@@ -10,25 +11,17 @@ import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
-import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -52,67 +45,21 @@ public class GooglePlacesClient implements PlaceLookupPort {
     private static final String LANGUAGE = "ko";
 
     private final RestClient restClient;
-    private final String apiKey;
+    private final GoogleApiProperties api;
     private final GoogleRequestLimiter requestLimiter;
     private final CircuitBreaker circuitBreaker;
     private final GooglePlaceMapper mapper = new GooglePlaceMapper();
 
-    /**
-     * Google 호출에만 따로 잰 타임아웃을 건다. 공통 값(spring.http.clients)은 재지 않은 JWKS·애플 호출이 계속 쓴다.
-     * 관측(http.client.requests)은 자동 구성된 Builder에 남아 있어 그대로 기록된다.
-     *
-     * <p>연결 풀은 분당 한도(requests-per-minute)만큼 둔다. 분당 한도가 한꺼번에 몰려도 동시에 부를 수 있는
-     * Google 호출 수의 상한이라, 풀에서 연결을 기다리는 요청이 생기지 않는다.
-     */
-    @Autowired
     public GooglePlacesClient(
-            RestClient.Builder builder,
-            @Value("${google.places.base-url:https://places.googleapis.com}") String baseUrl,
-            @Value("${google.places.api-key:}") String apiKey,
-            @Value("${google.places.connect-timeout}") Duration connectTimeout,
-            @Value("${google.places.read-timeout}") Duration readTimeout,
-            @Value("${google.places.rate-limit.requests-per-minute}") int maxConnections,
+            @Qualifier(GooglePlacesClientConfig.PLACES_REST_CLIENT) RestClient restClient,
+            GoogleApiProperties api,
             GoogleRequestLimiter requestLimiter,
             @Qualifier("googlePlacesCircuitBreaker") CircuitBreaker circuitBreaker
     ) {
-        this(builder.requestFactory(requestFactory(connectTimeout, readTimeout, maxConnections)), baseUrl, apiKey,
-                requestLimiter, circuitBreaker);
-    }
-
-    GooglePlacesClient(
-            RestClient.Builder builder,
-            String baseUrl,
-            String apiKey,
-            GoogleRequestLimiter requestLimiter,
-            CircuitBreaker circuitBreaker
-    ) {
-        this.restClient = builder.baseUrl(baseUrl).build();
-        this.apiKey = apiKey;
+        this.restClient = restClient;
+        this.api = api;
         this.requestLimiter = requestLimiter;
         this.circuitBreaker = circuitBreaker;
-        if (apiKey == null || apiKey.isBlank()) {
-            log.atError()
-                    .addKeyValue("event", "GOOGLE_PLACES_NOT_CONFIGURED")
-                    .log("GOOGLE_PLACES_API_KEY가 없어 장소 검색과 선택이 실패한다");
-        }
-    }
-
-    /**
-     * Apache HttpClient로 고정한다. 클래스패스에 따라 골라지게 두면 라이브러리 하나로 타임아웃의 뜻이 몰래 바뀐다.
-     *
-     * <p>connect는 TCP와 TLS 연결까지, read는 연결된 뒤 응답을 기다리는 한도다. 둘이 따로라 잰 값에서 바로 정한다.
-     * 재시도는 끈다. Apache는 GET이 503이면 1초 뒤 다시 보내는데, 우리는 다시 보내지 않고 바로 실패로 답한다.
-     * 풀에서 연결을 기다리는 한도는 connect와 같게 둔다. 풀이 동시 호출 상한만큼 커서 보통은 기다리지 않는다.
-     */
-    static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout, int maxConnections) {
-        return ClientHttpRequestFactoryBuilder.httpComponents()
-                .withHttpClientCustomizer(client -> client.disableAutomaticRetries())
-                .withConnectionManagerCustomizer(pool -> pool
-                        .setMaxConnTotal(maxConnections)
-                        .setMaxConnPerRoute(maxConnections))
-                .withDefaultRequestConfigCustomizer(request -> request
-                        .setConnectionRequestTimeout(Timeout.of(connectTimeout)))
-                .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout));
     }
 
     /** 키를 뺀 뒤에는 새 Google 장소를 받지 않도록 제공자 장애로 알린다. */
@@ -134,7 +81,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
         JsonNode response = call(false, requestLimiter::reserveAutocomplete, requestLimiter::refundAutocomplete,
                 () -> restClient.post()
                         .uri("/v1/places:autocomplete")
-                        .header("X-Goog-Api-Key", apiKey)
+                        .header("X-Goog-Api-Key", api.apiKey())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()
@@ -155,7 +102,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
                             }
                             return uri.build(placeId.value());
                         })
-                        .header("X-Goog-Api-Key", apiKey)
+                        .header("X-Goog-Api-Key", api.apiKey())
                         .header("X-Goog-FieldMask", FIELD_MASK)
                         .retrieve()
                         .body(JsonNode.class));
@@ -174,20 +121,24 @@ public class GooglePlacesClient implements PlaceLookupPort {
         } catch (CallNotPermittedException exception) {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         } catch (RestClientException exception) {
-            logTimeout(exception);
-            if (GoogleFailures.notBilled(exception)) {
+            ExternalCallFailure failure = ExternalCallFailure.of(exception);
+            failure.timeoutPhase().ifPresent(phase -> log.atWarn()
+                    .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
+                    .addKeyValue("phase", phase)
+                    .log("Google Places 호출이 타임아웃으로 끊겼다: {}", phase));
+            if (notBilled(failure)) {
                 refund.run();
             }
-            if (placeLookup && exception instanceof RestClientResponseException response && isUnknownPlace(response)) {
+            if (placeLookup && isUnknownPlace(failure)) {
                 throw new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND);
             }
-            if (exception instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError()) {
+            if (failure.rejected()) {
                 // 4xx는 서킷이 실패로 세지 않는다. 키 거절처럼 고칠 때까지 계속되는 실패라 여기서 ERROR로 알린다.
                 log.atError()
                         .addKeyValue("event", "GOOGLE_PLACES_REJECTED")
-                        .addKeyValue("status", response.getStatusCode().value())
+                        .addKeyValue("status", failure.status())
                         .setCause(exception)
-                        .log("Google Places가 요청을 거절했다: {}", response.getStatusCode().value());
+                        .log("Google Places가 요청을 거절했다: {}", failure.status());
             }
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
         }
@@ -197,27 +148,25 @@ public class GooglePlacesClient implements PlaceLookupPort {
         return body;
     }
 
-    private static void logTimeout(RestClientException exception) {
-        String phase = GoogleFailures.timeoutPhase(exception);
-        if (phase != null) {
-            log.atWarn()
-                    .addKeyValue("event", "GOOGLE_PLACES_TIMEOUT")
-                    .addKeyValue("phase", phase)
-                    .log("Google Places 호출이 타임아웃으로 끊겼다: {}", phase);
-        }
+    /**
+     * Google이 과금하지 않은 실패인지 본다. 5xx는 Google이 처리하지 못한 것이고, 나가지 않은 요청은 Google에 닿지 않았다.
+     * 답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어 과금된 것으로 본다.
+     */
+    static boolean notBilled(ExternalCallFailure failure) {
+        return failure.serverError() || !failure.sent();
     }
 
     /** 장소 ID가 없거나 잘못된 경우만 PLACE_NOT_FOUND다. 잘못된 키도 400으로 오므로 제공자 장애로 본다. */
-    private static boolean isUnknownPlace(RestClientResponseException exception) {
-        int status = exception.getStatusCode().value();
+    private static boolean isUnknownPlace(ExternalCallFailure failure) {
+        int status = failure.status();
         if (status == 404) {
             return true;
         }
-        return status == 400 && !exception.getResponseBodyAsString().contains("API_KEY");
+        return status == 400 && !failure.responseBody().contains("API_KEY");
     }
 
     private void requireConfigured() {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!api.configured()) {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE,
                     "GOOGLE_PLACES_API_KEY가 설정되지 않았습니다.");
         }
