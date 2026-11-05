@@ -658,8 +658,6 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `400` | `TOO_MANY_TAGS` | 임시 기록당 태그 5개 제한 초과 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
-| `400` | `VALIDATION_ERROR` | `latitude`·`longitude`가 빠짐 |
-| `400` | `INVALID_COORDINATE` | 위도가 -90~90, 경도가 -180~180을 벗어남 |
 | `400` | `INVALID_PLACE_ID` | `placeId` 형식이 올바르지 않음 |
 | `404` | `PLACE_NOT_FOUND` | 지역 없이 보낸 `placeId`를 제공자에서 찾을 수 없음 |
 | `503` | `PLACE_PROVIDER_UNAVAILABLE` | 장소 제공자 장애·키 없음으로 장소를 다시 조회하지 못함 |
@@ -1291,6 +1289,8 @@ Authorization: Bearer {accessToken}
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | `query`·`sessionToken` 형식이 올바르지 않음 |
+| `400` | `VALIDATION_ERROR` | `latitude`·`longitude`가 빠짐 |
+| `400` | `INVALID_COORDINATE` | 위도가 -90~90, 경도가 -180~180을 벗어남 |
 | `400` | `INVALID_PLACE_ID` | 장소 ID가 영문·숫자·`-`·`_` 1~255자가 아님 |
 | `404` | `PLACE_NOT_FOUND` | 제공자에 장소가 없음 |
 | `429` | `PLACE_RATE_LIMITED` | 회원 한도 또는 Google 분당 한도 초과 |
