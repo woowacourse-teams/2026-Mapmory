@@ -61,14 +61,18 @@ google:
     connect-timeout: 400ms
     read-timeout: 1s
     rate-limit:
-      # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
-      autocomplete-per-month: 9000
-      details-per-month: 9000
-      # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 무료 사용량(Geocoding SKU 월 10,000건)보다
-      # 작게 둔다. 개발 서버는 application-dev.yaml에서 3,000건으로 낮춘다.
+      # UTC 달마다 센다. 상한에 닿으면 막는다. Google 월 무료 사용량은 SKU마다 10,000건(Autocomplete,
+      # Place Details Essentials, Geocoding)이라, 상한을 그 두 배로 두고 무료를 넘기 전에 알림을 받는다.
+      # 상한까지 다 쓰면 SKU마다 10,000건이 과금된다(자동완성 약 $28, 상세·Geocoding 각 $50).
+      autocomplete-per-month: 20000
+      details-per-month: 20000
+      # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 개발 서버는 application-dev.yaml에서 낮춘다.
       # 같은 GOOGLE_PLACES_API_KEY를 쓰므로 GCP에서 그 키에 Geocoding API를 허용해야 한다.
-      geocode-per-month: 9000
-      # 서버마다 메모리에서 센다. 몰린 요청이 월 한도를 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
+      geocode-per-month: 20000
+      # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_PLACES_FREE_USAGE)를 남겨 Discord로 알린다. 무료 10,000건보다 조금 앞이다.
+      # Google 월은 태평양 시간 기준이라 UTC 달과 몇 시간 어긋난다.
+      free-alert-at: 9000
+      # 서버마다 메모리에서 센다. 몰린 요청이 무료 사용량을 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
       requests-per-minute: 60
     # Google이 멈추면 부르지도 않고 바로 실패해, 사용자가 3초씩 기다리거나 월 한도를 쓰지 않게 한다.
     # 최근 60초 동안 5번 이상 불렀고 그중 절반 이상이 타임아웃·연결 오류·5xx면 60초 동안 연다. 그 뒤 3번 시험해 본다.

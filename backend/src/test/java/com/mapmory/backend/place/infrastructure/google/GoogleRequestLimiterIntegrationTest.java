@@ -80,6 +80,27 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 무료_사용량에_가까워진_순간에_한_번_ERROR_로그를_남기고_막지는_않는다() {
+        GoogleRequestLimiter limiter = limiter(10, 10, 10_000, 3);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (int i = 0; i < 5; i++) {
+                limiter.reserveGeocode();
+            }
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .extracting(event -> field(event, "event") + ":" + field(event, "budget") + ":" + field(event, "used")
+                        + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_FREE_USAGE:geocode:3:ERROR");
+    }
+
+    @Test
     void 속도_제한에_걸린_요청은_월_한도를_쓰지_않는다() {
         GoogleRequestLimiter limiter = limiter(2, 1, 1);
 
@@ -171,6 +192,11 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     private GoogleRequestLimiter limiter(int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute) {
+        return limiter(autocompletePerMonth, detailsPerMonth, requestsPerMinute, Long.MAX_VALUE);
+    }
+
+    private GoogleRequestLimiter limiter(
+            int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute, long freeAlertAt) {
         GoogleRateLimitProperties properties =
                 new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, detailsPerMonth, requestsPerMinute);
         GoogleRateLimitConfig config = new GoogleRateLimitConfig();
@@ -180,6 +206,7 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
                 config.googleAutocompleteBudget(properties),
                 config.googleDetailsBudget(properties),
                 config.googleGeocodeBudget(properties),
+                freeAlertAt,
                 clock
         );
     }

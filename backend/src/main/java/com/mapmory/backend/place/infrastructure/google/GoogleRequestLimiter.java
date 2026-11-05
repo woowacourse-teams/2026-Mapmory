@@ -12,6 +12,7 @@ import java.time.YearMonth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,6 +32,7 @@ public class GoogleRequestLimiter {
     private final Budget autocomplete;
     private final Budget details;
     private final Budget geocode;
+    private final long freeAlertAt;
     private final Clock clock;
 
     public GoogleRequestLimiter(
@@ -39,8 +41,10 @@ public class GoogleRequestLimiter {
             @Qualifier(GoogleRateLimitConfig.AUTOCOMPLETE_BUDGET) BucketConfiguration autocompleteBudget,
             @Qualifier(GoogleRateLimitConfig.DETAILS_BUDGET) BucketConfiguration detailsBudget,
             @Qualifier(GoogleRateLimitConfig.GEOCODE_BUDGET) BucketConfiguration geocodeBudget,
+            @Value("${google.places.rate-limit.free-alert-at}") long freeAlertAt,
             Clock clock
     ) {
+        this.freeAlertAt = freeAlertAt;
         this.bucketManager = bucketManager;
         this.requestPace = requestPace;
         this.autocomplete = new Budget("autocomplete", autocompleteBudget, PlaceErrorCode.PLACE_SEARCH_BUDGET_EXHAUSTED);
@@ -101,6 +105,7 @@ public class GoogleRequestLimiter {
             throw new BusinessException(budget.exhaustedError());
         }
         alertIfRunningOut(budget, probe.getRemainingTokens());
+        alertIfFreeUsageRunningOut(budget, probe.getRemainingTokens());
     }
 
     // 돌려주지 못하면 실제보다 많이 쓴 것으로 셀 뿐이다. 이미 정해진 Google 장애 응답을 돌려주기 실패로 바꾸지 않는다.
@@ -136,6 +141,24 @@ public class GoogleRequestLimiter {
                                 ? "Google {} 월 한도를 다 썼다: 남은 {}/{}"
                                 : "Google {} 월 한도의 80%를 썼다: 남은 {}/{}",
                         budget.name(), remaining, capacity);
+    }
+
+    /**
+     * 상한이 Google 월 무료 사용량보다 크면, 무료 사용량에 가까워진 순간(free-alert-at번째 호출)에 ERROR 로그를 한 번 남긴다.
+     * 이 뒤로는 막지 않고 과금된다. 상한에 닿을 때까지 사람이 보고 판단하라는 알림이다.
+     */
+    private void alertIfFreeUsageRunningOut(Budget budget, long remaining) {
+        long capacity = budget.capacity();
+        if (freeAlertAt >= capacity || capacity - remaining != freeAlertAt) {
+            return;
+        }
+        log.atError()
+                .addKeyValue("event", "GOOGLE_PLACES_FREE_USAGE")
+                .addKeyValue("budget", budget.name())
+                .addKeyValue("used", freeAlertAt)
+                .addKeyValue("capacity", capacity)
+                .log("Google {} 이번 달 사용량이 {}건이다: 곧 무료 사용량을 넘어 과금된다(상한 {})",
+                        budget.name(), freeAlertAt, capacity);
     }
 
     private record Budget(String name, BucketConfiguration configuration, PlaceErrorCode exhaustedError) {
