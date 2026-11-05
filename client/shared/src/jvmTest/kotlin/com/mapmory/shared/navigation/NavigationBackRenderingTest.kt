@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import kotlinx.coroutines.CoroutineScope
@@ -29,8 +31,20 @@ class NavigationBackRenderingTest {
             }
         }
         var frame = 0L
-        fun render() = scene.render(++frame * 16_666_667L).use {
-            it.toComposeImageBitmap().toPixelMap()
+        fun render(): PixelMap {
+            // Snapshot notifications can invalidate drawing after the first rendered frame.
+            repeat(10) {
+                Snapshot.sendApplyNotifications()
+                val pixels = scene.render(++frame * 16_666_667L).use {
+                    it.toComposeImageBitmap().toPixelMap()
+                }
+                if (!Snapshot.current.hasPendingChanges() &&
+                    !Snapshot.isApplyObserverNotificationPending && !scene.hasInvalidations()
+                ) {
+                    return pixels
+                }
+            }
+            error("Navigation scene did not settle within 10 frames")
         }
         try {
             render()

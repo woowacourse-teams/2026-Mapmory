@@ -5,7 +5,9 @@ import com.mapmory.shared.presentation.components.ScrollToTopEffect
 
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import com.mapmory.shared.presentation.components.MapmoryBackButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +53,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -100,6 +105,10 @@ internal fun TripRecordListScreen(
     onSettingsClick: () -> Unit = {},
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore? = null,
+    videoCountryCount: Int? = null,
+    hasSeenVideoPreview: Boolean = false,
+    onVideoPreviewOpened: () -> Unit = {},
+    retryVideoCountryCount: (() -> Unit)? = null,
     layout: TripRecordListLayout = TripRecordListLayout.PHOTO,
     showLayoutSwitcher: Boolean = false,
     onLayoutChange: (TripRecordListLayout) -> Unit = {},
@@ -259,7 +268,10 @@ internal fun TripRecordListScreen(
                 ) {
                     if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
+                            countryCount = videoCountryCount,
+                            compact = hasSeenVideoPreview,
                             onClick = {
+                                onVideoPreviewOpened()
                                 analytics.logEvent(
                                     MapmoryAnalyticsEvent.VIDEO_OPENED,
                                     mapOf("source" to "journal"),
@@ -429,62 +441,130 @@ internal fun TripRecordListScreen(
             repository = shareVideoRepository,
             jobStore = shareVideoJobStore ?: remember { MemoryShareVideoJobStore() },
             creationScope = videoCreationScope,
+            countryCount = videoCountryCount,
+            retryCountryCount = retryVideoCountryCount,
             onDismiss = { showTimelineVideo = false },
         )
     }
 }
 
 @Composable
-private fun TripTimelineVideoEntry(
+internal fun TripTimelineVideoEntry(
+    countryCount: Int?,
+    compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = TripRecordPalette.current
+    val canCreate = canCreateTripTimelineVideo(countryCount)
+    if (compact) {
+        Card(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = palette.primarySoft),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Canvas(Modifier.size(20.dp)) {
+                    drawPath(
+                        Path().apply {
+                            moveTo(size.width * 0.3f, size.height * 0.2f)
+                            lineTo(size.width * 0.8f, size.height * 0.5f)
+                            lineTo(size.width * 0.3f, size.height * 0.8f)
+                            close()
+                        },
+                        color = palette.primary,
+                    )
+                }
+                Text(
+                    "여행 영상 보기",
+                    modifier = Modifier.weight(1f),
+                    color = palette.primary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Canvas(Modifier.size(20.dp)) {
+                    val center = Offset(size.width * 0.65f, size.height * 0.5f)
+                    drawLine(palette.primary, Offset(size.width * 0.4f, size.height * 0.25f), center, 2.dp.toPx(), StrokeCap.Round)
+                    drawLine(palette.primary, center, Offset(size.width * 0.4f, size.height * 0.75f), 2.dp.toPx(), StrokeCap.Round)
+                }
+            }
+        }
+        return
+    }
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, palette.border),
-        colors = CardDefaults.cardColors(containerColor = palette.primarySoft),
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(palette.surface),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("▶", color = palette.primary, fontSize = 13.sp)
-            }
-            Column(Modifier.weight(1f)) {
+            if (countryCount != null && !canCreate) {
                 Text(
-                    text = "일지 영상 만들기",
-                    color = palette.headingText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "내 여행 기록을 타임라인 영상으로 모아요",
-                    color = palette.secondaryText,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    "기록을 모으는 중",
+                    color = palette.primary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
-                text = "›",
-                color = palette.primary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium,
+                if (canCreate) "내 여행 영상을 만들 수 있어요" else "지도 위로 다시 보는 여행",
+                color = palette.headingText,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.Bold,
             )
+            Text(
+                "여행지가 지도 위에서 시간순으로 이어져요.",
+                color = palette.secondaryText,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+            )
+            if (countryCount != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    repeat(2) { index ->
+                        Box(
+                            Modifier.weight(1f).height(4.dp).background(
+                                if (countryCount > index) palette.primary else palette.border,
+                                RoundedCornerShape(2.dp),
+                            ),
+                        )
+                    }
+                }
+                Text(
+                    "기록한 국가 ${countryCount.coerceIn(0, 2)}/2곳",
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+            }
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = if (canCreate) null else BorderStroke(1.dp, palette.border),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (canCreate) palette.primary else palette.primarySoft,
+                    contentColor = if (canCreate) palette.onPrimary else palette.primary,
+                ),
+            ) {
+                Text(if (canCreate) "영상 스타일 미리보기" else "예시 영상 보기")
+            }
         }
     }
 }
