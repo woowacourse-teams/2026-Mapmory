@@ -30,6 +30,7 @@ interface AccountSession {
     suspend fun restore(): Result<AccountMember>
     suspend fun login(provider: MemberProvider, idToken: String, recoverInvalidSession: Boolean = false): Result<AccountMember>
     suspend fun resumeLogin(): Result<AccountMember>
+    suspend fun leaveWithdrawalRecovery(): Result<Unit> = Result.failure(UnsupportedOperationException())
     suspend fun logout(): Result<Unit> = Result.failure(UnsupportedOperationException())
     suspend fun withdraw(identityToken: String? = null, authorizationCode: String? = null): Result<Unit> = Result.failure(UnsupportedOperationException())
 }
