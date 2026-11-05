@@ -13,6 +13,8 @@ internal class AlbumNavigationState {
     var revision: Long = 0
         private set
 
+    fun beginAlbumRequest(): Long = ++revision
+
     fun showList() {
         revision++
         selectedPhoto.value = null
@@ -25,6 +27,7 @@ internal class AlbumNavigationState {
     /** Returns true only when this response enters a different album screen. */
     fun showAlbum(album: AlbumDetail): Boolean {
         val entered = detail.value?.id != album.id
+        if (entered) revision++
         val selectedId = detail.value?.entries?.flatMap { it.photos }?.find { it.viewUrl == selectedPhoto.value }?.id
         selectedPhoto.value = if (entered || selectedId == null) null
             else album.entries.flatMap { it.photos }.find { it.id == selectedId }?.viewUrl

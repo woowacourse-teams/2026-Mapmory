@@ -56,3 +56,8 @@ internal fun AlbumRecordPicker(
         }
     }
 }
+
+/** Offset pages may overlap when records are inserted between requests. */
+internal fun mergeAlbumRecordPage(
+    current: List<TripRecordSummary>, incoming: List<TripRecordSummary>,
+): List<TripRecordSummary> = (current + incoming).distinctBy { it.id }

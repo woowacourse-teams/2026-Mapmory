@@ -5,6 +5,17 @@ import com.mapmory.shared.domain.group.AlbumEntry
 import com.mapmory.shared.domain.group.AlbumPhoto
 
 class AlbumNavigationStateTest {
+    @Test fun selectingAnotherAlbumInvalidatesPendingRestoreBeforeItsResponseArrives() {
+        val navigation = AlbumNavigationState()
+        val restore = navigation.beginAlbumRequest()
+        val selection = navigation.beginAlbumRequest()
+        assertNotEquals(restore, navigation.revision)
+        assertEquals(selection, navigation.revision)
+        navigation.showAlbum(album().copy(id = 99))
+        if (restore == navigation.revision) navigation.showAlbum(album())
+        assertEquals(99L, navigation.detail.value?.id)
+    }
+
     @Test fun deletedAlbumClosesPhotoAndAnyOpenEditor() {
         val navigation = AlbumNavigationState()
         navigation.showAlbum(album())

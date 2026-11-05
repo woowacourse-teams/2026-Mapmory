@@ -59,7 +59,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
     suspend fun open(id: Long) {
         if (loading || shares.isRunning) return
         loading = true; error = null
-        val revision = navigation.revision
+        val revision = navigation.beginAlbumRequest()
         try { albums.detail(groupId, id).onSuccess {
             if (revision == navigation.revision && navigation.showAlbum(it)) analytics.emit("album_viewed", mapOf("execution_mode" to "live"))
         }.onFailure {
@@ -79,7 +79,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         if (loading || shares.isRunning) return
         loading = true; error = null
         try { records.getTripRecords(TripRecordQuery(page = next)).onSuccess {
-            ownRecords = if (next == 0) it.records else ownRecords.orEmpty() + it.records
+            ownRecords = mergeAlbumRecordPage(if (next == 0) emptyList() else ownRecords.orEmpty(), it.records)
             recordPage = it.page; recordMore = it.page + 1 < it.totalPages
         }.onFailure { error = "기록을 불러오지 못했어요. 다시 시도해 주세요." } } finally { loading = false }
     }
@@ -121,7 +121,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         if (hasContent) {
             val result = snackbarHostState.showSnackbar(message, actionLabel = "다시 시도", duration = SnackbarDuration.Short)
             error = null
-            if (result == SnackbarResult.ActionPerformed) refreshContent()
+            if (result == SnackbarResult.ActionPerformed) scope.launch { refreshContent() }
         }
     }
     GroupRefreshContainer(

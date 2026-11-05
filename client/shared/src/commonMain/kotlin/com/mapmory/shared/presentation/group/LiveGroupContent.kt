@@ -79,7 +79,7 @@ internal fun LiveGroupContent(
     LaunchedEffect(state.group?.id, initialAlbumId) {
         if (!albumReturnRestored && state.group?.id == initialGroupId && initialAlbumId != null) {
             albumReturnRestored = true
-            val revision = albumNavigation.revision
+            val revision = albumNavigation.beginAlbumRequest()
             albumRepository?.detail(checkNotNull(initialGroupId), initialAlbumId)?.onSuccess {
                 if (albumNavigation.revision == revision) albumNavigation.showAlbum(it)
             }
@@ -108,7 +108,7 @@ internal fun LiveGroupContent(
     fun open(sheet: LiveGroupSheet) { clearNotice(); state.openSheet(sheet) }
     LaunchedEffect(state.error, state.sheet) {
         if (state.sheet == null && state.groups != null) state.error?.let {
-            if (snackbar.showSnackbar(it, actionLabel = "다시 시도") == SnackbarResult.ActionPerformed) state.load()
+            if (snackbar.showSnackbar(it, actionLabel = "다시 시도") == SnackbarResult.ActionPerformed) scope.launch { state.load() }
         }
     }
     Box(modifier.fillMaxSize()) {
