@@ -31,4 +31,4 @@ class AndroidTripRecordListCache internal constructor(private val dao: TripRecor
     override suspend fun clear() = dao.clear()
 }
 
-private fun TripRecordQuery.cacheKey() = "$locationId:$tagId:$page:$size"
+private fun TripRecordQuery.cacheKey() = "$locationId:$tagId:$page:$size:$sort"

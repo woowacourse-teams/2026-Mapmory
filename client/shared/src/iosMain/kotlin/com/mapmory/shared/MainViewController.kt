@@ -85,6 +85,7 @@ fun MainViewController(
     navigation: MapmoryNavigation,
     updateState: com.mapmory.shared.update.ForceUpdateState,
     onRetryUpdateCheck: () -> Unit,
+    socialLoginLauncher: com.mapmory.shared.presentation.auth.SocialLoginLauncher,
 ): platform.UIKit.UIViewController {
     configureIosPhotoImageLoader()
     iosAnalytics = analytics
@@ -92,6 +93,9 @@ fun MainViewController(
     return ComposeUIViewController(configure = {
         endEdgePanGestureBehavior = EndEdgePanGestureBehavior.Forward
     }) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides socialLoginLauncher,
+        ) {
         MapmoryApp(
             container = container,
             navigation = navigation,
@@ -100,7 +104,7 @@ fun MainViewController(
             contentWindowInsets = WindowInsets.safeDrawing,
             onThemeChanged = onThemeChanged,
             analytics = analytics,
-            showTimelineLayoutSwitcher = Platform.isDebugBinary,
         )
+        }
     }
 }

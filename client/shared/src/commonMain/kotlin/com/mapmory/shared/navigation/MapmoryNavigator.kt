@@ -17,6 +17,8 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<EditorRoute>() -> entry.toRoute<EditorRoute>()
             entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
+            entry.destination.hasRoute<GroupsRoute>() -> GroupsRoute
+            entry.destination.hasRoute<GroupPreviewRoute>() -> GroupPreviewRoute
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
             entry.destination.hasRoute<TripAchievementsRoute>() -> TripAchievementsRoute
             entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
@@ -61,6 +63,15 @@ internal class MapmoryNavigator(
         navigateToTab(RecordsRoute(locationId))
         // Restoring an entry also restores its old route arguments. Honor this navigation request.
         navController.currentBackStackEntry?.savedStateHandle?.set(RecordsLocationKey, locationId)
+    }
+
+    fun navigateToGroups() {
+        navigateToTab(GroupsRoute)
+    }
+
+    fun navigateToGroupPreview() {
+        clearForwardHistory()
+        navController.navigate(GroupPreviewRoute) { launchSingleTop = true }
     }
 
     fun navigateToProfile() {
@@ -113,9 +124,9 @@ internal class MapmoryNavigator(
 
     private fun navigateToTab(route: Any) {
         clearForwardHistory()
-        // Detail/editor entries are temporary flows, not a tab's saved destination.
+        // Detail/editor/preview entries are temporary flows, not a tab's saved destination.
         while (navController.currentDestination?.let {
-                it.hasRoute<DetailRoute>() || it.hasRoute<EditorRoute>()
+                it.hasRoute<DetailRoute>() || it.hasRoute<EditorRoute>() || it.hasRoute<GroupPreviewRoute>()
             } == true
         ) {
             if (!navController.popBackStack()) break

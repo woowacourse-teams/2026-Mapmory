@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.region.RegionCatalog
@@ -12,7 +13,10 @@ import com.mapmory.shared.domain.usecase.GetTripRecordUseCase
 import com.mapmory.shared.domain.usecase.GetTripRecordsUseCase
 import com.mapmory.shared.domain.usecase.GetTagsUseCase
 import com.mapmory.shared.presentation.triprecord.state.TripRecordListUiState
+import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
+import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoCollectionIndexState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoCollectionLoadState
+import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 import com.mapmory.shared.presentation.triprecord.state.toTripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoadResult
 import com.mapmory.shared.presentation.triprecord.thumbnail.TripRecordThumbnailLoader
@@ -34,14 +38,20 @@ class TripRecordListViewModel(
     private var isRouteInitialized = false
     private var loadGeneration = 0L
     private var collectionLoadGeneration = 0L
+    private var collectionIndexGeneration = 0L
     private var loadedQuery: TripRecordQuery? = null
     private var loadedRevision: Long? = null
+    private var loadedCollectionIndexQuery: TripRecordQuery? = null
+    private var loadingCollectionIndexQuery: TripRecordQuery? = null
 
     var uiState by mutableStateOf<TripRecordListUiState>(TripRecordListUiState.Idle)
         private set
 
     var query by mutableStateOf(TripRecordQuery())
         private set
+
+    val selectedLocationName: String?
+        get() = query.locationId?.let { regionCatalog?.findById(it)?.name }
 
     var availableTags by mutableStateOf<List<Tag>>(emptyList())
         private set
@@ -51,10 +61,16 @@ class TripRecordListViewModel(
     )
         private set
 
+    var photoCollectionIndexState by mutableStateOf<TripRecordPhotoCollectionIndexState>(
+        TripRecordPhotoCollectionIndexState.Idle,
+    )
+        private set
+
     fun filterByLocation(locationId: Long?) {
         if (query.locationId != locationId) {
             collectionLoadGeneration++
             photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
+            invalidatePhotoCollectionIndex()
             query = query.copy(locationId = locationId, page = 0)
         }
     }
@@ -63,6 +79,7 @@ class TripRecordListViewModel(
         if (query.tagId != tagId) {
             collectionLoadGeneration++
             photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
+            invalidatePhotoCollectionIndex()
             query = query.copy(tagId = tagId, page = 0)
         }
     }
@@ -74,14 +91,26 @@ class TripRecordListViewModel(
         load(refreshTagsFirst = true)
     }
 
-    suspend fun refreshIfNeeded(locationId: Long?, dataRevision: Long) {
-        if (loadedRevision == dataRevision && query.locationId == locationId &&
+    suspend fun refreshIfNeeded(
+        locationId: Long?,
+        dataRevision: Long,
+        sort: TripRecordSort = query.sort,
+    ) {
+        val sortChanged = query.sort != sort
+        if (sortChanged) {
+            collectionLoadGeneration++
+            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
+            invalidatePhotoCollectionIndex()
+            query = query.copy(sort = sort, page = 0)
+        }
+        if (!sortChanged && loadedRevision == dataRevision && loadedQuery == query && query.locationId == locationId &&
             (uiState as? TripRecordListUiState.Success)?.refreshError == null &&
             uiState is TripRecordListUiState.Success
         ) return
         if (loadedRevision != dataRevision) {
             collectionLoadGeneration++
             photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
+            invalidatePhotoCollectionIndex()
         }
         refresh(locationId)
         if ((uiState as? TripRecordListUiState.Success)?.let { !it.isRefreshing && it.refreshError == null } == true) {
@@ -120,6 +149,11 @@ class TripRecordListViewModel(
 
     suspend fun load(query: TripRecordQuery = this.query, refreshTagsFirst: Boolean = false) {
         val generation = ++loadGeneration
+        if (this.query.locationId != query.locationId || this.query.tagId != query.tagId ||
+            this.query.sort != query.sort
+        ) {
+            invalidatePhotoCollectionIndex()
+        }
         var previousSuccess = (uiState as? TripRecordListUiState.Success)
             ?.takeIf { loadedQuery == query }
         this.query = query
@@ -135,6 +169,7 @@ class TripRecordListViewModel(
                     records = cached.records.map(::toUiState),
                     page = cached.page,
                     totalPages = cached.totalPages,
+                    totalElements = cached.totalElements,
                     isRefreshing = true,
                 )
                 uiState = previousSuccess
@@ -166,6 +201,7 @@ class TripRecordListViewModel(
             records = page.records.map(::toUiState),
             page = page.page,
             totalPages = page.totalPages,
+            totalElements = page.totalElements,
         )
 
         val expiredRecordIds = loadThumbnails(page.records, generation)
@@ -231,16 +267,88 @@ class TripRecordListViewModel(
         ?: locationId?.let { regionCatalog?.findById(it)?.name }
         ?: "여행지"
 
-    suspend fun loadPhotoCollection(locationName: String) {
+    suspend fun loadPhotoCollectionIndex() {
+        val indexQuery = query.copy(page = 0, size = CollectionPageSize)
+        if (loadedCollectionIndexQuery == indexQuery && photoCollectionIndexState is TripRecordPhotoCollectionIndexState.Loaded) {
+            return
+        }
+        if (loadingCollectionIndexQuery == indexQuery && photoCollectionIndexState is TripRecordPhotoCollectionIndexState.Loading) {
+            return
+        }
+
+        val generation = ++collectionIndexGeneration
+        loadingCollectionIndexQuery = indexQuery
+        photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Loading
+        val records = try {
+            val firstPage = getTripRecords(indexQuery).getOrThrow()
+            buildList {
+                addAll(firstPage.records)
+                for (page in 1 until firstPage.totalPages) {
+                    addAll(getTripRecords(indexQuery.copy(page = page)).getOrThrow().records)
+                }
+            }.distinctBy(TripRecordSummary::id)
+                .map { summary -> summary.toCollectionItemUiState() }
+        } catch (cancelled: CancellationException) {
+            if (generation == collectionIndexGeneration) {
+                loadingCollectionIndexQuery = null
+                photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Idle
+            }
+            throw cancelled
+        } catch (error: Exception) {
+            if (generation == collectionIndexGeneration) {
+                loadingCollectionIndexQuery = null
+                photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Error(
+                    error.message ?: "여행지별 기록을 불러오지 못했습니다.",
+                )
+            }
+            return
+        }
+        if (generation == collectionIndexGeneration) {
+            loadedCollectionIndexQuery = indexQuery
+            loadingCollectionIndexQuery = null
+            photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Loaded(records)
+        }
+    }
+
+    private fun TripRecordSummary.toCollectionItemUiState(): TripRecordItemUiState {
+        val item = toUiState(this)
+        val thumbnail = thumbnailUrl ?: return item
+        return item.copy(
+            photos = listOf(
+                TripRecordPhotoUiState(
+                    id = "thumbnail-$id",
+                    displayName = "thumbnail-$id",
+                    previewBytes = null,
+                    previewUri = thumbnail,
+                    sortOrder = 0,
+                    isUploaded = true,
+                ),
+            ),
+        )
+    }
+
+    private fun invalidatePhotoCollectionIndex() {
+        collectionIndexGeneration++
+        loadedCollectionIndexQuery = null
+        loadingCollectionIndexQuery = null
+        photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Idle
+    }
+
+    suspend fun loadPhotoCollection(locationId: Long?, locationName: String) {
         val currentState = photoCollectionLoadState
-        if ((currentState is TripRecordPhotoCollectionLoadState.Loading && currentState.locationName == locationName) ||
-            (currentState is TripRecordPhotoCollectionLoadState.Loaded && currentState.locationName == locationName)
+        val collectionKey = locationId?.let { "region:$it" } ?: "name:$locationName"
+        if ((currentState is TripRecordPhotoCollectionLoadState.Loading && currentState.key == collectionKey) ||
+            (currentState is TripRecordPhotoCollectionLoadState.Loaded && currentState.key == collectionKey)
         ) return
 
         val generation = ++collectionLoadGeneration
-        photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loading(locationName)
+        photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loading(locationName, locationId)
         val records = try {
-            val firstQuery = query.copy(page = 0, size = CollectionPageSize)
+            val firstQuery = query.copy(
+                locationId = locationId ?: query.locationId,
+                page = 0,
+                size = CollectionPageSize,
+            )
             val firstPage = getTripRecords(firstQuery).getOrThrow()
             val summaries = buildList {
                 addAll(firstPage.records)
@@ -248,7 +356,13 @@ class TripRecordListViewModel(
                     addAll(getTripRecords(firstQuery.copy(page = page)).getOrThrow().records)
                 }
             }.distinctBy(TripRecordSummary::id)
-                .filter { it.resolvedLocationName() == locationName }
+                .filter { summary ->
+                    if (locationId != null && summary.locationId != null) {
+                        summary.locationId == locationId
+                    } else {
+                        summary.resolvedLocationName() == locationName
+                    }
+                }
             val semaphore = Semaphore(MaxConcurrentCollectionDetailLoads)
             coroutineScope {
                 summaries.map { summary ->
@@ -270,12 +384,13 @@ class TripRecordListViewModel(
                 photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Error(
                     locationName = locationName,
                     message = error.message ?: "지역 사진을 불러오지 못했습니다.",
+                    locationId = locationId,
                 )
             }
             return
         }
         if (generation == collectionLoadGeneration) {
-            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loaded(locationName, records)
+            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loaded(locationName, records, locationId)
         }
     }
 
