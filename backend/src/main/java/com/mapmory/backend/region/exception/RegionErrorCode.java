@@ -11,6 +11,12 @@ public enum RegionErrorCode implements ErrorCode {
             "지역을 찾을 수 없습니다.",
             "요청한 지역 코드에 해당하는 지역이 없습니다."
     ),
+    REGION_BOUNDARY_NOT_FOUND(
+            ErrorKind.NOT_FOUND,
+            "REGION_BOUNDARY_NOT_FOUND",
+            "지역 경계를 찾을 수 없습니다.",
+            "이 지역은 사진을 거를 경계 데이터가 없습니다."
+    ),
     INVALID_REGION_HIERARCHY(
             ErrorKind.INVALID_INPUT,
             "INVALID_REGION_HIERARCHY",

@@ -44,6 +44,7 @@
 | 구현됨 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
 | 구현됨 | `GET` | `/places/search` | 장소 검색(Google Places Autocomplete) |
 | 구현됨 | `GET` | `/places/{placeId}` | 장소 선택·추천 지역 조회 |
+| 구현됨 | `GET` | `/regions/{countryCode}/boundary` | 나라·지역 경계 조회(사진 판정용) |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -1259,6 +1260,47 @@ Authorization: Bearer {accessToken}
 | `429` | `PLACE_SEARCH_BUDGET_EXHAUSTED` | 이번 달 자동완성 한도 소진 |
 | `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 한도 소진 |
 | `503` | `PLACE_PROVIDER_UNAVAILABLE` | Google 장애·서킷 열림·키 없음·한도 저장소 장애 |
+
+## 9-1. 지역 경계 API
+
+앱이 사진 GPS가 고른 나라 안인지 **폰에서** 판정할 때 쓰는 경계다. 사진 위치는 서버로 보내지 않는다. 경계 데이터와 생성 방법은 [지역 경계 데이터](backend/docs/region-boundary.md)에 정리했다.
+
+### 나라 경계 조회
+
+`GET /api/v1/regions/{countryCode}/boundary`
+
+| 파라미터 | 필수 | 제약조건 |
+| --- | --- | --- |
+| `countryCode` | 예 | ISO 3166-1 alpha-2 대문자 두 글자(`HK`, `GU`, `KR`) |
+
+#### Response `200 OK`
+
+`Cache-Control: max-age=2592000, private`
+
+```json
+{
+  "data": {
+    "regionCode": "VA",
+    "version": "natural-earth-vector v5.1.2 ne_10m_admin_0_map_units tolerance=0.002",
+    "rings": [
+      [[12.45314, 41.90275], [12.45271, 41.90302], [12.45277, 41.90344], [12.45303, 41.90391], [12.45398, 41.90386], [12.45403, 41.90275], [12.45314, 41.90275]]
+    ]
+  }
+}
+```
+
+- 각 링은 `[경도, 위도]` 점 목록이며 첫 점과 끝 점이 같다. 섬이 여러 개면 링도 여러 개다. 바깥 테두리만 담고 호수 같은 구멍은 없다.
+- 점 하나가 어느 링 안에라도 있으면 그 나라 안이다.
+- `version`이 같으면 경계도 같다. 앱은 받은 경계를 `version`과 함께 저장해 두고, 버전이 바뀔 때만 다시 받는다.
+- 경계는 사진 판정용이다. 지구본 그리기에는 앱에 넣은 가벼운 지도를 쓴다.
+
+### 지역 경계 오류
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | `countryCode`가 대문자 두 글자가 아님 |
+| `404` | `REGION_NOT_FOUND` | 서버 지역 목록에 없는 나라 코드 |
+| `404` | `REGION_BOUNDARY_NOT_FOUND` | 지역 목록에는 있지만 경계 데이터가 없음(현재 미국령 해외 제도 `UM`) |
 
 ## 10. 출시 알림 API
 
