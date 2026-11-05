@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import ch.qos.logback.classic.Logger;
@@ -28,6 +30,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -35,7 +38,7 @@ import org.springframework.web.client.RestClient;
 class GoogleReverseGeocodeTest {
 
     private static final String PLACES_URL = "https://places.google.test";
-    private static final String GEOCODING_URL = "https://maps.google.test";
+    private static final String GEOCODING_URL = "https://geocode.google.test";
     private static final Coordinate DAEGU_JUNG_GU = new Coordinate(35.8694, 128.6062);
     private static final GoogleCircuitBreakerProperties BREAKER =
             new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3);
@@ -49,21 +52,23 @@ class GoogleReverseGeocodeTest {
             limiter, breaker);
 
     @Test
-    void 좌표를_한국어_주소_구성요소로_바꾼다() {
-        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL + "/maps/api/geocode/json")))
+    void 키는_헤더로_보내고_좌표를_한국어_주소_구성요소로_바꾼다() {
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL + "/v4/geocode/location/35.869400%2C128.606200")))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(queryParam("latlng", "35.869400,128.606200"))
-                .andExpect(queryParam("language", "ko"))
-                .andExpect(queryParam("key", "test-key"))
+                .andExpect(queryParam("languageCode", "ko"))
+                .andExpect(header("X-Goog-Api-Key", "test-key"))
+                .andExpect(header("X-Goog-FieldMask", "results.addressComponents"))
+                // 키가 URL에 실리면 프록시·접근 로그 어디에든 남을 수 있다.
+                .andExpect(requestTo(Matchers.not(Matchers.containsString("test-key"))))
                 .andRespond(withSuccess("""
-                        {"status":"OK","results":[
-                          {"types":["plus_code"],"address_components":[
-                            {"long_name":"VJ94+QF","short_name":"VJ94+QF","types":["plus_code"]}]},
-                          {"types":["street_address"],"address_components":[
-                            {"long_name":"동성로","short_name":"동성로","types":["political","sublocality","sublocality_level_2"]},
-                            {"long_name":"중구","short_name":"중구","types":["political","sublocality","sublocality_level_1"]},
-                            {"long_name":"대구광역시","short_name":"대구광역시","types":["administrative_area_level_1","political"]},
-                            {"long_name":"대한민국","short_name":"KR","types":["country","political"]}]}
+                        {"results":[
+                          {"addressComponents":[
+                            {"longText":"VJ94+QF","shortText":"VJ94+QF","types":["plus_code"]}]},
+                          {"addressComponents":[
+                            {"longText":"동성로","shortText":"동성로","types":["political","sublocality","sublocality_level_2"]},
+                            {"longText":"중구","shortText":"중구","types":["political","sublocality","sublocality_level_1"]},
+                            {"longText":"대구광역시","shortText":"대구광역시","types":["administrative_area_level_1","political"]},
+                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
                         ]}
                         """, MediaType.APPLICATION_JSON));
 
@@ -77,11 +82,11 @@ class GoogleReverseGeocodeTest {
     void 경기도_시_구까지_큰_단위부터_넘긴다() {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
                 .andRespond(withSuccess("""
-                        {"status":"OK","results":[{"address_components":[
-                          {"long_name":"분당구","short_name":"분당구","types":["political","sublocality","sublocality_level_1"]},
-                          {"long_name":"성남시","short_name":"성남시","types":["locality","political"]},
-                          {"long_name":"경기도","short_name":"경기도","types":["administrative_area_level_1","political"]},
-                          {"long_name":"대한민국","short_name":"KR","types":["country","political"]}]}]}
+                        {"results":[{"addressComponents":[
+                          {"longText":"분당구","shortText":"분당구","types":["political","sublocality","sublocality_level_1"]},
+                          {"longText":"성남시","shortText":"성남시","types":["locality","political"]},
+                          {"longText":"경기도","shortText":"경기도","types":["administrative_area_level_1","political"]},
+                          {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}]}
                         """, MediaType.APPLICATION_JSON));
 
         assertThat(client.findAddress(DAEGU_JUNG_GU))
@@ -91,19 +96,17 @@ class GoogleReverseGeocodeTest {
     @Test
     void 주소가_없는_좌표는_빈_값이다() {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
-                .andRespond(withSuccess("""
-                        {"status":"ZERO_RESULTS","results":[]}
-                        """, MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         assertThat(client.findAddress(DAEGU_JUNG_GU)).isEqualTo(Optional.empty());
     }
 
     @Test
-    void 키가_거절되면_ERROR로_알리고_제공자_장애로_답한다() {
+    void 키가_거절되면_한도를_돌려주고_ERROR로_알린다() {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
-                .andRespond(withSuccess("""
-                        {"status":"REQUEST_DENIED","error_message":"This API project is not authorized to use this API."}
-                        """, MediaType.APPLICATION_JSON));
+                .andRespond(withStatus(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON).body("""
+                        {"error":{"code":403,"status":"PERMISSION_DENIED","message":"Geocoding API has not been used"}}
+                        """));
 
         List<ILoggingEvent> logs = captureLogs(() -> assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU))
                 .isInstanceOf(BusinessException.class)
@@ -111,37 +114,25 @@ class GoogleReverseGeocodeTest {
                         .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE)));
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
-                .containsExactly("GOOGLE_GEOCODING_REJECTED:ERROR");
-        assertThat(logs).allSatisfy(event -> assertThat(event.getFormattedMessage()).doesNotContain("35.86"));
-        // Google이 사용량에 세지 않는 거절이라, 키를 고칠 때까지 월 한도가 새지 않게 돌려준다.
+                .containsExactly("GOOGLE_PLACES_REJECTED:ERROR");
+        // 좌표와 키는 로그 어디에도(원인 예외 포함) 남기지 않는다.
+        assertThat(logs).allSatisfy(event -> assertThat(rendered(event))
+                .doesNotContain("35.86", "128.60", "test-key"));
+        // Geocoding은 성공한 요청만 과금한다. 키를 고칠 때까지 월 한도가 새지 않게 돌려준다.
         verify(limiter).refundGeocode();
-    }
-
-    @Test
-    void 구글_일시_오류는_서킷_실패로_세고_월_한도를_돌려준다() {
-        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
-                .andRespond(withSuccess("""
-                        {"status":"UNKNOWN_ERROR","results":[]}
-                        """, MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
-                        .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE));
-        verify(limiter).refundGeocode();
-        assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
+        assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isZero();
     }
 
     @Test
     void 국가가_없는_결과만_있으면_지역_이름이_있는_첫_결과를_쓴다() {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
                 .andRespond(withSuccess("""
-                        {"status":"OK","results":[
-                          {"types":["plus_code"],"address_components":[
-                            {"long_name":"XXXX+XX","short_name":"XXXX+XX","types":["plus_code"]}]},
-                          {"types":["political"],"address_components":[
-                            {"long_name":"울릉군","short_name":"울릉군","types":["administrative_area_level_2","political"]},
-                            {"long_name":"경상북도","short_name":"경상북도","types":["administrative_area_level_1","political"]}]}
+                        {"results":[
+                          {"addressComponents":[
+                            {"longText":"XXXX+XX","shortText":"XXXX+XX","types":["plus_code"]}]},
+                          {"addressComponents":[
+                            {"longText":"울릉군","shortText":"울릉군","types":["administrative_area_level_2","political"]},
+                            {"longText":"경상북도","shortText":"경상북도","types":["administrative_area_level_1","political"]}]}
                         ]}
                         """, MediaType.APPLICATION_JSON));
 
@@ -150,11 +141,20 @@ class GoogleReverseGeocodeTest {
     }
 
     @Test
-    void 구글_5xx는_월_한도를_돌려준다() {
+    void 구글_5xx는_서킷_실패로_세고_월_한도를_돌려준다() {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL))).andRespond(withServerError());
 
         assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU)).isInstanceOf(BusinessException.class);
         verify(limiter).refundGeocode();
+        assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
+    }
+
+    private static String rendered(ILoggingEvent event) {
+        StringBuilder text = new StringBuilder(event.getFormattedMessage());
+        for (var cause = event.getThrowableProxy(); cause != null; cause = cause.getCause()) {
+            text.append(' ').append(cause.getMessage());
+        }
+        return text.toString();
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
