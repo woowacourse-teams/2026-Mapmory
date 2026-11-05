@@ -1,7 +1,7 @@
 package com.mapmory.backend.sharevideo;
 
 import jakarta.persistence.LockModeType;
-import java.util.Collection;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,14 +28,18 @@ public interface ShareVideoJobRepository extends JpaRepository<ShareVideoJob, Lo
     @Query("SELECT job.attemptObjectKey FROM ShareVideoJob job WHERE job.member.id = :memberId AND job.attemptObjectKey IS NOT NULL")
     List<String> findAttemptKeysByMemberId(@Param("memberId") Long memberId);
 
-    // 대기 중이거나 렌더링 중인 작업이 있는지. 있으면 새 시도본이 올라올 수 있다.
+    // 새 시도본이 올라올 수 있는 작업이 있는지. 대기 중인 작업과, 선점이 살아 있거나 만료된 지 얼마 안 된 렌더링 작업이다.
+    // 멈춘 렌더링을 되살리는 곳이 없으므로 선점 기록이 없거나 오래 지난 작업은 끝난 것으로 본다.
     @Query("""
         SELECT COUNT(job) > 0 FROM ShareVideoJob job
-        WHERE job.member.id = :memberId AND job.status IN :statuses
+        WHERE job.member.id = :memberId
+          AND (job.status = com.mapmory.backend.sharevideo.ShareVideoStatus.PENDING
+               OR (job.status = com.mapmory.backend.sharevideo.ShareVideoStatus.RENDERING
+                   AND job.leaseExpiresAt >= :leaseExpiredBefore))
     """)
-    boolean existsByMemberIdAndStatusIn(
+    boolean existsUnfinishedByMemberId(
             @Param("memberId") Long memberId,
-            @Param("statuses") Collection<ShareVideoStatus> statuses
+            @Param("leaseExpiredBefore") LocalDateTime leaseExpiredBefore
     );
 
     // 회원 데이터 파기. 객체를 지운 뒤에 부른다.
