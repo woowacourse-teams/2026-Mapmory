@@ -1,23 +1,37 @@
 package com.mapmory.shared.data.settings
 
-import com.mapmory.shared.MapmoryColorTheme
+enum class MapmoryThemePalette(val storageValue: String) {
+    MAPMORY_GREEN("mapmory_green"),
+    OCEAN_BLUE("ocean_blue");
+
+    companion object {
+        fun fromStorageValue(value: String?): MapmoryThemePalette =
+            values().firstOrNull { it.storageValue == value } ?: MAPMORY_GREEN
+    }
+}
+
+internal fun legacyThemePalette(value: String?): MapmoryThemePalette? = when (value) {
+    "GREEN" -> MapmoryThemePalette.MAPMORY_GREEN
+    "BLUE" -> MapmoryThemePalette.OCEAN_BLUE
+    else -> null
+}
 
 interface ThemePreference {
     fun loadIsDarkTheme(): Boolean
 
     fun saveIsDarkTheme(isDarkTheme: Boolean)
 
-    fun loadColorTheme(): MapmoryColorTheme
+    fun loadThemePalette(): MapmoryThemePalette
 
-    fun saveColorTheme(colorTheme: MapmoryColorTheme)
+    fun saveThemePalette(themePalette: MapmoryThemePalette)
 }
 
 class MemoryThemePreference(
     initialIsDarkTheme: Boolean = false,
-    initialColorTheme: MapmoryColorTheme = MapmoryColorTheme.GREEN,
+    initialThemePalette: MapmoryThemePalette = MapmoryThemePalette.MAPMORY_GREEN,
 ) : ThemePreference {
     private var isDarkTheme = initialIsDarkTheme
-    private var colorTheme = initialColorTheme
+    private var themePalette = initialThemePalette
 
     override fun loadIsDarkTheme(): Boolean = isDarkTheme
 
@@ -25,9 +39,9 @@ class MemoryThemePreference(
         this.isDarkTheme = isDarkTheme
     }
 
-    override fun loadColorTheme(): MapmoryColorTheme = colorTheme
+    override fun loadThemePalette(): MapmoryThemePalette = themePalette
 
-    override fun saveColorTheme(colorTheme: MapmoryColorTheme) {
-        this.colorTheme = colorTheme
+    override fun saveThemePalette(themePalette: MapmoryThemePalette) {
+        this.themePalette = themePalette
     }
 }

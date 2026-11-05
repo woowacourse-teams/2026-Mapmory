@@ -2,24 +2,21 @@ package com.mapmory.shared
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
-
-@Immutable
-enum class MapmoryColorTheme {
-    GREEN,
-    BLUE,
-}
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 
 @Immutable
 data class MapmoryThemeState(
     val isDark: Boolean,
-    val colorTheme: MapmoryColorTheme = MapmoryColorTheme.GREEN,
-    val onColorThemeChange: (MapmoryColorTheme) -> Unit = {},
+    val palette: MapmoryThemePalette,
     val onThemeChange: (Boolean) -> Unit,
+    val onPaletteChange: (MapmoryThemePalette) -> Unit,
 )
 
 val LocalMapmoryTheme = staticCompositionLocalOf {
     MapmoryThemeState(
         isDark = false,
+        palette = MapmoryThemePalette.MAPMORY_GREEN,
         onThemeChange = {},
+        onPaletteChange = {},
     )
 }

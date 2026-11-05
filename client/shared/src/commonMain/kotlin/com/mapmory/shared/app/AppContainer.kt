@@ -80,12 +80,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+import com.mapmory.shared.data.settings.AlbumShareStore
+import com.mapmory.shared.data.settings.MemoryAlbumShareStore
+import com.mapmory.shared.presentation.group.AlbumShareCoordinator
+import com.mapmory.shared.presentation.group.GroupLeaveCoordinator
+
 const val MAPMORY_API_BASE_URL = "https://api.map-mory.com/api/v1"
 
 interface AppContainer {
     val accountLoginController: com.mapmory.shared.presentation.auth.AccountLoginController? get() = null
     val accountSession: com.mapmory.shared.data.auth.AccountSession? get() = null
-    val groupRepository: com.mapmory.shared.data.remote.GroupRepository? get() = null
+    val groupRepository: com.mapmory.shared.domain.repository.GroupRepository? get() = null
+    val albumShareCoordinator: AlbumShareCoordinator? get() = null
+    val groupLeaveCoordinator: GroupLeaveCoordinator? get() = null
+    val albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? get() = null
 
     val regionCatalog: RegionCatalog
     val tripRecordRepository: TripRecordRepository
@@ -191,7 +199,9 @@ private class DefaultAppContainer(
     localPhotoDataSource: LocalPhotoDataSource?,
     analytics: MapmoryAnalytics,
     override val accountSession: com.mapmory.shared.data.auth.AccountSession?,
-    override val groupRepository: com.mapmory.shared.data.remote.GroupRepository?,
+    override val groupRepository: com.mapmory.shared.domain.repository.GroupRepository?,
+    override val albumRepository: com.mapmory.shared.domain.repository.AlbumRepository?,
+    albumShareStore: AlbumShareStore,
     private val invalidateSummaryCaches: () -> Unit,
 ) : AppContainer {
     override val accountLoginController = accountSession?.let {
@@ -203,6 +213,21 @@ private class DefaultAppContainer(
         (accountSession as? GuestSessionManager)?.let { AuthenticatedTripRecordRepository(it, indexed) } ?: indexed
     }
     private val backgroundSaveScope = CoroutineScope(SupervisorJob() + backgroundSaveDispatcher())
+    override val albumShareCoordinator: AlbumShareCoordinator? = albumRepository?.let {
+        AlbumShareCoordinator(it, albumShareStore, backgroundSaveScope, analytics) {
+            groupLeaveCoordinator?.isRunning != true && accountSession?.state?.value?.let { state ->
+                !state.transitioning && !state.pendingLogin && !state.pendingLogout && !state.recoveryRequired
+            } != false
+        }
+    }
+    override val groupLeaveCoordinator: GroupLeaveCoordinator? = groupRepository?.let {
+        GroupLeaveCoordinator(it, backgroundSaveScope, analytics,
+            canStart = { albumShareCoordinator?.isRunning != true && accountSession?.state?.value?.let { state ->
+                !state.transitioning && !state.pendingLogin && !state.pendingLogout && !state.recoveryRequired
+            } != false },
+            onLeft = { groupId -> albumShareCoordinator?.forgetGroup(groupId) },
+        )
+    }
     private val mutableTripRecordRevision = MutableStateFlow(0L)
     override val tripRecordRevision: StateFlow<Long> = mutableTripRecordRevision.asStateFlow()
     private val notifyTripRecordsChanged = {
@@ -227,9 +252,12 @@ private class DefaultAppContainer(
             onAccountChanged = {
                 clearOtherCaches()
                 recordedPhotoIndex.clearForAccountChange()
+                albumShareCoordinator?.clearForAccountChange()
+                groupLeaveCoordinator?.clearForAccountChange()
             }
             canChangeAccount = { backgroundTripRecordSaver.saves.value.isEmpty() &&
-                shareVideoJobStore.state.value.isCreationRequestInProgress.not() }
+                shareVideoJobStore.state.value.isCreationRequestInProgress.not() &&
+                albumShareCoordinator?.isRunning != true && groupLeaveCoordinator?.isRunning != true }
         }
     }
 
@@ -280,8 +308,10 @@ fun createAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
+    albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
     accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
-    groupRepository: com.mapmory.shared.data.remote.GroupRepository? = null,
+    groupRepository: com.mapmory.shared.domain.repository.GroupRepository? = null,
+    albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? = null,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
@@ -308,6 +338,7 @@ fun createAppContainer(
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
         shareVideoRepository = shareVideoRepository?.let { AnalyticsShareVideoRepository(it, analytics, shareVideoJobStore) },
         shareVideoJobStore = shareVideoJobStore,
+        albumShareStore = albumShareStore,
         tagRepository = AnalyticsTagRepository(tagRepository, analytics),
         placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
         themePreference = themePreference,
@@ -321,6 +352,7 @@ fun createAppContainer(
         analytics = analytics,
         accountSession = accountSession,
         groupRepository = groupRepository,
+        albumRepository = albumRepository,
         invalidateSummaryCaches = { cachedMapSummary.invalidate(); cachedTripStatistics.invalidate() },
     )
 }
@@ -404,6 +436,7 @@ fun createGuestRemoteAppContainer(
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
+    albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -419,6 +452,7 @@ fun createGuestRemoteAppContainer(
         onboardingPreference = onboardingPreference,
         teamDevicePreference = teamDevicePreference,
         shareVideoJobStore = shareVideoJobStore,
+        albumShareStore = albumShareStore,
         localPhotoDataSource = localPhotoDataSource,
         backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
@@ -445,9 +479,11 @@ internal fun createGuestRemoteAppContainer(
     onClose: () -> Unit = client::close,
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
+    albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
 ): AppContainer {
     val discardRecordCache = runCatching { tokenStore.read().tokens == null || tokenStore.pendingProvider().provider != null }.getOrDefault(false)
     if (discardRecordCache) {
+        albumShareStore.write("[]")
         mapSummaryCache.clear()
         tripStatisticsCache.clear()
     }
@@ -525,6 +561,7 @@ internal fun createGuestRemoteAppContainer(
     return createAppContainer(
         accountSession = session,
         groupRepository = com.mapmory.shared.data.remote.GroupRemoteRepository(client, apiBaseUrl, session),
+        albumRepository = com.mapmory.shared.data.remote.AlbumRemoteRepository(client, apiBaseUrl, session),
         tripRecordRepository = AuthenticatedTripRecordRepository(session, cachedTripRecords),
         mapSummaryRepository = remoteMapSummary,
         mapSummaryCache = mapSummaryCache,
@@ -532,6 +569,7 @@ internal fun createGuestRemoteAppContainer(
         serviceFeedbackRepository = AuthenticatedServiceFeedbackRepository(session, remoteServiceFeedback),
         shareVideoRepository = AuthenticatedShareVideoRepository(session, remoteShareVideos),
         shareVideoJobStore = shareVideoJobStore,
+        albumShareStore = albumShareStore,
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),
         placeRepository = AuthenticatedPlaceRepository(session, remotePlaces),

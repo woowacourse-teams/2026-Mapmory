@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mapmory.shared.LocalMapmoryTheme
 import com.mapmory.shared.MapmoryThemeState
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 import com.mapmory.shared.presentation.map.ui.KoreaMapArtwork
 import java.io.File
 import kotlin.math.abs
@@ -49,7 +50,14 @@ class KoreaMapFillAlignmentTest {
 
     private fun showMap(isDark: Boolean, districtCode: String) {
         composeRule.setContent {
-            CompositionLocalProvider(LocalMapmoryTheme provides MapmoryThemeState(isDark) {}) {
+            CompositionLocalProvider(
+                LocalMapmoryTheme provides MapmoryThemeState(
+                    isDark = isDark,
+                    palette = MapmoryThemePalette.MAPMORY_GREEN,
+                    onThemeChange = {},
+                    onPaletteChange = {},
+                ),
+            ) {
                 Box(Modifier.fillMaxSize()) {
                     KoreaMapArtwork(
                         visitedRegionCodes = setOf(districtCode),

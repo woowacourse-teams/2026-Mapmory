@@ -95,11 +95,13 @@ internal class MapmoryNavigator(
     fun navigateToEditor(
         recordId: Long? = null,
         selectedLocationId: Long? = null,
+        albumGroupId: Long? = null,
+        albumId: Long? = null,
     ) {
         // Ignore subsequent taps from the outgoing map/list, including other locations.
         if (navController.currentDestination?.hasRoute<EditorRoute>() == true) return
         clearForwardHistory()
-        navController.navigate(EditorRoute(recordId, selectedLocationId))
+        navController.navigate(EditorRoute(recordId, selectedLocationId, albumGroupId, albumId))
     }
 
     fun navigateToDetail(

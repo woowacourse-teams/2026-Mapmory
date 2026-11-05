@@ -14,6 +14,8 @@ internal data class RecordsRoute(
 internal data class EditorRoute(
     val recordId: Long? = null,
     val selectedLocationId: Long? = null,
+    val albumGroupId: Long? = null,
+    val albumId: Long? = null,
 )
 
 @Serializable

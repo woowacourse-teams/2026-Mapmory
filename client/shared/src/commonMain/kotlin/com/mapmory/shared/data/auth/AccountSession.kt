@@ -19,6 +19,7 @@ data class AccountState(
     val recoveryRequired: Boolean = false,
     val recoveryProvider: MemberProvider? = null,
     val needsProviderProof: Boolean = false,
+    val recentLoginProvider: MemberProvider? = null,
 )
 
 /** Provider proofs remain in memory only. All account/session changes use this boundary. */

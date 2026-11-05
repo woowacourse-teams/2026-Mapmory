@@ -1,12 +1,12 @@
 package com.mapmory.shared
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.key
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
@@ -35,7 +36,7 @@ import com.mapmory.shared.presentation.splash.MapmorySplashScreen
 import com.mapmory.shared.presentation.components.ProvideScrollToTop
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalettes
-import com.mapmory.shared.presentation.theme.MapmoryTypography
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordTheme
 import com.mapmory.shared.update.ForceUpdateState
 import com.mapmory.shared.update.ForceUpdateGate
 import com.mapmory.shared.update.awaitSplashUpdateCheck
@@ -60,25 +61,25 @@ fun MapmoryApp(
     var isDarkTheme by remember(themePreference) {
         mutableStateOf(themePreference.loadIsDarkTheme())
     }
-    var colorTheme by remember(themePreference) {
-        mutableStateOf(themePreference.loadColorTheme())
+    var themePalette by remember(themePreference) {
+        mutableStateOf(themePreference.loadThemePalette())
     }
     val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
     LaunchedEffect(themePreference) {
         latestOnThemeChanged(isDarkTheme)
     }
-    val themeState = remember(isDarkTheme, colorTheme, themePreference) {
+    val themeState = remember(isDarkTheme, themePalette, themePreference) {
         MapmoryThemeState(
             isDark = isDarkTheme,
-            colorTheme = colorTheme,
-            onColorThemeChange = { selectedTheme ->
-                colorTheme = selectedTheme
-                themePreference.saveColorTheme(selectedTheme)
-            },
+            palette = themePalette,
             onThemeChange = { shouldUseDarkTheme ->
                 isDarkTheme = shouldUseDarkTheme
                 themePreference.saveIsDarkTheme(shouldUseDarkTheme)
                 latestOnThemeChanged(shouldUseDarkTheme)
+            },
+            onPaletteChange = { selectedPalette ->
+                themePalette = selectedPalette
+                themePreference.saveThemePalette(selectedPalette)
             },
         )
     }
@@ -144,8 +145,8 @@ fun MapmoryApp(
         LocalMapmoryAnalytics provides analytics,
         LocalTeamDevice provides teamDeviceState,
     ) {
-        ProvideTripRecordPalettes(isDark = isDarkTheme, colorTheme = colorTheme) {
-            MaterialTheme(typography = MapmoryTypography()) {
+        ProvideTripRecordPalettes(isDark = isDarkTheme, themePalette = themePalette) {
+            TripRecordTheme {
                 if (showSplash || updateState?.isChecking == true) {
                     MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
                 } else {

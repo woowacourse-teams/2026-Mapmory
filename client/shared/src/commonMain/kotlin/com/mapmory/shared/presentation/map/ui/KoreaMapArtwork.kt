@@ -274,7 +274,7 @@ fun KoreaMapArtwork(
         )
         lastSearchFocusRequest = searchFocusRequest
     }
-    val backgroundColor = mapColors.background
+    val backgroundColor = TripRecordPalette.current.pageBackground
     val visitedFillColor = mapColors.visitedFill
     val unvisitedFillColor = mapColors.unvisitedFill
     val visitedOutlineColor = mapColors.visitedOutline
