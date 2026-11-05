@@ -49,6 +49,7 @@ jobs:
               - 'client/gradlew.bat'
 
   ios:
+    # Required check name on develop and main.
     name: Build iOS Simulator
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.ios == 'true'
@@ -73,20 +74,22 @@ jobs:
       - name: Cache Swift Package dependencies
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/mapmory-derived-data/SourcePackages
-          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ hashFiles('client/iosApp/Mapmory.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          path: ${{ runner.temp }}/mapmory-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-isolated-v1-${{ hashFiles('client/iosApp/Mapmory.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Check Xcode
         run: xcodebuild -version
 
-      - name: Build iOS Simulator app
+      - name: Build unsigned iOS app
         run: |
           xcodebuild \
             -project client/iosApp/Mapmory.xcodeproj \
             -scheme Mapmory \
             -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/mapmory-source-packages" \
+            -disablePackageRepositoryCache \
             -derivedDataPath "$RUNNER_TEMP/mapmory-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
