@@ -16,6 +16,29 @@ import kotlin.test.assertTrue
 
 class MapmoryNavigationHistoryTest {
     @Test
+    fun `save receipt opens its record from another detail without navigating automatically`() = onUiThread {
+        val fixture = Fixture()
+        fixture.navigator.navigateToDetail(42)
+        fixture.navigator.navigateToSavedRecord(101, "제주", 8)
+        val saved = fixture.controller.currentBackStackEntry!!
+        assertEquals(101L, saved.toRoute<DetailRoute>().recordId)
+        assertEquals(8, saved.toRoute<DetailRoute>().photoCount)
+        fixture.navigator.navigateToSavedRecord(101, "제주", 8)
+        assertEquals(saved.id, fixture.controller.currentBackStackEntry!!.id)
+        fixture.close()
+    }
+
+    @Test
+    fun `save receipt cannot interrupt an unfinished editor`() = onUiThread {
+        val fixture = Fixture()
+        fixture.navigator.navigateToEditor()
+        val editor = fixture.controller.currentBackStackEntry!!
+        fixture.navigator.navigateToSavedRecord(101, "제주", 8)
+        assertEquals(editor.id, fixture.controller.currentBackStackEntry!!.id)
+        fixture.close()
+    }
+
+    @Test
     fun `group tab preserves entry state across tab switches and back forward`() = onUiThread {
         val fixture = Fixture()
         fixture.navigator.navigateToGroups()

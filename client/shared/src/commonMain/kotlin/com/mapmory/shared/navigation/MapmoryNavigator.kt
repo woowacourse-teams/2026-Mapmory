@@ -104,6 +104,18 @@ internal class MapmoryNavigator(
         navController.navigate(EditorRoute(recordId, selectedLocationId, albumGroupId, albumId))
     }
 
+    /** Explicit completion action may open a different saved record from an existing detail. */
+    fun navigateToSavedRecord(recordId: Long, locationName: String, photoCount: Int) {
+        val current = navController.currentBackStackEntry
+        if (current?.destination?.hasRoute<EditorRoute>() == true) return
+        if (current?.destination?.hasRoute<DetailRoute>() == true &&
+            current.toRoute<DetailRoute>().recordId == recordId) return
+        clearForwardHistory()
+        navController.navigate(DetailRoute(recordId, locationName, photoCount = photoCount)) {
+            launchSingleTop = true
+        }
+    }
+
     fun navigateToDetail(
         recordId: Long,
         locationName: String? = null,
