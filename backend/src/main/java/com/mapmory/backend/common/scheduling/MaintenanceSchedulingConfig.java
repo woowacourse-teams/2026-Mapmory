@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
- * 하루 한 번 도는 정리 배치(기기 토큰, 그룹 멤버, 장소 한도) 전용 스케줄러. 알림 발송과 스레드를 나눠 서로 밀리지 않게 한다.
+ * 하루 한 번 도는 정리 배치(기기 토큰, 그룹 멤버, 장소 한도, refresh 토큰) 전용 스케줄러. 알림 발송과 스레드를 나눠 서로 밀리지 않게 한다.
  *
  * <p>스케줄러를 지정하지 않으면 어느 스레드에서 도는지가 떠 있는 TaskScheduler 빈에 따라 달라지므로, 정리 배치는 이 이름을 명시한다.
  * 정리끼리는 차례로 돌아도 되므로 스레드는 하나다. 멱등이라 배포로 끊겨도 다음 차례에 이어서 지운다.
