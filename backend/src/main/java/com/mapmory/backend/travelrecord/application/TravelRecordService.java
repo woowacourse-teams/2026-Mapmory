@@ -19,6 +19,7 @@ import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.api.TravelRecordDeleted;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -58,6 +59,7 @@ public class TravelRecordService {
     private final ApplicationEventPublisher eventPublisher;
     private final TravelRecordListCache travelRecordListCache;
     private final ActiveMemberGuard activeMemberGuard;
+    private final OrphanedMediaRepository orphanedMediaRepository;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -73,7 +75,8 @@ public class TravelRecordService {
             PlatformTransactionManager transactionManager,
             ApplicationEventPublisher eventPublisher,
             TravelRecordListCache travelRecordListCache,
-            ActiveMemberGuard activeMemberGuard
+            ActiveMemberGuard activeMemberGuard,
+            OrphanedMediaRepository orphanedMediaRepository
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -90,6 +93,7 @@ public class TravelRecordService {
         this.eventPublisher = eventPublisher;
         this.travelRecordListCache = travelRecordListCache;
         this.activeMemberGuard = activeMemberGuard;
+        this.orphanedMediaRepository = orphanedMediaRepository;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -176,6 +180,7 @@ public class TravelRecordService {
                     today
             );
             setPlace(travelRecord, place);
+            List<String> removedKeys = travelRecord.mediaKeysRemovedBy(objectKeys);
             operationTimer.record(
                     MonitoredOperation.MEDIA_SYNC,
                     () -> {
@@ -184,6 +189,7 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
+            removedKeys.forEach(orphanedMediaRepository::enqueue);
             // 태그 변경은 커밋 때 함께 나간다. 타이머 안에서 바꾸면 MEDIA_SYNC에 태그 쓰기가 섞인다.
             List<Tag> tags = findTags(member, tagIds);
             travelRecord.retag(tagIds, tags);
@@ -197,6 +203,7 @@ public class TravelRecordService {
     public void delete(Member member, Long travelRecordId) {
         TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
+        travelRecord.allMediaKeys().forEach(orphanedMediaRepository::enqueue);
         travelRecordRepository.delete(travelRecord);
         eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
         eventPublisher.publishEvent(new TravelRecordDeleted(travelRecordId, member.getId()));

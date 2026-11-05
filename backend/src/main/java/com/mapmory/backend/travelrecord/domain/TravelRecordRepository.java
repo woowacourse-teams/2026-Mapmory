@@ -16,6 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
 
+    // 정리 직전에 다시 쓰이는 키를 찾는다.
+    @Query("SELECT m.objectKey.value FROM RecordMedia m WHERE m.objectKey.value IN :keys")
+    List<String> findObjectKeysIn(@Param("keys") Collection<String> keys);
+
+    @Query("SELECT m.thumbKey FROM RecordMedia m WHERE m.thumbKey IN :keys")
+    List<String> findThumbKeysIn(@Param("keys") Collection<String> keys);
+
     // 회원 데이터 파기가 지울 기록을 나눠 읽는다. 지운 뒤 다시 읽으므로 항상 처음부터 읽는다.
     @Query("SELECT r.id FROM TravelRecord r WHERE r.member.id = :memberId ORDER BY r.id")
     List<Long> findIdsByMemberId(@Param("memberId") Long memberId, Pageable pageable);
