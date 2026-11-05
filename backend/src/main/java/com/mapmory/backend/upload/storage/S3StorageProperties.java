@@ -60,13 +60,16 @@ public record S3StorageProperties(
      * attemptTimeout은 한 번 시도의 한도이고, totalTimeout은 재시도까지 합친 호출 하나의 한도다.
      * 둘 다 사진 확인(HEAD) 같은 작은 요청 기준이다. 공유 영상 업로드는 파일 크기에 따라 걸리는 시간이
      * 달라서 videoUploadAttemptTimeout과 videoUploadTotalTimeout을 따로 쓴다.
+     * 객체 삭제는 한 번에 1000개까지 보내므로 deleteAttemptTimeout과 deleteTotalTimeout을 따로 쓴다.
      */
     public record Client(
             @NotNull @DurationMin(millis = 1) Duration attemptTimeout,
             @NotNull @DurationMin(millis = 1) Duration totalTimeout,
             @Positive int maxAttempts,
             @NotNull @DurationMin(millis = 1) Duration videoUploadAttemptTimeout,
-            @NotNull @DurationMin(millis = 1) Duration videoUploadTotalTimeout
+            @NotNull @DurationMin(millis = 1) Duration videoUploadTotalTimeout,
+            @NotNull @DurationMin(millis = 1) Duration deleteAttemptTimeout,
+            @NotNull @DurationMin(millis = 1) Duration deleteTotalTimeout
     ) {
     }
 

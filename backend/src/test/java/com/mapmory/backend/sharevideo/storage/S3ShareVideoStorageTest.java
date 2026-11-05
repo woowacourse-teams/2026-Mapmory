@@ -106,6 +106,8 @@ class S3ShareVideoStorageTest {
                         Duration.ofSeconds(3),
                         3,
                         Duration.ofSeconds(10),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(10),
                         Duration.ofSeconds(30)
                 )
         );
