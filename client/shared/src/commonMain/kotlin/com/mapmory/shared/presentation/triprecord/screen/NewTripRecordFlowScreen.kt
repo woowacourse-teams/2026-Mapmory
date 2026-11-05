@@ -2452,7 +2452,7 @@ private fun PhotoPickerStep(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 item {
-                    Column(Modifier.padding(start = 20.dp, end = 24.dp)) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
                         PhotoPickerHeader(
                             locationName = locationName,
                         )
@@ -2498,7 +2498,7 @@ private fun PhotoPickerStep(
                                 TripRecordPalette.current.danger
                             },
                             fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp),
                         )
                     }
                 }
@@ -2506,7 +2506,7 @@ private fun PhotoPickerStep(
                     item {
                         EmptyPhotoPicker(
                             onPickFromGallery = onPickFromGallery,
-                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp),
                         )
                     }
                 } else {
@@ -2519,7 +2519,7 @@ private fun PhotoPickerStep(
                                 onGroupToggle = {
                                     onGroupToggle(item.photos.map(SelectedPhoto::id))
                                 },
-                                modifier = Modifier.animateItem().padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                                modifier = Modifier.animateItem().padding(start = 20.dp, top = 24.dp, end = 20.dp),
                             )
 
                             is PhotoPickerListItem.PhotoRow -> PhotoSelectionRow(
@@ -2534,7 +2534,7 @@ private fun PhotoPickerStep(
                                 dragSelectionController = dragSelectionController,
                                 recordedPhotoIds = recordedPhotoIds,
                                 modifier = Modifier.animateItem().padding(
-                                    top = if (item.isFirstRowInDate) 12.dp else 1.dp,
+                                    start = 20.dp, end = 20.dp, top = if (item.isFirstRowInDate) 12.dp else 1.dp,
                                 ),
                             )
                         }
@@ -2568,7 +2568,7 @@ private fun PhotoPickerStep(
                 testTag = "photo-picker-scrollbar",
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(top = 8.dp, bottom = 8.dp),
             )
         }
     }

@@ -1,6 +1,16 @@
 package com.mapmory.shared.presentation.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.Alignment
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,28 +23,39 @@ internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLo
     val account by session.state.collectAsState()
     val ui by controller.state.collectAsState()
     var confirm by remember { mutableStateOf(false) }
-    var retry by remember { mutableStateOf(0) }
     var restoreFailed by remember { mutableStateOf(false) }
-    LaunchedEffect(session, retry) {
+    LaunchedEffect(session) {
         restoreFailed = session.restore().isFailure
     }
+    val palette = TripRecordPalette.current
     Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
         val member = account.member
         if (member != null && member.provider != MemberProvider.GUEST) {
-            Text("계정", style = MaterialTheme.typography.titleMedium)
-            Text("${member.nickname} · ${when (member.provider) {
-                MemberProvider.GOOGLE -> "Google"
-                MemberProvider.KAKAO -> "카카오"
-                MemberProvider.APPLE -> "Apple"
-                else -> "게스트"
-            }}", style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { confirm = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
-                Text("로그아웃")
+            Column(Modifier.fillMaxWidth().background(palette.surface, RoundedCornerShape(16.dp)).border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("내 정보", color = palette.headingText, style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(member.nickname, color = palette.headingText, style = MaterialTheme.typography.bodyMedium)
+                        val provider = when (member.provider) {
+                            MemberProvider.GOOGLE -> "Google"
+                            MemberProvider.KAKAO -> "카카오"
+                            MemberProvider.APPLE -> "Apple"
+                            else -> "게스트"
+                        }
+                        Text("${provider}로 로그인", color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Canvas(Modifier.size(20.dp).background(palette.softSurface, CircleShape).semantics { contentDescription = "기본 프로필 이미지" }) {
+                        drawCircle(palette.primary, radius = size.width * 0.17f, center = Offset(size.width / 2, size.height * 0.35f))
+                        drawCircle(palette.primary, radius = size.width * 0.3f, center = Offset(size.width / 2, size.height * 0.85f))
+                    }
+                }
+                TextButton(onClick = { confirm = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
+                    Text("로그아웃")
+                }
             }
             ui.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         } else if (restoreFailed && !account.pendingLogin && !account.pendingLogout) {
-            Text("계정 상태를 확인하지 못했어요.")
-            TextButton(onClick = { retry++ }) { Text("계정 확인 다시 시도") }
+            Text("계정 정보를 불러오지 못했어요. 연결 상태를 확인한 뒤 화면을 다시 열어 주세요.", color = palette.muted, style = MaterialTheme.typography.bodySmall)
         }
     }
     if (confirm) AlertDialog(

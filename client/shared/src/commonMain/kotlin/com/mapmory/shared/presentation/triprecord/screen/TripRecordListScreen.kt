@@ -695,12 +695,8 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout, loca
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (locationName != null) "이 지역에 남긴 여행 기록" else when (layout) {
-                    TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
-                    TripRecordListLayout.COLLECTION -> "여행 기록을 여행지별로 모아보기"
-                    TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
-                },
+            if (locationName != null) Text(
+                text = "이 지역에 남긴 여행 기록",
                 color = TripRecordPalette.current.secondaryText,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp),

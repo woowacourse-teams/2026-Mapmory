@@ -5,6 +5,18 @@ import androidx.compose.foundation.rememberScrollState
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -55,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import com.mapmory.shared.presentation.components.MapmoryPhotoViewer
+import com.mapmory.shared.presentation.components.PhotoListScrollBar
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordBackground
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 
@@ -71,11 +84,14 @@ internal fun GroupListScreen(
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
-    Column(modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Text("내 그룹", fontSize = 28.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 24.dp, bottom = 24.dp))
+    Column(modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(top = 18.dp, bottom = 24.dp)) {
+            Text("MY GROUPS", color = TripRecordPalette.current.primary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+            Text("내 그룹", color = TripRecordPalette.current.headingText, fontSize = 25.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GroupButton("+ 새 그룹 만들기", onCreate, Modifier.weight(1f))
+            GroupButton("+ 새 그룹", onCreate, Modifier.weight(1f))
             GroupButton("코드로 참여", onJoin, Modifier.weight(1f), outlined = true)
         }
         when (state) {
@@ -125,7 +141,7 @@ internal fun GroupHomeScreen(
         GroupHeader(group.name, onBack, headerActions)
         LazyColumn(state = scrollState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            item { GroupMuted("멤버 ${group.memberCount}명 · 함께 남긴 여행 사진") }
+            item { GroupMuted("멤버 ${group.memberCount}명") }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupButton("멤버 초대", onInvite, Modifier.weight(1f), outlined = true)
@@ -154,7 +170,6 @@ internal fun GroupHomeScreen(
                     Column {
                         GroupImage(album.photos.firstOrNull(), Modifier.fillMaxWidth().height(172.dp), "${album.name} 대표 사진")
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GroupMuted(album.place)
                             Text(album.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             GroupMuted("${album.date} · 사진 ${album.photoCount}장")
                             GroupMuted("함께 올린 사람 · ${album.contributors.joinToString(", ")}")
@@ -185,7 +200,7 @@ internal fun GroupAlbumScreen(
         GroupHeader("", onBack, headerActions)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val photoSize by animateDpAsState(
-                ((maxWidth - 56.dp - 1.dp * (columns - 1)) / columns).coerceAtLeast(1.dp),
+                ((maxWidth - 40.dp - 1.dp * (columns - 1)) / columns).coerceAtLeast(1.dp),
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "groupAlbumPhotoSize",
             )
             val heroHeight = (maxHeight * 0.34f).coerceIn(220.dp, 300.dp)
@@ -247,6 +262,9 @@ internal fun GroupAlbumScreen(
                     }
                 }
             }
+            PhotoListScrollBar(listState = scrollState, contentKey = album.id to columns,
+                testTag = "group-album-scrollbar",
+                modifier = Modifier.align(Alignment.CenterEnd).padding(top = 8.dp, bottom = 8.dp))
             TripIconButton("+", "이 앨범에 사진 추가", onAddPhotos,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 33.dp),
                 containerColor = TripRecordPalette.current.primary,
@@ -273,6 +291,16 @@ internal fun GroupPhotoScreen(
     onPageChanged: (Int, Int) -> Unit = { _, _ -> },
 ) {
     val pager = rememberPagerState(initialPage = initialPage.coerceIn(album.photos.indices)) { album.photos.size }
+    var zoom by remember(album.id, pager.currentPage) { mutableStateOf(1f) }
+    var pan by remember(album.id, pager.currentPage) { mutableStateOf(Offset.Zero) }
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+    var multiTouch by remember { mutableStateOf(false) }
+    val transform = rememberTransformableState { _, zoomChange, panChange, _ ->
+        zoom = (zoom * zoomChange).coerceIn(1f, 4f)
+        val maxX = viewport.width * (zoom - 1f) / 2f
+        val maxY = viewport.height * (zoom - 1f) / 2f
+        pan = if (zoom <= 1f) Offset.Zero else Offset((pan.x + panChange.x).coerceIn(-maxX, maxX), (pan.y + panChange.y).coerceIn(-maxY, maxY))
+    }
     val latestPageChanged = rememberUpdatedState(onPageChanged)
     LaunchedEffect(pager) {
         var previous = pager.settledPage
@@ -282,20 +310,33 @@ internal fun GroupPhotoScreen(
         }
     }
     MapmoryPhotoViewer(title = "${pager.currentPage + 1} / ${album.photos.size}", onClose = onBack,
+        canDragDown = { zoom <= 1f && !multiTouch && !pager.isScrollInProgress },
         closeContentDescription = "사진 닫기", bottomContent = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
                 val photo = album.photos[pager.currentPage]
                 Text("${photo.uploaderName}님이 올린 사진", color = Color.White,
-                    modifier = Modifier.padding(24.dp))
+                    modifier = Modifier.padding(bottom = 4.dp))
                 if (photo.uploaderId == currentMemberId) {
                     TextButton(onClick = { onDelete(photo) }) { Text("사진 삭제", color = Color.White) }
                 }
             }
         }) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+        HorizontalPager(state = pager, userScrollEnabled = zoom <= 1f && !multiTouch, modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.changes.count { it.pressed } >= 2) multiTouch = true
+                } while (event.changes.any { it.pressed })
+                multiTouch = false
+            }
+        }) { page ->
             MapmoryAsyncImage(imageBytes = null, imageUri = album.photos[page].imageUri,
                 contentDescription = "${album.photos[page].uploaderName}님이 올린 사진", shape = RoundedCornerShape(0.dp),
-                contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
+                    .transformable(state = transform, canPan = { zoom > 1f }, lockRotationOnZoomPan = true)
+                    .pointerInput(album.photos[page].id) { detectTapGestures(onDoubleTap = { if (zoom > 1f) { zoom = 1f; pan = Offset.Zero } else zoom = 2f }) }
+                    .graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y })
         }
     }
 }
