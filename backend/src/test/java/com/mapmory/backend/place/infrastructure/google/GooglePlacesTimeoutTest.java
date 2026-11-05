@@ -59,7 +59,7 @@ class GooglePlacesTimeoutTest {
                     .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withBean(RestClient.Builder.class, RestClient::builder)
             .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class))
-            .withBean(CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
+            .withBean("googlePlacesCircuitBreaker", CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
                     new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
                     Clock.systemUTC()))
             .withUserConfiguration(GooglePlacesClient.class);
