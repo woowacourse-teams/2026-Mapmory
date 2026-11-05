@@ -1,5 +1,6 @@
 package com.mapmory.backend.notification.worker;
 
+import com.mapmory.backend.notification.application.PushRecipients;
 import com.mapmory.backend.notification.application.port.NotificationPushSender;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.domain.PushToken;
@@ -18,20 +19,20 @@ public class NotificationOutboxWorker {
     private static final String EVENT_TYPE = "VIDEO_COMPLETED";
 
     private final NotificationOutboxClaimer claimer;
-    private final NotificationRecipientFinder recipientFinder;
+    private final PushRecipients pushRecipients;
     private final NotificationMessageFactory messageFactory;
     private final NotificationPushSender sender;
     private final NotificationOutboxResultService resultService;
 
     public NotificationOutboxWorker(
             final NotificationOutboxClaimer claimer,
-            final NotificationRecipientFinder recipientFinder,
+            final PushRecipients pushRecipients,
             final NotificationMessageFactory messageFactory,
             final NotificationPushSender sender,
             final NotificationOutboxResultService resultService
     ) {
         this.claimer = claimer;
-        this.recipientFinder = recipientFinder;
+        this.pushRecipients = pushRecipients;
         this.messageFactory = messageFactory;
         this.sender = sender;
         this.resultService = resultService;
@@ -49,7 +50,7 @@ public class NotificationOutboxWorker {
     }
 
     private void process(final ClaimedNotification notification) {
-        Optional<PushToken> recipient = recipientFinder.find(notification);
+        Optional<PushToken> recipient = pushRecipients.registeredDevice(notification.memberId(), notification.pushTokenId());
         if (recipient.isEmpty()) {
             recordResult(notification, resultService.markSkipped(
                     notification.outboxId(), notification.claimToken(), "RECIPIENT_NOT_FOUND"));

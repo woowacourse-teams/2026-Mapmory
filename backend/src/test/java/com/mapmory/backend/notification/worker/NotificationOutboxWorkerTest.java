@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.notification.application.PushRecipients;
 import com.mapmory.backend.notification.application.port.NotificationPushSender;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.domain.PushPlatform;
@@ -17,11 +18,11 @@ import org.junit.jupiter.api.Test;
 class NotificationOutboxWorkerTest {
 
     private final NotificationOutboxClaimer claimer = mock(NotificationOutboxClaimer.class);
-    private final NotificationRecipientFinder finder = mock(NotificationRecipientFinder.class);
+    private final PushRecipients recipients = mock(PushRecipients.class);
     private final NotificationMessageFactory factory = mock(NotificationMessageFactory.class);
     private final NotificationPushSender sender = mock(NotificationPushSender.class);
     private final NotificationOutboxResultService results = mock(NotificationOutboxResultService.class);
-    private final NotificationOutboxWorker worker = new NotificationOutboxWorker(claimer, finder, factory, sender, results);
+    private final NotificationOutboxWorker worker = new NotificationOutboxWorker(claimer, recipients, factory, sender, results);
     private final ClaimedNotification event = new ClaimedNotification(7L, "claim", "VIDEO_COMPLETED", "{}", 2L, 3L);
     private final PushToken token = new PushToken(2L, "test-token", PushPlatform.ANDROID);
     private final PushMessage message = new PushMessage("test-token", "제목", "본문", Map.of());
@@ -29,7 +30,7 @@ class NotificationOutboxWorkerTest {
     @Test
     void 수신_등록이_없으면_발송하지_않고_생략한다() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.empty());
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.empty());
 
         worker.processNext();
 
@@ -61,7 +62,7 @@ class NotificationOutboxWorkerTest {
     @Test
     void 잘못된_이벤트는_FCM을_호출하지_않는다() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.of(token));
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));
         when(factory.create(event, token)).thenThrow(new IllegalArgumentException("invalid"));
 
         worker.processNext();
@@ -72,7 +73,7 @@ class NotificationOutboxWorkerTest {
 
     private void prepareMessage() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.of(token));
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));
         when(factory.create(event, token)).thenReturn(message);
     }
 }

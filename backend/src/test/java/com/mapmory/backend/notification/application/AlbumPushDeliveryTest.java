@@ -33,7 +33,8 @@ class AlbumPushDeliveryTest {
     private final NotificationSettingRepository notificationSettingRepository =
             mock(NotificationSettingRepository.class);
     private final AlbumPushDelivery delivery = new AlbumPushDelivery(
-            pushTokenRepository, pushTokenService, memberQuery, pushSender, notificationSettingRepository);
+            new PushRecipients(pushTokenRepository, notificationSettingRepository, memberQuery),
+            pushTokenService, memberQuery, pushSender);
 
     @Test
     void 받을_멤버의_기기마다_올린_사람과_앨범을_담아_보낸다() {

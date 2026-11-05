@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.application.MemberQueryService;
+import com.mapmory.backend.notification.application.PushRecipients;
 import com.mapmory.backend.notification.domain.NotificationOutbox;
 import com.mapmory.backend.notification.domain.NotificationOutboxRepository;
 import com.mapmory.backend.notification.domain.NotificationOutboxStatus;
@@ -21,7 +23,6 @@ import com.mapmory.backend.notification.worker.ClaimedNotification;
 import com.mapmory.backend.notification.worker.NotificationOutboxClaimer;
 import com.mapmory.backend.notification.worker.NotificationOutboxResultService;
 import com.mapmory.backend.notification.worker.NotificationOutboxWorker;
-import com.mapmory.backend.notification.worker.NotificationRecipientFinder;
 import com.mapmory.backend.notification.worker.NotificationMessageFactory;
 import com.mapmory.backend.sharevideo.ShareVideoJob;
 import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
@@ -59,7 +60,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 @DataJpaTest
 @Import({ShareVideoJobUpdater.class, ShareVideoNotificationOutboxWriter.class,
-        NotificationOutboxClaimer.class, NotificationOutboxResultService.class, NotificationRecipientFinder.class,
+        NotificationOutboxClaimer.class, NotificationOutboxResultService.class,
+        PushRecipients.class, MemberQueryService.class,
         NotificationOutboxIntegrationTest.TestBeans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
@@ -72,7 +74,7 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
     @Autowired private NotificationOutboxRepository outboxRepository;
     @Autowired private NotificationOutboxClaimer claimer;
     @Autowired private NotificationOutboxResultService resultService;
-    @Autowired private NotificationRecipientFinder recipientFinder;
+    @Autowired private PushRecipients pushRecipients;
     @Autowired private PushTokenRepository pushTokenRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -333,7 +335,7 @@ class NotificationOutboxIntegrationTest extends MySqlTestContainerSupport {
                 return new NotificationPushSender.Result(NotificationPushSender.Status.ACCEPTED, null);
             });
             NotificationOutboxWorker worker = new NotificationOutboxWorker(
-                    claimer, recipientFinder, new NotificationMessageFactory(jsonMapper), sender, resultService);
+                    claimer, pushRecipients, new NotificationMessageFactory(jsonMapper), sender, resultService);
 
             worker.processNext();
 
