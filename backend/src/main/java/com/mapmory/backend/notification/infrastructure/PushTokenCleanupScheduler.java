@@ -22,7 +22,7 @@ class PushTokenCleanupScheduler {
         this.cleanup = cleanup;
     }
 
-    @Scheduled(cron = "0 50 4 * * *", zone = "UTC", scheduler = NotificationConfig.SCHEDULER)
+    @Scheduled(cron = "0 0 19 * * *", zone = "UTC", scheduler = NotificationConfig.SCHEDULER)
     void cleanUp() {
         try {
             int removed = cleanup.run();
