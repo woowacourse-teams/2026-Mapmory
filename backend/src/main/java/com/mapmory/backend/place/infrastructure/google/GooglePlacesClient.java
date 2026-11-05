@@ -194,7 +194,7 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     }
 
     /**
-     * 좌표를 주소 구성요소로 바꾼다(Geocoding API v4). 키는 URL이 아닌 헤더로 보낸다. 좌표는 v4가 GET 경로로만 받아
+     * 좌표를 주소 구성요소로 바꾼다(Geocoding API v4). 키는 URL이 아닌 헤더로 보낸다. 좌표는 v4가 GET 쿼리로만 받아
      * URL에 실리지만, HTTPS로 암호화되고 우리 로그·메트릭에는 남기지 않는다(메트릭은 경로 템플릿만 쓴다).
      *
      * <p>v4는 실패를 HTTP 상태로 알린다. 4xx(키 거절 등)는 Google이 과금하지 않아 월 한도를 돌려주고 ERROR로 알리며,
@@ -205,7 +205,11 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
         requireConfigured();
         JsonNode response = call(false, true, requestLimiter::reserveGeocode, requestLimiter::refundGeocode,
                 () -> geocodingClient.get()
-                        .uri("/v4/geocode/location/{latLng}?languageCode={language}", coordinate.toLatLng(), LANGUAGE)
+                        .uri(uri -> uri.path("/v4/geocode/location")
+                                .queryParam("location.latitude", coordinate.latitudeText())
+                                .queryParam("location.longitude", coordinate.longitudeText())
+                                .queryParam("languageCode", LANGUAGE)
+                                .build())
                         .header("X-Goog-Api-Key", apiKey)
                         .header("X-Goog-FieldMask", GEOCODING_FIELD_MASK)
                         .retrieve()
