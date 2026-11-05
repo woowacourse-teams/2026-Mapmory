@@ -1,5 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -259,6 +261,14 @@ private fun SharePreviewDialog(
     val captures = remember { mutableStateMapOf<Int, PosterCapture>() }
     var exporting by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val hasFailedPhotos = captures[pagerState.currentPage]?.hasFailedPhotos == true
+    LaunchedEffect(feedback, hasFailedPhotos) {
+        val notice = feedback ?: return@LaunchedEffect
+        if (hasFailedPhotos) return@LaunchedEffect
+        snackbar.showSnackbar(notice)
+        feedback = null
+    }
     fun export(save: Boolean) {
         if (exporting || pagerState.isScrollInProgress) return
         val capture = captures[pagerState.currentPage]
@@ -415,14 +425,6 @@ private fun SharePreviewDialog(
                     }
                 }
             }
-            feedback?.takeIf { currentCapture?.hasFailedPhotos != true }?.let { message ->
-                Text(
-                    message,
-                    color = Color(0xFFE5EDE8),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-            }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -456,6 +458,7 @@ private fun SharePreviewDialog(
                     Text("공유하기", fontWeight = FontWeight.SemiBold)
                 }
             }
+            SnackbarHost(snackbar)
         }
     }
 }

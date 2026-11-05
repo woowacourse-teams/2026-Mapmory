@@ -183,8 +183,12 @@ internal fun MapmoryNavHost(
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 onBack = { navigator.navigateBack() },
+                saveNewRecordInBackground = route.albumGroupId == null,
                 onSaved = { wasEditing, recordId ->
-                    if (wasEditing) {
+                    if (route.albumGroupId != null) {
+                        container.albumShareCoordinator?.start(route.albumGroupId, recordId, route.albumId)
+                        navigator.navigateBack()
+                    } else if (wasEditing) {
                         navigator.navigateAfterEdit(recordId)
                     } else {
                         navigator.navigateToRecords()
@@ -205,6 +209,13 @@ internal fun MapmoryNavHost(
                 onRecordClick = { navigator.navigateToRecords() },
                 onProfileClick = navigator::navigateToProfile,
                 onSettingsClick = navigator::navigateToSettings,
+                initialGroupId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumGroupId") },
+                initialAlbumId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumId") },
+                onCreateRecord = { groupId, albumId ->
+                    backStackEntry.savedStateHandle["albumGroupId"] = groupId
+                    backStackEntry.savedStateHandle["albumId"] = albumId
+                    navigator.navigateToEditor(albumGroupId = groupId, albumId = albumId)
+                },
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
             )
@@ -218,6 +229,13 @@ internal fun MapmoryNavHost(
                 onRecordClick = { navigator.navigateToRecords() },
                 onProfileClick = navigator::navigateToProfile,
                 onSettingsClick = navigator::navigateToSettings,
+                initialGroupId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumGroupId") },
+                initialAlbumId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumId") },
+                onCreateRecord = { groupId, albumId ->
+                    backStackEntry.savedStateHandle["albumGroupId"] = groupId
+                    backStackEntry.savedStateHandle["albumId"] = albumId
+                    navigator.navigateToEditor(albumGroupId = groupId, albumId = albumId)
+                },
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
