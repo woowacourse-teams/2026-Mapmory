@@ -44,6 +44,11 @@ data class BackgroundTripRecordSave(
 data class BackgroundTripRecordCompletion(
     val recordId: Long,
     val previousStatistics: TripStatistics?,
+    val locationName: String = "",
+    val photoCount: Int = 0,
+    val thumbnailUrl: String? = null,
+    val thumbnailBytes: ByteArray? = null,
+    val completedAt: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow(),
 )
 
 interface BackgroundSaveExecution {
@@ -206,7 +211,7 @@ class BackgroundTripRecordSaver internal constructor(
         }
     }
 
-    private suspend fun save(id: Long) {
+    private suspend fun save(id: Long) = execution.run {
         val draft = try {
             prepareDraft(id)
         } catch (error: kotlinx.coroutines.CancellationException) {
@@ -214,7 +219,7 @@ class BackgroundTripRecordSaver internal constructor(
         } catch (error: Exception) {
             analytics.reportFailure("record_save_prepare", error)
             throw error
-        } ?: return
+        } ?: return@run
         mutableSaves.update { current ->
             current.map { save ->
                 if (save.id == id) {
@@ -229,7 +234,7 @@ class BackgroundTripRecordSaver internal constructor(
             }
         }
 
-        val result = execution.run {
+        val result = run {
             var latest = create(id, draft)
             if (latest.isFailure && id !in serverSaveStarted) {
                 delay(automaticRetryDelayMillis)
@@ -240,6 +245,7 @@ class BackgroundTripRecordSaver internal constructor(
 
         result.fold(
             onSuccess = { record ->
+                val completedAt = TimeSource.Monotonic.markNow()
                 val previousStatistics = tripStatisticsRepository?.getCachedStatistics()
                 logSaveResult(id, MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED, recordId = record.id)
                 val completed = mutableSaves.value.firstOrNull { it.id == id }
@@ -248,13 +254,22 @@ class BackgroundTripRecordSaver internal constructor(
                 drafts.remove(id)
                 serverSaveStarted.remove(id)
                 updatePendingPhotoIds()
-                mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
                 persist()
                 completed?.let(execution::onCompleted)
                 onSaved()
                 completedSavesChannel.trySend(
-                    BackgroundTripRecordCompletion(record.id, previousStatistics),
+                    BackgroundTripRecordCompletion(
+                        recordId = record.id,
+                        previousStatistics = previousStatistics,
+                        locationName = completed?.locationName.orEmpty(),
+                        photoCount = completed?.photoCount ?: record.media.size,
+                        thumbnailUrl = record.thumbnailUrl ?: record.media.minByOrNull { it.sortOrder }?.url,
+                        thumbnailBytes = completionThumbnail(draft),
+                        completedAt = completedAt,
+                    ),
                 )
+                // Workers must stay alive until persistence and completion delivery have finished.
+                mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
             },
             onFailure = { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
@@ -271,6 +286,19 @@ class BackgroundTripRecordSaver internal constructor(
                 }
             },
         )
+    }
+
+    private suspend fun completionThumbnail(draft: TripRecordDraft): ByteArray? {
+        val key = draft.mediaObjectKeys.firstOrNull() ?: return null
+        val media = draft.localMedia.firstOrNull { it.objectKey == key } ?: return null
+        return try {
+            media.previewBytes ?: photoPreviewCache?.read(media.localPreviewKey ?: key)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A missing preview must never turn an already saved record into a failed upload.
+            null
+        }
     }
 
     private suspend fun prepareDraft(id: Long): TripRecordDraft? {

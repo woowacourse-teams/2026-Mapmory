@@ -71,6 +71,7 @@ class GroupSocialLoginTest {
             override val accountSession = session
             override val accountLoginController = controller
             override val groupRepository = object : GroupRepository {
+                override suspend fun leaveGroup(groupId: Long) = Result.success(Unit)
                 override suspend fun createGroup(name: String): Result<GroupDetail> = error("Not used")
                 override suspend fun getGroup(groupId: Long): Result<GroupDetail> = error("Not used")
                 override suspend fun renameGroup(groupId: Long, name: String): Result<GroupDetail> = error("Not used")
