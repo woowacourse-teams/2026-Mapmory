@@ -42,6 +42,7 @@ class GroupLiveNavigationTest {
                 override suspend fun getGroup(groupId: Long) = Result.success(detail())
                 override suspend fun createGroup(name: String): Result<GroupDetail> { createdName = name; return Result.success(detail(name)) }
                 override suspend fun renameGroup(groupId: Long, name: String) = Result.success(detail(name))
+                override suspend fun leaveGroup(groupId: Long) = Result.success(Unit)
                 override suspend fun createInvitation(groupId: Long): Result<IssuedGroupInvitation> {
                     issueCalls++
                     return Result.success(IssuedGroupInvitation("token", "ABC2D3", LocalDateTime(2026, 10, 28, 12, 0)))

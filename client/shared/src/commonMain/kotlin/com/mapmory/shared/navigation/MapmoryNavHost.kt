@@ -1,5 +1,21 @@
 package com.mapmory.shared.navigation
 
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mapmory.shared.app.BackgroundTripRecordCompletion
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordSavedCard
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.time.TimeSource
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.WindowInsets
@@ -44,6 +60,7 @@ internal fun MapmoryNavHost(
     navController: NavHostController,
     navigator: MapmoryNavigator,
     container: AppContainer,
+    foregroundSince: TimeSource.Monotonic.ValueTimeMark?,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
@@ -57,22 +74,63 @@ internal fun MapmoryNavHost(
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
-    var newlyEarnedBadges by remember { mutableStateOf<List<TripAchievementBadge>?>(null) }
+    var newlyEarnedBadges by remember(navController) { mutableStateOf<List<TripAchievementBadge>?>(null) }
     val gestureMotion = LocalNavigationGestureMotion.current
-    LaunchedEffect(container.backgroundTripRecordSaver, developerToolsInfo, isTravelAchievementsEnabled) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val completedCards = remember(navController) { mutableStateListOf<BackgroundTripRecordCompletion>() }
+    DisposableEffect(lifecycle, completedCards) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                completedCards.clear()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val currentEntry by navController.currentBackStackEntryAsState()
+    val editing = currentEntry?.destination?.hasRoute<EditorRoute>() == true
+    val accessibilityManager = LocalAccessibilityManager.current
+    val currentCard = completedCards.firstOrNull()
+    LaunchedEffect(currentCard?.recordId, editing, accessibilityManager) {
+        if (currentCard == null) return@LaunchedEffect
+        val timeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
+            originalTimeoutMillis = 6_000L,
+            containsIcons = true,
+            containsText = true,
+            containsControls = !editing,
+        ) ?: 6_000L
+        delay(timeout)
+        completedCards.removeAll { it.recordId == currentCard.recordId }
+    }
+    LaunchedEffect(
+        container.backgroundTripRecordSaver,
+        developerToolsInfo,
+        isTravelAchievementsEnabled,
+        navController,
+        foregroundSince,
+    ) {
         container.backgroundTripRecordSaver.completedSaves.collect { completion ->
+            // Ignore completions delivered while away, including those queued before this host mounted.
+            if (shouldShowSavedRecordCard(
+                    completion.completedAt, foregroundSince,
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+                )) {
+                completedCards.add(completion)
+            }
             if (developerToolsInfo == null || !isTravelAchievementsEnabled) return@collect
             val previousStatistics = completion.previousStatistics ?: return@collect
-            val currentStatistics = try {
-                container.tripStatisticsRepository.getStatistics().getOrNull()
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                null
-            } ?: return@collect
-            val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
-            if (unlocked.isNotEmpty()) {
-                newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+            launch {
+                val currentStatistics = try {
+                    container.tripStatisticsRepository.getStatistics().getOrNull()
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                } ?: return@launch
+                val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
+                if (unlocked.isNotEmpty()) {
+                    newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+                }
             }
         }
     }
@@ -361,6 +419,28 @@ internal fun MapmoryNavHost(
         }
         }
 
+        currentCard?.let { completion ->
+            val hasBottomBar = currentEntry?.destination?.let { destination ->
+                destination.hasRoute<MapRoute>() || destination.hasRoute<RecordsRoute>() ||
+                    destination.hasRoute<ProfileRoute>() || destination.hasRoute<SettingsRoute>() ||
+                    destination.hasRoute<GroupsRoute>()
+            } == true
+            TripRecordSavedCard(
+                completion = completion,
+                // Do not leave another unfinished editor or discard its local selection state.
+                onView = if (editing) null else {
+                    {
+                        completedCards.removeAll { it.recordId == completion.recordId }
+                        navigator.navigateToSavedRecord(completion.recordId, completion.locationName, completion.photoCount)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .windowInsetsPadding(contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = if (hasBottomBar) 76.dp else 16.dp),
+            )
+        }
+
         newlyEarnedBadges?.let { badges ->
             if (badges.isNotEmpty()) {
                 TripAchievementUnlockDialog(badges) { newlyEarnedBadges = null }
@@ -371,3 +451,10 @@ internal fun MapmoryNavHost(
 }
 
 private const val NavigationLogTag = "MapmoryNavigation"
+
+/** A completion from a previous foreground session must not reappear after returning to the app. */
+internal fun shouldShowSavedRecordCard(
+    completedAt: TimeSource.Monotonic.ValueTimeMark,
+    foregroundSince: TimeSource.Monotonic.ValueTimeMark?,
+    isStarted: Boolean,
+): Boolean = isStarted && foregroundSince != null && completedAt >= foregroundSince
