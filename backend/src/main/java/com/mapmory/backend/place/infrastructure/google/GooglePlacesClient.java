@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -194,35 +195,44 @@ public class GooglePlacesClient implements PlaceLookupPort, ReverseGeocodePort {
     /**
      * 좌표를 주소 구성요소로 바꾼다. Geocoding API는 실패도 HTTP 200에 status로 알린다. 주소가 없는 좌표(ZERO_RESULTS)만
      * 빈 값이고, 키 거절·쿼터 초과처럼 고칠 때까지 계속되는 실패는 ERROR로 알리고 제공자 장애로 답한다.
+     * Google 쪽 일시 오류(UNKNOWN_ERROR)는 5xx와 같게 다뤄, 서킷 브레이커가 실패로 세고 월 한도를 돌려준다.
      * 좌표는 로그에 남기지 않는다.
      */
     @Override
     public Optional<RegionAddress> findAddress(Coordinate coordinate) {
         requireConfigured();
         JsonNode response = call(false, requestLimiter::reserveGeocode, requestLimiter::refundGeocode,
-                () -> geocodingClient.get()
+                () -> failOnGeocodingServerError(geocodingClient.get()
                         .uri(uri -> uri.path("/maps/api/geocode/json")
                                 .queryParam("latlng", coordinate.toLatLng())
                                 .queryParam("language", LANGUAGE)
                                 .queryParam("key", apiKey)
                                 .build())
                         .retrieve()
-                        .body(JsonNode.class));
+                        .body(JsonNode.class)));
         String status = response.path("status").asString("");
         return switch (status) {
             case "OK" -> mapper.geocodedAddress(response);
             case "ZERO_RESULTS" -> Optional.empty();
             default -> {
-                if (!"UNKNOWN_ERROR".equals(status)) {
-                    // REQUEST_DENIED(키에 Geocoding API가 허용되지 않음), OVER_QUERY_LIMIT, INVALID_REQUEST
-                    log.atError()
-                            .addKeyValue("event", "GOOGLE_GEOCODING_REJECTED")
-                            .addKeyValue("status", status)
-                            .log("Google Geocoding이 요청을 거절했다: {}", status);
-                }
+                // REQUEST_DENIED(키에 Geocoding API가 허용되지 않음), OVER_QUERY_LIMIT, INVALID_REQUEST.
+                // Google은 이 응답을 사용량에 세지 않는다. 키를 고칠 때까지 월 한도가 새지 않도록 돌려준다.
+                requestLimiter.refundGeocode();
+                log.atError()
+                        .addKeyValue("event", "GOOGLE_GEOCODING_REJECTED")
+                        .addKeyValue("status", status)
+                        .log("Google Geocoding이 요청을 거절했다: {}", status);
                 throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
             }
         };
+    }
+
+    private static JsonNode failOnGeocodingServerError(JsonNode body) {
+        if (body != null && "UNKNOWN_ERROR".equals(body.path("status").asString(""))) {
+            throw HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "Geocoding UNKNOWN_ERROR",
+                    null, null, null);
+        }
+        return body;
     }
 
     // 회로가 열려 있으면 한도를 확인하기 전에 막아, 부르지 않을 요청이 한도를 쓰지 않게 한다.
