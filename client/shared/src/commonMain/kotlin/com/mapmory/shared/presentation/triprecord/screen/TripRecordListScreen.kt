@@ -85,6 +85,7 @@ import com.mapmory.shared.preview.previewUiRecords
 internal fun TripRecordListScreen(
     uiState: TripRecordListUiState,
     filter: TripRecordFilterUiState,
+    selectedLocationName: String? = null,
     pendingSaves: List<BackgroundTripRecordSave> = emptyList(),
     onRetryPendingSave: (Long) -> Unit = {},
     onDismissPendingSave: (Long) -> Unit = {},
@@ -213,6 +214,7 @@ internal fun TripRecordListScreen(
                 JournalHeader(
                     recordCount = (uiState as? TripRecordListUiState.Success)?.totalElements,
                     layout = layout,
+                    locationName = selectedLocationName,
                 )
             }
 
@@ -255,7 +257,7 @@ internal fun TripRecordListScreen(
                         .fillMaxSize()
                         .padding(horizontal = 18.dp),
                 ) {
-                    if (shareVideoRepository != null) {
+                    if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
                             onClick = {
                                 analytics.logEvent(
@@ -324,7 +326,8 @@ internal fun TripRecordListScreen(
                             }
                             if (isEmpty) {
                                 EmptyTripRecords(
-                                    hasFilter = filter.locationId != null || filter.selectedTagId != null,
+                                    hasLocationFilter = filter.locationId != null,
+                                    hasTagFilter = filter.selectedTagId != null,
                                     modifier = Modifier.weight(1f),
                                 )
                             } else {
@@ -596,7 +599,7 @@ private fun TripRecordLoadError(
 }
 
 @Composable
-private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
+private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout, locationName: String?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -605,7 +608,7 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 text = "MY TRAVEL JOURNAL",
                 color = TripRecordPalette.current.primary,
@@ -614,14 +617,16 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
                 letterSpacing = 1.2.sp,
             )
             Text(
-                text = "나의 여행",
+                text = locationName ?: "나의 여행",
                 color = TripRecordPalette.current.headingText,
                 fontSize = 25.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = when (layout) {
+                text = if (locationName != null) "이 지역에 남긴 여행 기록" else when (layout) {
                     TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
                     TripRecordListLayout.COLLECTION -> "여행 기록을 여행지별로 모아보기"
                     TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
@@ -2014,22 +2019,32 @@ private fun formattedDate(record: TripRecordItemUiState): String? {
 
 @Composable
 private fun EmptyTripRecords(
-    hasFilter: Boolean,
+    hasLocationFilter: Boolean,
+    hasTagFilter: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val hasFilter = hasLocationFilter || hasTagFilter
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (hasFilter) "조건에 맞는 여행 기록이 없어요." else "아직 작성한 여행 기록이 없어요.",
+            text = when {
+                hasLocationFilter && !hasTagFilter -> "이 지역에는 아직 여행 기록이 없어요."
+                hasFilter -> "조건에 맞는 여행 기록이 없어요."
+                else -> "아직 작성한 여행 기록이 없어요."
+            },
             color = TripRecordPalette.current.text,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "새로운 여행의 순간을 기록해 보세요.",
+            text = if (hasLocationFilter && !hasTagFilter) {
+                "이 지역의 첫 기록을 남겨보세요."
+            } else {
+                "새로운 여행의 순간을 기록해 보세요."
+            },
             color = TripRecordPalette.current.muted,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 8.dp),
