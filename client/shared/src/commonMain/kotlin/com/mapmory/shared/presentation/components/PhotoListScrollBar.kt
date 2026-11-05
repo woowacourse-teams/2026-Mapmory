@@ -27,6 +27,7 @@ import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 internal data class PhotoScrollBarMetrics(val thumbFraction: Float, val scrollFraction: Float)
@@ -110,6 +111,11 @@ fun PhotoListScrollBar(
     )
     val requests = remember(listState) { Channel<Float>(Channel.CONFLATED) }
     var dragFraction by remember(listState) { mutableStateOf<Float?>(null) }
+    var visible by remember(listState) { mutableStateOf(false) }
+    LaunchedEffect(listState.isScrollInProgress, dragFraction != null) {
+        if (listState.isScrollInProgress || dragFraction != null) visible = true
+        else if (visible) { delay(800); visible = false }
+    }
     LaunchedEffect(listState) {
         requests.receiveAsFlow().collectLatest { fraction ->
             val current = latestLayout
@@ -122,9 +128,10 @@ fun PhotoListScrollBar(
     }
     val trackColor = TripRecordPalette.current.line.copy(alpha = 0.65f)
     val thumbColor = TripRecordPalette.current.accent.copy(alpha = 0.9f)
+    if (!visible) return
     Canvas(
         modifier = modifier
-            .width(24.dp)
+            .width(18.dp)
             .fillMaxHeight()
             .testTag(testTag)
             .semantics { contentDescription = "사진 목록 스크롤바" }
@@ -162,7 +169,7 @@ fun PhotoListScrollBar(
         val thumbHeight = (size.height * metrics.thumbFraction).coerceAtLeast(44.dp.toPx()).coerceAtMost(size.height)
         val thumbTop = (size.height - thumbHeight) * (dragFraction ?: metrics.scrollFraction)
         val barWidth = 4.dp.toPx()
-        val x = (size.width - barWidth) / 2f
+        val x = size.width - barWidth - 2.dp.toPx()
         val radius = CornerRadius(barWidth / 2f)
         drawRoundRect(trackColor, Offset(x, 0f), Size(barWidth, size.height), radius)
         drawRoundRect(thumbColor, Offset(x, thumbTop), Size(barWidth, thumbHeight), radius)
