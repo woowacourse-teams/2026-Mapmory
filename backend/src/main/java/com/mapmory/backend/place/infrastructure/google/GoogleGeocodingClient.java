@@ -1,6 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.common.http.ExternalCallFailure;
 import com.mapmory.backend.place.application.port.ReverseGeocodePort;
 import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceProvider;
@@ -8,17 +9,13 @@ import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.domain.RegionAddress;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import java.time.Duration;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -35,41 +32,24 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleGeocodingClient.class);
 
-    static final String BASE_URL = "https://geocode.googleapis.com";
     // 국가·시·도·시·군·구 판정용 주소 구성요소만 받는다.
     private static final String FIELD_MASK = "results.addressComponents";
     private static final String LANGUAGE = "ko";
 
     private final RestClient restClient;
-    private final String apiKey;
+    private final GoogleApiProperties api;
     private final GoogleRequestLimiter requestLimiter;
     private final CircuitBreaker circuitBreaker;
     private final GooglePlaceMapper mapper = new GooglePlaceMapper();
 
-    @Autowired
     public GoogleGeocodingClient(
-            RestClient.Builder builder,
-            @Value("${google.geocoding.base-url:" + BASE_URL + "}") String baseUrl,
-            @Value("${google.places.api-key:}") String apiKey,
-            @Value("${google.places.connect-timeout}") Duration connectTimeout,
-            @Value("${google.places.read-timeout}") Duration readTimeout,
-            @Value("${google.places.rate-limit.requests-per-minute}") int maxConnections,
+            @Qualifier(GooglePlacesClientConfig.GEOCODING_REST_CLIENT) RestClient restClient,
+            GoogleApiProperties api,
             GoogleRequestLimiter requestLimiter,
             @Qualifier("googleGeocodingCircuitBreaker") CircuitBreaker circuitBreaker
     ) {
-        this(builder.requestFactory(GooglePlacesClient.requestFactory(connectTimeout, readTimeout, maxConnections)),
-                baseUrl, apiKey, requestLimiter, circuitBreaker);
-    }
-
-    GoogleGeocodingClient(
-            RestClient.Builder builder,
-            String baseUrl,
-            String apiKey,
-            GoogleRequestLimiter requestLimiter,
-            CircuitBreaker circuitBreaker
-    ) {
-        this.restClient = builder.baseUrl(baseUrl).build();
-        this.apiKey = apiKey;
+        this.restClient = restClient;
+        this.api = api;
         this.requestLimiter = requestLimiter;
         this.circuitBreaker = circuitBreaker;
     }
@@ -81,7 +61,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
 
     @Override
     public Optional<RegionAddress> findAddress(Coordinate coordinate) {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!api.configured()) {
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE,
                     "GOOGLE_PLACES_API_KEY가 설정되지 않았습니다.");
         }
@@ -96,7 +76,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
                                 .queryParam("location.longitude", coordinate.longitudeText())
                                 .queryParam("languageCode", LANGUAGE)
                                 .build())
-                        .header("X-Goog-Api-Key", apiKey)
+                        .header("X-Goog-Api-Key", api.apiKey())
                         .header("X-Goog-FieldMask", FIELD_MASK)
                         .retrieve()
                         .body(JsonNode.class);
@@ -115,25 +95,21 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
 
     // 예외 메시지에는 요청 URL(좌표)이 들어갈 수 있어 로그에 원인 예외를 붙이지 않는다.
     private void handleFailure(RestClientException exception) {
-        String phase = GoogleFailures.timeoutPhase(exception);
-        if (phase != null) {
-            log.atWarn()
-                    .addKeyValue("event", "GOOGLE_GEOCODING_TIMEOUT")
-                    .addKeyValue("phase", phase)
-                    .log("Google Geocoding 호출이 타임아웃으로 끊겼다: {}", phase);
-        }
-        boolean clientError = exception instanceof RestClientResponseException response
-                && response.getStatusCode().is4xxClientError();
-        if (clientError || GoogleFailures.notBilled(exception)) {
+        ExternalCallFailure failure = ExternalCallFailure.of(exception);
+        failure.timeoutPhase().ifPresent(phase -> log.atWarn()
+                .addKeyValue("event", "GOOGLE_GEOCODING_TIMEOUT")
+                .addKeyValue("phase", phase)
+                .log("Google Geocoding 호출이 타임아웃으로 끊겼다: {}", phase));
+        // Geocoding은 성공한 요청만 과금하므로 4xx도 돌려준다.
+        if (failure.rejected() || GooglePlacesClient.notBilled(failure)) {
             requestLimiter.refundGeocode();
         }
-        if (clientError) {
-            int status = ((RestClientResponseException) exception).getStatusCode().value();
+        if (failure.rejected()) {
             // 4xx는 서킷이 실패로 세지 않는다. 키에 Geocoding API가 허용되지 않은 것처럼 고칠 때까지 계속되는 실패다.
             log.atError()
                     .addKeyValue("event", "GOOGLE_GEOCODING_REJECTED")
-                    .addKeyValue("status", status)
-                    .log("Google Geocoding이 요청을 거절했다: {}", status);
+                    .addKeyValue("status", failure.status())
+                    .log("Google Geocoding이 요청을 거절했다: {}", failure.status());
         }
     }
 }

@@ -65,8 +65,8 @@ class GooglePlacesClientTest {
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-14T00:00:00Z"));
-    private final GooglePlacesClient client = new GooglePlacesClient(builder, BASE_URL, "test-key", limiter,
-            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+    private final GooglePlacesClient client = new GooglePlacesClient(builder.baseUrl(BASE_URL).build(),
+            api("test-key"), limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
 
     @Test
     void 자동완성_후보를_장소명과_보조_주소로_반환한다() {
@@ -281,14 +281,26 @@ class GooglePlacesClientTest {
 
     @Test
     void API_키가_없으면_시작할_때_한_번만_ERROR로_알린다() {
-        List<ILoggingEvent> logs = captureLogs(() -> {
+        Logger configLogger = (Logger) LoggerFactory.getLogger(GooglePlacesClientConfig.class);
+        ListAppender<ILoggingEvent> startup = new ListAppender<>();
+        startup.start();
+        configLogger.addAppender(startup);
+        try {
+            new GooglePlacesClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
+                    new GoogleRateLimitProperties(9000, 9000, 9000, 60));
+        } finally {
+            configLogger.detachAppender(startup);
+        }
+        // 요청마다 다시 알리지 않는다.
+        List<ILoggingEvent> perRequest = captureLogs(() -> {
             GooglePlacesClient unconfigured = unconfiguredClient();
             assertError(() -> unconfigured.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> unconfigured.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
         });
 
-        assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
+        assertThat(startup.list).extracting(event -> field(event, "event") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_NOT_CONFIGURED:ERROR");
+        assertThat(perRequest).isEmpty();
     }
 
     @Test
@@ -507,8 +519,13 @@ class GooglePlacesClientTest {
     }
 
     private GooglePlacesClient unconfiguredClient() {
-        return new GooglePlacesClient(RestClient.builder(), BASE_URL, "", mock(GoogleRequestLimiter.class),
-                GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+        return new GooglePlacesClient(RestClient.builder().baseUrl(BASE_URL).build(), api(""),
+                mock(GoogleRequestLimiter.class), GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+    }
+
+    private static GoogleApiProperties api(String apiKey) {
+        return new GoogleApiProperties(apiKey, BASE_URL, "https://geocode.google.test",
+                Duration.ofMillis(400), Duration.ofSeconds(1));
     }
 
     private static void assertError(ThrowingCallable action, String expectedCode) {

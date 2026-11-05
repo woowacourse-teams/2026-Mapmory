@@ -47,7 +47,9 @@ class GoogleGeocodingClientTest {
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
     private final CircuitBreaker breaker = GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock);
-    private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder, GEOCODING_URL, "test-key",
+    private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
+            new GoogleApiProperties("test-key", "https://places.google.test", GEOCODING_URL,
+                    Duration.ofMillis(400), Duration.ofSeconds(1)),
             limiter, breaker);
 
     @Test
