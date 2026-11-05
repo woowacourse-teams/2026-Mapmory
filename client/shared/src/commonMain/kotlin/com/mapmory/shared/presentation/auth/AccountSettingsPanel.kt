@@ -12,6 +12,8 @@ import com.mapmory.shared.data.auth.MemberProvider
 internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLoginController) {
     val account by session.state.collectAsState()
     val ui by controller.state.collectAsState()
+    val launcher = LocalSocialLoginLauncher.current
+    var confirmWithdrawal by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var restoreFailed by remember { mutableStateOf(false) }
@@ -28,8 +30,11 @@ internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLo
                 MemberProvider.APPLE -> "Apple"
                 else -> "게스트"
             }}", style = MaterialTheme.typography.bodyMedium)
+            Row {
             TextButton(onClick = { confirm = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) {
                 Text("로그아웃")
+            }
+            TextButton(onClick = { confirmWithdrawal = true }, enabled = !ui.busy && !account.transitioning && !account.pendingLogin) { Text("회원 탈퇴") }
             }
             ui.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         } else if (restoreFailed && !account.pendingLogin && !account.pendingLogout) {
@@ -37,6 +42,13 @@ internal fun AccountSettingsPanel(session: AccountSession, controller: AccountLo
             TextButton(onClick = { retry++ }) { Text("계정 확인 다시 시도") }
         }
     }
+    if (confirmWithdrawal) AlertDialog(
+        onDismissRequest = { confirmWithdrawal = false },
+        title = { Text("정말 탈퇴할까요?") },
+        text = { Text("탈퇴하면 저장한 기록을 다시 볼 수 없으며, 다시 가입해도 복구할 수 없어요.") },
+        confirmButton = { TextButton(onClick = { confirmWithdrawal = false; controller.withdraw(launcher) }) { Text("회원 탈퇴") } },
+        dismissButton = { TextButton(onClick = { confirmWithdrawal = false }) { Text("취소") } },
+    )
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         title = { Text("로그아웃할까요?") },
