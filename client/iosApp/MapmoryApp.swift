@@ -160,6 +160,12 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // A notification queued in the background may arrive after the app becomes active.
+        // The in-app saved-record card owns foreground feedback.
+        if notification.request.identifier.hasPrefix("record-") {
+            completionHandler([])
+            return
+        }
         completionHandler(
             notification.request.identifier.hasPrefix("share-video-progress-")
                 ? [.banner]

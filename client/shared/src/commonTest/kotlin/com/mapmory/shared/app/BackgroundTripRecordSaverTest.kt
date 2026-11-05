@@ -22,6 +22,72 @@ import kotlin.test.assertTrue
 
 class BackgroundTripRecordSaverTest {
     @Test
+    fun backgroundExecutionProtectsPersistenceAndCompletionUntilQueueIsDrained() = runBlocking {
+        val store = TestSaveStore(emptyList())
+        var running = false
+        var notified = false
+        var refreshed = false
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> {
+                    assertTrue(running)
+                    return Result.success(draft.toRecord())
+                }
+            },
+            scope = CoroutineScope(coroutineContext),
+            execution = object : BackgroundSaveExecution {
+                override val store = store
+                override suspend fun <T> run(block: suspend () -> T): T {
+                    running = true
+                    try { return block() } finally { running = false }
+                }
+                override fun onCompleted(save: BackgroundTripRecordSave) {
+                    assertTrue(running, "iOS background time must cover the completion notification")
+                    assertTrue(store.read().isEmpty(), "Persist success before announcing it")
+                    notified = true
+                }
+            },
+            onSaved = {
+                assertTrue(running)
+                refreshed = true
+            },
+        )
+        saver.enqueue(draft(), "서울")
+        kotlinx.coroutines.withTimeout(5_000) { saver.saves.first { it.isEmpty() } }
+        assertTrue(notified, "Android worker must not finish before the completion callback")
+        assertTrue(refreshed)
+        assertEquals(false, running)
+    }
+
+    @Test
+    fun completionContainsSavedRecordAndSelectedCoverRatherThanFirstLocalMedia() = runBlocking {
+        val cache = MemoryPhotoPreviewCache()
+        val selectedCover = byteArrayOf(9, 8, 7)
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft) =
+                    Result.success(draft.toRecord().copy(thumbnailUrl = "https://example.com/cover.jpg"))
+            },
+            scope = CoroutineScope(coroutineContext),
+            photoPreviewCache = cache,
+        )
+        saver.enqueue(draft().copy(
+            mediaObjectKeys = listOf("selected", "other"),
+            localMedia = listOf(
+                TripRecordMediaDraft("other", 1, byteArrayOf(1)),
+                TripRecordMediaDraft("selected", 0, selectedCover, localPreviewKey = "selected-preview"),
+            ),
+        ), "제주")
+        val completion = kotlinx.coroutines.withTimeout(5_000) { saver.completedSaves.first() }
+        assertEquals(101L, completion.recordId)
+        assertEquals("제주", completion.locationName)
+        assertEquals(2, completion.photoCount)
+        assertEquals("https://example.com/cover.jpg", completion.thumbnailUrl)
+        assertContentEquals(selectedCover, completion.thumbnailBytes)
+        assertTrue(saver.saves.value.isEmpty())
+    }
+
+    @Test
     fun internalAuthCancellationFinishesSaveAsFailure() = runBlocking {
         var refreshCalls = 0
         val session = GuestSessionManager(object : AuthGateway {

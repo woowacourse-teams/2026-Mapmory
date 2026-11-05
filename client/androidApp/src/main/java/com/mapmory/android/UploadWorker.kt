@@ -1,6 +1,7 @@
 package com.mapmory.android
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -32,15 +33,22 @@ internal class AndroidBackgroundSaveExecution(private val context: Context, name
     }
     override suspend fun <T> run(block: suspend () -> T): T = block()
     override fun onProgress(save: BackgroundTripRecordSave) {
-        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify()) {
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isAppInForeground()) {
             manager().notify(UploadNotificationId, notification(context, save.title, "${save.progressPercent}% 업로드 중", save.progressPercent))
         }
     }
     override fun onCompleted(save: BackgroundTripRecordSave) {
-        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify()) manager().notify(
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isAppInForeground()) manager().notify(
             save.id.hashCode(),
             notification(context, "사진 업로드 완료", "${save.locationName} 기록이 저장됐어요", null),
         )
+    }
+    private fun isAppInForeground(): Boolean {
+        val process = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(process)
+        // A foreground service has IMPORTANCE_FOREGROUND_SERVICE, not FOREGROUND.
+        return process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+            process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
     }
     private fun manager() = context.getSystemService(NotificationManager::class.java)
     private fun canNotify() = Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
