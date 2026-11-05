@@ -64,6 +64,9 @@ google:
       # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
       autocomplete-per-month: 9000
       details-per-month: 9000
+      # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 무료 사용량보다 훨씬 작게 두고 쓰임을 본 뒤 늘린다.
+      # 같은 GOOGLE_PLACES_API_KEY를 쓰므로 GCP에서 그 키에 Geocoding API를 허용해야 한다.
+      geocode-per-month: 3000
       # 서버마다 메모리에서 센다. 몰린 요청이 월 한도를 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
       requests-per-minute: 60
     # Google이 멈추면 부르지도 않고 바로 실패해, 사용자가 3초씩 기다리거나 월 한도를 쓰지 않게 한다.

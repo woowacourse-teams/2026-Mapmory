@@ -46,6 +46,17 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 역지오코딩은_상세_조회와_월_한도를_따로_센다() {
+        GoogleRequestLimiter limiter = limiter(2, 1, 10_000);
+
+        limiter.reserveDetails();
+        limiter.reserveGeocode();
+
+        assertError(limiter::reserveDetails, "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+        assertError(limiter::reserveGeocode, "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+    }
+
+    @Test
     void 월_한도의_80퍼센트를_쓴_순간과_다_쓴_순간에_한_번씩_ERROR_로그를_남긴다() {
         GoogleRequestLimiter limiter = limiter(5, 5, 10_000);
         Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
@@ -161,13 +172,14 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
 
     private GoogleRequestLimiter limiter(int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute) {
         GoogleRateLimitProperties properties =
-                new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, requestsPerMinute);
+                new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, detailsPerMonth, requestsPerMinute);
         GoogleRateLimitConfig config = new GoogleRateLimitConfig();
         return new GoogleRequestLimiter(
                 bucketManager,
                 config.googleRequestPace(properties),
                 config.googleAutocompleteBudget(properties),
                 config.googleDetailsBudget(properties),
+                config.googleGeocodeBudget(properties),
                 clock
         );
     }

@@ -30,6 +30,7 @@ public class GoogleRequestLimiter {
     private final Bucket requestPace;
     private final Budget autocomplete;
     private final Budget details;
+    private final Budget geocode;
     private final Clock clock;
 
     public GoogleRequestLimiter(
@@ -37,12 +38,14 @@ public class GoogleRequestLimiter {
             @Qualifier(GoogleRateLimitConfig.REQUEST_PACE) Bucket requestPace,
             @Qualifier(GoogleRateLimitConfig.AUTOCOMPLETE_BUDGET) BucketConfiguration autocompleteBudget,
             @Qualifier(GoogleRateLimitConfig.DETAILS_BUDGET) BucketConfiguration detailsBudget,
+            @Qualifier(GoogleRateLimitConfig.GEOCODE_BUDGET) BucketConfiguration geocodeBudget,
             Clock clock
     ) {
         this.bucketManager = bucketManager;
         this.requestPace = requestPace;
         this.autocomplete = new Budget("autocomplete", autocompleteBudget, PlaceErrorCode.PLACE_SEARCH_BUDGET_EXHAUSTED);
         this.details = new Budget("details", detailsBudget, PlaceErrorCode.PLACE_PROVIDER_BUDGET_EXHAUSTED);
+        this.geocode = new Budget("geocode", geocodeBudget, PlaceErrorCode.PLACE_PROVIDER_BUDGET_EXHAUSTED);
         this.clock = clock;
     }
 
@@ -57,6 +60,12 @@ public class GoogleRequestLimiter {
         consume(details);
     }
 
+    /** 사진 좌표 → 지역(Geocoding API). 분당 한도는 장소 호출과 함께 센다. */
+    public void reserveGeocode() {
+        reservePace();
+        consume(geocode);
+    }
+
     /** Google이 과금하지 않은 호출(5xx, 연결 실패)은 월 한도를 돌려준다. 분당 한도는 몰린 요청을 막는 값이라 돌려주지 않는다. */
     public void refundAutocomplete() {
         refund(autocomplete);
@@ -64,6 +73,10 @@ public class GoogleRequestLimiter {
 
     public void refundDetails() {
         refund(details);
+    }
+
+    public void refundGeocode() {
+        refund(geocode);
     }
 
     private void reservePace() {

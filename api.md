@@ -44,6 +44,7 @@
 | 구현됨 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
 | 구현됨 | `GET` | `/places/search` | 장소 검색(Google Places Autocomplete) |
 | 구현됨 | `GET` | `/places/{placeId}` | 장소 선택·추천 지역 조회 |
+| 구현됨 | `POST` | `/places/location` | 사진 좌표로 추천 지역 조회(Google Geocoding) |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -657,6 +658,8 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `503` | `STORAGE_UNAVAILABLE` | S3를 확인할 수 없음. 잠시 후 다시 시도 |
 | `400` | `TOO_MANY_TAGS` | 임시 기록당 태그 5개 제한 초과 |
 | `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
+| `400` | `VALIDATION_ERROR` | `latitude`·`longitude`가 빠짐 |
+| `400` | `INVALID_COORDINATE` | 위도가 -90~90, 경도가 -180~180을 벗어남 |
 | `400` | `INVALID_PLACE_ID` | `placeId` 형식이 올바르지 않음 |
 | `404` | `PLACE_NOT_FOUND` | 지역 없이 보낸 `placeId`를 제공자에서 찾을 수 없음 |
 | `503` | `PLACE_PROVIDER_UNAVAILABLE` | 장소 제공자 장애·키 없음으로 장소를 다시 조회하지 못함 |
@@ -1243,10 +1246,45 @@ Authorization: Bearer {accessToken}
 - `suggestedRegion`은 주소 이름으로 맞춘 **추천값**이다. 시·군·구를 못 맞추면 시·도까지만 추천한다. 지역을 전혀 찾지 못하면 `suggestedRegion`이 `null`, `manualRegionRequired`가 `true`이며 사용자가 지역을 직접 고른다.
 - 기록 저장 시 `placeId`만 보내면 이 추천 지역을 쓰고, 사용자가 지역을 고쳤다면 지역 코드도 함께 보낸다.
 
+### 사진 좌표로 지역 추천
+
+`POST /api/v1/places/location`
+
+대표 사진(첫 사진)의 촬영 위치로 기록 지역을 추천한다. 대표 사진에 위치가 없으면 다음 사진의 위치를 보낸다. 좌표는 URL에 남지 않도록 본문으로 받고, 서버는 저장하거나 로그에 남기지 않는다.
+
+```json
+{
+  "latitude": 35.8694,
+  "longitude": 128.6062
+}
+```
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "countryCode": "KR",
+    "suggestedRegion": {
+      "country": { "code": "KR", "name": "대한민국" },
+      "province": { "code": "27", "name": "대구광역시" },
+      "district": { "code": "27110", "name": "중구" }
+    },
+    "manualRegionRequired": false,
+    "attribution": "Google Maps",
+    "attributionUrl": "https://www.google.com/maps"
+  }
+}
+```
+
+- 응답 모양은 장소 선택과 같다. 앱은 `suggestedRegion`을 저장 화면의 지역에 미리 채우고, 사용자는 바꿀 수 있다.
+- 바다처럼 주소가 없는 좌표면 `countryCode`·`suggestedRegion`이 `null`, `manualRegionRequired`가 `true`다. 이때는 지금처럼 사용자가 고른다.
+- 회원 한도는 장소 선택과 함께 센다.
+
 ### 호출 한도
 
 - 검색은 회원별 1분에 20회, 선택은 회원별 UTC 하루 100회다. 요청 값 검증보다 먼저 세므로 `400`으로 끝날 요청도 횟수에 들어간다.
-- Google 호출은 서버 전체 기준 분당 60회(서버별), 자동완성·상세 각각 UTC 월 9,000회로 제한한다.
+- Google 호출은 서버 전체 기준 분당 60회(서버별), 자동완성·상세 각각 UTC 월 9,000회, 좌표 → 지역(Geocoding)은 UTC 월 3,000회로 제한한다.
 
 ### 장소 오류
 
@@ -1257,7 +1295,7 @@ Authorization: Bearer {accessToken}
 | `404` | `PLACE_NOT_FOUND` | 제공자에 장소가 없음 |
 | `429` | `PLACE_RATE_LIMITED` | 회원 한도 또는 Google 분당 한도 초과 |
 | `429` | `PLACE_SEARCH_BUDGET_EXHAUSTED` | 이번 달 자동완성 한도 소진 |
-| `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 한도 소진 |
+| `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 또는 Geocoding 한도 소진 |
 | `503` | `PLACE_PROVIDER_UNAVAILABLE` | Google 장애·서킷 열림·키 없음·한도 저장소 장애 |
 
 ## 10. 출시 알림 API

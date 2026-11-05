@@ -12,6 +12,10 @@ import tools.jackson.databind.JsonNode;
 
 class GooglePlaceMapper {
 
+    // Places API (New)와 Geocoding API는 주소 구성요소의 이름 필드가 다르다.
+    private static final Fields PLACES = new Fields("longText", "shortText");
+    private static final Fields GEOCODING = new Fields("long_name", "short_name");
+
     // 시·도 아래 단위를 큰 것부터. 예: 경기도 > 성남시 > 분당구, 서울특별시 > 종로구
     private static final List<String> AREA_TYPES = List.of(
             "administrative_area_level_2", "locality", "sublocality_level_1");
@@ -45,14 +49,28 @@ class GooglePlaceMapper {
         return Optional.of(new PlaceDetails(
                 placeId,
                 null,
-                address(components, text(response.path("shortFormattedAddress"))),
+                address(components, PLACES, text(response.path("shortFormattedAddress"))),
                 GooglePlacesClient.PROVIDER));
     }
 
-    private static RegionAddress address(JsonNode components, String shortAddress) {
-        String province = componentText(components, "administrative_area_level_1");
-        String countryCode = countryCode(components);
-        List<String> subAreas = subAreas(components, province);
+    /**
+     * Geocoding 응답(status가 OK)에서 주소를 꺼낸다. 결과는 좁은 것(번지)부터 오고, 플러스 코드처럼 국가가 없는 결과도
+     * 섞여 있어 국가가 있는 첫 결과를 쓴다. 국가가 있는 결과가 없으면 빈 값이다.
+     */
+    Optional<RegionAddress> geocodedAddress(JsonNode response) {
+        for (JsonNode result : response.path("results")) {
+            JsonNode components = result.path("address_components");
+            if (components.isArray() && countryCode(components, GEOCODING) != null) {
+                return Optional.of(address(components, GEOCODING, null));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static RegionAddress address(JsonNode components, Fields fields, String shortAddress) {
+        String province = componentText(components, "administrative_area_level_1", fields);
+        String countryCode = countryCode(components, fields);
+        List<String> subAreas = subAreas(components, province, fields);
         if (countryCode == null && shortAddress != null) {
             // 독도처럼 Google이 구성요소에서 상위 지역을 모두 빼는 장소가 있다(독도리: 구성요소 "독도리"뿐,
             // 짧은 주소 "울릉군 울릉읍 독도리"). 이때만 짧은 주소의 낱말을 큰 단위부터 덧붙인다.
@@ -77,10 +95,10 @@ class GooglePlaceMapper {
     }
 
     // 세종처럼 시·도와 같은 이름이 locality로 다시 오면 뺀다.
-    private static List<String> subAreas(JsonNode components, String province) {
+    private static List<String> subAreas(JsonNode components, String province, Fields fields) {
         List<String> areas = new ArrayList<>();
         for (String type : AREA_TYPES) {
-            String name = componentText(components, type);
+            String name = componentText(components, type, fields);
             if (name != null && !name.equals(province) && !areas.contains(name)) {
                 areas.add(name);
             }
@@ -88,22 +106,22 @@ class GooglePlaceMapper {
         return areas;
     }
 
-    private static String componentText(JsonNode components, String wantedType) {
+    private static String componentText(JsonNode components, String wantedType, Fields fields) {
         for (JsonNode component : components) {
             for (JsonNode type : component.path("types")) {
                 if (wantedType.equals(type.asString())) {
-                    return text(component.path("longText"));
+                    return text(component.path(fields.longName()));
                 }
             }
         }
         return null;
     }
 
-    private static String countryCode(JsonNode components) {
+    private static String countryCode(JsonNode components, Fields fields) {
         for (JsonNode component : components) {
             for (JsonNode type : component.path("types")) {
                 if ("country".equals(type.asString())) {
-                    String code = text(component.path("shortText"));
+                    String code = text(component.path(fields.shortName()));
                     if (code == null) {
                         return null;
                     }
@@ -112,6 +130,9 @@ class GooglePlaceMapper {
             }
         }
         return null;
+    }
+
+    private record Fields(String longName, String shortName) {
     }
 
     private static String text(JsonNode node) {
