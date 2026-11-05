@@ -17,6 +17,7 @@ data class TripRecordItemUiState(
     val photos: List<TripRecordPhotoUiState>,
     val tags: List<Tag> = emptyList(),
     val photoCount: Int? = photos.size,
+    val locationId: Long? = null,
 )
 
 data class TripRecordPhotoUiState(
@@ -85,6 +86,7 @@ fun TripRecordData.toTripRecordItemUiState(
     endDate = endDate,
     locationName = locationName,
     tags = tags,
+    locationId = locationId,
     photos = media
         .sortedBy { it.sortOrder }
         .map { media ->
@@ -116,6 +118,7 @@ fun TripRecordSummary.toTripRecordItemUiState(
     locationName = locationName,
     tags = tags,
     photoCount = photoCount ?: media.size.takeIf { it > 0 },
+    locationId = locationId,
     photos = thumbnailPreviewBytes?.let { bytes ->
         listOf(
             TripRecordPhotoUiState(
