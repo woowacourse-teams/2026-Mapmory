@@ -1,5 +1,6 @@
 package com.mapmory.backend.group.infrastructure;
 
+import com.mapmory.backend.common.scheduling.MaintenanceSchedulingConfig;
 import com.mapmory.backend.group.application.InactiveMemberGroupCleanup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,7 @@ class InactiveMemberGroupCleanupScheduler {
         this.cleanup = cleanup;
     }
 
-    @Scheduled(cron = "0 0 19 * * *", zone = "UTC")
+    @Scheduled(cron = "0 0 19 * * *", zone = "UTC", scheduler = MaintenanceSchedulingConfig.SCHEDULER)
     void cleanUp() {
         try {
             int handled = cleanup.run();

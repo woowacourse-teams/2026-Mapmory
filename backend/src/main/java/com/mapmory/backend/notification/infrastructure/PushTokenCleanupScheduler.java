@@ -1,5 +1,6 @@
 package com.mapmory.backend.notification.infrastructure;
 
+import com.mapmory.backend.common.scheduling.MaintenanceSchedulingConfig;
 import com.mapmory.backend.notification.application.InactivePushTokenCleanup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 하루 한 번 탈퇴하거나 버려진 회원의 기기 토큰을 지운다. 알림 스케줄러를 쓰므로 API를 받지 않는 렌더러 서버에서는 돌지 않는다.
+ * 하루 한 번 탈퇴하거나 버려진 회원의 기기 토큰을 지운다. API를 받지 않는 렌더러 서버에서는 돌지 않는다.
  */
 @Component
 @ConditionalOnProperty(prefix = "notification.outbox", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -22,7 +23,7 @@ class PushTokenCleanupScheduler {
         this.cleanup = cleanup;
     }
 
-    @Scheduled(cron = "0 0 19 * * *", zone = "UTC", scheduler = NotificationConfig.SCHEDULER)
+    @Scheduled(cron = "0 0 19 * * *", zone = "UTC", scheduler = MaintenanceSchedulingConfig.SCHEDULER)
     void cleanUp() {
         try {
             int removed = cleanup.run();
