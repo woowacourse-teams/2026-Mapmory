@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -143,10 +144,43 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 한_묶음을_넘어도_모두_지운다() {
+        List<String> keys = enqueue(501);
+
+        assertThat(cleanup.run()).isEqualTo(501);
+
+        assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
+        assertThat(queued()).isZero();
+    }
+
+    @Test
+    void 앞_묶음의_실패가_뒤_묶음을_막지_않는다() {
+        List<String> keys = enqueue(501);
+        String failed = keys.getFirst();
+        willAnswer(invocation -> {
+            Collection<String> requested = invocation.getArgument(0);
+            deletedKeys.addAll(requested);
+            return requested.contains(failed) ? List.of(failed) : List.of();
+        }).given(objectDeleter).delete(anyCollection());
+
+        assertThat(cleanup.run()).isEqualTo(500);
+
+        assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
+        assertThat(queued()).isEqualTo(1);
+    }
+
+    @Test
     void 지울_것이_없으면_S3를_부르지_않는다() {
         assertThat(cleanup.run()).isZero();
 
         verify(objectDeleter, never()).delete(anyCollection());
+    }
+
+    private List<String> enqueue(int count) {
+        List<String> keys = IntStream.range(0, count).mapToObj(index -> photo(index + ".jpg")).toList();
+        jdbcTemplate.batchUpdate("INSERT INTO orphaned_media (object_key, created_at) VALUES (?, NOW())", keys, keys.size(),
+                (statement, key) -> statement.setString(1, key));
+        return keys;
     }
 
     private String photo(String fileName) {
