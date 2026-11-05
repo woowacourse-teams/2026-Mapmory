@@ -7,7 +7,7 @@ import java.util.Locale;
 /**
  * 사진 촬영 위치 같은 WGS84 좌표. 위도 -90~90, 경도 -180~180만 받는다.
  *
- * <p>사용자의 위치라 로그에 남지 않도록 {@link #toString()}은 값을 가린다. 외부 API에 보낼 때만 {@link #toLatLng()}를 쓴다.
+ * <p>사용자의 위치라 로그에 남지 않도록 {@link #toString()}은 값을 가린다. 외부 API에 보낼 때만 {@link #latitudeText()}·{@link #longitudeText()}를 쓴다.
  */
 public record Coordinate(double latitude, double longitude) {
 
@@ -18,9 +18,13 @@ public record Coordinate(double latitude, double longitude) {
         }
     }
 
-    /** {@code 37.566500,126.978000} 형식. 소수점 아래 6자리(약 10cm)면 지역 판정에 충분하다. */
-    public String toLatLng() {
-        return String.format(Locale.ROOT, "%.6f,%.6f", latitude, longitude);
+    /** 소수점 아래 6자리(약 10cm)면 지역 판정에 충분하다. 예: {@code 37.566500} */
+    public String latitudeText() {
+        return String.format(Locale.ROOT, "%.6f", latitude);
+    }
+
+    public String longitudeText() {
+        return String.format(Locale.ROOT, "%.6f", longitude);
     }
 
     @Override

@@ -50,11 +50,13 @@ class GooglePlaceMapper {
     }
 
     /**
-     * Geocoding v4 역지오코딩 응답에서 주소를 꺼낸다. 주소 구성요소는 Places API (New)와 같은 모양이다. 결과는 좁은 것(번지)부터 오고, 플러스 코드처럼 국가가 없는 결과도
-     * 섞여 있어 국가가 있는 첫 결과를 쓴다. 독도처럼 어느 결과에도 국가가 없으면 시·도나 시·군·구 이름이 있는 첫 결과를 쓴다.
-     * 둘 다 없으면 빈 값이다.
+     * Geocoding v4 역지오코딩 응답에서 주소를 꺼낸다. 주소 구성요소는 Places API (New)와 같은 모양이다.
+     * 결과는 좁은 것(번지)부터 오고 플러스 코드처럼 일부 단위만 있는 결과도 섞여 있어, 국가와 시·도가 함께 있는 첫 결과를
+     * 쓴다. 없으면 국가가 있는 첫 결과를 쓴다. 독도처럼 어느 결과에도 국가가 없으면 시·군·구 이름이 있는 첫 결과를 쓴다
+     * (지역 추천이 국가 없이 쓸 수 있는 것은 시·군·구 이름뿐이다). 셋 다 없으면 빈 값이다.
      */
     Optional<RegionAddress> geocodedAddress(JsonNode response) {
+        RegionAddress countryOnly = null;
         RegionAddress withoutCountry = null;
         for (JsonNode result : response.path("results")) {
             JsonNode components = result.path("addressComponents");
@@ -62,14 +64,17 @@ class GooglePlaceMapper {
                 continue;
             }
             RegionAddress address = address(components, null);
-            if (address.countryCode() != null) {
+            if (address.countryCode() != null && address.province() != null) {
                 return Optional.of(address);
             }
-            if (withoutCountry == null && (address.province() != null || address.hasAreaNames())) {
+            if (countryOnly == null && address.countryCode() != null) {
+                countryOnly = address;
+            }
+            if (withoutCountry == null && address.countryCode() == null && address.hasAreaNames()) {
                 withoutCountry = address;
             }
         }
-        return Optional.ofNullable(withoutCountry);
+        return Optional.ofNullable(countryOnly != null ? countryOnly : withoutCountry);
     }
 
     private static RegionAddress address(JsonNode components, String shortAddress) {

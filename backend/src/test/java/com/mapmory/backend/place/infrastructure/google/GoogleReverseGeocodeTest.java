@@ -53,8 +53,10 @@ class GoogleReverseGeocodeTest {
 
     @Test
     void 키는_헤더로_보내고_좌표를_한국어_주소_구성요소로_바꾼다() {
-        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL + "/v4/geocode/location/35.869400%2C128.606200")))
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL + "/v4/geocode/location?")))
                 .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("location.latitude", "35.869400"))
+                .andExpect(queryParam("location.longitude", "128.606200"))
                 .andExpect(queryParam("languageCode", "ko"))
                 .andExpect(header("X-Goog-Api-Key", "test-key"))
                 .andExpect(header("X-Goog-FieldMask", "results.addressComponents"))
@@ -138,6 +140,25 @@ class GoogleReverseGeocodeTest {
 
         assertThat(client.findAddress(DAEGU_JUNG_GU))
                 .contains(new RegionAddress(null, "경상북도", List.of("울릉군")));
+    }
+
+    @Test
+    void 시도가_없는_앞쪽_결과보다_시도까지_있는_결과를_쓴다() {
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
+                .andRespond(withSuccess("""
+                        {"results":[
+                          {"addressComponents":[
+                            {"longText":"VJ94+QF","shortText":"VJ94+QF","types":["plus_code"]},
+                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]},
+                          {"addressComponents":[
+                            {"longText":"봉화군","shortText":"봉화군","types":["administrative_area_level_2","political"]},
+                            {"longText":"경상북도","shortText":"경상북도","types":["administrative_area_level_1","political"]},
+                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findAddress(DAEGU_JUNG_GU))
+                .contains(new RegionAddress("KR", "경상북도", List.of("봉화군")));
     }
 
     @Test
