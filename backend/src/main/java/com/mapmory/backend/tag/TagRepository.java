@@ -4,8 +4,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface TagRepository extends JpaRepository<Tag, Long> {
     long countByMemberId(Long memberId);
@@ -39,4 +41,10 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
     List<Tag> findAllByMemberIdOrderByCreatedAtAscIdAsc(Long memberId);
 
     List<Tag> findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(Long memberId, Collection<Long> ids);
+
+    // 회원 데이터 파기.
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Tag t WHERE t.member.id = :memberId")
+    void deleteAllByMemberId(@Param("memberId") Long memberId);
 }

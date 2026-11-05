@@ -13,7 +13,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
  * 알림은 앨범 쓰기와 같은 트랜잭션에 아웃박스로 적고, 이 서버의 스케줄러가 꺼내 보낸다(ADR 0022 2026-10-29 보완).
  * 발송이 느려도 올리기 응답을 잡지 않고, 배포로 서버가 내려가도 알림을 잃지 않는다.
  *
- * <p>스케줄러는 공유 영상 작업, 정리 배치(MaintenanceSchedulingConfig)와 스레드를 나눠 쓰지 않게 따로 둔다.
+ * <p>스케줄러는 공유 영상 작업, 정리 배치(MaintenanceSchedulingConfig), 회원 데이터 파기와 스레드를 나눠 쓰지 않게 따로 둔다.
  * 렌더러 서버처럼 API를 받지 않는 곳에서는 {@code NOTIFICATION_OUTBOX_ENABLED=false}로 끈다.
  */
 @Configuration
