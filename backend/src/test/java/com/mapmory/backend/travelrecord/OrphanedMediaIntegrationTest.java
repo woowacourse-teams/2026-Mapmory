@@ -169,6 +169,27 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         assertThat(queued()).isEqualTo(1);
     }
 
+    // S3ObjectDeleter는 우리 경로 밖의 키가 섞이면 묶음 전체를 거절한다. 그 키 뒤의 큐가 영영 처리되지 않으면 안 된다.
+    @Test
+    void 우리_경로_밖의_키가_있어도_뒤의_키를_지운다() {
+        String outside = "other-team/a.jpg";
+        enqueue(List.of(outside));
+        List<String> keys = enqueue(501);
+        willAnswer(invocation -> {
+            Collection<String> requested = invocation.getArgument(0);
+            if (requested.contains(outside)) {
+                throw new IllegalArgumentException("우리 경로 밖의 객체는 지울 수 없습니다.");
+            }
+            deletedKeys.addAll(requested);
+            return List.of();
+        }).given(objectDeleter).delete(anyCollection());
+
+        assertThat(cleanup.run()).isEqualTo(501);
+
+        assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
+        assertThat(queued()).isEqualTo(1);
+    }
+
     @Test
     void 지울_것이_없으면_S3를_부르지_않는다() {
         assertThat(cleanup.run()).isZero();
@@ -177,7 +198,10 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     }
 
     private List<String> enqueue(int count) {
-        List<String> keys = IntStream.range(0, count).mapToObj(index -> photo(index + ".jpg")).toList();
+        return enqueue(IntStream.range(0, count).mapToObj(index -> photo(index + ".jpg")).toList());
+    }
+
+    private List<String> enqueue(List<String> keys) {
         jdbcTemplate.batchUpdate("INSERT INTO orphaned_media (object_key, created_at) VALUES (?, NOW())", keys, keys.size(),
                 (statement, key) -> statement.setString(1, key));
         return keys;
