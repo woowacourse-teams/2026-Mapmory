@@ -13,8 +13,10 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mapmory.shared.MapmoryApp
@@ -49,6 +51,9 @@ class LocationPhotoCreationTest {
             fixtures += insertPhoto("mapmory-japan-14.jpg", "2026-09-14", located = true)
             fixtures += insertPhoto("mapmory-no-gps-15.jpg", "2026-09-15", located = false)
             fixtures += insertPhoto("mapmory-japan-16.jpg", "2026-09-16", located = true)
+            (17..28).forEach { index ->
+                fixtures += insertPhoto("mapmory-japan-$index.jpg", "2026-09-14", located = true)
+            }
             fixtures += insertPhoto("Screenshot-mapmory-15.jpg", "2026-09-15", located = false)
             composeRule.setContent { MapmoryApp(container = container, navigation = navigation) }
             composeRule.waitUntil(15_000) {
@@ -66,6 +71,10 @@ class LocationPhotoCreationTest {
             composeRule.onNodeWithText("작성 중인 기록이 있어요").assertIsDisplayed()
             composeRule.onNodeWithText("계속 작성").performClick()
             composeRule.onNodeWithText("사진 고르기").assertIsDisplayed()
+            composeRule.onNodeWithTag("photo-picker-list").performScrollToIndex(8)
+            composeRule.onNodeWithText("추천 사진 모두 선택").assertIsDisplayed()
+            composeRule.onNodeWithContentDescription("사진첩에서 선택").assertIsDisplayed()
+            composeRule.onNodeWithTag("photo-picker-list").performScrollToIndex(0)
             composeRule.onNodeWithContentDescription("뒤로가기").performClick()
             composeRule.onNodeWithText("작성 중인 기록이 있어요").assertIsDisplayed()
             composeRule.onNodeWithText("나가기").performClick()
@@ -74,7 +83,7 @@ class LocationPhotoCreationTest {
             composeRule.onNode(hasText("일본") and !hasSetTextAction()).performClick()
             awaitPicker()
             composeRule.onNodeWithText("모두 선택").performClick()
-            composeRule.onNodeWithText("3장 선택").assertIsDisplayed()
+            composeRule.onNodeWithText("14장 선택").assertIsDisplayed()
             capture("picker")
             composeRule.onNodeWithText("기록하기").performClick()
             composeRule.waitUntil(15_000) {
@@ -85,7 +94,7 @@ class LocationPhotoCreationTest {
                 val saved = container.tripRecordRepository.getTripRecords(TripRecordQuery()).getOrThrow()
                     .records.single()
                 val detail = container.tripRecordRepository.getTripRecord(saved.id).getOrThrow()
-                assertEquals(3, detail.media.size)
+                assertEquals(14, detail.media.size)
                 val dates = detail.media.mapNotNull { it.capturedAt?.replace('.', '-') }.sorted()
                 assertEquals(dates.first(), detail.startDate)
                 assertEquals(dates.last().takeIf { it != dates.first() }, detail.endDate)

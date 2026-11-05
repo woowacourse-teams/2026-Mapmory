@@ -7,6 +7,7 @@ import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import androidx.compose.animation.core.animateDpAsState
 import com.mapmory.shared.presentation.components.PhotoListScrollBar
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
@@ -2279,6 +2280,7 @@ private fun FlowToast(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhotoPickerStep(
     locationName: String,
@@ -2398,6 +2400,7 @@ private fun PhotoPickerStep(
                 userScrollEnabled = !isGridPinching,
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("photo-picker-list")
                     .navigationBarsPadding()
                     .photoGridPinch(
                         columnCount = photoGridColumns,
@@ -2453,10 +2456,6 @@ private fun PhotoPickerStep(
                         PhotoPickerHeader(
                             locationName = locationName,
                             selectedCount = pagingState.selectedIds.size,
-                            hasPhotos = pagingState.photos.isNotEmpty(),
-                            allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
-                            onAllToggle = onAllToggle,
-                            onPickFromGallery = onPickFromGallery,
                         )
                         if (showRecordedFilter) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2475,6 +2474,19 @@ private fun PhotoPickerStep(
                             }
                         }
                     }
+                }
+                stickyHeader {
+                    PhotoPickerActionsRow(
+                        hasPhotos = pagingState.photos.isNotEmpty(),
+                        allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
+                        onAllToggle = onAllToggle,
+                        onPickFromGallery = onPickFromGallery,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(4.dp)
+                            .background(TripRecordPalette.current.background)
+                            .padding(start = 20.dp, top = 8.dp, end = 24.dp, bottom = 10.dp),
+                    )
                 }
                 message?.let { currentMessage ->
                     item {
@@ -2700,10 +2712,6 @@ private fun CoverPhotoSelectionStep(
 private fun PhotoPickerHeader(
     locationName: String,
     selectedCount: Int,
-    hasPhotos: Boolean,
-    allSelected: Boolean,
-    onAllToggle: () -> Unit,
-    onPickFromGallery: () -> Unit,
 ) {
     Column {
         Text(
@@ -2733,23 +2741,30 @@ private fun PhotoPickerHeader(
                 fontWeight = FontWeight.Bold,
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (hasPhotos) {
-                FlowSmallButton(
-                    label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",
-                    onClick = onAllToggle,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            GalleryPickerButton(onClick = onPickFromGallery)
-        }
+    }
+}
 
+@Composable
+private fun PhotoPickerActionsRow(
+    hasPhotos: Boolean,
+    allSelected: Boolean,
+    onAllToggle: () -> Unit,
+    onPickFromGallery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (hasPhotos) {
+            FlowSmallButton(
+                label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",
+                onClick = onAllToggle,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        GalleryPickerButton(onClick = onPickFromGallery)
     }
 }
 
