@@ -19,6 +19,7 @@ import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -43,8 +44,9 @@ class GoogleReverseGeocodeTest {
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
+    private final CircuitBreaker breaker = GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock);
     private final GooglePlacesClient client = new GooglePlacesClient(builder, PLACES_URL, GEOCODING_URL, "test-key",
-            limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+            limiter, breaker);
 
     @Test
     void 좌표를_한국어_주소_구성요소로_바꾼다() {
@@ -111,6 +113,40 @@ class GoogleReverseGeocodeTest {
         assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_GEOCODING_REJECTED:ERROR");
         assertThat(logs).allSatisfy(event -> assertThat(event.getFormattedMessage()).doesNotContain("35.86"));
+        // Google이 사용량에 세지 않는 거절이라, 키를 고칠 때까지 월 한도가 새지 않게 돌려준다.
+        verify(limiter).refundGeocode();
+    }
+
+    @Test
+    void 구글_일시_오류는_서킷_실패로_세고_월_한도를_돌려준다() {
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
+                .andRespond(withSuccess("""
+                        {"status":"UNKNOWN_ERROR","results":[]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE));
+        verify(limiter).refundGeocode();
+        assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void 국가가_없는_결과만_있으면_지역_이름이_있는_첫_결과를_쓴다() {
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
+                .andRespond(withSuccess("""
+                        {"status":"OK","results":[
+                          {"types":["plus_code"],"address_components":[
+                            {"long_name":"XXXX+XX","short_name":"XXXX+XX","types":["plus_code"]}]},
+                          {"types":["political"],"address_components":[
+                            {"long_name":"울릉군","short_name":"울릉군","types":["administrative_area_level_2","political"]},
+                            {"long_name":"경상북도","short_name":"경상북도","types":["administrative_area_level_1","political"]}]}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findAddress(DAEGU_JUNG_GU))
+                .contains(new RegionAddress(null, "경상북도", List.of("울릉군")));
     }
 
     @Test

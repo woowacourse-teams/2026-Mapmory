@@ -16,7 +16,9 @@ import com.mapmory.backend.place.application.LocatedRegion;
 import com.mapmory.backend.place.application.LocationRegionService;
 import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.region.domain.RegionType;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -52,6 +54,27 @@ class PlaceLocationControllerTest {
                 .andExpect(jsonPath("$.data.attribution").value("Google Maps"));
 
         verify(service).locate(any(Coordinate.class));
+    }
+
+    @Test
+    void 추천_지역을_나라_시도_구군까지_응답한다() throws Exception {
+        Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+        Region province = Region.of(country, country, "27", "대구광역시", RegionType.PROVINCE);
+        Region district = Region.of(province, country, "27110", "중구", RegionType.DISTRICT);
+        when(service.locate(new Coordinate(35.8694, 128.6062))).thenReturn(new LocatedRegion(
+                new RegionAddress("KR", "대구광역시", List.of("중구")), district, GOOGLE));
+
+        mockMvc.perform(post("/api/v1/places/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"latitude":35.8694,"longitude":128.6062}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.countryCode").value("KR"))
+                .andExpect(jsonPath("$.data.manualRegionRequired").value(false))
+                .andExpect(jsonPath("$.data.suggestedRegion.country.code").value("KR"))
+                .andExpect(jsonPath("$.data.suggestedRegion.province.code").value("27"))
+                .andExpect(jsonPath("$.data.suggestedRegion.district.code").value("27110"));
     }
 
     @Test

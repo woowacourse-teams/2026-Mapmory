@@ -46,6 +46,15 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 역지오코딩_월_한도는_상세_한도와_다른_값을_쓴다() {
+        GoogleRateLimitProperties properties = new GoogleRateLimitProperties(5, 5, 2, 10_000);
+        GoogleRateLimitConfig config = new GoogleRateLimitConfig();
+
+        assertThat(config.googleGeocodeBudget(properties).getBandwidths()[0].getCapacity()).isEqualTo(2);
+        assertThat(config.googleDetailsBudget(properties).getBandwidths()[0].getCapacity()).isEqualTo(5);
+    }
+
+    @Test
     void 역지오코딩은_상세_조회와_월_한도를_따로_센다() {
         GoogleRequestLimiter limiter = limiter(2, 1, 10_000);
 

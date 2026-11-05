@@ -55,16 +55,25 @@ class GooglePlaceMapper {
 
     /**
      * Geocoding 응답(status가 OK)에서 주소를 꺼낸다. 결과는 좁은 것(번지)부터 오고, 플러스 코드처럼 국가가 없는 결과도
-     * 섞여 있어 국가가 있는 첫 결과를 쓴다. 국가가 있는 결과가 없으면 빈 값이다.
+     * 섞여 있어 국가가 있는 첫 결과를 쓴다. 독도처럼 어느 결과에도 국가가 없으면 시·도나 시·군·구 이름이 있는 첫 결과를 쓴다.
+     * 둘 다 없으면 빈 값이다.
      */
     Optional<RegionAddress> geocodedAddress(JsonNode response) {
+        RegionAddress withoutCountry = null;
         for (JsonNode result : response.path("results")) {
             JsonNode components = result.path("address_components");
-            if (components.isArray() && countryCode(components, GEOCODING) != null) {
-                return Optional.of(address(components, GEOCODING, null));
+            if (!components.isArray()) {
+                continue;
+            }
+            RegionAddress address = address(components, GEOCODING, null);
+            if (address.countryCode() != null) {
+                return Optional.of(address);
+            }
+            if (withoutCountry == null && (address.province() != null || address.hasAreaNames())) {
+                withoutCountry = address;
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(withoutCountry);
     }
 
     private static RegionAddress address(JsonNode components, Fields fields, String shortAddress) {
