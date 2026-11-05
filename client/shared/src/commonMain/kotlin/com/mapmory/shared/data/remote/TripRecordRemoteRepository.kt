@@ -55,7 +55,7 @@ class TripRecordRemoteRepository(
                 parameter("size", query.size)
             }.requireSuccess()
 
-            response.body<ApiResponseDto<PageDto<TripRecordListItemDto>>>().data.toDomain()
+            response.body<ApiResponseDto<PageDto<TripRecordListItemDto>>>().data.toDomain(regionCatalog)
         }
 
     override suspend fun getTripRecord(id: Long): Result<TripRecordData> =

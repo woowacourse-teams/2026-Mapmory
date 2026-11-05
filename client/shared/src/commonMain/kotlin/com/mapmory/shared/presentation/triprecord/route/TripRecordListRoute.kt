@@ -71,6 +71,7 @@ internal fun TripRecordListRoute(
         shareVideoRepository = shareVideoRepository,
         shareVideoJobStore = shareVideoJobStore,
         uiState = viewModel.uiState,
+        selectedLocationName = viewModel.selectedLocationName,
         filter = TripRecordFilterUiState(
             locationId = viewModel.query.locationId,
             tags = viewModel.availableTags,
@@ -84,8 +85,8 @@ internal fun TripRecordListRoute(
         backHandlerOwnerId = backHandlerOwnerId,
         photoCollectionLoadState = viewModel.photoCollectionLoadState,
         photoCollectionIndexState = viewModel.photoCollectionIndexState,
-        onLoadPhotoCollection = { locationName ->
-            scope.launch { viewModel.loadPhotoCollection(locationName) }
+        onLoadPhotoCollection = { locationId, locationName ->
+            scope.launch { viewModel.loadPhotoCollection(locationId, locationName) }
         },
         onLoadPhotoCollectionIndex = {
             scope.launch { viewModel.loadPhotoCollectionIndex() }
