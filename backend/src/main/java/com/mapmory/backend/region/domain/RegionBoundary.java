@@ -1,5 +1,9 @@
 package com.mapmory.backend.region.domain;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -12,5 +16,17 @@ public record RegionBoundary(String regionCode, String version, List<List<List<D
 
     public RegionBoundary {
         rings = List.copyOf(rings);
+    }
+
+    /**
+     * 데이터 버전이 같으면 같은 값. 앱이 저장해 둔 경계가 최신인지 HTTP ETag로 확인할 때 쓴다.
+     */
+    public String versionTag() {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(version.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 8);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256을 쓸 수 없습니다", e);
+        }
     }
 }

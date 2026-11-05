@@ -1275,7 +1275,7 @@ Authorization: Bearer {accessToken}
 
 #### Response `200 OK`
 
-`Cache-Control: max-age=2592000, private`
+`Cache-Control: max-age=86400, private`, `ETag: "1a2b3c4d5e6f7a8b"`
 
 ```json
 {
@@ -1291,7 +1291,8 @@ Authorization: Bearer {accessToken}
 
 - 각 링은 `[경도, 위도]` 점 목록이며 첫 점과 끝 점이 같다. 섬이 여러 개면 링도 여러 개다. 바깥 테두리만 담고 호수 같은 구멍은 없다.
 - 점 하나가 어느 링 안에라도 있으면 그 나라 안이다.
-- `version`이 같으면 경계도 같다. 앱은 받은 경계를 `version`과 함께 저장해 두고, 버전이 바뀔 때만 다시 받는다.
+- 앱은 받은 경계와 `ETag`를 저장해 둔다. 다음에 같은 나라를 고르면 `If-None-Match: "저장한 ETag"`를 붙여 요청하고, 데이터 버전이 같으면 본문 없는 `304 Not Modified`를 받아 저장한 경계를 그대로 쓴다. 버전이 바뀌었으면 `200`과 새 경계가 온다.
+- 요청이 실패하면(오프라인 등) 저장한 경계를 그대로 쓴다.
 - 경계는 사진 판정용이다. 지구본 그리기에는 앱에 넣은 가벼운 지도를 쓴다.
 
 ### 지역 경계 오류

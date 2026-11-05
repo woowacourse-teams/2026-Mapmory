@@ -33,7 +33,7 @@ curl -L --fail -o /tmp/ne_10m_admin_0_map_units.geojson \
 python3 tools/region-boundary/generate_region_boundaries.py /tmp/ne_10m_admin_0_map_units.geojson
 ```
 
-원본이나 허용 오차를 바꾸면 `VERSION`이 바뀌고, 앱은 다음 요청 때 새 경계로 바꾼다.
+원본이나 허용 오차를 바꾸면 `VERSION`이 바뀐다. 응답의 `ETag`는 `VERSION`의 해시라서 함께 바뀌고, 앱이 저장한 ETag로 `If-None-Match` 요청을 보내면 `304` 대신 새 경계를 받는다.
 
 ## 앞으로
 

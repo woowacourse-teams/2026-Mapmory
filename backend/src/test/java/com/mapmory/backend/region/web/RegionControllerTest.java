@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,10 +31,28 @@ class RegionControllerTest {
 
         mockMvc.perform(get("/api/v1/regions/HK/boundary"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "max-age=2592000, private"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
+                .andExpect(header().string("ETag", "\"" + new RegionBoundary("HK", "v1", List.of()).versionTag() + "\""))
                 .andExpect(jsonPath("$.data.regionCode").value("HK"))
                 .andExpect(jsonPath("$.data.version").value("v1"))
                 .andExpect(jsonPath("$.data.rings[0][1][0]").value(114.2));
+    }
+
+    @Test
+    void 저장한_경계의_버전이_같으면_본문_없이_304를_준다() throws Exception {
+        RegionBoundaryService service = mock(RegionBoundaryService.class);
+        RegionBoundary boundary = new RegionBoundary("HK", "v1", List.of(List.of(List.of(114.1, 22.2))));
+        when(service.countryBoundary("HK")).thenReturn(boundary);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new RegionController(service)).build();
+
+        mockMvc.perform(get("/api/v1/regions/HK/boundary")
+                        .header("If-None-Match", "\"" + boundary.versionTag() + "\""))
+                .andExpect(status().isNotModified())
+                .andExpect(content().string(""));
+
+        mockMvc.perform(get("/api/v1/regions/HK/boundary").header("If-None-Match", "\"old\""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.regionCode").value("HK"));
     }
 
     @Test

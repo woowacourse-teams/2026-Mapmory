@@ -31,6 +31,20 @@ class RegionBoundaryAcceptanceTest extends IntegrationTest {
     }
 
     @Test
+    void 저장한_경계가_최신이면_304를_받는다() throws Exception {
+        String accessToken = guestAccessToken();
+        String eTag = mockMvc.perform(get("/api/v1/regions/GU/boundary")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getHeader(HttpHeaders.ETAG);
+
+        mockMvc.perform(get("/api/v1/regions/GU/boundary")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(HttpHeaders.IF_NONE_MATCH, eTag))
+                .andExpect(status().isNotModified());
+    }
+
+    @Test
     void 지역_목록에_없는_코드는_404다() throws Exception {
         mockMvc.perform(get("/api/v1/regions/XK/boundary")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + guestAccessToken()))
