@@ -1,7 +1,6 @@
 package com.mapmory.shared.data.settings
 
 import android.content.Context
-import com.mapmory.shared.MapmoryColorTheme
 
 class AndroidThemePreference(context: Context) : ThemePreference {
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -15,15 +14,19 @@ class AndroidThemePreference(context: Context) : ThemePreference {
         preferences.edit().putBoolean(IsDarkThemeKey, isDarkTheme).apply()
     }
 
-    override fun loadColorTheme(): MapmoryColorTheme = preferences.getString(ColorThemeKey, null)
-        ?.let { value -> MapmoryColorTheme.values().firstOrNull { it.name == value } }
-        ?: MapmoryColorTheme.GREEN
+    override fun loadThemePalette(): MapmoryThemePalette {
+        val stored = preferences.getString(ThemePaletteKey, null)
+        if (stored != null) return MapmoryThemePalette.fromStorageValue(stored)
+        return legacyThemePalette(preferences.getString(LegacyColorThemeKey, null))?.also(::saveThemePalette)
+            ?: MapmoryThemePalette.MAPMORY_GREEN
+    }
 
-    override fun saveColorTheme(colorTheme: MapmoryColorTheme) {
-        preferences.edit().putString(ColorThemeKey, colorTheme.name).apply()
+    override fun saveThemePalette(themePalette: MapmoryThemePalette) {
+        preferences.edit().putString(ThemePaletteKey, themePalette.storageValue).apply()
     }
 }
 
 private const val PreferencesName = "mapmory_settings"
 private const val IsDarkThemeKey = "is_dark_theme"
-private const val ColorThemeKey = "color_theme"
+private const val ThemePaletteKey = "theme_palette"
+private const val LegacyColorThemeKey = "color_theme"

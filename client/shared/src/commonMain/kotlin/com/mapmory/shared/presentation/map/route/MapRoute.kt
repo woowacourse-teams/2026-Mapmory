@@ -154,7 +154,7 @@ internal fun MapRoute(
         }
     }
 
-    fun openLocation(location: Location, forceEditor: Boolean = false) {
+    fun openLocation(location: Location) {
         val hasRecords = viewModel.hasRecords(location)
         analytics.logEvent(
             MapmoryAnalyticsEvent.MAP_LOCATION_SELECTED,
@@ -163,15 +163,7 @@ internal fun MapRoute(
                 "has_records" to hasRecords.toString(),
             ),
         )
-        if (hasRecords && !forceEditor) {
-            onOpenRecords(location.id)
-        } else {
-            analytics.logEvent(
-                MapmoryAnalyticsEvent.RECORD_CREATE_STARTED,
-                mapOf("source" to "map_location"),
-            )
-            onOpenEditor(location.id)
-        }
+        onOpenRecords(location.id)
     }
 
     val selectedProvinceCode = uiState.koreaMap.provinceCodeOrNull()
@@ -252,7 +244,7 @@ internal fun MapRoute(
                                 gestureClosedProvinceCode = null
                                 val selectedLocation = regionCatalog.findByCode(provinceCode)
                                 if (selectedLocation?.type == LocationType.DISTRICT) {
-                                    openLocation(selectedLocation, forceEditor = true)
+                                    openLocation(selectedLocation)
                                 } else {
                                     analytics.logEvent(
                                         MapmoryAnalyticsEvent.MAP_PROVINCE_SELECTED,

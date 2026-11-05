@@ -85,7 +85,7 @@
 
 - Appearance (`라이트 모드` / `다크 모드`) and color family are independent preferences.
 - `맵모리 그린` is the default family. `오션 블루` uses the same layouts and component hierarchy, with blue accents and coordinated map fills in both light and dark modes.
-- The blue family uses `#2876C7` as its light-mode primary and `#56B3F2` as its dark-mode primary. Page and surface colors remain quiet so the map and travel photos stay prominent.
+- The blue family uses `#246DBB` as its light-mode primary and `#6EA9F3` as its dark-mode primary. Page and surface colors remain quiet so the map and travel photos stay prominent.
 - App colors belong in `TripRecordPalette`, `TripMapPalette`, `TripStatisticsPalette`, and `TripKoreaMapPalette`. Statistics share cards follow the selected theme. Intentional photo editorial share artwork keeps its own art-directed colors.
 
 ## Components

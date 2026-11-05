@@ -24,7 +24,7 @@ import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
 
-fun TripRecordListItemDto.toDomain(): TripRecordSummary = TripRecordSummary(
+fun TripRecordListItemDto.toDomain(regionCatalog: RegionCatalog? = null): TripRecordSummary = TripRecordSummary(
     id = id,
     photoCount = photoCount,
     title = title.orEmpty(),
@@ -34,20 +34,15 @@ fun TripRecordListItemDto.toDomain(): TripRecordSummary = TripRecordSummary(
     thumbnailUrl = thumbnailUrl,
     thumbnailUrlExpiresIn = thumbnailUrlExpiresIn,
     tags = tags.map(TagDto::toDomain),
+    locationId = region?.let { regionData ->
+        regionCatalog?.let { regionData.findLocation(it)?.id }
+    },
 )
 
 fun TagDto.toDomain(): Tag = Tag(id = id, name = TagRules.normalizeAndValidateName(name))
 
 fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
-    val location = when {
-        region.district != null && region.province != null -> regionCatalog.findDistrict(
-            provinceCode = "KR-${region.province.code}",
-            districtCode = region.district.code,
-        )
-
-        region.province != null -> regionCatalog.findByCode("KR-${region.province.code}")
-        else -> regionCatalog.findByCode(region.country.code)
-    }
+    val location = region.findLocation(regionCatalog)
     requireNotNull(location) {
         "여행 장소 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."
     }
@@ -190,13 +185,23 @@ private fun Location.toRegionQuery(
     else -> error("선택한 지역 정보를 확인하지 못했습니다. 여행 장소를 다시 선택해 주세요.")
 }
 
-fun PageDto<TripRecordListItemDto>.toDomain(): TripRecordPage = TripRecordPage(
-    records = items.map(TripRecordListItemDto::toDomain),
+fun PageDto<TripRecordListItemDto>.toDomain(regionCatalog: RegionCatalog? = null): TripRecordPage = TripRecordPage(
+    records = items.map { it.toDomain(regionCatalog) },
     page = page,
     size = size,
     totalElements = totalElements,
     totalPages = totalPages,
 )
+
+private fun TripRecordRegionDto.findLocation(regionCatalog: RegionCatalog) = when {
+    district != null && province != null -> regionCatalog.findDistrict(
+        provinceCode = "KR-${province.code}",
+        districtCode = district.code,
+    )
+
+    province != null -> regionCatalog.findByCode("KR-${province.code}")
+    else -> regionCatalog.findByCode(country.code)
+}
 
 fun MapRegionSummaryDto.toDomain(): MapRegionSummary = MapRegionSummary(
     regionId = regionId,

@@ -6,7 +6,11 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 internal data class TripRecordPhotoCollection(
     val locationName: String,
     val records: List<TripRecordItemUiState>,
+    val locationId: Long? = null,
 ) {
+    val key: String
+        get() = locationId?.let { "region:$it" } ?: "name:$locationName"
+
     val photoCount: Int
         get() = records.sumOf { it.photoCount ?: it.photos.size }
 
@@ -19,9 +23,10 @@ internal data class TripRecordPhotoCollection(
 internal fun groupTripRecordsByLocation(
     records: List<TripRecordItemUiState>,
 ): List<TripRecordPhotoCollection> = records
-    .groupBy(TripRecordItemUiState::locationName)
-    .map { (locationName, locationRecords) ->
-        TripRecordPhotoCollection(locationName, locationRecords)
+    .groupBy { record -> record.locationId?.let { "region:$it" } ?: "name:${record.locationName}" }
+    .map { (_, locationRecords) ->
+        val first = locationRecords.first()
+        TripRecordPhotoCollection(first.locationName, locationRecords, first.locationId)
     }
 
 internal fun groupSecondaryTripRecordCollections(

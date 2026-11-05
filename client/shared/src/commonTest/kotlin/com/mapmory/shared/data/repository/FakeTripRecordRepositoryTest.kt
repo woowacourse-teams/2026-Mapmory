@@ -11,20 +11,27 @@ import kotlin.test.assertTrue
 
 class FakeTripRecordRepositoryTest {
     @Test
-    fun `시간순_조회는_여행_시작일_최신순으로_기록을_반환한다`() = runSuspend {
-        val repository = FakeTripRecordRepository { "2026-08-07T00:00:00Z" }
+    fun `여행_시작일_내림차순으로_정렬한_뒤_페이지를_나눈다`() = runSuspend {
+        var createdAtDay = 7
+        val repository = FakeTripRecordRepository {
+            "2026-08-${createdAtDay++}T00:00:00Z"
+        }
         repository.createTripRecord(
-            TripRecordDraft(101, "2026-08-01", listOf("older.jpg"), title = "이전 여행"),
+            TripRecordDraft(101, "2026-08-15", listOf("recent.jpg"), title = "최근 여행"),
         )
         repository.createTripRecord(
-            TripRecordDraft(101, "2026-08-05", listOf("newer.jpg"), title = "최근 여행"),
+            TripRecordDraft(101, "2026-08-01", listOf("past.jpg"), title = "과거 여행"),
         )
 
-        val page = repository.getTripRecords(
-            TripRecordQuery(sort = TripRecordSort.TRAVEL_DATE_DESC),
+        val firstPage = repository.getTripRecords(
+            TripRecordQuery(page = 0, size = 1, sort = TripRecordSort.TRAVEL_DATE_DESC),
+        ).getOrThrow()
+        val secondPage = repository.getTripRecords(
+            TripRecordQuery(page = 1, size = 1, sort = TripRecordSort.TRAVEL_DATE_DESC),
         ).getOrThrow()
 
-        assertEquals(listOf("최근 여행", "이전 여행"), page.records.map { it.title })
+        assertEquals("최근 여행", firstPage.records.single().title)
+        assertEquals("과거 여행", secondPage.records.single().title)
     }
 
     @Test

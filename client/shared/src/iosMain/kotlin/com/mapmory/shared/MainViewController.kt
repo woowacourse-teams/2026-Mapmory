@@ -48,6 +48,7 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
         onboardingPreference = IosOnboardingPreference(),
         teamDevicePreference = IosTeamDevicePreference(),
         shareVideoJobStore = IosShareVideoJobStore(apiBaseUrl),
+        albumShareStore = com.mapmory.shared.data.settings.IosAlbumShareStore(apiBaseUrl),
         onAuthRefreshFailed = { stage, error ->
             if (Platform.isDebugBinary) {
                 val reason = (error as? MapmoryApiException)
@@ -104,7 +105,6 @@ fun MainViewController(
             contentWindowInsets = WindowInsets.safeDrawing,
             onThemeChanged = onThemeChanged,
             analytics = analytics,
-            showTimelineLayoutSwitcher = Platform.isDebugBinary,
         )
         }
     }

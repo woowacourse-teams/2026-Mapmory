@@ -5,7 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import com.mapmory.shared.MapmoryColorTheme
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 
 @Immutable
 internal data class TripRecordColors(
@@ -63,6 +63,7 @@ internal data class TripMapColors(
     val globeUnvisitedFill: Color,
     val globeVisitedOutline: Color,
     val globeUnvisitedOutline: Color,
+    val koreaVisitedLabelText: Color,
     val globeHighlightCenter: Color,
     val globeHighlightMiddle: Color,
 )
@@ -81,7 +82,6 @@ internal data class TripKoreaMapColors(
     val provinceLabelText: Color,
     val districtOverviewLabelText: Color,
     val visitedOverviewLabelText: Color,
-    val background: Color,
     val visitedFill: Color,
     val unvisitedFill: Color,
     val visitedOutline: Color,
@@ -93,12 +93,12 @@ internal data class TripKoreaMapColors(
 )
 
 private val LightTripRecordColors = TripRecordColors(
-    background = Color(0xFFFAFCFB), surface = Color.White, surfaceElevated = Color(0xFFF7FAF8),
+    background = Color(0xFFFFFEFF), surface = Color.White, surfaceElevated = Color(0xFFF7FAF8),
     line = Color(0xFFE1E7E3), text = Color(0xFF1F2924), muted = Color(0xFF89948E),
     accent = Color(0xFF4D9272), accentSoft = Color(0xFFE9F2ED), danger = Color(0xFFC94C57),
     photoRecommendText = Color(0xFFBB4D56), photoRecommendBackground = Color(0xFFFFF1F1),
     photoRecommendBorder = Color(0xFFDB6A70), photoGalleryBackground = Color(0xFFF3F7F4),
-    photoGalleryBorder = Color(0xFFB7C8BC), pageBackground = Color(0xFFFAFCFB),
+    photoGalleryBorder = Color(0xFFB7C8BC), pageBackground = Color(0xFFFFFEFF),
     softSurface = Color(0xFFF0F4F1), imagePlaceholder = Color(0xFFE4E4E4), border = Color(0xFFE4E9E6), primary = Color(0xFF4D9272),
     primarySoft = Color(0xFFE9F2ED), secondaryAccent = Color(0xFF4A896B), onPrimary = Color.White,
     headingText = Color(0xFF1F2924), bodyText = Color(0xFF5F6E66), secondaryText = Color(0xFF89948E),
@@ -108,7 +108,7 @@ private val LightTripRecordColors = TripRecordColors(
 )
 
 private val DarkTripRecordColors = TripRecordColors(
-    background = Color(0xFF111518), surface = Color(0xFF1A1E22), surfaceElevated = Color(0xFF102A32),
+    background = Color(0xFF121518), surface = Color(0xFF1A1E22), surfaceElevated = Color(0xFF102A32),
     line = Color(0xFF1B363E), text = Color(0xFFE9F4F2), muted = Color(0xFF81999E),
     accent = Color(0xFF35C988), accentSoft = Color(0xFF123E3A), danger = Color(0xFFFF6264),
     photoRecommendText = Color.White, photoRecommendBackground = Color(0xFF382125),
@@ -122,42 +122,18 @@ private val DarkTripRecordColors = TripRecordColors(
     mediaScrim = Color.Black.copy(alpha = 0.62f), metadataDateBackground = Color(0xFF24292D),
 )
 
-private val BlueLightTripRecordColors = LightTripRecordColors.copy(
-    line = Color(0xFFE0E8F0), surfaceElevated = Color(0xFFF5F8FC),
-    accent = Color(0xFF2876C7), accentSoft = Color(0xFFE8F2FC),
-    photoGalleryBackground = Color(0xFFF3F7FB), photoGalleryBorder = Color(0xFFC4D5E7),
-    pageBackground = Color(0xFFF9FBFE), softSurface = Color(0xFFF0F5FA),
-    border = Color(0xFFE0E8F0), primary = Color(0xFF2876C7), primarySoft = Color(0xFFE8F2FC),
-    secondaryAccent = Color(0xFF3F78AC), headingText = Color(0xFF202D3A),
-    bodyText = Color(0xFF596B7B), secondaryText = Color(0xFF8796A3),
-    navigationDivider = Color(0xFFE0E8F0), navigationUnselected = Color(0xFF98A5B1),
-    navigationSelectedLabel = Color(0xFF526A80),
-)
-
-private val BlueDarkTripRecordColors = DarkTripRecordColors.copy(
-    background = Color(0xFF101923), surface = Color(0xFF182331), surfaceElevated = Color(0xFF203148),
-    line = Color(0xFF293B50), text = Color(0xFFEAF2FB), muted = Color(0xFF8EA2B7),
-    accent = Color(0xFF56B3F2), accentSoft = Color(0xFF18344F),
-    photoGalleryBackground = Color(0xFF1A2A3A), photoGalleryBorder = Color(0xFF35516B),
-    pageBackground = Color(0xFF101923), softSurface = Color(0xFF1B2938),
-    border = Color(0xFF2C3B4D), primary = Color(0xFF56B3F2), primarySoft = Color(0xFF193650),
-    secondaryAccent = Color(0xFF80C6F5), onPrimary = Color(0xFF071725),
-    headingText = Color(0xFFF0F5FB), bodyText = Color(0xFFC0CEDB), secondaryText = Color(0xFFA7B9CB),
-    navigationDivider = Color(0xFF2A3847), navigationUnselected = Color(0xFF7E8F9F),
-    navigationSelectedLabel = Color(0xFFA9C3D9),
-)
-
 private val LightTripMapColors = TripMapColors(
     logoText = Color(0xFF1F2924), scopeBackground = Color(0xFFF1F5F2), scopeBorder = Color(0xFFDCE7E0),
     scopeSelectedBackground = Color.White, scopeSelectedText = Color(0xFF2D4539),
     scopeUnselectedText = Color(0xFF7A8880), tagBackground = Color(0xFFF7FAF8),
     tagText = Color(0xFF6B786F), tagSelectedText = Color.White, dashboardBadgeText = Color(0xFF4A896B),
-    globeBackground = Color(0xFFFAFCFB), globeOuterGlow = Color(0xFF789587).copy(alpha = 0.08f),
+    globeBackground = Color(0xFFFFFEFF), globeOuterGlow = Color(0xFF789587).copy(alpha = 0.08f),
     globeGradientCenter = Color(0xFFF8FAF8), globeGradientMiddle = Color(0xFFF0F4F1),
     globeGradientEdge = Color(0xFFE7EDE9), globeVisitedFill = Color(0xFF4D9272),
     globeUnvisitedFill = Color(0xFFDCE4DF),
     globeVisitedOutline = Color(0xFF2F7659).copy(alpha = 0.72f),
     globeUnvisitedOutline = Color(0xFFB8C6BD).copy(alpha = 0.72f),
+    koreaVisitedLabelText = Color(0xFF07170F),
     globeHighlightCenter = Color.White.copy(alpha = 0.34f),
     globeHighlightMiddle = Color.White.copy(alpha = 0.12f),
 )
@@ -173,37 +149,9 @@ private val DarkTripMapColors = TripMapColors(
     globeUnvisitedFill = Color(0xFF2B3546),
     globeVisitedOutline = Color(0xFF8AEBC1).copy(alpha = 0.82f),
     globeUnvisitedOutline = Color(0xFF7C8FAA).copy(alpha = 0.54f),
+    koreaVisitedLabelText = Color(0xFFE0E9E2),
     globeHighlightCenter = Color.White.copy(alpha = 0.09f),
     globeHighlightMiddle = Color.White.copy(alpha = 0.025f),
-)
-
-private val BlueLightTripMapColors = LightTripMapColors.copy(
-    scopeBackground = Color(0xFFF1F6FC), scopeBorder = Color(0xFFDDE8F3),
-    scopeSelectedText = Color(0xFF244A70), scopeUnselectedText = Color(0xFF71869B),
-    tagBackground = Color(0xFFF4F8FC), tagText = Color(0xFF61778B),
-    dashboardBadgeText = Color(0xFF2876C7),
-    globeOuterGlow = Color(0xFF5C93C8).copy(alpha = 0.09f),
-    globeGradientCenter = Color(0xFFF9FBFE), globeGradientMiddle = Color(0xFFF0F5FA),
-    globeGradientEdge = Color(0xFFE5EDF6), globeVisitedFill = Color(0xFF2876C7),
-    globeUnvisitedFill = Color(0xFFD9E4EF),
-    globeVisitedOutline = Color(0xFF1C5E9B).copy(alpha = 0.72f),
-    globeUnvisitedOutline = Color(0xFFAABBCD).copy(alpha = 0.78f),
-)
-
-private val BlueDarkTripMapColors = DarkTripMapColors.copy(
-    scopeBackground = Color(0xFF172333), scopeBorder = Color(0xFF2E435B),
-    scopeSelectedBackground = Color(0xFF243A52), scopeSelectedText = Color(0xFFE9F3FC),
-    scopeUnselectedText = Color(0xFF9BAFC2), tagBackground = Color(0xFF1A2B3D),
-    tagText = Color(0xFFC0CFDE), tagSelectedText = Color(0xFF071725),
-    dashboardBadgeText = Color(0xFF9BD4F8),
-    globeBackground = Color(0xFF101923), globeOuterGlow = Color(0xFF70BDF2).copy(alpha = 0.07f),
-    globeGradientCenter = Color(0xFF273B51), globeGradientMiddle = Color(0xFF1B2B3D),
-    globeGradientEdge = Color(0xFF101923), globeVisitedFill = Color(0xFF56B3F2),
-    globeUnvisitedFill = Color(0xFF2B3A4D),
-    globeVisitedOutline = Color(0xFF9BD4F8).copy(alpha = 0.82f),
-    globeUnvisitedOutline = Color(0xFF7891AA).copy(alpha = 0.6f),
-    globeHighlightCenter = Color.White.copy(alpha = 0.1f),
-    globeHighlightMiddle = Color.White.copy(alpha = 0.03f),
 )
 
 private val LightTripStatisticsColors = TripStatisticsColors(
@@ -216,20 +164,150 @@ private val DarkTripStatisticsColors = TripStatisticsColors(
     mapLand = Color(0xFF293039), mapOutline = Color(0xFF424B53),
 )
 
-private val BlueLightTripStatisticsColors = LightTripStatisticsColors.copy(
-    divider = Color(0xFFE2EAF2), mapBorder = Color(0xFFDFE8F1),
-    mapLand = Color(0xFFD9E4EF), mapOutline = Color(0xFFBCCCDC),
+private object OceanBluePrimitives {
+    val blue50 = Color(0xFFF2F7FD)
+    val blue100 = Color(0xFFE4EEF9)
+    val blue200 = Color(0xFFC9DDF1)
+    val blue300 = Color(0xFFA9C7E6)
+    val blue600 = Color(0xFF2B6FAE)
+    val blue700 = Color(0xFF246DBB)
+    val blue800 = Color(0xFF1F5F9E)
+    val blue900 = Color(0xFF194E82)
+    val navy700 = Color(0xFF2A3B50)
+    val navy800 = Color(0xFF213247)
+    val navy900 = Color(0xFF17283C)
+    val slate500 = Color(0xFF64788C)
+    val slate600 = Color(0xFF52677D)
+}
+
+private val LightOceanBlueTripRecordColors = LightTripRecordColors.copy(
+    surfaceElevated = OceanBluePrimitives.blue50,
+    line = OceanBluePrimitives.blue100,
+    text = OceanBluePrimitives.navy900,
+    muted = OceanBluePrimitives.slate500,
+    accent = OceanBluePrimitives.blue700,
+    accentSoft = OceanBluePrimitives.blue50,
+    photoGalleryBackground = OceanBluePrimitives.blue50,
+    photoGalleryBorder = OceanBluePrimitives.blue300,
+    softSurface = OceanBluePrimitives.blue50,
+    border = OceanBluePrimitives.blue100,
+    primary = OceanBluePrimitives.blue700,
+    primarySoft = OceanBluePrimitives.blue100,
+    secondaryAccent = OceanBluePrimitives.blue600,
+    headingText = OceanBluePrimitives.navy900,
+    bodyText = OceanBluePrimitives.slate600,
+    secondaryText = OceanBluePrimitives.slate500,
+    navigationDivider = OceanBluePrimitives.blue100,
+    navigationUnselected = OceanBluePrimitives.slate500,
+    navigationSelectedLabel = OceanBluePrimitives.slate600,
+    metadataDateBackground = OceanBluePrimitives.blue50,
 )
 
-private val BlueDarkTripStatisticsColors = DarkTripStatisticsColors.copy(
-    divider = Color(0xFF2D3C4D), mapBorder = Color(0xFF304155),
-    mapLand = Color(0xFF26374A), mapOutline = Color(0xFF3B5066),
+private val DarkOceanBlueTripRecordColors = DarkTripRecordColors.copy(
+    surface = Color(0xFF19212A),
+    surfaceElevated = Color(0xFF202D3B),
+    line = Color(0xFF283747),
+    text = Color(0xFFECF4FB),
+    muted = Color(0xFF91A4B8),
+    accent = Color(0xFF83B8F3),
+    accentSoft = Color(0xFF193451),
+    photoGalleryBackground = Color(0xFF1B2C3D),
+    photoGalleryBorder = Color(0xFF3A5979),
+    softSurface = Color(0xFF1B2733),
+    border = Color(0xFF2C3E51),
+    primary = Color(0xFF6EA9F3),
+    primarySoft = Color(0xFF18324E),
+    secondaryAccent = Color(0xFF97C5F7),
+    onPrimary = Color(0xFF0C1A27),
+    headingText = Color(0xFFECF4FB),
+    bodyText = Color(0xFFB9C8D8),
+    secondaryText = Color(0xFFA7B9CB),
+    navigationDivider = Color(0xFF293744),
+    navigationUnselected = Color(0xFF7F8FA1),
+    navigationSelectedLabel = Color(0xFFB7C7D8),
+    metadataDateBackground = Color(0xFF202D3B),
 )
+
+private val LightOceanBlueTripMapColors = LightTripMapColors.copy(
+    logoText = OceanBluePrimitives.navy900,
+    scopeBackground = OceanBluePrimitives.blue50,
+    scopeBorder = OceanBluePrimitives.blue100,
+    scopeSelectedText = OceanBluePrimitives.navy800,
+    scopeUnselectedText = OceanBluePrimitives.slate500,
+    tagBackground = OceanBluePrimitives.blue50,
+    tagText = OceanBluePrimitives.slate600,
+    dashboardBadgeText = OceanBluePrimitives.blue700,
+    globeOuterGlow = Color(0xFF6FA8E8).copy(alpha = 0.08f),
+    globeGradientCenter = Color(0xFFFAFCFF),
+    globeGradientMiddle = OceanBluePrimitives.blue50,
+    globeGradientEdge = OceanBluePrimitives.blue100,
+    globeVisitedFill = OceanBluePrimitives.blue600,
+    globeUnvisitedFill = OceanBluePrimitives.blue100,
+    globeVisitedOutline = OceanBluePrimitives.blue800.copy(alpha = 0.72f),
+    globeUnvisitedOutline = OceanBluePrimitives.blue300.copy(alpha = 0.72f),
+    koreaVisitedLabelText = Color.White,
+)
+
+private val DarkOceanBlueTripMapColors = DarkTripMapColors.copy(
+    logoText = Color(0xFFECF4FB),
+    scopeBackground = Color(0xFF1B2835),
+    scopeBorder = Color(0xFF304153),
+    scopeSelectedBackground = Color(0xFF293A4D),
+    scopeSelectedText = Color(0xFFECF4FB),
+    scopeUnselectedText = Color(0xFF97A9BC),
+    tagBackground = Color(0xFF1D2A38),
+    tagText = Color(0xFFBDCAD8),
+    tagSelectedText = Color(0xFF0C1A27),
+    dashboardBadgeText = Color(0xFF97C5F7),
+    globeOuterGlow = Color(0xFF6EA9F3).copy(alpha = 0.08f),
+    globeGradientCenter = Color(0xFF25364A),
+    globeGradientMiddle = Color(0xFF1A293A),
+    globeGradientEdge = Color(0xFF121C29),
+    globeVisitedFill = Color(0xFF6EA9F3),
+    globeUnvisitedFill = Color(0xFF2D3B4A),
+    globeVisitedOutline = Color(0xFF9CC9F8).copy(alpha = 0.82f),
+    globeUnvisitedOutline = Color(0xFF8298B0).copy(alpha = 0.58f),
+    koreaVisitedLabelText = Color(0xFF0C1A27),
+    globeHighlightCenter = Color.White.copy(alpha = 0.10f),
+    globeHighlightMiddle = Color.White.copy(alpha = 0.035f),
+)
+
+private val LightOceanBlueTripStatisticsColors = LightTripStatisticsColors.copy(
+    divider = OceanBluePrimitives.blue100,
+    mapBorder = OceanBluePrimitives.blue100,
+    mapLand = OceanBluePrimitives.blue100,
+    mapOutline = OceanBluePrimitives.blue300,
+)
+
+private val DarkOceanBlueTripStatisticsColors = DarkTripStatisticsColors.copy(
+    divider = OceanBluePrimitives.navy700,
+    mapBorder = OceanBluePrimitives.navy700,
+    mapLand = OceanBluePrimitives.navy800,
+    mapOutline = Color(0xFF52677D),
+)
+
+internal fun tripRecordColors(isDark: Boolean, themePalette: MapmoryThemePalette): TripRecordColors =
+    when (themePalette) {
+        MapmoryThemePalette.MAPMORY_GREEN -> if (isDark) DarkTripRecordColors else LightTripRecordColors
+        MapmoryThemePalette.OCEAN_BLUE -> if (isDark) DarkOceanBlueTripRecordColors else LightOceanBlueTripRecordColors
+    }
+
+private fun tripMapColors(isDark: Boolean, themePalette: MapmoryThemePalette): TripMapColors =
+    when (themePalette) {
+        MapmoryThemePalette.MAPMORY_GREEN -> if (isDark) DarkTripMapColors else LightTripMapColors
+        MapmoryThemePalette.OCEAN_BLUE -> if (isDark) DarkOceanBlueTripMapColors else LightOceanBlueTripMapColors
+    }
+
+private fun tripStatisticsColors(isDark: Boolean, themePalette: MapmoryThemePalette): TripStatisticsColors =
+    when (themePalette) {
+        MapmoryThemePalette.MAPMORY_GREEN -> if (isDark) DarkTripStatisticsColors else LightTripStatisticsColors
+        MapmoryThemePalette.OCEAN_BLUE -> if (isDark) DarkOceanBlueTripStatisticsColors else LightOceanBlueTripStatisticsColors
+    }
 
 private val LightTripKoreaMapColors = TripKoreaMapColors(
     labelText = Color(0xFF6B786F), provinceLabelText = Color(0xFF34443A),
     districtOverviewLabelText = Color(0xFF5D6E62), visitedOverviewLabelText = Color(0xFF07170F),
-    background = Color(0xFFFAFCFB), visitedFill = Color(0xFF4D9272),
+    visitedFill = Color(0xFF4D9272),
     unvisitedFill = Color(0xFFE7EFE9), visitedOutline = Color(0xFF2F7659).copy(alpha = 0.50f),
     unvisitedOutline = Color(0xFFA7B9AC).copy(alpha = 0.70f),
     overviewDistrictOutline = Color(0xFFBECAC1).copy(alpha = 0.70f),
@@ -241,7 +319,7 @@ private val LightTripKoreaMapColors = TripKoreaMapColors(
 private val DarkTripKoreaMapColors = TripKoreaMapColors(
     labelText = Color(0xFF7085A8), provinceLabelText = Color(0xFFE0E9E2),
     districtOverviewLabelText = Color(0xFFAAB6AD), visitedOverviewLabelText = Color(0xFFE0E9E2),
-    background = Color(0xFF121518), visitedFill = Color(0xFF35C987),
+    visitedFill = Color(0xFF35C987),
     unvisitedFill = Color(0xFF1B2536), visitedOutline = Color(0xFF8AEBC1).copy(alpha = 0.60f),
     unvisitedOutline = Color(0xFF65738A).copy(alpha = 0.70f),
     overviewDistrictOutline = Color(0xFF36453D).copy(alpha = 0.70f),
@@ -265,7 +343,7 @@ private val BlueLightTripKoreaMapColors = LightTripKoreaMapColors.copy(
 private val BlueDarkTripKoreaMapColors = DarkTripKoreaMapColors.copy(
     labelText = Color(0xFF8EA9C5), provinceLabelText = Color(0xFFE4EEF8),
     districtOverviewLabelText = Color(0xFFB0C4D7), visitedOverviewLabelText = Color(0xFFEAF4FC),
-    background = Color(0xFF101923), visitedFill = Color(0xFF56B3F2),
+    visitedFill = Color(0xFF56B3F2),
     unvisitedFill = Color(0xFF1C2B3D), visitedOutline = Color(0xFFA2D9FC).copy(alpha = 0.62f),
     unvisitedOutline = Color(0xFF7087A0).copy(alpha = 0.72f),
     overviewDistrictOutline = Color(0xFF34495E).copy(alpha = 0.72f),
@@ -274,42 +352,24 @@ private val BlueDarkTripKoreaMapColors = DarkTripKoreaMapColors.copy(
     labelBorder = Color(0xFF3A5874),
 )
 
+internal val TripKoreaMapPalette = staticCompositionLocalOf { LightTripKoreaMapColors }
 internal val TripRecordPalette = staticCompositionLocalOf { LightTripRecordColors }
 internal val TripMapPalette = staticCompositionLocalOf { LightTripMapColors }
 internal val TripStatisticsPalette = staticCompositionLocalOf { LightTripStatisticsColors }
-internal val TripKoreaMapPalette = staticCompositionLocalOf { LightTripKoreaMapColors }
 
 @Composable
 internal fun ProvideTripRecordPalettes(
     isDark: Boolean,
-    colorTheme: MapmoryColorTheme = MapmoryColorTheme.GREEN,
+    themePalette: MapmoryThemePalette = MapmoryThemePalette.MAPMORY_GREEN,
     content: @Composable () -> Unit,
 ) {
-    val isBlue = colorTheme == MapmoryColorTheme.BLUE
     CompositionLocalProvider(
-        TripRecordPalette provides when {
-            isBlue && isDark -> BlueDarkTripRecordColors
-            isBlue -> BlueLightTripRecordColors
-            isDark -> DarkTripRecordColors
-            else -> LightTripRecordColors
-        },
-        TripMapPalette provides when {
-            isBlue && isDark -> BlueDarkTripMapColors
-            isBlue -> BlueLightTripMapColors
-            isDark -> DarkTripMapColors
-            else -> LightTripMapColors
-        },
-        TripStatisticsPalette provides when {
-            isBlue && isDark -> BlueDarkTripStatisticsColors
-            isBlue -> BlueLightTripStatisticsColors
-            isDark -> DarkTripStatisticsColors
-            else -> LightTripStatisticsColors
-        },
-        TripKoreaMapPalette provides when {
-            isBlue && isDark -> BlueDarkTripKoreaMapColors
-            isBlue -> BlueLightTripKoreaMapColors
-            isDark -> DarkTripKoreaMapColors
-            else -> LightTripKoreaMapColors
+        TripRecordPalette provides tripRecordColors(isDark, themePalette),
+        TripMapPalette provides tripMapColors(isDark, themePalette),
+        TripStatisticsPalette provides tripStatisticsColors(isDark, themePalette),
+        TripKoreaMapPalette provides when (themePalette) {
+            MapmoryThemePalette.MAPMORY_GREEN -> if (isDark) DarkTripKoreaMapColors else LightTripKoreaMapColors
+            MapmoryThemePalette.OCEAN_BLUE -> if (isDark) BlueDarkTripKoreaMapColors else BlueLightTripKoreaMapColors
         },
         content = content,
     )

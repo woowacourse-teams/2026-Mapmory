@@ -36,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -89,6 +90,7 @@ import com.mapmory.shared.preview.previewUiRecords
 internal fun TripRecordListScreen(
     uiState: TripRecordListUiState,
     filter: TripRecordFilterUiState,
+    selectedLocationName: String? = null,
     pendingSaves: List<BackgroundTripRecordSave> = emptyList(),
     onRetryPendingSave: (Long) -> Unit = {},
     onDismissPendingSave: (Long) -> Unit = {},
@@ -114,34 +116,34 @@ internal fun TripRecordListScreen(
     backHandlerOwnerId: String? = null,
     photoCollectionLoadState: TripRecordPhotoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle,
     photoCollectionIndexState: TripRecordPhotoCollectionIndexState = TripRecordPhotoCollectionIndexState.Idle,
-    onLoadPhotoCollection: (String) -> Unit = {},
+    onLoadPhotoCollection: (Long?, String) -> Unit = { _, _ -> },
     onLoadPhotoCollectionIndex: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showTimelineVideo by rememberSaveable { mutableStateOf(false) }
-    var selectedCollectionLocation by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCollectionKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showCollectionPhotoGallery by rememberSaveable { mutableStateOf(false) }
-    var gestureClosedCollectionLocation by remember { mutableStateOf<String?>(null) }
+    var gestureClosedCollectionKey by remember { mutableStateOf<String?>(null) }
     var gestureClosedPhotoGallery by remember { mutableStateOf(false) }
     val videoCreationScope = rememberCoroutineScope()
     val analytics = LocalMapmoryAnalytics.current
     val collectionRecords = (photoCollectionIndexState as? TripRecordPhotoCollectionIndexState.Loaded)
         ?.records.orEmpty()
     val collections = remember(collectionRecords) { groupTripRecordsByLocation(collectionRecords) }
-    val selectedCollection = collections.firstOrNull { it.locationName == selectedCollectionLocation }
+    val selectedCollection = collections.firstOrNull { it.key == selectedCollectionKey }
     val loadedPhotoCollection = (photoCollectionLoadState as? TripRecordPhotoCollectionLoadState.Loaded)
-        ?.takeIf { it.locationName == selectedCollectionLocation }
+        ?.takeIf { it.key == selectedCollectionKey }
     val displayedCollection = loadedPhotoCollection?.let {
-        TripRecordPhotoCollection(it.locationName, it.records)
+        TripRecordPhotoCollection(it.locationName, it.records, it.locationId)
     } ?: selectedCollection
-    val photoCollectionStateLocation = when (val state = photoCollectionLoadState) {
-        is TripRecordPhotoCollectionLoadState.Loading -> state.locationName
-        is TripRecordPhotoCollectionLoadState.Loaded -> state.locationName
-        is TripRecordPhotoCollectionLoadState.Error -> state.locationName
+    val photoCollectionStateKey = when (val state = photoCollectionLoadState) {
+        is TripRecordPhotoCollectionLoadState.Loading -> state.key
+        is TripRecordPhotoCollectionLoadState.Loaded -> state.key
+        is TripRecordPhotoCollectionLoadState.Error -> state.key
         TripRecordPhotoCollectionLoadState.Idle -> null
     }
     val latestBackAction = rememberUpdatedState {
-        gestureClosedCollectionLocation = null
+        gestureClosedCollectionKey = null
         gestureClosedPhotoGallery = false
         when {
             showCollectionPhotoGallery -> {
@@ -149,9 +151,9 @@ internal fun TripRecordListScreen(
                 gestureClosedPhotoGallery = true
                 true
             }
-            selectedCollectionLocation != null -> {
-                gestureClosedCollectionLocation = selectedCollectionLocation
-                selectedCollectionLocation = null
+            selectedCollectionKey != null -> {
+                gestureClosedCollectionKey = selectedCollectionKey
+                selectedCollectionKey = null
                 true
             }
             else -> false
@@ -159,9 +161,9 @@ internal fun TripRecordListScreen(
     }
     val latestForwardAction = rememberUpdatedState {
         when {
-            gestureClosedCollectionLocation != null -> {
-                selectedCollectionLocation = gestureClosedCollectionLocation
-                gestureClosedCollectionLocation = null
+            gestureClosedCollectionKey != null -> {
+                selectedCollectionKey = gestureClosedCollectionKey
+                gestureClosedCollectionKey = null
                 true
             }
             gestureClosedPhotoGallery -> {
@@ -181,7 +183,7 @@ internal fun TripRecordListScreen(
     }
     val changeLayout: (TripRecordListLayout) -> Unit = { nextLayout ->
         if (nextLayout != TripRecordListLayout.COLLECTION) {
-            selectedCollectionLocation = null
+            selectedCollectionKey = null
             showCollectionPhotoGallery = false
         }
         onLayoutChange(nextLayout)
@@ -189,12 +191,12 @@ internal fun TripRecordListScreen(
     PlatformBackHandler(enabled = selectedCollection != null) {
         latestBackAction.value()
     }
-    LaunchedEffect(layout, selectedCollectionLocation, photoCollectionStateLocation) {
-        val locationName = selectedCollectionLocation
+    LaunchedEffect(layout, selectedCollectionKey, photoCollectionStateKey) {
+        val collection = selectedCollection
         if (layout == TripRecordListLayout.COLLECTION &&
-            locationName != null && photoCollectionStateLocation != locationName
+            collection != null && photoCollectionStateKey != collection.key
         ) {
-            onLoadPhotoCollection(locationName)
+            onLoadPhotoCollection(collection.locationId, collection.locationName)
         }
     }
     DisposableEffect(backHandlerRegistry, backHandlerOwnerId) {
@@ -221,6 +223,7 @@ internal fun TripRecordListScreen(
                 JournalHeader(
                     recordCount = (uiState as? TripRecordListUiState.Success)?.totalElements,
                     layout = layout,
+                    locationName = selectedLocationName,
                 )
             }
 
@@ -235,18 +238,22 @@ internal fun TripRecordListScreen(
                             collection = selectedCollection,
                             photoCollectionLoadState = photoCollectionLoadState,
                             onBackClick = { showCollectionPhotoGallery = false },
-                            onRetryClick = { onLoadPhotoCollection(selectedCollection.locationName) },
+                            onRetryClick = {
+                                onLoadPhotoCollection(selectedCollection.locationId, selectedCollection.locationName)
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
                         TripRecordPhotoCollectionDetail(
                             collection = displayedCollection ?: selectedCollection,
-                            isLoadingAllPhotos = photoCollectionStateLocation == selectedCollection.locationName &&
+                            isLoadingAllPhotos = photoCollectionStateKey == selectedCollection.key &&
                                 loadedPhotoCollection == null &&
                                 photoCollectionLoadState !is TripRecordPhotoCollectionLoadState.Error,
                             hasLoadedAllPhotos = loadedPhotoCollection != null,
-                            onRetryLoadPhotos = { onLoadPhotoCollection(selectedCollection.locationName) },
-                            onBackClick = { selectedCollectionLocation = null },
+                            onRetryLoadPhotos = {
+                                onLoadPhotoCollection(selectedCollection.locationId, selectedCollection.locationName)
+                            },
+                            onBackClick = { selectedCollectionKey = null },
                             onShowAllPhotos = { showCollectionPhotoGallery = true },
                             onRecordClick = openRecord,
                             onCreateClick = onCreateClick,
@@ -259,7 +266,7 @@ internal fun TripRecordListScreen(
                         .fillMaxSize()
                         .padding(horizontal = 18.dp),
                 ) {
-                    if (shareVideoRepository != null) {
+                    if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
                             countryCount = videoCountryCount,
                             compact = hasSeenVideoPreview,
@@ -331,7 +338,8 @@ internal fun TripRecordListScreen(
                             }
                             if (isEmpty) {
                                 EmptyTripRecords(
-                                    hasFilter = filter.locationId != null || filter.selectedTagId != null,
+                                    hasLocationFilter = filter.locationId != null,
+                                    hasTagFilter = filter.selectedTagId != null,
                                     modifier = Modifier.weight(1f),
                                 )
                             } else {
@@ -364,7 +372,7 @@ internal fun TripRecordListScreen(
                                         onRetryPendingSave = onRetryPendingSave,
                                         onDismissPendingSave = onDismissPendingSave,
                                         onCollectionClick = {
-                                            selectedCollectionLocation = it
+                                            selectedCollectionKey = it
                                             showCollectionPhotoGallery = false
                                         },
                                         showLayoutSwitcher = showLayoutSwitcher && hasScrollableRecordList,
@@ -671,7 +679,7 @@ private fun TripRecordLoadError(
 }
 
 @Composable
-private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
+private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout, locationName: String?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -680,7 +688,7 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 text = "MY TRAVEL JOURNAL",
                 color = TripRecordPalette.current.primary,
@@ -689,14 +697,16 @@ private fun JournalHeader(recordCount: Long?, layout: TripRecordListLayout) {
                 letterSpacing = 1.2.sp,
             )
             Text(
-                text = "나의 여행",
+                text = locationName ?: "나의 여행",
                 color = TripRecordPalette.current.headingText,
                 fontSize = 25.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = when (layout) {
+                text = if (locationName != null) "이 지역에 남긴 여행 기록" else when (layout) {
                     TripRecordListLayout.TIMELINE -> "언제, 어디서 남긴 기록인지 차례로"
                     TripRecordListLayout.COLLECTION -> "여행 기록을 여행지별로 모아보기"
                     TripRecordListLayout.PHOTO -> "사진을 따라 그날의 기억으로"
@@ -957,21 +967,21 @@ private fun TripRecordPhotoCollectionList(
             }
         }
         collections.firstOrNull()?.let { featuredCollection ->
-            item(key = "featured-${featuredCollection.locationName}") {
+            item(key = "featured-${featuredCollection.key}") {
                 TripRecordPhotoCollectionCard(
                     collection = featuredCollection,
                     featured = true,
-                    onClick = { onCollectionClick(featuredCollection.locationName) },
+                    onClick = { onCollectionClick(featuredCollection.key) },
                 )
             }
         }
-        items(gridRows, key = { row -> "collections-${row.first().locationName}" }) { row ->
+        items(gridRows, key = { row -> "collections-${row.first().key}" }) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { collection ->
                     TripRecordPhotoCollectionCard(
                         collection = collection,
                         modifier = Modifier.weight(1f),
-                        onClick = { onCollectionClick(collection.locationName) },
+                        onClick = { onCollectionClick(collection.key) },
                     )
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -1216,9 +1226,9 @@ private fun TripRecordPhotoCollectionGallery(
     modifier: Modifier = Modifier,
 ) {
     val loadState = when (val state = photoCollectionLoadState) {
-        is TripRecordPhotoCollectionLoadState.Loading -> state.takeIf { it.locationName == collection.locationName }
-        is TripRecordPhotoCollectionLoadState.Loaded -> state.takeIf { it.locationName == collection.locationName }
-        is TripRecordPhotoCollectionLoadState.Error -> state.takeIf { it.locationName == collection.locationName }
+        is TripRecordPhotoCollectionLoadState.Loading -> state.takeIf { it.key == collection.key }
+        is TripRecordPhotoCollectionLoadState.Loaded -> state.takeIf { it.key == collection.key }
+        is TripRecordPhotoCollectionLoadState.Error -> state.takeIf { it.key == collection.key }
         TripRecordPhotoCollectionLoadState.Idle -> null
     }
     val loadedRecords = (loadState as? TripRecordPhotoCollectionLoadState.Loaded)?.records
@@ -2089,22 +2099,32 @@ private fun formattedDate(record: TripRecordItemUiState): String? {
 
 @Composable
 private fun EmptyTripRecords(
-    hasFilter: Boolean,
+    hasLocationFilter: Boolean,
+    hasTagFilter: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val hasFilter = hasLocationFilter || hasTagFilter
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (hasFilter) "조건에 맞는 여행 기록이 없어요." else "아직 작성한 여행 기록이 없어요.",
+            text = when {
+                hasLocationFilter && !hasTagFilter -> "이 지역에는 아직 여행 기록이 없어요."
+                hasFilter -> "조건에 맞는 여행 기록이 없어요."
+                else -> "아직 작성한 여행 기록이 없어요."
+            },
             color = TripRecordPalette.current.text,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "새로운 여행의 순간을 기록해 보세요.",
+            text = if (hasLocationFilter && !hasTagFilter) {
+                "이 지역의 첫 기록을 남겨보세요."
+            } else {
+                "새로운 여행의 순간을 기록해 보세요."
+            },
             color = TripRecordPalette.current.muted,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 8.dp),
@@ -2124,25 +2144,35 @@ private fun PageControls(
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        OutlinedButton(
+            onClick = onPreviousPageClick,
+            enabled = page > 0,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = TripRecordPalette.current.accent,
+                disabledContentColor = TripRecordPalette.current.muted,
+            ),
+            border = BorderStroke(1.dp, TripRecordPalette.current.border),
+        ) {
+            Text("‹ 이전")
+        }
         Text(
-            text = "‹ 이전",
-            color = if (page > 0) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
-            modifier = Modifier.clickable(enabled = page > 0, onClick = onPreviousPageClick),
-        )
-        Text(
-            text = "${page + 1} / $totalPages",
-            color = TripRecordPalette.current.contentOnMedia,
+            text = "${page + 1} / $totalPages 페이지",
+            color = TripRecordPalette.current.headingText,
             fontSize = 12.sp,
         )
-        Text(
-            text = "다음 ›",
-            color = if (page + 1 < totalPages) TripRecordPalette.current.accent else TripRecordPalette.current.muted.copy(alpha = 0.45f),
-            modifier = Modifier.clickable(
-                enabled = page + 1 < totalPages,
-                onClick = onNextPageClick,
+        OutlinedButton(
+            onClick = onNextPageClick,
+            enabled = page + 1 < totalPages,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = TripRecordPalette.current.accent,
+                disabledContentColor = TripRecordPalette.current.muted,
             ),
-        )
+            border = BorderStroke(1.dp, TripRecordPalette.current.border),
+        ) {
+            Text("다음 ›")
+        }
     }
 }
 
