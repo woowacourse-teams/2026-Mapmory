@@ -1,5 +1,6 @@
 package com.mapmory.shared.presentation.map.route
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import com.mapmory.shared.presentation.map.ui.regionAt
 import com.mapmory.shared.presentation.map.viewmodel.MapViewModel
 import com.mapmory.shared.presentation.triprecord.screen.FirstRecordIntroduction
 import com.mapmory.shared.presentation.triprecord.screen.TripMapScreen
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -165,7 +167,12 @@ internal fun MapRoute(
     }
 
     val selectedProvinceCode = uiState.koreaMap.provinceCodeOrNull()
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .background(TripRecordPalette.current.pageBackground)
+            .then(modifier)
+            .fillMaxSize(),
+    ) {
         TripMapScreen(
             modifier = Modifier.fillMaxSize(),
             mapScope = uiState.scope,

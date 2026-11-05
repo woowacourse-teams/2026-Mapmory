@@ -5,6 +5,13 @@ import platform.Foundation.NSUserDefaults
 class IosOnboardingPreference : OnboardingPreference {
     private val preferences = NSUserDefaults.standardUserDefaults
 
+    override fun hasSeenVideoPreview(): Boolean =
+        preferences.boolForKey(HasSeenVideoPreviewKey)
+
+    override fun markVideoPreviewSeen() {
+        preferences.setBool(true, forKey = HasSeenVideoPreviewKey)
+    }
+
     override fun hasSeenRecordIntroduction(): Boolean =
         preferences.boolForKey(HasSeenRecordIntroductionKey)
 
@@ -14,3 +21,5 @@ class IosOnboardingPreference : OnboardingPreference {
 }
 
 private const val HasSeenRecordIntroductionKey = "mapmory_has_seen_record_introduction"
+
+private const val HasSeenVideoPreviewKey = "mapmory_has_seen_video_preview"

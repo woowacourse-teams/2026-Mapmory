@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -105,12 +106,16 @@ internal fun shouldShowTripTimelineVideoRetryButton(
 internal fun tripTimelineVideoDialogHeightFraction(expanded: Boolean): Float =
     if (expanded) 0.82f else 0.44f
 
+internal fun canCreateTripTimelineVideo(countryCount: Int?): Boolean = countryCount != null && countryCount >= 2
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TripTimelineVideoDialog(
     repository: ShareVideoRepository,
     jobStore: ShareVideoJobStore,
     creationScope: CoroutineScope,
+    countryCount: Int?,
+    retryCountryCount: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val analytics = LocalMapmoryAnalytics.current
@@ -136,9 +141,11 @@ internal fun TripTimelineVideoDialog(
     val previewLayout = video != null || status == ShareVideoStatus.COMPLETED
     val startedAtEpochMillis = jobState.startedAtEpochMillis
     val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
+    val canCreate = canCreateTripTimelineVideo(countryCount)
+    val showSample = !previewLayout && !creationInProgress && !activeJob
     val expanded = shouldExpandTripTimelineVideoDialog(video != null, status)
     val dialogHeightFraction by animateFloatAsState(
-        targetValue = tripTimelineVideoDialogHeightFraction(expanded),
+        targetValue = if (showSample) 0.94f else tripTimelineVideoDialogHeightFraction(expanded),
         label = "trip timeline video dialog height",
     )
     var nowEpochMillis by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
@@ -158,7 +165,7 @@ internal fun TripTimelineVideoDialog(
     }
 
     fun createVideo() {
-        if (busy) return
+        if (!canCreate || busy || activeJob) return
         if (!jobStore.tryStartCreationRequest()) {
             message = if (jobStore.state.value.isCreationRequestInProgress) {
                 "영상 생성을 요청하고 있어요.\n잠시만 기다려 주세요."
@@ -196,7 +203,7 @@ internal fun TripTimelineVideoDialog(
     }
 
     fun regenerateVideo() {
-        if (busy || creationInProgress || activeJob) return
+        if (!canCreate || busy || creationInProgress || activeJob) return
         jobId?.let(notifier::clearProgress)
         telemetry.action(ShareMediaAction.REGENERATE_CLICKED)
         jobStore.clear()
@@ -309,6 +316,7 @@ internal fun TripTimelineVideoDialog(
                     Modifier.fillMaxSize().background(Color.Black)
                 } else {
                     Modifier.align(Alignment.Center).fillMaxWidth(0.92f).fillMaxHeight(dialogHeightFraction)
+                        .then(if (showSample) Modifier.wrapContentHeight() else Modifier)
                         .background(TripRecordPalette.current.surface, RoundedCornerShape(28.dp))
                         .padding(horizontal = 16.dp, vertical = 18.dp)
                 },
@@ -319,23 +327,11 @@ internal fun TripTimelineVideoDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("여행 타임라인 영상", color = TripRecordPalette.current.headingText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(if (showSample) "생성 전 미리보기" else "여행 타임라인 영상", color = TripRecordPalette.current.headingText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         TextButton(onClick = ::dismissDialog, enabled = !creationInProgress) {
                             Text(if (creationInProgress) "요청 중…" else "닫기", color = TripRecordPalette.current.secondaryText)
                         }
                     }
-                }
-                if (!showFullscreenPreview && !previewLayout && !creationInProgress && !activeJob &&
-                    status != ShareVideoStatus.PENDING && status != ShareVideoStatus.RENDERING &&
-                    !(jobId != null && status == null)
-                ) {
-                    ShareVideoStyleSelector(
-                        selectedStyle = selectedStyle,
-                        enabled = !busy,
-                        onSelect = { selectedStyle = it },
-                        compact = previewLayout,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                    )
                 }
                 if (previewLayout) {
                     Column(
@@ -477,9 +473,34 @@ internal fun TripTimelineVideoDialog(
                     }
                 } else {
                     Column(
-                        modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                        modifier = Modifier.weight(1f, fill = !showSample).fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
                     ) {
                         Spacer(Modifier.height(12.dp))
+                        if (showSample) {
+                            TripTimelineStyleSample(selectedStyle)
+                            ShareVideoStyleSelector(
+                                selectedStyle = selectedStyle,
+                                enabled = !busy,
+                                onSelect = { selectedStyle = it },
+                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+                            )
+                            if (!canCreate) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    when {
+                                        retryCountryCount != null -> "기록한 국가 수를 확인하지 못했어요."
+                                        countryCount == null -> "기록한 국가 수를 확인하고 있어요."
+                                        else -> "기록한 국가 ${countryCount}/2곳\n서로 다른 두 나라에 기록을 남기면 영상 만들기가 열려요."
+                                    },
+                                    color = TripRecordPalette.current.secondaryText,
+                                    fontSize = 13.sp,
+                                )
+                                if (retryCountryCount != null) {
+                                    TextButton(onClick = retryCountryCount) { Text("다시 확인") }
+                                }
+                            }
+                        }
                         val statusMessage = when (status) {
                             ShareVideoStatus.PENDING -> "영상 생성 대기 중이에요."
                             ShareVideoStatus.RENDERING -> "여행 기록을 영상으로 만들고 있어요."
@@ -488,7 +509,7 @@ internal fun TripTimelineVideoDialog(
                             null -> when {
                                 creationInProgress -> "영상 생성을 요청하고 있어요."
                                 jobId != null -> "저장된 영상 작업을 확인하고 있어요."
-                                else -> "기록한 여행을 타임라인 영상으로 만들어 공유해요."
+                                else -> null
                             }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -524,29 +545,28 @@ internal fun TripTimelineVideoDialog(
                         }
                         if (status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING) {
                             Text(
-                                "화면을 닫아도 서버 생성은 계속돼요.\n알림을 허용하면 알림 센터에 진행 중 상태가 남아요.\n앱이 백그라운드에 있으면 완료 여부는 다시 열었을 때 확인돼요.",
+                                "화면을 닫아도 서버 생성은 계속돼요.",
                                 color = TripRecordPalette.current.secondaryText,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(top = 8.dp),
                             )
                         }
-                        Spacer(Modifier.height(22.dp))
+                    }
+                    if (showSample) {
+                        Spacer(Modifier.height(14.dp))
                         Button(
                             onClick = ::createVideo,
-                            enabled = !busy && !creationInProgress,
+                            enabled = canCreate && !busy,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
                         ) {
                             Text(
                                 when {
-                                    busy -> "요청 중…"
-                                    creationInProgress -> "요청 중…"
                                     status == ShareVideoStatus.FAILED -> "선택한 스타일로 다시 만들기"
-                                    jobId == null -> "선택한 스타일로 영상 만들기"
+                                    jobId == null -> "이 스타일로 내 영상 만들기"
                                     else -> "다시 시도"
                                 },
-                                color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
@@ -571,7 +591,8 @@ internal fun TripTimelineVideoDialog(
             contentColor = TripRecordPalette.current.headingText,
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp).padding(bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("영상 스타일", color = TripRecordPalette.current.headingText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -580,18 +601,28 @@ internal fun TripTimelineVideoDialog(
                     color = TripRecordPalette.current.secondaryText,
                     fontSize = 13.sp,
                 )
+                TripTimelineStyleSample(selectedStyle)
                 ShareVideoStyleSelector(
                     selectedStyle = selectedStyle,
                     enabled = !busy && !creationInProgress && !activeJob,
                     onSelect = { selectedStyle = it },
                     compact = true,
                 )
+                if (!canCreate) {
+                    Text(
+                        if (countryCount == null) "기록한 국가 수를 확인해야 새 영상을 만들 수 있어요."
+                        else "서로 다른 두 나라에 기록을 남기면 새 영상을 만들 수 있어요.",
+                        color = TripRecordPalette.current.secondaryText,
+                        fontSize = 13.sp,
+                    )
+                    if (retryCountryCount != null) TextButton(onClick = retryCountryCount) { Text("다시 확인") }
+                }
                 Button(
                     onClick = {
                         showStyleSheet = false
                         regenerateVideo()
                     },
-                    enabled = !busy && !creationInProgress && !activeJob,
+                    enabled = canCreate && !busy && !creationInProgress && !activeJob,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
@@ -603,6 +634,9 @@ internal fun TripTimelineVideoDialog(
     }
 }
 
+internal val ShareVideoStyle.previewLabel: String
+    get() = if (this == ShareVideoStyle.CLASSIC) "기본 지구본" else label
+
 @Composable
 private fun ShareVideoStyleSelector(
     selectedStyle: ShareVideoStyle,
@@ -613,9 +647,6 @@ private fun ShareVideoStyleSelector(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
         Text(if (compact) "영상 스타일" else "영상 스타일 선택", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        if (!compact) {
-            Text("한 번에 한 가지 스타일로 영상을 만들어요.", color = TripRecordPalette.current.secondaryText, fontSize = 12.sp)
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ShareVideoStyleOption(ShareVideoStyle.CLASSIC, selectedStyle, enabled, onSelect, Modifier.weight(1f))
             ShareVideoStyleOption(ShareVideoStyle.ZOOM, selectedStyle, enabled, onSelect, Modifier.weight(1f))
@@ -651,11 +682,11 @@ private fun ShareVideoStyleOption(
                 role = Role.RadioButton,
                 onClick = { onSelect(style) },
             )
-            .semantics { contentDescription = "${style.label} 영상 스타일 선택" },
+            .semantics { contentDescription = "${style.previewLabel} 영상 스타일 선택" },
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            style.label,
+            style.previewLabel,
             color = if (selected) Color.White else TripRecordPalette.current.headingText,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

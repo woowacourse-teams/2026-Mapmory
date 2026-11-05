@@ -132,7 +132,6 @@ internal fun MapmoryNavHost(
                 container.viewModelFactory.createTripRecordListViewModel()
             }
             TripRecordListRoute(
-                statisticsRepository = container.tripStatisticsRepository,
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
                 viewModel = viewModel,
                 initialLocationId = requestedLocationId,
@@ -150,6 +149,8 @@ internal fun MapmoryNavHost(
                 onOpenSettings = navigator::navigateToSettings,
                 shareVideoRepository = container.shareVideoRepository,
                 shareVideoJobStore = container.shareVideoJobStore,
+                onboardingPreference = container.onboardingPreference,
+                tripStatisticsRepository = container.tripStatisticsRepository,
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 layout = journalLayout,
