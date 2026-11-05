@@ -6,6 +6,7 @@ import com.mapmory.shared.data.repository.AndroidTripRecordListCache
 import com.mapmory.shared.data.repository.TripRecordListCacheCodec
 import com.mapmory.shared.domain.model.TripRecordPage
 import com.mapmory.shared.domain.model.TripRecordQuery
+import com.mapmory.shared.domain.model.TripRecordSort
 import com.mapmory.shared.domain.model.TripRecordSummary
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
@@ -26,9 +27,9 @@ class TripRecordListDatabaseTest {
             val page = TripRecordPage(emptyList(), 0, 20, 0, 0)
             cache.write(otherQuery, page)
             for (payload in listOf("{broken-json", "{}")) {
-                dao.write(TripRecordPageEntity("null:null:0:20", payload))
+                dao.write(TripRecordPageEntity("null:null:0:20:CREATED_AT_DESC", payload))
                 assertNull(cache.read(query))
-                assertNull(dao.read("null:null:0:20"))
+                assertNull(dao.read("null:null:0:20:CREATED_AT_DESC"))
                 assertNull(cache.read(query))
                 assertEquals(page, cache.read(otherQuery))
             }
@@ -47,7 +48,7 @@ class TripRecordListDatabaseTest {
             val dao = database.pages()
             val query = TripRecordQuery()
             val page = TripRecordPage(emptyList(), 0, 20, 0, 0)
-            dao.write(TripRecordPageEntity("null:null:0:20", "broken"))
+            dao.write(TripRecordPageEntity("null:null:0:20:CREATED_AT_DESC", "broken"))
             val racingDao = object : TripRecordPageDao by dao {
                 override suspend fun read(queryKey: String): String? {
                     val previous = dao.read(queryKey)
@@ -72,15 +73,26 @@ class TripRecordListDatabaseTest {
             records = listOf(TripRecordSummary(1, "서울 여행", "서울", "2026-10-08", null)),
             page = 0, size = 20, totalElements = 1, totalPages = 1,
         )
-        val key = "null:null:0:20"
+        val query = TripRecordQuery()
+        val dateSortedQuery = query.copy(sort = TripRecordSort.TRAVEL_DATE_DESC)
+        val key = "null:null:0:20:CREATED_AT_DESC"
+        val dateSortedKey = "null:null:0:20:TRAVEL_DATE_DESC"
+        val dateSortedPage = page.copy(
+            records = listOf(TripRecordSummary(2, "과거 여행", "서울", "2026-10-07", null)),
+        )
         try {
-            database.pages().write(TripRecordPageEntity(key, TripRecordListCacheCodec.encode(page)))
+            AndroidTripRecordListCache(database.pages()).write(query, page)
+            AndroidTripRecordListCache(database.pages()).write(dateSortedQuery, dateSortedPage)
             database.close()
             database = open()
             assertEquals(page, TripRecordListCacheCodec.decode(requireNotNull(database.pages().read(key))))
-            assertNull(database.pages().read("101:null:0:20"))
+            assertEquals(dateSortedPage, TripRecordListCacheCodec.decode(requireNotNull(database.pages().read(dateSortedKey))))
+            assertNull(database.pages().read("101:null:0:20:CREATED_AT_DESC"))
+            val reopenedCache = AndroidTripRecordListCache(database.pages())
+            assertEquals(page, reopenedCache.read(query))
+            assertEquals(dateSortedPage, reopenedCache.read(dateSortedQuery))
             val empty = page.copy(records = emptyList(), totalElements = 0, totalPages = 0)
-            database.pages().write(TripRecordPageEntity(key, TripRecordListCacheCodec.encode(empty)))
+            reopenedCache.write(query, empty)
             assertEquals(empty, TripRecordListCacheCodec.decode(requireNotNull(database.pages().read(key))))
             database.pages().clear()
             assertNull(database.pages().read(key))

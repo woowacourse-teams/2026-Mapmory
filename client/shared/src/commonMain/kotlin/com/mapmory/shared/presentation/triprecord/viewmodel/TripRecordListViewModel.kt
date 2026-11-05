@@ -50,6 +50,9 @@ class TripRecordListViewModel(
     var query by mutableStateOf(TripRecordQuery())
         private set
 
+    val selectedLocationName: String?
+        get() = query.locationId?.let { regionCatalog?.findById(it)?.name }
+
     var availableTags by mutableStateOf<List<Tag>>(emptyList())
         private set
 
@@ -91,14 +94,16 @@ class TripRecordListViewModel(
     suspend fun refreshIfNeeded(
         locationId: Long?,
         dataRevision: Long,
-        sort: TripRecordSort = TripRecordSort.CREATED_AT_DESC,
+        sort: TripRecordSort = query.sort,
     ) {
         val sortChanged = query.sort != sort
         if (sortChanged) {
+            collectionLoadGeneration++
+            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Idle
             invalidatePhotoCollectionIndex()
             query = query.copy(sort = sort, page = 0)
         }
-        if (!sortChanged && loadedRevision == dataRevision && query.locationId == locationId &&
+        if (!sortChanged && loadedRevision == dataRevision && loadedQuery == query && query.locationId == locationId &&
             (uiState as? TripRecordListUiState.Success)?.refreshError == null &&
             uiState is TripRecordListUiState.Success
         ) return
@@ -329,16 +334,21 @@ class TripRecordListViewModel(
         photoCollectionIndexState = TripRecordPhotoCollectionIndexState.Idle
     }
 
-    suspend fun loadPhotoCollection(locationName: String) {
+    suspend fun loadPhotoCollection(locationId: Long?, locationName: String) {
         val currentState = photoCollectionLoadState
-        if ((currentState is TripRecordPhotoCollectionLoadState.Loading && currentState.locationName == locationName) ||
-            (currentState is TripRecordPhotoCollectionLoadState.Loaded && currentState.locationName == locationName)
+        val collectionKey = locationId?.let { "region:$it" } ?: "name:$locationName"
+        if ((currentState is TripRecordPhotoCollectionLoadState.Loading && currentState.key == collectionKey) ||
+            (currentState is TripRecordPhotoCollectionLoadState.Loaded && currentState.key == collectionKey)
         ) return
 
         val generation = ++collectionLoadGeneration
-        photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loading(locationName)
+        photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loading(locationName, locationId)
         val records = try {
-            val firstQuery = query.copy(page = 0, size = CollectionPageSize)
+            val firstQuery = query.copy(
+                locationId = locationId ?: query.locationId,
+                page = 0,
+                size = CollectionPageSize,
+            )
             val firstPage = getTripRecords(firstQuery).getOrThrow()
             val summaries = buildList {
                 addAll(firstPage.records)
@@ -346,7 +356,13 @@ class TripRecordListViewModel(
                     addAll(getTripRecords(firstQuery.copy(page = page)).getOrThrow().records)
                 }
             }.distinctBy(TripRecordSummary::id)
-                .filter { it.resolvedLocationName() == locationName }
+                .filter { summary ->
+                    if (locationId != null && summary.locationId != null) {
+                        summary.locationId == locationId
+                    } else {
+                        summary.resolvedLocationName() == locationName
+                    }
+                }
             val semaphore = Semaphore(MaxConcurrentCollectionDetailLoads)
             coroutineScope {
                 summaries.map { summary ->
@@ -368,12 +384,13 @@ class TripRecordListViewModel(
                 photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Error(
                     locationName = locationName,
                     message = error.message ?: "지역 사진을 불러오지 못했습니다.",
+                    locationId = locationId,
                 )
             }
             return
         }
         if (generation == collectionLoadGeneration) {
-            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loaded(locationName, records)
+            photoCollectionLoadState = TripRecordPhotoCollectionLoadState.Loaded(locationName, records, locationId)
         }
     }
 
