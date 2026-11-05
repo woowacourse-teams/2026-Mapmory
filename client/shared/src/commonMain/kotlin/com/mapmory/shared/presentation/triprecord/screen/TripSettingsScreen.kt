@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.triprecord.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -25,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +44,7 @@ import com.mapmory.shared.TeamDeviceState
 import com.mapmory.shared.TeamDeviceTapCounter
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.domain.model.ServiceFeedbackCategory
 import com.mapmory.shared.presentation.feedback.ServiceFeedbackDialog
@@ -51,11 +57,13 @@ internal fun TripSettingsScreen(
     onMapClick: () -> Unit,
     onRecordClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onGroupClick: () -> Unit = {},
     onSettingsClick: () -> Unit,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
     onOpenDeveloperTools: () -> Unit,
     onSubmitFeedback: suspend (ServiceFeedbackCategory, String) -> Result<Unit>,
     modifier: Modifier = Modifier,
+    accountContent: @Composable () -> Unit = {},
 ) {
     var showFeedback by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
@@ -92,6 +100,8 @@ internal fun TripSettingsScreen(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+
+                accountContent()
 
                 Column(
                     Modifier
@@ -136,6 +146,50 @@ internal fun TripSettingsScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                    Spacer(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp)
+                            .height(1.dp)
+                            .background(TripRecordPalette.current.line),
+                    )
+                    Text(
+                        text = "색상 테마",
+                        color = TripRecordPalette.current.bodyText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ThemeOption(
+                            label = "맵모리 그린",
+                            selected = theme.palette == MapmoryThemePalette.MAPMORY_GREEN,
+                            indicatorColor = tripRecordColors(theme.isDark, MapmoryThemePalette.MAPMORY_GREEN).primary,
+                            onClick = {
+                                analytics.logEvent(
+                                    MapmoryAnalyticsEvent.THEME_CHANGED,
+                                    mapOf("theme" to MapmoryThemePalette.MAPMORY_GREEN.storageValue),
+                                )
+                                theme.onPaletteChange(MapmoryThemePalette.MAPMORY_GREEN)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ThemeOption(
+                            label = "오션 블루",
+                            selected = theme.palette == MapmoryThemePalette.OCEAN_BLUE,
+                            indicatorColor = tripRecordColors(theme.isDark, MapmoryThemePalette.OCEAN_BLUE).primary,
+                            onClick = {
+                                analytics.logEvent(
+                                    MapmoryAnalyticsEvent.THEME_CHANGED,
+                                    mapOf("theme" to MapmoryThemePalette.OCEAN_BLUE.storageValue),
+                                )
+                                theme.onPaletteChange(MapmoryThemePalette.OCEAN_BLUE)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -176,6 +230,7 @@ internal fun TripSettingsScreen(
                 onRecordClick = onRecordClick,
                 onProfileClick = onProfileClick,
                 onSettingsClick = onSettingsClick,
+                onGroupClick = onGroupClick,
                 backgroundColor = TripRecordPalette.current.pageBackground,
                 dividerColor = TripRecordPalette.current.navigationDivider,
                 selectedIconColor = TripRecordPalette.current.primary,
@@ -264,6 +319,7 @@ private fun SettingsAction(
 private fun ThemeOption(
     label: String,
     selected: Boolean,
+    indicatorColor: Color? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -277,10 +333,18 @@ private fun ThemeOption(
                 color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.border,
                 shape = shape,
             )
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        indicatorColor?.let { color ->
+            Box(
+                Modifier
+                    .padding(bottom = 6.dp)
+                    .size(18.dp)
+                    .background(color, CircleShape),
+            )
+        }
         Text(
             text = label,
             color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.bodyText,

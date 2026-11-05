@@ -9,13 +9,13 @@ import UIKit
 import UserNotifications
 
 private let lightSystemBarColor = UIColor(
-    red: 250.0 / 255.0,
-    green: 252.0 / 255.0,
-    blue: 251.0 / 255.0,
+    red: 255.0 / 255.0,
+    green: 254.0 / 255.0,
+    blue: 255.0 / 255.0,
     alpha: 1
 )
 private let darkSystemBarColor = UIColor(
-    red: 17.0 / 255.0,
+    red: 18.0 / 255.0,
     green: 21.0 / 255.0,
     blue: 24.0 / 255.0,
     alpha: 1
@@ -60,6 +60,7 @@ struct MapmoryApp: App {
                     forceUpdate: forceUpdate,
                 )
             }
+            .onOpenURL { _ = IosSocialLoginLauncher.handle($0) }
             .onAppear { forceUpdate.refresh() }
             .onChange(of: scenePhase) { phase in
                 if phase == .active { forceUpdate.refresh() }
@@ -92,6 +93,7 @@ private struct ComposeView: UIViewControllerRepresentable {
             navigation: navigation,
             updateState: forceUpdate.state,
             onRetryUpdateCheck: { forceUpdate.refresh() },
+            socialLoginLauncher: IosSocialLoginLauncher(),
         )
         let viewController = composeViewController
         applyTheme(to: viewController)

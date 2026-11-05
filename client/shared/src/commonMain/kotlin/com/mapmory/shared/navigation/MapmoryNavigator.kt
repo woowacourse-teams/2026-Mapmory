@@ -17,6 +17,8 @@ internal class MapmoryNavigator(
             entry.destination.hasRoute<EditorRoute>() -> entry.toRoute<EditorRoute>()
             entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
             entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
+            entry.destination.hasRoute<GroupsRoute>() -> GroupsRoute
+            entry.destination.hasRoute<GroupPreviewRoute>() -> GroupPreviewRoute
             entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
             entry.destination.hasRoute<TripAchievementsRoute>() -> TripAchievementsRoute
             entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
@@ -63,6 +65,15 @@ internal class MapmoryNavigator(
         navController.currentBackStackEntry?.savedStateHandle?.set(RecordsLocationKey, locationId)
     }
 
+    fun navigateToGroups() {
+        navigateToTab(GroupsRoute)
+    }
+
+    fun navigateToGroupPreview() {
+        clearForwardHistory()
+        navController.navigate(GroupPreviewRoute) { launchSingleTop = true }
+    }
+
     fun navigateToProfile() {
         navigateToTab(ProfileRoute)
     }
@@ -84,11 +95,13 @@ internal class MapmoryNavigator(
     fun navigateToEditor(
         recordId: Long? = null,
         selectedLocationId: Long? = null,
+        albumGroupId: Long? = null,
+        albumId: Long? = null,
     ) {
         // Ignore subsequent taps from the outgoing map/list, including other locations.
         if (navController.currentDestination?.hasRoute<EditorRoute>() == true) return
         clearForwardHistory()
-        navController.navigate(EditorRoute(recordId, selectedLocationId))
+        navController.navigate(EditorRoute(recordId, selectedLocationId, albumGroupId, albumId))
     }
 
     fun navigateToDetail(
@@ -113,9 +126,9 @@ internal class MapmoryNavigator(
 
     private fun navigateToTab(route: Any) {
         clearForwardHistory()
-        // Detail/editor entries are temporary flows, not a tab's saved destination.
+        // Detail/editor/preview entries are temporary flows, not a tab's saved destination.
         while (navController.currentDestination?.let {
-                it.hasRoute<DetailRoute>() || it.hasRoute<EditorRoute>()
+                it.hasRoute<DetailRoute>() || it.hasRoute<EditorRoute>() || it.hasRoute<GroupPreviewRoute>()
             } == true
         ) {
             if (!navController.popBackStack()) break

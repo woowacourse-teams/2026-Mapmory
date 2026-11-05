@@ -1,12 +1,7 @@
 package com.mapmory.shared.presentation.triprecord.screen
 
-import com.mapmory.shared.analytics.LocalMapmoryAnalytics
-import com.mapmory.shared.analytics.ShareMediaAnalytics
-import com.mapmory.shared.analytics.ShareMediaSource
-import com.mapmory.shared.analytics.ShareMediaAction
-import com.mapmory.shared.analytics.ShareMediaOperation
-import androidx.compose.runtime.LaunchedEffect
-
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -84,6 +80,14 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordItemUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
 import com.mapmory.shared.presentation.triprecord.state.TripStatisticsUiModel
 import com.mapmory.shared.presentation.triprecord.state.localOriginalUri
+import com.mapmory.shared.analytics.ShareMediaAction
+import com.mapmory.shared.analytics.ShareMediaAnalytics
+import com.mapmory.shared.analytics.ShareMediaOperation
+import com.mapmory.shared.analytics.ShareMediaSource
+import com.mapmory.shared.analytics.LocalMapmoryAnalytics
+import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
+import com.mapmory.shared.analytics.emit
+import com.mapmory.shared.analytics.trackAction
 import kotlinx.coroutines.launch
 import mapmoryclient.shared.generated.resources.Res
 import mapmoryclient.shared.generated.resources.share_outlined_24px
@@ -127,6 +131,9 @@ internal fun TripRecordSharePreviewDialog(
     onDismiss: () -> Unit,
 ) {
     val analytics = LocalMapmoryAnalytics.current
+    LaunchedEffect(record.id) {
+        analytics.emit(MapmoryAnalyticsEvent.RECORD_SHARE_PREVIEW_OPENED)
+    }
     val telemetry = remember(analytics) { ShareMediaAnalytics(analytics, ShareMediaSource.RECORD) }
     val photos = remember(record.id, record.photos) {
         record.photos.sortedBy(TripRecordPhotoUiState::sortOrder)
@@ -141,6 +148,7 @@ internal fun TripRecordSharePreviewDialog(
         title = "여행 기록 공유",
         pageTitles = pageTitles,
         supportingText = "대표 사진과 공유 디자인을 골라보세요",
+        actionAnalyticsEvent = MapmoryAnalyticsEvent.RECORD_SHARE_ACTION,
         photoSelector = {
             RecordSharePhotoSelector(
                 photos = photos,
@@ -236,6 +244,7 @@ private fun SharePreviewDialog(
     supportingText: String = "내 여행에 어울리는 디자인을 골라보세요",
     pageTitleAbovePreview: Boolean = false,
     photoSelector: (@Composable () -> Unit)? = null,
+    actionAnalyticsEvent: String? = null,
     onDismiss: () -> Unit,
     poster: @Composable (Int, Modifier) -> Unit,
 ) {
@@ -252,6 +261,14 @@ private fun SharePreviewDialog(
     val captures = remember { mutableStateMapOf<Int, PosterCapture>() }
     var exporting by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val hasFailedPhotos = captures[pagerState.currentPage]?.hasFailedPhotos == true
+    LaunchedEffect(feedback, hasFailedPhotos) {
+        val notice = feedback ?: return@LaunchedEffect
+        if (hasFailedPhotos) return@LaunchedEffect
+        snackbar.showSnackbar(notice)
+        feedback = null
+    }
     fun export(save: Boolean) {
         if (exporting || pagerState.isScrollInProgress) return
         val capture = captures[pagerState.currentPage]
@@ -271,12 +288,26 @@ private fun SharePreviewDialog(
         feedback = null
         scope.launch {
             try {
-                val image = telemetry.observe(ShareMediaOperation.IMAGE_CAPTURE) {
-                    withFrameNanos { }
-                    layer.toImageBitmap()
+                val action = if (save) "save_image" else "share_sheet"
+                val exportImage: suspend () -> Unit = {
+                    val image = telemetry.observe(ShareMediaOperation.IMAGE_CAPTURE) {
+                        withFrameNanos { }
+                        layer.toImageBitmap()
+                    }
+                    if (save) telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(image) }
+                    else telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(image) }
                 }
-                if (save) telemetry.observe(ShareMediaOperation.SAVE) { exporter.save(image) }
-                else telemetry.observe(ShareMediaOperation.SHARE_SHEET) { exporter.share(image) }
+                if (actionAnalyticsEvent == null) {
+                    exportImage()
+                } else {
+                    analytics.trackAction(
+                        eventName = actionAnalyticsEvent,
+                        operation = "record_share_$action",
+                        action = action,
+                        reportErrors = false,
+                        block = exportImage,
+                    )
+                }
                 feedback = if (save) "사진 앱에 저장했어요." else null
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -394,14 +425,6 @@ private fun SharePreviewDialog(
                     }
                 }
             }
-            feedback?.takeIf { currentCapture?.hasFailedPhotos != true }?.let { message ->
-                Text(
-                    message,
-                    color = Color(0xFFE5EDE8),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-            }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -435,6 +458,7 @@ private fun SharePreviewDialog(
                     Text("공유하기", fontWeight = FontWeight.SemiBold)
                 }
             }
+            SnackbarHost(snackbar)
         }
     }
 }

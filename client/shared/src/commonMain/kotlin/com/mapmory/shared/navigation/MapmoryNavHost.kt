@@ -13,6 +13,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -30,7 +33,10 @@ import com.mapmory.shared.presentation.triprecord.route.TripRecordDetailRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordEditorRoute
 import com.mapmory.shared.presentation.triprecord.route.TripRecordListRoute
 import com.mapmory.shared.presentation.triprecord.route.TripSettingsRoute
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementBadge
+import com.mapmory.shared.presentation.triprecord.screen.TripAchievementUnlockDialog
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
+import com.mapmory.shared.presentation.triprecord.screen.newlyEarnedTripAchievementBadges
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 
 @Composable
@@ -51,14 +57,33 @@ internal fun MapmoryNavHost(
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
+    var newlyEarnedBadges by remember { mutableStateOf<List<TripAchievementBadge>?>(null) }
     val gestureMotion = LocalNavigationGestureMotion.current
+    LaunchedEffect(container.backgroundTripRecordSaver, developerToolsInfo, isTravelAchievementsEnabled) {
+        container.backgroundTripRecordSaver.completedSaves.collect { completion ->
+            if (developerToolsInfo == null || !isTravelAchievementsEnabled) return@collect
+            val previousStatistics = completion.previousStatistics ?: return@collect
+            val currentStatistics = try {
+                container.tripStatisticsRepository.getStatistics().getOrNull()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@collect
+            val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
+            if (unlocked.isNotEmpty()) {
+                newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+            }
+        }
+    }
     Box(Modifier.fillMaxSize().then(gestureMotion.renderObserver { navController.currentBackStackEntry?.id })) {
         container.shareVideoRepository?.let { repository ->
             TripTimelineVideoJobMonitor(repository, container.shareVideoJobStore)
         }
         NavHost(
             navController = navController,
-            startDestination = MapRoute,
+            startDestination = if ((container.accountSession?.state?.value?.generation ?: 0) > 0 &&
+                container.accountSession?.state?.value?.stage != "logged_out") GroupsRoute else MapRoute,
             // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },
@@ -86,6 +111,7 @@ internal fun MapmoryNavHost(
                     navigator.navigateToEditor(selectedLocationId = locationId)
                 },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
             )
         }
@@ -114,9 +140,12 @@ internal fun MapmoryNavHost(
                 onRetryPendingSave = container.backgroundTripRecordSaver::retry,
                 onDismissPendingSave = container.backgroundTripRecordSaver::dismissFailure,
                 onOpenMap = navigator::navigateToMap,
-                onOpenEditor = { navigator.navigateToEditor() },
+                onOpenEditor = {
+                    navigator.navigateToEditor(selectedLocationId = requestedLocationId)
+                },
                 onOpenDetail = navigator::navigateToDetail,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 shareVideoRepository = container.shareVideoRepository,
                 shareVideoJobStore = container.shareVideoJobStore,
@@ -149,11 +178,17 @@ internal fun MapmoryNavHost(
                 selectedLocationId = route.selectedLocationId,
                 viewModel = viewModel,
                 regionCatalog = container.regionCatalog,
+                tripStatisticsRepository = container.tripStatisticsRepository,
+                showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
                 backHandlerRegistry = backHandlerRegistry,
                 backHandlerOwnerId = backStackEntry.id,
                 onBack = { navigator.navigateBack() },
+                saveNewRecordInBackground = route.albumGroupId == null,
                 onSaved = { wasEditing, recordId ->
-                    if (wasEditing) {
+                    if (route.albumGroupId != null) {
+                        container.albumShareCoordinator?.start(route.albumGroupId, recordId, route.albumId)
+                        navigator.navigateBack()
+                    } else if (wasEditing) {
                         navigator.navigateAfterEdit(recordId)
                     } else {
                         navigator.navigateToRecords()
@@ -162,6 +197,48 @@ internal fun MapmoryNavHost(
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = { navigator.navigateToRecords() },
                 onOpenProfile = navigator::navigateToProfile,
+            )
+        }
+
+        composable<GroupsRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            com.mapmory.shared.presentation.group.GroupAccountRoute(
+                container = container,
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                onMapClick = navigator::navigateToMap,
+                onRecordClick = { navigator.navigateToRecords() },
+                onProfileClick = navigator::navigateToProfile,
+                onSettingsClick = navigator::navigateToSettings,
+                initialGroupId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumGroupId") },
+                initialAlbumId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumId") },
+                onCreateRecord = { groupId, albumId ->
+                    backStackEntry.savedStateHandle["albumGroupId"] = groupId
+                    backStackEntry.savedStateHandle["albumId"] = albumId
+                    navigator.navigateToEditor(albumGroupId = groupId, albumId = albumId)
+                },
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+            )
+        }
+
+        composable<GroupPreviewRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            com.mapmory.shared.presentation.group.GroupAccountRoute(
+                container = container,
+                onMapClick = navigator::navigateToMap,
+                onRecordClick = { navigator.navigateToRecords() },
+                onProfileClick = navigator::navigateToProfile,
+                onSettingsClick = navigator::navigateToSettings,
+                initialGroupId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumGroupId") },
+                initialAlbumId = androidx.compose.runtime.remember(backStackEntry) { backStackEntry.savedStateHandle.remove<Long>("albumId") },
+                onCreateRecord = { groupId, albumId ->
+                    backStackEntry.savedStateHandle["albumGroupId"] = groupId
+                    backStackEntry.savedStateHandle["albumId"] = albumId
+                    navigator.navigateToEditor(albumGroupId = groupId, albumId = albumId)
+                },
+                backHandlerRegistry = backHandlerRegistry,
+                backHandlerOwnerId = backStackEntry.id,
+                modifier = Modifier.windowInsetsPadding(contentWindowInsets),
             )
         }
 
@@ -181,6 +258,7 @@ internal fun MapmoryNavHost(
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenEditor = { navigator.navigateToEditor() },
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 onOpenAchievements = navigator::navigateToAchievements,
                 showTravelAchievements = developerToolsInfo != null && isTravelAchievementsEnabled,
@@ -214,10 +292,13 @@ internal fun MapmoryNavHost(
                 onOpenMap = navigator::navigateToMap,
                 onOpenRecords = navigator::navigateToRecords,
                 onOpenProfile = navigator::navigateToProfile,
+                onOpenGroups = navigator::navigateToGroups,
                 onOpenSettings = navigator::navigateToSettings,
                 developerToolsInfo = developerToolsInfo,
                 onOpenDeveloperTools = navigator::navigateToDeveloperTools,
                 serviceFeedbackRepository = container.serviceFeedbackRepository,
+                accountSession = container.accountSession,
+                accountController = container.accountLoginController,
             )
         }
 
@@ -276,6 +357,12 @@ internal fun MapmoryNavHost(
                 isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
         }
+        }
+
+        newlyEarnedBadges?.let { badges ->
+            if (badges.isNotEmpty()) {
+                TripAchievementUnlockDialog(badges) { newlyEarnedBadges = null }
+            }
         }
 
     }

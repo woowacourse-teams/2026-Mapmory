@@ -1,7 +1,12 @@
 package com.mapmory.shared
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -16,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.mapmory.shared.app.AppContainer
 import com.mapmory.shared.app.createInMemoryAppContainer
+import com.mapmory.shared.data.settings.MapmoryThemePalette
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalytics
@@ -30,7 +36,7 @@ import com.mapmory.shared.presentation.splash.MapmorySplashScreen
 import com.mapmory.shared.presentation.components.ProvideScrollToTop
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.presentation.triprecord.screen.ProvideTripRecordPalettes
-import com.mapmory.shared.presentation.theme.MapmoryTypography
+import com.mapmory.shared.presentation.triprecord.screen.TripRecordTheme
 import com.mapmory.shared.update.ForceUpdateState
 import com.mapmory.shared.update.ForceUpdateGate
 import com.mapmory.shared.update.awaitSplashUpdateCheck
@@ -43,7 +49,7 @@ fun MapmoryApp(
     onThemeChanged: (Boolean) -> Unit = {},
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     developerToolsInfo: MapmoryDeveloperToolsInfo? = null,
-    showTimelineLayoutSwitcher: Boolean = developerToolsInfo != null,
+    showTimelineLayoutSwitcher: Boolean = true,
     updateState: ForceUpdateState? = null,
     onRetryUpdateCheck: () -> Unit = {},
 ) {
@@ -55,17 +61,25 @@ fun MapmoryApp(
     var isDarkTheme by remember(themePreference) {
         mutableStateOf(themePreference.loadIsDarkTheme())
     }
+    var themePalette by remember(themePreference) {
+        mutableStateOf(themePreference.loadThemePalette())
+    }
     val latestOnThemeChanged by rememberUpdatedState(onThemeChanged)
     LaunchedEffect(themePreference) {
         latestOnThemeChanged(isDarkTheme)
     }
-    val themeState = remember(isDarkTheme, themePreference) {
+    val themeState = remember(isDarkTheme, themePalette, themePreference) {
         MapmoryThemeState(
             isDark = isDarkTheme,
+            palette = themePalette,
             onThemeChange = { shouldUseDarkTheme ->
                 isDarkTheme = shouldUseDarkTheme
                 themePreference.saveIsDarkTheme(shouldUseDarkTheme)
                 latestOnThemeChanged(shouldUseDarkTheme)
+            },
+            onPaletteChange = { selectedPalette ->
+                themePalette = selectedPalette
+                themePreference.saveThemePalette(selectedPalette)
             },
         )
     }
@@ -86,9 +100,11 @@ fun MapmoryApp(
             },
         )
     }
-    val navController = rememberNavController()
+    val accountState = appContainer.accountSession?.state?.collectAsState()?.value
+    val accountGeneration = accountState?.generation ?: 0L
+    val navController = key(accountGeneration) { rememberNavController() }
     val navigator = remember(navController) { MapmoryNavigator(navController) }
-    val backHandlerRegistry = remember { MapmoryBackHandlerRegistry() }
+    val backHandlerRegistry = remember(accountGeneration) { MapmoryBackHandlerRegistry() }
     val latestNavigateBack = rememberUpdatedState {
         updateState?.isBlocking == true ||
             backHandlerRegistry.handleBack(navController.currentBackStackEntry?.id) ||
@@ -123,13 +139,14 @@ fun MapmoryApp(
     }
 
     CompositionLocalProvider(
+        com.mapmory.shared.presentation.triprecord.screen.LocalGroupFeatureEnabled provides true,
         com.mapmory.shared.navigation.LocalNavigationGestureMotion provides remember { com.mapmory.shared.navigation.NavigationGestureMotion() },
         LocalMapmoryTheme provides themeState,
         LocalMapmoryAnalytics provides analytics,
         LocalTeamDevice provides teamDeviceState,
     ) {
-        ProvideTripRecordPalettes(isDark = isDarkTheme) {
-            MaterialTheme(typography = MapmoryTypography()) {
+        ProvideTripRecordPalettes(isDark = isDarkTheme, themePalette = themePalette) {
+            TripRecordTheme {
                 if (showSplash || updateState?.isChecking == true) {
                     MapmorySplashScreen(contentWindowInsets = contentWindowInsets)
                 } else {
@@ -159,7 +176,7 @@ fun MapmoryApp(
                             },
                             onBackCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureForward(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateForward()
                                 }
@@ -175,7 +192,7 @@ fun MapmoryApp(
                             },
                             onForwardCancelled = {
                                 if (edgeGestureWasInternal) {
-                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId)
+                                    backHandlerRegistry.handleGestureBack(edgeGestureOwnerId, restoring = true)
                                 } else {
                                     navigator.navigateBackKeepingState()
                                 }
@@ -183,6 +200,30 @@ fun MapmoryApp(
                                 edgeGestureWasInternal = false
                             },
                         )
+                    }
+                }
+                if (accountState?.pendingLogout == true && !accountState.transitioning) {
+                    val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = {},
+                        title = { androidx.compose.material3.Text("로그아웃을 마무리해 주세요") },
+                        text = { androidx.compose.material3.Text(logoutUi?.message ?: "로그인 정보와 계정 화면을 정리하고 있어요. 다시 시도해 주세요.") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(
+                                onClick = { appContainer.accountLoginController?.logout() },
+                                enabled = logoutUi?.busy != true,
+                            ) { androidx.compose.material3.Text("로그아웃 다시 시도") }
+                        },
+                    )
+                }
+                if (accountState?.transitioning == true) {
+                    androidx.compose.ui.window.Dialog(onDismissRequest = {}) {
+                        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+                            androidx.compose.foundation.layout.Column(Modifier.padding(28.dp)) {
+                                androidx.compose.material3.CircularProgressIndicator()
+                                androidx.compose.material3.Text(if (accountState.pendingLogout) "로그아웃하고 있어요" else "계정을 확인하고 있어요")
+                            }
+                        }
                     }
                 }
                 updateState?.let { ForceUpdateGate(it, onRetryUpdateCheck) }

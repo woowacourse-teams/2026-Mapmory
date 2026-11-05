@@ -21,6 +21,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
 import com.mapmory.shared.domain.region.RegionCatalog
+import com.mapmory.shared.domain.repository.TripStatisticsRepository
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.PlatformBackHandler
 import com.mapmory.shared.presentation.triprecord.screen.NewTripRecordFlowScreen
@@ -28,6 +29,7 @@ import com.mapmory.shared.presentation.triprecord.screen.RetainedPhotoFlowState
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordPalette
 import com.mapmory.shared.presentation.triprecord.viewmodel.TripRecordEditorViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -38,6 +40,8 @@ internal fun TripRecordEditorRoute(
     selectedLocationId: Long?,
     viewModel: TripRecordEditorViewModel,
     regionCatalog: RegionCatalog,
+    tripStatisticsRepository: TripStatisticsRepository,
+    showTravelAchievements: Boolean,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
     onBack: () -> Unit,
@@ -46,6 +50,7 @@ internal fun TripRecordEditorRoute(
     onOpenRecords: () -> Unit,
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
+    saveNewRecordInBackground: Boolean = true,
 ) {
     val retainedPhotoFlow = androidx.lifecycle.viewmodel.compose.viewModel { RetainedPhotoFlowState() }
     var gestureBack by remember { mutableStateOf<(() -> Boolean)?>(null) }
@@ -68,6 +73,18 @@ internal fun TripRecordEditorRoute(
             selectedLocation = selectedLocationId?.let(regionCatalog::findById),
         )
         photoUsageReady = true
+    }
+
+    LaunchedEffect(recordId, tripStatisticsRepository, showTravelAchievements) {
+        if (recordId == null && showTravelAchievements && tripStatisticsRepository.getCachedStatistics() == null) {
+            try {
+                tripStatisticsRepository.getStatistics()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Achievement celebrations are optional; a failed baseline lookup must not block record entry.
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -101,6 +118,7 @@ internal fun TripRecordEditorRoute(
         }
     }
 
+    val backgroundSave = recordId == null && saveNewRecordInBackground
     fun save() {
         scope.launch {
             if (recordId == null) {
@@ -111,7 +129,7 @@ internal fun TripRecordEditorRoute(
             val state = viewModel.uiState
             val saveParameters = mapOf(
                 "mode" to mode,
-                "save_mode" to if (recordId == null) "background" else "foreground",
+                "save_mode" to if (backgroundSave) "background" else "foreground",
                 "has_title" to state.title.isNotBlank().toString(),
                 "has_content" to state.content.isNotBlank().toString(),
                 "has_end_date" to state.endDate.isNotBlank().toString(),
@@ -122,25 +140,25 @@ internal fun TripRecordEditorRoute(
                 MapmoryAnalyticsEvent.RECORD_SAVE_STARTED,
                 saveParameters,
             )
-            val savedOrQueued = if (recordId == null) {
+            val savedOrQueued = if (backgroundSave) {
                 viewModel.saveInBackground()
             } else {
                 viewModel.save()
             }
             if (savedOrQueued) {
                 analytics.logEvent(
-                    if (recordId == null) {
+                    if (backgroundSave) {
                         MapmoryAnalyticsEvent.RECORD_SAVE_QUEUED
                     } else {
                         MapmoryAnalyticsEvent.RECORD_SAVE_COMPLETED
                     },
                     saveParameters + if (recordId != null) mapOf("record_id" to recordId.toString()) else emptyMap(),
                 )
-                if (recordId == null) {
+                if (backgroundSave) {
                     onOpenRecords()
                 } else {
                     viewModel.savedRecordId?.let { savedId ->
-                        onSaved(true, savedId)
+                        onSaved(recordId != null, savedId)
                     }
                 }
             } else {
