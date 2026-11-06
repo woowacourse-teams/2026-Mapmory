@@ -2,8 +2,10 @@ package com.mapmory.backend.upload.storage;
 
 import com.mapmory.backend.upload.domain.UploadFileType;
 import com.mapmory.backend.upload.service.port.ObjectKeyGenerator;
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,14 +19,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class S3ObjectKeyGenerator implements ObjectKeyGenerator {
 
-    private static final String GENERATED_FILE = "\\d+/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.[a-z0-9]+";
+    private static final String GENERATED_FILE = "\\d{1,19}/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.";
 
     private final String travelRecordsDirectory;
     private final Pattern generatedKey;
 
     public S3ObjectKeyGenerator(S3StorageProperties properties) {
         this.travelRecordsDirectory = properties.travelRecordsDirectory();
-        this.generatedKey = Pattern.compile(Pattern.quote(travelRecordsDirectory) + GENERATED_FILE);
+        this.generatedKey = Pattern.compile(Pattern.quote(travelRecordsDirectory) + GENERATED_FILE + canonicalExtensions());
+    }
+
+    private static String canonicalExtensions() {
+        return Arrays.stream(UploadFileType.values())
+                .map(UploadFileType::canonicalExtension)
+                .collect(Collectors.joining("|", "(", ")"));
     }
 
     @Override

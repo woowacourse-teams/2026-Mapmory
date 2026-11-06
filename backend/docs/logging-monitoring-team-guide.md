@@ -289,10 +289,15 @@ fields @timestamp, requestId, event, @message
 1. 며칠 동안 `sample`의 키가 정말 기록에 없는지 DB에서 확인하고, `candidates`가 예상 범위인지 본다. `sample`은 날마다 무작위로 뽑는다.
 2. `unrecognized`가 0이 아니면 어떤 객체인지 확인한다. 이 객체들은 지워지지 않는다.
 3. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
-4. 각 환경의 `record_media`에 상대 환경 prefix로 시작하는 키가 없는지 확인한다. 예전에 prefix를 바꿨다면 그 환경의 사진이 이쪽 경로에 있을 수 있다.
+4. 각 환경의 `record_media`에 상대 환경의 `{prefix}/travel-records/`로 시작하는 키가 없는지 확인한다. 예전에 prefix를 바꿨다면 그 환경의 사진이 이쪽 경로에 있을 수 있다.
 5. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다(#622).
+6. 두 메트릭이 CloudWatch 전송 대상(ADR 0014의 allowlist)에 들어 있는지 확인한다. 빠져 있으면 EC2의 `/actuator/prometheus`에서만 보인다.
 
 끄면 지운 객체는 모든 버전까지 영구히 사라진다.
+
+실삭제를 켠 뒤 `candidates`가 예상보다 크면 dry-run을 다시 켜는 것만으로는 멈추지 않는다. 이미 큐에 들어간 행은
+정리 배치가 지우기 때문이다. 다음 19:30 UTC 전에 dry-run을 켜고 재기동한 뒤, 그날 20:00 UTC 이후 `created_at`인
+`orphaned_media` 행을 지운다. 기록에서 뺀 사진의 행이 함께 지워져도 3일 뒤 대조 배치가 다시 찾는다.
 
 ## Health 엔드포인트 구분
 

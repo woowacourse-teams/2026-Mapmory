@@ -45,7 +45,10 @@ class S3ObjectKeyGeneratorTest {
             "mapmory/dev/travel-records/10/sub/3f2504e0-4f89-41d3-9a0c-0305e82c3301.jpg",
             "mapmory/dev/travel-records/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301",
             "mapmory/travel-records/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301.jpg",
-            "mapmory/dev/share-videos/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301.jpg"
+            "mapmory/dev/share-videos/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301.jpg",
+            "mapmory/dev/travel-records/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301.bak",
+            "mapmory/dev/travel-records/10/3f2504e0-4f89-41d3-9a0c-0305e82c3301.mp4",
+            "mapmory/dev/travel-records/12345678901234567890/3f2504e0-4f89-41d3-9a0c-0305e82c3301.jpg"
     })
     void 서버가_만들지_않는_형식은_아니다(String objectKey) {
         assertThat(objectKeyGenerator("mapmory/dev").isGenerated(objectKey)).isFalse();
