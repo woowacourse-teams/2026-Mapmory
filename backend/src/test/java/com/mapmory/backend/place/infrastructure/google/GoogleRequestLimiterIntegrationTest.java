@@ -97,7 +97,7 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         logger.addAppender(appender);
         try {
             for (int call = 1; call <= 5; call++) {
-                limiter.reserveGeocode();
+                limiter.reserve(GoogleApi.GEOCODE);
                 assertThat(appender.list).hasSize(call < 3 ? 0 : 1);
             }
         } finally {
@@ -118,10 +118,10 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            limiter.reserveGeocode();
-            limiter.reserveGeocode();
-            limiter.refundGeocode();
-            limiter.reserveGeocode();
+            limiter.reserve(GoogleApi.GEOCODE);
+            limiter.reserve(GoogleApi.GEOCODE);
+            limiter.refund(GoogleApi.GEOCODE);
+            limiter.reserve(GoogleApi.GEOCODE);
         } finally {
             logger.detachAppender(appender);
         }
@@ -140,9 +140,9 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         bucketManager.getProxy("google:autocomplete:" + YearMonth.now(ZoneOffset.UTC), () -> old).tryConsume(2);
 
         GoogleRequestLimiter after = limiter(4, 2, 10_000);
-        after.reserveAutocomplete();
-        after.reserveAutocomplete();
-        assertError(after::reserveAutocomplete, "PLACE_SEARCH_BUDGET_EXHAUSTED");
+        after.reserve(GoogleApi.AUTOCOMPLETE);
+        after.reserve(GoogleApi.AUTOCOMPLETE);
+        assertError(() -> after.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_SEARCH_BUDGET_EXHAUSTED");
     }
 
     @Test
