@@ -276,18 +276,21 @@ fields @timestamp, requestId, event, @message
 
 | 이벤트 | 뜻 |
 | --- | --- |
-| `UNLINKED_MEDIA_RECONCILE_DONE` | 대조 완료. `dryRun`, `scanned`, `candidates`, `queued`, `failedPages`, `sample`을 본다 |
+| `UNLINKED_MEDIA_RECONCILE_DONE` | 대조 끝. `dryRun`, `scanned`, `candidates`, `queued`, `unrecognized`, `failedPages`, `listFailed`, `sample`을 본다 |
 | `UNLINKED_MEDIA_PAGE_FAILED` | 한 쪽을 대조하지 못했다. 다음 쪽은 계속 읽고, 이 쪽은 다음 날 다시 읽는다 |
-| `UNLINKED_MEDIA_RECONCILE_FAILED` | 목록 조회가 실패해 멈췄다. 다음 날 처음부터 다시 읽는다 |
+| `UNLINKED_MEDIA_LIST_FAILED` | 목록 조회가 실패해 멈췄다. `DONE`에 그때까지의 수가 남고, 다음 날 처음부터 다시 읽는다 |
+| `UNLINKED_MEDIA_RECONCILE_FAILED` | 예상하지 못한 오류로 끝났다 |
 
-메트릭은 `mapmory.media.unlinked.reconcile`(`outcome=CANDIDATE|QUEUED|FAILED_PAGE`, `dryRun`)과
+메트릭은 `mapmory.media.unlinked.reconcile`(`outcome=CANDIDATE|QUEUED|UNRECOGNIZED|FAILED_PAGE|FAILED_LIST`, `dryRun`)과
 `mapmory.media.orphaned.cleanup`(`outcome=DELETED|FAILED`)이다.
 
 `UPLOAD_UNLINKED_MEDIA_DRY_RUN=true`로 시작한다. 끄기 전에 다음을 확인한다.
 
-1. 며칠 동안 `sample`의 키가 정말 기록에 없는지 DB에서 확인하고, `candidates`가 예상 범위인지 본다.
-2. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
-3. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다.
+1. 며칠 동안 `sample`의 키가 정말 기록에 없는지 DB에서 확인하고, `candidates`가 예상 범위인지 본다. `sample`은 날마다 무작위로 뽑는다.
+2. `unrecognized`가 0이 아니면 어떤 객체인지 확인한다. 이 객체들은 지워지지 않는다.
+3. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
+4. 각 환경의 `record_media`에 상대 환경 prefix로 시작하는 키가 없는지 확인한다. 예전에 prefix를 바꿨다면 그 환경의 사진이 이쪽 경로에 있을 수 있다.
+5. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다(#622).
 
 끄면 지운 객체는 모든 버전까지 영구히 사라진다.
 

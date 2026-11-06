@@ -28,6 +28,7 @@ import com.mapmory.backend.travelrecord.application.UnlinkedMediaProperties;
 import com.mapmory.backend.travelrecord.application.UnlinkedMediaReconciliation;
 import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
+import com.mapmory.backend.upload.service.port.ObjectKeyGenerator;
 import com.mapmory.backend.upload.service.port.StoredObject;
 import com.mapmory.backend.upload.service.port.StoredObjectPage;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -37,7 +38,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,6 +78,12 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
 
     @Autowired
     private OrphanedMediaCleanup cleanup;
+
+    @Autowired
+    private UnlinkedMediaReconciliation configuredReconciliation;
+
+    @Autowired
+    private ObjectKeyGenerator objectKeyGenerator;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -171,6 +181,18 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
         assertThat(result.sample()).containsExactly(old);
     }
 
+    // 운영이 쓰는 값은 application.yaml이다. 환경 변수가 빠진 서버가 지우기 시작하면 안 된다.
+    @Test
+    void 설정이_없는_서버의_배치는_큐에_넣지_않는다() {
+        stubLastPage(null, new StoredObject(photo("old.jpg"), Instant.parse("2020-01-01T00:00:00Z")));
+
+        UnlinkedMediaReconciliation.Result result = configuredReconciliation.run();
+
+        assertThat(result.dryRun()).isTrue();
+        assertThat(result.candidates()).isEqualTo(1);
+        assertThat(queuedKeys()).isEmpty();
+    }
+
     @Test
     void 후보_예시는_다섯_개까지만_남긴다() {
         StoredObject[] objects = IntStream.range(0, 7)
@@ -179,6 +201,21 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
         stubLastPage(null, objects);
 
         assertThat(reconciliation(true).run().sample()).hasSize(5);
+    }
+
+    // S3 목록은 사전순이다. 앞의 몇 개만 남기면 날마다 같은 회원의 키만 보게 된다.
+    @Test
+    void 후보_예시는_뒤쪽_키도_담는다() {
+        List<StoredObject> objects = IntStream.range(0, 50)
+                .mapToObj(index -> new StoredObject(photo(index + ".jpg"), OLD))
+                .toList();
+        stubLastPage(null, objects.toArray(StoredObject[]::new));
+        List<String> firstFive = objects.subList(0, 5).stream().map(StoredObject::key).toList();
+
+        Set<String> seen = new HashSet<>();
+        IntStream.range(0, 20).forEach(run -> seen.addAll(reconciliation(true).run().sample()));
+
+        assertThat(seen).isNotEqualTo(Set.copyOf(firstFive));
     }
 
     @Test
@@ -195,26 +232,31 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
         assertThat(result.scanned()).isEqualTo(2);
     }
 
+    // 지우면 되돌릴 수 없으므로 서버가 발급한 형식이 아닌 객체는 건드리지 않고 수만 센다.
     @Test
-    void 우리_경로_밖의_키와_폴더_표시는_후보가_아니다() {
+    void 서버가_만든_형식이_아닌_키는_후보가_아니다() {
+        String uuid = UUID.randomUUID().toString();
         stubLastPage(null,
-                new StoredObject("other-team/travel-records/1/a.jpg", OLD),
-                new StoredObject("mapmory/travel-records/" + memberId + "/", OLD));
+                new StoredObject("other-team/travel-records/1/" + uuid + ".jpg", OLD),
+                new StoredObject("mapmory/travel-records/" + memberId + "/", OLD),
+                new StoredObject("mapmory/travel-records/backup/" + uuid + ".jpg", OLD),
+                new StoredObject("mapmory/travel-records/" + memberId + "/sub/" + uuid + ".jpg", OLD),
+                new StoredObject("mapmory/travel-records/" + memberId + "/manual.jpg", OLD));
+        double before = count("UNRECOGNIZED", false);
 
-        assertThat(reconciliation(false).run().candidates()).isZero();
+        UnlinkedMediaReconciliation.Result result = reconciliation(false).run();
 
+        assertThat(result.candidates()).isZero();
+        assertThat(result.unrecognized()).isEqualTo(5);
         assertThat(queuedKeys()).isEmpty();
+        assertThat(count("UNRECOGNIZED", false) - before).isEqualTo(5);
     }
 
-    // 잘린 키가 큐에 들어가면 그 객체는 지워지지 않고 날마다 다시 후보가 된다. 서버가 만드는 키는 이만큼 길어지지 않는다.
     @Test
-    void 큐_컬럼보다_긴_키는_후보가_아니다() {
-        String tooLong = "mapmory/travel-records/" + memberId + "/" + "a".repeat(500) + ".jpg";
-        stubLastPage(null, new StoredObject(tooLong, OLD));
+    void 유예_기간이_지나지_않은_낯선_키는_세지_않는다() {
+        stubLastPage(null, new StoredObject("mapmory/travel-records/backup/a.jpg", NOW));
 
-        assertThat(reconciliation(false).run().candidates()).isZero();
-
-        assertThat(queuedKeys()).isEmpty();
+        assertThat(reconciliation(false).run().unrecognized()).isZero();
     }
 
     @Test
@@ -239,15 +281,30 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 목록_조회가_실패하면_앞서_넣은_키를_두고_예외를_올린다() {
+    void 목록_조회가_실패하면_멈추고_그때까지의_결과를_돌려준다() {
         String first = photo("first.jpg");
         willReturn(new StoredObjectPage(List.of(new StoredObject(first, OLD)), "next"))
                 .given(storedObjectLister).listTravelRecordObjects(null);
         willThrow(new IllegalStateException("s3 down")).given(storedObjectLister).listTravelRecordObjects("next");
+        double before = count("FAILED_LIST", false);
 
-        assertThatThrownBy(() -> reconciliation(false).run()).isInstanceOf(IllegalStateException.class);
+        UnlinkedMediaReconciliation.Result result = reconciliation(false).run();
 
+        assertThat(result.listFailed()).isTrue();
+        assertThat(result.candidates()).isEqualTo(1);
+        assertThat(result.sample()).containsExactly(first);
         assertThat(queuedKeys()).containsExactly(first);
+        assertThat(count("FAILED_LIST", false) - before).isEqualTo(1);
+    }
+
+    @Test
+    void 첫_쪽_조회가_실패해도_결과를_돌려준다() {
+        willThrow(new IllegalStateException("s3 down")).given(storedObjectLister).listTravelRecordObjects(null);
+
+        UnlinkedMediaReconciliation.Result result = reconciliation(false).run();
+
+        assertThat(result.listFailed()).isTrue();
+        assertThat(result.scanned()).isZero();
     }
 
     @Test
@@ -316,7 +373,7 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
                 storedObjectLister,
                 records,
                 orphanedMediaRepository,
-                objectDeleter,
+                objectKeyGenerator,
                 transactionManager,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 meterRegistry,
@@ -333,8 +390,9 @@ class UnlinkedMediaReconciliationIntegrationTest extends IntegrationTest {
         return meterRegistry.counter(METRIC_NAME, "outcome", outcome, "dryRun", String.valueOf(dryRun)).count();
     }
 
-    private String photo(String fileName) {
-        return "mapmory/travel-records/" + memberId + "/" + fileName;
+    // 서버가 만드는 형식의 키. 같은 이름이면 같은 키다.
+    private String photo(String name) {
+        return "mapmory/travel-records/" + memberId + "/" + UUID.nameUUIDFromBytes(name.getBytes()) + ".jpg";
     }
 
     private List<String> queuedKeys() {
