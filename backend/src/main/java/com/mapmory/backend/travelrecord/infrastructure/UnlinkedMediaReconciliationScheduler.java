@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * 하루 한 번 기록에 붙지 않은 S3 객체를 찾아 정리 큐에 넣는다. API를 받지 않는 렌더러 서버에서는 돌지 않는다.
  *
- * <p>19:30 UTC의 큐 정리(#162) 뒤에 돈다. 여기서 넣은 키는 다음 날 큐 정리가 다시 확인하고 지우므로, 그사이 기록에 붙은 키는 살아남는다.
+ * <p>19:30 UTC의 큐 정리(#162) 뒤에 돈다. 여기서 넣은 키는 다음 날 큐 정리가 지우기 직전에 record_media를 다시 본다.
  */
 @Component
 @ConditionalOnProperty(prefix = "notification.outbox", name = "enabled", havingValue = "true", matchIfMissing = true)
