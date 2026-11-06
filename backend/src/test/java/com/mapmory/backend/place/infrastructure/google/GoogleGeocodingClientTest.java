@@ -1,5 +1,9 @@
 package com.mapmory.backend.place.infrastructure.google;
 
+import tools.jackson.databind.node.JsonNodeFactory;
+
+import static org.mockito.Mockito.never;
+
 import static com.mapmory.backend.support.LogEvents.field;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,11 +52,14 @@ class GoogleGeocodingClientTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
     private final CircuitBreaker breaker =
             GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.GEOCODING);
+    private final CircuitBreaker placesBreaker =
+            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.PLACES);
+    private final GoogleCallGuard guard = new GoogleCallGuard(
+            GoogleCircuitBreakers.of(host -> host == GoogleApi.Host.GEOCODING ? breaker : placesBreaker), limiter);
     private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
             new GoogleApiProperties("test-key", "https://places.google.test", GEOCODING_URL,
                     Duration.ofMillis(400), Duration.ofSeconds(1)),
-            new GoogleCallGuard(GoogleCircuitBreakers.of(host -> host == GoogleApi.Host.GEOCODING ? breaker
-                    : GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, host)), limiter));
+            guard);
 
     @Test
     void 키는_헤더로_보내고_좌표를_한국어_주소_구성요소로_바꾼다() {
@@ -171,6 +178,20 @@ class GoogleGeocodingClientTest {
         assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU)).isInstanceOf(BusinessException.class);
         verify(limiter).refund(GoogleApi.GEOCODE);
         assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void 지오코딩_서킷이_열리면_한도를_쓰지_않고_바로_실패하고_장소_호출은_막지_않는다() {
+        breaker.transitionToOpenState();
+
+        assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE));
+        verify(limiter, never()).reserve(GoogleApi.GEOCODE);
+
+        assertThat(guard.call(GoogleApi.AUTOCOMPLETE, () -> JsonNodeFactory.instance.objectNode())).isNotNull();
+        verify(limiter).reserve(GoogleApi.AUTOCOMPLETE);
+        assertThat(placesBreaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
     }
 
     private static String rendered(ILoggingEvent event) {

@@ -1,10 +1,8 @@
 package com.mapmory.backend.place.infrastructure.google;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.port.ReverseGeocodePort;
 import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceProvider;
-import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -50,10 +48,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
 
     @Override
     public Optional<RegionAddress> findAddress(Coordinate coordinate) {
-        if (!api.configured()) {
-            throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE,
-                    "GOOGLE_PLACES_API_KEY가 설정되지 않았습니다.");
-        }
+        api.requireConfigured();
         JsonNode response = google.call(GoogleApi.GEOCODE, () -> restClient.get()
                 .uri(uri -> uri.path("/v4/geocode/location")
                         .queryParam("location.latitude", coordinate.latitudeText())

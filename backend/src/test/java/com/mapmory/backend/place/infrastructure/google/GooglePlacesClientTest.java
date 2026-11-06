@@ -257,6 +257,15 @@ class GooglePlacesClientTest {
     }
 
     @Test
+    void Google_쿼터_초과_429는_과금되지_않아_월_한도를_돌려준다() {
+        server.expect(method(HttpMethod.POST)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
+
+        verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
+    }
+
+    @Test
     void 풀에서_연결을_못_받은_타임아웃은_POOL로_남기고_한도를_돌려준다() {
         server.expect(method(HttpMethod.POST)).andRespond(request -> {
             throw new ConnectionRequestTimeoutException("Timeout deadline: 400 MILLISECONDS");
@@ -288,7 +297,7 @@ class GooglePlacesClientTest {
         configLogger.addAppender(startup);
         try {
             new GoogleRestClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
-                    new GoogleRateLimitProperties(9000, 9000, 9000, 60));
+                    GoogleRestClientConfig.requestFactory(api(""), new GoogleRateLimitProperties(9000, 9000, 9000, 60)));
         } finally {
             configLogger.detachAppender(startup);
         }

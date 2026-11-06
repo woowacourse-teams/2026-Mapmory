@@ -1,5 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google;
 
+import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.place.exception.PlaceErrorCode;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -18,5 +20,13 @@ public record GoogleApiProperties(
 ) {
     public boolean configured() {
         return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** 키를 뺀 뒤에는 Google을 부르지 않도록 제공자 장애로 알린다. Places와 Geocoding 클라이언트가 함께 쓴다. */
+    void requireConfigured() {
+        if (!configured()) {
+            throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE,
+                    "GOOGLE_PLACES_API_KEY가 설정되지 않았습니다.");
+        }
     }
 }

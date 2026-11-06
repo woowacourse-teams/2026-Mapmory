@@ -53,13 +53,13 @@ public class GooglePlacesClient implements PlaceLookupPort {
     /** 키를 뺀 뒤에는 새 Google 장소를 받지 않도록 제공자 장애로 알린다. */
     @Override
     public PlaceProvider provider() {
-        requireConfigured();
+        api.requireConfigured();
         return PROVIDER;
     }
 
     @Override
     public List<PlaceCandidate> search(SearchQuery query, String sessionToken) {
-        requireConfigured();
+        api.requireConfigured();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("input", query.value());
         body.put("languageCode", LANGUAGE);
@@ -80,7 +80,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     /** 같은 sessionToken으로 상세를 조회하면 자동완성 세션이 닫힌다. 이름은 클라이언트가 후보의 name을 쓴다. */
     @Override
     public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
-        requireConfigured();
+        api.requireConfigured();
         JsonNode response = google.call(GoogleApi.DETAILS,
                 () -> restClient.get()
                         .uri(uri -> {
@@ -96,12 +96,5 @@ public class GooglePlacesClient implements PlaceLookupPort {
                         .body(JsonNode.class));
         return mapper.details(response, placeId)
                 .orElseThrow(() -> new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND));
-    }
-
-    private void requireConfigured() {
-        if (!api.configured()) {
-            throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE,
-                    "GOOGLE_PLACES_API_KEY가 설정되지 않았습니다.");
-        }
     }
 }
