@@ -89,6 +89,63 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 무료_사용량에_가까워진_순간에_한_번_ERROR_로그를_남기고_막지는_않는다() {
+        GoogleRequestLimiter limiter = limiter(10, 10, 10_000, 3);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (int call = 1; call <= 5; call++) {
+                limiter.reserve(GoogleApi.GEOCODE);
+                assertThat(appender.list).hasSize(call < 3 ? 0 : 1);
+            }
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .extracting(event -> field(event, "event") + ":" + field(event, "budget") + ":" + field(event, "used")
+                        + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_FREE_USAGE:geocode:3:ERROR");
+    }
+
+    @Test
+    void 돌려받아_같은_사용량을_다시_지나도_무료_사용량_알림은_한_달에_한_번이다() {
+        GoogleRequestLimiter limiter = limiter(10, 10, 10_000, 2);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleRequestLimiter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            limiter.reserve(GoogleApi.GEOCODE);
+            limiter.reserve(GoogleApi.GEOCODE);
+            limiter.refund(GoogleApi.GEOCODE);
+            limiter.reserve(GoogleApi.GEOCODE);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).extracting(event -> field(event, "event"))
+                .containsExactly("GOOGLE_PLACES_FREE_USAGE");
+    }
+
+    // 배포 전에 9,000으로 만든 이번 달 버킷이 남아 있어도 올린 상한까지 쓸 수 있어야 한다.
+    @Test
+    void 상한을_올려_배포하면_이미_만든_이번_달_버킷에도_새_상한을_적용한다() {
+        // 이전 코드처럼 버전 없이 상한 2로 만들고 다 쓴 버킷
+        BucketConfiguration old = BucketConfiguration.builder()
+                .addLimit(bandwidth -> bandwidth.capacity(2).refillIntervally(2, Duration.ofDays(31)))
+                .build();
+        bucketManager.getProxy("google:autocomplete:" + YearMonth.now(ZoneOffset.UTC), () -> old).tryConsume(2);
+
+        GoogleRequestLimiter after = limiter(4, 2, 10_000);
+        after.reserve(GoogleApi.AUTOCOMPLETE);
+        after.reserve(GoogleApi.AUTOCOMPLETE);
+        assertError(() -> after.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_SEARCH_BUDGET_EXHAUSTED");
+    }
+
+    @Test
     void 속도_제한에_걸린_요청은_월_한도를_쓰지_않는다() {
         GoogleRequestLimiter limiter = limiter(2, 1, 1);
 
@@ -180,6 +237,11 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     }
 
     private GoogleRequestLimiter limiter(int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute) {
+        return limiter(autocompletePerMonth, detailsPerMonth, requestsPerMinute, Long.MAX_VALUE);
+    }
+
+    private GoogleRequestLimiter limiter(
+            int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute, long freeAlertAt) {
         GoogleRateLimitProperties properties =
                 new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, detailsPerMonth, requestsPerMinute);
         GoogleRateLimitConfig config = new GoogleRateLimitConfig();
@@ -189,6 +251,7 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
                 config.googleAutocompleteBudget(properties),
                 config.googleDetailsBudget(properties),
                 config.googleGeocodeBudget(properties),
+                freeAlertAt,
                 clock
         );
     }
