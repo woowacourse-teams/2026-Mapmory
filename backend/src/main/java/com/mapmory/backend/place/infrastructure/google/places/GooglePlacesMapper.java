@@ -1,6 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
 import static com.mapmory.backend.place.infrastructure.google.GoogleAddressMapper.address;
+import static com.mapmory.backend.place.infrastructure.google.GoogleAddressMapper.text;
 
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
@@ -44,13 +45,5 @@ class GooglePlacesMapper {
                 null,
                 address(components, text(response.path("shortFormattedAddress"))),
                 GoogleProvider.PLACE_PROVIDER));
-    }
-
-    private static String text(JsonNode node) {
-        if (node == null || !node.isString()) {
-            return null;
-        }
-        String value = node.asString().strip();
-        return value.isEmpty() ? null : value;
     }
 }

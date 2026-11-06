@@ -88,7 +88,8 @@ google:
   # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 개발 서버는 application-dev.yaml에서 월 한도를 낮춘다.
   geocoding:
     rate-limit:
-      # 기록을 저장할 때 대표 사진으로 한 번만 부르므로 검색보다 작게 둔다. 월 상한을 다 쓰는 데 17시간쯤(20,000 / 20) 걸린다.
+      # 사진 좌표 → 지역(POST /api/v1/places/location)은 글자마다 부르는 검색보다 적게 불려 작게 둔다(2026-11-06 결정).
+      # 서버 한 대에서 1분에 21번째 요청부터 PLACE_RATE_LIMITED(429)다. 월 상한을 다 쓰는 데 17시간쯤(20,000 / 20) 걸린다.
       requests-per-minute: 20
       per-month: 20000
       # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_GEOCODING_FREE_USAGE)를 남긴다.

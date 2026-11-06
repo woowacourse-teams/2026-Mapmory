@@ -85,7 +85,8 @@ public final class GoogleAddressMapper {
         return null;
     }
 
-    private static String text(JsonNode node) {
+    /** Google 문자열 필드를 읽는다. 문자열이 아니거나 비어 있으면 null이다. */
+    public static String text(JsonNode node) {
         if (node == null || !node.isString()) {
             return null;
         }
