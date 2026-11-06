@@ -22,6 +22,7 @@ import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.travelrecord.application.OrphanedMediaCleanup;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,6 +56,9 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
     private final List<String> deletedKeys = new ArrayList<>();
     private String accessToken;
     private Long memberId;
@@ -85,7 +89,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
 
         deleteRecord(recordId);
 
-        assertThat(cleanup.run()).isEqualTo(2);
+        assertThat(cleanup.run().deleted()).isEqualTo(2);
         assertThat(deletedKeys).containsExactlyInAnyOrder(photo, thumb);
         assertThat(queued()).isZero();
     }
@@ -110,7 +114,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         updateRecord(recordId, kept);
         updateRecord(recordId, kept, returned);
 
-        assertThat(cleanup.run()).isZero();
+        assertThat(cleanup.run().deleted()).isZero();
 
         assertThat(deletedKeys).isEmpty();
         assertThat(queued()).isZero();
@@ -134,12 +138,12 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         deleteRecord(createRecord(photo));
         willReturn(List.of(photo)).given(objectDeleter).delete(anyCollection());
 
-        assertThat(cleanup.run()).isZero();
+        assertThat(cleanup.run().deleted()).isZero();
         assertThat(queued()).isEqualTo(1);
 
         willReturn(List.of()).given(objectDeleter).delete(anyCollection());
 
-        assertThat(cleanup.run()).isEqualTo(1);
+        assertThat(cleanup.run().deleted()).isEqualTo(1);
         assertThat(queued()).isZero();
     }
 
@@ -147,7 +151,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     void 한_묶음을_넘어도_모두_지운다() {
         List<String> keys = enqueue(501);
 
-        assertThat(cleanup.run()).isEqualTo(501);
+        assertThat(cleanup.run().deleted()).isEqualTo(501);
 
         assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
         assertThat(queued()).isZero();
@@ -163,7 +167,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
             return requested.contains(failed) ? List.of(failed) : List.of();
         }).given(objectDeleter).delete(anyCollection());
 
-        assertThat(cleanup.run()).isEqualTo(500);
+        assertThat(cleanup.run().deleted()).isEqualTo(500);
 
         assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
         assertThat(queued()).isEqualTo(1);
@@ -184,7 +188,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
             return List.of();
         }).given(objectDeleter).delete(anyCollection());
 
-        assertThat(cleanup.run()).isEqualTo(501);
+        assertThat(cleanup.run().deleted()).isEqualTo(501);
 
         assertThat(deletedKeys).containsExactlyInAnyOrderElementsOf(keys);
         assertThat(queued()).isEqualTo(1);
@@ -202,8 +206,36 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void S3가_실패한_키는_실패로_세고_경로_밖의_키는_세지_않는다() throws Exception {
+        String photo = photo("a.jpg");
+        deleteRecord(createRecord(photo));
+        enqueue(List.of("other-team/a.jpg"));
+        willReturn(List.of(photo)).given(objectDeleter).delete(anyCollection());
+
+        OrphanedMediaCleanup.Result result = cleanup.run();
+
+        assertThat(result.deleted()).isZero();
+        assertThat(result.failed()).isEqualTo(1);
+    }
+
+    @Test
+    void 지운_수와_실패_수를_메트릭에_남긴다() throws Exception {
+        String deleted = photo("deleted.jpg");
+        String failed = photo("failed.jpg");
+        deleteRecord(createRecord(deleted, failed));
+        double deletedBefore = count("DELETED");
+        double failedBefore = count("FAILED");
+        willReturn(List.of(failed)).given(objectDeleter).delete(anyCollection());
+
+        cleanup.run();
+
+        assertThat(count("DELETED") - deletedBefore).isEqualTo(1);
+        assertThat(count("FAILED") - failedBefore).isEqualTo(1);
+    }
+
+    @Test
     void 지울_것이_없으면_S3를_부르지_않는다() {
-        assertThat(cleanup.run()).isZero();
+        assertThat(cleanup.run().deleted()).isZero();
 
         verify(objectDeleter, never()).delete(anyCollection());
     }
@@ -258,6 +290,10 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
                   "placeId": "%s"
                 }
                 """.formatted(keys, GOOGLE_PLACE_ID);
+    }
+
+    private double count(String outcome) {
+        return meterRegistry.counter("mapmory.media.orphaned.cleanup", "outcome", outcome).count();
     }
 
     private long queued() {
