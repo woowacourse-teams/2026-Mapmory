@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 실패면 openDuration 동안 Google을 부르지 않는다. 그 뒤 halfOpenCalls번 시험해 회복을 확인한다.
  */
 @ConfigurationProperties(prefix = "google.places.circuit-breaker")
-public record GoogleCircuitBreakerProperties(
+record GoogleCircuitBreakerProperties(
         Duration window,
         int minimumCalls,
         int failureRatePercent,

@@ -72,6 +72,7 @@ import org.springframework.test.context.jdbc.Sql;
         "spring.datasource.hikari.connection-timeout=500",
         "google.api-key=test-key",
         "google.places.base-url=http://127.0.0.1:9",
+        "google.geocoding.base-url=http://127.0.0.1:9",
         "upload.storage.s3.key-prefix=mapmory",
         "notification.outbox.enabled=false"
 })

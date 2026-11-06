@@ -85,7 +85,7 @@ public final class GoogleAddressMapper {
         return null;
     }
 
-    public static String text(JsonNode node) {
+    private static String text(JsonNode node) {
         if (node == null || !node.isString()) {
             return null;
         }
