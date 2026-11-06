@@ -1,6 +1,5 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
-import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakers;
 import com.mapmory.backend.place.infrastructure.google.GoogleHttpClients;
@@ -9,6 +8,8 @@ import com.mapmory.backend.place.infrastructure.google.GoogleRequestPace;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.time.Clock;
+import java.util.EnumMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -67,11 +68,11 @@ class GooglePlacesConfig {
 
     static GooglePlacesLimiter limiter(ProxyManager<String> bucketManager, GooglePlacesProperties.RateLimit limit,
                                        Clock clock) {
-        return new GooglePlacesLimiter(
-                new GoogleRequestPace(limit.requestsPerMinute()),
-                new GoogleMonthlyBudget(bucketManager, "autocomplete", limit.autocompletePerMonth(),
-                        limit.freeAlertAt(), PlaceErrorCode.PLACE_SEARCH_BUDGET_EXHAUSTED, clock),
-                new GoogleMonthlyBudget(bucketManager, "details", limit.detailsPerMonth(),
-                        limit.freeAlertAt(), PlaceErrorCode.PLACE_PROVIDER_BUDGET_EXHAUSTED, clock));
+        Map<GooglePlacesEndpoint, GoogleMonthlyBudget> budgets = new EnumMap<>(GooglePlacesEndpoint.class);
+        for (GooglePlacesEndpoint endpoint : GooglePlacesEndpoint.values()) {
+            budgets.put(endpoint, new GoogleMonthlyBudget(bucketManager, "GOOGLE_PLACES", endpoint.budgetName(),
+                    limit.perMonth().get(endpoint), limit.freeAlertAt(), endpoint.budgetExhausted(), clock));
+        }
+        return new GooglePlacesLimiter(new GoogleRequestPace(limit.requestsPerMinute()), budgets);
     }
 }

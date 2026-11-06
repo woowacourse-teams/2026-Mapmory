@@ -60,7 +60,7 @@ class GoogleGeocodingConfig {
                                           Clock clock) {
         return new GoogleGeocodingLimiter(
                 new GoogleRequestPace(limit.requestsPerMinute()),
-                new GoogleMonthlyBudget(bucketManager, "geocode", limit.perMonth(), limit.freeAlertAt(),
+                new GoogleMonthlyBudget(bucketManager, "GOOGLE_GEOCODING", "geocode", limit.perMonth(), limit.freeAlertAt(),
                         PlaceErrorCode.PLACE_PROVIDER_BUDGET_EXHAUSTED, clock));
     }
 }

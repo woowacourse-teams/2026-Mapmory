@@ -2,6 +2,8 @@ package com.mapmory.backend.place.infrastructure.google.places;
 
 import com.mapmory.backend.place.infrastructure.google.GoogleMonthlyBudget;
 import com.mapmory.backend.place.infrastructure.google.GoogleRequestPace;
+import java.util.EnumMap;
+import java.util.Map;
 
 /**
  * 장소 검색의 Google 한도. 분당 한도(자동완성·상세 합쳐서, 서버 메모리)를 먼저 보고, 엔드포인트별 월 한도(DB)를 쓴다.
@@ -10,13 +12,16 @@ import com.mapmory.backend.place.infrastructure.google.GoogleRequestPace;
 public class GooglePlacesLimiter {
 
     private final GoogleRequestPace pace;
-    private final GoogleMonthlyBudget autocomplete;
-    private final GoogleMonthlyBudget details;
+    private final Map<GooglePlacesEndpoint, GoogleMonthlyBudget> budgets;
 
-    GooglePlacesLimiter(GoogleRequestPace pace, GoogleMonthlyBudget autocomplete, GoogleMonthlyBudget details) {
+    GooglePlacesLimiter(GoogleRequestPace pace, Map<GooglePlacesEndpoint, GoogleMonthlyBudget> budgets) {
+        for (GooglePlacesEndpoint endpoint : GooglePlacesEndpoint.values()) {
+            if (!budgets.containsKey(endpoint)) {
+                throw new IllegalArgumentException("Google " + endpoint + " 월 한도가 없습니다.");
+            }
+        }
         this.pace = pace;
-        this.autocomplete = autocomplete;
-        this.details = details;
+        this.budgets = new EnumMap<>(budgets);
     }
 
     /** 분당 한도를 먼저 확인한다. 거절된 요청이 DB에 가지 않고 월 한도도 쓰지 않게 하기 위해서다. */
@@ -31,9 +36,6 @@ public class GooglePlacesLimiter {
     }
 
     private GoogleMonthlyBudget budget(GooglePlacesEndpoint endpoint) {
-        return switch (endpoint) {
-            case AUTOCOMPLETE -> autocomplete;
-            case DETAILS -> details;
-        };
+        return budgets.get(endpoint);
     }
 }

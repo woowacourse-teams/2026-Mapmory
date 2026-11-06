@@ -21,6 +21,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -182,7 +183,9 @@ class GooglePlacesLimiterIntegrationTest extends IntegrationTest {
     private GooglePlacesLimiter limiter(
             int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute, long freeAlertAt) {
         return GooglePlacesConfig.limiter(bucketManager,
-                new GooglePlacesProperties.RateLimit(requestsPerMinute, autocompletePerMonth, detailsPerMonth, freeAlertAt),
+                new GooglePlacesProperties.RateLimit(requestsPerMinute, Map.of(
+                        GooglePlacesEndpoint.AUTOCOMPLETE, autocompletePerMonth, GooglePlacesEndpoint.DETAILS, detailsPerMonth),
+                        freeAlertAt),
                 clock);
     }
 

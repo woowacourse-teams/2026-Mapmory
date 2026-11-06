@@ -1,6 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
 import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakerProperties;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -24,12 +25,24 @@ record GooglePlacesProperties(
         }
     }
 
-    record RateLimit(int requestsPerMinute, int autocompletePerMonth, int detailsPerMonth, long freeAlertAt) {
+    /**
+     * @param perMonth 엔드포인트마다 월 한도(per-month.autocomplete, per-month.details). 모든 엔드포인트에 있어야 한다.
+     */
+    record RateLimit(int requestsPerMinute, Map<GooglePlacesEndpoint, Integer> perMonth, long freeAlertAt) {
 
         RateLimit {
-            if (requestsPerMinute < 1 || autocompletePerMonth < 1 || detailsPerMonth < 1 || freeAlertAt < 1) {
+            if (requestsPerMinute < 1 || freeAlertAt < 1) {
                 throw new IllegalArgumentException("google.places.rate-limit 설정이 올바르지 않습니다.");
             }
+            Map<GooglePlacesEndpoint, Integer> limits = perMonth == null ? Map.of() : perMonth;
+            for (GooglePlacesEndpoint endpoint : GooglePlacesEndpoint.values()) {
+                Integer limit = limits.get(endpoint);
+                if (limit == null || limit < 1) {
+                    throw new IllegalArgumentException(
+                            "google.places.rate-limit.per-month." + endpoint.budgetName() + "이 1 이상이어야 합니다.");
+                }
+            }
+            perMonth = Map.copyOf(limits);
         }
     }
 }

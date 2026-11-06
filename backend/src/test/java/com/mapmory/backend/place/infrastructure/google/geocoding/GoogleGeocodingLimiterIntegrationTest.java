@@ -64,7 +64,7 @@ class GoogleGeocodingLimiterIntegrationTest extends IntegrationTest {
         assertThat(appender.list)
                 .extracting(event -> field(event, "event") + ":" + field(event, "budget") + ":" + field(event, "used")
                         + ":" + event.getLevel())
-                .containsExactly("GOOGLE_PLACES_FREE_USAGE:geocode:3:ERROR");
+                .containsExactly("GOOGLE_GEOCODING_FREE_USAGE:geocode:3:ERROR");
     }
 
     @Test
@@ -84,7 +84,7 @@ class GoogleGeocodingLimiterIntegrationTest extends IntegrationTest {
         }
 
         assertThat(appender.list).extracting(event -> field(event, "event"))
-                .containsExactly("GOOGLE_PLACES_FREE_USAGE");
+                .containsExactly("GOOGLE_GEOCODING_FREE_USAGE");
     }
 
     private GoogleGeocodingLimiter limiter(int perMonth, int requestsPerMinute, long freeAlertAt) {

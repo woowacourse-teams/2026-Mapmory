@@ -28,6 +28,7 @@ public final class GoogleMonthlyBudget {
     private static final Logger log = LoggerFactory.getLogger(GoogleMonthlyBudget.class);
 
     private final ProxyManager<String> bucketManager;
+    private final String logEvent;
     private final String name;
     private final BucketConfiguration configuration;
     private final long freeAlertAt;
@@ -37,15 +38,17 @@ public final class GoogleMonthlyBudget {
     private final Map<String, Boolean> freeUsageAlerted = new ConcurrentHashMap<>();
 
     /**
+     * @param logEvent       로그 이벤트 앞부분(GOOGLE_PLACES, GOOGLE_GEOCODING). 뒤에 _BUDGET, _FREE_USAGE가 붙는다.
      * @param name           월 키와 로그에 쓰는 이름(autocomplete, details, geocode). 키는 google:{name}:{UTC 연월}이다.
      * @param exhaustedError 상한에 닿았을 때 답할 에러
      */
-    public GoogleMonthlyBudget(ProxyManager<String> bucketManager, String name, int capacity, long freeAlertAt,
-                               PlaceErrorCode exhaustedError, Clock clock) {
+    public GoogleMonthlyBudget(ProxyManager<String> bucketManager, String logEvent, String name, int capacity,
+                               long freeAlertAt, PlaceErrorCode exhaustedError, Clock clock) {
         if (capacity < 1) {
             throw new IllegalArgumentException("Google 월 한도는 1 이상이어야 합니다: " + name);
         }
         this.bucketManager = bucketManager;
+        this.logEvent = logEvent;
         this.name = name;
         // 한 달 안에 다시 차지 않도록 채우는 주기를 가장 긴 달로 둔다.
         this.configuration = BucketConfiguration.builder()
@@ -64,6 +67,7 @@ public final class GoogleMonthlyBudget {
             // 한도 저장소가 장애일 때 외부 API를 호출하면 사용량을 통제할 수 없다.
             log.atError()
                     .addKeyValue("event", "PLACE_RATE_LIMIT_STORE_UNAVAILABLE")
+                    .addKeyValue("budget", name)
                     .setCause(exception)
                     .log("장소 한도 저장소를 쓰지 못했다");
             throw new BusinessException(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE);
@@ -84,7 +88,7 @@ public final class GoogleMonthlyBudget {
             bucket().addTokens(1);
         } catch (BucketExecutionException exception) {
             log.atWarn()
-                    .addKeyValue("event", "GOOGLE_PLACES_BUDGET_REFUND_FAILED")
+                    .addKeyValue("event", logEvent + "_BUDGET_REFUND_FAILED")
                     .addKeyValue("budget", name)
                     .setCause(exception)
                     .log("Google {} 월 한도를 돌려주지 못했다", name);
@@ -119,7 +123,7 @@ public final class GoogleMonthlyBudget {
             return;
         }
         log.atError()
-                .addKeyValue("event", "GOOGLE_PLACES_BUDGET")
+                .addKeyValue("event", logEvent + "_BUDGET")
                 .addKeyValue("budget", name)
                 .addKeyValue("remaining", remaining)
                 .addKeyValue("capacity", capacity)
@@ -140,7 +144,7 @@ public final class GoogleMonthlyBudget {
             return;
         }
         log.atError()
-                .addKeyValue("event", "GOOGLE_PLACES_FREE_USAGE")
+                .addKeyValue("event", logEvent + "_FREE_USAGE")
                 .addKeyValue("budget", name)
                 .addKeyValue("used", freeAlertAt)
                 .addKeyValue("capacity", capacity)

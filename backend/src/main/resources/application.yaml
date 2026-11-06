@@ -68,10 +68,12 @@ google:
       # 서버마다 메모리에서 센다. 자동완성과 상세를 합쳐 센다. 몰린 요청이 무료 사용량을 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
       # 연결 풀 크기도 이 값이다.
       requests-per-minute: 60
-      # UTC 달마다 센다. 상한에 닿으면 막는다. 상한을 무료 사용량(10,000)의 두 배로 두고 무료를 넘기 전에 알림을 받는다.
+      # 엔드포인트(GooglePlacesEndpoint)마다 UTC 달마다 센다. 엔드포인트를 더하면 여기에도 한 줄 더한다(빠지면 기동이 실패한다).
+      # 상한에 닿으면 막는다. 상한을 무료 사용량(10,000)의 두 배로 두고 무료를 넘기 전에 알림을 받는다.
       # 상한까지 다 쓰면 SKU마다 10,000건이 과금된다(자동완성 약 $28, 상세 $50).
-      autocomplete-per-month: 20000
-      details-per-month: 20000
+      per-month:
+        autocomplete: 20000
+        details: 20000
       # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_PLACES_FREE_USAGE)를 남겨 Discord로 알린다. 무료 10,000건보다 조금 앞이다.
       # Google 월은 태평양 시간 기준이라 UTC 달과 몇 시간 어긋난다.
       free-alert-at: 9000
@@ -89,6 +91,7 @@ google:
       # 기록을 저장할 때 대표 사진으로 한 번만 부르므로 검색보다 작게 둔다. 월 상한을 다 쓰는 데 17시간쯤(20,000 / 20) 걸린다.
       requests-per-minute: 20
       per-month: 20000
+      # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_GEOCODING_FREE_USAGE)를 남긴다.
       free-alert-at: 9000
     # 장소 검색과 같은 기준이다. 따로 열리고 닫힌다.
     circuit-breaker:

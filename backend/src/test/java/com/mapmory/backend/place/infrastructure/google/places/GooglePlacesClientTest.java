@@ -41,6 +41,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -302,7 +303,8 @@ class GooglePlacesClientTest {
         configLogger.addAppender(startup);
         try {
             new GooglePlacesConfig().googlePlacesRestClient(RestClient.builder(), api(""), new GooglePlacesProperties(BASE_URL,
-                    new GooglePlacesProperties.RateLimit(60, 9000, 9000, 9000), GooglePlacesFixture.BREAKER),
+                    new GooglePlacesProperties.RateLimit(60,
+                            Map.of(GooglePlacesEndpoint.AUTOCOMPLETE, 9000, GooglePlacesEndpoint.DETAILS, 9000), 9000), GooglePlacesFixture.BREAKER),
                     new SimpleClientHttpRequestFactory());
         } finally {
             configLogger.detachAppender(startup);
