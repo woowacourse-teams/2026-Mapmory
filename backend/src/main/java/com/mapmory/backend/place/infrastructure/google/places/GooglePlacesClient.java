@@ -9,8 +9,6 @@ import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,7 +25,7 @@ import tools.jackson.databind.JsonNode;
  * <p>검색은 사진을 찾기 위한 도구다. Google이 준 후보 이름은 응답에만 쓰고 저장하지 않는다. 상세 조회는 이름과
  * 좌표 없이 주소 구성요소(Essentials)만 받아 국가와 시·도·시·군·구를 추천한다.
  *
- * <p>서킷 브레이커·월 한도·실패 처리는 {@link GoogleCallGuard}가 맡는다. 여기서는 요청을 만들고 응답을 읽기만 한다.
+ * <p>서킷 브레이커·월 한도·실패 처리는 {@link GooglePlacesGuard}가 맡는다. 여기서는 요청을 만들고 응답을 읽기만 한다.
  */
 @Component
 public class GooglePlacesClient implements PlaceLookupPort {
@@ -39,13 +37,13 @@ public class GooglePlacesClient implements PlaceLookupPort {
 
     private final RestClient restClient;
     private final GoogleApiProperties api;
-    private final GoogleCallGuard google;
+    private final GooglePlacesGuard google;
     private final GooglePlacesMapper mapper = new GooglePlacesMapper();
 
-    public GooglePlacesClient(
-            @Qualifier(GooglePlacesClientConfig.REST_CLIENT) RestClient restClient,
+    GooglePlacesClient(
+            @Qualifier(GooglePlacesConfig.REST_CLIENT) RestClient restClient,
             GoogleApiProperties api,
-            GoogleCallGuard google
+            GooglePlacesGuard google
     ) {
         this.restClient = restClient;
         this.api = api;
@@ -68,7 +66,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);
         }
-        JsonNode response = google.call(GoogleEndpoint.AUTOCOMPLETE,
+        JsonNode response = google.call(GooglePlacesEndpoint.AUTOCOMPLETE,
                 () -> restClient.post()
                         .uri("/v1/places:autocomplete")
                         .header("X-Goog-Api-Key", api.apiKey())
@@ -83,7 +81,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     @Override
     public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
         api.requireConfigured();
-        JsonNode response = google.call(GoogleEndpoint.DETAILS,
+        JsonNode response = google.call(GooglePlacesEndpoint.DETAILS,
                 () -> restClient.get()
                         .uri(uri -> {
                             uri.path("/v1/places/{placeId}").queryParam("languageCode", LANGUAGE);

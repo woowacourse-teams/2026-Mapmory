@@ -342,11 +342,12 @@ delete from travel_record where id=?
   `web`과 `infrastructure`는 import하지 않는다. 같은 기능의 다른 하위 패키지(`auth/token`)나 다른 도메인(`member`)은 쓸 수 있다.
 - `infrastructure/<제공자>`는 포트 구현체만 `public`으로 두고, 클라이언트·외부 응답 DTO는 package-private으로 숨긴다.
   설정 클래스는 같은 패키지에 두면 package-private으로 숨길 수 있다(`place/infrastructure/google/places`).
-  제공자 아래 파일이 많아지면 역할별 하위 패키지로 나눈다. `place/infrastructure/google`은 API별(`places`, `geocoding`)과
-  호출 보호(`guard`: 순서·한도·서킷 브레이커·실패 번역)로 나누고, 공통 연결 설정·주소 해석만 루트에 둔다.
-  다른 패키지가 쓰는 클래스만 `public`이다(`guard`의 `GoogleCallGuard`·`GoogleEndpoint`·`GoogleRequestLimiter`·`GoogleRateLimitProperties`,
-  루트의 연결 설정·주소 해석·제공자 상수, 포트 구현체). 나머지 설정과 응답 해석은 package-private이다.
-  의존은 `places`·`geocoding` → 루트 → `guard` 한 방향이라 패키지 순환이 없다.
+  제공자 아래 파일이 많아지면 역할별 하위 패키지로 나눈다. `place/infrastructure/google`은 API별(`places`, `geocoding`)로 나누고,
+  API마다 자기 폴더 안에 호출 순서(Guard)·한도(Limiter)·서킷 브레이커·RestClient·연결 풀을 둔다. 두 API는 서로를 import하지 않는다.
+  루트에는 API를 모르는 공통 재료만 둔다: 키·타임아웃(`GoogleApiProperties`), 주소 해석, 제공자 상수, 그리고 각 API가 자기 것을 하나씩
+  만드는 도구(`GoogleHttpClients`, `GoogleCircuitBreakers`, `GoogleMonthlyBudget`, `GoogleRequestPace`).
+  다른 패키지가 쓰는 클래스만 `public`이다(루트 도구, 포트 구현체, 기록 저장 테스트가 확인하는 `GooglePlacesLimiter`·`GooglePlacesEndpoint`,
+  `GoogleGeocodingLimiter`). 나머지 설정·Guard·응답 해석은 package-private이다. 의존은 `places`·`geocoding` → 루트 한 방향이다.
   `config/`로 빼면 Properties와 설정 클래스가 `public`이 되지만, 제공자 하나에 설정이 여럿일 때 구현 코드와 섞이지 않는다(`auth/infrastructure/{kakao,google}/config`).
 - 계층 하나에 속하지 않는 하위 패키지는 기능 루트 바로 아래에 둔다. `auth`에서는 다른 도메인도 쓰는 `security`,
   토큰 발급·회전을 맡는 `token`, 여러 하위 패키지가 함께 쓰는 에러 코드 `exception`이 그렇다.

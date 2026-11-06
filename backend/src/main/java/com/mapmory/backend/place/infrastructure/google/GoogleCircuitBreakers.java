@@ -1,46 +1,40 @@
-package com.mapmory.backend.place.infrastructure.google.guard;
+package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker.StateTransition;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker.StateTransition;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
 import java.time.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 /**
- * Google 호출 앞에 두는 서킷 브레이커를 만든다. 열렸을 때의 응답과 월 한도 환불은 {@link GoogleCallGuard}가 정한다.
- * 호스트({@link GoogleEndpoint.Host})마다 브레이커를 따로 쓴다.
+ * Google 호출 앞에 두는 서킷 브레이커를 만든다. API마다 하나씩 만들어 한쪽 장애가 다른 쪽을 막지 않는다.
  *
  * <p>Google이 멈췄다는 신호인 타임아웃·연결 오류({@link ResourceAccessException})와 5xx만 실패로 센다.
  * 4xx는 Google이 답한 것이라 성공으로 세고, 우리 한도 거절({@link BusinessException})은 Google을 부르지 않았으니 세지 않는다.
- * 호출이 분당 60회를 넘지 않아 최근 몇 번이 아니라 최근 몇 초로 센다.
+ * 호출이 많지 않아 최근 몇 번이 아니라 최근 몇 초로 센다.
  *
  * <p>닫혀 있다 열릴 때만 ERROR 로그를 남겨 운영 ERROR 로그 알람(Discord)이 장애 하나에 한 번 울린다.
  * 장애 동안 시험 뒤 다시 열리는 것과 닫히는 것은 WARN이다.
  */
-@Configuration
-@EnableConfigurationProperties(GoogleCircuitBreakerProperties.class)
-class GoogleCircuitBreakerConfig {
+public final class GoogleCircuitBreakers {
 
-    private static final Logger log = LoggerFactory.getLogger(GoogleCircuitBreakerConfig.class);
+    private static final Logger log = LoggerFactory.getLogger(GoogleCircuitBreakers.class);
 
-    /** 호스트마다 하나씩 연다. 한쪽 호스트 장애가 다른 쪽을 막지 않는다. */
-    @Bean
-    GoogleCircuitBreakers googleCircuitBreakers(GoogleCircuitBreakerProperties properties, Clock clock) {
-        return GoogleCircuitBreakers.of(host -> circuitBreaker(properties, clock, host));
+    private GoogleCircuitBreakers() {
     }
 
-    static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock, GoogleEndpoint.Host host) {
-        String name = host.breakerName;
-        String logEvent = host.eventPrefix + "_CIRCUIT";
+    /**
+     * @param name     브레이커 이름(예: googlePlaces)
+     * @param logEvent 상태가 바뀔 때 남기는 로그 이벤트(예: GOOGLE_PLACES_CIRCUIT)
+     */
+    public static CircuitBreaker create(GoogleCircuitBreakerProperties properties, Clock clock, String name,
+                                        String logEvent) {
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
                 .slidingWindow((int) properties.window().toSeconds(), properties.minimumCalls(),
                         SlidingWindowType.TIME_BASED)

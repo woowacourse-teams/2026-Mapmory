@@ -11,15 +11,12 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
-import com.mapmory.backend.place.infrastructure.google.GoogleConnectionConfig;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleRateLimitProperties;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
+import com.mapmory.backend.place.infrastructure.google.GoogleHttpClients;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.sun.net.httpserver.HttpServer;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -57,14 +54,18 @@ class GooglePlacesTimeoutTest {
     private HttpServer google;
     private volatile long delayMillis;
 
-    private final ApplicationContextRunner contextRunner = GoogleGuardFixture.withGuard(new ApplicationContextRunner()
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
             // 앱 기동(SpringApplication)과 같이 "1s" 같은 값을 Duration으로 바꾼다.
             .withInitializer(context -> context.getBeanFactory()
                     .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withBean(RestClient.Builder.class, RestClient::builder)
-            .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class)), Clock.systemUTC())
-            .withUserConfiguration(GoogleConnectionConfig.class, GooglePlacesClientConfig.class, GooglePlacesClient.class);
+            .withBean(Clock.class, Clock::systemUTC)
+            .withBean(ProxyManager.class, () -> mock(ProxyManager.class))
+            // 설정이 만드는 실제 한도 대신 이 가짜로 돌려주기를 확인한다.
+            .withBean("fakeGooglePlacesLimiter", GooglePlacesLimiter.class, () -> mock(GooglePlacesLimiter.class),
+                    bean -> bean.setPrimary(true))
+            .withUserConfiguration(GooglePlacesConfig.class, GooglePlacesGuard.class, GooglePlacesClient.class);
 
     @BeforeEach
     void startGoogle() throws IOException {
@@ -106,9 +107,8 @@ class GooglePlacesTimeoutTest {
 
     @Test
     void Apache_HttpClient로_부른다() {
-        Object factory = GoogleConnectionConfig.requestFactory(
-                new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)),
-                new GoogleRateLimitProperties(9000, 9000, 9000, 60));
+        Object factory = GoogleHttpClients.requestFactory(
+                new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)), 60);
 
         assertThat(factory).isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
     }
@@ -139,7 +139,7 @@ class GooglePlacesTimeoutTest {
                         assertTimeoutPreemptively(Duration.ofMillis(1_000), () ->
                                 assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                                         .isInstanceOf(BusinessException.class));
-                        verify(context.getBean(GoogleRequestLimiter.class)).refund(GoogleEndpoint.AUTOCOMPLETE);
+                        verify(context.getBean(GooglePlacesLimiter.class)).refund(GooglePlacesEndpoint.AUTOCOMPLETE);
                     }));
 
             assertThat(timeoutPhases(logs)).containsExactly("CONNECT");
@@ -179,7 +179,7 @@ class GooglePlacesTimeoutTest {
 
             assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                     .isInstanceOf(BusinessException.class);
-            verify(context.getBean(GoogleRequestLimiter.class), never()).refund(GoogleEndpoint.AUTOCOMPLETE);
+            verify(context.getBean(GooglePlacesLimiter.class), never()).refund(GooglePlacesEndpoint.AUTOCOMPLETE);
         }));
 
         assertThat(timeoutPhases(logs)).containsExactly("RESPONSE");
@@ -196,7 +196,7 @@ class GooglePlacesTimeoutTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGuardFixture.FAILURE_LOGGER);
+        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesGuard.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

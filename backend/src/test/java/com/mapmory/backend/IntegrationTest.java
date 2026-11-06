@@ -13,7 +13,7 @@ import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.notification.application.port.PushSender;
 import com.mapmory.backend.place.infrastructure.google.places.GooglePlacesClient;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
+import com.mapmory.backend.place.infrastructure.google.places.GooglePlacesLimiter;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.support.SecuredTestController;
@@ -104,7 +104,7 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
     protected GooglePlacesClient googlePlacesClient;
 
     @MockitoSpyBean
-    protected GoogleRequestLimiter googleRequestLimiter;
+    protected GooglePlacesLimiter googlePlacesLimiter;
 
     @MockitoSpyBean
     protected UploadedObjectChecker uploadedObjectChecker;
