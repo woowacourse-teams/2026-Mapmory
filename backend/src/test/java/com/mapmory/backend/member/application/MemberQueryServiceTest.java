@@ -32,4 +32,25 @@ class MemberQueryServiceTest extends IntegrationTest {
                 .containsEntry(jisu.getId(), jisu.getNickname())
                 .containsEntry(withdrawn.getId(), "탈퇴한 회원");
     }
+
+    @Test
+    void 탈퇴했거나_버려진_회원만_활동_중이_아닌_회원이다() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 0, 0);
+        Member active = memberRepository.save(Member.of("지수", UUID.randomUUID()));
+        Member withdrawn = Member.of("민호", UUID.randomUUID());
+        withdrawn.withdraw(now);
+        memberRepository.save(withdrawn);
+        Member abandoned = Member.ofGuest("guest-" + UUID.randomUUID(), "게스트", UUID.randomUUID());
+        abandoned.abandon(now);
+        memberRepository.save(abandoned);
+
+        assertThat(memberQuery.inactiveAmong(
+                List.of(active.getId(), withdrawn.getId(), abandoned.getId(), Long.MAX_VALUE)))
+                .containsExactlyInAnyOrder(withdrawn.getId(), abandoned.getId());
+    }
+
+    @Test
+    void 활동_중이_아닌_회원을_찾을_id가_없으면_비어_있다() {
+        assertThat(memberQuery.inactiveAmong(List.of())).isEmpty();
+    }
 }

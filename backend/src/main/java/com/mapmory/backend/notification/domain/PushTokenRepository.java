@@ -4,6 +4,7 @@ import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -26,6 +27,15 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
     @Modifying
     @Query("DELETE FROM PushToken t WHERE t.token IN :tokens")
     void deleteAllByTokenIn(@Param("tokens") Collection<String> tokens);
+
+    // 토큰이 있는 회원을 id 순서로 나눠 읽는다. idx_push_token_member를 탄다.
+    @Query("SELECT DISTINCT t.memberId FROM PushToken t WHERE t.memberId > :after ORDER BY t.memberId")
+    List<Long> findMemberIdsAfter(@Param("after") long after, Pageable pageable);
+
+    // 활동 중이 아닌 회원의 기기를 모두 지운다.
+    @Modifying
+    @Query("DELETE FROM PushToken t WHERE t.memberId IN :memberIds")
+    int deleteAllByMemberIdIn(@Param("memberIds") Collection<Long> memberIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PushToken p WHERE p.token = :token")

@@ -43,6 +43,19 @@ class S3ShareVideoStorageTest {
     }
 
     @Test
+    void 영상_업로드는_사진_확인보다_긴_업로드용_한도로_기다린다() throws IOException {
+        S3ShareVideoStorage storage = storage("mapmory");
+
+        storage.upload(15L, createVideo());
+
+        ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(request.capture(), any(software.amazon.awssdk.core.sync.RequestBody.class));
+        var override = request.getValue().overrideConfiguration().orElseThrow();
+        assertThat(override.apiCallAttemptTimeout()).contains(Duration.ofSeconds(10));
+        assertThat(override.apiCallTimeout()).contains(Duration.ofSeconds(30));
+    }
+
+    @Test
     void prefix의_앞뒤_슬래시는_떼고_붙인다() throws IOException {
         S3ShareVideoStorage storage = storage("/develop/");
 
@@ -91,7 +104,11 @@ class S3ShareVideoStorageTest {
                 new S3StorageProperties.Client(
                         Duration.ofSeconds(1),
                         Duration.ofSeconds(3),
-                        3
+                        3,
+                        Duration.ofSeconds(10),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(10),
+                        Duration.ofSeconds(30)
                 )
         );
         return new S3ShareVideoStorage(s3Client, properties);

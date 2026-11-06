@@ -309,10 +309,9 @@ Access Token이 아니라 ID Token을 보낸다.
 
 `POST /api/v1/auth/logout`
 
-전달한 Refresh Token을 폐기한다. 그 토큰이 이미 재발급에 쓰였다면 그 재발급으로 발급된 Refresh Token까지 폐기한다.
-앱은 마지막으로 받은 Refresh Token으로 로그아웃한다.
-로그아웃 전에 진행 중인 재발급을 기다리거나 취소한다. 같은 토큰으로 로그아웃 뒤 재발급하면 재사용으로 판단돼
-회원의 Refresh Token이 모두 폐기된다.
+전달한 Refresh Token이 속한 세션(로그인 한 번에서 재발급으로 이어진 토큰들)의 Refresh Token을 모두 폐기한다.
+이전에 받은 토큰으로 로그아웃해도 그 세션의 최신 토큰까지 폐기된다. 같은 회원의 다른 기기 세션은 남는다.
+앱은 마지막으로 받은 Refresh Token으로 로그아웃한다. 로그아웃 뒤 그 세션의 토큰으로 재발급하면 `401 INVALID_REFRESH_TOKEN`이다.
 
 ```json
 {
@@ -382,7 +381,7 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | 보호 API 전체 | `INVALID_ACCESS_TOKEN` | 위조·형식 오류, **`Authorization` 헤더 없음** | 로그인 화면으로 |
 | 회원 API (`/members/me`) | `INACTIVE_MEMBER` | 탈퇴했거나 버려진 게스트의 남은 Access Token | 로그인 화면으로 |
 | `POST /auth/token/refresh` | `EXPIRED_REFRESH_TOKEN` | Refresh Token 만료 | 로그인 화면으로 |
-| `POST /auth/token/refresh` | `INVALID_REFRESH_TOKEN` | 없는 토큰, 재사용 감지로 전부 폐기, 로그아웃한 토큰, 탈퇴·버려진 게스트 | 로그인 화면으로 |
+| `POST /auth/token/refresh` | `INVALID_REFRESH_TOKEN` | 없는 토큰, 재사용 감지로 그 세션 폐기, 로그아웃한 토큰, 탈퇴·버려진 게스트 | 로그인 화면으로 |
 
 ```text
 보호 API ─▶ 401 EXPIRED_ACCESS_TOKEN
@@ -1355,9 +1354,12 @@ Authorization: Bearer {accessToken}
 
 - 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
 - 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
+- 속한 모든 그룹에서 나간다. 그룹 나가기와 같이 앨범 항목이 내려가고, 방장은 다음 멤버에게 넘어가며, 혼자인 그룹은 지워진다. 처리에 실패하면 하루 안에 다시 처리한다.
+- 그 회원의 기기로 알림이 가지 않는다. 등록한 기기 토큰(`/push-tokens`)은 하루 안에 지운다. 버려진 게스트도 같다.
 - 이미 발급된 Access Token은 만료(최대 30분)까지 남지만, 회원 정보 API는 `401 INACTIVE_MEMBER`, 토큰 재발급은 `401 INVALID_REFRESH_TOKEN`이다.
 - 같은 소셜 계정으로 다시 로그인하면 **새 회원**으로 가입한다(`isNewMember: true`). 탈퇴 전 기록은 이어지지 않는다.
 - 이미 탈퇴했으면 아무것도 하지 않고 `204`를 반환한다.
+- 버려진 게스트의 Access Token이면 `401 INACTIVE_MEMBER`다. 탈퇴한 적이 없으므로 탈퇴 처리하지 않는다.
 - 탈퇴한 게스트의 Access Token을 실어 소셜 로그인하면 승격하지 않고 새 회원으로 가입한다.
 
 #### Response `204 No Content`

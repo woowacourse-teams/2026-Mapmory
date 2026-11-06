@@ -228,6 +228,41 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
         assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
     }
 
+    @Test
+    void 버려진_게스트의_남은_access_token으로_탈퇴하면_401_INACTIVE_MEMBER이고_탈퇴시키지_않는다() throws Exception {
+        // 204 멱등은 본인 탈퇴의 재시도를 위한 것이다. 버려진 게스트는 탈퇴한 적이 없다. (#576)
+        String guestAccessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
+        Long guestId = jwtProvider.parseMemberId(guestAccessToken);
+        kakaoLogin(null, "700008");
+        kakaoLogin(guestAccessToken, "700008");
+        LocalDateTime abandonedAt = memberRepository.findById(guestId).orElseThrow().getAbandonedAt();
+
+        withdraw(guestAccessToken)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+
+        Member guest = memberRepository.findById(guestId).orElseThrow();
+        assertThat(abandonedAt).isNotNull();
+        assertThat(guest.getAbandonedAt()).isEqualTo(abandonedAt);
+        assertThat(guest.getWithdrawnAt()).isNull();
+        assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
+    }
+
+    @Test
+    void 버려진_뒤_탈퇴된_게스트가_다시_탈퇴하면_401_INACTIVE_MEMBER다() throws Exception {
+        // 일반 탈퇴가 버려진 게스트를 막기 전(#576)에 생겼을 수 있는 행이다. 버려짐을 탈퇴 여부보다 먼저 본다.
+        String guestAccessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
+        Member guest = memberRepository.findById(jwtProvider.parseMemberId(guestAccessToken)).orElseThrow();
+        guest.abandon(LocalDateTime.now());
+        guest.withdraw(LocalDateTime.now());
+        memberRepository.save(guest);
+
+        withdraw(guestAccessToken)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
+    }
+
     private ResultActions withdraw(String accessToken) throws Exception {
         return mockMvc.perform(delete("/api/v1/members/me")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface NotificationSettingRepository extends JpaRepository<NotificationSetting, Long> {
 
@@ -21,4 +22,10 @@ public interface NotificationSettingRepository extends JpaRepository<Notificatio
     // 받을 멤버 중 그룹 앨범 알림을 끈 회원. 행이 없는 회원은 기본값(켜짐, NotificationSetting.defaultsFor)이라 나오지 않는다.
     @Query("SELECT s.memberId FROM NotificationSetting s WHERE s.memberId IN :memberIds AND s.groupAlbum = false")
     Set<Long> findGroupAlbumOffAmong(@Param("memberIds") Collection<Long> memberIds);
+
+    // 회원 데이터 파기.
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM NotificationSetting s WHERE s.memberId = :memberId")
+    void deleteAllByMemberId(@Param("memberId") Long memberId);
 }

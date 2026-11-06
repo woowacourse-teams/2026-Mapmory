@@ -11,6 +11,8 @@
 
 ```mermaid
 erDiagram
+    MEMBER ||--o{ REFRESH_TOKEN_FAMILY : opens
+    REFRESH_TOKEN_FAMILY ||--o{ REFRESH_TOKEN : groups
     MEMBER ||--o{ REFRESH_TOKEN : issues
     MEMBER ||--o{ TRAVEL_RECORD : writes
     MEMBER ||--o{ TAG : owns
@@ -42,12 +44,20 @@ erDiagram
         datetime updated_at
     }
 
+    REFRESH_TOKEN_FAMILY {
+        bigint id PK
+        bigint member_id FK
+        datetime created_at
+    }
+
     REFRESH_TOKEN {
         bigint id PK
         bigint member_id FK
+        bigint family_id FK
         varchar token_hash UK
         datetime expires_at
         datetime revoked_at
+        bigint replaced_by_id
         datetime created_at
     }
 
@@ -185,6 +195,7 @@ erDiagram
 | 상태 | 테이블 | 역할 |
 | --- | --- | --- |
 | 구현됨 | `member` | 회원과 소셜 로그인 식별 정보를 저장한다. |
+| 구현됨 | `refresh_token_family` | 로그인 한 번에서 회전으로 이어진 Refresh Token을 한 세션으로 묶는다. |
 | 구현됨 | `refresh_token` | 회전 가능한 Refresh Token의 SHA-256 해시와 만료·폐기 시각을 저장한다. |
 | 구현됨 | `region` | 국가와 행정구역을 하나의 계층으로 관리한다. |
 | 구현됨 | `travel_record` | 회원이 선택한 국가 또는 최종 행정구역에 남기는 기록이다. |
@@ -213,10 +224,22 @@ erDiagram
 | `name` | `VARCHAR(50)` | NOT NULL | 회원 표시 이름 |
 | `provider` | `VARCHAR(20)` | NULL | `KAKAO` 등 소셜 로그인 제공자 |
 | `provider_id` | `VARCHAR(255)` | NULL | 소셜 제공자가 발급한 회원 식별자 |
+| `purged_at` | `DATETIME` | NULL | 탈퇴·버려진 뒤 회원 데이터를 파기한 시각. 행은 남긴다 |
 | `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 수정 시각 |
 
 `UNIQUE(provider, provider_id)`로 같은 소셜 계정의 중복 가입을 막는다. V11의 임시 회원을 보존하기 위해 두 소셜 로그인 컬럼은 현재 NULL을 허용한다.
+
+### `refresh_token_family`
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK, AUTO_INCREMENT | 세션 식별자 |
+| `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 세션을 연 회원 |
+| `created_at` | `DATETIME` | NOT NULL | 로그인 시각 |
+
+로그인할 때 만들고, 회전·게스트 응답 유실 재발급은 이전 토큰의 세션을 물려받는다. 로그아웃과 재사용 감지는 세션 단위로 폐기한다.
+회전·로그아웃은 이 행을 먼저 잠가 같은 세션의 작업을 직렬화한다(ADR 0028). 마이그레이션은 `V43__create_refresh_token_family.sql`이다.
 
 ### `refresh_token`
 
@@ -226,10 +249,12 @@ erDiagram
 | `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 토큰 소유 회원 |
 | `token_hash` | `VARCHAR(64)` | NOT NULL, UNIQUE | 원문이 아닌 SHA-256 해시 |
 | `expires_at` | `DATETIME` | NOT NULL | 만료 시각 |
+| `family_id` | `BIGINT` | NOT NULL, FK → `refresh_token_family.id` | 토큰이 속한 세션 |
 | `revoked_at` | `DATETIME` | NULL | 회전 또는 로그아웃으로 폐기된 시각 |
+| `replaced_by_id` | `BIGINT` | NULL | 회전으로 발급한 후속 토큰 id. FK 없음(ADR 0023) |
 | `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
 
-`INDEX(member_id)`로 회원의 토큰 일괄 폐기 조회를 지원한다.
+`INDEX(member_id)`로 회원의 토큰 일괄 폐기(승격·버림·탈퇴)를, `INDEX(family_id)`로 세션 단위 폐기(로그아웃·재사용 감지)를 지원한다.
 
 ### `region`
 
@@ -520,6 +545,8 @@ CONSTRAINT fk_travel_record_tag_tag
 
 ## 관계 및 삭제 정책
 
+- `member` 1 : N `refresh_token_family`
+- `refresh_token_family` 1 : N `refresh_token`
 - `member` 1 : N `refresh_token`
 - `member` 1 : N `travel_record`
 - `member` 1 : N `tag`

@@ -54,6 +54,12 @@ google:
   places:
     # Places API (New) 키. 비어 있으면 장소 검색과 선택이 PLACE_PROVIDER_UNAVAILABLE로 실패한다. (docs/place-search.md)
     api-key: ${GOOGLE_PLACES_API_KEY:}
+    # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GooglePlacesClient).
+    # connect는 TCP+TLS 연결 한도다. 잰 연결 최대 134ms × 3 = 402ms → 400ms.
+    # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99 303ms × 3 = 909ms → 1s. 둘을 합쳐 최악 1.4초쯤 기다린다.
+    # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
+    connect-timeout: 400ms
+    read-timeout: 1s
     rate-limit:
       # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
       autocomplete-per-month: 9000
@@ -126,12 +132,19 @@ upload:
       key-prefix: ${AWS_S3_KEY_PREFIX:}
       # 업로드·조회·다운로드 서명 URL의 유효시간. CloudFront 서명 URL도 같은 값을 쓴다.
       signed-url-expiration: PT5M
-      # 작은 요청은 보통 수십 ms라 2초가 지나면 다시 시도한다(AWS S3 성능 가이드).
-      # 재시도를 합쳐도 호출 하나는 6초 안에 끝나, S3가 멈춰도 요청 스레드를 오래 쥐지 않는다.
+      # 사진 확인(HEAD)은 dev EC2에서 잰 응답 p99가 95ms라(2026-11-04, 200번) 한 번 시도를 1초로 끊고 다시 보낸다.
+      # HEAD는 다시 보내도 안전하고, 느린 요청은 다시 보내면 다른 경로로 빨리 끝나는 경우가 많다(AWS S3 성능 가이드).
+      # 재시도를 합쳐도 호출 하나는 3초 안에 끝나, S3가 멈춰도 요청 스레드를 오래 쥐지 않는다.
+      # 공유 영상 업로드는 크기에 따라 시간이 달라 따로 둔다. 지금 가장 큰 영상은 4.2MB로 서버 기본 대역폭(약 128Mbps)에서도
+      # 0.3초쯤이라, 10초면 100MB가 넘는 영상까지 버틴다. 업로드는 백그라운드 워커가 하므로 사용자가 기다리지 않는다.
       client:
-        attempt-timeout: 2s
-        total-timeout: 6s
+        attempt-timeout: 1s
+        total-timeout: 3s
         max-attempts: 3
+        video-upload-attempt-timeout: 10s
+        video-upload-total-timeout: 30s
+        delete-attempt-timeout: 10s
+        delete-total-timeout: 30s
 
 media:
   view:

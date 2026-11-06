@@ -17,6 +17,7 @@ import com.mapmory.backend.place.infrastructure.google.GoogleRequestLimiter;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.support.SecuredTestController;
+import com.mapmory.backend.upload.service.port.ObjectDeleter;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
@@ -79,6 +80,9 @@ import org.springframework.test.context.jdbc.Sql;
         executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD
 )
 public abstract class IntegrationTest extends MySqlTestContainerSupport {
+
+    @MockitoSpyBean
+    protected ObjectDeleter objectDeleter;
 
     @MockitoSpyBean
     protected KakaoIdentityAdapter kakaoIdentityAdapter;
