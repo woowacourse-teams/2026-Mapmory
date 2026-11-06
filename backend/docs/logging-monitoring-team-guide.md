@@ -291,13 +291,27 @@ fields @timestamp, requestId, event, @message
 3. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
 4. 각 환경의 `record_media`에 상대 환경의 `{prefix}/travel-records/`로 시작하는 키가 없는지 확인한다. 예전에 prefix를 바꿨다면 그 환경의 사진이 이쪽 경로에 있을 수 있다.
 5. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다(#622).
-6. 두 메트릭이 CloudWatch 전송 대상(ADR 0014의 allowlist)에 들어 있는지 확인한다. 빠져 있으면 EC2의 `/actuator/prometheus`에서만 보인다.
+6. EC2 CloudWatch Agent 설정의 전송 대상에 `mapmory_media_unlinked_reconcile_total`, `mapmory_media_orphaned_cleanup_total`이 들어 있는지 확인한다. 빠져 있으면 EC2의 `/actuator/prometheus`에서만 보인다.
 
 끄면 지운 객체는 모든 버전까지 영구히 사라진다.
 
 실삭제를 켠 뒤 `candidates`가 예상보다 크면 dry-run을 다시 켜는 것만으로는 멈추지 않는다. 이미 큐에 들어간 행은
-정리 배치가 지우기 때문이다. 다음 19:30 UTC 전에 dry-run을 켜고 재기동한 뒤, 그날 20:00 UTC 이후 `created_at`인
-`orphaned_media` 행을 지운다. 기록에서 뺀 사진의 행이 함께 지워져도 3일 뒤 대조 배치가 다시 찾는다.
+정리 배치가 dry-run과 상관없이 지운다. 다음 순서로 막는다. 시각은 모두 UTC다.
+
+1. **다음 19:30 전에 3번까지 끝낸다.** 늦으면 큐의 키가 모든 버전까지 영구히 지워진다.
+2. `SELECT DATE(created_at), COUNT(*) FROM orphaned_media GROUP BY 1`로 언제 들어간 행이 있는지 본다.
+   앞선 날의 대조로 들어와 삭제에 실패한 행이 남아 있을 수 있다.
+3. 문제의 `UNLINKED_MEDIA_RECONCILE_DONE`을 남긴 대조가 시작한 20:00 이후의 행을 지운다.
+   한국 시각 오전에 발견했다면 그 대조는 전날(UTC) 20:00에 시작했다.
+
+   ```sql
+   DELETE FROM orphaned_media WHERE created_at >= '2026-11-07 20:00:00';
+   ```
+
+4. **다음 20:00 전에** `UPLOAD_UNLINKED_MEDIA_DRY_RUN=true`로 재기동한다.
+
+dry-run을 다시 끄면 대조 배치가 올라간 지 3일이 지난 서버 형식의 키를 다시 찾는다. 다만 기록에서 뺀 사진의 행 중
+낯선 형식이거나 현재 prefix 밖에 있는 키는 다시 찾지 못하므로, 지우기 전에 따로 확인한다.
 
 ## Health 엔드포인트 구분
 
