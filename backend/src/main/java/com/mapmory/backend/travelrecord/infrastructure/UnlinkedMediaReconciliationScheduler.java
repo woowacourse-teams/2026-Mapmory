@@ -35,11 +35,13 @@ class UnlinkedMediaReconciliationScheduler {
                     .addKeyValue("scanned", result.scanned())
                     .addKeyValue("candidates", result.candidates())
                     .addKeyValue("queued", result.queued())
+                    .addKeyValue("unrecognized", result.unrecognized())
                     .addKeyValue("failedPages", result.failedPages())
+                    .addKeyValue("listFailed", result.listFailed())
                     .addKeyValue("sample", result.sample())
                     .log("기록에 붙지 않은 S3 객체를 대조했다");
         } catch (RuntimeException exception) {
-            // 목록 조회가 실패하면 다음 쪽을 알 수 없다. 넣은 키는 그대로 두고 다음 날 처음부터 다시 읽는다.
+            // 넣은 키는 그대로 두고 다음 날 처음부터 다시 읽는다.
             log.atWarn()
                     .addKeyValue("event", "UNLINKED_MEDIA_RECONCILE_FAILED")
                     .setCause(exception)
