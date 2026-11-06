@@ -1,17 +1,16 @@
 package com.mapmory.backend.place.infrastructure.google;
 
 import com.mapmory.backend.common.http.ExternalCallFailure;
-import java.util.function.Consumer;
 
 /**
- * 우리가 부르는 Google API 하나하나의 규칙이다. 어느 서킷 브레이커를 쓰는지, 어느 월 한도를 쓰고 돌려주는지,
- * 어떤 실패가 과금되지 않는지를 한 곳에 둔다. 호출 흐름은 {@link GoogleCallGuard}가 맡는다.
+ * 우리가 부르는 Google API 하나의 명세다. 어느 호스트(서킷 브레이커)로 가는지, 어떤 실패가 과금되지 않는지,
+ * 어떤 실패가 "대상 없음"인지만 담는다. 월 한도는 {@link GoogleRequestLimiter}가 API별로 센다.
+ * 호출 순서는 {@link GoogleCallGuard}, 실패를 우리 에러로 바꾸는 일은 {@link GoogleFailureTranslator}가 맡는다.
  */
-enum GoogleApi {
+public enum GoogleApi {
 
-    AUTOCOMPLETE(Host.PLACES, GoogleRequestLimiter::reserveAutocomplete, GoogleRequestLimiter::refundAutocomplete,
-            false),
-    DETAILS(Host.PLACES, GoogleRequestLimiter::reserveDetails, GoogleRequestLimiter::refundDetails, false) {
+    AUTOCOMPLETE(Host.PLACES, false),
+    DETAILS(Host.PLACES, false) {
         /** 장소 ID가 없거나 잘못되면 404·400이다. 잘못된 키도 400으로 오므로 본문에 API_KEY가 있으면 제외한다. */
         @Override
         boolean notFound(ExternalCallFailure failure) {
@@ -20,18 +19,13 @@ enum GoogleApi {
         }
     },
     // Geocoding은 성공한 요청만 과금하므로 4xx도 돌려준다.
-    GEOCODE(Host.GEOCODING, GoogleRequestLimiter::reserveGeocode, GoogleRequestLimiter::refundGeocode, true);
+    GEOCODE(Host.GEOCODING, true);
 
     final Host host;
-    final Consumer<GoogleRequestLimiter> reserve;
-    final Consumer<GoogleRequestLimiter> refund;
     private final boolean rejectedNotBilled;
 
-    GoogleApi(Host host, Consumer<GoogleRequestLimiter> reserve, Consumer<GoogleRequestLimiter> refund,
-              boolean rejectedNotBilled) {
+    GoogleApi(Host host, boolean rejectedNotBilled) {
         this.host = host;
-        this.reserve = reserve;
-        this.refund = refund;
         this.rejectedNotBilled = rejectedNotBilled;
     }
 

@@ -14,7 +14,6 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.sun.net.httpserver.HttpServer;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -59,12 +58,9 @@ class GooglePlacesTimeoutTest {
                     .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withBean(RestClient.Builder.class, RestClient::builder)
             .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class))
-            .withBean("googlePlacesCircuitBreaker", CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
+            .withBean(GoogleCircuitBreakers.class, () -> GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(
                     new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
-                    Clock.systemUTC()))
-            .withBean("googleGeocodingCircuitBreaker", CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
-                    new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
-                    Clock.systemUTC(), GoogleApi.Host.GEOCODING))
+                    Clock.systemUTC(), host)))
             .withUserConfiguration(GooglePlacesClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
 
     @BeforeEach
@@ -141,7 +137,7 @@ class GooglePlacesTimeoutTest {
                         assertTimeoutPreemptively(Duration.ofMillis(1_000), () ->
                                 assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                                         .isInstanceOf(BusinessException.class));
-                        verify(context.getBean(GoogleRequestLimiter.class)).refundAutocomplete();
+                        verify(context.getBean(GoogleRequestLimiter.class)).refund(GoogleApi.AUTOCOMPLETE);
                     }));
 
             assertThat(timeoutPhases(logs)).containsExactly("CONNECT");
@@ -181,7 +177,7 @@ class GooglePlacesTimeoutTest {
 
             assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                     .isInstanceOf(BusinessException.class);
-            verify(context.getBean(GoogleRequestLimiter.class), never()).refundAutocomplete();
+            verify(context.getBean(GoogleRequestLimiter.class), never()).refund(GoogleApi.AUTOCOMPLETE);
         }));
 
         assertThat(timeoutPhases(logs)).containsExactly("RESPONSE");
@@ -198,7 +194,7 @@ class GooglePlacesTimeoutTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleCallGuard.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

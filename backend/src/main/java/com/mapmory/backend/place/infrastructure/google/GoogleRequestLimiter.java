@@ -49,34 +49,23 @@ public class GoogleRequestLimiter {
         this.clock = clock;
     }
 
-    // 분당 한도를 먼저 확인한다. 거절된 요청이 DB에 가지 않고 월 한도도 쓰지 않게 하기 위해서다.
-    public void reserveAutocomplete() {
+    /** 분당 한도를 먼저 확인한다. 거절된 요청이 DB에 가지 않고 월 한도도 쓰지 않게 하기 위해서다. 분당 한도는 모든 API가 함께 센다. */
+    public void reserve(GoogleApi api) {
         reservePace();
-        consume(autocomplete);
+        consume(budget(api));
     }
 
-    public void reserveDetails() {
-        reservePace();
-        consume(details);
+    /** Google이 과금하지 않은 호출은 월 한도를 돌려준다. 분당 한도는 몰린 요청을 막는 값이라 돌려주지 않는다. */
+    public void refund(GoogleApi api) {
+        refund(budget(api));
     }
 
-    /** 사진 좌표 → 지역(Geocoding API). 분당 한도는 장소 호출과 함께 센다. */
-    public void reserveGeocode() {
-        reservePace();
-        consume(geocode);
-    }
-
-    /** Google이 과금하지 않은 호출(5xx, 연결 실패)은 월 한도를 돌려준다. 분당 한도는 몰린 요청을 막는 값이라 돌려주지 않는다. */
-    public void refundAutocomplete() {
-        refund(autocomplete);
-    }
-
-    public void refundDetails() {
-        refund(details);
-    }
-
-    public void refundGeocode() {
-        refund(geocode);
+    private Budget budget(GoogleApi api) {
+        return switch (api) {
+            case AUTOCOMPLETE -> autocomplete;
+            case DETAILS -> details;
+            case GEOCODE -> geocode;
+        };
     }
 
     private void reservePace() {
