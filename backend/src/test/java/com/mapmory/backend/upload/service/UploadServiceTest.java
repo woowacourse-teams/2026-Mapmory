@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.member.exception.MemberErrorCode;
 import com.mapmory.backend.upload.PresignedUpload;
+import com.mapmory.backend.upload.UploadErrorCode;
 import com.mapmory.backend.upload.domain.UploadPolicy;
+import com.mapmory.backend.upload.ratelimit.UploadRateLimiter;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.storage.S3ObjectKeyGenerator;
@@ -36,7 +39,8 @@ class UploadServiceTest {
                 new UploadPolicy(TEN_MEGABYTES, 10),
                 new S3ObjectKeyGenerator(storageProperties()),
                 provider,
-                mock(ActiveMemberGuard.class)
+                mock(ActiveMemberGuard.class),
+                mock(UploadRateLimiter.class)
         );
         List<UploadFileCommand> files = List.of(
                 new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
@@ -76,13 +80,35 @@ class UploadServiceTest {
                 new UploadPolicy(TEN_MEGABYTES, 10),
                 new S3ObjectKeyGenerator(storageProperties()),
                 provider,
-                guard
+                guard,
+                mock(UploadRateLimiter.class)
         );
 
         assertThatThrownBy(() -> uploadService.createPresignedUrls(member(),
                 List.of(new UploadFileCommand("jeju.jpg", "image/jpeg", 1024L))))
                 .isInstanceOf(BusinessException.class);
         assertThat(provider.requests).isEmpty();
+    }
+
+    @Test
+    void 한도를_넘으면_회원을_확인하지_않고_발급하지_않는다() {
+        FakePresignedUrlProvider provider = new FakePresignedUrlProvider();
+        ActiveMemberGuard guard = mock(ActiveMemberGuard.class);
+        UploadRateLimiter rateLimiter = mock(UploadRateLimiter.class);
+        willThrow(new BusinessException(UploadErrorCode.UPLOAD_RATE_LIMITED)).given(rateLimiter).check(10L, 1);
+        UploadService uploadService = new UploadService(
+                new UploadPolicy(TEN_MEGABYTES, 10),
+                new S3ObjectKeyGenerator(storageProperties()),
+                provider,
+                guard,
+                rateLimiter
+        );
+
+        assertThatThrownBy(() -> uploadService.createPresignedUrls(member(),
+                List.of(new UploadFileCommand("jeju.jpg", "image/jpeg", 1024L))))
+                .isInstanceOf(BusinessException.class);
+        assertThat(provider.requests).isEmpty();
+        verifyNoInteractions(guard);
     }
 
     private static S3StorageProperties storageProperties() {
