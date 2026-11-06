@@ -191,6 +191,17 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 지우지_못하고_남은_키_수를_알려_준다() throws Exception {
+        String photo = photo("a.jpg");
+        deleteRecord(createRecord(photo));
+        willReturn(List.of(photo)).given(objectDeleter).delete(anyCollection());
+
+        cleanup.run();
+
+        assertThat(cleanup.remaining()).isEqualTo(1);
+    }
+
+    @Test
     void 지울_것이_없으면_S3를_부르지_않는다() {
         assertThat(cleanup.run()).isZero();
 

@@ -58,6 +58,13 @@ public class OrphanedMediaCleanup {
         return deleted;
     }
 
+    /**
+     * @return 큐에 남은 키 수. 계속 늘면 지우지 못하는 키가 쌓이고 있다는 뜻이다.
+     */
+    public long remaining() {
+        return orphanedMediaRepository.count();
+    }
+
     private int cleanUp(List<String> keys) {
         Set<String> inUse = new HashSet<>(travelRecordRepository.findObjectKeysIn(keys));
         inUse.addAll(travelRecordRepository.findThumbKeysIn(keys));

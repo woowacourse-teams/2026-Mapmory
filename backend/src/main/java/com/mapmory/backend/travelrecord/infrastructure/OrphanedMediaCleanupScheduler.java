@@ -26,9 +26,11 @@ class OrphanedMediaCleanupScheduler {
     @Scheduled(cron = "0 30 19 * * *", zone = "UTC", scheduler = MaintenanceSchedulingConfig.SCHEDULER)
     void cleanUp() {
         try {
+            int deleted = cleanup.run();
             log.atInfo()
                     .addKeyValue("event", "ORPHANED_MEDIA_CLEANUP_DONE")
-                    .addKeyValue("deleted", cleanup.run())
+                    .addKeyValue("deleted", deleted)
+                    .addKeyValue("remaining", cleanup.remaining())
                     .log("기록에서 떨어져 나간 S3 객체를 지웠다");
         } catch (RuntimeException exception) {
             // 지운 키는 그대로 두고 남은 키는 다음 날 다시 지운다.
