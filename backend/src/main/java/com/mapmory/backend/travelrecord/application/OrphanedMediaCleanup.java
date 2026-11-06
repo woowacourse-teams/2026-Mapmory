@@ -4,6 +4,7 @@ import com.mapmory.backend.travelrecord.domain.OrphanedMedia;
 import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.upload.service.port.ObjectDeleter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -28,34 +29,35 @@ public class OrphanedMediaCleanup {
 
     private static final Logger log = LoggerFactory.getLogger(OrphanedMediaCleanup.class);
     private static final int BATCH_SIZE = 500;
+    private static final String METRIC_NAME = "mapmory.media.orphaned.cleanup";
 
     private final OrphanedMediaRepository orphanedMediaRepository;
     private final TravelRecordRepository travelRecordRepository;
     private final ObjectDeleter objectDeleter;
+    private final MeterRegistry meterRegistry;
 
     public OrphanedMediaCleanup(OrphanedMediaRepository orphanedMediaRepository,
                                 TravelRecordRepository travelRecordRepository,
-                                ObjectDeleter objectDeleter) {
+                                ObjectDeleter objectDeleter,
+                                MeterRegistry meterRegistry) {
         this.orphanedMediaRepository = orphanedMediaRepository;
         this.travelRecordRepository = travelRecordRepository;
         this.objectDeleter = objectDeleter;
+        this.meterRegistry = meterRegistry;
     }
 
-    /**
-     * @return S3에서 지운 객체 수
-     */
-    public int run() {
-        int deleted = 0;
+    public Result run() {
+        Result total = new Result(0, 0);
         long after = 0;
         List<OrphanedMedia> batch;
         do {
             batch = orphanedMediaRepository.findByIdGreaterThanOrderById(after, PageRequest.of(0, BATCH_SIZE));
             if (!batch.isEmpty()) {
-                deleted += cleanUp(batch.stream().map(OrphanedMedia::getObjectKey).toList());
+                total = total.plus(cleanUp(batch.stream().map(OrphanedMedia::getObjectKey).toList()));
                 after = batch.getLast().getId();
             }
         } while (batch.size() == BATCH_SIZE);
-        return deleted;
+        return total;
     }
 
     /**
@@ -65,7 +67,7 @@ public class OrphanedMediaCleanup {
         return orphanedMediaRepository.count();
     }
 
-    private int cleanUp(List<String> keys) {
+    private Result cleanUp(List<String> keys) {
         Set<String> inUse = new HashSet<>(travelRecordRepository.findObjectKeysIn(keys));
         inUse.addAll(travelRecordRepository.findThumbKeysIn(keys));
         List<String> orphaned = keys.stream().filter(key -> !inUse.contains(key)).toList();
@@ -74,7 +76,7 @@ public class OrphanedMediaCleanup {
         warnIfOutside(outside.size());
 
         Set<String> kept = new HashSet<>(objectDeleter.delete(deletable));
-        int deleted = deletable.size() - kept.size();
+        Result result = new Result(deletable.size() - kept.size(), kept.size());
         kept.addAll(outside);
 
         List<String> finished = new ArrayList<>(keys);
@@ -82,7 +84,13 @@ public class OrphanedMediaCleanup {
         if (!finished.isEmpty()) {
             orphanedMediaRepository.deleteAllByObjectKeyIn(finished);
         }
-        return deleted;
+        count("DELETED", result.deleted());
+        count("FAILED", result.failed());
+        return result;
+    }
+
+    private void count(String outcome, int amount) {
+        meterRegistry.counter(METRIC_NAME, "outcome", outcome).increment(amount);
     }
 
     private void warnIfOutside(int count) {
@@ -91,6 +99,17 @@ public class OrphanedMediaCleanup {
                     .addKeyValue("event", "ORPHANED_MEDIA_KEY_OUTSIDE_PREFIX")
                     .addKeyValue("count", count)
                     .log("우리 경로 밖의 키라 지우지 않고 큐에 남겼다");
+        }
+    }
+
+    /**
+     * @param deleted S3에서 지운 객체 수
+     * @param failed  S3에서 지우지 못해 큐에 남긴 키 수. 다음 날 다시 지운다.
+     */
+    public record Result(int deleted, int failed) {
+
+        private Result plus(Result other) {
+            return new Result(deleted + other.deleted, failed + other.failed);
         }
     }
 }
