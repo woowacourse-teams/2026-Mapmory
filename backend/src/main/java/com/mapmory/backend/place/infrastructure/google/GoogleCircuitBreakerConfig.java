@@ -32,19 +32,10 @@ class GoogleCircuitBreakerConfig {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleCircuitBreakerConfig.class);
 
+    /** 호스트마다 하나씩 연다. 한쪽 호스트 장애가 다른 쪽을 막지 않는다. */
     @Bean
-    CircuitBreaker googlePlacesCircuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock) {
-        return circuitBreaker(properties, clock);
-    }
-
-    /** 역지오코딩은 호스트가 달라(geocode.googleapis.com) 따로 연다. 한쪽 장애가 다른 쪽을 막지 않는다. */
-    @Bean
-    CircuitBreaker googleGeocodingCircuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock) {
-        return circuitBreaker(properties, clock, GoogleApi.Host.GEOCODING);
-    }
-
-    static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock) {
-        return circuitBreaker(properties, clock, GoogleApi.Host.PLACES);
+    GoogleCircuitBreakers googleCircuitBreakers(GoogleCircuitBreakerProperties properties, Clock clock) {
+        return GoogleCircuitBreakers.of(host -> circuitBreaker(properties, clock, host));
     }
 
     static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock, GoogleApi.Host host) {

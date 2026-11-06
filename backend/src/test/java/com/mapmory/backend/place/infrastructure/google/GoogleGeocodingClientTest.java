@@ -51,7 +51,8 @@ class GoogleGeocodingClientTest {
     private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
             new GoogleApiProperties("test-key", "https://places.google.test", GEOCODING_URL,
                     Duration.ofMillis(400), Duration.ofSeconds(1)),
-            new GoogleCallGuard(limiter, GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock), breaker));
+            new GoogleCallGuard(GoogleCircuitBreakers.of(host -> host == GoogleApi.Host.GEOCODING ? breaker
+                    : GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, host)), limiter));
 
     @Test
     void 키는_헤더로_보내고_좌표를_한국어_주소_구성요소로_바꾼다() {
@@ -79,7 +80,7 @@ class GoogleGeocodingClientTest {
         assertThat(client.findAddress(DAEGU_JUNG_GU))
                 .contains(new RegionAddress("KR", "대구광역시", List.of("중구")));
         server.verify();
-        verify(limiter).reserveGeocode();
+        verify(limiter).reserve(GoogleApi.GEOCODE);
     }
 
     @Test
@@ -123,7 +124,7 @@ class GoogleGeocodingClientTest {
         assertThat(logs).allSatisfy(event -> assertThat(rendered(event))
                 .doesNotContain("35.86", "128.60", "test-key"));
         // Geocoding은 성공한 요청만 과금한다. 키를 고칠 때까지 월 한도가 새지 않게 돌려준다.
-        verify(limiter).refundGeocode();
+        verify(limiter).refund(GoogleApi.GEOCODE);
         assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isZero();
     }
 
@@ -168,7 +169,7 @@ class GoogleGeocodingClientTest {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL))).andRespond(withServerError());
 
         assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU)).isInstanceOf(BusinessException.class);
-        verify(limiter).refundGeocode();
+        verify(limiter).refund(GoogleApi.GEOCODE);
         assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
     }
 
@@ -181,7 +182,7 @@ class GoogleGeocodingClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleCallGuard.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
