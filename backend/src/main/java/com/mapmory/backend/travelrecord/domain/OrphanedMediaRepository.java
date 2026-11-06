@@ -21,6 +21,10 @@ public interface OrphanedMediaRepository extends JpaRepository<OrphanedMedia, Lo
 
     List<OrphanedMedia> findByIdGreaterThanOrderById(Long id, Pageable pageable);
 
+    // 기록에 붙지 않은 객체를 대조할 때, 큐가 지울 키는 건너뛴다. (#186)
+    @Query("SELECT m.objectKey FROM OrphanedMedia m WHERE m.objectKey IN :objectKeys")
+    List<String> findObjectKeysIn(@Param("objectKeys") Collection<String> objectKeys);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM OrphanedMedia m WHERE m.objectKey IN :objectKeys")

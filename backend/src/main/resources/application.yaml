@@ -124,6 +124,11 @@ upload:
   policy:
     max-file-size: 10MB
     max-files-per-request: 100
+  # 기록에 붙지 않은 S3 객체 정리(#186). 처음에는 dry-run으로 후보만 로그에 남기고, 후보가 정말 고아인지 본 뒤 끈다.
+  # 앱은 저장할 때 사진을 올리고 바로 저장을 부른다. 유예 기간은 그 사이의 객체를 건드리지 않기 위한 여유다.
+  unlinked-cleanup:
+    dry-run: ${UPLOAD_UNLINKED_CLEANUP_DRY_RUN:true}
+    grace-period: 3d
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
