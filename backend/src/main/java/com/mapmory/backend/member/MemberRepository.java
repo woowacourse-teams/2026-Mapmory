@@ -74,7 +74,15 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Query("UPDATE Member m SET m.purgedAt = :purgedAt WHERE m.id = :id")
     void markPurged(@Param("id") Long id, @Param("purgedAt") LocalDateTime purgedAt);
 
-    long countByProvider(AuthProvider provider);
+    // 탈퇴하거나 버려져도 회원 행은 남으므로 활동 회원만 센다. (#550)
+    @Query("SELECT COUNT(m) FROM Member m WHERE m.withdrawnAt IS NULL AND m.abandonedAt IS NULL")
+    long countActive();
+
+    @Query("""
+            SELECT COUNT(m) FROM Member m
+            WHERE m.provider = :provider AND m.withdrawnAt IS NULL AND m.abandonedAt IS NULL
+            """)
+    long countActiveByProvider(@Param("provider") AuthProvider provider);
 
     @Query("SELECT COUNT(m) FROM Member m WHERE m.createdAt >= :from AND m.createdAt < :to")
     long countCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
