@@ -34,7 +34,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
     private final GooglePlaceMapper mapper = new GooglePlaceMapper();
 
     public GoogleGeocodingClient(
-            @Qualifier(GooglePlacesClientConfig.GEOCODING_REST_CLIENT) RestClient restClient,
+            @Qualifier(GoogleRestClientConfig.GEOCODING_REST_CLIENT) RestClient restClient,
             GoogleApiProperties api,
             GoogleCallGuard google
     ) {

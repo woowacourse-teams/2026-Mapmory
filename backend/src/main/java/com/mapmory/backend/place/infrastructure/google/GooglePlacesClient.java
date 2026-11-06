@@ -41,7 +41,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     private final GooglePlaceMapper mapper = new GooglePlaceMapper();
 
     public GooglePlacesClient(
-            @Qualifier(GooglePlacesClientConfig.PLACES_REST_CLIENT) RestClient restClient,
+            @Qualifier(GoogleRestClientConfig.PLACES_REST_CLIENT) RestClient restClient,
             GoogleApiProperties api,
             GoogleCallGuard google
     ) {

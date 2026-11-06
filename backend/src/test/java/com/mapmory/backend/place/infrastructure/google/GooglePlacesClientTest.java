@@ -282,12 +282,12 @@ class GooglePlacesClientTest {
 
     @Test
     void API_키가_없으면_시작할_때_한_번만_ERROR로_알린다() {
-        Logger configLogger = (Logger) LoggerFactory.getLogger(GooglePlacesClientConfig.class);
+        Logger configLogger = (Logger) LoggerFactory.getLogger(GoogleRestClientConfig.class);
         ListAppender<ILoggingEvent> startup = new ListAppender<>();
         startup.start();
         configLogger.addAppender(startup);
         try {
-            new GooglePlacesClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
+            new GoogleRestClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
                     new GoogleRateLimitProperties(9000, 9000, 9000, 60));
         } finally {
             configLogger.detachAppender(startup);
