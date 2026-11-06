@@ -124,6 +124,11 @@ upload:
   policy:
     max-file-size: 10MB
     max-files-per-request: 100
+  # 회원별 업로드 URL 발급 한도. 파일 수로 세고 서버마다 메모리에서 센다.
+  # 시간 한도는 100장짜리 기록 세 개를 한 번에 올릴 수 있는 양이다. 이 값으로 회원 한 명이 하루에 쓸 수 있는 저장량은 최대 10GB다.
+  rate-limit:
+    files-per-member-per-hour: 300
+    files-per-member-per-day: 1000
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
