@@ -10,7 +10,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.place.infrastructure.google.GoogleMonthlyBudget;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleMonthlyBudget;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.mysql.MySQLSelectForUpdateBasedProxyManager;

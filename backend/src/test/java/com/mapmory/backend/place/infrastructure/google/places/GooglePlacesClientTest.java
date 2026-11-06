@@ -24,7 +24,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakers;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakers;
 import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.PlaceCandidate;

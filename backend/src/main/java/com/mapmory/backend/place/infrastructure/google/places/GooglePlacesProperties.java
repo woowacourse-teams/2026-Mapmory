@@ -1,6 +1,6 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakerProperties;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakerProperties;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;

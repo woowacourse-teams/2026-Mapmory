@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakerProperties;
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakers;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakerProperties;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakers;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.time.Clock;
 import java.time.Duration;

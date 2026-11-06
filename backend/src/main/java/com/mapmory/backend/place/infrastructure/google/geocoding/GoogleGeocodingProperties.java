@@ -1,6 +1,6 @@
 package com.mapmory.backend.place.infrastructure.google.geocoding;
 
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakerProperties;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakerProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 

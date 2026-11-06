@@ -1,7 +1,7 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
-import com.mapmory.backend.place.infrastructure.google.GoogleMonthlyBudget;
-import com.mapmory.backend.place.infrastructure.google.GoogleRequestPace;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleMonthlyBudget;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleRequestPace;
 import java.util.EnumMap;
 import java.util.Map;
 

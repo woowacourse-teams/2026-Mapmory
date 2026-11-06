@@ -1,10 +1,10 @@
 package com.mapmory.backend.place.infrastructure.google.places;
 
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
-import com.mapmory.backend.place.infrastructure.google.GoogleCircuitBreakers;
-import com.mapmory.backend.place.infrastructure.google.GoogleHttpClients;
-import com.mapmory.backend.place.infrastructure.google.GoogleMonthlyBudget;
-import com.mapmory.backend.place.infrastructure.google.GoogleRequestPace;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleCircuitBreakers;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleHttpClients;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleMonthlyBudget;
+import com.mapmory.backend.place.infrastructure.google.resilience.GoogleRequestPace;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.time.Clock;

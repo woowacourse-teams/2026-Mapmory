@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.resilience;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
