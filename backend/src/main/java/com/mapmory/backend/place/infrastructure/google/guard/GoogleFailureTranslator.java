@@ -19,21 +19,21 @@ final class GoogleFailureTranslator {
     private GoogleFailureTranslator() {
     }
 
-    static BusinessException toError(GoogleApi api, ExternalCallFailure failure) {
+    static BusinessException toError(GoogleEndpoint endpoint, ExternalCallFailure failure) {
         failure.timeoutPhase().ifPresent(phase -> log.atWarn()
-                .addKeyValue("event", api.host.eventPrefix + "_TIMEOUT")
+                .addKeyValue("event", endpoint.host.eventPrefix + "_TIMEOUT")
                 .addKeyValue("phase", phase)
-                .log("Google {} 호출이 타임아웃으로 끊겼다: {}", api, phase));
-        if (api.notFound(failure)) {
+                .log("Google {} 호출이 타임아웃으로 끊겼다: {}", endpoint, phase));
+        if (endpoint.notFound(failure)) {
             return new BusinessException(PlaceErrorCode.PLACE_NOT_FOUND);
         }
         if (failure.rejected()) {
-            String reason = api.host.logsRejectionReason ? abbreviate(failure.responseBody()) : "(숨김: 좌표 요청)";
+            String reason = endpoint.host.logsRejectionReason ? abbreviate(failure.responseBody()) : "(숨김: 좌표 요청)";
             log.atError()
-                    .addKeyValue("event", api.host.eventPrefix + "_REJECTED")
+                    .addKeyValue("event", endpoint.host.eventPrefix + "_REJECTED")
                     .addKeyValue("status", failure.status())
                     .addKeyValue("reason", reason)
-                    .log("Google {} 요청이 거절됐다: {} {}", api, failure.status(), reason);
+                    .log("Google {} 요청이 거절됐다: {} {}", endpoint, failure.status(), reason);
         }
         return unavailable();
     }

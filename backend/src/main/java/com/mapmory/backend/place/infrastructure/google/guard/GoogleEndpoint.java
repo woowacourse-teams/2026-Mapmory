@@ -3,11 +3,11 @@ package com.mapmory.backend.place.infrastructure.google.guard;
 import com.mapmory.backend.common.http.ExternalCallFailure;
 
 /**
- * 우리가 부르는 Google API 하나의 명세다. 어느 호스트(서킷 브레이커)로 가는지, 어떤 실패가 과금되지 않는지,
- * 어떤 실패가 "대상 없음"인지만 담는다. 월 한도는 {@link GoogleRequestLimiter}가 API별로 센다.
+ * 우리가 부르는 Google 엔드포인트(Autocomplete, Place Details, Reverse Geocode) 하나의 명세다. 어느 호스트(서킷 브레이커)로 가는지, 어떤 실패가 과금되지 않는지,
+ * 어떤 실패가 "대상 없음"인지만 담는다. 월 한도는 {@link GoogleRequestLimiter}가 엔드포인트별로 센다.
  * 호출 순서는 {@link GoogleCallGuard}, 실패를 우리 에러로 바꾸는 일은 {@link GoogleFailureTranslator}가 맡는다.
  */
-public enum GoogleApi {
+public enum GoogleEndpoint {
 
     AUTOCOMPLETE(Host.PLACES, false),
     DETAILS(Host.PLACES, false) {
@@ -24,7 +24,7 @@ public enum GoogleApi {
     final Host host;
     private final boolean rejectedNotBilled;
 
-    GoogleApi(Host host, boolean rejectedNotBilled) {
+    GoogleEndpoint(Host host, boolean rejectedNotBilled) {
         this.host = host;
         this.rejectedNotBilled = rejectedNotBilled;
     }

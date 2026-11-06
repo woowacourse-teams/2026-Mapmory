@@ -21,7 +21,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
@@ -54,8 +54,8 @@ class GoogleGeocodingClientTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
     private final GoogleGuardFixture.Guarded guarded = GoogleGuardFixture.guarded(limiter, clock);
     private final GoogleCallGuard guard = guarded.guard();
-    private final CircuitBreaker breaker = guarded.breakerOf(GoogleApi.GEOCODE);
-    private final CircuitBreaker placesBreaker = guarded.breakerOf(GoogleApi.AUTOCOMPLETE);
+    private final CircuitBreaker breaker = guarded.breakerOf(GoogleEndpoint.GEOCODE);
+    private final CircuitBreaker placesBreaker = guarded.breakerOf(GoogleEndpoint.AUTOCOMPLETE);
     private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
             new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)),
             guard);
@@ -86,7 +86,7 @@ class GoogleGeocodingClientTest {
         assertThat(client.findAddress(DAEGU_JUNG_GU))
                 .contains(new RegionAddress("KR", "대구광역시", List.of("중구")));
         server.verify();
-        verify(limiter).reserve(GoogleApi.GEOCODE);
+        verify(limiter).reserve(GoogleEndpoint.GEOCODE);
     }
 
     @Test
@@ -132,7 +132,7 @@ class GoogleGeocodingClientTest {
         assertThat(logs).allSatisfy(event -> assertThat(rendered(event))
                 .doesNotContain("35.86", "128.60", "test-key"));
         // Geocoding은 성공한 요청만 과금한다. 키를 고칠 때까지 월 한도가 새지 않게 돌려준다.
-        verify(limiter).refund(GoogleApi.GEOCODE);
+        verify(limiter).refund(GoogleEndpoint.GEOCODE);
         assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isZero();
     }
 
@@ -195,7 +195,7 @@ class GoogleGeocodingClientTest {
         server.expect(requestTo(Matchers.startsWith(GEOCODING_URL))).andRespond(withServerError());
 
         assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU)).isInstanceOf(BusinessException.class);
-        verify(limiter).refund(GoogleApi.GEOCODE);
+        verify(limiter).refund(GoogleEndpoint.GEOCODE);
         assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(1);
     }
 
@@ -206,10 +206,10 @@ class GoogleGeocodingClientTest {
         assertThatThrownBy(() -> client.findAddress(DAEGU_JUNG_GU))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(PlaceErrorCode.PLACE_PROVIDER_UNAVAILABLE));
-        verify(limiter, never()).reserve(GoogleApi.GEOCODE);
+        verify(limiter, never()).reserve(GoogleEndpoint.GEOCODE);
 
-        assertThat(guard.call(GoogleApi.AUTOCOMPLETE, () -> JsonNodeFactory.instance.objectNode())).isNotNull();
-        verify(limiter).reserve(GoogleApi.AUTOCOMPLETE);
+        assertThat(guard.call(GoogleEndpoint.AUTOCOMPLETE, () -> JsonNodeFactory.instance.objectNode())).isNotNull();
+        verify(limiter).reserve(GoogleEndpoint.AUTOCOMPLETE);
         assertThat(placesBreaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
     }
 

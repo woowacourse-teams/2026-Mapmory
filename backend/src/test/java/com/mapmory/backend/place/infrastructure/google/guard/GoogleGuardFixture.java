@@ -27,7 +27,7 @@ public final class GoogleGuardFixture {
 
     public static Guarded guarded(GoogleRequestLimiter limiter, Clock clock) {
         GoogleCircuitBreakers breakers = breakers(clock);
-        return new Guarded(new GoogleCallGuard(breakers, limiter), breakers::forApi);
+        return new Guarded(new GoogleCallGuard(breakers, limiter), breakers::forEndpoint);
     }
 
     public static GoogleCallGuard guard(GoogleRequestLimiter limiter, Clock clock) {
@@ -44,11 +44,11 @@ public final class GoogleGuardFixture {
         return GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, host));
     }
 
-    public record Guarded(GoogleCallGuard guard, Function<GoogleApi, CircuitBreaker> breakers) {
+    public record Guarded(GoogleCallGuard guard, Function<GoogleEndpoint, CircuitBreaker> breakers) {
 
-        /** 그 API의 호스트가 쓰는 서킷 브레이커. */
-        public CircuitBreaker breakerOf(GoogleApi api) {
-            return breakers.apply(api);
+        /** 그 엔드포인트의 호스트가 쓰는 서킷 브레이커. */
+        public CircuitBreaker breakerOf(GoogleEndpoint endpoint) {
+            return breakers.apply(endpoint);
         }
     }
 }

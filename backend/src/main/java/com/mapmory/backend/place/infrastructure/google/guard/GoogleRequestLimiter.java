@@ -60,18 +60,18 @@ public class GoogleRequestLimiter {
     }
 
     /** 분당 한도를 먼저 확인한다. 거절된 요청이 DB에 가지 않고 월 한도도 쓰지 않게 하기 위해서다. 분당 한도는 모든 API가 함께 센다. */
-    public void reserve(GoogleApi api) {
+    public void reserve(GoogleEndpoint endpoint) {
         reservePace();
-        consume(budget(api));
+        consume(budget(endpoint));
     }
 
     /** Google이 과금하지 않은 호출은 월 한도를 돌려준다. 분당 한도는 몰린 요청을 막는 값이라 돌려주지 않는다. */
-    public void refund(GoogleApi api) {
-        refund(budget(api));
+    public void refund(GoogleEndpoint endpoint) {
+        refund(budget(endpoint));
     }
 
-    private Budget budget(GoogleApi api) {
-        return switch (api) {
+    private Budget budget(GoogleEndpoint endpoint) {
+        return switch (endpoint) {
             case AUTOCOMPLETE -> autocomplete;
             case DETAILS -> details;
             case GEOCODE -> geocode;

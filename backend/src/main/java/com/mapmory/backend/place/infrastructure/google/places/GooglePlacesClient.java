@@ -9,7 +9,7 @@ import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import java.util.LinkedHashMap;
@@ -68,7 +68,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
         if (sessionToken != null) {
             body.put("sessionToken", sessionToken);
         }
-        JsonNode response = google.call(GoogleApi.AUTOCOMPLETE,
+        JsonNode response = google.call(GoogleEndpoint.AUTOCOMPLETE,
                 () -> restClient.post()
                         .uri("/v1/places:autocomplete")
                         .header("X-Goog-Api-Key", api.apiKey())
@@ -83,7 +83,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     @Override
     public PlaceDetails findDetails(PlaceId placeId, String sessionToken) {
         api.requireConfigured();
-        JsonNode response = google.call(GoogleApi.DETAILS,
+        JsonNode response = google.call(GoogleEndpoint.DETAILS,
                 () -> restClient.get()
                         .uri(uri -> {
                             uri.path("/v1/places/{placeId}").queryParam("languageCode", LANGUAGE);

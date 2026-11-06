@@ -17,7 +17,7 @@ import org.springframework.web.client.ResourceAccessException;
 
 /**
  * Google 호출 앞에 두는 서킷 브레이커를 만든다. 열렸을 때의 응답과 월 한도 환불은 {@link GoogleCallGuard}가 정한다.
- * 호스트({@link GoogleApi.Host})마다 브레이커를 따로 쓴다.
+ * 호스트({@link GoogleEndpoint.Host})마다 브레이커를 따로 쓴다.
  *
  * <p>Google이 멈췄다는 신호인 타임아웃·연결 오류({@link ResourceAccessException})와 5xx만 실패로 센다.
  * 4xx는 Google이 답한 것이라 성공으로 세고, 우리 한도 거절({@link BusinessException})은 Google을 부르지 않았으니 세지 않는다.
@@ -38,7 +38,7 @@ class GoogleCircuitBreakerConfig {
         return GoogleCircuitBreakers.of(host -> circuitBreaker(properties, clock, host));
     }
 
-    static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock, GoogleApi.Host host) {
+    static CircuitBreaker circuitBreaker(GoogleCircuitBreakerProperties properties, Clock clock, GoogleEndpoint.Host host) {
         String name = host.breakerName;
         String logEvent = host.eventPrefix + "_CIRCUIT";
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()

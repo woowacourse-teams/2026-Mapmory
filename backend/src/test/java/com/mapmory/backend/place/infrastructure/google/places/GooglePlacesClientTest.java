@@ -26,7 +26,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleConnectionConfig;
 import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleRateLimitProperties;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
@@ -95,7 +95,7 @@ class GooglePlacesClientTest {
                 new PlaceCandidate(PlaceId.from("ChIJ-gyeong"), "경복궁", "서울특별시 종로구", GoogleProvider.PLACE_PROVIDER),
                 new PlaceCandidate(PlaceId.from("ChIJ-station"), "경복궁역", null, GoogleProvider.PLACE_PROVIDER));
         server.verify();
-        verify(limiter).reserve(GoogleApi.AUTOCOMPLETE);
+        verify(limiter).reserve(GoogleEndpoint.AUTOCOMPLETE);
     }
 
     @Test
@@ -151,7 +151,7 @@ class GooglePlacesClientTest {
         assertThat(place.name()).isNull();
         assertThat(place.address()).isEqualTo(new RegionAddress("KR", "경기도", List.of("성남시", "분당구")));
         server.verify();
-        verify(limiter).reserve(GoogleApi.DETAILS);
+        verify(limiter).reserve(GoogleEndpoint.DETAILS);
     }
 
     @Test
@@ -270,7 +270,7 @@ class GooglePlacesClientTest {
 
         assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
 
-        verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
+        verify(limiter).refund(GoogleEndpoint.AUTOCOMPLETE);
     }
 
     @Test
@@ -284,7 +284,7 @@ class GooglePlacesClientTest {
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_TIMEOUT:POOL:WARN");
-        verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
+        verify(limiter).refund(GoogleEndpoint.AUTOCOMPLETE);
     }
 
     @Test
@@ -330,7 +330,7 @@ class GooglePlacesClientTest {
     @Test
     void 월_한도를_넘으면_Google을_호출하지_않는다() {
         doThrow(new BusinessException(PlaceErrorCode.PLACE_SEARCH_BUDGET_EXHAUSTED))
-                .when(limiter).reserve(GoogleApi.AUTOCOMPLETE);
+                .when(limiter).reserve(GoogleEndpoint.AUTOCOMPLETE);
 
         assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_SEARCH_BUDGET_EXHAUSTED");
         server.verify();
@@ -352,8 +352,8 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(5)).reserve(GoogleApi.AUTOCOMPLETE);
-            verify(limiter, times(5)).refund(GoogleApi.AUTOCOMPLETE);
+            verify(limiter, times(5)).reserve(GoogleEndpoint.AUTOCOMPLETE);
+            verify(limiter, times(5)).refund(GoogleEndpoint.AUTOCOMPLETE);
         }
 
         @Test
@@ -367,7 +367,7 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
             server.verify();
-            verify(limiter, times(5)).reserve(GoogleApi.AUTOCOMPLETE);
+            verify(limiter, times(5)).reserve(GoogleEndpoint.AUTOCOMPLETE);
         }
 
         @Test
@@ -387,7 +387,7 @@ class GooglePlacesClientTest {
             BusinessException rateLimited = new BusinessException(PlaceErrorCode.PLACE_RATE_LIMITED);
             doThrow(rateLimited, rateLimited, rateLimited, rateLimited, rateLimited, rateLimited)
                     .doNothing()
-                    .when(limiter).reserve(GoogleApi.AUTOCOMPLETE);
+                    .when(limiter).reserve(GoogleEndpoint.AUTOCOMPLETE);
             expectServerErrors(5);
             for (int i = 0; i < 6; i++) {
                 assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_RATE_LIMITED");
@@ -396,7 +396,7 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(11)).reserve(GoogleApi.AUTOCOMPLETE);
+            verify(limiter, times(11)).reserve(GoogleEndpoint.AUTOCOMPLETE);
         }
 
         @Test
@@ -478,8 +478,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
-            verify(limiter).refund(GoogleApi.DETAILS);
+            verify(limiter).refund(GoogleEndpoint.AUTOCOMPLETE);
+            verify(limiter).refund(GoogleEndpoint.DETAILS);
         }
 
         // 연결하지 못한 요청은 Google에 닿지 않아 과금되지 않는다. 시험 호출이 연결을 못 할 때도 여기에 해당한다.
@@ -495,8 +495,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(2)).refund(GoogleApi.AUTOCOMPLETE);
-            verify(limiter).refund(GoogleApi.DETAILS);
+            verify(limiter, times(2)).refund(GoogleEndpoint.AUTOCOMPLETE);
+            verify(limiter).refund(GoogleEndpoint.DETAILS);
         }
 
         // 연결한 뒤 1초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
@@ -511,8 +511,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-missing"), null), "PLACE_NOT_FOUND");
 
-            verify(limiter, never()).refund(GoogleApi.AUTOCOMPLETE);
-            verify(limiter, never()).refund(GoogleApi.DETAILS);
+            verify(limiter, never()).refund(GoogleEndpoint.AUTOCOMPLETE);
+            verify(limiter, never()).refund(GoogleEndpoint.DETAILS);
         }
     }
 

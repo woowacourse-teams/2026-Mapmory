@@ -344,7 +344,7 @@ delete from travel_record where id=?
   설정 클래스는 같은 패키지에 두면 package-private으로 숨길 수 있다(`place/infrastructure/google/places`).
   제공자 아래 파일이 많아지면 역할별 하위 패키지로 나눈다. `place/infrastructure/google`은 API별(`places`, `geocoding`)과
   호출 보호(`guard`: 순서·한도·서킷 브레이커·실패 번역)로 나누고, 공통 연결 설정·주소 해석만 루트에 둔다.
-  다른 패키지가 쓰는 클래스만 `public`이다(`guard`의 `GoogleCallGuard`·`GoogleApi`·`GoogleRequestLimiter`·`GoogleRateLimitProperties`,
+  다른 패키지가 쓰는 클래스만 `public`이다(`guard`의 `GoogleCallGuard`·`GoogleEndpoint`·`GoogleRequestLimiter`·`GoogleRateLimitProperties`,
   루트의 연결 설정·주소 해석·제공자 상수, 포트 구현체). 나머지 설정과 응답 해석은 package-private이다.
   의존은 `places`·`geocoding` → 루트 → `guard` 한 방향이라 패키지 순환이 없다.
   `config/`로 빼면 Properties와 설정 클래스가 `public`이 되지만, 제공자 하나에 설정이 여럿일 때 구현 코드와 섞이지 않는다(`auth/infrastructure/{kakao,google}/config`).

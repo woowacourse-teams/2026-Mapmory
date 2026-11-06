@@ -12,7 +12,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleConnectionConfig;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleRateLimitProperties;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
@@ -139,7 +139,7 @@ class GooglePlacesTimeoutTest {
                         assertTimeoutPreemptively(Duration.ofMillis(1_000), () ->
                                 assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                                         .isInstanceOf(BusinessException.class));
-                        verify(context.getBean(GoogleRequestLimiter.class)).refund(GoogleApi.AUTOCOMPLETE);
+                        verify(context.getBean(GoogleRequestLimiter.class)).refund(GoogleEndpoint.AUTOCOMPLETE);
                     }));
 
             assertThat(timeoutPhases(logs)).containsExactly("CONNECT");
@@ -179,7 +179,7 @@ class GooglePlacesTimeoutTest {
 
             assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                     .isInstanceOf(BusinessException.class);
-            verify(context.getBean(GoogleRequestLimiter.class), never()).refund(GoogleApi.AUTOCOMPLETE);
+            verify(context.getBean(GoogleRequestLimiter.class), never()).refund(GoogleEndpoint.AUTOCOMPLETE);
         }));
 
         assertThat(timeoutPhases(logs)).containsExactly("RESPONSE");

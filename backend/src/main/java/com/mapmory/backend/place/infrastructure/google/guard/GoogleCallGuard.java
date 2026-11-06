@@ -23,21 +23,21 @@ public class GoogleCallGuard {
         this.requestLimiter = requestLimiter;
     }
 
-    public JsonNode call(GoogleApi api, Supplier<JsonNode> request) {
+    public JsonNode call(GoogleEndpoint endpoint, Supplier<JsonNode> request) {
         JsonNode body;
         try {
-            body = circuitBreakers.forApi(api).executeSupplier(() -> {
-                requestLimiter.reserve(api);
+            body = circuitBreakers.forEndpoint(endpoint).executeSupplier(() -> {
+                requestLimiter.reserve(endpoint);
                 return request.get();
             });
         } catch (CallNotPermittedException exception) {
             throw GoogleFailureTranslator.unavailable();
         } catch (RestClientException exception) {
             ExternalCallFailure failure = ExternalCallFailure.of(exception);
-            if (api.notBilled(failure)) {
-                requestLimiter.refund(api);
+            if (endpoint.notBilled(failure)) {
+                requestLimiter.refund(endpoint);
             }
-            throw GoogleFailureTranslator.toError(api, failure);
+            throw GoogleFailureTranslator.toError(endpoint, failure);
         }
         if (body == null || body.isNull()) {
             throw GoogleFailureTranslator.unavailable();

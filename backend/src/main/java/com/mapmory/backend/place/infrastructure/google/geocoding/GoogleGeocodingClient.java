@@ -5,7 +5,7 @@ import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
 import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
-import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleEndpoint;
 import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.Optional;
@@ -20,7 +20,7 @@ import tools.jackson.databind.JsonNode;
  * <p>키는 URL이 아닌 헤더로 보낸다. 좌표는 v4가 GET 쿼리로만 받아 URL에 실리지만, HTTPS로 암호화되고 우리 로그에는
  * 남기지 않는다. 장소 검색과 같은 키·분당 한도·타임아웃을 쓰고, 월 한도와 서킷 브레이커는 따로 쓴다.
  *
- * <p>서킷 브레이커·월 한도·실패 처리는 {@link GoogleCallGuard}가 맡는다({@link GoogleApi#GEOCODE}).
+ * <p>서킷 브레이커·월 한도·실패 처리는 {@link GoogleCallGuard}가 맡는다({@link GoogleEndpoint#GEOCODE}).
  * 주소가 없는 좌표는 결과가 비어 오고 빈 값이다.
  */
 @Component
@@ -53,7 +53,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
     @Override
     public Optional<RegionAddress> findAddress(Coordinate coordinate) {
         api.requireConfigured();
-        JsonNode response = google.call(GoogleApi.GEOCODE, () -> restClient.get()
+        JsonNode response = google.call(GoogleEndpoint.GEOCODE, () -> restClient.get()
                 .uri(uri -> uri.path("/v4/geocode/location")
                         .queryParam("location.latitude", coordinate.latitudeText())
                         .queryParam("location.longitude", coordinate.longitudeText())
