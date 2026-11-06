@@ -1,8 +1,12 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.geocoding;
 
 import com.mapmory.backend.place.application.port.ReverseGeocodePort;
 import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
+import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.region.domain.RegionAddress;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,10 +33,10 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
     private final RestClient restClient;
     private final GoogleApiProperties api;
     private final GoogleCallGuard google;
-    private final GooglePlaceMapper mapper = new GooglePlaceMapper();
+    private final GoogleGeocodingMapper mapper = new GoogleGeocodingMapper();
 
     public GoogleGeocodingClient(
-            @Qualifier(GoogleRestClientConfig.GEOCODING_REST_CLIENT) RestClient restClient,
+            @Qualifier(GoogleGeocodingClientConfig.REST_CLIENT) RestClient restClient,
             GoogleApiProperties api,
             GoogleCallGuard google
     ) {
@@ -43,7 +47,7 @@ public class GoogleGeocodingClient implements ReverseGeocodePort {
 
     @Override
     public PlaceProvider provider() {
-        return GooglePlacesClient.PROVIDER;
+        return GoogleProvider.PLACE_PROVIDER;
     }
 
     @Override

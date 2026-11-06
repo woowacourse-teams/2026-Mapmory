@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.place.infrastructure.google.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.util.EnumMap;

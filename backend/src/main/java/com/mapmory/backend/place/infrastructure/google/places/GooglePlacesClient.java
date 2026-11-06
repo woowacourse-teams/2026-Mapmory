@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.places;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
@@ -7,6 +7,10 @@ import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.domain.SearchQuery;
+import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
+import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,8 +32,6 @@ import tools.jackson.databind.JsonNode;
 @Component
 public class GooglePlacesClient implements PlaceLookupPort {
 
-    static final PlaceProvider PROVIDER = new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
-
     // Place Details Essentials: 국가와 시·도·시·군·구 판정용 주소 구성요소만 받는다. 좌표와 이름은 받지 않는다.
     // displayName(Pro)을 넣으면 세션을 닫는 상세 조회가 Enterprise + Atmosphere로 과금된다.
     private static final String FIELD_MASK = "id,addressComponents,shortFormattedAddress";
@@ -38,10 +40,10 @@ public class GooglePlacesClient implements PlaceLookupPort {
     private final RestClient restClient;
     private final GoogleApiProperties api;
     private final GoogleCallGuard google;
-    private final GooglePlaceMapper mapper = new GooglePlaceMapper();
+    private final GooglePlacesMapper mapper = new GooglePlacesMapper();
 
     public GooglePlacesClient(
-            @Qualifier(GoogleRestClientConfig.PLACES_REST_CLIENT) RestClient restClient,
+            @Qualifier(GooglePlacesClientConfig.REST_CLIENT) RestClient restClient,
             GoogleApiProperties api,
             GoogleCallGuard google
     ) {
@@ -54,7 +56,7 @@ public class GooglePlacesClient implements PlaceLookupPort {
     @Override
     public PlaceProvider provider() {
         api.requireConfigured();
-        return PROVIDER;
+        return GoogleProvider.PLACE_PROVIDER;
     }
 
     @Override

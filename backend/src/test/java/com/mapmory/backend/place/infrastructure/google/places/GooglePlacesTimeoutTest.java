@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.places;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,6 +10,12 @@ import static org.mockito.Mockito.verify;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
+import com.mapmory.backend.place.infrastructure.google.GoogleConnectionConfig;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleRateLimitProperties;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
@@ -51,17 +57,14 @@ class GooglePlacesTimeoutTest {
     private HttpServer google;
     private volatile long delayMillis;
 
-    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+    private final ApplicationContextRunner contextRunner = GoogleGuardFixture.withGuard(new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
             // 앱 기동(SpringApplication)과 같이 "1s" 같은 값을 Duration으로 바꾼다.
             .withInitializer(context -> context.getBeanFactory()
                     .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withBean(RestClient.Builder.class, RestClient::builder)
-            .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class))
-            .withBean(GoogleCircuitBreakers.class, () -> GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(
-                    new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
-                    Clock.systemUTC(), host)))
-            .withUserConfiguration(GoogleRestClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
+            .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class)), Clock.systemUTC())
+            .withUserConfiguration(GoogleConnectionConfig.class, GooglePlacesClientConfig.class, GooglePlacesClient.class);
 
     @BeforeEach
     void startGoogle() throws IOException {
@@ -103,9 +106,8 @@ class GooglePlacesTimeoutTest {
 
     @Test
     void Apache_HttpClient로_부른다() {
-        Object factory = GoogleRestClientConfig.requestFactory(
-                new GoogleApiProperties("test-key", "https://places.google.test", "https://geocode.google.test",
-                        Duration.ofMillis(400), Duration.ofSeconds(1)),
+        Object factory = GoogleConnectionConfig.requestFactory(
+                new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)),
                 new GoogleRateLimitProperties(9000, 9000, 9000, 60));
 
         assertThat(factory).isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
@@ -130,7 +132,7 @@ class GooglePlacesTimeoutTest {
 
             List<ILoggingEvent> logs = captureLogs(() -> contextRunner
                     .withPropertyValues("google.places.base-url=https://127.0.0.1:" + silent.getLocalPort(),
-                            "google.places.api-key=test-key")
+                            "google.api-key=test-key")
                     .run(context -> {
                         GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
 
@@ -194,7 +196,7 @@ class GooglePlacesTimeoutTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGuardFixture.FAILURE_LOGGER);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -227,7 +229,7 @@ class GooglePlacesTimeoutTest {
     private String[] properties() {
         return new String[] {
                 "google.places.base-url=http://127.0.0.1:" + google.getAddress().getPort(),
-                "google.places.api-key=test-key"
+                "google.api-key=test-key"
         };
     }
 }

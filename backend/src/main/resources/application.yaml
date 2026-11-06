@@ -51,15 +51,17 @@ google:
   # 비어 있으면 모든 구글 로그인을 거부한다. (ADR 0019)
   client-ids: ${GOOGLE_CLIENT_IDS:}
   jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  # Google 장소 검색(Places API)과 사진 좌표 → 지역(Geocoding API)이 같이 쓰는 키와 타임아웃이다.
+  # 키가 비어 있으면 두 기능 모두 PLACE_PROVIDER_UNAVAILABLE로 실패한다. GCP에서 이 키에 두 API를 다 허용해야 한다. (docs/place-search.md)
+  api-key: ${GOOGLE_PLACES_API_KEY:}
+  # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GoogleConnectionConfig).
+  # connect는 TCP+TLS 연결 한도다. 잰 연결 최대 134ms × 3 = 402ms → 400ms.
+  # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99 303ms × 3 = 909ms → 1s. 둘을 합쳐 최악 1.4초쯤 기다린다.
+  # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
+  connect-timeout: 400ms
+  read-timeout: 1s
+  # 호스트 주소(google.places.base-url, google.geocoding.base-url)는 코드의 기본값을 쓴다. 테스트만 바꾼다.
   places:
-    # Places API (New) 키. 비어 있으면 장소 검색과 선택이 PLACE_PROVIDER_UNAVAILABLE로 실패한다. (docs/place-search.md)
-    api-key: ${GOOGLE_PLACES_API_KEY:}
-    # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GooglePlacesClient).
-    # connect는 TCP+TLS 연결 한도다. 잰 연결 최대 134ms × 3 = 402ms → 400ms.
-    # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99 303ms × 3 = 909ms → 1s. 둘을 합쳐 최악 1.4초쯤 기다린다.
-    # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
-    connect-timeout: 400ms
-    read-timeout: 1s
     rate-limit:
       # UTC 달마다 센다. 상한에 닿으면 막는다. Google 월 무료 사용량은 SKU마다 10,000건(Autocomplete,
       # Place Details Essentials, Geocoding)이라, 상한을 그 두 배로 두고 무료를 넘기 전에 알림을 받는다.
@@ -67,7 +69,6 @@ google:
       autocomplete-per-month: 20000
       details-per-month: 20000
       # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 개발 서버는 application-dev.yaml에서 낮춘다.
-      # 같은 GOOGLE_PLACES_API_KEY를 쓰므로 GCP에서 그 키에 Geocoding API를 허용해야 한다.
       geocode-per-month: 20000
       # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_PLACES_FREE_USAGE)를 남겨 Discord로 알린다. 무료 10,000건보다 조금 앞이다.
       # Google 월은 태평양 시간 기준이라 UTC 달과 몇 시간 어긋난다.

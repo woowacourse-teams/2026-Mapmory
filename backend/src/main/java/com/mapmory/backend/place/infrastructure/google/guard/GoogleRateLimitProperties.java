@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

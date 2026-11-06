@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;

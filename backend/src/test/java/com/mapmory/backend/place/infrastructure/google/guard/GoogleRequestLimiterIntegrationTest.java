@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import static com.mapmory.backend.support.LogEvents.field;
 import static org.assertj.core.api.Assertions.assertThat;

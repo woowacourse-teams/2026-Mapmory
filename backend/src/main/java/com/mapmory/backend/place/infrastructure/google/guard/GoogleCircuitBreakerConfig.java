@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker.StateTransition;

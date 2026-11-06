@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.guard;
 
 import com.mapmory.backend.common.http.ExternalCallFailure;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
@@ -13,7 +13,7 @@ import tools.jackson.databind.JsonNode;
  * 실패를 우리 에러로 바꾸는 일은 {@link GoogleFailureTranslator}가 한다.
  */
 @Component
-class GoogleCallGuard {
+public class GoogleCallGuard {
 
     private final GoogleCircuitBreakers circuitBreakers;
     private final GoogleRequestLimiter requestLimiter;
@@ -23,7 +23,7 @@ class GoogleCallGuard {
         this.requestLimiter = requestLimiter;
     }
 
-    JsonNode call(GoogleApi api, Supplier<JsonNode> request) {
+    public JsonNode call(GoogleApi api, Supplier<JsonNode> request) {
         JsonNode body;
         try {
             body = circuitBreakers.forApi(api).executeSupplier(() -> {

@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.geocoding;
 
 import tools.jackson.databind.node.JsonNodeFactory;
 
@@ -20,6 +20,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleCallGuard;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.Coordinate;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
@@ -43,22 +48,16 @@ class GoogleGeocodingClientTest {
 
     private static final String GEOCODING_URL = "https://geocode.google.test";
     private static final Coordinate DAEGU_JUNG_GU = new Coordinate(35.8694, 128.6062);
-    private static final GoogleCircuitBreakerProperties BREAKER =
-            new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3);
-
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-05T00:00:00Z"));
-    private final CircuitBreaker breaker =
-            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.GEOCODING);
-    private final CircuitBreaker placesBreaker =
-            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, GoogleApi.Host.PLACES);
-    private final GoogleCallGuard guard = new GoogleCallGuard(
-            GoogleCircuitBreakers.of(host -> host == GoogleApi.Host.GEOCODING ? breaker : placesBreaker), limiter);
+    private final GoogleGuardFixture.Guarded guarded = GoogleGuardFixture.guarded(limiter, clock);
+    private final GoogleCallGuard guard = guarded.guard();
+    private final CircuitBreaker breaker = guarded.breakerOf(GoogleApi.GEOCODE);
+    private final CircuitBreaker placesBreaker = guarded.breakerOf(GoogleApi.AUTOCOMPLETE);
     private final GoogleGeocodingClient client = new GoogleGeocodingClient(builder.baseUrl(GEOCODING_URL).build(),
-            new GoogleApiProperties("test-key", "https://places.google.test", GEOCODING_URL,
-                    Duration.ofMillis(400), Duration.ofSeconds(1)),
+            new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)),
             guard);
 
     @Test
@@ -223,7 +222,7 @@ class GoogleGeocodingClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGuardFixture.FAILURE_LOGGER);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

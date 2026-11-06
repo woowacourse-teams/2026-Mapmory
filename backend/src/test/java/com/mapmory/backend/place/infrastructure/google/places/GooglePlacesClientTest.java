@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.infrastructure.google;
+package com.mapmory.backend.place.infrastructure.google.places;
 
 import static com.mapmory.backend.support.LogEvents.field;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +23,13 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.mapmory.backend.place.infrastructure.google.GoogleApiProperties;
+import com.mapmory.backend.place.infrastructure.google.GoogleConnectionConfig;
+import com.mapmory.backend.place.infrastructure.google.GoogleProvider;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleApi;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleGuardFixture;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleRateLimitProperties;
+import com.mapmory.backend.place.infrastructure.google.guard.GoogleRequestLimiter;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.PlaceDetails;
@@ -58,16 +65,13 @@ class GooglePlacesClientTest {
     private static final String CANDIDATES = """
             {"suggestions":[{"placePrediction":{"placeId":"ChIJ-gyeong","text":{"text":"경복궁"}}}]}
             """;
-    // application.yaml의 google.places.circuit-breaker와 같은 값이다.
-    private static final GoogleCircuitBreakerProperties BREAKER =
-            new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3);
 
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-14T00:00:00Z"));
     private final GooglePlacesClient client = new GooglePlacesClient(builder.baseUrl(BASE_URL).build(),
-            api("test-key"), guard(limiter, clock));
+            api("test-key"), GoogleGuardFixture.guard(limiter, clock));
 
     @Test
     void 자동완성_후보를_장소명과_보조_주소로_반환한다() {
@@ -88,8 +92,8 @@ class GooglePlacesClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         assertThat(client.search(SearchQuery.from("경복"), "session-1")).containsExactly(
-                new PlaceCandidate(PlaceId.from("ChIJ-gyeong"), "경복궁", "서울특별시 종로구", GooglePlacesClient.PROVIDER),
-                new PlaceCandidate(PlaceId.from("ChIJ-station"), "경복궁역", null, GooglePlacesClient.PROVIDER));
+                new PlaceCandidate(PlaceId.from("ChIJ-gyeong"), "경복궁", "서울특별시 종로구", GoogleProvider.PLACE_PROVIDER),
+                new PlaceCandidate(PlaceId.from("ChIJ-station"), "경복궁역", null, GoogleProvider.PLACE_PROVIDER));
         server.verify();
         verify(limiter).reserve(GoogleApi.AUTOCOMPLETE);
     }
@@ -126,7 +130,7 @@ class GooglePlacesClientTest {
 
         assertThat(client.findDetails(PlaceId.from("ChIJ-gyeong"), "session-1"))
                 .isEqualTo(new PlaceDetails(PlaceId.from("ChIJ-gyeong"), null,
-                        new RegionAddress("KR", "서울특별시", List.of("종로구")), GooglePlacesClient.PROVIDER));
+                        new RegionAddress("KR", "서울특별시", List.of("종로구")), GoogleProvider.PLACE_PROVIDER));
         server.verify();
     }
 
@@ -295,13 +299,12 @@ class GooglePlacesClientTest {
 
     @Test
     void API_키가_없으면_시작할_때_한_번만_ERROR로_알린다() {
-        Logger configLogger = (Logger) LoggerFactory.getLogger(GoogleRestClientConfig.class);
+        Logger configLogger = (Logger) LoggerFactory.getLogger(GoogleConnectionConfig.class);
         ListAppender<ILoggingEvent> startup = new ListAppender<>();
         startup.start();
         configLogger.addAppender(startup);
         try {
-            new GoogleRestClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
-                    GoogleRestClientConfig.requestFactory(api(""), new GoogleRateLimitProperties(9000, 9000, 9000, 60)));
+            new GoogleConnectionConfig().googleRequestFactory(api(""), new GoogleRateLimitProperties(9000, 9000, 9000, 60));
         } finally {
             configLogger.detachAppender(startup);
         }
@@ -433,7 +436,7 @@ class GooglePlacesClientTest {
             expectServerErrors(5);
             expectServerErrors(3);
             expectCandidates(3);
-            Logger logger = (Logger) LoggerFactory.getLogger(GoogleCircuitBreakerConfig.class);
+            Logger logger = (Logger) LoggerFactory.getLogger(GoogleGuardFixture.CIRCUIT_LOGGER);
             ListAppender<ILoggingEvent> appender = new ListAppender<>();
             appender.start();
             logger.addAppender(appender);
@@ -520,7 +523,7 @@ class GooglePlacesClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleGuardFixture.FAILURE_LOGGER);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -534,12 +537,11 @@ class GooglePlacesClientTest {
 
     private GooglePlacesClient unconfiguredClient() {
         return new GooglePlacesClient(RestClient.builder().baseUrl(BASE_URL).build(), api(""),
-                guard(mock(GoogleRequestLimiter.class), clock));
+                GoogleGuardFixture.guard(mock(GoogleRequestLimiter.class), clock));
     }
 
     private static GoogleApiProperties api(String apiKey) {
-        return new GoogleApiProperties(apiKey, BASE_URL, "https://geocode.google.test",
-                Duration.ofMillis(400), Duration.ofSeconds(1));
+        return new GoogleApiProperties(apiKey, Duration.ofMillis(400), Duration.ofSeconds(1));
     }
 
     private static void assertError(ThrowingCallable action, String expectedCode) {
@@ -547,10 +549,5 @@ class GooglePlacesClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
                         .isEqualTo(expectedCode));
-    }
-
-    static GoogleCallGuard guard(GoogleRequestLimiter limiter, Clock clock) {
-        return new GoogleCallGuard(
-                GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, host)), limiter);
     }
 }
