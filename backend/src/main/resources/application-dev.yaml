@@ -20,10 +20,10 @@ jwt:
   secret: ${JWT_SECRET}
 
 google:
-  places:
+  geocoding:
     rate-limit:
-      # 개발 서버의 사진 좌표 → 지역 호출은 확인용이라 운영(9,000건)보다 작게 둔다.
-      geocode-per-month: 3000
+      # 개발 서버의 사진 좌표 → 지역 호출은 확인용이라 운영보다 작게 둔다.
+      per-month: 3000
 
 admin:
   cors:
