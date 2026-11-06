@@ -24,7 +24,8 @@ class MaintenanceSchedulingTest {
             "com.mapmory.backend.group.infrastructure.InactiveMemberGroupCleanupScheduler",
             "com.mapmory.backend.place.ratelimit.PlaceRateLimitCleanup",
             "com.mapmory.backend.auth.infrastructure.RefreshTokenCleanupScheduler",
-            "com.mapmory.backend.travelrecord.infrastructure.OrphanedMediaCleanupScheduler"
+            "com.mapmory.backend.travelrecord.infrastructure.OrphanedMediaCleanupScheduler",
+            "com.mapmory.backend.travelrecord.infrastructure.UnlinkedMediaReconciliationScheduler"
     })
     void 정리_배치는_정리_전용_스케줄러를_명시한다(String className) throws ClassNotFoundException {
         Method scheduled = Arrays.stream(Class.forName(className).getDeclaredMethods())
