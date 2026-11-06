@@ -270,6 +270,27 @@ fields @timestamp, requestId, event, @message
 메트릭으로 이상 위치 찾기 → Request ID 로그로 구체적인 원인 찾기
 ```
 
+### 상황 4: 기록에 붙지 않은 S3 객체 대조 배치를 확인한다
+
+대조 배치는 매일 20:00 UTC에 돌고, 찾은 키는 다음 19:30 UTC 정리 배치가 지운다. (#186, ADR 0018)
+
+| 이벤트 | 뜻 |
+| --- | --- |
+| `UNLINKED_MEDIA_RECONCILE_DONE` | 대조 완료. `dryRun`, `scanned`, `candidates`, `queued`, `failedPages`, `sample`을 본다 |
+| `UNLINKED_MEDIA_PAGE_FAILED` | 한 쪽을 대조하지 못했다. 다음 쪽은 계속 읽고, 이 쪽은 다음 날 다시 읽는다 |
+| `UNLINKED_MEDIA_RECONCILE_FAILED` | 목록 조회가 실패해 멈췄다. 다음 날 처음부터 다시 읽는다 |
+
+메트릭은 `mapmory.media.unlinked.reconcile`(`outcome=CANDIDATE|QUEUED|FAILED_PAGE`, `dryRun`)과
+`mapmory.media.orphaned.cleanup`(`outcome=DELETED|FAILED`)이다.
+
+`UPLOAD_UNLINKED_MEDIA_DRY_RUN=true`로 시작한다. 끄기 전에 다음을 확인한다.
+
+1. 며칠 동안 `sample`의 키가 정말 기록에 없는지 DB에서 확인하고, `candidates`가 예상 범위인지 본다.
+2. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
+3. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다.
+
+끄면 지운 객체는 모든 버전까지 영구히 사라진다.
+
 ## Health 엔드포인트 구분
 
 Mapmory에는 이름이 비슷한 두 엔드포인트가 있다.
