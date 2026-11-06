@@ -185,13 +185,16 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
     void 탈퇴한_회원의_남은_access_token으로_기록_업로드_공유_영상을_만들면_401_INACTIVE_MEMBER다() throws Exception {
         String accessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
         withdraw(accessToken).andExpect(status().isNoContent());
+        // 사진 검사와 S3 확인을 지나야 회원 확인까지 간다.
+        willReturn(true).given(uploadedObjectChecker).exists(anyString());
+        String photoKey = photoKeyOfLatestMember("tokyo.jpg");
 
         mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"countryCode":"JP","title":"도쿄","content":"","startDate":"2026-08-11","objectKeys":[]}
-                                """))
+                                {"countryCode":"JP","title":"도쿄","content":"","startDate":"2026-08-11","objectKeys":["%s"]}
+                                """.formatted(photoKey)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         mockMvc.perform(post("/api/v1/uploads/presigned-urls")
@@ -220,6 +223,41 @@ class MemberWithdrawalIntegrationTest extends IntegrationTest {
         String accessToken = jwtProvider.issueAccessToken(Long.MAX_VALUE);
 
         withdraw(accessToken)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
+    }
+
+    @Test
+    void 버려진_게스트의_남은_access_token으로_탈퇴하면_401_INACTIVE_MEMBER이고_탈퇴시키지_않는다() throws Exception {
+        // 204 멱등은 본인 탈퇴의 재시도를 위한 것이다. 버려진 게스트는 탈퇴한 적이 없다. (#576)
+        String guestAccessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
+        Long guestId = jwtProvider.parseMemberId(guestAccessToken);
+        kakaoLogin(null, "700008");
+        kakaoLogin(guestAccessToken, "700008");
+        LocalDateTime abandonedAt = memberRepository.findById(guestId).orElseThrow().getAbandonedAt();
+
+        withdraw(guestAccessToken)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+
+        Member guest = memberRepository.findById(guestId).orElseThrow();
+        assertThat(abandonedAt).isNotNull();
+        assertThat(guest.getAbandonedAt()).isEqualTo(abandonedAt);
+        assertThat(guest.getWithdrawnAt()).isNull();
+        assertThat(events.stream(MemberWithdrawn.class)).isEmpty();
+    }
+
+    @Test
+    void 버려진_뒤_탈퇴된_게스트가_다시_탈퇴하면_401_INACTIVE_MEMBER다() throws Exception {
+        // 일반 탈퇴가 버려진 게스트를 막기 전(#576)에 생겼을 수 있는 행이다. 버려짐을 탈퇴 여부보다 먼저 본다.
+        String guestAccessToken = JsonPath.read(guestLogin(), "$.data.accessToken");
+        Member guest = memberRepository.findById(jwtProvider.parseMemberId(guestAccessToken)).orElseThrow();
+        guest.abandon(LocalDateTime.now());
+        guest.withdraw(LocalDateTime.now());
+        memberRepository.save(guest);
+
+        withdraw(guestAccessToken)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
         assertThat(events.stream(MemberWithdrawn.class)).isEmpty();

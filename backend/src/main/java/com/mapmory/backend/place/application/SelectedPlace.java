@@ -10,4 +10,16 @@ public record SelectedPlace(PlaceDetails place, Region suggestedRegion) {
     public boolean manualRegionRequired() {
         return suggestedRegion == null;
     }
+
+    /**
+     * 장소의 국가 코드. 제공자가 국가를 주지 않아도(Google의 독도) 지역을 찾았으면 그 지역의 국가다.
+     * 앱은 이 코드로 지역 목록을 찾아서, 비어 있으면 지역을 직접 고르게 한다.
+     */
+    public String countryCode() {
+        String providerCountryCode = place.address().countryCode();
+        if (providerCountryCode != null || suggestedRegion == null) {
+            return providerCountryCode;
+        }
+        return suggestedRegion.country().getRegionCode();
+    }
 }

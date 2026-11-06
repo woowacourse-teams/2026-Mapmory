@@ -1,5 +1,7 @@
 package com.mapmory.backend.travelrecord;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -8,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.recordmedia.ExpiringUrl;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -75,9 +79,9 @@ class TravelRecordDetailAcceptanceTest extends IntegrationTest {
                                   "title": "부산 여행",
                                   "content": "기록 본문",
                                   "startDate": "2026-08-01",
-                                  "objectKeys": []
+                                  "objectKeys": ["%s"]
                                 }
-                                """.formatted(BUSAN_PROVINCE_CODE)))
+                                """.formatted(BUSAN_PROVINCE_CODE, newPhotoKey())))
                 .andExpect(status().isCreated())
                 .andReturn();
         Integer recordId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.id");
@@ -145,9 +149,18 @@ class TravelRecordDetailAcceptanceTest extends IntegrationTest {
                   "title": "%s",
                   "content": "기록 본문",
                   "startDate": "2026-08-01",
-                  "objectKeys": []
+                  "objectKeys": ["%s"]
                 }
-                """.formatted(SEOUL_PROVINCE_CODE, JONGNO_DISTRICT_CODE, title);
+                """.formatted(SEOUL_PROVINCE_CODE, JONGNO_DISTRICT_CODE, title, newPhotoKey());
+    }
+
+    // 기록에는 사진이 1장 이상 있어야 한다. 방금 로그인한 게스트에게 발급한 형식의 키이고,
+    // S3 확인은 통과시키고 조회 URL 서명은 대신한다(테스트에는 AWS 자격 증명이 없다).
+    private String newPhotoKey() {
+        willReturn(true).given(uploadedObjectChecker).exists(anyString());
+        willReturn(new ExpiringUrl("https://download.example/photo.jpg", 300L))
+                .given(recordMediaUrlService).createViewUrl(anyString());
+        return photoKeyOfLatestMember(UUID.randomUUID() + ".jpg");
     }
 
     private String guestAccessToken() throws Exception {

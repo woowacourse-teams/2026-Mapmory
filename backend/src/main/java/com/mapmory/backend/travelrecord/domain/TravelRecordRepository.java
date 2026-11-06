@@ -1,6 +1,7 @@
 package com.mapmory.backend.travelrecord.domain;
 
 import com.mapmory.backend.region.domain.Region;
+import com.mapmory.backend.tag.Tag;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -8,10 +9,28 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
+
+    // 회원 데이터 파기가 지울 기록을 나눠 읽는다. 지운 뒤 다시 읽으므로 항상 처음부터 읽는다.
+    @Query("SELECT r.id FROM TravelRecord r WHERE r.member.id = :memberId ORDER BY r.id")
+    List<Long> findIdsByMemberId(@Param("memberId") Long memberId, Pageable pageable);
+
+    @Query("SELECT m.objectKey.value FROM RecordMedia m WHERE m.travelRecord.id IN :ids")
+    List<String> findObjectKeysByTravelRecordIdIn(@Param("ids") Collection<Long> ids);
+
+    @Query("SELECT m.thumbKey FROM RecordMedia m WHERE m.travelRecord.id IN :ids AND m.thumbKey IS NOT NULL")
+    List<String> findThumbKeysByTravelRecordIdIn(@Param("ids") Collection<Long> ids);
+
+    // 회원 데이터 파기. 사진·태그 연결 행은 DB의 ON DELETE CASCADE가 지운다.
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM TravelRecord r WHERE r.id IN :ids")
+    void deleteAllByIdIn(@Param("ids") Collection<Long> ids);
 
     /**
      * 상세 응답은 지역을 국가·시도·시군구로 펼쳐 보여주므로 Region의 parent·root까지 필요하다.
@@ -20,6 +39,13 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
      */
     @EntityGraph(attributePaths = {"region", "region.parent", "region.root"})
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
+
+    /**
+     * 다른 컨텍스트에 기록을 묶어 넘길 때 쓴다(TravelRecordQuery). 회원과 지역은 즉시 로딩이라
+     * 함께 읽지 않으면 기록마다 조회가 한 번씩 더 나간다. 없는 id는 결과에서 빠진다.
+     */
+    @EntityGraph(attributePaths = {"member", "region"})
+    List<TravelRecord> findAllByIdIn(Collection<Long> ids);
 
     /**
      * startDate가 같으면 TravelRecord.id 순서로 고정
@@ -56,6 +82,31 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         ORDER BY rm.travelRecord.id ASC, rm.sortOrder ASC, rm.id ASC
     """)
     List<RecordMedia> findMediaByTravelRecordIdIn(
+            @Param("travelRecordIds") Collection<Long> travelRecordIds
+    );
+
+    /**
+     * TravelRecordTag도 애그리거트 내부 엔티티라 루트 리포지토리에서 조회한다. 상세 화면의 태그를 만든 순서로 읽는다.
+     */
+    @Query("""
+        SELECT trt.tag
+        FROM TravelRecordTag trt
+        WHERE trt.travelRecord.id = :travelRecordId
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<Tag> findTagsByTravelRecordId(@Param("travelRecordId") Long travelRecordId);
+
+    /**
+     * 목록 화면의 태그용. 한 페이지의 연결을 태그와 함께 한 번에 읽는다.
+     */
+    @Query("""
+        SELECT trt
+        FROM TravelRecordTag trt
+        JOIN FETCH trt.tag
+        WHERE trt.travelRecord.id IN :travelRecordIds
+        ORDER BY trt.tag.createdAt ASC, trt.tag.id ASC
+    """)
+    List<TravelRecordTag> findTagLinksByTravelRecordIdIn(
             @Param("travelRecordIds") Collection<Long> travelRecordIds
     );
 

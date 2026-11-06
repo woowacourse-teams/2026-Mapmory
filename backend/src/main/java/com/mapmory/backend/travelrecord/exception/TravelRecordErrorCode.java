@@ -17,6 +17,13 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "요청 값이 올바르지 않습니다.",
             "페이지 번호 또는 페이지 크기가 올바르지 않습니다."
     ),
+    // 응답 코드는 요청 검증(@Size)이 내는 것과 같다. TagErrorCode.INVALID_TAG_NAME과 같은 방식이다.
+    INVALID_TITLE(
+            ErrorKind.INVALID_INPUT,
+            "VALIDATION_ERROR",
+            "요청 값이 올바르지 않습니다.",
+            "제목은 200자 이하여야 합니다."
+    ),
     INVALID_TRAVEL_DATE_RANGE(
             ErrorKind.INVALID_INPUT,
             "INVALID_TRAVEL_DATE_RANGE",
@@ -28,6 +35,18 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "TRAVEL_RECORD_NOT_FOUND",
             "여행 일지를 찾을 수 없습니다.",
             "요청한 여행 일지가 없거나 조회할 권한이 없습니다."
+    ),
+    PHOTO_REQUIRED(
+            ErrorKind.INVALID_INPUT,
+            "PHOTO_REQUIRED",
+            "사진이 필요합니다.",
+            "사진을 한 장 이상 추가해 주세요."
+    ),
+    TOO_MANY_PHOTOS(
+            ErrorKind.INVALID_INPUT,
+            "TOO_MANY_PHOTOS",
+            "사진이 너무 많습니다.",
+            "사진은 기록당 최대 100장까지 추가할 수 있습니다."
     ),
     INVALID_OBJECT_KEY(
             ErrorKind.INVALID_INPUT,

@@ -48,6 +48,10 @@ public class TravelRecordTag {
         return travelRecord.getId();
     }
 
+    Long tagId() {
+        return tag.getId();
+    }
+
     public Tag getTag() {
         return tag;
     }

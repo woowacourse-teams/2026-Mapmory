@@ -4,13 +4,12 @@ import com.mapmory.backend.group.domain.GroupMember;
 import com.mapmory.backend.group.domain.GroupSummary;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
-import com.mapmory.backend.member.Member;
-import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.api.MemberQuery;
+import com.mapmory.backend.recordmedia.ExpiringUrl;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,17 +23,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class GroupService {
 
     private final TravelGroupRepository travelGroupRepository;
-    private final MemberRepository memberRepository;
+    private final MemberQuery memberQuery;
     private final SocialMemberGuard socialMemberGuard;
     private final GroupMembership groupMembership;
+    private final AlbumQueryService albumQueryService;
     private final Clock clock;
 
-    public GroupService(TravelGroupRepository travelGroupRepository, MemberRepository memberRepository,
-                        SocialMemberGuard socialMemberGuard, GroupMembership groupMembership, Clock clock) {
+    public GroupService(TravelGroupRepository travelGroupRepository, MemberQuery memberQuery,
+                        SocialMemberGuard socialMemberGuard, GroupMembership groupMembership,
+                        AlbumQueryService albumQueryService, Clock clock) {
         this.travelGroupRepository = travelGroupRepository;
-        this.memberRepository = memberRepository;
+        this.memberQuery = memberQuery;
         this.socialMemberGuard = socialMemberGuard;
         this.groupMembership = groupMembership;
+        this.albumQueryService = albumQueryService;
         this.clock = clock;
     }
 
@@ -47,9 +49,14 @@ public class GroupService {
     }
 
     @Transactional(readOnly = true)
-    public List<GroupSummary> findMine(Long memberId) {
+    public List<GroupCard> findMine(Long memberId) {
         socialMemberGuard.require(memberId);
-        return travelGroupRepository.findSummariesByMemberId(memberId);
+        List<GroupSummary> summaries = travelGroupRepository.findSummariesByMemberId(memberId);
+        Map<Long, ExpiringUrl> covers = albumQueryService.latestCoversOf(
+                summaries.stream().map(GroupSummary::id).toList());
+        return summaries.stream()
+                .map(summary -> new GroupCard(summary, covers.get(summary.id())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +75,15 @@ public class GroupService {
 
     private GroupDetail toDetail(TravelGroup group, Long myMemberId) {
         List<GroupMember> members = group.getMembers();
-        List<Long> memberIds = members.stream().map(GroupMember::getMemberId).toList();
-        Map<Long, String> nicknames = memberRepository.findAllById(memberIds).stream()
-                .collect(Collectors.toMap(Member::getId, Member::getNickname));
-        List<GroupDetail.MemberView> views = memberIds.stream()
-                .map(memberId -> new GroupDetail.MemberView(
-                        nicknames.get(memberId),
-                        memberId.equals(group.getOwnerMemberId()),
-                        memberId.equals(myMemberId)))
+        Map<Long, String> nicknames = memberQuery.nicknamesOf(
+                members.stream().map(GroupMember::getMemberId).toList());
+        List<GroupDetail.MemberView> views = members.stream()
+                .map(member -> new GroupDetail.MemberView(
+                        member.getMemberId(),
+                        nicknames.get(member.getMemberId()),
+                        member.getMemberId().equals(group.getOwnerMemberId()),
+                        member.getMemberId().equals(myMemberId),
+                        member.getJoinedAt()))
                 .toList();
         return new GroupDetail(group.getId(), group.getName(), views);
     }

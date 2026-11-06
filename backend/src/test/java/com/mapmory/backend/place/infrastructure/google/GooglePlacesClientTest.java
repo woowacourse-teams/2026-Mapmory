@@ -33,11 +33,12 @@ import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
-import java.net.http.HttpConnectTimeoutException;
-import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -112,7 +113,7 @@ class GooglePlacesClientTest {
     void 선택_조회는_같은_세션_토큰으로_주소_구성요소만_받는다() {
         server.expect(requestToUriTemplate(BASE_URL + "/v1/places/{id}?languageCode=ko&sessionToken=session-1",
                         "ChIJ-gyeong"))
-                .andExpect(header("X-Goog-FieldMask", "id,addressComponents"))
+                .andExpect(header("X-Goog-FieldMask", "id,addressComponents,shortFormattedAddress"))
                 .andRespond(withSuccess("""
                         {"id":"ChIJ-gyeong",
                          "addressComponents":[
@@ -131,7 +132,7 @@ class GooglePlacesClientTest {
     @Test
     void 지역을_정하는_조회는_Essentials_필드만_요청해_이름과_좌표를_받지_않는다() {
         server.expect(requestToUriTemplate(BASE_URL + "/v1/places/{id}?languageCode=ko", "ChIJ-bundang"))
-                .andExpect(header("X-Goog-FieldMask", "id,addressComponents"))
+                .andExpect(header("X-Goog-FieldMask", "id,addressComponents,shortFormattedAddress"))
                 .andRespond(withSuccess("""
                         {"id":"ChIJ-bundang","addressComponents":[
                            {"longText":"분당구","types":["sublocality_level_1","sublocality","political"]},
@@ -158,6 +159,33 @@ class GooglePlacesClientTest {
     @Test
     void API_키를_뺀_뒤에는_Google_장소를_기록에_붙이지_않는다() {
         assertError(() -> unconfiguredClient().provider(), "PLACE_PROVIDER_UNAVAILABLE");
+    }
+
+    @Test
+    void 구성요소에_국가가_없으면_짧은_주소의_낱말로_지역_이름을_보충한다() {
+        // Google 독도리 상세(2026-11-04 확인): 구성요소는 "독도리"뿐, 짧은 주소는 "울릉군 울릉읍 독도리"다.
+        server.expect(queryParam("languageCode", "ko"))
+                .andRespond(withSuccess("""
+                        {"id":"ChIJ-dokdo","shortFormattedAddress":"울릉군 울릉읍 독도리","addressComponents":[
+                           {"longText":"독도리","shortText":"독도리","types":["sublocality_level_3","sublocality","political"]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findDetails(PlaceId.from("ChIJ-dokdo"), null).address())
+                .isEqualTo(new RegionAddress(null, null, List.of("울릉군", "울릉읍", "독도리")));
+    }
+
+    @Test
+    void 구성요소에_국가가_있으면_짧은_주소를_쓰지_않는다() {
+        server.expect(queryParam("languageCode", "ko"))
+                .andRespond(withSuccess("""
+                        {"id":"ChIJ-daecheon","shortFormattedAddress":"보령시 신흑동 대천해수욕장","addressComponents":[
+                           {"longText":"대천해수욕장","types":["beach","natural_feature","establishment"]},
+                           {"longText":"보령시","types":["locality","political"]},
+                           {"longText":"대한민국","shortText":"KR","types":["country","political"]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findDetails(PlaceId.from("ChIJ-daecheon"), null).address())
+                .isEqualTo(new RegionAddress("KR", null, List.of("보령시")));
     }
 
     @Test
@@ -199,6 +227,46 @@ class GooglePlacesClientTest {
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "status") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_REJECTED:403:ERROR");
+    }
+
+    @Test
+    void 연결_단계에서_끊긴_타임아웃은_CONNECT로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new ConnectTimeoutException("Connect to https://places.googleapis.com failed: Connect timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:CONNECT:WARN");
+    }
+
+    @Test
+    void 응답을_기다리다_끊긴_타임아웃은_RESPONSE로_남긴다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new SocketTimeoutException("Read timed out");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:RESPONSE:WARN");
+    }
+
+    @Test
+    void 풀에서_연결을_못_받은_타임아웃은_POOL로_남기고_한도를_돌려준다() {
+        server.expect(method(HttpMethod.POST)).andRespond(request -> {
+            throw new ConnectionRequestTimeoutException("Timeout deadline: 400 MILLISECONDS");
+        });
+
+        List<ILoggingEvent> logs = captureLogs(() ->
+                assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE"));
+
+        assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
+                .containsExactly("GOOGLE_PLACES_TIMEOUT:POOL:WARN");
+        verify(limiter).refundAutocomplete();
     }
 
     @Test
@@ -262,7 +330,7 @@ class GooglePlacesClientTest {
         @Test
         void 타임아웃과_연결_오류도_실패로_센다() {
             server.expect(ExpectedCount.times(3), requestTo(AUTOCOMPLETE_URL))
-                    .andRespond(withException(new HttpTimeoutException("Request cancelled")));
+                    .andRespond(withException(new SocketTimeoutException("Read timed out")));
             server.expect(ExpectedCount.times(2), requestTo(AUTOCOMPLETE_URL))
                     .andRespond(withException(new ConnectException("Connection refused")));
             searchFails(5);
@@ -386,12 +454,12 @@ class GooglePlacesClientTest {
         }
 
         // 연결하지 못한 요청은 Google에 닿지 않아 과금되지 않는다. 시험 호출이 연결을 못 할 때도 여기에 해당한다.
-        // 예외는 실제 클라이언트(JDK HttpClient)가 연결 거부, 2초 연결 타임아웃, 없는 호스트에서 던지는 것과 같다.
+        // 예외는 실제 클라이언트(Apache HttpClient)가 연결 거부, 연결 타임아웃, 없는 호스트에서 던지는 것과 같다.
         @Test
         void 연결조차_못_했으면_돌려준다() {
             server.expect(method(HttpMethod.POST)).andRespond(withException(new ConnectException()));
             server.expect(method(HttpMethod.POST))
-                    .andRespond(withException(new HttpConnectTimeoutException("HTTP connect timed out")));
+                    .andRespond(withException(new ConnectTimeoutException("Connect to https://places.googleapis.com failed: Connect timed out")));
             server.expect(method(HttpMethod.GET)).andRespond(withException(new ConnectException()));
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
@@ -402,11 +470,11 @@ class GooglePlacesClientTest {
             verify(limiter).refundDetails();
         }
 
-        // 연결한 뒤 3초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
+        // 연결한 뒤 1초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
         @Test
         void 연결한_뒤_답을_기다리다_끊겼거나_4xx면_돌려주지_않는다() {
             server.expect(method(HttpMethod.POST))
-                    .andRespond(withException(new HttpTimeoutException("Request cancelled")));
+                    .andRespond(withException(new SocketTimeoutException("Read timed out")));
             server.expect(method(HttpMethod.POST)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
             server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 

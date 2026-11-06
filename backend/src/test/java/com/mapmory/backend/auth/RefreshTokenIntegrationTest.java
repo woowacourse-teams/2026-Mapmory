@@ -167,6 +167,34 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 로그아웃한_refresh가_다시_와도_탈취로_보지_않아_다른_기기의_refresh는_유효하다() throws Exception {
+        String loggedOut = login(300_007L);
+        String otherDevice = login(300_007L);
+        logout(loggedOut);
+
+        mockMvc.perform(refreshRequest(loggedOut))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 회전_외_이유로_폐기된_refresh가_다시_오면_재사용이_아닌_폐기_토큰_카운터가_오른다() throws Exception {
+        double reusedBefore = reuseCount("REVOKED_ALL", "KAKAO");
+        double presentedBefore = reuseCount("REVOKED_PRESENTED", "KAKAO");
+        String loggedOut = login(300_008L);
+        logout(loggedOut);
+
+        mockMvc.perform(refreshRequest(loggedOut))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(reuseCount("REVOKED_ALL", "KAKAO")).isEqualTo(reusedBefore);
+        assertThat(reuseCount("REVOKED_PRESENTED", "KAKAO")).isEqualTo(presentedBefore + 1);
+    }
+
+    @Test
     void 이미_회전된_refresh로_로그아웃하면_후속_토큰까지_폐기한다() throws Exception {
         String previous = login(300_006L);
         String current = refresh(previous);
@@ -176,6 +204,45 @@ class RefreshTokenIntegrationTest extends IntegrationTest {
         mockMvc.perform(refreshRequest(current))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 두_단계_이전_refresh로_로그아웃해도_그_세션의_최신_refresh까지_폐기한다() throws Exception {
+        String first = login(300_009L);
+        String second = refresh(first);
+        String latest = refresh(second);
+
+        logout(first);
+
+        mockMvc.perform(refreshRequest(latest))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void 로그아웃은_그_세션만_폐기하고_다른_기기의_세션은_남긴다() throws Exception {
+        String loggedOut = login(300_010L);
+        String otherDevice = login(300_010L);
+
+        logout(refresh(loggedOut));
+
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 재사용으로_탈취를_감지하면_그_세션만_폐기하고_다른_기기의_세션은_남긴다() throws Exception {
+        String stolen = login(300_011L);
+        String otherDevice = login(300_011L);
+        String latest = refresh(stolen);
+
+        mockMvc.perform(refreshRequest(stolen))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(refreshRequest(latest))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(refreshRequest(otherDevice))
+                .andExpect(status().isOk());
     }
 
     @Test

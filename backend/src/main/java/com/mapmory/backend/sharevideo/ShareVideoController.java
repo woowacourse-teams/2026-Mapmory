@@ -7,6 +7,7 @@ import com.mapmory.backend.sharevideo.dto.CreateShareVideoResponse;
 import com.mapmory.backend.sharevideo.dto.CreateShareVideoRequest;
 import com.mapmory.backend.sharevideo.dto.ShareVideoDownloadResponse;
 import com.mapmory.backend.sharevideo.dto.ShareVideoJobResponse;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,19 +32,23 @@ public class ShareVideoController {
     @PostMapping("/travel-timeline")
     public ResponseEntity<ApiResponse<CreateShareVideoResponse>> create(
             @LoginMember final Member member,
-            @RequestBody(required = false) final CreateShareVideoRequest request
+            @Valid @RequestBody(required = false) final CreateShareVideoRequest request
     ) {
         final ShareVideoStyle styleId;
+        final Long pushTokenId;
+
         if (request == null) {
+            // 기존처럼 본문 없이 요청해도 기본 스타일로 생성한다.
             styleId = ShareVideoStyle.defaultStyle();
+            pushTokenId = null;
         } else {
             styleId = request.resolvedStyle();
+            pushTokenId = request.pushTokenId();
         }
-        final ShareVideoJob job = shareVideoService.createTravelTimeline(member, styleId);
-        final CreateShareVideoResponse response = CreateShareVideoResponse.from(job);
+        final ShareVideoJob job = shareVideoService.createTravelTimeline(member, styleId, pushTokenId);
 
         return ResponseEntity.accepted()
-                .body(ApiResponse.from(response));
+                .body(ApiResponse.from(CreateShareVideoResponse.from(job)));
     }
 
     @GetMapping("/{jobId}")

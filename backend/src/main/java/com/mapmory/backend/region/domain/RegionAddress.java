@@ -22,6 +22,11 @@ public record RegionAddress(String countryCode, String province, List<String> su
                 .toList();
     }
 
+    /** 시·도 아래 지역 이름(시·군·구, 읍·면·동 등)이 하나라도 있는지. */
+    public boolean hasAreaNames() {
+        return !subAreas.isEmpty();
+    }
+
     private static String blankToNull(String name) {
         if (name == null || name.isBlank()) {
             return null;

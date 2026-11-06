@@ -71,7 +71,8 @@ public class GroupInvitationService {
         GroupInvitation invitation = findValid(tokenOrCode);
         TravelGroup group = travelGroupRepository.findById(invitation.getGroupId())
                 .orElseThrow(() -> new BusinessException(GroupErrorCode.INVITATION_NOT_FOUND));
-        return new InvitationPreview(group.getName(), group.getMemberCount(), group.hasMember(memberId));
+        return new InvitationPreview(group.getId(), group.getName(), group.getMemberCount(), group.hasMember(memberId),
+                group.isFull(), invitation.getExpiresAt());
     }
 
     /**

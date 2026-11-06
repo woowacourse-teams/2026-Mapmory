@@ -249,4 +249,13 @@ class MemberJoinServiceTest extends IntegrationTest {
         assertThat(UUID.fromString(guest.getProviderId())).isNotNull();
         assertThat(guest.getName()).matches("회원[1-9]\\d{4}");
     }
+
+    @Test
+    void 이_소셜_계정으로_가입한_회원이_있는지_확인한다() {
+        memberJoinService.joinWithSocial(AuthProvider.KAKAO, "300099", "소현", null);
+
+        assertThat(memberJoinService.hasSocialAccount(AuthProvider.KAKAO, "300099")).isTrue();
+        assertThat(memberJoinService.hasSocialAccount(AuthProvider.KAKAO, "300098")).isFalse();
+        assertThat(memberJoinService.hasSocialAccount(AuthProvider.GOOGLE, "300099")).isFalse();
+    }
 }

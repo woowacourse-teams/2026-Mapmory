@@ -58,6 +58,18 @@ class RegionSuggesterTest {
     }
 
     @Test
+    void 국가_코드가_없어도_지역_이름이_있으면_한국_시군구로_찾아_본다() {
+        Region country = Region.of(null, null, "KR", "대한민국", RegionType.COUNTRY);
+        Region province = Region.of(country, country, "47", "경상북도", RegionType.PROVINCE);
+        Region ulleung = Region.of(province, country, "47940", "울릉군", RegionType.DISTRICT);
+        RegionAddress address = new RegionAddress(null, null, List.of("울릉군", "울릉읍", "독도리"));
+        when(addressRegionMatcher.match(address)).thenReturn(Optional.of(ulleung));
+
+        assertThat(suggester.suggest(address)).contains(ulleung);
+        verifyNoInteractions(regionResolver);
+    }
+
+    @Test
     void 국가_코드가_없으면_빈_값이다() {
         assertThat(suggester.suggest(RegionAddress.UNKNOWN)).isEmpty();
         verifyNoInteractions(regionResolver, addressRegionMatcher);

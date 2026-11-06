@@ -1,8 +1,8 @@
 package com.mapmory.backend.auth.infrastructure.apple;
 
 import com.mapmory.backend.auth.application.model.SocialIdentity;
+import com.mapmory.backend.auth.application.model.SocialProvider;
 import com.mapmory.backend.auth.application.port.SocialIdentityPort;
-import com.mapmory.backend.member.AuthProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,8 +20,8 @@ public class AppleIdentityAdapter implements SocialIdentityPort {
     }
 
     @Override
-    public AuthProvider provider() {
-        return AuthProvider.APPLE;
+    public SocialProvider provider() {
+        return SocialProvider.APPLE;
     }
 
     @Override
