@@ -68,8 +68,13 @@ public class S3ObjectDeleter implements ObjectDeleter {
         return List.copyOf(failed);
     }
 
+    @Override
+    public boolean owns(String objectKey) {
+        return objectKey.startsWith(ownPrefix);
+    }
+
     private void requireOwnKey(String key) {
-        if (!key.startsWith(ownPrefix)) {
+        if (!owns(key)) {
             throw new IllegalArgumentException("우리 경로 밖의 객체는 지울 수 없습니다. key=" + key);
         }
     }
