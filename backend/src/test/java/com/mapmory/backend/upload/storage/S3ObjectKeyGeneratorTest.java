@@ -7,6 +7,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class S3ObjectKeyGeneratorTest {
@@ -30,11 +31,12 @@ class S3ObjectKeyGeneratorTest {
         assertThat(objectKey).matches("mapmory/travel-records/10/" + UUID_PATTERN + "\\." + extension);
     }
 
-    @Test
-    void 만든_키는_이_서버가_만든_형식이다() {
+    @ParameterizedTest
+    @EnumSource(UploadFileType.class)
+    void 만든_키는_이_서버가_만든_형식이다(UploadFileType fileType) {
         S3ObjectKeyGenerator generator = objectKeyGenerator("mapmory/dev");
 
-        assertThat(generator.isGenerated(generator.generate(10L, UploadFileType.HEIC))).isTrue();
+        assertThat(generator.isGenerated(generator.generate(Long.MAX_VALUE, fileType))).isTrue();
     }
 
     @ParameterizedTest
