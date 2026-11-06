@@ -173,6 +173,7 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
         Long member = withdrawnDaysAgo(31);
         recordOf(member, "mapmory/travel-records/7/" + status + ".jpg", null);
         videoOf(member, status, null, null);
+        leaseExpiresAt(member, now.plusMinutes(5));
 
         assertThat(memberPurgeService.run()).isZero();
 
@@ -187,6 +188,51 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
 
         assertThat(count("share_video_job", member)).isZero();
         assertThat(count("travel_record", member)).isZero();
+    }
+
+    /**
+     * 워커가 렌더링 중에 죽으면 작업은 RENDERING으로 남고 되살리는 곳이 없다. 기다리면 파기가 영원히 멈춘다.
+     */
+    @Test
+    void 선점이_만료되고_오래_지난_렌더링_작업은_끝난_것으로_보고_시도본까지_지운다() {
+        Long member = withdrawnDaysAgo(31);
+        String attemptKey = "mapmory/share-videos/9/attempt.mp4";
+        videoOf(member, "RENDERING", null, attemptKey);
+        leaseExpiresAt(member, now.minusHours(2));
+
+        assertThat(memberPurgeService.run()).isEqualTo(1);
+
+        assertThat(deletedKeys).containsExactly(attemptKey);
+        assertThat(count("share_video_job", member)).isZero();
+    }
+
+    /**
+     * 만료 직후에는 죽은 줄 안 워커가 아직 올리는 중일 수 있다. 그때 지우면 업로드가 끝나며 객체가 다시 생긴다.
+     */
+    @Test
+    void 선점이_막_만료된_렌더링_작업은_기다린다() {
+        Long member = withdrawnDaysAgo(31);
+        videoOf(member, "RENDERING", null, "mapmory/share-videos/10/attempt.mp4");
+        leaseExpiresAt(member, now.minusMinutes(30));
+
+        assertThat(memberPurgeService.run()).isZero();
+
+        verify(objectDeleter, never()).delete(anyCollection());
+        assertThat(count("share_video_job", member)).isEqualTo(1);
+    }
+
+    @Test
+    void 선점_기록이_없는_옛_렌더링_작업은_끝난_것으로_본다() {
+        Long member = withdrawnDaysAgo(31);
+        videoOf(member, "RENDERING", null, null);
+
+        assertThat(memberPurgeService.run()).isEqualTo(1);
+
+        assertThat(count("share_video_job", member)).isZero();
+    }
+
+    private void leaseExpiresAt(Long memberId, LocalDateTime expiresAt) {
+        jdbcTemplate.update("UPDATE share_video_job SET lease_expires_at = ? WHERE member_id = ?", expiresAt, memberId);
     }
 
     private Member social() {

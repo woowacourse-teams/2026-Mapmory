@@ -19,6 +19,7 @@ import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.api.TravelRecordDeleted;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -58,6 +59,7 @@ public class TravelRecordService {
     private final ApplicationEventPublisher eventPublisher;
     private final TravelRecordListCache travelRecordListCache;
     private final ActiveMemberGuard activeMemberGuard;
+    private final OrphanedMediaRepository orphanedMediaRepository;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -73,7 +75,8 @@ public class TravelRecordService {
             PlatformTransactionManager transactionManager,
             ApplicationEventPublisher eventPublisher,
             TravelRecordListCache travelRecordListCache,
-            ActiveMemberGuard activeMemberGuard
+            ActiveMemberGuard activeMemberGuard,
+            OrphanedMediaRepository orphanedMediaRepository
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -90,6 +93,7 @@ public class TravelRecordService {
         this.eventPublisher = eventPublisher;
         this.travelRecordListCache = travelRecordListCache;
         this.activeMemberGuard = activeMemberGuard;
+        this.orphanedMediaRepository = orphanedMediaRepository;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -141,7 +145,8 @@ public class TravelRecordService {
      * 외부 호출을 트랜잭션 밖에 두려고 읽기와 쓰기를 두 트랜잭션으로 나눈다.
      * 읽기에서 새로 추가된 사진을 구해 S3로 확인하고, 쓰기에서 기록을 다시 읽어 그사이 삭제됐으면 TRAVEL_RECORD_NOT_FOUND로 끝낸다.
      * 그사이 사진 목록이 바뀌어 확인하지 않은 키가 새 사진으로 보이더라도, 그 키는 읽을 때 기록에 붙어 있던 사진이라
-     * 처음 붙일 때 확인을 거쳤고 S3에서 지우지 않으므로 다시 확인하지 않는다.
+     * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키의 객체는 정리 배치가 하루 한 번 지우므로(#162),
+     * 읽기와 쓰기 사이의 몇 초에 배치가 지운 드문 경우에만 객체가 없는 키가 붙을 수 있다.
      */
     public TravelRecordDetail update(
             Member member,
@@ -176,6 +181,7 @@ public class TravelRecordService {
                     today
             );
             setPlace(travelRecord, place);
+            List<String> removedKeys = travelRecord.mediaKeysRemovedBy(objectKeys);
             operationTimer.record(
                     MonitoredOperation.MEDIA_SYNC,
                     () -> {
@@ -184,6 +190,7 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
+            removedKeys.forEach(orphanedMediaRepository::enqueue);
             // 태그 변경은 커밋 때 함께 나간다. 타이머 안에서 바꾸면 MEDIA_SYNC에 태그 쓰기가 섞인다.
             List<Tag> tags = findTags(member, tagIds);
             travelRecord.retag(tagIds, tags);
@@ -197,6 +204,7 @@ public class TravelRecordService {
     public void delete(Member member, Long travelRecordId) {
         TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
+        travelRecord.allMediaKeys().forEach(orphanedMediaRepository::enqueue);
         travelRecordRepository.delete(travelRecord);
         eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
         eventPublisher.publishEvent(new TravelRecordDeleted(travelRecordId, member.getId()));

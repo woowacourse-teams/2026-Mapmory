@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
@@ -34,6 +35,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Modifying
     @Query("update RefreshToken r set r.revokedAt = :now where r.family.id = :familyId and r.revokedAt is null")
     void revokeAllActiveByFamilyId(@Param("familyId") Long familyId, @Param("now") LocalDateTime now);
+
+    // 만료 시각 순서로 나눠 지운다. idx_refresh_expires를 타서 지울 행만 잠근다. (#454)
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM refresh_token WHERE expires_at < :before ORDER BY expires_at LIMIT :limit", nativeQuery = true)
+    int deleteExpiredBefore(@Param("before") LocalDateTime before, @Param("limit") int limit);
 
     @Modifying
     @Query("update RefreshToken r set r.revokedAt = :now where r.member.id = :memberId and r.revokedAt is null")
