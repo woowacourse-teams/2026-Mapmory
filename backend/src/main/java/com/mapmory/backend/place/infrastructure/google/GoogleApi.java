@@ -46,15 +46,19 @@ public enum GoogleApi {
 
     /** 호스트마다 서킷 브레이커와 로그 이벤트 이름을 따로 쓴다. 한쪽 장애가 다른 쪽을 막지 않는다. */
     enum Host {
-        PLACES("googlePlaces", "GOOGLE_PLACES"),
-        GEOCODING("googleGeocoding", "GOOGLE_GEOCODING");
+        PLACES("googlePlaces", "GOOGLE_PLACES", true),
+        // 요청에 사진 좌표가 담기므로 거절 사유(응답 본문)도 로그에 남기지 않는다.
+        GEOCODING("googleGeocoding", "GOOGLE_GEOCODING", false);
 
         final String breakerName;
         final String eventPrefix;
+        /** 거절(4xx)됐을 때 Google이 준 사유(응답 본문)를 로그에 남겨도 되는지. */
+        final boolean logsRejectionReason;
 
-        Host(String breakerName, String eventPrefix) {
+        Host(String breakerName, String eventPrefix, boolean logsRejectionReason) {
             this.breakerName = breakerName;
             this.eventPrefix = eventPrefix;
+            this.logsRejectionReason = logsRejectionReason;
         }
     }
 }

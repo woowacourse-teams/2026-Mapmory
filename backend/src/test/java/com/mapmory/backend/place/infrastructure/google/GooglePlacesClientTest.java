@@ -220,14 +220,18 @@ class GooglePlacesClientTest {
 
     // 4xx는 서킷이 실패로 세지 않아, 키 거절은 여기서 ERROR로 알린다. 응답의 PLACE_PROVIDER_UNAVAILABLE은 WARN이다.
     @Test
-    void Google이_키를_거절하면_ERROR로_알린다() {
-        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN));
+    void Google이_키를_거절하면_사유와_함께_ERROR로_알린다() {
+        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":{\"code\":403,\"status\":\"PERMISSION_DENIED\",\"message\":\"API key not valid\"}}"));
 
         List<ILoggingEvent> logs = captureLogs(() ->
                 assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE"));
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "status") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_REJECTED:403:ERROR");
+        // 장소 요청에는 좌표가 없어, 운영자가 원인을 알 수 있게 Google이 준 사유를 남긴다.
+        assertThat(logs).extracting(event -> field(event, "reason")).first().asString().contains("API key not valid");
     }
 
     @Test
