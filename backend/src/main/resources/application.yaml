@@ -156,6 +156,11 @@ upload:
   rate-limit:
     files-per-member-per-hour: 300
     files-per-member-per-day: 1000
+  # 기록에 붙지 않은 S3 객체 대조(#186). 처음에는 dry-run으로 후보만 로그에 남긴다.
+  # 앱은 며칠 전 키로 저장을 다시 시도할 수 있고, 그 키가 지워지면 저장이 계속 실패할 수 있다. 앱을 고친 뒤에 끈다.
+  unlinked-media:
+    dry-run: ${UPLOAD_UNLINKED_MEDIA_DRY_RUN:true}
+    grace-period: 3d
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
