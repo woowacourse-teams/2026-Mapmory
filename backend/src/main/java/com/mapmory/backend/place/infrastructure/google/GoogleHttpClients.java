@@ -19,8 +19,9 @@ public final class GoogleHttpClients {
      *
      * <p>connect는 TCP와 TLS 연결까지, read는 연결된 뒤 응답을 기다리는 한도다. 둘이 따로라 잰 값에서 바로 정한다.
      * 재시도는 끈다. Apache는 GET이 503이면 1초 뒤 다시 보내는데, 우리는 다시 보내지 않고 바로 실패로 답한다.
-     * 연결 풀은 그 API의 분당 한도만큼 둔다(maxConnections). 분당 한도가 한꺼번에 몰려도 동시에 부를 수 있는 Google 호출 수의 상한이라,
-     * 풀에서 연결을 기다리는 요청이 생기지 않는다. 풀에서 기다리는 한도는 connect와 같게 둔다.
+     * 연결 풀 크기(maxConnections)는 동시에 열린 연결 수라 분당 요청 수와 단위가 다르다. 평소 동시 호출은 초당 요청 수 × 응답 시간이라
+     * 1개 안팎이지만, 분당 한도만큼이 한순간에 몰리면 동시 호출이 그 수까지 갈 수 있다. 그래서 분당 한도를 동시 호출의 상한으로 보고
+     * 풀 크기로 쓴다. 풀에서 연결을 기다리는 요청이 생기지 않는다. 풀에서 기다리는 한도는 connect와 같게 둔다.
      */
     public static ClientHttpRequestFactory requestFactory(GoogleApiProperties api, int maxConnections) {
         return ClientHttpRequestFactoryBuilder.httpComponents()
