@@ -17,6 +17,7 @@ class GoogleRateLimitConfig {
     static final String REQUEST_PACE = "googleRequestPace";
     static final String AUTOCOMPLETE_BUDGET = "googleAutocompleteBudget";
     static final String DETAILS_BUDGET = "googleDetailsBudget";
+    static final String GEOCODE_BUDGET = "googleGeocodeBudget";
 
     // 분당 한도는 짧은 시간에 몰린 요청이 월 한도를 한꺼번에 쓰지 못하게 하는 값이라 서버마다 메모리에서 따로 센다.
     @Bean(REQUEST_PACE)
@@ -36,6 +37,11 @@ class GoogleRateLimitConfig {
     @Bean(DETAILS_BUDGET)
     BucketConfiguration googleDetailsBudget(GoogleRateLimitProperties properties) {
         return monthly(properties.detailsPerMonth());
+    }
+
+    @Bean(GEOCODE_BUDGET)
+    BucketConfiguration googleGeocodeBudget(GoogleRateLimitProperties properties) {
+        return monthly(properties.geocodePerMonth());
     }
 
     // 달이 바뀌면 키(연월)가 바뀌어 새로 센다. 한 달 안에 다시 차지 않도록 채우는 주기를 가장 긴 달로 둔다.

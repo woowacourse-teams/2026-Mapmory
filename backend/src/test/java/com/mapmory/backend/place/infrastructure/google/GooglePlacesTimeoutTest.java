@@ -14,7 +14,6 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.domain.SearchQuery;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
 import com.sun.net.httpserver.HttpServer;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -59,10 +58,10 @@ class GooglePlacesTimeoutTest {
                     .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withBean(RestClient.Builder.class, RestClient::builder)
             .withBean(GoogleRequestLimiter.class, () -> mock(GoogleRequestLimiter.class))
-            .withBean(CircuitBreaker.class, () -> GoogleCircuitBreakerConfig.circuitBreaker(
+            .withBean(GoogleCircuitBreakers.class, () -> GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(
                     new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
-                    Clock.systemUTC()))
-            .withUserConfiguration(GooglePlacesClient.class);
+                    Clock.systemUTC(), host)))
+            .withUserConfiguration(GoogleRestClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
 
     @BeforeEach
     void startGoogle() throws IOException {
@@ -104,7 +103,10 @@ class GooglePlacesTimeoutTest {
 
     @Test
     void Apache_HttpClient로_부른다() {
-        Object factory = GooglePlacesClient.requestFactory(Duration.ofMillis(400), Duration.ofSeconds(1), 60);
+        Object factory = GoogleRestClientConfig.requestFactory(
+                new GoogleApiProperties("test-key", "https://places.google.test", "https://geocode.google.test",
+                        Duration.ofMillis(400), Duration.ofSeconds(1)),
+                new GoogleRateLimitProperties(9000, 9000, 9000, 60));
 
         assertThat(factory).isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
     }
@@ -135,7 +137,7 @@ class GooglePlacesTimeoutTest {
                         assertTimeoutPreemptively(Duration.ofMillis(1_000), () ->
                                 assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                                         .isInstanceOf(BusinessException.class));
-                        verify(context.getBean(GoogleRequestLimiter.class)).refundAutocomplete();
+                        verify(context.getBean(GoogleRequestLimiter.class)).refund(GoogleApi.AUTOCOMPLETE);
                     }));
 
             assertThat(timeoutPhases(logs)).containsExactly("CONNECT");
@@ -175,7 +177,7 @@ class GooglePlacesTimeoutTest {
 
             assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                     .isInstanceOf(BusinessException.class);
-            verify(context.getBean(GoogleRequestLimiter.class), never()).refundAutocomplete();
+            verify(context.getBean(GoogleRequestLimiter.class), never()).refund(GoogleApi.AUTOCOMPLETE);
         }));
 
         assertThat(timeoutPhases(logs)).containsExactly("RESPONSE");
@@ -192,7 +194,7 @@ class GooglePlacesTimeoutTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

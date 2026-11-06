@@ -34,6 +34,7 @@ import com.mapmory.backend.region.domain.RegionAddress;
 import com.mapmory.backend.support.MutableClock;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -65,8 +66,8 @@ class GooglePlacesClientTest {
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final GoogleRequestLimiter limiter = mock(GoogleRequestLimiter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-14T00:00:00Z"));
-    private final GooglePlacesClient client = new GooglePlacesClient(builder, BASE_URL, "test-key", limiter,
-            GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+    private final GooglePlacesClient client = new GooglePlacesClient(builder.baseUrl(BASE_URL).build(),
+            api("test-key"), guard(limiter, clock));
 
     @Test
     void 자동완성_후보를_장소명과_보조_주소로_반환한다() {
@@ -90,7 +91,7 @@ class GooglePlacesClientTest {
                 new PlaceCandidate(PlaceId.from("ChIJ-gyeong"), "경복궁", "서울특별시 종로구", GooglePlacesClient.PROVIDER),
                 new PlaceCandidate(PlaceId.from("ChIJ-station"), "경복궁역", null, GooglePlacesClient.PROVIDER));
         server.verify();
-        verify(limiter).reserveAutocomplete();
+        verify(limiter).reserve(GoogleApi.AUTOCOMPLETE);
     }
 
     @Test
@@ -146,7 +147,7 @@ class GooglePlacesClientTest {
         assertThat(place.name()).isNull();
         assertThat(place.address()).isEqualTo(new RegionAddress("KR", "경기도", List.of("성남시", "분당구")));
         server.verify();
-        verify(limiter).reserveDetails();
+        verify(limiter).reserve(GoogleApi.DETAILS);
     }
 
     @Test
@@ -219,14 +220,18 @@ class GooglePlacesClientTest {
 
     // 4xx는 서킷이 실패로 세지 않아, 키 거절은 여기서 ERROR로 알린다. 응답의 PLACE_PROVIDER_UNAVAILABLE은 WARN이다.
     @Test
-    void Google이_키를_거절하면_ERROR로_알린다() {
-        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN));
+    void Google이_키를_거절하면_사유와_함께_ERROR로_알린다() {
+        server.expect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":{\"code\":403,\"status\":\"PERMISSION_DENIED\",\"message\":\"API key not valid\"}}"));
 
         List<ILoggingEvent> logs = captureLogs(() ->
                 assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE"));
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "status") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_REJECTED:403:ERROR");
+        // 장소 요청에는 좌표가 없어, 운영자가 원인을 알 수 있게 Google이 준 사유를 남긴다.
+        assertThat(logs).extracting(event -> field(event, "reason")).first().asString().contains("API key not valid");
     }
 
     @Test
@@ -256,6 +261,15 @@ class GooglePlacesClientTest {
     }
 
     @Test
+    void Google_쿼터_초과_429는_과금되지_않아_월_한도를_돌려준다() {
+        server.expect(method(HttpMethod.POST)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
+
+        verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
+    }
+
+    @Test
     void 풀에서_연결을_못_받은_타임아웃은_POOL로_남기고_한도를_돌려준다() {
         server.expect(method(HttpMethod.POST)).andRespond(request -> {
             throw new ConnectionRequestTimeoutException("Timeout deadline: 400 MILLISECONDS");
@@ -266,7 +280,7 @@ class GooglePlacesClientTest {
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + field(event, "phase") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_TIMEOUT:POOL:WARN");
-        verify(limiter).refundAutocomplete();
+        verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
     }
 
     @Test
@@ -281,14 +295,26 @@ class GooglePlacesClientTest {
 
     @Test
     void API_키가_없으면_시작할_때_한_번만_ERROR로_알린다() {
-        List<ILoggingEvent> logs = captureLogs(() -> {
+        Logger configLogger = (Logger) LoggerFactory.getLogger(GoogleRestClientConfig.class);
+        ListAppender<ILoggingEvent> startup = new ListAppender<>();
+        startup.start();
+        configLogger.addAppender(startup);
+        try {
+            new GoogleRestClientConfig().googlePlacesRestClient(RestClient.builder(), api(""),
+                    GoogleRestClientConfig.requestFactory(api(""), new GoogleRateLimitProperties(9000, 9000, 9000, 60)));
+        } finally {
+            configLogger.detachAppender(startup);
+        }
+        // 요청마다 다시 알리지 않는다.
+        List<ILoggingEvent> perRequest = captureLogs(() -> {
             GooglePlacesClient unconfigured = unconfiguredClient();
             assertError(() -> unconfigured.search(SearchQuery.from("경복"), "session-1"), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> unconfigured.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
         });
 
-        assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
+        assertThat(startup.list).extracting(event -> field(event, "event") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_PLACES_NOT_CONFIGURED:ERROR");
+        assertThat(perRequest).isEmpty();
     }
 
     @Test
@@ -301,7 +327,7 @@ class GooglePlacesClientTest {
     @Test
     void 월_한도를_넘으면_Google을_호출하지_않는다() {
         doThrow(new BusinessException(PlaceErrorCode.PLACE_SEARCH_BUDGET_EXHAUSTED))
-                .when(limiter).reserveAutocomplete();
+                .when(limiter).reserve(GoogleApi.AUTOCOMPLETE);
 
         assertError(() -> client.search(SearchQuery.from("경복"), "session-1"), "PLACE_SEARCH_BUDGET_EXHAUSTED");
         server.verify();
@@ -323,8 +349,8 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(5)).reserveAutocomplete();
-            verify(limiter, times(5)).refundAutocomplete();
+            verify(limiter, times(5)).reserve(GoogleApi.AUTOCOMPLETE);
+            verify(limiter, times(5)).refund(GoogleApi.AUTOCOMPLETE);
         }
 
         @Test
@@ -338,7 +364,7 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
             server.verify();
-            verify(limiter, times(5)).reserveAutocomplete();
+            verify(limiter, times(5)).reserve(GoogleApi.AUTOCOMPLETE);
         }
 
         @Test
@@ -358,7 +384,7 @@ class GooglePlacesClientTest {
             BusinessException rateLimited = new BusinessException(PlaceErrorCode.PLACE_RATE_LIMITED);
             doThrow(rateLimited, rateLimited, rateLimited, rateLimited, rateLimited, rateLimited)
                     .doNothing()
-                    .when(limiter).reserveAutocomplete();
+                    .when(limiter).reserve(GoogleApi.AUTOCOMPLETE);
             expectServerErrors(5);
             for (int i = 0; i < 6; i++) {
                 assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_RATE_LIMITED");
@@ -367,7 +393,7 @@ class GooglePlacesClientTest {
 
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(11)).reserveAutocomplete();
+            verify(limiter, times(11)).reserve(GoogleApi.AUTOCOMPLETE);
         }
 
         @Test
@@ -449,8 +475,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter).refundAutocomplete();
-            verify(limiter).refundDetails();
+            verify(limiter).refund(GoogleApi.AUTOCOMPLETE);
+            verify(limiter).refund(GoogleApi.DETAILS);
         }
 
         // 연결하지 못한 요청은 Google에 닿지 않아 과금되지 않는다. 시험 호출이 연결을 못 할 때도 여기에 해당한다.
@@ -466,8 +492,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-gyeong"), null), "PLACE_PROVIDER_UNAVAILABLE");
 
-            verify(limiter, times(2)).refundAutocomplete();
-            verify(limiter).refundDetails();
+            verify(limiter, times(2)).refund(GoogleApi.AUTOCOMPLETE);
+            verify(limiter).refund(GoogleApi.DETAILS);
         }
 
         // 연결한 뒤 1초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
@@ -482,8 +508,8 @@ class GooglePlacesClientTest {
             assertError(() -> client.search(SearchQuery.from("경복"), null), "PLACE_PROVIDER_UNAVAILABLE");
             assertError(() -> client.findDetails(PlaceId.from("ChIJ-missing"), null), "PLACE_NOT_FOUND");
 
-            verify(limiter, never()).refundAutocomplete();
-            verify(limiter, never()).refundDetails();
+            verify(limiter, never()).refund(GoogleApi.AUTOCOMPLETE);
+            verify(limiter, never()).refund(GoogleApi.DETAILS);
         }
     }
 
@@ -494,7 +520,7 @@ class GooglePlacesClientTest {
     }
 
     private static List<ILoggingEvent> captureLogs(Runnable action) {
-        Logger logger = (Logger) LoggerFactory.getLogger(GooglePlacesClient.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(GoogleFailureTranslator.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -507,8 +533,13 @@ class GooglePlacesClientTest {
     }
 
     private GooglePlacesClient unconfiguredClient() {
-        return new GooglePlacesClient(RestClient.builder(), BASE_URL, "", mock(GoogleRequestLimiter.class),
-                GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock));
+        return new GooglePlacesClient(RestClient.builder().baseUrl(BASE_URL).build(), api(""),
+                guard(mock(GoogleRequestLimiter.class), clock));
+    }
+
+    private static GoogleApiProperties api(String apiKey) {
+        return new GoogleApiProperties(apiKey, BASE_URL, "https://geocode.google.test",
+                Duration.ofMillis(400), Duration.ofSeconds(1));
     }
 
     private static void assertError(ThrowingCallable action, String expectedCode) {
@@ -516,5 +547,10 @@ class GooglePlacesClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
                         .isEqualTo(expectedCode));
+    }
+
+    static GoogleCallGuard guard(GoogleRequestLimiter limiter, Clock clock) {
+        return new GoogleCallGuard(
+                GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(BREAKER, clock, host)), limiter);
     }
 }

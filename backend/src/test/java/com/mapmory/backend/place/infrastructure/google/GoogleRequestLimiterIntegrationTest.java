@@ -36,13 +36,33 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     void 자동완성과_상세_조회의_월_한도를_DB에_따로_센다() {
         GoogleRequestLimiter first = limiter(2, 1, 10_000);
 
-        first.reserveAutocomplete();
-        first.reserveDetails();
+        first.reserve(GoogleApi.AUTOCOMPLETE);
+        first.reserve(GoogleApi.DETAILS);
 
         GoogleRequestLimiter second = limiter(2, 1, 10_000);
-        second.reserveAutocomplete();
-        assertError(second::reserveAutocomplete, "PLACE_SEARCH_BUDGET_EXHAUSTED");
-        assertError(second::reserveDetails, "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+        second.reserve(GoogleApi.AUTOCOMPLETE);
+        assertError(() -> second.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_SEARCH_BUDGET_EXHAUSTED");
+        assertError(() -> second.reserve(GoogleApi.DETAILS), "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+    }
+
+    @Test
+    void 역지오코딩_월_한도는_상세_한도와_다른_값을_쓴다() {
+        GoogleRateLimitProperties properties = new GoogleRateLimitProperties(5, 5, 2, 10_000);
+        GoogleRateLimitConfig config = new GoogleRateLimitConfig();
+
+        assertThat(config.googleGeocodeBudget(properties).getBandwidths()[0].getCapacity()).isEqualTo(2);
+        assertThat(config.googleDetailsBudget(properties).getBandwidths()[0].getCapacity()).isEqualTo(5);
+    }
+
+    @Test
+    void 역지오코딩은_상세_조회와_월_한도를_따로_센다() {
+        GoogleRequestLimiter limiter = limiter(2, 1, 10_000);
+
+        limiter.reserve(GoogleApi.DETAILS);
+        limiter.reserve(GoogleApi.GEOCODE);
+
+        assertError(() -> limiter.reserve(GoogleApi.DETAILS), "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+        assertError(() -> limiter.reserve(GoogleApi.GEOCODE), "PLACE_PROVIDER_BUDGET_EXHAUSTED");
     }
 
     @Test
@@ -54,10 +74,10 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
         logger.addAppender(appender);
         try {
             for (int i = 0; i < 5; i++) {
-                limiter.reserveAutocomplete();
+                limiter.reserve(GoogleApi.AUTOCOMPLETE);
             }
-            assertError(limiter::reserveAutocomplete, "PLACE_SEARCH_BUDGET_EXHAUSTED");
-            limiter.reserveDetails();
+            assertError(() -> limiter.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_SEARCH_BUDGET_EXHAUSTED");
+            limiter.reserve(GoogleApi.DETAILS);
         } finally {
             logger.detachAppender(appender);
         }
@@ -72,9 +92,9 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     void 속도_제한에_걸린_요청은_월_한도를_쓰지_않는다() {
         GoogleRequestLimiter limiter = limiter(2, 1, 1);
 
-        limiter.reserveAutocomplete();
-        assertError(limiter::reserveAutocomplete, "PLACE_RATE_LIMITED");
-        assertError(limiter::reserveDetails, "PLACE_RATE_LIMITED");
+        limiter.reserve(GoogleApi.AUTOCOMPLETE);
+        assertError(() -> limiter.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_RATE_LIMITED");
+        assertError(() -> limiter.reserve(GoogleApi.DETAILS), "PLACE_RATE_LIMITED");
 
         assertThat(availableThisMonth("google:autocomplete:", 2)).isEqualTo(1);
         assertThat(availableThisMonth("google:details:", 1)).isEqualTo(1);
@@ -83,11 +103,11 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     @Test
     void 속도_제한에_걸린_요청은_커넥션_풀이_고갈돼도_커넥션_없이_거절한다() throws SQLException {
         GoogleRequestLimiter limiter = limiter(2, 1, 1);
-        limiter.reserveAutocomplete();
+        limiter.reserve(GoogleApi.AUTOCOMPLETE);
 
         List<Connection> held = holdAllConnections();
         try {
-            assertError(limiter::reserveAutocomplete, "PLACE_RATE_LIMITED");
+            assertError(() -> limiter.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_RATE_LIMITED");
         } finally {
             for (Connection connection : held) {
                 connection.close();
@@ -98,24 +118,24 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
     @Test
     void 돌려준_만큼_월_한도를_다시_쓴다() {
         GoogleRequestLimiter limiter = limiter(1, 1, 10_000);
-        limiter.reserveAutocomplete();
-        limiter.reserveDetails();
+        limiter.reserve(GoogleApi.AUTOCOMPLETE);
+        limiter.reserve(GoogleApi.DETAILS);
 
-        limiter.refundAutocomplete();
-        limiter.refundDetails();
+        limiter.refund(GoogleApi.AUTOCOMPLETE);
+        limiter.refund(GoogleApi.DETAILS);
 
-        limiter.reserveAutocomplete();
-        limiter.reserveDetails();
-        assertError(limiter::reserveAutocomplete, "PLACE_SEARCH_BUDGET_EXHAUSTED");
-        assertError(limiter::reserveDetails, "PLACE_PROVIDER_BUDGET_EXHAUSTED");
+        limiter.reserve(GoogleApi.AUTOCOMPLETE);
+        limiter.reserve(GoogleApi.DETAILS);
+        assertError(() -> limiter.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_SEARCH_BUDGET_EXHAUSTED");
+        assertError(() -> limiter.reserve(GoogleApi.DETAILS), "PLACE_PROVIDER_BUDGET_EXHAUSTED");
     }
 
     @Test
     void 돌려줘도_월_한도보다_많아지지_않는다() {
         GoogleRequestLimiter limiter = limiter(2, 1, 10_000);
 
-        limiter.refundAutocomplete();
-        limiter.refundDetails();
+        limiter.refund(GoogleApi.AUTOCOMPLETE);
+        limiter.refund(GoogleApi.DETAILS);
 
         assertThat(availableThisMonth("google:autocomplete:", 2)).isEqualTo(2);
         assertThat(availableThisMonth("google:details:", 1)).isEqualTo(1);
@@ -128,7 +148,7 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
 
         List<Connection> held = holdAllConnections();
         try {
-            assertThatCode(limiter::refundAutocomplete).doesNotThrowAnyException();
+            assertThatCode(() -> limiter.refund(GoogleApi.AUTOCOMPLETE)).doesNotThrowAnyException();
         } finally {
             for (Connection connection : held) {
                 connection.close();
@@ -147,7 +167,7 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
 
         List<Connection> held = holdAllConnections();
         try {
-            assertError(limiter::reserveAutocomplete, "PLACE_PROVIDER_UNAVAILABLE");
+            assertError(() -> limiter.reserve(GoogleApi.AUTOCOMPLETE), "PLACE_PROVIDER_UNAVAILABLE");
         } finally {
             for (Connection connection : held) {
                 connection.close();
@@ -161,13 +181,14 @@ class GoogleRequestLimiterIntegrationTest extends IntegrationTest {
 
     private GoogleRequestLimiter limiter(int autocompletePerMonth, int detailsPerMonth, int requestsPerMinute) {
         GoogleRateLimitProperties properties =
-                new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, requestsPerMinute);
+                new GoogleRateLimitProperties(autocompletePerMonth, detailsPerMonth, detailsPerMonth, requestsPerMinute);
         GoogleRateLimitConfig config = new GoogleRateLimitConfig();
         return new GoogleRequestLimiter(
                 bucketManager,
                 config.googleRequestPace(properties),
                 config.googleAutocompleteBudget(properties),
                 config.googleDetailsBudget(properties),
+                config.googleGeocodeBudget(properties),
                 clock
         );
     }
