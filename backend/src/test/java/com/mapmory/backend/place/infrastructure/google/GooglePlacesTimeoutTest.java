@@ -61,7 +61,7 @@ class GooglePlacesTimeoutTest {
             .withBean(GoogleCircuitBreakers.class, () -> GoogleCircuitBreakers.of(host -> GoogleCircuitBreakerConfig.circuitBreaker(
                     new GoogleCircuitBreakerProperties(Duration.ofSeconds(60), 5, 50, Duration.ofSeconds(60), 3),
                     Clock.systemUTC(), host)))
-            .withUserConfiguration(GooglePlacesClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
+            .withUserConfiguration(GoogleRestClientConfig.class, GoogleCallGuard.class, GooglePlacesClient.class);
 
     @BeforeEach
     void startGoogle() throws IOException {
@@ -103,7 +103,7 @@ class GooglePlacesTimeoutTest {
 
     @Test
     void Apache_HttpClient로_부른다() {
-        Object factory = GooglePlacesClientConfig.requestFactory(
+        Object factory = GoogleRestClientConfig.requestFactory(
                 new GoogleApiProperties("test-key", "https://places.google.test", "https://geocode.google.test",
                         Duration.ofMillis(400), Duration.ofSeconds(1)),
                 new GoogleRateLimitProperties(9000, 9000, 9000, 60));

@@ -12,14 +12,15 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * Google 호출용 RestClient를 만든다. 공통 값(spring.http.clients)이 아니라 Google에서 잰 타임아웃을 건다.
+ * Google 호출용 RestClient를 호스트마다 하나씩 만든다(places, geocoding). 키·타임아웃·연결 풀은 같이 쓴다.
+ * 장소 전용이 아니라 Google 호출 전체의 연결 설정이라 이름에 Places를 넣지 않는다. 공통 값(spring.http.clients)이 아니라 Google에서 잰 타임아웃을 건다.
  * 관측(http.client.requests)은 자동 구성된 Builder에 남아 있어 그대로 기록된다.
  */
 @Configuration
 @EnableConfigurationProperties({GoogleApiProperties.class, GoogleRateLimitProperties.class})
-class GooglePlacesClientConfig {
+class GoogleRestClientConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(GooglePlacesClientConfig.class);
+    private static final Logger log = LoggerFactory.getLogger(GoogleRestClientConfig.class);
 
     static final String PLACES_REST_CLIENT = "googlePlacesRestClient";
     static final String GEOCODING_REST_CLIENT = "googleGeocodingRestClient";
