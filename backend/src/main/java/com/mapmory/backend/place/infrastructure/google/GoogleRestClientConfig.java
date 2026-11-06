@@ -3,6 +3,7 @@ package com.mapmory.backend.place.infrastructure.google;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
@@ -12,7 +13,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * Google 호출용 RestClient를 호스트마다 하나씩 만든다(places, geocoding). 키·타임아웃·연결 풀은 같이 쓴다.
+ * Google 호출용 RestClient를 호스트마다 하나씩 만든다(places, geocoding). 키·타임아웃·연결 풀({@link #REQUEST_FACTORY})은 같이 쓴다.
  * 장소 전용이 아니라 Google 호출 전체의 연결 설정이라 이름에 Places를 넣지 않는다. 공통 값(spring.http.clients)이 아니라 Google에서 잰 타임아웃을 건다.
  * 관측(http.client.requests)은 자동 구성된 Builder에 남아 있어 그대로 기록된다.
  */
@@ -24,26 +25,33 @@ class GoogleRestClientConfig {
 
     static final String PLACES_REST_CLIENT = "googlePlacesRestClient";
     static final String GEOCODING_REST_CLIENT = "googleGeocodingRestClient";
+    static final String REQUEST_FACTORY = "googleRequestFactory";
+
+    /** 두 호스트가 연결 풀 하나를 같이 쓴다. 분당 한도를 함께 세므로 동시 호출 상한도 하나다. 종료할 때 풀을 닫는다. */
+    @Bean(REQUEST_FACTORY)
+    ClientHttpRequestFactory googleRequestFactory(GoogleApiProperties api, GoogleRateLimitProperties limits) {
+        return requestFactory(api, limits);
+    }
 
     @Bean(PLACES_REST_CLIENT)
     RestClient googlePlacesRestClient(RestClient.Builder builder, GoogleApiProperties api,
-                                      GoogleRateLimitProperties limits) {
+                                      @Qualifier(REQUEST_FACTORY) ClientHttpRequestFactory requestFactory) {
         if (!api.configured()) {
             log.atError()
                     .addKeyValue("event", "GOOGLE_PLACES_NOT_CONFIGURED")
                     .log("GOOGLE_PLACES_API_KEY가 없어 장소 검색·선택과 사진 좌표 → 지역이 실패한다");
         }
         return builder.clone()
-                .requestFactory(requestFactory(api, limits))
+                .requestFactory(requestFactory)
                 .baseUrl(api.baseUrl())
                 .build();
     }
 
     @Bean(GEOCODING_REST_CLIENT)
     RestClient googleGeocodingRestClient(RestClient.Builder builder, GoogleApiProperties api,
-                                         GoogleRateLimitProperties limits) {
+                                         @Qualifier(REQUEST_FACTORY) ClientHttpRequestFactory requestFactory) {
         return builder.clone()
-                .requestFactory(requestFactory(api, limits))
+                .requestFactory(requestFactory)
                 .baseUrl(api.geocodingBaseUrl())
                 .build();
     }

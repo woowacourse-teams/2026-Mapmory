@@ -43,7 +43,7 @@
 
 ## 설정과 데이터
 
-- 서버 환경 변수 `GOOGLE_PLACES_API_KEY`를 설정한다. 키가 없으면 장소 API가 `PLACE_PROVIDER_UNAVAILABLE`(503)을 반환한다. 키는 Google Cloud에서 Places API (New)만 호출하도록 제한하고 결제 계정이 연결되어 있어야 한다.
+- 서버 환경 변수 `GOOGLE_PLACES_API_KEY`를 설정한다. 키가 없으면 장소 API가 `PLACE_PROVIDER_UNAVAILABLE`(503)을 반환한다. 키는 Google Cloud에서 Places API (New)와 Geocoding API만 호출하도록 제한하고(사진 좌표 → 지역이 같은 키로 Geocoding을 부른다) 결제 계정이 연결되어 있어야 한다.
 - 프런트엔드는 입력마다 호출하기보다 짧은 입력 지연을 적용한다.
 - 국내 시군구 추천은 Google 주소 구성요소 이름을 DB 지역 이름과 맞춰 계산한다(`KoreanAddressRegionMatcher`). **추천값**이므로 사용자에게 지역 수정 경로를 제공해야 한다. 해외는 DB에 있는 국가 코드가 추천된다.
 

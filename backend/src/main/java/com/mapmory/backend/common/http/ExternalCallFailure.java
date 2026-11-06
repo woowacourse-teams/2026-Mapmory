@@ -1,10 +1,13 @@
 package com.mapmory.backend.common.http;
 
 import java.net.ConnectException;
+import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import javax.net.ssl.SSLHandshakeException;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.springframework.web.client.ResourceAccessException;
@@ -73,13 +76,15 @@ public final class ExternalCallFailure {
     }
 
     /**
-     * 요청이 상대에게 나갔는지. 연결하지 못했거나 풀에서 연결을 못 받은 요청은 나가지 않았다.
-     * 연결한 뒤 답을 기다리다 끊긴 요청은 상대가 처리했을 수 있어 나간 것으로 본다.
+     * 요청이 상대에게 나갔는지. 주소를 찾지 못했거나(DNS) 연결·TLS 핸드셰이크에 실패했거나 풀에서 연결을 못 받은
+     * 요청은 나가지 않았다. 연결한 뒤 답을 기다리다 끊긴 요청은 상대가 처리했을 수 있어 나간 것으로 본다.
      */
     public boolean sent() {
         for (Throwable cause : causes()) {
             if (cause instanceof ConnectException || cause instanceof ConnectTimeoutException
-                    || cause instanceof ConnectionRequestTimeoutException) {
+                    || cause instanceof ConnectionRequestTimeoutException
+                    || cause instanceof UnknownHostException || cause instanceof NoRouteToHostException
+                    || cause instanceof SSLHandshakeException) {
                 return false;
             }
         }

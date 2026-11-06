@@ -32,7 +32,7 @@ class PlaceLocationControllerTest {
 
     private final LocationRegionService service = mock(LocationRegionService.class);
     private final ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
-    private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceLocationController(service))
+    private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceLocationController(service, problemDetailFactory))
             .setControllerAdvice(new BusinessExceptionHandler(problemDetailFactory),
                     new ValidationExceptionHandler(problemDetailFactory))
             .build();
@@ -86,6 +86,19 @@ class PlaceLocationControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_COORDINATE"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 본문이_숫자가_아니면_500이_아니라_400으로_거절한다() throws Exception {
+        mockMvc.perform(post("/api/v1/places/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"latitude":"35.87x","longitude":128.6}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 
         verifyNoInteractions(service);
     }

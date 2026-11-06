@@ -31,10 +31,12 @@ public enum GoogleApi {
 
     /**
      * Google이 과금하지 않은 실패인지 본다. 5xx는 Google이 처리하지 못한 것이고, 나가지 않은 요청은 Google에 닿지 않았다.
+     * 쿼터 초과(429)도 Google이 처리하지 않아 과금되지 않는다.
      * 답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어 과금된 것으로 본다.
      */
     boolean notBilled(ExternalCallFailure failure) {
-        return failure.serverError() || !failure.sent() || rejectedNotBilled && failure.rejected();
+        return failure.serverError() || !failure.sent() || failure.status() == 429
+                || rejectedNotBilled && failure.rejected();
     }
 
     /** 요청한 대상이 없다는 4xx인지 본다. 장애가 아니라 PLACE_NOT_FOUND로 답한다. */
