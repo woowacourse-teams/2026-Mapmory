@@ -127,6 +127,8 @@ class GoogleGeocodingClientTest {
 
         assertThat(logs).extracting(event -> field(event, "event") + ":" + event.getLevel())
                 .containsExactly("GOOGLE_GEOCODING_REJECTED:ERROR");
+        // 좌표 요청이라 Google이 준 거절 사유(응답 본문)도 남기지 않는다.
+        assertThat(logs).allSatisfy(event -> assertThat(rendered(event)).doesNotContain("has not been used"));
         // 좌표와 키는 로그 어디에도(원인 예외 포함) 남기지 않는다.
         assertThat(logs).allSatisfy(event -> assertThat(rendered(event))
                 .doesNotContain("35.86", "128.60", "test-key"));
@@ -142,6 +144,24 @@ class GoogleGeocodingClientTest {
                         {"results":[
                           {"addressComponents":[
                             {"longText":"XXXX+XX","shortText":"XXXX+XX","types":["plus_code"]}]},
+                          {"addressComponents":[
+                            {"longText":"울릉군","shortText":"울릉군","types":["administrative_area_level_2","political"]},
+                            {"longText":"경상북도","shortText":"경상북도","types":["administrative_area_level_1","political"]}]}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findAddress(DAEGU_JUNG_GU))
+                .contains(new RegionAddress(null, "경상북도", List.of("울릉군")));
+    }
+
+    @Test
+    void 국가만_있는_결과보다_국가가_없어도_시도가_있는_결과를_쓴다() {
+        server.expect(requestTo(Matchers.startsWith(GEOCODING_URL)))
+                .andRespond(withSuccess("""
+                        {"results":[
+                          {"addressComponents":[
+                            {"longText":"XXXX+XX","shortText":"XXXX+XX","types":["plus_code"]},
+                            {"longText":"대한민국","shortText":"KR","types":["country","political"]}]},
                           {"addressComponents":[
                             {"longText":"울릉군","shortText":"울릉군","types":["administrative_area_level_2","political"]},
                             {"longText":"경상북도","shortText":"경상북도","types":["administrative_area_level_1","political"]}]}

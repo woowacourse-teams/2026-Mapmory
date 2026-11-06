@@ -51,30 +51,45 @@ class GooglePlaceMapper {
 
     /**
      * Geocoding v4 역지오코딩 응답에서 주소를 꺼낸다. 주소 구성요소는 Places API (New)와 같은 모양이다.
-     * 결과는 좁은 것(번지)부터 오고 플러스 코드처럼 일부 단위만 있는 결과도 섞여 있어, 국가와 시·도가 함께 있는 첫 결과를
-     * 쓴다. 없으면 국가가 있는 첫 결과를 쓴다. 독도처럼 어느 결과에도 국가가 없으면 시·군·구 이름이 있는 첫 결과를 쓴다
-     * (지역 추천이 국가 없이 쓸 수 있는 것은 시·군·구 이름뿐이다). 셋 다 없으면 빈 값이다.
+     * 결과는 좁은 것(번지)부터 오고 플러스 코드처럼 일부 단위만 있는 결과도 섞여 있어, {@link #geocodeRank} 순서로
+     * 가장 앞선 결과를 쓴다. 쓸 결과가 없으면 빈 값이다.
      */
     Optional<RegionAddress> geocodedAddress(JsonNode response) {
-        RegionAddress countryOnly = null;
-        RegionAddress withoutCountry = null;
+        RegionAddress best = null;
+        int bestRank = Integer.MAX_VALUE;
         for (JsonNode result : response.path("results")) {
             JsonNode components = result.path("addressComponents");
             if (!components.isArray()) {
                 continue;
             }
             RegionAddress address = address(components, null);
-            if (address.countryCode() != null && address.province() != null) {
-                return Optional.of(address);
-            }
-            if (countryOnly == null && address.countryCode() != null) {
-                countryOnly = address;
-            }
-            if (withoutCountry == null && address.countryCode() == null && address.hasAreaNames()) {
-                withoutCountry = address;
+            int rank = geocodeRank(address);
+            if (rank < bestRank) {
+                best = address;
+                bestRank = rank;
             }
         }
-        return Optional.ofNullable(countryOnly != null ? countryOnly : withoutCountry);
+        return Optional.ofNullable(best);
+    }
+
+    /**
+     * 결과를 고르는 순서. 시·도가 있으면 국가만 있는 결과보다 앞선다(국가만으로는 한국 지역을 고를 수 없다).
+     * 1 국가+시·도, 2 시·도(국가 없음, 독도처럼), 3 국가만, 4 국가 없이 지역 이름만. 지역 이름도 없으면 쓰지 않는다.
+     * 같은 순위면 Google이 앞에 둔 결과를 쓴다.
+     */
+    private static int geocodeRank(RegionAddress address) {
+        boolean country = address.countryCode() != null;
+        boolean province = address.province() != null;
+        if (country && province) {
+            return 1;
+        }
+        if (province) {
+            return 2;
+        }
+        if (country) {
+            return 3;
+        }
+        return address.hasAreaNames() ? 4 : Integer.MAX_VALUE;
     }
 
     private static RegionAddress address(JsonNode components, String shortAddress) {
