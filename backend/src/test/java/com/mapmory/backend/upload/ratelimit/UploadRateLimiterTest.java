@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.common.exception.RateLimitedException;
 import com.mapmory.backend.upload.UploadErrorCode;
 import io.github.bucket4j.TimeMeter;
 import java.time.Duration;
@@ -58,6 +59,50 @@ class UploadRateLimiterTest {
         rateLimiter.check(1L, 3);
 
         assertThatCode(() -> rateLimiter.check(2L, 3)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 시간_한도에_걸리면_다음_채움까지_남은_초를_알려_준다() {
+        rateLimiter.check(1L, 3);
+        time.advance(Duration.ofMinutes(30));
+
+        assertThat(retryAfterSeconds(1L, 1)).isEqualTo(Duration.ofMinutes(30).toSeconds());
+    }
+
+    @Test
+    void 하루_한도에_걸리면_시간_한도가_남아도_하루_한도가_풀릴_때까지의_초를_알려_준다() {
+        rateLimiter.check(1L, 3);
+        time.advance(Duration.ofHours(1));
+        rateLimiter.check(1L, 2);
+        time.advance(Duration.ofHours(1));
+
+        assertThat(retryAfterSeconds(1L, 1)).isEqualTo(Duration.ofHours(22).toSeconds());
+    }
+
+    @Test
+    void 알려_준_초가_지나면_다시_된다() {
+        rateLimiter.check(1L, 3);
+        time.advance(Duration.ofMinutes(30).plusNanos(1));
+
+        long retryAfterSeconds = retryAfterSeconds(1L, 1);
+        time.advance(Duration.ofSeconds(retryAfterSeconds));
+
+        assertThatCode(() -> rateLimiter.check(1L, 1)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 한도보다_많이_요청하면_하루를_넘겨_알려_주지_않는다() {
+        assertThat(retryAfterSeconds(1L, 6)).isEqualTo(Duration.ofDays(1).toSeconds());
+    }
+
+    private long retryAfterSeconds(Long memberId, int fileCount) {
+        assertRateLimited(memberId, fileCount);
+        try {
+            rateLimiter.check(memberId, fileCount);
+        } catch (RateLimitedException exception) {
+            return exception.getRetryAfterSeconds();
+        }
+        throw new AssertionError("한도에 걸려야 한다");
     }
 
     private void assertRateLimited(Long memberId, int fileCount) {

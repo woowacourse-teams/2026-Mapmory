@@ -1,5 +1,8 @@
 package com.mapmory.backend.upload;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willReturn;
@@ -48,7 +51,8 @@ class UploadRateLimitIntegrationTest extends IntegrationTest {
 
         requestHundredFiles(accessToken)
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("UPLOAD_RATE_LIMITED"));
+                .andExpect(jsonPath("$.code").value("UPLOAD_RATE_LIMITED"))
+                .andExpect(jsonPath("$.retryAfterSeconds", allOf(greaterThan(0), lessThanOrEqualTo(3600))));
     }
 
     private ResultActions requestHundredFiles(String accessToken) throws Exception {
