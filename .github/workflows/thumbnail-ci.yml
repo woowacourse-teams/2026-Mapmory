@@ -1,0 +1,46 @@
+name: Thumbnail CI
+
+on:
+  pull_request:
+    paths:
+      - "thumbnail/**"
+      - ".github/workflows/thumbnail-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "thumbnail/**"
+      - ".github/workflows/thumbnail-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thumbnail-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: thumbnail
+
+jobs:
+  test:
+    name: Test thumbnail script
+    # 렌더러 서버(Ubuntu 22.04, arm64)와 같은 OS·Python 버전·CPU에서 돌린다.
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q

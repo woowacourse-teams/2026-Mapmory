@@ -1,0 +1,41 @@
+# thumbnail
+
+사진 원본 한 장을 목록용 썸네일(WebP)로 줄이는 스크립트다. 렌더러 서버의 썸네일 워커(#631)가 외부 프로세스로 실행한다.
+S3 키나 DB는 모르고 입력·출력 파일 경로만 받는다. 키 규칙은 백엔드의 `DerivedObjectKey`가 맡는다.
+
+## 실행
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python make_thumbnail.py input.heic output.webp --max-edge 1080
+```
+
+| 종료 코드 | 뜻 | 워커의 처리 |
+| --- | --- | --- |
+| 0 | 성공 | 업로드한다 |
+| 2 | 원본을 이미지로 읽을 수 없다 | 다시 해도 같으므로 원본으로 남긴다 |
+| 1 | 그 밖의 오류(인자, 파일 없음, 쓰기 실패) | 다음 차례에 다시 한다 |
+
+## 하는 일
+
+- **방향은 픽셀에 굽고 EXIF는 쓰지 않는다.** 방향 태그가 남으면 앱이 한 번 더 돌린다. 위치 정보도 함께 빠진다.
+- **HEIC는 Pillow 플러그인(`register_heif_opener`)으로 연다.** 플러그인은 `irot`/`imir`를 적용하고 EXIF 방향을 1로 되돌린다. `pillow_heif.open_heif()`로 열면 되돌리지 않아 `exif_transpose`와 겹쳐 두 번 돈다(테스트 `test_HEIC의_방향은_한_번만_적용된다`).
+- 긴 변을 `--max-edge` 이하로 줄이고, 원본보다 키우지 않는다. WebP quality 75로 저장한다.
+- 색 프로필(ICC)은 유지한다. iPhone 사진은 Display P3라 빼면 색이 바랜다.
+- 투명한 PNG는 투명도를 유지한다.
+- JPEG는 필요한 크기 근처로 줄여 읽어 메모리를 아낀다(`Image.draft`).
+- 출력은 임시 파일에 쓴 뒤 옮겨, 실패해도 반쯤 쓴 파일이 남지 않는다.
+
+## 버전
+
+렌더러 서버는 Ubuntu 22.04 arm64의 Python 3.10을 쓴다. Pillow 13은 Python 3.10을 지원하지 않아 12.3.0으로 고정했다. 두 패키지 모두 이 환경용 wheel이 있고, pillow-heif wheel 안에 libheif가 들어 있어 `apt`로 따로 설치할 필요가 없다.
+
+## 테스트
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest -q
+```
+
+픽스처는 테스트가 만든다. 왼쪽 위에 빨간 표시를 둔 가로 이미지에 EXIF 방향을 넣고, 결과에서 표시가 있어야 할 모서리를 확인한다. HEIC 픽스처는 pillow-heif로 만들어 HEIF 헤더의 회전과 EXIF 방향 6을 함께 가진다. 실제 iPhone 사진과 같은 구조인지는 실기기 사진으로 따로 확인해야 한다.
