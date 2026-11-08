@@ -189,6 +189,24 @@ media:
       origin-path: ${CLOUDFRONT_ORIGIN_PATH:mapmory}
       key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:}
       private-key-path: ${CLOUDFRONT_PRIVATE_KEY_PATH:}
+  thumbnail:
+    # 사진 썸네일을 만들어 record_media.thumb_key를 채운다(#631, ADR 0029). 렌더러 서버에서만 true로 켠다.
+    # 썸네일이 없는 사진을 10초마다 20장씩 읽고, 영상을 만드는 동안에는 쉰다. 배포하면 기존 사진도 차례로 채운다.
+    worker:
+      enabled: ${THUMBNAIL_WORKER_ENABLED:false}
+      poll-delay: ${THUMBNAIL_WORKER_POLL_DELAY:10s}
+      batch-size: ${THUMBNAIL_WORKER_BATCH_SIZE:20}
+      max-edge: 1080
+      # 노이즈를 넣은 12MP 합성 사진이 Apple M2에서 HEIC 1.5초, JPEG 0.4초였다(프로세스 시작 포함, 5회 중앙값).
+      # 렌더러(t4g.small, CPU 크레딧)는 더 느리므로 넉넉히 둔다. 실제 렌더러 시간은 dev에서 잰다.
+      process-timeout: 30s
+      # 같은 사진이 이만큼 실패하면 프로세스가 다시 뜰 때까지 건너뛴다. 그 사진은 원본으로 보인다.
+      max-failures: 3
+      script-directory: ${THUMBNAIL_SCRIPT_DIRECTORY:${user.dir}/../thumbnail}
+      python-command: ${THUMBNAIL_PYTHON_COMMAND:python3}
+      work-directory: ${THUMBNAIL_WORK_DIRECTORY:${java.io.tmpdir}/mapmory/thumbnails}
+      # 원본 내려받기와 썸네일 올리기 한 번의 한도. 사진 확인용 기본 한도(1초)로는 수 MB 원본을 받지 못한다.
+      transfer-timeout: 30s
 
 share-video:
   worker:

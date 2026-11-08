@@ -25,6 +25,8 @@ phases:
       - cp ../video-renderer/package.json ../video-renderer/package-lock.json deploy-renderer/video-renderer/
       - cp ../video-renderer/tsconfig.json ../video-renderer/remotion.config.ts deploy-renderer/video-renderer/
       - cp -R ../video-renderer/src deploy-renderer/video-renderer/
+      - mkdir -p deploy-renderer/thumbnail
+      - cp ../thumbnail/imaging.py ../thumbnail/make_thumbnail.py ../thumbnail/requirements.txt deploy-renderer/thumbnail/
 
 artifacts:
   base-directory: backend/deploy-renderer

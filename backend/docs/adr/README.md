@@ -35,3 +35,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0026](0026-share-video-notification-registration.md) | 영상 알림은 기존 푸시 등록 구조를 재사용하고 설치본 식별은 후속 개선 | 제안 |
 | [0027](0027-shared-notification-outbox.md) | 영상 알림 Outbox를 기기별로 기록 | 제안 |
 | [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 채택 |
+| [0029](0029-thumbnail-worker-on-renderer.md) | 사진 썸네일은 렌더러 서버의 워커가 만든다 | 제안 |

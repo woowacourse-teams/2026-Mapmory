@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,7 +24,7 @@ import org.springframework.stereotype.Component;
         name = "enabled",
         havingValue = "true"
 )
-public class ShareVideoWorker {
+public class ShareVideoWorker implements RenderActivity {
 
     private static final Logger log = LoggerFactory.getLogger(ShareVideoWorker.class);
 
@@ -33,6 +34,7 @@ public class ShareVideoWorker {
     private final ShareVideoStorage storage;
     private final ShareVideoLeaseService leaseService;
     private final TaskScheduler heartbeatScheduler;
+    private final AtomicBoolean rendering = new AtomicBoolean();
 
     public ShareVideoWorker(
             final ShareVideoJobClaimer jobClaimer,
@@ -57,7 +59,19 @@ public class ShareVideoWorker {
     public void processNext() {
         Optional<ShareVideoRenderTask> nextTask = jobClaimer.claimNext();
 
-        nextTask.ifPresent(this::process);
+        nextTask.ifPresent(task -> {
+            rendering.set(true);
+            try {
+                process(task);
+            } finally {
+                rendering.set(false);
+            }
+        });
+    }
+
+    @Override
+    public boolean isRendering() {
+        return rendering.get();
     }
 
     private void process(final ShareVideoRenderTask task) {
