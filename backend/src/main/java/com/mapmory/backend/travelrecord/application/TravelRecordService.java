@@ -26,9 +26,12 @@ import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
+import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -60,6 +63,7 @@ public class TravelRecordService {
     private final TravelRecordListCache travelRecordListCache;
     private final ActiveMemberGuard activeMemberGuard;
     private final OrphanedMediaRepository orphanedMediaRepository;
+    private final DerivedObjectKeys derivedObjectKeys;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -76,7 +80,8 @@ public class TravelRecordService {
             ApplicationEventPublisher eventPublisher,
             TravelRecordListCache travelRecordListCache,
             ActiveMemberGuard activeMemberGuard,
-            OrphanedMediaRepository orphanedMediaRepository
+            OrphanedMediaRepository orphanedMediaRepository,
+            DerivedObjectKeys derivedObjectKeys
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -94,6 +99,7 @@ public class TravelRecordService {
         this.travelRecordListCache = travelRecordListCache;
         this.activeMemberGuard = activeMemberGuard;
         this.orphanedMediaRepository = orphanedMediaRepository;
+        this.derivedObjectKeys = derivedObjectKeys;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -190,7 +196,7 @@ public class TravelRecordService {
                         return travelRecord.getMedia();
                     }
             );
-            removedKeys.forEach(orphanedMediaRepository::enqueue);
+            enqueueOrphaned(removedKeys);
             // 태그 변경은 커밋 때 함께 나간다. 타이머 안에서 바꾸면 MEDIA_SYNC에 태그 쓰기가 섞인다.
             List<Tag> tags = findTags(member, tagIds);
             travelRecord.retag(tagIds, tags);
@@ -204,7 +210,7 @@ public class TravelRecordService {
     public void delete(Member member, Long travelRecordId) {
         TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
 
-        travelRecord.allMediaKeys().forEach(orphanedMediaRepository::enqueue);
+        enqueueOrphaned(travelRecord.allMediaKeys());
         travelRecordRepository.delete(travelRecord);
         eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
         eventPublisher.publishEvent(new TravelRecordDeleted(travelRecordId, member.getId()));
@@ -322,4 +328,14 @@ public class TravelRecordService {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
         }
     }
+
+    // 썸네일 워커(렌더러)가 이 트랜잭션과 겹쳐 thumb_key를 채울 수 있다. 여기서 읽은 키에는 그 썸네일이 없으므로,
+    // 원본에서 만들어질 썸네일 키도 함께 넣는다. 없는 객체를 지우는 것은 S3에서 성공한다(ADR 0029).
+    private void enqueueOrphaned(Collection<String> keys) {
+        keys.stream()
+                .flatMap(key -> Stream.concat(Stream.of(key), derivedObjectKeys.thumbnailOf(key).stream()))
+                .distinct()
+                .forEach(orphanedMediaRepository::enqueue);
+    }
+
 }

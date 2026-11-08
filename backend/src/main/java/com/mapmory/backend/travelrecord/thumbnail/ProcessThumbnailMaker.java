@@ -6,6 +6,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * thumbnail/make_thumbnail.py를 외부 프로세스로 실행한다. 공유 영상의 ProcessShareVideoRenderer와 같은 방식이다.
@@ -25,35 +27,47 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
     }
 
     @Override
+    public void checkReady() {
+        int exitCode = run("--check");
+        if (exitCode != 0) {
+            throw new ThumbnailMakeException("thumbnail script is not ready. exitCode=" + exitCode);
+        }
+    }
+
+    @Override
     public Outcome make(Path original, Path thumbnail) {
+        int exitCode = run(original.toString(), thumbnail.toString(), "--max-edge", String.valueOf(properties.maxEdge()));
+        if (exitCode == EXIT_UNDECODABLE) {
+            return Outcome.UNDECODABLE;
+        }
+        if (exitCode != 0) {
+            throw new ThumbnailMakeException("thumbnail process failed. exitCode=" + exitCode);
+        }
+        try {
+            if (!Files.isRegularFile(thumbnail) || Files.size(thumbnail) == 0L) {
+                throw new ThumbnailMakeException("thumbnail process finished without output: " + thumbnail);
+            }
+        } catch (IOException e) {
+            throw new ThumbnailMakeException("cannot read thumbnail output: " + thumbnail, e);
+        }
+        return Outcome.CREATED;
+    }
+
+    private int run(String... arguments) {
         Path scriptDirectory = properties.scriptDirectory().toAbsolutePath().normalize();
         Path script = scriptDirectory.resolve(SCRIPT);
         if (!Files.isRegularFile(script)) {
             throw new ThumbnailMakeException("thumbnail script not found: " + script);
         }
+        List<String> command = new ArrayList<>(List.of(properties.pythonCommand(), script.toString()));
+        command.addAll(List.of(arguments));
         try {
-            Process process = new ProcessBuilder(
-                    properties.pythonCommand(),
-                    script.toString(),
-                    original.toString(),
-                    thumbnail.toString(),
-                    "--max-edge",
-                    String.valueOf(properties.maxEdge()))
+            Process process = new ProcessBuilder(command)
                     .directory(scriptDirectory.toFile())
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .start();
-            int exitCode = waitFor(process);
-            if (exitCode == EXIT_UNDECODABLE) {
-                return Outcome.UNDECODABLE;
-            }
-            if (exitCode != 0) {
-                throw new ThumbnailMakeException("thumbnail process failed. exitCode=" + exitCode);
-            }
-            if (!Files.isRegularFile(thumbnail) || Files.size(thumbnail) == 0L) {
-                throw new ThumbnailMakeException("thumbnail process finished without output: " + thumbnail);
-            }
-            return Outcome.CREATED;
+            return waitFor(process);
         } catch (IOException e) {
             throw new ThumbnailMakeException("cannot run thumbnail process", e);
         } catch (InterruptedException e) {

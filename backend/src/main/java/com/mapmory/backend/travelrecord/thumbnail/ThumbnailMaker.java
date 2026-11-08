@@ -9,6 +9,11 @@ public interface ThumbnailMaker {
 
     Outcome make(Path original, Path thumbnail);
 
+    /**
+     * 변환에 필요한 것(스크립트, 실행기, 패키지)이 준비됐는지 확인한다. 아니면 {@link ThumbnailMakeException}을 던진다.
+     */
+    void checkReady();
+
     enum Outcome {
         CREATED,
         /** 원본 내용 때문에 만들 수 없다. 다시 해도 같다. */

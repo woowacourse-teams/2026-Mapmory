@@ -1,5 +1,8 @@
 package com.mapmory.backend.upload.storage;
 
+import com.mapmory.backend.upload.domain.UploadFileType;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,14 +25,18 @@ public class DerivedObjectKeys {
     private static final String THUMBNAIL_EXTENSION = ".webp";
 
     private final Pattern original;
+    private final Pattern thumbnail;
+    private final String travelRecordsDirectory;
     private final String thumbnailDirectory;
     private final String derivedDirectory;
 
     public DerivedObjectKeys(S3StorageProperties properties) {
         this.original = Pattern.compile(Pattern.quote(properties.travelRecordsDirectory())
                 + "(\\d+)/([^/.][^/]*)\\.[A-Za-z0-9]+");
+        this.travelRecordsDirectory = properties.travelRecordsDirectory();
         this.derivedDirectory = properties.keyPrefix() + "/derived/";
         this.thumbnailDirectory = derivedDirectory + "thumb/";
+        this.thumbnail = Pattern.compile(Pattern.quote(thumbnailDirectory) + "(\\d+)/([^/.][^/]*)\\.webp");
     }
 
     /**
@@ -44,6 +51,23 @@ public class DerivedObjectKeys {
             return Optional.empty();
         }
         return Optional.of(thumbnailDirectory + matcher.group(1) + "/" + matcher.group(2) + THUMBNAIL_EXTENSION);
+    }
+
+    /**
+     * 이 썸네일을 만든 원본일 수 있는 키들. 서버가 발급하는 확장자마다 하나씩이다. 썸네일 키가 아니면 비어 있다.
+     */
+    public List<String> originalCandidatesOf(String thumbnailKey) {
+        if (thumbnailKey == null) {
+            return List.of();
+        }
+        Matcher matcher = thumbnail.matcher(thumbnailKey);
+        if (!matcher.matches() || matcher.group(2).contains("..")) {
+            return List.of();
+        }
+        String stem = travelRecordsDirectory + matcher.group(1) + "/" + matcher.group(2) + ".";
+        return Arrays.stream(UploadFileType.values())
+                .map(type -> stem + type.canonicalExtension())
+                .toList();
     }
 
     public boolean isDerived(String objectKey) {

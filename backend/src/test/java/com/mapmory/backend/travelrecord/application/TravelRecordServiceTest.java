@@ -146,7 +146,8 @@ class TravelRecordServiceTest {
                 eventPublisher,
                 travelRecordListCache,
                 activeMemberGuard,
-                mock(OrphanedMediaRepository.class)
+                mock(OrphanedMediaRepository.class),
+                mock(com.mapmory.backend.upload.storage.DerivedObjectKeys.class)
         );
     }
 

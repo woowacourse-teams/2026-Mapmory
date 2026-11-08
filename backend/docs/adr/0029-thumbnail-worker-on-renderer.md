@@ -18,7 +18,9 @@ iPhone HEIC는 방향 정보가 HEIF `irot`와 EXIF 방향 두 군데에 있다.
 
 - 변환은 Python 스크립트(`thumbnail/`, Pillow와 pillow-heif)가 맡는다. Java에는 HEIC 디코더가 없다.
 - 워커는 썸네일이 없는 사진을 10초마다 20장씩 읽어 원본을 내려받고, 스크립트를 실행하고, 결과를 올린 뒤 `thumb_key`를 채운다.
-- 같은 서버에서 공유 영상을 만드는 동안에는 쉰다(`RenderActivity`). 2GB 메모리를 나눠 쓰고, 썸네일은 늦어져도 원본이 보인다.
+- 같은 서버에서 공유 영상을 만들기 시작하면 사진 한 장(최대 30초)을 마친 뒤 쉰다(`RenderActivity`). 2GB 메모리를 나눠 쓰고, 썸네일은 늦어져도 원본이 보인다.
+- 한 쪽을 다 읽었는데 할 일이 없었으면(옛 키, 포기한 사진) 기다리지 않고 다음 쪽을 읽는다. 건너뛸 사진이 많아도 새 사진이 그만큼 늦어지지 않는다.
+- 처음 돌 때 스크립트를 `--check`로 실행해 Python과 패키지를 확인한다. 준비되지 않았으면 썸네일만 멈추고 한 번 알린다. 공유 영상은 그대로 돈다.
 
 ### 키 규칙: 원본과 다른 경로에 둔다
 
@@ -50,13 +52,24 @@ iPhone HEIC는 방향 정보가 HEIF `irot`와 EXIF 방향 두 군데에 있다.
 
 렌더러를 두 대 이상으로 늘리면 행을 나눠 가져가야 한다(`id % 서버 수` 또는 리스). 그때 다시 검토한다.
 
-### 삭제와의 경합은 워커가 처리한다
+### 삭제와의 경합: 만들어질 썸네일 키까지 정리 큐에 넣는다
 
-올린 뒤 채우기 전에 사진 행이 사라질 수 있다(사진 빼기, 기록 삭제, 회원 파기). 채우기가 0행이고 행이 없으면 워커가 만든 썸네일을 지운다. 버킷에 버전 관리가 켜져 있어 모든 버전을 지우는 기존 `ObjectDeleter`를 쓴다.
+워커가 썸네일을 올리고 `thumb_key`를 채우는 일과 사진을 지우는 일(사진 빼기, 기록 삭제, 회원 파기)이 겹칠 수 있다.
 
-설계 단계에서는 `RecordMedia#storedKeys()`가 늘 파생 썸네일 키를 포함하게 하자는 안이 있었다. 하지 않았다. `storedKeys()`는 기록 수정·삭제 경로라 옛 키에서 실패하면 수정·삭제가 깨진다. 위 경합은 워커 쪽 처리로 충분하다. 회원 파기(`TravelRecordPurger`)도 같은 이유로 바꾸지 않았다. 썸네일이 채워진 뒤의 삭제는 기존 경로가 `thumb_key`를 함께 지운다.
+| 순서 | 막는 방법 |
+| --- | --- |
+| 행이 먼저 사라지고 워커가 채운다(0행) | 워커가 그 썸네일 키를 정리 큐(`orphaned_media`)에 넣는다 |
+| 워커가 먼저 채우고, 삭제 쪽은 그 전에 키를 읽었다 | 삭제 쪽이 원본에서 만들어질 썸네일 키(`DerivedObjectKeys#thumbnailOf`)도 정리 큐에 넣는다. 회원 파기는 S3를 지우는 동안 이 틈이 수 초라, 행을 지운 같은 트랜잭션에서 넣는다 |
+
+정리 배치는 지우기 직전에 다시 본다. 썸네일 키는 `thumb_key`로 쓰이거나 **그 원본이 아직 기록에 붙어 있으면** 쓰이는 중으로 보고 남긴다. 사진을 뺐다가 다시 붙인 경우, 워커가 "썸네일 있음"을 확인한 직후 배치가 지우면 `thumb_key`가 없는 객체를 가리키게 되기 때문이다. 원본 후보는 서버가 발급하는 확장자(jpg, png, webp, heic)로 만든다(`DerivedObjectKeys#originalCandidatesOf`).
+
+없는 객체를 지우는 것은 S3에서 성공하므로, 썸네일이 만들어지지 않았어도 넣어 둔다. 버킷에 버전 관리가 켜져 있어 정리 배치는 모든 버전을 지우는 기존 `ObjectDeleter`를 쓴다. 지우다 실패하면 큐에 남아 다음에 다시 지운다.
+
+설계 단계의 `RecordMedia#storedKeys()` 변경안(S2)은 쓰지 않았다. 키 규칙에 접두사가 필요해 도메인 엔티티 대신 서비스가 `DerivedObjectKeys`로 넣는다. 접두사 밖의 옛 키는 빈 값이라 건너뛴다.
 
 ### 실패
+
+렌더러 배포(`install.sh`)는 Python 가상환경을 만들지 못해도 실패하지 않고 경고만 남긴다. 썸네일 워커는 기본으로 꺼져 있고, 켜도 위의 확인에서 멈출 뿐이라 공유 영상 렌더러가 배포 실패로 내려가는 일이 없다.
 
 | 실패 | 처리 |
 | --- | --- |
@@ -64,14 +77,14 @@ iPhone HEIC는 방향 정보가 HEIF `irot`와 EXIF 방향 두 군데에 있다.
 | 그 밖(종료 코드 1, 시그널 종료, 시간 초과, S3·DB 오류) | 다시 한다. 같은 사진이 3번 실패하면 프로세스가 다시 뜰 때까지 건너뛴다 |
 
 메트릭:
-- `mapmory.thumbnail.worker{result}`: `created`, `attached_existing`, `undecodable`, `failed`, `given_up`, `unsupported_key`, `orphan_deleted`
+- `mapmory.thumbnail.worker{result}`: `created`, `attached_existing`, `undecodable`, `failed`, `given_up`, `unsupported_key`, `orphaned`, `not_ready`
 - `mapmory.thumbnail.backlog`: 한 시간이 넘었는데 썸네일이 없는 사진 수. 한 바퀴를 돌 때마다 갱신한다.
 
 ### 크기와 형식
 
 - 긴 변 1080px WebP quality 75, 원본보다 키우지 않는다. 앱은 지금 원본을 받아 기기에서 1280px로 줄여 목록에 쓴다. 그보다 많이 작으면 흐려진다.
 - 방향은 픽셀에 굽고 EXIF는 쓰지 않는다. 앱의 회전 코드가 아무 일도 하지 않게 되고, 위치 정보도 빠진다.
-- 객체는 `Content-Type: image/webp`, `Cache-Control: private, max-age=31536000, immutable`로 올린다. 키에 UUID가 있어 내용이 바뀌지 않는다.
+- 객체는 `Content-Type: image/webp`, `Cache-Control: max-age=31536000, immutable`로 올린다. 키에 UUID가 있어 내용이 바뀌지 않는다. `private`을 붙이면 CloudFront가 캐시하지 않는다. 접근은 서명 URL이 막는다.
 - 펼칠 화소 수가 7,000만을 넘으면 만들지 않는다(종료 코드 2). 작은 PNG도 펼치면 GB 단위가 될 수 있다.
 
 ## 고려한 대안

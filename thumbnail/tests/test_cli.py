@@ -35,3 +35,8 @@ def test_입력이_없거나_인자가_틀리면_1이다(tmp_path):
 
 def test_원본이_디렉터리처럼_환경_문제면_1이다(tmp_path):
     assert run(tmp_path, tmp_path / "out.webp").returncode == 1
+
+
+# 워커가 켜질 때 경로·Python·패키지가 준비됐는지 한 번 확인한다. 스크립트를 불러오면 Pillow와 pillow-heif도 불러온다.
+def test_check는_변환_없이_0으로_끝난다():
+    assert run("--check").returncode == 0

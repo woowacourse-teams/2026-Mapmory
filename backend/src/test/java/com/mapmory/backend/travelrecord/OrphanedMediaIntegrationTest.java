@@ -80,7 +80,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     void 기록을_지우면_사진과_썸네일을_S3에서_지운다() throws Exception {
         String photo = photo("a.jpg");
         long recordId = createRecord(photo);
-        String thumb = "mapmory/travel-records/" + memberId + "/a-thumb.jpg";
+        String thumb = derivedThumbnail("a");
         jdbcTemplate.update("UPDATE record_media SET thumb_key = ? WHERE travel_record_id = ?", thumb, recordId);
 
         deleteRecord(recordId);
@@ -88,6 +88,17 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         assertThat(cleanup.run()).isEqualTo(2);
         assertThat(deletedKeys).containsExactlyInAnyOrder(photo, thumb);
         assertThat(queued()).isZero();
+    }
+
+    // 썸네일 워커가 삭제 도중 thumb_key를 채울 수 있다. 썸네일이 아직 없어도 만들어질 썸네일 키를 함께 지운다.
+    @Test
+    void 기록을_지우면_썸네일이_아직_없어도_만들어질_썸네일_키까지_지운다() throws Exception {
+        String photo = photo("a.jpg");
+
+        deleteRecord(createRecord(photo));
+        cleanup.run();
+
+        assertThat(deletedKeys).containsExactlyInAnyOrder(photo, derivedThumbnail("a"));
     }
 
     @Test
@@ -99,7 +110,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         updateRecord(recordId, kept);
         cleanup.run();
 
-        assertThat(deletedKeys).containsExactly(removed);
+        assertThat(deletedKeys).containsExactlyInAnyOrder(removed, derivedThumbnail("removed"));
     }
 
     @Test
@@ -125,7 +136,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         updateRecord(recordId, kept, twice);
         updateRecord(recordId, kept);
 
-        assertThat(queued()).isEqualTo(1);
+        assertThat(queued()).isEqualTo(2);
     }
 
     @Test
@@ -134,7 +145,8 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         deleteRecord(createRecord(photo));
         willReturn(List.of(photo)).given(objectDeleter).delete(anyCollection());
 
-        assertThat(cleanup.run()).isZero();
+        // 썸네일 키만 지워지고 원본은 남는다.
+        assertThat(cleanup.run()).isEqualTo(1);
         assertThat(queued()).isEqualTo(1);
 
         willReturn(List.of()).given(objectDeleter).delete(anyCollection());
@@ -220,6 +232,10 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
 
     private String photo(String fileName) {
         return "mapmory/travel-records/" + memberId + "/" + fileName;
+    }
+
+    private String derivedThumbnail(String name) {
+        return "mapmory/derived/thumb/" + memberId + "/" + name + ".webp";
     }
 
     private long createRecord(String... objectKeys) throws Exception {

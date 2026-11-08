@@ -1,6 +1,7 @@
 package com.mapmory.backend.travelrecord.thumbnail;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mapmory.backend.travelrecord.thumbnail.ThumbnailMaker.Outcome;
@@ -68,6 +69,20 @@ class ProcessThumbnailMakerTest {
                 .isInstanceOf(ThumbnailMakeException.class)
                 .hasMessageContaining("timed out");
         assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofSeconds(10));
+    }
+
+    @Test
+    void 준비_확인은_스크립트가_있고_패키지를_불러올_수_있어야_통과한다() throws IOException {
+        // /bin/sh로 흉내 내므로 "-c <python 코드>"가 sh 명령으로 실행된다. exit 0이면 패키지가 있다고 본다.
+        assertThatCode(() -> makerRunning("exit 0").checkReady()).doesNotThrowAnyException();
+
+        ProcessThumbnailMaker missingScript = new ProcessThumbnailMaker(
+                ThumbnailWorkerPropertiesFixture.with(directory.resolve("missing"), "/bin/sh", Duration.ofSeconds(5)));
+        assertThatThrownBy(missingScript::checkReady).isInstanceOf(ThumbnailMakeException.class);
+
+        ProcessThumbnailMaker missingPython = new ProcessThumbnailMaker(
+                ThumbnailWorkerPropertiesFixture.with(directory.resolve("scripts"), "/no/such/python", Duration.ofSeconds(5)));
+        assertThatThrownBy(missingPython::checkReady).isInstanceOf(ThumbnailMakeException.class);
     }
 
     @Test

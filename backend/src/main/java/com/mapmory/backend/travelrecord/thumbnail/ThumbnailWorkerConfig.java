@@ -1,8 +1,8 @@
 package com.mapmory.backend.travelrecord.thumbnail;
 
-import com.mapmory.backend.sharevideo.worker.RenderActivity;
+import com.mapmory.backend.common.worker.RenderActivity;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
-import com.mapmory.backend.upload.service.port.ObjectDeleter;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
@@ -39,10 +41,11 @@ public class ThumbnailWorkerConfig {
     @ConditionalOnProperty(prefix = "media.thumbnail.worker", name = "enabled", havingValue = "true")
     public ThumbnailWorker thumbnailWorker(
             TravelRecordRepository travelRecordRepository,
+            OrphanedMediaRepository orphanedMediaRepository,
+            PlatformTransactionManager transactionManager,
             DerivedObjectKeys derivedObjectKeys,
             S3Client s3Client,
             S3StorageProperties s3Properties,
-            ObjectDeleter objectDeleter,
             ObjectProvider<RenderActivity> renderActivity,
             ThumbnailWorkerProperties properties,
             MeterRegistry meterRegistry,
@@ -50,8 +53,10 @@ public class ThumbnailWorkerConfig {
     ) {
         return new ThumbnailWorker(
                 travelRecordRepository,
+                orphanedMediaRepository,
+                new TransactionTemplate(transactionManager),
                 derivedObjectKeys,
-                new S3ThumbnailStorage(s3Client, s3Properties, derivedObjectKeys, objectDeleter, properties),
+                new S3ThumbnailStorage(s3Client, s3Properties, derivedObjectKeys, properties),
                 new ProcessThumbnailMaker(properties),
                 // 공유 영상 워커를 끈 서버에서는 영상 작업이 없다.
                 renderActivity.getIfAvailable(() -> () -> false),

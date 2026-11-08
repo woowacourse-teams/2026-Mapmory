@@ -1,19 +1,20 @@
 package com.mapmory.backend.sharevideo.worker;
 
+import com.mapmory.backend.common.worker.RenderActivity;
 import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.render.RenderedShareVideo;
 import com.mapmory.backend.sharevideo.render.ShareVideoRenderer;
 import com.mapmory.backend.sharevideo.storage.ShareVideoStorage;
-import java.util.Optional;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.TransientDataAccessException;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;

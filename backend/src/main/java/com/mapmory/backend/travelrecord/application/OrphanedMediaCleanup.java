@@ -4,9 +4,12 @@ import com.mapmory.backend.travelrecord.domain.OrphanedMedia;
 import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.upload.service.port.ObjectDeleter;
+import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,13 +35,16 @@ public class OrphanedMediaCleanup {
     private final OrphanedMediaRepository orphanedMediaRepository;
     private final TravelRecordRepository travelRecordRepository;
     private final ObjectDeleter objectDeleter;
+    private final DerivedObjectKeys derivedObjectKeys;
 
     public OrphanedMediaCleanup(OrphanedMediaRepository orphanedMediaRepository,
                                 TravelRecordRepository travelRecordRepository,
-                                ObjectDeleter objectDeleter) {
+                                ObjectDeleter objectDeleter,
+                                DerivedObjectKeys derivedObjectKeys) {
         this.orphanedMediaRepository = orphanedMediaRepository;
         this.travelRecordRepository = travelRecordRepository;
         this.objectDeleter = objectDeleter;
+        this.derivedObjectKeys = derivedObjectKeys;
     }
 
     /**
@@ -68,6 +74,7 @@ public class OrphanedMediaCleanup {
     private int cleanUp(List<String> keys) {
         Set<String> inUse = new HashSet<>(travelRecordRepository.findObjectKeysIn(keys));
         inUse.addAll(travelRecordRepository.findThumbKeysIn(keys));
+        inUse.addAll(thumbnailsOfAttachedOriginals(keys));
         List<String> orphaned = keys.stream().filter(key -> !inUse.contains(key)).toList();
         List<String> deletable = orphaned.stream().filter(objectDeleter::owns).toList();
         List<String> outside = orphaned.stream().filter(key -> !objectDeleter.owns(key)).toList();
@@ -83,6 +90,23 @@ public class OrphanedMediaCleanup {
             orphanedMediaRepository.deleteAllByObjectKeyIn(finished);
         }
         return deleted;
+    }
+
+    // 썸네일 워커가 썸네일이 있다고 확인한 직후 여기서 지우고 워커가 thumb_key를 채우면, 기록이 없는 객체를 가리킨다.
+    // 원본이 아직 기록에 붙어 있으면 thumb_key가 비어 있어도 그 썸네일은 쓰이는 중으로 보고 남긴다(ADR 0029).
+    private Set<String> thumbnailsOfAttachedOriginals(List<String> keys) {
+        Map<String, String> thumbnailByOriginal = new HashMap<>();
+        for (String key : keys) {
+            derivedObjectKeys.originalCandidatesOf(key).forEach(original -> thumbnailByOriginal.put(original, key));
+        }
+        if (thumbnailByOriginal.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> attached = new HashSet<>();
+        for (String original : travelRecordRepository.findObjectKeysIn(thumbnailByOriginal.keySet())) {
+            attached.add(thumbnailByOriginal.get(original));
+        }
+        return attached;
     }
 
     private void warnIfOutside(int count) {

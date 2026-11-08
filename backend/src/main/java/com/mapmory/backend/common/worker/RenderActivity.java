@@ -1,4 +1,4 @@
-package com.mapmory.backend.sharevideo.worker;
+package com.mapmory.backend.common.worker;
 
 /**
  * 이 서버가 지금 공유 영상을 만들고 있는지 알려 준다. 같은 렌더러 서버에서 도는 썸네일 워커가 영상 작업이 끝날 때까지 쉬는 데 쓴다.

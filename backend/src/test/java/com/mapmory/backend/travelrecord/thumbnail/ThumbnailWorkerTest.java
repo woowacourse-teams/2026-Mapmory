@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.travelrecord.domain.MediaWithoutThumbnail;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.travelrecord.thumbnail.ThumbnailMaker.Outcome;
 import com.mapmory.backend.upload.storage.DerivedObjectKeys;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.support.TransactionOperations;
 
 class ThumbnailWorkerTest {
 
@@ -46,6 +48,7 @@ class ThumbnailWorkerTest {
     Path workRoot;
 
     private final TravelRecordRepository repository = mock(TravelRecordRepository.class);
+    private final OrphanedMediaRepository orphanedMediaRepository = mock(OrphanedMediaRepository.class);
     private final FakeStorage storage = new FakeStorage();
     private final FakeMaker maker = new FakeMaker();
     private final AtomicBoolean rendering = new AtomicBoolean();
@@ -59,8 +62,8 @@ class ThumbnailWorkerTest {
                         Duration.ofSeconds(10), Duration.ofSeconds(30), Duration.ofSeconds(10), Duration.ofSeconds(30)));
         ThumbnailWorkerProperties properties = new ThumbnailWorkerProperties(true, Duration.ofSeconds(10), 2, 1080,
                 Duration.ofSeconds(30), 3, Path.of("."), "python3", workRoot, Duration.ofSeconds(30));
-        worker = new ThumbnailWorker(repository, new DerivedObjectKeys(s3), storage, maker, rendering::get,
-                properties, meterRegistry, CLOCK);
+        worker = new ThumbnailWorker(repository, orphanedMediaRepository, TransactionOperations.withoutTransaction(),
+                new DerivedObjectKeys(s3), storage, maker, rendering::get, properties, meterRegistry, CLOCK);
         when(repository.attachThumbnail(anyLong(), any())).thenReturn(1);
     }
 
@@ -130,17 +133,17 @@ class ThumbnailWorkerTest {
         verify(repository).attachThumbnail(10L, THUMBNAIL);
     }
 
-    // 올린 뒤 채우기 전에 사진이 빠지거나 기록이 지워지면 행이 없다. 썸네일만 남지 않게 지운다.
+    // 올린 뒤 채우기 전에 사진이 빠지거나 기록이 지워지면 행이 없다. 정리 큐에 넣어, 지우다 실패해도 다시 지우게 한다.
     @Test
-    void 채우는_사이_사진_행이_사라졌으면_만든_썸네일을_지운다() {
+    void 채우는_사이_사진_행이_사라졌으면_만든_썸네일을_정리_큐에_넣는다() {
         pending(PHOTO);
         when(repository.attachThumbnail(10L, THUMBNAIL)).thenReturn(0);
         when(repository.existsMediaById(10L)).thenReturn(false);
 
         worker.processNext();
 
-        assertThat(storage.deleted).containsExactly(THUMBNAIL);
-        assertThat(count("orphan_deleted")).isEqualTo(1);
+        verify(orphanedMediaRepository).enqueue(THUMBNAIL);
+        assertThat(count("orphaned")).isEqualTo(1);
     }
 
     @Test
@@ -151,7 +154,46 @@ class ThumbnailWorkerTest {
 
         worker.processNext();
 
-        assertThat(storage.deleted).isEmpty();
+        verify(orphanedMediaRepository, never()).enqueue(any());
+    }
+
+    // 옛 키처럼 영구히 건너뛰는 사진이 앞쪽에 많아도, 새 사진이 그만큼 기다리지 않게 한다.
+    @Test
+    void 할_일이_없는_쪽은_기다리지_않고_다음_쪽을_읽는다() {
+        MediaWithoutThumbnail legacy1 = new MediaWithoutThumbnail(1L, "travel-records/7/a.jpg");
+        MediaWithoutThumbnail legacy2 = new MediaWithoutThumbnail(2L, "travel-records/7/b.jpg");
+        MediaWithoutThumbnail legacy3 = new MediaWithoutThumbnail(3L, "travel-records/7/c.jpg");
+        MediaWithoutThumbnail legacy4 = new MediaWithoutThumbnail(4L, "travel-records/7/d.jpg");
+        when(repository.findMediaWithoutThumbnail(eq(0L), any(Pageable.class))).thenReturn(List.of(legacy1, legacy2));
+        when(repository.findMediaWithoutThumbnail(eq(2L), any(Pageable.class))).thenReturn(List.of(legacy3, legacy4));
+        when(repository.findMediaWithoutThumbnail(eq(4L), any(Pageable.class))).thenReturn(List.of(PHOTO));
+
+        worker.processNext();
+
+        verify(repository).attachThumbnail(10L, THUMBNAIL);
+    }
+
+    @Test
+    void 할_일이_있었던_쪽에서는_이번_차례를_마친다() {
+        MediaWithoutThumbnail second = new MediaWithoutThumbnail(11L, "mapmory/travel-records/7/def.jpg");
+        when(repository.findMediaWithoutThumbnail(eq(0L), any(Pageable.class))).thenReturn(List.of(PHOTO, second));
+
+        worker.processNext();
+
+        verify(repository, never()).findMediaWithoutThumbnail(eq(11L), any(Pageable.class));
+    }
+
+    // 렌더러에 스크립트나 Python 패키지가 없으면 모든 사진이 하나씩 실패한다. 처음에 한 번 확인하고 멈춘다.
+    @Test
+    void 변환_환경이_준비되지_않았으면_아무것도_하지_않는다() {
+        maker.ready = false;
+
+        worker.processNext();
+        worker.processNext();
+
+        verify(repository, never()).findMediaWithoutThumbnail(anyLong(), any());
+        assertThat(maker.readyChecks).isEqualTo(1);
+        assertThat(count("not_ready")).isEqualTo(1);
     }
 
     @Test
@@ -251,7 +293,6 @@ class ThumbnailWorkerTest {
         final Set<String> keys = new HashSet<>();
         final List<String> downloaded = new ArrayList<>();
         final List<String> uploaded = new ArrayList<>();
-        final List<String> deleted = new ArrayList<>();
         RuntimeException failure;
         int calls;
 
@@ -280,12 +321,6 @@ class ThumbnailWorkerTest {
             keys.add(thumbnailKey);
         }
 
-        @Override
-        public void delete(String thumbnailKey) {
-            touch();
-            deleted.add(thumbnailKey);
-        }
-
         private void touch() {
             calls++;
             if (failure != null) {
@@ -298,7 +333,17 @@ class ThumbnailWorkerTest {
         Outcome outcome = Outcome.CREATED;
         RuntimeException failure;
         Runnable onMake;
+        boolean ready = true;
+        int readyChecks;
         int calls;
+
+        @Override
+        public void checkReady() {
+            readyChecks++;
+            if (!ready) {
+                throw new ThumbnailMakeException("python packages are missing");
+            }
+        }
 
         @Override
         public Outcome make(Path original, Path thumbnail) {

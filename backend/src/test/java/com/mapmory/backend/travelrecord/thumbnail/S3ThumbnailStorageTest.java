@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mapmory.backend.upload.service.port.ObjectDeleter;
 import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.nio.file.Files;
@@ -34,12 +33,11 @@ class S3ThumbnailStorageTest {
     private static final Duration TRANSFER = Duration.ofSeconds(30);
 
     private final S3Client s3Client = mock(S3Client.class);
-    private final ObjectDeleter objectDeleter = mock(ObjectDeleter.class);
     private final S3StorageProperties s3Properties = new S3StorageProperties("bucket", "ap-northeast-2", "mapmory",
             Duration.ofMinutes(5), new S3StorageProperties.Client(Duration.ofSeconds(1), Duration.ofSeconds(3), 3,
             Duration.ofSeconds(10), Duration.ofSeconds(30), Duration.ofSeconds(10), Duration.ofSeconds(30)));
     private final S3ThumbnailStorage storage = new S3ThumbnailStorage(s3Client, s3Properties,
-            new DerivedObjectKeys(s3Properties), objectDeleter,
+            new DerivedObjectKeys(s3Properties),
             ThumbnailWorkerPropertiesFixture.with(Path.of("."), "python3", Duration.ofSeconds(30)));
 
     @TempDir
@@ -56,20 +54,19 @@ class S3ThumbnailStorageTest {
         assertThat(request.getValue().bucket()).isEqualTo("bucket");
         assertThat(request.getValue().key()).isEqualTo(THUMBNAIL);
         assertThat(request.getValue().contentType()).isEqualTo("image/webp");
-        assertThat(request.getValue().cacheControl()).isEqualTo("private, max-age=31536000, immutable");
+        assertThat(request.getValue().cacheControl()).isEqualTo("max-age=31536000, immutable");
         assertThat(request.getValue().overrideConfiguration().orElseThrow().apiCallAttemptTimeout()).contains(TRANSFER);
     }
 
     // 워커가 원본을 덮어쓰거나 다른 팀 경로에 쓰지 못하게 파생 경로 밖에는 쓰지도 지우지도 않는다.
     @Test
-    void 파생_경로_밖에는_올리거나_지우지_않는다() {
+    void 파생_경로_밖에는_올리지_않는다() {
         Path file = directory.resolve("t.webp");
 
         assertThatThrownBy(() -> storage.upload(file, ORIGINAL)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> storage.delete(ORIGINAL)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> storage.exists("other-team/derived/thumb/7/abc.webp"))
                 .isInstanceOf(IllegalArgumentException.class);
-        verifyNoInteractions(s3Client, objectDeleter);
+        verifyNoInteractions(s3Client);
     }
 
     @Test
@@ -95,14 +92,5 @@ class S3ThumbnailStorageTest {
         assertThat(storage.exists(THUMBNAIL)).isFalse();
         assertThat(storage.exists(THUMBNAIL)).isTrue();
         assertThatThrownBy(() -> storage.exists(THUMBNAIL)).isInstanceOf(S3Exception.class);
-    }
-
-    // 버킷은 버전 관리가 켜져 있어 모든 버전을 지우는 기존 삭제기를 쓴다.
-    @Test
-    void 썸네일은_모든_버전까지_지우고_실패하면_던진다() {
-        when(objectDeleter.delete(List.of(THUMBNAIL))).thenReturn(List.of()).thenReturn(List.of(THUMBNAIL));
-
-        storage.delete(THUMBNAIL);
-        assertThatThrownBy(() -> storage.delete(THUMBNAIL)).isInstanceOf(ThumbnailStorageException.class);
     }
 }

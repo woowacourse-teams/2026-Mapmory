@@ -3,9 +3,9 @@ package com.mapmory.backend.travelrecord.thumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.mapmory.backend.sharevideo.worker.RenderActivity;
+import com.mapmory.backend.common.worker.RenderActivity;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
-import com.mapmory.backend.upload.service.port.ObjectDeleter;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -15,6 +15,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.services.s3.S3Client;
 
 class ThumbnailWorkerConfigTest {
@@ -28,7 +29,8 @@ class ThumbnailWorkerConfigTest {
             .withBean(S3Client.class, () -> mock(S3Client.class))
             .withBean(S3StorageProperties.class, () -> S3)
             .withBean(DerivedObjectKeys.class, () -> new DerivedObjectKeys(S3))
-            .withBean(ObjectDeleter.class, () -> mock(ObjectDeleter.class))
+            .withBean(OrphanedMediaRepository.class, () -> mock(OrphanedMediaRepository.class))
+            .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
             .withBean(TravelRecordRepository.class, () -> mock(TravelRecordRepository.class))
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
             .withBean(Clock.class, Clock::systemUTC)

@@ -52,6 +52,27 @@ class DerivedObjectKeysTest {
         assertThat(keys.isDerived("mapmory/dev/derived/../travel-records/7/abc.jpg")).isFalse();
     }
 
+    // 정리 배치가 썸네일을 지우기 전에, 그 원본이 아직 기록에 붙어 있는지 볼 후보다. 서버가 만드는 확장자만 쓴다.
+    @Test
+    void 썸네일_키에서_원본_후보_키를_만든다() {
+        assertThat(keys.originalCandidatesOf("mapmory/dev/derived/thumb/7/abc.webp")).containsExactlyInAnyOrder(
+                "mapmory/dev/travel-records/7/abc.jpg",
+                "mapmory/dev/travel-records/7/abc.png",
+                "mapmory/dev/travel-records/7/abc.webp",
+                "mapmory/dev/travel-records/7/abc.heic");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "mapmory/dev/travel-records/7/abc.jpg",
+            "mapmory/dev/derived/thumb/7/abc.jpg",
+            "mapmory/dev/derived/thumb/7/sub/abc.webp",
+            "mapmory/prod/derived/thumb/7/abc.webp",
+    })
+    void 썸네일_키가_아니면_원본_후보가_없다(String key) {
+        assertThat(keys.originalCandidatesOf(key)).isEmpty();
+    }
+
     static S3StorageProperties properties(String keyPrefix) {
         return new S3StorageProperties("bucket", "ap-northeast-2", keyPrefix, Duration.ofMinutes(5),
                 new S3StorageProperties.Client(Duration.ofSeconds(1), Duration.ofSeconds(3), 3,

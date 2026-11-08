@@ -42,15 +42,16 @@ API 서버의 배포 흐름과 영상 렌더러 서버의 배포 흐름을 개�
 ### 배포에 들어가는 것
 
 - `buildspec-renderer.yml`이 `thumbnail/`의 스크립트와 `requirements.txt`를 `/opt/mapmory-renderer/thumbnail`로 보낸다.
-- `install.sh`가 그 아래에 가상환경(`.venv`)을 만들고 고정한 버전(Pillow, pillow-heif)을 설치한다. `python3`와 `python3-venv`가 없으면 설치를 멈춘다.
-  - Ubuntu 22.04: `sudo apt-get install -y python3-venv`
+- `install.sh`가 그 아래에 가상환경(`.venv`)을 만들고 고정한 버전(Pillow, pillow-heif)을 설치한다.
+  - `python3`·`python3-venv`가 없거나 PyPI에 닿지 못하면 `WARNING: thumbnail environment was not installed`만 남기고 배포는 계속한다. 공유 영상 렌더러는 영향을 받지 않는다.
+  - 썸네일을 켜려면 먼저 설치하고 다시 배포한다. Ubuntu 22.04: `sudo apt-get install -y python3-venv`
   - pillow-heif wheel 안에 libheif가 들어 있어 따로 설치할 것은 없다.
 - 작업 디렉터리 `/var/lib/mapmory-renderer/thumbnails`를 만든다.
 
 ### 켜기 전에 확인할 것
 
 1. 렌더러 인스턴스 역할의 S3 권한: `{p}/travel-records/*` GetObject, `{p}/derived/*` PutObject와 삭제(버전 포함), 없는 키 HeadObject가 403이 아니라 404인지.
-2. 렌더러의 Python 버전이 3.10 이상인지(`python3 --version`).
+2. 렌더러의 Python 버전이 3.10 이상인지(`python3 --version`), 배포 로그에 위 `WARNING`이 없는지, `/opt/mapmory-renderer/thumbnail/.venv/bin/python /opt/mapmory-renderer/thumbnail/make_thumbnail.py --check`가 0으로 끝나는지.
 3. 실제 사진 한 장 변환: `/opt/mapmory-renderer/thumbnail/.venv/bin/python make_thumbnail.py in.heic out.webp`와 `/usr/bin/time -v`로 시간과 최대 메모리.
 4. 기준값: 켜기 전에 #631 5-1절의 S3 원본 크기 통계를 남긴다. 켜고 나면 다시 잴 수 없다.
 
@@ -69,7 +70,7 @@ API 서버에서는 켜지 않는다(기본값 `false`).
 
 ### 켠 뒤 볼 것
 
-- `mapmory.thumbnail.worker{result}`: `created`가 늘고 `failed`·`given_up`이 드문지. `unsupported_key`는 접두사를 붙이기 전의 옛 키 수다.
+- `mapmory.thumbnail.worker{result}`: `created`가 늘고 `failed`·`given_up`이 드문지. `unsupported_key`는 접두사를 붙이기 전의 옛 키 수다. `not_ready`가 1이면 변환 환경(경로, Python, 패키지)이 준비되지 않아 워커가 멈춘 것이다. 고친 뒤 서비스를 다시 띄운다.
 - `mapmory.thumbnail.backlog`: 한 시간이 넘었는데 썸네일이 없는 사진 수. 백필이 끝나면 0에 가까워야 한다. 남으면 `given_up`·`undecodable` 로그로 원인을 본다.
 - `SELECT COUNT(*) FROM record_media WHERE thumb_key IS NULL OR thumb_key = '';`
 - 렌더러 CPU 크레딧(CloudWatch). 백필 중 바닥나면 `THUMBNAIL_WORKER_BATCH_SIZE`를 줄이거나 `THUMBNAIL_WORKER_POLL_DELAY`를 늘린다.

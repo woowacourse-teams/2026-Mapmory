@@ -1,11 +1,9 @@
 package com.mapmory.backend.travelrecord.thumbnail;
 
-import com.mapmory.backend.upload.service.port.ObjectDeleter;
 import com.mapmory.backend.upload.storage.DerivedObjectKeys;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -20,27 +18,25 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class S3ThumbnailStorage implements ThumbnailStorage {
 
     private static final String CONTENT_TYPE = "image/webp";
-    private static final String CACHE_CONTROL = "private, max-age=31536000, immutable";
+    // private을 붙이면 CloudFront가 캐시하지 않는다. 접근은 서명 URL이 막는다.
+    private static final String CACHE_CONTROL = "max-age=31536000, immutable";
 
     private final S3Client s3Client;
     private final String bucket;
     private final String travelRecordsDirectory;
     private final DerivedObjectKeys derivedObjectKeys;
-    private final ObjectDeleter objectDeleter;
     private final Duration transferTimeout;
 
     public S3ThumbnailStorage(
             S3Client s3Client,
             S3StorageProperties s3Properties,
             DerivedObjectKeys derivedObjectKeys,
-            ObjectDeleter objectDeleter,
             ThumbnailWorkerProperties workerProperties
     ) {
         this.s3Client = s3Client;
         this.bucket = s3Properties.bucket();
         this.travelRecordsDirectory = s3Properties.travelRecordsDirectory();
         this.derivedObjectKeys = derivedObjectKeys;
-        this.objectDeleter = objectDeleter;
         this.transferTimeout = workerProperties.transferTimeout();
     }
 
@@ -87,15 +83,6 @@ public class S3ThumbnailStorage implements ThumbnailStorage {
                                 .apiCallTimeout(transferTimeout.multipliedBy(2)))
                         .build(),
                 RequestBody.fromFile(source));
-    }
-
-    @Override
-    public void delete(String thumbnailKey) {
-        requireDerived(thumbnailKey);
-        List<String> failed = objectDeleter.delete(List.of(thumbnailKey));
-        if (!failed.isEmpty()) {
-            throw new ThumbnailStorageException("cannot delete thumbnail: " + thumbnailKey);
-        }
     }
 
     private void requireDerived(String thumbnailKey) {
