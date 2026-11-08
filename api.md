@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림, 그룹 공유(구현 전 설계)
+> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림, 그룹 공유(일부 구현 전 설계)
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -67,12 +67,12 @@
 | 구현됨 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
 | 구현됨 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
 | 구현 전 설계 | `DELETE` | `/groups/{groupId}/members/me` | 그룹 나가기 |
-| 구현 전 설계 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
-| 구현 전 설계 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
+| 구현됨 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
+| 구현됨 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
 | 구현 전 설계 | `DELETE` | `/groups/{groupId}/albums/{albumId}/entries/{travelRecordId}` | 앨범에서 내 기록 내리기 |
-| 구현 전 설계 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
-| 구현 전 설계 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
-| 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
+| 구현됨 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
+| 구현됨 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
+| 구현됨 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
 | 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
 | 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
 | 구현 전 설계 | `GET` | `/notification-settings` | 내 알림 설정 |
@@ -1420,7 +1420,7 @@ Authorization: Bearer {accessToken}
 
 ## 12. Group API
 
-> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기)·T2 초대(만들기·미리보기·수락) 구현됨, 나머지는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
+> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기)·T2 초대(만들기·미리보기·수락)·앨범(열기·붙이기·바꾸기·목록·상세) 구현됨, 앨범에서 내리기는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
 
 친구·가족이 같은 여행을 앨범 하나로 함께 본다. **저장은 각자, 보기는 하나로** 한다. 사진은 늘 자기 여행 기록에 저장하고, 앨범은 그 기록들을 id로 묶는다. 앱은 앨범을 기록 하나처럼 보여 준다.
 
@@ -1637,25 +1637,40 @@ Authorization: Bearer {accessToken}
 
 `GET /api/v1/groups/{groupId}/albums`
 
-최근에 연 앨범부터 반환한다.
+최근에 기록이 담긴 앨범부터 반환하고, 같으면 id가 큰 앨범이 먼저다. `page`는 0부터, `size`는 1~50이며 기본값은 `0`, `20`이다. 범위를 벗어나면 `400 VALIDATION_ERROR`다.
 
 #### Response `200 OK`
 
 ```json
 {
-  "data": [
-    {
-      "id": 7,
-      "name": "도쿄 3월",
-      "region": { "code": "JP", "name": "일본" },
-      "startDate": "2026-03-01",
-      "endDate": "2026-03-04",
-      "coverViewUrl": "https://...signed-url",
-      "contributorNicknames": ["지수", "민호"]
-    }
-  ]
+  "data": {
+    "items": [
+      {
+        "id": 7,
+        "name": "도쿄 3월",
+        "region": { "id": 392, "code": "JP", "type": "COUNTRY", "name": "일본" },
+        "startDate": "2026-03-01",
+        "endDate": "2026-03-04",
+        "coverPhoto": { "viewUrl": "https://...signed-url", "viewUrlExpiresIn": 300 },
+        "contributors": [
+          { "memberId": 12, "nickname": "지수", "me": true },
+          { "memberId": 15, "nickname": "민호", "me": false }
+        ],
+        "recordCount": 2,
+        "photoCount": 5,
+        "lastAddedAt": "2026-03-05T09:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "hasNext": false
+  }
 }
 ```
+
+`coverPhoto`는 사진이 없으면 `null`이다. 담긴 기록이 모두 지워진 앨범은 `startDate`와 `endDate`가 `null`이고, 담긴 기록이 없는 앨범은 목록에 나오지 않는다. `lastAddedAt`은 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 
 ### 앨범 상세
 
@@ -1669,34 +1684,40 @@ Authorization: Bearer {accessToken}
 {
   "data": {
     "id": 7,
+    "groupId": 3,
     "name": "도쿄 3월",
-    "region": { "code": "JP", "name": "일본" },
+    "region": { "id": 392, "code": "JP", "type": "COUNTRY", "name": "일본" },
     "startDate": "2026-03-01",
     "endDate": "2026-03-04",
-    "records": [
+    "opener": { "memberId": 12, "nickname": "지수", "me": true },
+    "myTravelRecordIds": [101],
+    "entries": [
       {
         "travelRecordId": 101,
-        "nickname": "지수",
-        "mine": true,
+        "owner": { "memberId": 12, "nickname": "지수", "me": true },
         "title": "도쿄 첫날",
         "content": "",
         "startDate": "2026-03-01",
-        "endDate": "2026-03-03"
-      }
-    ],
-    "media": [
-      {
-        "travelRecordId": 101,
-        "nickname": "지수",
-        "viewUrl": "https://...signed-url",
-        "viewUrlExpiresIn": 300
+        "endDate": "2026-03-03",
+        "placeName": null,
+        "photos": [
+          {
+            "id": 1,
+            "viewUrl": "https://...signed-url",
+            "viewUrlExpiresIn": 300,
+            "sortOrder": 0
+          }
+        ],
+        "addedAt": "2026-03-05T09:00:00"
       }
     ]
   }
 }
 ```
 
-항목은 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `media`는 그 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+`entries`는 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `photos`는 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+
+`addedAt`은 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 
 ### 앨범 알림
 
