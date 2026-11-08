@@ -164,23 +164,44 @@ def test_디코더나_EXIF가_깨진_파일은_DecodeError다(tmp_path, name):
         make_thumbnail(FIXTURES / name, tmp_path / "out.webp", max_edge=1080)
 
 
-# 파일은 작아도 펼치면 메모리를 크게 쓴다. 렌더러(2GB)를 지키려고 iPhone 48MP보다 큰 이미지는 만들지 않는다.
-def test_화소_수가_한도를_넘으면_DecodeError다(tmp_path):
+# 파일은 작아도 펼치면 메모리를 크게 쓴다. 렌더러(2GB)를 지키려고 펼칠 크기가 한도를 넘으면 만들지 않는다.
+def test_펼칠_화소_수가_한도를_넘으면_DecodeError다(tmp_path):
     src = tmp_path / "huge.png"
-    Image.new("L", (8000, 8000), 0).save(src)
+    Image.new("L", (9000, 8000), 0).save(src)
 
     with pytest.raises(DecodeError):
         make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
 
 
-def test_iPhone_48MP_크기는_만든다(tmp_path):
-    src = tmp_path / "48mp.png"
-    Image.new("L", (8064, 6048), 0).save(src)
+def test_iPhone_파노라마_크기는_만든다(tmp_path):
+    src = tmp_path / "pano.png"
+    Image.new("L", (16000, 4000), 0).save(src)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    assert open_output(out).size == (1080, 270)
+
+
+# JPEG는 줄여 읽으므로 원본이 한도보다 커도 펼치는 크기는 작다. 가장 무거운 사진이라 썸네일이 가장 필요하다.
+def test_한도보다_큰_JPEG도_줄여_읽어_만든다(tmp_path):
+    src = tmp_path / "108mp.jpg"
+    Image.new("L", (12000, 9000), 0).save(src, "JPEG")
     out = tmp_path / "out.webp"
 
     make_thumbnail(src, out, max_edge=1080)
 
     assert open_output(out).size == (1080, 810)
+
+
+def test_메모리가_부족하면_DecodeError가_아니라_그대로_던진다(tmp_path, monkeypatch):
+    def out_of_memory(*args, **kwargs):
+        raise MemoryError
+
+    monkeypatch.setattr(Image, "open", out_of_memory)
+
+    with pytest.raises(MemoryError):
+        make_thumbnail(tmp_path / "a.jpg", tmp_path / "out.webp", max_edge=1080)
 
 
 def test_업로드에서_허용하지_않는_형식은_DecodeError다(tmp_path):

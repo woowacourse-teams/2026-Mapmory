@@ -1,6 +1,5 @@
 """사진 한 장을 목록용 썸네일로 줄인다. 키나 저장소는 모르고 파일 경로만 다룬다."""
 
-import warnings
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -14,8 +13,11 @@ WEBP_QUALITY = 75
 RGB_MODES = ("RGB", "RGBA", "P", "PA")
 # 업로드가 허용하는 형식만 연다(UploadFileType). 나머지 디코더(TIFF, EPS 등)에는 닿지 않게 한다.
 ALLOWED_FORMATS = ["JPEG", "PNG", "WEBP", "HEIF"]
-# iPhone 48MP(약 4,880만)는 통과시키고 그보다 큰 이미지는 만들지 않는다. RGBA 6,000만 화소를 펼치면 약 240MB다.
-Image.MAX_IMAGE_PIXELS = 60_000_000
+# 펼칠 화소 수의 한도. iPhone 48MP(약 4,880만)와 파노라마(최대 약 6,300만으로 알려짐)는 통과시킨다.
+# 16000x4000 HEIC를 펼치면 최대 메모리가 약 570MB였다. 작은 PNG도 펼치면 GB 단위가 될 수 있어 렌더러(2GB)를 지킨다.
+MAX_DECODED_PIXELS = 70_000_000
+# 한도는 위에서 줄여 읽은 뒤의 크기로 직접 본다. Pillow의 검사는 원본 헤더 크기로 판단해 큰 JPEG까지 막으므로 끈다.
+Image.MAX_IMAGE_PIXELS = None
 
 
 class DecodeError(Exception):
@@ -40,17 +42,18 @@ def make_thumbnail(src, dst, max_edge=1080):
 def _decode_upright(src, max_edge):
     """원본을 읽고 방향을 픽셀에 반영한다. 파일 내용 때문에 실패하면 DecodeError, 실행 환경 때문이면 그 예외 그대로다."""
     try:
-        with warnings.catch_warnings():
-            # 한도를 넘는 화소 수는 Pillow가 경고만 하고 그대로 펼친다. 렌더러 메모리를 지키려고 오류로 끊는다.
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            image = Image.open(src, formats=ALLOWED_FORMATS)
-            # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
-            image.draft("RGB", (max_edge, max_edge))
-            image.load()
+        image = Image.open(src, formats=ALLOWED_FORMATS)
+        # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
+        image.draft("RGB", (max_edge, max_edge))
+        # 한도는 줄여 읽은 뒤의 크기, 즉 실제로 펼칠 크기로 본다. 큰 JPEG는 이 단계에서 작아져 통과한다.
+        width, height = image.size
+        if width * height > MAX_DECODED_PIXELS:
+            raise DecodeError(f"too many pixels to decode: {width}x{height}")
+        image.load()
         # 복사본을 만들지 않아 큰 사진에서 메모리를 아낀다. 깨진 EXIF는 여기서 실패할 수 있다.
         ImageOps.exif_transpose(image, in_place=True)
         return image
-    except MemoryError:
+    except (MemoryError, DecodeError):
         raise
     except OSError as e:
         # errno가 있으면 운영체제가 낸 오류(파일 없음, 권한, 디렉터리, 디스크)다. 다시 하면 나을 수 있다.
