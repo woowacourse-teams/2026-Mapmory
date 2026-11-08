@@ -156,10 +156,39 @@ def test_모드를_바꾸면_원래_색_프로필은_붙이지_않는다(tmp_pat
 
 
 # 다시 해도 같은 결과인 손상은 모두 DecodeError여야 워커가 끝없이 다시 하지 않는다. 퍼징으로 찾은 파일이다.
-@pytest.mark.parametrize("name", ["truncated-decoder.heic", "broken-exif.heic"])
-def test_디코더나_EXIF가_깨진_HEIC는_DecodeError다(tmp_path, name):
+@pytest.mark.parametrize("name", [
+    "truncated-decoder.heic", "broken-exif.heic", "heif-security-limit.heic", "broken-exif-rewrite.jpg",
+])
+def test_디코더나_EXIF가_깨진_파일은_DecodeError다(tmp_path, name):
     with pytest.raises(DecodeError):
         make_thumbnail(FIXTURES / name, tmp_path / "out.webp", max_edge=1080)
+
+
+# 파일은 작아도 펼치면 메모리를 크게 쓴다. 렌더러(2GB)를 지키려고 iPhone 48MP보다 큰 이미지는 만들지 않는다.
+def test_화소_수가_한도를_넘으면_DecodeError다(tmp_path):
+    src = tmp_path / "huge.png"
+    Image.new("L", (8000, 8000), 0).save(src)
+
+    with pytest.raises(DecodeError):
+        make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
+
+
+def test_iPhone_48MP_크기는_만든다(tmp_path):
+    src = tmp_path / "48mp.png"
+    Image.new("L", (8064, 6048), 0).save(src)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    assert open_output(out).size == (1080, 810)
+
+
+def test_업로드에서_허용하지_않는_형식은_DecodeError다(tmp_path):
+    src = tmp_path / "a.tiff"
+    Image.new("RGB", (40, 20), BACKGROUND).save(src, "TIFF")
+
+    with pytest.raises(DecodeError):
+        make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
 
 
 def test_원본을_읽을_수_없는_환경_오류는_DecodeError가_아니다(tmp_path):
