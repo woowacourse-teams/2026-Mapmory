@@ -31,3 +31,7 @@ def test_입력이_없거나_인자가_틀리면_1이다(tmp_path):
     assert run(tmp_path / "missing.jpg", tmp_path / "out.webp").returncode == 1
     assert run("only-one-arg").returncode == 1
     assert run(tmp_path / "a.jpg", tmp_path / "b.webp", "--max-edge", "0").returncode == 1
+
+
+def test_원본이_디렉터리처럼_환경_문제면_1이다(tmp_path):
+    assert run(tmp_path, tmp_path / "out.webp").returncode == 1

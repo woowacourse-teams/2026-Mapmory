@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
 # HEIC는 반드시 Pillow 플러그인으로 연다. 플러그인은 irot/imir를 적용하고 EXIF 방향을 1로 되돌린다.
@@ -10,6 +10,7 @@ from pillow_heif import register_heif_opener
 register_heif_opener()
 
 WEBP_QUALITY = 75
+RGB_MODES = ("RGB", "RGBA", "P", "PA")
 
 
 class DecodeError(Exception):
@@ -23,23 +24,30 @@ def make_thumbnail(src, dst, max_edge=1080):
     """
     if max_edge < 1:
         raise ValueError("max_edge must be positive")
-    image = _decode(src, max_edge)
-    icc_profile = image.info.get("icc_profile")
-    image = _to_saveable_mode(ImageOps.exif_transpose(image))
+    image = _decode_upright(src, max_edge)
+    # 색 프로필은 RGB 계열 원본일 때만 붙인다. 회색조·CMYK 프로필을 RGB 출력에 붙이면 색이 틀어진다.
+    icc_profile = image.info.get("icc_profile") if image.mode in RGB_MODES else None
+    image = _to_saveable_mode(image)
     image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
     _save_atomically(image, Path(dst), icc_profile)
 
 
-def _decode(src, max_edge):
+def _decode_upright(src, max_edge):
+    """원본을 읽고 방향을 픽셀에 반영한다. 파일 내용 때문에 실패하면 DecodeError, 실행 환경 때문이면 OSError다."""
     try:
         image = Image.open(src)
         # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
         image.draft("RGB", (max_edge, max_edge))
         image.load()
-        return image
-    except FileNotFoundError:
-        raise
-    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, SyntaxError, ValueError) as e:
+        # EXIF를 해석하다 깨진 블록에서 실패할 수 있어 이것도 내용 탓으로 본다.
+        return ImageOps.exif_transpose(image)
+    except OSError as e:
+        # errno가 있으면 운영체제가 낸 오류(파일 없음, 권한, 디렉터리, 디스크)다. 다시 하면 나을 수 있다.
+        # Pillow의 디코딩 오류(잘린 파일, 알 수 없는 형식)는 errno가 없다.
+        if e.errno is not None:
+            raise
+        raise DecodeError(f"{type(e).__name__}: {e}") from e
+    except (Image.DecompressionBombError, EOFError, SyntaxError, ValueError) as e:
         raise DecodeError(f"{type(e).__name__}: {e}") from e
 
 

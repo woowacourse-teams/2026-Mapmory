@@ -1,9 +1,14 @@
+from pathlib import Path
+
 from PIL import Image, ImageCms
 
 import pytest
 from conftest import BACKGROUND, MARKER, ORIENTATION
 
 from imaging import DecodeError, make_thumbnail
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+GPS_IFD = 0x8825
 
 
 def open_output(path):
@@ -27,8 +32,12 @@ def corner(image, where):
 # EXIF 방향을 픽셀에 반영하면 저장된 왼쪽 위 표시가 보이는 화면의 이 모서리로 간다.
 @pytest.mark.parametrize("orientation, marker_corner, portrait", [
     (1, "top-left", False),
+    (2, "top-right", False),
     (3, "bottom-right", False),
+    (4, "bottom-left", False),
+    (5, "top-left", True),
     (6, "top-right", True),
+    (7, "bottom-right", True),
     (8, "bottom-left", True),
 ])
 def test_JPEG의_EXIF_방향을_픽셀에_굽는다(make_jpeg, tmp_path, orientation, marker_corner, portrait):
@@ -58,6 +67,20 @@ def test_출력에는_EXIF_방향이_없다(make_jpeg, make_heic, tmp_path, sour
     make_thumbnail(make_jpeg(6) if source == "jpeg" else make_heic(6), out, max_edge=1080)
 
     assert ORIENTATION not in open_output(out).getexif()
+
+
+def test_위치_정보를_포함한_EXIF를_쓰지_않는다(tmp_path):
+    src = tmp_path / "gps.jpg"
+    exif = Image.Exif()
+    exif[ORIENTATION] = 6
+    exif[0x010F] = "Apple"
+    exif.get_ifd(GPS_IFD)[1] = "N"
+    Image.new("RGB", (40, 20), BACKGROUND).save(src, "JPEG", exif=exif.tobytes())
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    assert len(open_output(out).getexif()) == 0
 
 
 def test_긴_변을_max_edge로_줄인다(make_jpeg, tmp_path):
@@ -119,6 +142,31 @@ def test_색_프로필은_유지한다(tmp_path):
     make_thumbnail(src, out, max_edge=1080)
 
     assert open_output(out).info.get("icc_profile") == profile
+
+
+def test_모드를_바꾸면_원래_색_프로필은_붙이지_않는다(tmp_path):
+    src = tmp_path / "gray.jpg"
+    profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    Image.new("L", (40, 20), 128).save(src, "JPEG", icc_profile=profile)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    assert open_output(out).info.get("icc_profile") is None
+
+
+# 다시 해도 같은 결과인 손상은 모두 DecodeError여야 워커가 끝없이 다시 하지 않는다. 퍼징으로 찾은 파일이다.
+@pytest.mark.parametrize("name", ["truncated-decoder.heic", "broken-exif.heic"])
+def test_디코더나_EXIF가_깨진_HEIC는_DecodeError다(tmp_path, name):
+    with pytest.raises(DecodeError):
+        make_thumbnail(FIXTURES / name, tmp_path / "out.webp", max_edge=1080)
+
+
+def test_원본을_읽을_수_없는_환경_오류는_DecodeError가_아니다(tmp_path):
+    with pytest.raises(OSError) as raised:
+        make_thumbnail(tmp_path, tmp_path / "out.webp", max_edge=1080)
+
+    assert not isinstance(raised.value, DecodeError)
 
 
 def test_손상된_파일은_DecodeError다(tmp_path):
