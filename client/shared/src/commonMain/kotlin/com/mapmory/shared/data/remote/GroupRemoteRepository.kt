@@ -34,7 +34,7 @@ internal class GroupRemoteRepository(
         request<List<GroupSummaryDto>>(HttpMethod.Get, "groups").map { it.toDomain() }
     }
 
-    override suspend fun createGroup(name: String): Result<GroupDetail> = authenticated {
+    override suspend fun createGroup(name: String): Result<GroupDetail> = authenticated(promptOnAuthFailure = true) {
         request<GroupDetailDto>(HttpMethod.Post, "groups") { groupName(name) }.toDomain()
     }
 
@@ -42,15 +42,15 @@ internal class GroupRemoteRepository(
         request<GroupDetailDto>(HttpMethod.Get, "groups", groupId.toString()).toDomain()
     }
 
-    override suspend fun renameGroup(groupId: Long, name: String): Result<GroupDetail> = authenticated {
+    override suspend fun renameGroup(groupId: Long, name: String): Result<GroupDetail> = authenticated(promptOnAuthFailure = true) {
         request<GroupDetailDto>(HttpMethod.Patch, "groups", groupId.toString()) { groupName(name) }.toDomain()
     }
 
-    override suspend fun createInvitation(groupId: Long): Result<IssuedGroupInvitation> = authenticated {
+    override suspend fun createInvitation(groupId: Long): Result<IssuedGroupInvitation> = authenticated(promptOnAuthFailure = true) {
         request<GroupInvitationDto>(HttpMethod.Post, "groups", groupId.toString(), "invitations").toDomain()
     }
 
-    override suspend fun leaveGroup(groupId: Long): Result<Unit> = authenticated {
+    override suspend fun leaveGroup(groupId: Long): Result<Unit> = authenticated(promptOnAuthFailure = true) {
         client.request(apiBaseUrl.trimEnd('/')) {
             method = HttpMethod.Delete
             url { appendPathSegments("groups", groupId.toString(), "members", "me") }
@@ -64,12 +64,14 @@ internal class GroupRemoteRepository(
         request<GroupInvitationPreviewDto>(HttpMethod.Get, "invitations", tokenOrCode).toDomain()
     }
 
-    override suspend fun acceptInvitation(tokenOrCode: String): Result<GroupDetail> = authenticated {
+    override suspend fun acceptInvitation(tokenOrCode: String): Result<GroupDetail> = authenticated(promptOnAuthFailure = true) {
         request<GroupDetailDto>(HttpMethod.Post, "invitations", tokenOrCode, "accept").toDomain()
     }
 
-    private suspend fun <T> authenticated(block: suspend () -> T): Result<T> =
-        session.withAuthenticatedSession { apiCall { block() } }
+    private suspend fun <T> authenticated(
+        promptOnAuthFailure: Boolean = false,
+        block: suspend () -> T,
+    ): Result<T> = session.withAuthenticatedSession(promptOnAuthFailure = promptOnAuthFailure) { apiCall { block() } }
 
     private suspend inline fun <reified T> request(
         method: HttpMethod,

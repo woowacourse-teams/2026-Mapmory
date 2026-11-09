@@ -22,6 +22,8 @@ data class AccountState(
     val recoveryProvider: MemberProvider? = null,
     val needsProviderProof: Boolean = false,
     val recentLoginProvider: MemberProvider? = null,
+    val sessionProvider: MemberProvider? = null,
+    val recoveryPromptId: Long = 0,
 )
 
 /** Provider proofs remain in memory only. All account/session changes use this boundary. */
@@ -29,6 +31,11 @@ interface AccountSession {
     val state: StateFlow<AccountState>
     suspend fun restore(): Result<AccountMember>
     suspend fun login(provider: MemberProvider, idToken: String, recoverInvalidSession: Boolean = false): Result<AccountMember>
+    suspend fun reauthenticateSameAccount(provider: MemberProvider, idToken: String): Result<AccountMember> =
+        Result.failure(UnsupportedOperationException())
+    suspend fun retryExistingCredentials(): Result<Unit> =
+        Result.failure(UnsupportedOperationException())
+    fun requestRecoveryPrompt() = Unit
     suspend fun resumeLogin(): Result<AccountMember>
     suspend fun leaveWithdrawalRecovery(): Result<Unit> = Result.failure(UnsupportedOperationException())
     suspend fun logout(): Result<Unit> = Result.failure(UnsupportedOperationException())

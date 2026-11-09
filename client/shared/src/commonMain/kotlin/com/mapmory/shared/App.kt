@@ -238,6 +238,11 @@ fun MapmoryApp(
                     )
                 }
                 val withdrawalLauncher = com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher.current
+                com.mapmory.shared.presentation.auth.AccountRecoveryDialog(
+                    session = appContainer.accountSession,
+                    controller = appContainer.accountLoginController,
+                    launcher = withdrawalLauncher,
+                )
                 if (accountState?.pendingLogout == true && !accountState.transitioning) {
                     val logoutUi = appContainer.accountLoginController?.state?.collectAsState()?.value
                     androidx.compose.material3.AlertDialog(
