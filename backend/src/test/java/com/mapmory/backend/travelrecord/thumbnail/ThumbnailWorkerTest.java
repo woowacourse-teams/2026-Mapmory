@@ -40,7 +40,7 @@ import org.springframework.transaction.support.TransactionOperations;
 
 class ThumbnailWorkerTest {
 
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-08T12:00:00Z"), ZoneOffset.UTC);
+    private static final Instant NOW = Instant.parse("2026-11-08T12:00:00Z");
     private static final MediaWithoutThumbnail PHOTO = new MediaWithoutThumbnail(10L, "mapmory/travel-records/7/abc.heic");
     private static final String THUMBNAIL = "mapmory/derived/thumb/7/abc.webp";
 
@@ -53,6 +53,7 @@ class ThumbnailWorkerTest {
     private final FakeMaker maker = new FakeMaker();
     private final AtomicBoolean rendering = new AtomicBoolean();
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final MutableClock clock = new MutableClock(NOW);
     private ThumbnailWorker worker;
 
     @BeforeEach
@@ -63,7 +64,7 @@ class ThumbnailWorkerTest {
         ThumbnailWorkerProperties properties = new ThumbnailWorkerProperties(true, Duration.ofSeconds(10), 2, 1080,
                 Duration.ofSeconds(30), 3, Path.of("."), "python3", workRoot, Duration.ofSeconds(30));
         worker = new ThumbnailWorker(repository, orphanedMediaRepository, TransactionOperations.withoutTransaction(),
-                new DerivedObjectKeys(s3), storage, maker, rendering::get, properties, meterRegistry, CLOCK);
+                new DerivedObjectKeys(s3), storage, maker, rendering::get, properties, meterRegistry, clock);
         when(repository.attachThumbnail(anyLong(), any())).thenReturn(1);
     }
 
@@ -118,6 +119,22 @@ class ThumbnailWorkerTest {
         assertThat(maker.calls).isEqualTo(3);
         assertThat(count("failed")).isEqualTo(3);
         assertThat(count("given_up")).isEqualTo(1);
+    }
+
+    // S3나 DB가 잠깐 막혀 포기한 사진도, 재시작을 기다리지 않고 몇 시간 뒤 다시 해 본다.
+    @Test
+    void 포기한_사진도_여섯_시간이_지나면_다시_한다() {
+        pending(PHOTO);
+        maker.failure = new ThumbnailMakeException("exitCode=1");
+        for (int i = 0; i < 4; i++) {
+            worker.processNext();
+        }
+        maker.failure = null;
+
+        clock.advance(Duration.ofHours(6));
+        worker.processNext();
+
+        verify(repository).attachThumbnail(10L, THUMBNAIL);
     }
 
     @Test
@@ -194,6 +211,23 @@ class ThumbnailWorkerTest {
         verify(repository, never()).findMediaWithoutThumbnail(anyLong(), any());
         assertThat(maker.readyChecks).isEqualTo(1);
         assertThat(count("not_ready")).isEqualTo(1);
+    }
+
+    // CPU가 바닥나 확인이 시간을 넘기는 것처럼 잠깐의 실패라면, 재시작 없이 다시 확인해 이어 간다.
+    @Test
+    void 준비되지_않았으면_십_분_뒤_다시_확인한다() {
+        maker.ready = false;
+        worker.processNext();
+        maker.ready = true;
+        pending(PHOTO);
+
+        clock.advance(Duration.ofMinutes(9));
+        worker.processNext();
+        verify(repository, never()).findMediaWithoutThumbnail(anyLong(), any());
+
+        clock.advance(Duration.ofMinutes(1));
+        worker.processNext();
+        verify(repository).attachThumbnail(10L, THUMBNAIL);
     }
 
     @Test
@@ -362,4 +396,32 @@ class ThumbnailWorkerTest {
             return outcome;
         }
     }
+
+    private static class MutableClock extends Clock {
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
 }

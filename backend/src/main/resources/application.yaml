@@ -200,7 +200,7 @@ media:
       # 노이즈를 넣은 12MP 합성 사진이 Apple M2에서 HEIC 1.5초, JPEG 0.4초였다(프로세스 시작 포함, 5회 중앙값).
       # 렌더러(t4g.small, CPU 크레딧)는 더 느리므로 넉넉히 둔다. 실제 렌더러 시간은 dev에서 잰다.
       process-timeout: 30s
-      # 같은 사진이 이만큼 실패하면 프로세스가 다시 뜰 때까지 건너뛴다. 그 사진은 원본으로 보인다.
+      # 같은 사진이 이만큼 실패하면 건너뛰고 6시간 뒤 다시 해 본다. 그동안 그 사진은 원본으로 보인다.
       max-failures: 3
       script-directory: ${THUMBNAIL_SCRIPT_DIRECTORY:${user.dir}/../thumbnail}
       python-command: ${THUMBNAIL_PYTHON_COMMAND:python3}

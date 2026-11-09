@@ -50,10 +50,13 @@ API 서버의 배포 흐름과 영상 렌더러 서버의 배포 흐름을 개�
 
 ### 켜기 전에 확인할 것
 
-1. 렌더러 인스턴스 역할의 S3 권한: `{p}/travel-records/*` GetObject, `{p}/derived/*` PutObject와 삭제(버전 포함), 없는 키 HeadObject가 403이 아니라 404인지.
+1. 렌더러 인스턴스 역할의 S3 권한: `{p}/travel-records/*` GetObject, `{p}/derived/*` PutObject, 없는 키 HeadObject가 403이 아니라 404인지.
+   **API 서버 역할의 권한도 본다.** 썸네일을 지우는 정리 배치와 회원 파기는 API 서버에서 돈다. `{p}/derived/*`에 버전 목록(`s3:ListBucketVersions`)과 버전 삭제(`s3:DeleteObjectVersion`)가 없으면, 썸네일이 생긴 뒤부터 회원 파기가 매일 실패한다(`MEMBER_PURGE_FAILED`). dev에서 썸네일이 있는 사진을 빼고 다음 정리 배치가 지우는지 확인한다.
 2. 렌더러의 Python 버전이 3.10 이상인지(`python3 --version`), 배포 로그에 위 `WARNING`이 없는지, `/opt/mapmory-renderer/thumbnail/.venv/bin/python /opt/mapmory-renderer/thumbnail/make_thumbnail.py --check`가 0으로 끝나는지.
 3. 실제 사진 한 장 변환: `/opt/mapmory-renderer/thumbnail/.venv/bin/python make_thumbnail.py in.heic out.webp`와 `/usr/bin/time -v`로 시간과 최대 메모리.
 4. 기준값: 켜기 전에 #631 5-1절의 S3 원본 크기 통계를 남긴다. 켜고 나면 다시 잴 수 없다.
+
+5. 빈 문자열 `thumb_key`가 없는지: `SELECT COUNT(*) FROM record_media WHERE thumb_key = '';` 회원 파기는 `thumb_key IS NOT NULL`로 키를 읽어 빈 문자열이 있으면 실패한다(이번 변경 전부터 있던 동작).
 
 ### 켜기
 
@@ -71,7 +74,7 @@ API 서버에서는 켜지 않는다(기본값 `false`).
 ### 켠 뒤 볼 것
 
 - `mapmory.thumbnail.worker{result}`: `created`가 늘고 `failed`·`given_up`이 드문지. `unsupported_key`는 접두사를 붙이기 전의 옛 키 수다. `not_ready`가 1이면 변환 환경(경로, Python, 패키지)이 준비되지 않아 워커가 멈춘 것이다. 고친 뒤 서비스를 다시 띄운다.
-- `mapmory.thumbnail.backlog`: 한 시간이 넘었는데 썸네일이 없는 사진 수. 백필이 끝나면 0에 가까워야 한다. 남으면 `given_up`·`undecodable` 로그로 원인을 본다.
+- `mapmory.thumbnail.backlog`: 한 시간이 넘었는데 썸네일이 없는 사진 수. 옛 키와 원본 내용 때문에 못 만든 사진도 들어가므로, 백필이 끝나면 `unsupported_key` 수 근처에 머문다. 그보다 많으면 `given_up`·`undecodable` 로그로 원인을 본다.
 - `SELECT COUNT(*) FROM record_media WHERE thumb_key IS NULL OR thumb_key = '';`
 - 렌더러 CPU 크레딧(CloudWatch). 백필 중 바닥나면 `THUMBNAIL_WORKER_BATCH_SIZE`를 줄이거나 `THUMBNAIL_WORKER_POLL_DELAY`를 늘린다.
 - 영상 처리 시간(`renderDurationMs`)이 켜기 전과 같은지. 워커는 영상을 만드는 동안 쉰다.

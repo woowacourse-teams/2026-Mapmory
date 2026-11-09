@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,10 +41,10 @@ import org.springframework.transaction.support.TransactionOperations;
  * <ul>
  *   <li>thumb_key에는 S3에 올라간 것을 확인한 키만 넣는다. 그 전에는 비어 있어 앱은 원본을 본다.</li>
  *   <li>올린 뒤 채우기 전에 사진 행이 사라졌으면(사진 빼기, 기록 삭제, 회원 파기) 만든 썸네일을 정리 큐에 넣는다.</li>
- *   <li>같은 사진이 maxFailures번 실패하면 프로세스가 다시 뜰 때까지 건너뛴다. 원본 내용 때문에 못 만들면 바로 건너뛴다.</li>
+ *   <li>같은 사진이 maxFailures번 실패하면 건너뛰고, 6시간마다 실패 기록을 비워 다시 해 본다. 원본 내용 때문에 못 만든 사진도 그때 다시 본다.</li>
  *   <li>같은 서버에서 공유 영상을 만들기 시작하면 사진 한 장을 마친 뒤 쉰다. 메모리를 나눠 쓰고, 썸네일은 늦어져도 원본이 보인다.</li>
  *   <li>한 쪽을 다 읽었는데 할 일이 없었으면(옛 키, 포기한 사진) 기다리지 않고 다음 쪽을 읽는다. 새 사진이 그만큼 기다리지 않는다.</li>
- *   <li>처음 돌 때 스크립트·Python·패키지가 준비됐는지 한 번 확인하고, 아니면 아무것도 하지 않는다.</li>
+ *   <li>처음 돌 때 스크립트·Python·패키지가 준비됐는지 확인하고, 아니면 10분 뒤 다시 확인할 때까지 아무것도 하지 않는다.</li>
  * </ul>
  *
  * <p>상태는 스케줄러 스레드 하나만 만진다(전용 스케줄러, 스레드 1개).
@@ -55,6 +56,9 @@ public class ThumbnailWorker {
     private static final Duration BACKLOG_AGE = Duration.ofHours(1);
     // 할 일 없는 쪽을 이어 읽는 한도. 한 차례에 쪽 크기 × 이 값만큼 건너뛸 수 있다.
     private static final int MAX_PAGES_PER_TURN = 100;
+    // 잠깐의 S3·DB 장애로 포기한 사진도 재시작을 기다리지 않고 다시 해 본다.
+    private static final Duration FAILURE_MEMORY = Duration.ofHours(6);
+    private static final Duration READY_RECHECK = Duration.ofMinutes(10);
 
     private final TravelRecordRepository travelRecordRepository;
     private final OrphanedMediaRepository orphanedMediaRepository;
@@ -72,6 +76,8 @@ public class ThumbnailWorker {
     private final AtomicLong backlog = new AtomicLong();
     private long cursor;
     private Boolean ready;
+    private Instant readyCheckedAt;
+    private Instant failuresSince;
 
     public ThumbnailWorker(
             TravelRecordRepository travelRecordRepository,
@@ -103,6 +109,7 @@ public class ThumbnailWorker {
     @Scheduled(fixedDelayString = "${media.thumbnail.worker.poll-delay}", scheduler = "thumbnailTaskScheduler")
     public void processNext() {
         try {
+            forgetOldFailures();
             if (!isReady()) {
                 return;
             }
@@ -116,15 +123,30 @@ public class ThumbnailWorker {
         }
     }
 
+    private void forgetOldFailures() {
+        Instant now = clock.instant();
+        if (failuresSince == null) {
+            failuresSince = now;
+        } else if (!now.isBefore(failuresSince.plus(FAILURE_MEMORY))) {
+            failures.clear();
+            failuresSince = now;
+        }
+    }
+
     private boolean isReady() {
+        Instant now = clock.instant();
+        if (Boolean.FALSE.equals(ready) && !now.isBefore(readyCheckedAt.plus(READY_RECHECK))) {
+            ready = null;
+        }
         if (ready == null) {
+            readyCheckedAt = now;
             try {
                 maker.checkReady();
                 ready = true;
             } catch (Exception e) {
                 ready = false;
                 count("not_ready");
-                log.error("썸네일 변환 환경이 준비되지 않아 썸네일 워커를 멈춥니다. 설정을 고친 뒤 다시 띄워야 합니다.", e);
+                log.error("썸네일 변환 환경이 준비되지 않아 썸네일 워커를 멈춥니다. {} 뒤 다시 확인합니다.", READY_RECHECK, e);
             }
         }
         return ready;
