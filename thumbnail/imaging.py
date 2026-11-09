@@ -72,8 +72,8 @@ def _decode_upright(src, max_edge):
 
 
 def _reject_oversized_png(src):
-    # APNG는 Pillow가 여는 순간(첫 프레임 준비) 헤더 크기만큼 캔버스를 잡는다. 103바이트 파일로도 수백 MB가 된다.
-    # 그래서 PNG는 열기 전에 IHDR의 크기를 직접 읽어 거절한다.
+    # Pillow 12.3.0은 APNG를 여는 순간 헤더 크기만큼 캔버스를 잡았다(103바이트 파일로 910MB). 13.0.0에서는 재현되지 않지만
+    # (30MB) 버전이 바뀌어도 막히도록 열기 전에 첫 IHDR의 크기를 한 번 더 본다. IHDR이 앞에 없는 파일은 아래 크기 검사가 막는다.
     with open(src, "rb") as file:
         header = file.read(24)
     if header[:8] == PNG_SIGNATURE and header[12:16] == b"IHDR":

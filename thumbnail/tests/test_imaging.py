@@ -208,7 +208,7 @@ def test_메모리가_부족하면_DecodeError가_아니라_그대로_던진다(
         make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
 
 
-# 103바이트 APNG도 Pillow가 여는 순간 헤더 크기만큼 캔버스를 잡는다(22000x22000이면 약 900MB). 열기 전에 막는다.
+# Pillow 12.3.0은 이 103바이트 APNG를 여는 순간 약 900MB를 잡았다. 13에서는 재현되지 않지만 열기 전에 막아 둔다.
 def test_헤더_크기가_한도를_넘는_APNG는_열기_전에_DecodeError다(tmp_path, monkeypatch):
     src = tmp_path / "evil.png"
     src.write_bytes(apng_header(22000, 22000))
