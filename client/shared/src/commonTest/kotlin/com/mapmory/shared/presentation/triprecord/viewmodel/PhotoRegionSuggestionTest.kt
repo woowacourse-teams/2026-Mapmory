@@ -107,6 +107,21 @@ class PhotoRegionSuggestionTest {
     }
 
     @Test
+    fun `자동_입력된_지역은_대표사진이_다른_시도로_바뀌면_새_추천으로_교체한다`() = runSuspend {
+        var suggestion = daeguSuggestion()
+        val repository = SuggestionRepository { Result.success(suggestion) }
+        val vm = viewModel(repository, daegu)
+        vm.suggestRegionForCover(listOf(photo("daegu-cover", 35.8694, 128.6062)))
+        assertEquals(junggu, vm.uiState.selectedLocation)
+
+        suggestion = suggestion.copy(suggestedRegion = PlaceRegionSuggestion("KR", "26", "26110"))
+        vm.suggestRegionForCover(listOf(photo("busan-cover", 35.1, 129.0)))
+
+        assertEquals(catalog.findDistrict("KR-26", "26110"), vm.uiState.selectedLocation)
+        assertEquals("26110", vm.uiState.selectedLocation?.regionCode)
+    }
+
+    @Test
     fun `사용자가_고른_구군은_같은_시도_추천으로도_덮어쓰지_않는다`() = runSuspend {
         val district = requireNotNull(catalog.findDistrict("KR-27", "27230"))
         val vm = viewModel(SuggestionRepository(), district)

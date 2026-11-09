@@ -481,10 +481,8 @@ class TripRecordEditorViewModel(
                 else -> null
             }?.takeIf(Location::isSelectableTripRecordDestination) ?: return@onSuccess
             // 직접 고른 구·군은 유지하고, 같은 시·도 전체를 선택한 경우만 세분화한다.
-            if (initialLocation != null) {
-                val selectedProvince = if (initialLocation.isSelectableKoreanProvince()) initialLocation
-                    else if (initialLocation.id == autoFilledLocationId) initialLocation.parentId?.let(catalog::findById)
-                    else null
+            if (initialLocation != null && initialLocation.id != autoFilledLocationId) {
+                val selectedProvince = initialLocation.takeIf(Location::isSelectableKoreanProvince)
                 if (initialLocation.countryId != 1L || selectedProvince?.regionCode != provinceCode) return@onSuccess
                 if (location.type != LocationType.DISTRICT) return@onSuccess
             }
