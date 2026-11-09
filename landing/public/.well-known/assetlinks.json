@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mapmory.android",
+      "sha256_cert_fingerprints": [
+        "05:58:42:F7:F6:B8:63:99:D1:55:C5:AB:AE:31:B6:32:29:B4:07:AA:79:AF:B6:74:7C:DC:1F:4F:5E:CF:3B:E8"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mapmory.android.internal",
+      "sha256_cert_fingerprints": [
+        "3F:C0:55:BC:4E:F0:E8:AF:11:D1:F6:94:F6:59:42:61:CD:E9:7E:CB:42:E0:4F:E0:F2:59:AD:39:F0:30:5A:29"
+      ]
+    }
+  }
+]
