@@ -104,6 +104,18 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
         assertThat(memberRepository.findById(member).orElseThrow().getPurgedAt()).isNotNull();
     }
 
+    // 썸네일 워커가 파기 도중 썸네일을 올리고 thumb_key를 채울 수 있다. 행을 지운 뒤 썸네일 키를 정리 큐에 넣어 남지 않게 한다.
+    @Test
+    void 기록을_지운_뒤_만들어졌을_수_있는_썸네일을_정리_큐에_넣는다() {
+        Long member = withdrawnDaysAgo(31);
+        recordOf(member, "mapmory/travel-records/1/a.jpg", null);
+
+        memberPurgeService.run();
+
+        assertThat(jdbcTemplate.queryForList("SELECT object_key FROM orphaned_media", String.class))
+                .containsExactly("mapmory/derived/thumb/1/a.webp");
+    }
+
     @Test
     void 버려지고_30일이_지난_게스트도_지운다() {
         Member guest = Member.ofGuest("guest-" + UUID.randomUUID(), "게스트", UUID.randomUUID());

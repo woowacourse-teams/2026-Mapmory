@@ -9,6 +9,7 @@ S3 키나 DB는 모르고 입력·출력 파일 경로만 받는다. 키 규칙�
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python make_thumbnail.py input.heic output.webp --max-edge 1080
+.venv/bin/python make_thumbnail.py --check   # 패키지를 불러올 수 있으면 0. 워커가 켜질 때 한 번 부른다
 ```
 
 | 종료 코드 | 뜻 | 워커의 처리 |
