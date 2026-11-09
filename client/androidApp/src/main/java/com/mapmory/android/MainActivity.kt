@@ -83,6 +83,14 @@ class MainActivity : ComponentActivity() {
             setIntent(Intent(this, MainActivity::class.java))
         }
         processHasStarted = true
+        lifecycleScope.launch {
+            navigation.notificationPending.collect { isPending ->
+                if (!isPending) {
+                    pendingNotificationAction = null
+                    pendingNotificationTargetId = null
+                }
+            }
+        }
         val notificationPermission = registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {}

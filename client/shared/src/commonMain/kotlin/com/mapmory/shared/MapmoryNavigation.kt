@@ -1,8 +1,10 @@
 package com.mapmory.shared
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 object MapmoryNotificationIntent {
     const val ACTION_OPEN_RECORD = "com.mapmory.shared.OPEN_RECORD_NOTIFICATION"
@@ -17,6 +19,7 @@ class MapmoryNavigation {
     private val mutableNotificationRequest = MutableStateFlow<NotificationNavigationRequest?>(null)
     internal val notificationRequest: StateFlow<NotificationNavigationRequest?> =
         mutableNotificationRequest.asStateFlow()
+    val notificationPending: Flow<Boolean> = mutableNotificationRequest.map { it != null }
     private var nextNotificationRequestId = 0L
 
     internal fun bindBackHandler(handler: () -> Boolean) {
