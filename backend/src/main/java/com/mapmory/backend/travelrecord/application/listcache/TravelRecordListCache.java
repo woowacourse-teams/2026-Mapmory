@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.application.listcache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
@@ -21,13 +22,16 @@ public class TravelRecordListCache {
 
     static final String NAME = "travelRecordList";
 
-    private final Cache<Key, TravelRecordListPage> cache;
+    private final Cache<GenerationKey, TravelRecordListPage> cache;
+    private final DeploymentCacheControl control;
 
-    public TravelRecordListCache(TravelRecordListCacheProperties properties, MeterRegistry meterRegistry) {
+    public TravelRecordListCache(TravelRecordListCacheProperties properties, MeterRegistry meterRegistry,
+                                 DeploymentCacheControl control) {
+        this.control = control;
         this.cache = Caffeine.newBuilder()
                 // 페이지마다 일지 수가 0~100개로 달라, 페이지 수 대신 일지 수 합으로 메모리를 묶는다.
                 .maximumWeight(properties.maximumWeight())
-                .weigher((Key key, TravelRecordListPage page) -> Math.max(1, page.entries().size()))
+                .weigher((GenerationKey key, TravelRecordListPage page) -> Math.max(1, page.entries().size()))
                 .expireAfterWrite(properties.timeToLive())
                 .recordStats()
                 .build();
@@ -35,16 +39,28 @@ public class TravelRecordListCache {
     }
 
     public TravelRecordListPage get(Key key, Supplier<TravelRecordListPage> loader) {
-        return cache.get(key, ignored -> loader.get());
+        DeploymentCacheControl.Snapshot snapshot = control.snapshot();
+        if (snapshot.bypass()) {
+            return loader.get();
+        }
+        GenerationKey generationKey = new GenerationKey(snapshot.generation(), key);
+        TravelRecordListPage result = cache.get(generationKey, ignored -> loader.get());
+        if (control.snapshot().generation() != snapshot.generation()) {
+            cache.invalidate(generationKey);
+        }
+        return result;
     }
 
     public void evictMember(Long memberId) {
-        cache.asMap().keySet().removeIf(key -> key.memberId().equals(memberId));
+        cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
     }
 
     long weightedSize() {
         cache.cleanUp();
         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
+    }
+
+    private record GenerationKey(long generation, Key key) {
     }
 
     /**

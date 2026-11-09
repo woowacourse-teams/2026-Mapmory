@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
@@ -113,7 +114,8 @@ class TravelRecordServiceTest {
 
     private final TravelRecordListCache travelRecordListCache = new TravelRecordListCache(
             new TravelRecordListCacheProperties(1_000, Duration.ofMinutes(30)),
-            new SimpleMeterRegistry()
+            new SimpleMeterRegistry(),
+            new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
     );
 
     private Member member;
