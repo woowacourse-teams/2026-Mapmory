@@ -100,6 +100,20 @@ class TravelRecordQueryServiceTest extends IntegrationTest {
     }
 
     @Test
+    void 사진마다_썸네일_주소는_썸네일이_있으면_썸네일을_없으면_원본을_서명하고_보기_주소는_원본이다() {
+        TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg", "b.jpg");
+        jdbcTemplate.update("UPDATE record_media SET thumb_key = 'thumbs/a.webp' WHERE travel_record_id = ? AND sort_order = 0",
+                record.getId());
+
+        RecordView view = travelRecordQuery.viewsOf(List.of(record.getId())).getFirst();
+
+        assertThat(view.photos().get(0).viewUrl().url()).contains("a.jpg").doesNotContain("thumbs");
+        assertThat(view.photos().get(0).thumbnailUrl().url()).contains("thumbs/a.webp");
+        assertThat(view.photos().get(1).viewUrl().url()).contains("b.jpg");
+        assertThat(view.photos().get(1).thumbnailUrl().url()).contains("b.jpg");
+    }
+
+    @Test
     void 없는_id는_오류_없이_빠지고_사진은_정렬_순서대로다() {
         TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 3), "c.jpg", "a.jpg", "b.jpg");
 
