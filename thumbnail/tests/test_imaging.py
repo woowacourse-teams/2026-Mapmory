@@ -259,6 +259,26 @@ def test_다른_실행의_임시_파일을_건드리지_않는다(make_jpeg, tmp
     assert sorted(p.name for p in tmp_path.iterdir() if p.name.startswith("out.webp")) == ["out.webp", "out.webp.partial"]
 
 
+# 저장하다 실패해도 이전 결과 파일은 그대로이고, 반쯤 쓴 임시 파일도 남지 않는다.
+def test_저장이_실패하면_기존_출력과_디렉터리가_그대로다(make_jpeg, tmp_path, monkeypatch):
+    out = tmp_path / "out.webp"
+    out.write_bytes(b"previous thumbnail")
+    src = make_jpeg(1)
+    before = sorted(p.name for p in tmp_path.iterdir())
+
+    def broken_save(self, fp, *args, **kwargs):
+        Path(fp).write_bytes(b"partial")
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(Image.Image, "save", broken_save)
+
+    with pytest.raises(OSError):
+        make_thumbnail(src, out, max_edge=1080)
+
+    assert out.read_bytes() == b"previous thumbnail"
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
 def apng_header(width, height):
     def chunk(kind, data):
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
