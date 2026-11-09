@@ -4,15 +4,20 @@ import test from "node:test";
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 
-test("Android app links trust only the Mapmory package", () => {
-  const [entry] = JSON.parse(read("public/.well-known/assetlinks.json"));
-  assert.deepEqual(entry.relation, ["delegate_permission/common.handle_all_urls"]);
-  assert.equal(entry.target.namespace, "android_app");
-  assert.equal(entry.target.package_name, "com.mapmory.android");
-  // Play Console > 앱 무결성 > 앱 서명 키 인증서의 SHA-256. 자리표시자가 남아 있으면 앱 링크 검증이 실패한다.
-  assert.ok(entry.target.sha256_cert_fingerprints.length > 0);
-  for (const fingerprint of entry.target.sha256_cert_fingerprints) {
-    assert.match(fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+test("Android app links trust only the Mapmory packages", () => {
+  const entries = JSON.parse(read("public/.well-known/assetlinks.json"));
+  assert.deepEqual(
+    entries.map((entry) => entry.target.package_name).sort(),
+    ["com.mapmory.android", "com.mapmory.android.internal"],
+  );
+  for (const entry of entries) {
+    assert.deepEqual(entry.relation, ["delegate_permission/common.handle_all_urls"]);
+    assert.equal(entry.target.namespace, "android_app");
+    // Play Console > 앱 무결성 > 앱 서명 키 인증서의 SHA-256. 자리표시자가 남아 있으면 앱 링크 검증이 실패한다.
+    assert.ok(entry.target.sha256_cert_fingerprints.length > 0);
+    for (const fingerprint of entry.target.sha256_cert_fingerprints) {
+      assert.match(fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    }
   }
 });
 
