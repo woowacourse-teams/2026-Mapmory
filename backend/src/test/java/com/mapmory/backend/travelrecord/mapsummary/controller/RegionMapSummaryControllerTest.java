@@ -75,6 +75,7 @@ class RegionMapSummaryControllerTest {
             when(regionMapSummaryService.getSummaries(any(Member.class), isNull(), isNull())).thenReturn(List.of(
                     new RegionMapSummary(
                             1L,
+                            null,
                             "KR",
                             RegionType.COUNTRY,
                             "대한민국",
@@ -137,6 +138,7 @@ class RegionMapSummaryControllerTest {
             when(regionMapSummaryService.getSummaries(any(Member.class), eq(1L), isNull())).thenReturn(List.of(
                     new RegionMapSummary(
                             15L,
+                            1L,
                             "49",
                             RegionType.PROVINCE,
                             "제주특별자치도",

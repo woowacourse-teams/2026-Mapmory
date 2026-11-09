@@ -73,12 +73,12 @@ class MapSummaryCacheTest {
 
     private List<RegionMapSummary> rows(int count) {
         return LongStream.rangeClosed(1, count)
-                .mapToObj(id -> new RegionMapSummary(id, "R" + id, RegionType.PROVINCE, "지역" + id, 1L, MapColorLevel.LOW))
+                .mapToObj(id -> new RegionMapSummary(id, null, "R" + id, RegionType.PROVINCE, "지역" + id, 1L, MapColorLevel.LOW))
                 .toList();
     }
 
     private List<RegionMapSummary> load(AtomicInteger loads) {
         loads.incrementAndGet();
-        return List.of(new RegionMapSummary(1L, "KR", RegionType.COUNTRY, "대한민국", 1L, MapColorLevel.LOW));
+        return List.of(new RegionMapSummary(1L, null, "KR", RegionType.COUNTRY, "대한민국", 1L, MapColorLevel.LOW));
     }
 }
