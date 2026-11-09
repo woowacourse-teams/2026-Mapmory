@@ -42,9 +42,9 @@ API 서버의 배포 흐름과 영상 렌더러 서버의 배포 흐름을 개�
 ### 배포에 들어가는 것
 
 - `buildspec-renderer.yml`이 `thumbnail/`의 스크립트와 `requirements.txt`를 `/opt/mapmory-renderer/thumbnail`로 보낸다.
-- `install.sh`가 그 아래에 가상환경(`.venv`)을 만들고 고정한 버전(Pillow, pillow-heif)을 설치한다.
-  - `python3`·`python3-venv`가 없거나 PyPI에 닿지 못하면 `WARNING: thumbnail environment was not installed`만 남기고 배포는 계속한다. 공유 영상 렌더러는 영향을 받지 않는다.
-  - 썸네일을 켜려면 먼저 설치하고 다시 배포한다. Ubuntu 22.04: `sudo apt-get install -y python3-venv`
+- `install.sh`가 그 아래에 Python 3.12 가상환경(`.venv`)을 만들고 고정한 버전(Pillow 13, pillow-heif)을 설치한다.
+  - 렌더러는 Amazon Linux 2023(arm64)이고 기본 `python3`는 3.9다. Pillow 13은 Python 3.11 이상이라 **배포 전에 한 번** `sudo dnf install -y python3.12`를 실행해 둔다. venv는 Python 패키지에 들어 있다.
+  - `python3.12`가 없거나 PyPI에 닿지 못하면 `WARNING: thumbnail environment was not installed`만 남기고 배포는 계속한다. 공유 영상 렌더러는 영향을 받지 않는다. 설치한 뒤 다시 배포한다.
   - pillow-heif wheel 안에 libheif가 들어 있어 따로 설치할 것은 없다.
 - 작업 디렉터리 `/var/lib/mapmory-renderer/thumbnails`를 만든다.
 
@@ -52,7 +52,7 @@ API 서버의 배포 흐름과 영상 렌더러 서버의 배포 흐름을 개�
 
 1. 렌더러 인스턴스 역할의 S3 권한: `{p}/travel-records/*` GetObject, `{p}/derived/*` PutObject, 없는 키 HeadObject가 403이 아니라 404인지.
    **API 서버 역할의 권한도 본다.** 썸네일을 지우는 정리 배치와 회원 파기는 API 서버에서 돈다. `{p}/derived/*`에 버전 목록(`s3:ListBucketVersions`)과 버전 삭제(`s3:DeleteObjectVersion`)가 없으면, 썸네일이 생긴 뒤부터 회원 파기가 매일 실패한다(`MEMBER_PURGE_FAILED`). dev에서 썸네일이 있는 사진을 빼고 다음 정리 배치가 지우는지 확인한다.
-2. 렌더러의 Python 버전이 3.10 이상인지(`python3 --version`), 배포 로그에 위 `WARNING`이 없는지, `/opt/mapmory-renderer/thumbnail/.venv/bin/python /opt/mapmory-renderer/thumbnail/make_thumbnail.py --check`가 0으로 끝나는지.
+2. `python3.12 --version`이 나오는지, 배포 로그에 위 `WARNING`이 없는지, `/opt/mapmory-renderer/thumbnail/.venv/bin/python /opt/mapmory-renderer/thumbnail/make_thumbnail.py --check`가 0으로 끝나는지.
 3. 실제 사진 한 장 변환: `/opt/mapmory-renderer/thumbnail/.venv/bin/python make_thumbnail.py in.heic out.webp`와 `/usr/bin/time -v`로 시간과 최대 메모리.
 4. 기준값: 켜기 전에 #631 5-1절의 S3 원본 크기 통계를 남긴다. 켜고 나면 다시 잴 수 없다.
 5. 빈 문자열 `thumb_key`가 없는지: `SELECT COUNT(*) FROM record_media WHERE thumb_key = '';` 회원 파기는 `thumb_key IS NOT NULL`로 키를 읽어 빈 문자열이 있으면 실패한다(이번 변경 전부터 있던 동작).
