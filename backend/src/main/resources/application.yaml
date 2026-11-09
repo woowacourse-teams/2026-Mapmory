@@ -141,6 +141,9 @@ place:
 
 group:
   invitation:
+    # 초대 링크 = base-url + 토큰. 앱 링크(assetlinks.json, apple-app-site-association)가 이 도메인의 /invite/*를 연다.
+    link:
+      base-url: ${INVITATION_LINK_BASE_URL:https://map-mory.com/invite/}
     # 초대 미리보기·수락을 합쳐 회원별로 센다. 6자리 코드를 아무거나 넣어 보는 시도를 막는다.
     # 서버마다 메모리에서 센다.
     rate-limit:

@@ -1524,7 +1524,7 @@ Authorization: Bearer {accessToken}
 
 `POST /api/v1/groups/{groupId}/invitations`
 
-링크용 토큰과 직접 입력용 6자리 코드를 함께 발급한다. 앱은 `token`으로 링크를 만들어 공유창에 넘긴다.
+링크용 토큰과 직접 입력용 6자리 코드를 함께 발급한다. `inviteUrl`은 서버가 토큰으로 만든 초대 링크(`https://map-mory.com/invite/{token}`)이고, 앱은 이 값을 그대로 공유창에 넘긴다. 링크를 연 앱은 주소 끝의 토큰으로 미리보기·수락을 부른다.
 
 #### Response `201 Created`
 
@@ -1533,6 +1533,7 @@ Authorization: Bearer {accessToken}
   "data": {
     "token": "q9Xw2...",
     "code": "4KD7PZ",
+    "inviteUrl": "https://map-mory.com/invite/q9Xw2...",
     "expiresAt": "2026-10-23T18:00:00"
   }
 }
