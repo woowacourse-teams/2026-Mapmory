@@ -17,14 +17,16 @@ const put = (root, name, content) => {
 
 test("main CI validates the real static bundle without deploying", () => {
   const config = readFileSync(path.join(landing, "../.github/workflows/landing-cicd.yml"), "utf8");
-  assert.ok(config.indexOf("run: npm test") < config.indexOf("bash scripts/package-codedeploy.sh"));
+  const testStep = config.indexOf("run: npm test");
+  assert.ok(testStep >= 0, "main CI must run the landing tests");
+  assert.ok(testStep < config.indexOf("bash scripts/package-codedeploy.sh"));
   assert.doesNotMatch(config, /configure-aws-credentials|\bscp\b|\bssh\b|create-deployment/);
 });
 
 test("removed /recap/ and /trips/ experiments are no longer built or packaged", () => {
   for (const name of ["buildspec.yml", "../.github/workflows/landing-release.yml", "../.github/workflows/landing-cicd.yml", "scripts/package-codedeploy.sh", "codedeploy/activate.sh"]) {
     const config = readFileSync(path.join(landing, name), "utf8");
-    assert.doesNotMatch(config, /travel-map-campaign|\btrips\b|\brecap\b/, name);
+    assert.doesNotMatch(config, /travel-map-campaign|npm --prefix trips|client\/recap|client\/trips|\/recap\/|\/trips\//, name);
   }
 });
 

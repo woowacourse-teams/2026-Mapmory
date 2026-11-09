@@ -45,7 +45,13 @@ The EC2 `ec2-project` role is an instance role, not the human console user. It m
 
 The travel campaign (`/recap/`, source `travel-map-campaign/`) and the metadata-only photo experiment (`/trips/`, source `trips/`) were removed. The bundle now contains only the root landing in `client/`, and the activation hook checks only `/release.txt` and `/`.
 
-The live Nginx server block still had `/recap` and `/trips` locations when they were removed. Remove them only **after** a release without those folders is live: back up the config, delete only those location blocks, run `nginx -t`, then reload. Keep the invite and `.well-known` locations below. Afterwards `/recap/` and `/trips/` are handled by the server block's default location, like any other unknown path.
+The live Nginx server block still had `/recap` and `/trips` locations when they were removed. Change them only **after** a release without those folders is live: back up the config, replace those location blocks with one permanent redirect so shared links (old Recap videos and images carry `https://map-mory.com/recap/`) open the landing instead of a 404, run `nginx -t`, then reload. Keep the invite and `.well-known` locations below.
+
+```nginx
+location ~ ^/(recap|trips)(/|$) {
+    return 301 /;
+}
+```
 
 Group invite links (`/invite/*`, `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`): before the first release that ships them, merge the locations in `nginx/invite.conf` into the live map-mory.com HTTPS server block, run `nginx -t`, then reload Nginx. Verify that both `.well-known` files return 200 as `application/json` without a redirect and that `/invite/abc` shows the invite page.
 
@@ -70,6 +76,6 @@ The old `scripts/deploy-ec2.sh` remains available for the already-established ma
 
 On 2026-09-03, `mapmory-landing-release` was created as V2/SUPERSEDED with the designated role, frontend bucket and required tags. Source and Build succeeded on reviewed release `bf4bf829c99471caccdadc539757532405c3e7fb`. After explicit user authorization, `DeployLandingOnly` was connected directly after Build. GitHub webhook 673959511 is active for push events and its registration ping returned HTTP 200; this alone is not proof of a future push-to-deploy execution. No shared IAM/network or backend pipeline settings were changed.
 
-Main integration PRs #247/#253 and landing-only release promotion #251 are merged; the reviewed production SHA is `bf4bf829c99471caccdadc539757532405c3e7fb`. Superseded PRs #243/#246 and their source branches remain preserved. The first full pipeline execution is recorded separately from this configuration reference; always compare its source SHA and both public release markers before claiming deployment success.
+Main integration PRs #247/#253 and landing-only release promotion #251 are merged; the reviewed production SHA is `bf4bf829c99471caccdadc539757532405c3e7fb`. Superseded PRs #243/#246 and their source branches remain preserved. The first full pipeline execution is recorded separately from this configuration reference; always compare its source SHA and the public release marker (`/release.txt`) before claiming deployment success.
 
 First full execution `ecbbd3bc-56c1-4791-abb6-04ff3ae7a539` succeeded through Source, Build and Deploy with no approval wait. CodeDeploy `d-OO9WGLQLK` succeeded on the one intended instance. Public root and Recap release markers matched the reviewed SHA; both pages and Recap direct-route refresh returned 200, a missing Recap asset returned 404, and `/recap` redirected with its query intact. The backend PID/configuration and existing unauthenticated API response were unchanged. This first execution was explicitly started with a fixed SHA; a later protected release push remains the end-to-end webhook test.

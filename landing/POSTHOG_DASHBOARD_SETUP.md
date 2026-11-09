@@ -1,6 +1,6 @@
 # Mapmory PostHog 운영 대시보드 설정
 
-> 2026-11-09: `/recap/` 캠페인과 `/trips/` 실험 페이지를 삭제했다. 아래 Recap(`surface=recap`, `travel_map_*`) 항목은 그 전 기간 데이터를 읽기 위한 기록이며, 이후로는 이 이벤트가 오지 않는다.
+> 2026-11-09: `/recap/` 캠페인과 `/trips/` 실험 페이지를 삭제했다. 아래 Recap(`surface=recap`, `travel_map_*`) 항목은 그 전 기간 데이터를 읽기 위한 기록이며, 이후로는 이 이벤트가 오지 않는다. `/trips/`의 `trips_*` 이벤트 정의는 [docs/history/trips-measurement-plan.md](docs/history/trips-measurement-plan.md)에 남겼다.
 
 갱신: 2026-10-13 · 현재 스키마: `analytics_schema_version=2`
 

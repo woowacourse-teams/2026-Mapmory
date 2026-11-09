@@ -6,7 +6,7 @@ import { build } from "esbuild";
 import { canCaptureGa, resolveMeasurementId } from "../src/analytics-contract.js";
 import { classifyGlobeGesture } from "../src/globe-gesture.js";
 
-async function loadAnalytics(surface, { env = {}, hostname = "map-mory.com", search = "?internal=1" } = {}) {
+async function loadAnalytics({ env = {}, hostname = "map-mory.com", search = "?internal=1" } = {}) {
   const entry = "../src/analytics.js";
   const result = await build({
     entryPoints: [fileURLToPath(new URL(entry, import.meta.url))], bundle: true,
@@ -38,9 +38,10 @@ test("GA is explicit, and production builds do not opt local/LAN previews in", (
   assert.equal(canCaptureGa({ ...config, VITE_GA_CAPTURE_LOCAL: "true" }, "127.0.0.1"), true);
 });
 
-for (const surface of ["landing"]) {
+{
+  const surface = "landing";
   test(`${surface}: one page view config, scoped events, no campaign override or PII`, async () => {
-    const harness = await loadAnalytics(surface);
+    const harness = await loadAnalytics();
     const init = harness.api.initializeAnalytics;
     const track = harness.api.trackEvent;
     assert.equal(track("download_click", { store: "google_play" }), false);
@@ -67,7 +68,7 @@ for (const surface of ["landing"]) {
     }
   });
   test(`${surface}: blocked previews never forward to another tracker`, async () => {
-    const harness = await loadAnalytics(surface, { hostname: "127.0.0.1" });
+    const harness = await loadAnalytics({ hostname: "127.0.0.1" });
     let foreignCalls = 0;
     harness.window.gtag = () => { foreignCalls += 1; };
     harness.api.initializeAnalytics();
@@ -78,7 +79,7 @@ for (const surface of ["landing"]) {
 }
 
 test("landing: how_story events send only their contract and reject malformed or retired events", async () => {
-  const harness = await loadAnalytics("landing");
+  const harness = await loadAnalytics();
   harness.api.initializeAnalytics();
   const view = { experience_type: "how_story", story_mode: "scroll" };
   assert.equal(harness.api.trackEvent("how_story_view", { ...view, src: "x" }), true);
