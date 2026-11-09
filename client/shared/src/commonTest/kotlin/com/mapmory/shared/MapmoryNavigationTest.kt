@@ -49,4 +49,20 @@ class MapmoryNavigationTest {
         navigation.consumeNotification(requestId)
         assertNull(navigation.notificationRequest.value)
     }
+
+    @Test
+    fun `leaving login can cancel only the matching notification request`() {
+        val navigation = MapmoryNavigation()
+
+        navigation.openRecordNotification(42, preserveBackStack = true)
+        val requestId = requireNotNull(navigation.notificationRequest.value).id
+        navigation.awaitNotificationLogin(requestId, RecordsRoute())
+
+        navigation.cancelNotification(requestId + 1)
+        assertTrue(navigation.hasPendingNotification())
+
+        navigation.cancelNotification(requestId)
+        assertFalse(navigation.hasPendingNotification())
+        assertNull(navigation.notificationRequest.value)
+    }
 }

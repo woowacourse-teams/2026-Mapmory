@@ -109,6 +109,7 @@ internal fun MapmoryNavHost(
         val currentRoute = navigator.currentRoute()
         if (request.awaitingLogin) {
             if (!hasAuthenticatedAccount) {
+                if (currentRoute != GroupsRoute) navigation?.cancelNotification(request.id)
                 return@LaunchedEffect
             }
             val returnRoute = request.returnRoute ?: RecordsRoute()
@@ -120,7 +121,6 @@ internal fun MapmoryNavHost(
             }
         } else if (!hasAuthenticatedAccount) {
             val returnRoute = if (request.preserveBackStack) currentRoute ?: RecordsRoute() else RecordsRoute()
-            navigation?.awaitNotificationLogin(request.id, returnRoute)
             if (currentRoute != GroupsRoute) {
                 navController.navigate(GroupsRoute) {
                     if (!request.preserveBackStack) {
@@ -129,6 +129,7 @@ internal fun MapmoryNavHost(
                     launchSingleTop = true
                 }
             }
+            navigation?.awaitNotificationLogin(request.id, returnRoute)
             return@LaunchedEffect
         }
 

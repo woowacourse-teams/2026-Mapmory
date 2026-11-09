@@ -41,12 +41,16 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     companion object {
         private var processHasStarted = false
+        private const val STATE_NOTIFICATION_ACTION = "notification_action"
+        private const val STATE_NOTIFICATION_TARGET_ID = "notification_target_id"
     }
 
-    private val navigation = MapmoryNavigation()
     private val appViewModel: MapmoryAppViewModel by viewModels()
+    private val navigation: MapmoryNavigation get() = appViewModel.navigation
     private val analyticsLogger by lazy { FirebaseAnalyticsLogger(applicationContext) }
     private val developerToolsInfo by lazy { loadDeveloperToolsInfo() }
+    private var pendingNotificationAction: String? = null
+    private var pendingNotificationTargetId: Long? = null
 
     override fun onResume() {
         super.onResume()
@@ -55,8 +59,27 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // OS-restored state after process death is not a live in-app back stack.
-        if (handleNotificationIntent(intent, preserveBackStack = processHasStarted && savedInstanceState != null)) {
+        pendingNotificationAction = savedInstanceState?.getString(STATE_NOTIFICATION_ACTION)
+        pendingNotificationTargetId = savedInstanceState?.getLong(STATE_NOTIFICATION_TARGET_ID)?.takeIf { it > 0L }
+        val restoredAction = pendingNotificationAction
+        val restoredTargetId = pendingNotificationTargetId
+        if (restoredAction != null && restoredTargetId != null) {
+            // ViewModel state survives rotation; saved state restores the request after process death.
+            if (!navigation.hasPendingNotification()) {
+                val extra = if (restoredAction == MapmoryNotificationIntent.ACTION_OPEN_RECORD) {
+                    MapmoryNotificationIntent.EXTRA_RECORD_ID
+                } else {
+                    MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID
+                }
+                handleNotificationIntent(
+                    Intent(this, MainActivity::class.java)
+                        .setAction(restoredAction)
+                        .putExtra(extra, restoredTargetId),
+                    preserveBackStack = false,
+                )
+            }
+            setIntent(Intent(this, MainActivity::class.java))
+        } else if (handleNotificationIntent(intent, preserveBackStack = processHasStarted && savedInstanceState != null)) {
             setIntent(Intent(this, MainActivity::class.java))
         }
         processHasStarted = true
@@ -154,6 +177,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (navigation.hasPendingNotification()) {
+            pendingNotificationAction?.let { outState.putString(STATE_NOTIFICATION_ACTION, it) }
+            pendingNotificationTargetId?.let { outState.putLong(STATE_NOTIFICATION_TARGET_ID, it) }
+        }
+    }
+
     private fun handleNotificationIntent(intent: Intent?, preserveBackStack: Boolean): Boolean {
         intent ?: return false
         val action = intent.action
@@ -172,7 +203,14 @@ class MainActivity : ComponentActivity() {
             else -> null
         } ?: return false
 
-        if (action == MapmoryNotificationIntent.ACTION_OPEN_RECORD) {
+        val isRecord = action == MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        pendingNotificationAction = if (isRecord) {
+            MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        } else {
+            MapmoryNotificationIntent.ACTION_OPEN_VIDEO
+        }
+        pendingNotificationTargetId = targetId
+        if (isRecord) {
             navigation.openRecordNotification(targetId, preserveBackStack)
         } else {
             navigation.openVideoNotification(targetId, preserveBackStack)

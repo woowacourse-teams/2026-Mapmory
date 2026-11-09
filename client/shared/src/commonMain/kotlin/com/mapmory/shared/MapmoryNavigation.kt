@@ -29,6 +29,8 @@ class MapmoryNavigation {
 
     fun popBackStack(): Boolean = backHandler?.invoke() == true
 
+    fun hasPendingNotification(): Boolean = mutableNotificationRequest.value != null
+
     fun openRecordNotification(recordId: Long, preserveBackStack: Boolean) {
         if (recordId <= 0L) return
         mutableNotificationRequest.value = NotificationNavigationRequest(
@@ -54,6 +56,10 @@ class MapmoryNavigation {
     }
 
     internal fun consumeNotification(requestId: Long) {
+        if (mutableNotificationRequest.value?.id == requestId) mutableNotificationRequest.value = null
+    }
+
+    internal fun cancelNotification(requestId: Long) {
         if (mutableNotificationRequest.value?.id == requestId) mutableNotificationRequest.value = null
     }
 }
