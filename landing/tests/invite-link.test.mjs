@@ -31,6 +31,7 @@ test("iOS universal links open only invite paths in the Mapmory apps", () => {
 test("the invite page never shows the token or group details and points to both stores", () => {
   const page = read("public/invite/index.html");
   assert.match(page, /noindex/);
+  assert.match(page, /<meta name="referrer" content="no-referrer">/);
   assert.match(page, /apps\.apple\.com\/kr\/app\/.*id6807056166/);
   assert.match(page, /play\.google\.com\/store\/apps\/details\?id=com\.mapmory\.android/);
   assert.match(page, /코드로 참여/);
