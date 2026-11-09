@@ -52,6 +52,7 @@
 | 구현됨 | `PUT` | `/travel-records/{travelRecordId}` | 내 여행 기록 전체 수정 |
 | 구현됨 | `DELETE` | `/travel-records/{travelRecordId}` | 내 여행 기록 삭제 |
 | 구현됨 | `GET` | `/travel-records/statistics` | 내 전체 여행 통계 조회 |
+| 구현됨 | `GET` | `/travel-records/map-summary` | 지도 화면 전체(국가·시도·시군구) 색칠 정보 조회 |
 | 구현됨 | `GET` | `/travel-records/map-summary/regions/roots` | 루트 Region별 지도 색칠 정보 조회 |
 | 구현됨 | `GET` | `/travel-records/map-summary/regions/{regionId}/children` | 직속 하위 Region별 지도 색칠 정보 조회 |
 | 구현됨 | `POST` | `/tags` | 내 태그 생성 |
@@ -879,6 +880,34 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | `tagId` | 아니요 | 현재 회원의 해당 태그가 연결된 기록만 집계 |
 
 `tagId`가 없으면 전체 기록을 집계하고, 값이 있으면 태그가 연결된 기록만 집계한다. 지도에 표시할 지역을 태그에 직접 저장하지 않고 `travel_record_tag`와 `travel_record.region_id`를 실시간 집계한다.
+
+### 지도 화면 전체 색칠 정보 조회
+
+`GET /api/v1/travel-records/map-summary?tagId={tagId}`
+
+지도 화면에 필요한 국가·시도·시군구 요약을 한 번에 준다. 아래 두 API를 단계마다 이어 부른 결과와 같은 지역·`count`·`level`을 한 목록으로 받는다. 새 앱은 이 API 하나만 부르면 된다.
+
+#### Response `200 OK`
+
+```json
+{
+  "data": [
+    { "regionId": 1, "parentRegionId": null, "code": "KR", "regionType": "COUNTRY", "name": "대한민국", "count": 4, "level": "MEDIUM" },
+    { "regionId": 9, "parentRegionId": 1, "code": "42", "regionType": "PROVINCE", "name": "강원특별자치도", "count": 4, "level": "MEDIUM" },
+    { "regionId": 120, "parentRegionId": 9, "code": "51150", "regionType": "DISTRICT", "name": "강릉시", "count": 3, "level": "MEDIUM" }
+  ]
+}
+```
+
+- `parentRegionId`는 바로 위 Region의 ID다. 국가는 `null`이다. 앱은 이 값과 `regionType`으로 단계를 나눈다.
+- 정렬은 `COUNTRY` → `PROVINCE` → `DISTRICT` 순서이고, 같은 단계에서는 `code` 오름차순이다.
+- 세는 규칙과 `level` 기준은 아래 두 API와 같다. 기록 하나는 자기 Region, 바로 위 Region, 국가에 함께 센다. 위 예시에서 강원도에 직접 저장한 기록 1개와 강릉시 기록 3개가 있으면 강원도는 4다.
+- 기록이 없는 회원은 빈 배열을 받는다.
+
+| 상태 | `code` | 조건 |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | `tagId`가 양수가 아님 |
+| `404` | `TAG_NOT_FOUND` | 태그가 없거나 현재 회원의 태그가 아님 |
 
 ### 루트 Region별 지도 색칠 정보 조회
 

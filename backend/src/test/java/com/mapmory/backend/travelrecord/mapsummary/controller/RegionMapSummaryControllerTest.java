@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.mapsummary.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -17,6 +18,7 @@ import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.region.exception.RegionErrorCode;
+import com.mapmory.backend.tag.TagErrorCode;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import com.mapmory.backend.travelrecord.mapsummary.service.RegionMapSummaryService;
@@ -63,6 +65,83 @@ class RegionMapSummaryControllerTest {
 
     private String bearer(Long memberId) {
         return "Bearer " + jwtProvider.issueAccessToken(memberId);
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/travel-records/map-summary")
+    class GetAllSummaries {
+
+        @Test
+        @DisplayName("모든 단계의 지역별 지도 요약을 부모 ID와 함께 반환한다")
+        void returnsEveryLevelWithParent() throws Exception {
+            when(regionMapSummaryService.getAllSummaries(any(Member.class), isNull())).thenReturn(List.of(
+                    new RegionMapSummary(1L, null, "KR", RegionType.COUNTRY, "대한민국", 6L, MapColorLevel.HIGH),
+                    new RegionMapSummary(15L, 1L, "49", RegionType.PROVINCE, "제주특별자치도", 3L,
+                            MapColorLevel.MEDIUM)
+            ));
+
+            mockMvc.perform(get("/api/v1/travel-records/map-summary")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(memberId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].regionId").value(1))
+                    .andExpect(jsonPath("$.data[0].parentRegionId").value(nullValue()))
+                    .andExpect(jsonPath("$.data[0].code").value("KR"))
+                    .andExpect(jsonPath("$.data[0].regionType").value("COUNTRY"))
+                    .andExpect(jsonPath("$.data[0].name").value("대한민국"))
+                    .andExpect(jsonPath("$.data[0].count").value(6))
+                    .andExpect(jsonPath("$.data[0].level").value("HIGH"))
+                    .andExpect(jsonPath("$.data[1].regionId").value(15))
+                    .andExpect(jsonPath("$.data[1].parentRegionId").value(1))
+                    .andExpect(jsonPath("$.data[1].regionType").value("PROVINCE"))
+                    .andExpect(jsonPath("$.data[1].level").value("MEDIUM"));
+
+            verify(regionMapSummaryService).getAllSummaries(same(member), isNull());
+        }
+
+        @Test
+        @DisplayName("tagId를 지도 요약 서비스에 전달한다")
+        void passesTagId() throws Exception {
+            when(regionMapSummaryService.getAllSummaries(any(Member.class), eq(7L))).thenReturn(List.of());
+
+            mockMvc.perform(get("/api/v1/travel-records/map-summary")
+                            .queryParam("tagId", "7")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(memberId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").isEmpty());
+
+            verify(regionMapSummaryService).getAllSummaries(same(member), eq(7L));
+        }
+
+        @Test
+        @DisplayName("tagId가 양수가 아니면 400을 반환한다")
+        void rejectsNonPositiveTagId() throws Exception {
+            mockMvc.perform(get("/api/v1/travel-records/map-summary")
+                            .queryParam("tagId", "0")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(memberId)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+
+        @Test
+        @DisplayName("다른 회원의 태그면 TAG_NOT_FOUND를 반환한다")
+        void returnsTagNotFound() throws Exception {
+            when(regionMapSummaryService.getAllSummaries(any(Member.class), eq(7L)))
+                    .thenThrow(new BusinessException(TagErrorCode.TAG_NOT_FOUND));
+
+            mockMvc.perform(get("/api/v1/travel-records/map-summary")
+                            .queryParam("tagId", "7")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(memberId)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("TAG_NOT_FOUND"));
+        }
+
+        @Test
+        @DisplayName("토큰 없이 요청하면 401을 반환한다")
+        void rejectsUnauthenticatedRequest() throws Exception {
+            mockMvc.perform(get("/api/v1/travel-records/map-summary"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("INVALID_ACCESS_TOKEN"));
+        }
     }
 
     @Nested
