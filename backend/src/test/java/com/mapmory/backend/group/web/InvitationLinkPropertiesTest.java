@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class InvitationLinkPropertiesTest {
@@ -17,16 +18,17 @@ class InvitationLinkPropertiesTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "map-mory.com/invite/", "https://map-mory.com/invite", "ftp://map-mory.com/invite/",
+    @ValueSource(strings = {"map-mory.com/invite/", "https://map-mory.com/invite?x=/", "https://map-mory.com/a#b/", "https://map-mory.com/invite", "ftp://map-mory.com/invite/",
             "https:///invite/"})
     void 주소가_http로_시작하지_않거나_슬래시로_끝나지_않으면_뜨지_않는다(String baseUrl) {
         assertThatThrownBy(() -> new InvitationLinkProperties(baseUrl))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test
-    void 주소가_없으면_뜨지_않는다() {
-        assertThatThrownBy(() -> new InvitationLinkProperties(null))
-                .isInstanceOf(IllegalArgumentException.class);
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "  "})
+    void 주소가_비어_있으면_기본_주소를_쓴다(String baseUrl) {
+        assertThat(new InvitationLinkProperties(baseUrl).baseUrl()).isEqualTo("https://map-mory.com/invite/");
     }
 }

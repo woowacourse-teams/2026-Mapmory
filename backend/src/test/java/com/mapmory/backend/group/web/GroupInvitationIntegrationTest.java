@@ -51,6 +51,9 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private InvitationLinkProperties invitationLinkProperties;
+
     private Member jisu;
     private Member minho;
     private TravelGroup group;
@@ -72,7 +75,8 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         String token = JsonPath.read(body, "$.data.token");
-        assertThat(JsonPath.<String>read(body, "$.data.inviteUrl")).isEqualTo("https://map-mory.com/invite/" + token);
+        assertThat(JsonPath.<String>read(body, "$.data.inviteUrl")).isEqualTo(invitationLinkProperties.baseUrl() + token)
+                .endsWith("/invite/" + token);
 
         assertThat(groupInvitationRepository.findAll()).singleElement()
                 .satisfies(invitation -> {

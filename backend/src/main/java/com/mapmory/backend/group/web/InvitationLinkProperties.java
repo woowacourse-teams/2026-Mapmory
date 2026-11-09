@@ -10,8 +10,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "group.invitation.link")
 public record InvitationLinkProperties(String baseUrl) {
 
+    // 환경변수를 빈 값(INVITATION_LINK_BASE_URL=)으로 두면 기본값이 아니라 ""가 들어온다. 이때도 기본 주소를 쓴다.
+    static final String DEFAULT_BASE_URL = "https://map-mory.com/invite/";
+
     public InvitationLinkProperties {
-        if (baseUrl == null || !baseUrl.matches("https?://[^/\\s]+(/[^\\s]*)?/")) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = DEFAULT_BASE_URL;
+        }
+        // ?나 #가 섞이면 앱 링크 경로(/invite/*)와 맞지 않는 주소가 나온다.
+        if (!baseUrl.matches("https?://[^/\\s?#]+(/[^\\s?#]*)?/")) {
             throw new IllegalArgumentException("초대 링크 주소는 http(s)로 시작하고 /로 끝나야 합니다.");
         }
     }
