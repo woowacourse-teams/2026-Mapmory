@@ -48,12 +48,13 @@ def _decode_upright(src, max_edge):
     try:
         _reject_oversized_png(src)
         image = Image.open(src, formats=ALLOWED_FORMATS)
+        # progressive JPEG는 줄여 읽어도 원본 전체의 계수 버퍼를 잡아(108MP에서 343MB) 줄이기 전 크기로 본다.
+        if image.format == "JPEG" and image.info.get("progressive"):
+            _reject_too_many_pixels(*image.size)
         # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
         image.draft("RGB", (max_edge, max_edge))
         # 한도는 줄여 읽은 뒤의 크기, 즉 실제로 펼칠 크기로 본다. 큰 JPEG는 이 단계에서 작아져 통과한다.
-        width, height = image.size
-        if width * height > MAX_DECODED_PIXELS:
-            raise DecodeError(f"too many pixels to decode: {width}x{height}")
+        _reject_too_many_pixels(*image.size)
         image.load()
         # 복사본을 만들지 않아 큰 사진에서 메모리를 아낀다. 깨진 EXIF는 여기서 실패할 수 있다.
         ImageOps.exif_transpose(image, in_place=True)
@@ -77,9 +78,12 @@ def _reject_oversized_png(src):
     with open(src, "rb") as file:
         header = file.read(24)
     if header[:8] == PNG_SIGNATURE and header[12:16] == b"IHDR":
-        width, height = struct.unpack(">II", header[16:24])
-        if width * height > MAX_DECODED_PIXELS:
-            raise DecodeError(f"too many pixels to decode: {width}x{height}")
+        _reject_too_many_pixels(*struct.unpack(">II", header[16:24]))
+
+
+def _reject_too_many_pixels(width, height):
+    if width * height > MAX_DECODED_PIXELS:
+        raise DecodeError(f"too many pixels to decode: {width}x{height}")
 
 
 def _to_saveable_mode(image):

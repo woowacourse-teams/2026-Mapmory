@@ -196,6 +196,26 @@ def test_한도보다_큰_JPEG도_줄여_읽어_만든다(tmp_path):
     assert open_output(out).size == (1080, 810)
 
 
+# progressive JPEG는 줄여 읽어도 디코더가 원본 전체의 계수 버퍼를 잡는다(108MP에서 최대 메모리 343MB, 일반 JPEG는 46MB).
+# 그래서 progressive만은 원본 크기로 한도를 본다.
+def test_한도보다_큰_progressive_JPEG는_DecodeError다(tmp_path):
+    src = tmp_path / "progressive.jpg"
+    Image.new("L", (9000, 8000), 0).save(src, "JPEG", progressive=True)
+
+    with pytest.raises(DecodeError):
+        make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
+
+
+def test_한도_안의_progressive_JPEG는_만든다(tmp_path):
+    src = tmp_path / "progressive.jpg"
+    Image.new("L", (4000, 3000), 0).save(src, "JPEG", progressive=True)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    assert open_output(out).size == (1080, 810)
+
+
 def test_메모리가_부족하면_DecodeError가_아니라_그대로_던진다(make_jpeg, tmp_path, monkeypatch):
     src = make_jpeg(1)
 
