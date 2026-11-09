@@ -171,7 +171,8 @@ class RegionMapSummaryControllerTest {
                     .andExpect(jsonPath("$.data[0].regionType").value("COUNTRY"))
                     .andExpect(jsonPath("$.data[0].name").value("대한민국"))
                     .andExpect(jsonPath("$.data[0].count").value(3))
-                    .andExpect(jsonPath("$.data[0].level").value("MEDIUM"));
+                    .andExpect(jsonPath("$.data[0].level").value("MEDIUM"))
+                    .andExpect(jsonPath("$.data[0].parentRegionId").doesNotExist());
 
             verify(regionMapSummaryService).getSummaries(
                     same(member),
@@ -233,7 +234,8 @@ class RegionMapSummaryControllerTest {
                     .andExpect(jsonPath("$.data[0].code").value("49"))
                     .andExpect(jsonPath("$.data[0].regionType").value("PROVINCE"))
                     .andExpect(jsonPath("$.data[0].count").value(3))
-                    .andExpect(jsonPath("$.data[0].level").value("MEDIUM"));
+                    .andExpect(jsonPath("$.data[0].level").value("MEDIUM"))
+                    .andExpect(jsonPath("$.data[0].parentRegionId").doesNotExist());
 
             verify(regionMapSummaryService).getSummaries(
                     same(member),

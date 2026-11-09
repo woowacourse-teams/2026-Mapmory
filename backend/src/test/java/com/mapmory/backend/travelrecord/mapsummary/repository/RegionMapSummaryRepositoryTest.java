@@ -171,6 +171,7 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
             Long memberId = scenario.member().getId();
             List<RegionMapSummaryQueryResult> stepByStep = new ArrayList<>(
                     regionMapSummaryRepository.findRegionMapSummaries(memberId, null, null));
+            // 앱이 하던 대로 루트부터 하위를 차례로 부른다. 목록에 붙인 하위도 이어서 펼친다(너비 우선).
             for (int index = 0; index < stepByStep.size(); index++) {
                 stepByStep.addAll(regionMapSummaryRepository.findRegionMapSummaries(
                         memberId, stepByStep.get(index).getRegionId(), null));
@@ -186,15 +187,19 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
         }
 
         @Test
-        @DisplayName("선택한 태그가 연결된 기록만 센다")
+        @DisplayName("선택한 태그가 연결된 기록만 시군구·시도·국가로 올려 센다")
         void filtersRecordsByTag() {
             Member member = member("태그 전체 조회 회원");
             SavedRegion country = country("Z2", "태그 전체 조회 국가");
             SavedRegion province = province(country, "Z2-P1", "태그 전체 조회 시도");
+            SavedRegion district = district(province, "Z2-P1-D1", "태그 전체 조회 시군구");
             Tag selectedTag = persist(Tag.of(member, "가족"));
             TravelRecord selectedRecord = persist(record(member, province, "선택 기록"));
+            TravelRecord selectedDistrictRecord = persist(record(member, district, "선택 시군구 기록"));
             persist(record(member, province, "태그 없는 기록"));
+            persist(record(member, district, "태그 없는 시군구 기록"));
             persist(TravelRecordTag.of(selectedRecord, selectedTag));
+            persist(TravelRecordTag.of(selectedDistrictRecord, selectedTag));
             flushAndClear();
 
             List<RegionMapSummaryQueryResult> results =
@@ -203,8 +208,9 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
             assertThat(results)
                     .extracting(ExpectedAllSummary::from)
                     .containsExactly(
-                            ExpectedAllSummary.of(country, null, 1),
-                            ExpectedAllSummary.of(province, country, 1)
+                            ExpectedAllSummary.of(country, null, 2),
+                            ExpectedAllSummary.of(province, country, 2),
+                            ExpectedAllSummary.of(district, province, 1)
                     );
         }
 
