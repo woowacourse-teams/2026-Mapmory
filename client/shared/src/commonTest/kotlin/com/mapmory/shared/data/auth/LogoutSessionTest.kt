@@ -16,6 +16,12 @@ class LogoutSessionTest {
         override fun markPendingProvider(provider: String?) { check(!failMarker); marker = provider }
     }
     private class Gateway : AuthGateway {
+        var withdrawalCalls = 0
+        var failWithdrawal = false
+        override suspend fun withdraw(accessToken: String, identityToken: String?, authorizationCode: String?): Result<Unit> {
+            withdrawalCalls++
+            return if (failWithdrawal) Result.failure(IllegalStateException("response lost")) else Result.success(Unit)
+        }
         var logoutCalls = 0
         var guestCalls = 0
         var refreshCalls = 0
@@ -35,6 +41,25 @@ class LogoutSessionTest {
             refreshCalls++
             return Result.success(AuthTokens("social", "social-refresh"))
         }
+    }
+
+    @Test fun withdrawalResumesAfterLostResponse() = runBlocking {
+        val store = Store(); val gateway = Gateway().apply { failWithdrawal = true }
+        val first = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(first.withdraw().isFailure)
+            assertEquals("LOGOUT:withdraw", store.marker)
+            assertTrue(first.state.value.pendingWithdrawal)
+        } finally { first.close() }
+        val restored = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(restored.state.value.pendingWithdrawal)
+            gateway.failWithdrawal = false
+            restored.withdraw().getOrThrow()
+            assertEquals(2, gateway.withdrawalCalls)
+            assertNull(store.tokens)
+            assertNull(store.marker)
+        } finally { restored.close() }
     }
 
     @Test fun logoutRevokesWithoutRefreshAndClearsBeforeNewGuest() = runBlocking {

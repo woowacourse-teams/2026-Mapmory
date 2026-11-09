@@ -3,7 +3,8 @@
 package com.mapmory.shared.app
 
 import platform.UserNotifications.*
-import platform.UIKit.UIApplicationState.UIApplicationStateActive
+import platform.UIKit.UIApplicationState
+import platform.UIKit.UIApplicationState.UIApplicationStateBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.UIKit.UIApplication
@@ -17,7 +18,7 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
     private var lastNotificationBucket = -1
     override fun onProgress(save: BackgroundTripRecordSave) {
         if (!isPhotoRecordCompletionNotificationEnabled() ||
-            UIApplication.sharedApplication.applicationState == UIApplicationStateActive
+            !shouldSendUploadNotification(UIApplication.sharedApplication.applicationState)
         ) return
         val bucket = save.progressPercent / 20
         if (bucket == lastNotificationBucket) return
@@ -46,7 +47,7 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
         lastNotificationBucket = -1
         UNUserNotificationCenter.currentNotificationCenter().removeDeliveredNotificationsWithIdentifiers(listOf("record-progress"))
         if (!isPhotoRecordCompletionNotificationEnabled() ||
-            UIApplication.sharedApplication.applicationState == UIApplicationStateActive
+            !shouldSendUploadNotification(UIApplication.sharedApplication.applicationState)
         ) return
         val content = UNMutableNotificationContent().apply {
             setTitle("사진 업로드 완료")
@@ -79,3 +80,7 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
         }
     }
 }
+
+// Permission prompts and the app switcher can make a still-visible app inactive.
+internal fun shouldSendUploadNotification(state: UIApplicationState): Boolean =
+    state == UIApplicationStateBackground

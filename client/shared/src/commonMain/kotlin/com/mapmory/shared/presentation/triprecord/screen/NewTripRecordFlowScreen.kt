@@ -7,6 +7,7 @@ import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import androidx.compose.animation.core.animateDpAsState
 import com.mapmory.shared.presentation.components.PhotoListScrollBar
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
@@ -2281,6 +2282,7 @@ private fun FlowToast(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhotoPickerStep(
     locationName: String,
@@ -2389,12 +2391,6 @@ private fun PhotoPickerStep(
                 !isRefreshingFilter,
             onActionClick = onCompleteClick,
         )
-        Text(
-            text = "선택한 사진: ${pagingState.selectedIds.size}장",
-            color = TripRecordPalette.current.secondaryText,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2405,6 +2401,7 @@ private fun PhotoPickerStep(
                 userScrollEnabled = !isGridPinching,
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("photo-picker-list")
                     .navigationBarsPadding()
                     .photoGridPinch(
                         columnCount = photoGridColumns,
@@ -2456,13 +2453,9 @@ private fun PhotoPickerStep(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 item {
-                    Column(Modifier.padding(start = 20.dp, end = 24.dp)) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
                         PhotoPickerHeader(
                             locationName = locationName,
-                            hasPhotos = pagingState.photos.isNotEmpty(),
-                            allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
-                            onAllToggle = onAllToggle,
-                            onPickFromGallery = onPickFromGallery,
                         )
                         if (showRecordedFilter) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2482,6 +2475,20 @@ private fun PhotoPickerStep(
                         }
                     }
                 }
+                stickyHeader {
+                    PhotoPickerActionsRow(
+                        hasPhotos = pagingState.photos.isNotEmpty(),
+                        selectedCount = pagingState.selectedIds.size,
+                        allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
+                        onAllToggle = onAllToggle,
+                        onPickFromGallery = onPickFromGallery,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(4.dp)
+                            .background(TripRecordPalette.current.background)
+                            .padding(start = 20.dp, top = 8.dp, end = 24.dp, bottom = 10.dp),
+                    )
+                }
                 message?.let { currentMessage ->
                     item {
                         Text(
@@ -2492,7 +2499,7 @@ private fun PhotoPickerStep(
                                 TripRecordPalette.current.danger
                             },
                             fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp),
                         )
                     }
                 }
@@ -2500,7 +2507,7 @@ private fun PhotoPickerStep(
                     item {
                         EmptyPhotoPicker(
                             onPickFromGallery = onPickFromGallery,
-                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                            modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp),
                         )
                     }
                 } else {
@@ -2513,7 +2520,7 @@ private fun PhotoPickerStep(
                                 onGroupToggle = {
                                     onGroupToggle(item.photos.map(SelectedPhoto::id))
                                 },
-                                modifier = Modifier.animateItem().padding(start = 20.dp, top = 24.dp, end = 24.dp),
+                                modifier = Modifier.animateItem().padding(start = 20.dp, top = 24.dp, end = 20.dp),
                             )
 
                             is PhotoPickerListItem.PhotoRow -> PhotoSelectionRow(
@@ -2528,7 +2535,7 @@ private fun PhotoPickerStep(
                                 dragSelectionController = dragSelectionController,
                                 recordedPhotoIds = recordedPhotoIds,
                                 modifier = Modifier.animateItem().padding(
-                                    top = if (item.isFirstRowInDate) 12.dp else 1.dp,
+                                    start = 20.dp, end = 20.dp, top = if (item.isFirstRowInDate) 12.dp else 1.dp,
                                 ),
                             )
                         }
@@ -2562,7 +2569,7 @@ private fun PhotoPickerStep(
                 testTag = "photo-picker-scrollbar",
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 5.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(top = 8.dp, bottom = 8.dp),
             )
         }
     }
@@ -2705,10 +2712,6 @@ private fun CoverPhotoSelectionStep(
 @Composable
 private fun PhotoPickerHeader(
     locationName: String,
-    hasPhotos: Boolean,
-    allSelected: Boolean,
-    onAllToggle: () -> Unit,
-    onPickFromGallery: () -> Unit,
 ) {
     Column {
         Text(
@@ -2718,30 +2721,57 @@ private fun PhotoPickerHeader(
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp,
         )
-        Text(
-            text = "$locationName 사진 고르기",
-            color = TripRecordPalette.current.headingText,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 14.dp),
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(top = 14.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
-            if (hasPhotos) {
-                FlowSmallButton(
-                    label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",
-                    onClick = onAllToggle,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            GalleryPickerButton(onClick = onPickFromGallery)
+            Text(
+                text = "$locationName 사진 고르기",
+                color = TripRecordPalette.current.headingText,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
         }
+    }
+}
 
+@Composable
+private fun PhotoPickerActionsRow(
+    hasPhotos: Boolean,
+    selectedCount: Int,
+    allSelected: Boolean,
+    onAllToggle: () -> Unit,
+    onPickFromGallery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${selectedCount}장 선택",
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(TripRecordPalette.current.primarySoft)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            color = TripRecordPalette.current.accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+        )
+        if (hasPhotos) {
+            FlowSmallButton(
+                label = if (allSelected) "추천 사진 선택 해제" else "추천 사진 모두 선택",
+                onClick = onAllToggle,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        GalleryPickerButton(onClick = onPickFromGallery)
     }
 }
 

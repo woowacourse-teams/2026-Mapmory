@@ -296,7 +296,8 @@ private fun MapPlaceSearchField(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = "검색어 지우기") { onQueryChange("") },
+                    .clickable(role = Role.Button, onClickLabel = "검색어 지우기") { onQueryChange("") }
+                    .semantics { contentDescription = "검색어 지우기" },
                 contentAlignment = Alignment.Center,
             ) {
                 Text("×", color = palette.secondaryText, fontSize = 20.sp)

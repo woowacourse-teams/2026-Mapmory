@@ -22,6 +22,44 @@ import kotlin.test.assertTrue
 
 class BackgroundTripRecordSaverTest {
     @Test
+    fun backgroundExecutionProtectsPersistenceAndCompletionUntilQueueIsDrained() = runBlocking {
+        val store = TestSaveStore(emptyList())
+        var running = false
+        var notified = false
+        var refreshed = false
+        val saver = BackgroundTripRecordSaver(
+            repository = object : EmptyTripRecordRepository() {
+                override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> {
+                    assertTrue(running)
+                    return Result.success(draft.toRecord())
+                }
+            },
+            scope = CoroutineScope(coroutineContext),
+            execution = object : BackgroundSaveExecution {
+                override val store = store
+                override suspend fun <T> run(block: suspend () -> T): T {
+                    running = true
+                    try { return block() } finally { running = false }
+                }
+                override fun onCompleted(save: BackgroundTripRecordSave) {
+                    assertTrue(running, "iOS background time must cover the completion notification")
+                    assertTrue(store.read().isEmpty(), "Persist success before announcing it")
+                    notified = true
+                }
+            },
+            onSaved = {
+                assertTrue(running)
+                refreshed = true
+            },
+        )
+        saver.enqueue(draft(), "서울")
+        kotlinx.coroutines.withTimeout(5_000) { saver.saves.first { it.isEmpty() } }
+        assertTrue(notified, "Android worker must not finish before the completion callback")
+        assertTrue(refreshed)
+        assertEquals(false, running)
+    }
+
+    @Test
     fun completionContainsSavedRecordAndSelectedCoverRatherThanFirstLocalMedia() = runBlocking {
         val cache = MemoryPhotoPreviewCache()
         val selectedCover = byteArrayOf(9, 8, 7)

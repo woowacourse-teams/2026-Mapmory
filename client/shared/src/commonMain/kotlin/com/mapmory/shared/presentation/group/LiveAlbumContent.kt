@@ -3,6 +3,7 @@ package com.mapmory.shared.presentation.group
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
@@ -124,6 +125,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
             if (result == SnackbarResult.ActionPerformed) scope.launch { refreshContent() }
         }
     }
+    val scrollStates = rememberSaveableStateHolder()
     GroupRefreshContainer(
         refreshing = refreshing, enabled = !busy && selectedPhoto == null && !add && !rename,
         onRefresh = { scope.launch { refreshContent() } }, modifier = Modifier.fillMaxSize(),
@@ -191,12 +193,12 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                             onBack = { selectedPhoto = null },
                             onPageChanged = { _, index -> selectedPhoto = album.photos[index].imageUri })
                     }
-                    album != null -> GroupAlbumScreen(album,
+                    album != null -> scrollStates.SaveableStateProvider("album:$groupId:${album.id}") { GroupAlbumScreen(album,
                         headerActions = actions,
                         onBack = { navigation.showList(); scope.launch { load() } },
                         onAddPhotos = { if (!busy) { snackbarHostState.currentSnackbarData?.dismiss(); add = true } },
-                        onPhoto = { index -> selectedPhoto = album.photos[index].imageUri; analytics.emit("album_photo_viewed", mapOf("execution_mode" to "live")) })
-                    else -> GroupHomeScreen(
+                        onPhoto = { index -> selectedPhoto = album.photos[index].imageUri; analytics.emit("album_photo_viewed", mapOf("execution_mode" to "live")) }) }
+                    else -> scrollStates.SaveableStateProvider("group:$groupId") { GroupHomeScreen(
                         group = GroupSummary(groupId.toString(), groupName, memberCount, list.orEmpty().map { item ->
                             GroupAlbum(item.id.toString(), item.name, item.region.name,
                                 listOfNotNull(item.startDate, item.endDate).distinct().joinToString(" – "),
@@ -207,7 +209,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                         onBack = onBack, onInvite = onInvite,
                         onAdd = { if (!busy) { snackbarHostState.currentSnackbarData?.dismiss(); add = true } },
                         onAlbum = { scope.launch { open(it.toLong()) } },
-                    )
+                    ) }
                 }
             }
             if (!pick && detail == null && more) TextButton(onClick = { scope.launch { load(page + 1) } }, enabled = !busy) { Text("더 보기") }

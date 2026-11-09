@@ -14,6 +14,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.mapmory.shared.app.BackgroundTripRecordCompletion
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordSavedCard
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.TimeSource
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -59,6 +60,7 @@ internal fun MapmoryNavHost(
     navController: NavHostController,
     navigator: MapmoryNavigator,
     container: AppContainer,
+    foregroundSince: TimeSource.Monotonic.ValueTimeMark?,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     contentWindowInsets: WindowInsets,
     developerToolsInfo: MapmoryDeveloperToolsInfo?,
@@ -72,22 +74,14 @@ internal fun MapmoryNavHost(
 ) {
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
-    var newlyEarnedBadges by remember { mutableStateOf<List<TripAchievementBadge>?>(null) }
+    var newlyEarnedBadges by remember(navController) { mutableStateOf<List<TripAchievementBadge>?>(null) }
     val gestureMotion = LocalNavigationGestureMotion.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val completedCards = remember { mutableStateListOf<BackgroundTripRecordCompletion>() }
-    var foregroundSince by remember(lifecycle) {
-        mutableStateOf(if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) TimeSource.Monotonic.markNow() else null)
-    }
-    DisposableEffect(lifecycle) {
+    val completedCards = remember(navController) { mutableStateListOf<BackgroundTripRecordCompletion>() }
+    DisposableEffect(lifecycle, completedCards) {
         val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> foregroundSince = TimeSource.Monotonic.markNow()
-                Lifecycle.Event.ON_STOP -> {
-                    foregroundSince = null
-                    completedCards.clear()
-                }
-                else -> Unit
+            if (event == Lifecycle.Event.ON_STOP) {
+                completedCards.clear()
             }
         }
         lifecycle.addObserver(observer)
@@ -108,7 +102,13 @@ internal fun MapmoryNavHost(
         delay(timeout)
         completedCards.removeAll { it.recordId == currentCard.recordId }
     }
-    LaunchedEffect(container.backgroundTripRecordSaver, developerToolsInfo, isTravelAchievementsEnabled) {
+    LaunchedEffect(
+        container.backgroundTripRecordSaver,
+        developerToolsInfo,
+        isTravelAchievementsEnabled,
+        navController,
+        foregroundSince,
+    ) {
         container.backgroundTripRecordSaver.completedSaves.collect { completion ->
             // Ignore completions delivered while away, including those queued before this host mounted.
             if (shouldShowSavedRecordCard(
@@ -119,16 +119,18 @@ internal fun MapmoryNavHost(
             }
             if (developerToolsInfo == null || !isTravelAchievementsEnabled) return@collect
             val previousStatistics = completion.previousStatistics ?: return@collect
-            val currentStatistics = try {
-                container.tripStatisticsRepository.getStatistics().getOrNull()
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                null
-            } ?: return@collect
-            val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
-            if (unlocked.isNotEmpty()) {
-                newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+            launch {
+                val currentStatistics = try {
+                    container.tripStatisticsRepository.getStatistics().getOrNull()
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                } ?: return@launch
+                val unlocked = newlyEarnedTripAchievementBadges(previousStatistics, currentStatistics)
+                if (unlocked.isNotEmpty()) {
+                    newlyEarnedBadges = (newlyEarnedBadges.orEmpty() + unlocked).distinctBy { it.id }
+                }
             }
         }
     }

@@ -123,11 +123,8 @@ internal fun TripRecordListRoute(
         },
         onRetryPendingSave = onRetryPendingSave,
         onDismissPendingSave = onDismissPendingSave,
-        onPreviousPageClick = {
-            scope.launch { viewModel.previousPage() }
-        },
-        onNextPageClick = {
-            scope.launch { viewModel.nextPage() }
+        onLoadMore = {
+            scope.launch { viewModel.loadNextPage() }
         },
         onCreateClick = onOpenEditor,
         onMapClick = onOpenMap,

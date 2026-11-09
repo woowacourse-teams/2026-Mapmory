@@ -1,6 +1,16 @@
 package com.mapmory.shared.presentation.group
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -213,12 +223,26 @@ internal fun LiveGroupContent(
                         val invitation = state.invitation
                         if (invitation == null) GroupButton("초대 코드 만들기", { scope.launch { state.issueInvitation() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
                         else {
-                            Text(invitation.code, style = MaterialTheme.typography.headlineLarge)
-                            GroupMuted("만료: ${invitation.expiresAt.date} ${invitation.expiresAt.hour.toString().padStart(2, '0')}:${invitation.expiresAt.minute.toString().padStart(2, '0')}")
-                            GroupButton("초대 코드 복사", {
+                            val copyInvitation = {
                                 clipboard.setText(AnnotatedString(invitation.code))
-                                showNotice("초대 코드를 복사했어요")
-                            }, Modifier.fillMaxWidth())
+                                if (needsClipboardConfirmation()) showNotice("초대 코드를 복사했어요")
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                                Text(invitation.code, style = MaterialTheme.typography.headlineLarge,
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "초대 코드 복사", onClick = copyInvitation).wrapContentHeight())
+                                val iconColor = MaterialTheme.colorScheme.primary
+                                val backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                Box(Modifier.size(48.dp).clickable(role = Role.Button, onClick = copyInvitation)
+                                    .semantics { contentDescription = "초대 코드 복사" }, contentAlignment = Alignment.Center) {
+                                    Canvas(Modifier.size(24.dp)) {
+                                        val stroke = 1.8.dp.toPx()
+                                        drawRoundRect(iconColor, topLeft = Offset(size.width * .2f, size.height * .12f), size = Size(size.width * .55f, size.height * .65f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(stroke))
+                                        drawRoundRect(backgroundColor, topLeft = Offset(size.width * .35f - stroke, size.height * .27f - stroke), size = Size(size.width * .55f + stroke * 2, size.height * .65f + stroke * 2), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+                                        drawRoundRect(iconColor, topLeft = Offset(size.width * .35f, size.height * .27f), size = Size(size.width * .55f, size.height * .65f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(stroke))
+                                    }
+                                }
+                            }
+                            GroupMuted("만료: ${invitation.expiresAt.date} ${invitation.expiresAt.hour.toString().padStart(2, '0')}:${invitation.expiresAt.minute.toString().padStart(2, '0')}")
                         }
                     }
                     LiveGroupSheet.LEAVE -> {
@@ -244,7 +268,6 @@ internal fun LiveGroupContent(
                 }
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                TextButton(onClick = { state.dismissSheet() }, enabled = !state.busy && !leaving) { Text("닫기") }
                 SnackbarHost(snackbar)
             }
         }

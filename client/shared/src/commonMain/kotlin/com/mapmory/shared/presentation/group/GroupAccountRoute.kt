@@ -43,7 +43,7 @@ internal fun GroupAccountRoute(
         val member = result?.getOrNull()
         restoring = false
         if (member == null) {
-            if (account?.pendingLogin != true) restoreError = "계정 상태를 확인하지 못했어요. 다시 시도해 주세요."
+            if (account?.pendingLogin != true) restoreError = "계정 정보를 불러오지 못했어요. 연결 상태를 확인한 뒤 화면을 다시 열어 주세요."
             return@LaunchedEffect
         }
     }
@@ -53,12 +53,11 @@ internal fun GroupAccountRoute(
             val needsLogin = account?.pendingLogin == true || account?.recoveryRequired == true ||
                 account?.member?.provider == MemberProvider.GUEST
             when {
-                restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp)) { CircularProgressIndicator() }
-                restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
+                restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
+                restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text("그룹", style = MaterialTheme.typography.headlineMedium)
                     restoreError?.let { Text(it) }
                     SocialLoginPanel(session, container.accountLoginController)
-                    TextButton(onClick = { retry++ }) { Text("계정 확인 다시 시도") }
                 }
                 container.groupRepository != null -> key(account?.generation) {
                     LiveGroupContent(

@@ -26,12 +26,7 @@ class TripRecordSavedCardRenderingTest {
     fun `saved card renders with contrast in light and dark themes`() {
         for (dark in listOf(false, true)) {
             val scene = ImageComposeScene(width = 390, height = 180) {
-                CompositionLocalProvider(LocalMapmoryTheme provides MapmoryThemeState(
-                    isDark = dark,
-                    palette = MapmoryThemePalette.MAPMORY_GREEN,
-                    onThemeChange = {},
-                    onPaletteChange = {},
-                )) {
+                CompositionLocalProvider(LocalMapmoryTheme provides MapmoryThemeState(isDark = dark, palette = MapmoryThemePalette.MAPMORY_GREEN, onThemeChange = {}, onPaletteChange = {})) {
                     ProvideTripRecordPalettes(isDark = dark) {
                     TripRecordTheme {
                         Box(Modifier.fillMaxSize().background(TripRecordPalette.current.pageBackground).padding(20.dp), contentAlignment = Alignment.Center) {

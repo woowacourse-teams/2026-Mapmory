@@ -211,7 +211,7 @@ class BackgroundTripRecordSaver internal constructor(
         }
     }
 
-    private suspend fun save(id: Long) {
+    private suspend fun save(id: Long) = execution.run {
         val draft = try {
             prepareDraft(id)
         } catch (error: kotlinx.coroutines.CancellationException) {
@@ -219,7 +219,7 @@ class BackgroundTripRecordSaver internal constructor(
         } catch (error: Exception) {
             analytics.reportFailure("record_save_prepare", error)
             throw error
-        } ?: return
+        } ?: return@run
         mutableSaves.update { current ->
             current.map { save ->
                 if (save.id == id) {
@@ -234,7 +234,7 @@ class BackgroundTripRecordSaver internal constructor(
             }
         }
 
-        val result = execution.run {
+        val result = run {
             var latest = create(id, draft)
             if (latest.isFailure && id !in serverSaveStarted) {
                 delay(automaticRetryDelayMillis)
@@ -254,21 +254,25 @@ class BackgroundTripRecordSaver internal constructor(
                 drafts.remove(id)
                 serverSaveStarted.remove(id)
                 updatePendingPhotoIds()
-                mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
-                persist()
-                completed?.let(execution::onCompleted)
-                onSaved()
-                completedSavesChannel.trySend(
-                    BackgroundTripRecordCompletion(
-                        recordId = record.id,
-                        previousStatistics = previousStatistics,
-                        locationName = completed?.locationName.orEmpty(),
-                        photoCount = completed?.photoCount ?: record.media.size,
-                        thumbnailUrl = record.thumbnailUrl ?: record.media.minByOrNull { it.sortOrder }?.url,
-                        thumbnailBytes = completionThumbnail(draft),
-                        completedAt = completedAt,
-                    ),
-                )
+                try {
+                    persist()
+                    completedSavesChannel.trySend(
+                        BackgroundTripRecordCompletion(
+                            recordId = record.id,
+                            previousStatistics = previousStatistics,
+                            locationName = completed?.locationName.orEmpty(),
+                            photoCount = completed?.photoCount ?: record.media.size,
+                            thumbnailUrl = record.thumbnailUrl ?: record.media.minByOrNull { it.sortOrder }?.url,
+                            thumbnailBytes = completionThumbnail(draft),
+                            completedAt = completedAt,
+                        ),
+                    )
+                    completed?.let(execution::onCompleted)
+                    onSaved()
+                } finally {
+                    // Keep completed saves out of retry UI even if a local callback fails.
+                    mutableSaves.update { current -> current.filterNot { save -> save.id == id } }
+                }
             },
             onFailure = { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error

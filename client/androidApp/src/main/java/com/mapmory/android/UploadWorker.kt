@@ -47,7 +47,8 @@ internal class AndroidBackgroundSaveExecution(private val context: Context, name
         val process = ActivityManager.RunningAppProcessInfo()
         ActivityManager.getMyMemoryState(process)
         // A foreground service has IMPORTANCE_FOREGROUND_SERVICE, not FOREGROUND.
-        return process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+        return process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+            process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
     }
     private fun manager() = context.getSystemService(NotificationManager::class.java)
     private fun canNotify() = Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED

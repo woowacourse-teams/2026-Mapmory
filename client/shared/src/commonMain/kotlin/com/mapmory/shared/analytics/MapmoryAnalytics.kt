@@ -83,7 +83,6 @@ object MapmoryAnalyticsEvent {
     const val JOURNAL_RECORD_OPENED = "journal_record_opened"
     const val JOURNAL_RETRY_CLICKED = "journal_retry_clicked"
     const val JOURNAL_FILTER_SELECTED = "journal_filter_selected"
-    const val JOURNAL_PAGE_CHANGED = "journal_page_changed"
     const val STATISTICS_RETRY_CLICKED = "statistics_retry_clicked"
     const val SETTINGS_OPENED = "settings_opened"
     const val THEME_CHANGED = "theme_changed"
