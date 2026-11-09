@@ -91,9 +91,16 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
         return process.exitValue();
     }
 
+    // 인터럽트를 받은 뒤에 부른다. catch에서 인터럽트 표시가 지워진 상태라 잠깐 기다릴 수 있다.
+    // 기다리지 않고 돌아가면 워커가 작업 디렉터리를 지우는 동안 프로세스가 아직 살아 있을 수 있다.
     private void terminateQuietly(Process process) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
         process.destroyForcibly();
+        try {
+            process.waitFor(5, SECONDS);
+        } catch (InterruptedException ignored) {
+            // 호출한 쪽이 인터럽트 표시를 다시 세운다.
+        }
     }
 
     private void terminate(Process process) throws InterruptedException {
