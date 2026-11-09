@@ -14,11 +14,9 @@ const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).h
 process.env.VITE_GA_MEASUREMENT_ID = "G-TEST123";
 process.env.VITE_POSTHOG_KEY = "";
 process.env.VITE_POSTHOG_HOST = "";
-for (const surface of process.argv[3] ? [] : ["landing", "recap"]) {
-  const appRoot = surface === "landing" ? root : path.join(root, "travel-map-campaign");
-  await build({ root: appRoot, configFile: path.join(appRoot, "vite.config.mjs"),
-    base: surface === "recap" ? "/recap/" : "/", logLevel: "warn",
-    build: { outDir: path.join(output, surface) },
+if (!process.argv[3]) {
+  await build({ root, configFile: path.join(root, "vite.config.mjs"), base: "/", logLevel: "warn",
+    build: { outDir: path.join(output, "landing") },
   });
 }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL || undefined, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined, headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
@@ -27,9 +25,8 @@ const serve = async (route) => {
   const url = new URL(route.request().url());
   if (url.hostname === "www.googletagmanager.com") return route.fulfill({ contentType: "application/javascript", body: "/* GA network disabled for QA */" });
   if (url.hostname !== "map-mory.com") return route.abort();
-  const recap = url.pathname.startsWith("/recap/");
-  const relative = decodeURIComponent(recap ? url.pathname.slice(7) : url.pathname.slice(1)) || "index.html";
-  const appDir = path.join(output, recap ? "recap" : "landing");
+  const relative = decodeURIComponent(url.pathname.slice(1)) || "index.html";
+  const appDir = path.join(output, "landing");
   const file = path.resolve(appDir, relative);
   if (!file.startsWith(appDir + path.sep)) return route.abort();
   try { return route.fulfill({ contentType: mime[path.extname(file)] ?? "application/octet-stream", body: await readFile(file) }); }
@@ -116,40 +113,8 @@ try {
     assert.deepEqual((await storyEvents(page, "how_story_scene")).map(([, , props]) => props.scene_index).sort(), [1, 2, 3, 4, 5, 6]);
     assert.equal(landingEvents.some(([, name]) => /^how_play/.test(name)), false);
     assert.equal(JSON.stringify(landingEvents).includes("/assets/"), false);
-    await page.goto("https://map-mory.com/recap/?internal=1");
-    await page.getByRole("button", { name: "사진 없이 샘플 결과 먼저 보기" }).click();
-    await page.getByRole("button", { name: "내 여행 영상 보기" }).click();
-    // Inject a download failure after real video rendering, not a fabricated UI error.
-    await page.evaluate(() => {
-      const originalClick = HTMLAnchorElement.prototype.click;
-      HTMLAnchorElement.prototype.click = function () {
-        if (this.download) throw new Error("QA download failure: retry is available");
-        return originalClick.call(this);
-      };
-    });
-    await page.getByRole("button", { name: "영상 저장", exact: true }).click();
-    await page.getByText("QA download failure: retry is available", { exact: true }).waitFor({ timeout: 60000 });
-    assert.equal(await page.getByRole("button", { name: "영상 저장", exact: true }).isEnabled(), true);
-    assert.equal((await events()).filter(([, name]) => name === "travel_map_video_saved").length, 0);
-    const failedExport = (await events()).filter(([, name]) => name === "travel_map_export_failed");
-    assert.equal(failedExport.length, 1);
-    assert.equal(failedExport[0][2].format, "video");
-    assert.equal(failedExport[0][2].error_type, "export_failed");
-    await page.getByRole("button", { name: "Mapmory 앱 알아보기" }).click();
-    await page.getByRole("link", { name: "Google Play에서 바로 다운로드" }).click();
-    const recapEvents = await events();
-    for (const eventName of ["travel_map_demo_start", "travel_map_processing_complete", "travel_map_recap_view", "travel_map_app_bridge_click", "travel_map_demand_view", "download_click"]) {
-      const matches = recapEvents.filter(([, name]) => name === eventName);
-      assert.equal(matches.length, 1, eventName);
-      assert.equal(matches[0][2].journey_source, "demo");
-      assert.equal(matches[0][2].surface, "recap");
-    }
-    await page.goto("https://map-mory.com/recap/?internal=1");
-    await page.locator('input[type="file"]').setInputFiles({ name: "no-gps.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64") });
-    await page.waitForFunction(() => [...(window.dataLayer ?? [])].some((args) => args[1] === "travel_map_photo_analysis_empty"));
-    assert.equal((await events()).find(([, name]) => name === "travel_map_photo_analysis_empty")[2].journey_source, "photos");
     assert.equal(errors.length, 0, errors.join("\n"));
-    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-6 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events, recap download failure/retry, demo/store and photos/no-GPS" });
+    findings.push({ mobile, passed: true, covered: "header stores/Escape/outside dismissal, hero exclusion, reduced-motion how_story static view, static scenes 1-6 once each after a half-in-view rest (items jumped over not counted, revisits not re-sent), no experience_* for how_story, globe-only view/start/open, how-section globe link, header how_story link (desktop), final store without experience context, no asset paths in landing events" });
     await context.close();
   }
   // Scroll mode: a fling past beats 1-5 counts none of them; a reader who rests on each beat sends one view

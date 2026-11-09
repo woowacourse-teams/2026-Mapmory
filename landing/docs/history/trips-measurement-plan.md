@@ -1,3 +1,5 @@
+> 2026-11-09: `/trips/` 실험을 삭제하면서 `landing/trips/MEASUREMENT_PLAN.md`를 여기로 옮겼다. 그 전 기간 `trips_*` 데이터를 읽기 위한 기록이다.
+
 # Trips 실험 측정 계획
 
 2026-09-23 · 읽기 전용 분류 결과 · `surface=trips` · `analytics_schema_version=3` · `experiment_version=trips_v2`

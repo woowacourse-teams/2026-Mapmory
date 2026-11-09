@@ -10,18 +10,8 @@ activate_release() (
   [[ -f "$bundle/client/index.html" && -f "$bundle/client/release.txt" ]] || {
     echo 'Missing static landing files' >&2; exit 2;
   }
-  [[ -f "$bundle/client/recap/index.html" && -f "$bundle/client/recap/release.txt" ]] || {
-    echo 'Missing static recap files' >&2; exit 2;
-  }
   sha="$(cat -- "$bundle/client/release.txt")"
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release marker' >&2; exit 2; }
-  [[ "$(cat -- "$bundle/client/recap/release.txt")" == "$sha" ]] || {
-    echo 'Recap release identity mismatch' >&2; exit 2;
-  }
-  [[ -f "$bundle/client/trips/index.html" && -f "$bundle/client/trips/release.txt" &&
-     "$(cat -- "$bundle/client/trips/release.txt")" == "$sha" ]] || {
-    echo 'Missing Trips files or release identity mismatch' >&2; exit 2;
-  }
   [[ -z "$(find "$bundle/client" -type l -print -quit)" ]] || {
     echo 'Symlinks are not allowed in the static bundle' >&2; exit 2;
   }
@@ -78,30 +68,6 @@ activate_release() (
   [[ "$served_sha" == "$sha" ]] || { echo 'Release identity check failed' >&2; false; }
   curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 15 \
     --resolve map-mory.com:443:127.0.0.1 https://map-mory.com/ --output /dev/null
-  local recap_sha recap_html
-  recap_sha="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 15 \
-    --resolve map-mory.com:443:127.0.0.1 "https://map-mory.com/recap/release.txt?deployment=$deployment_id")"
-  [[ "$recap_sha" == "$sha" ]] || { echo 'Served recap release identity mismatch' >&2; false; }
-  recap_html="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 15 \
-    --resolve map-mory.com:443:127.0.0.1 https://map-mory.com/recap/)"
-  [[ "$recap_html" == *'src="/recap/assets/'* ]] || {
-    echo 'Recap URL did not serve the campaign shell' >&2; false;
-  }
-  local trips_sha trips_html trips_redirect
-  trips_sha="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 15 \
-    --resolve map-mory.com:443:127.0.0.1 "https://map-mory.com/trips/release.txt?deployment=$deployment_id")"
-  [[ "$trips_sha" == "$sha" ]] || { echo 'Served Trips release identity mismatch' >&2; false; }
-  trips_html="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 15 \
-    --resolve map-mory.com:443:127.0.0.1 https://map-mory.com/trips/)"
-  [[ "$trips_html" == *'id="photo-input"'* && "$trips_html" == *'src="./app.js"'* ]] || {
-    echo 'Trips URL did not serve the experiment shell' >&2; false;
-  }
-  trips_redirect="$(curl --noproxy '*' --silent --show-error --connect-timeout 5 --max-time 15 \
-    --resolve map-mory.com:443:127.0.0.1 --output /dev/null --write-out '%{http_code} %{redirect_url}' \
-    "https://map-mory.com/trips?deployment=$deployment_id")"
-  [[ "$trips_redirect" == "308 https://map-mory.com/trips/?deployment=$deployment_id" ]] || {
-    echo 'Trips canonical redirect or query preservation check failed' >&2; false;
-  }
   trap - ERR INT TERM
   echo "Activated landing release: $sha ($deployment_id)"
 )
