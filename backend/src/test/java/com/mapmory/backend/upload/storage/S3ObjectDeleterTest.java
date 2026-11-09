@@ -190,6 +190,13 @@ class S3ObjectDeleterTest {
         verify(s3Client, times(2)).deleteObjects(any(DeleteObjectsRequest.class));
     }
 
+    @Test
+    void 우리_prefix_안의_키만_우리_것으로_본다() {
+        assertThat(deleter.owns("mapmory/a.jpg")).isTrue();
+        assertThat(deleter.owns("other-team/a.jpg")).isFalse();
+        assertThat(deleter.owns("mapmory-other/a.jpg")).isFalse();
+    }
+
     /**
      * 공용 버킷이라 다른 팀 객체를 지우면 되돌릴 수 없다. prefix가 같은 글자로 시작하는 다른 경로도 막는다.
      */

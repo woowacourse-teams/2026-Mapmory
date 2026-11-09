@@ -1,0 +1,109 @@
+"""사진 한 장을 목록용 썸네일로 줄인다. 키나 저장소는 모르고 파일 경로만 다룬다."""
+
+import os
+import struct
+import tempfile
+from pathlib import Path
+
+from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
+
+# HEIC는 반드시 Pillow 플러그인으로 연다. 플러그인은 irot/imir를 적용하고 EXIF 방향을 1로 되돌린다.
+# pillow_heif.open_heif()는 되돌리지 않아 아래 exif_transpose와 겹치면 두 번 돈다.
+register_heif_opener()
+
+WEBP_QUALITY = 75
+RGB_MODES = ("RGB", "RGBA", "P", "PA")
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# 업로드가 허용하는 형식만 연다(UploadFileType). 나머지 디코더(TIFF, EPS 등)에는 닿지 않게 한다.
+ALLOWED_FORMATS = ["JPEG", "PNG", "WEBP", "HEIF"]
+# 펼칠 화소 수의 한도. iPhone 48MP(약 4,880만)와 파노라마(최대 약 6,300만으로 알려짐)는 통과시킨다.
+# 16000x4000 HEIC를 펼치면 최대 메모리가 약 570MB였다. 작은 PNG도 펼치면 GB 단위가 될 수 있어 렌더러(2GB)를 지킨다.
+MAX_DECODED_PIXELS = 70_000_000
+# 한도는 위에서 줄여 읽은 뒤의 크기로 직접 본다. Pillow의 검사는 원본 헤더 크기로 판단해 큰 JPEG까지 막으므로 끈다.
+Image.MAX_IMAGE_PIXELS = None
+
+
+class DecodeError(Exception):
+    """원본을 이미지로 읽을 수 없다. 다시 해도 결과가 같다."""
+
+
+def make_thumbnail(src, dst, max_edge=1080):
+    """방향을 픽셀에 굽고 긴 변을 max_edge 이하로 줄여 WebP로 저장한다. 원본보다 키우지 않는다.
+
+    EXIF는 쓰지 않는다. 방향 태그가 남으면 앱이 한 번 더 돌리고, 위치 정보도 함께 빠진다.
+    """
+    if max_edge < 1:
+        raise ValueError("max_edge must be positive")
+    image = _decode_upright(src, max_edge)
+    # 색 프로필은 RGB 계열 원본일 때만 붙인다. 회색조·CMYK 프로필을 RGB 출력에 붙이면 색이 틀어진다.
+    icc_profile = image.info.get("icc_profile") if image.mode in RGB_MODES else None
+    image = _to_saveable_mode(image)
+    image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+    _save_atomically(image, Path(dst), icc_profile)
+
+
+def _decode_upright(src, max_edge):
+    """원본을 읽고 방향을 픽셀에 반영한다. 파일 내용 때문에 실패하면 DecodeError, 실행 환경 때문이면 그 예외 그대로다."""
+    try:
+        _reject_oversized_png(src)
+        image = Image.open(src, formats=ALLOWED_FORMATS)
+        # progressive JPEG는 줄여 읽어도 원본 전체의 계수 버퍼를 잡아(108MP에서 343MB) 줄이기 전 크기로 본다.
+        if image.format == "JPEG" and image.info.get("progressive"):
+            _reject_too_many_pixels(*image.size)
+        # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
+        image.draft("RGB", (max_edge, max_edge))
+        # 한도는 줄여 읽은 뒤의 크기, 즉 실제로 펼칠 크기로 본다. 큰 JPEG는 이 단계에서 작아져 통과한다.
+        _reject_too_many_pixels(*image.size)
+        image.load()
+        # 복사본을 만들지 않아 큰 사진에서 메모리를 아낀다. 깨진 EXIF는 여기서 실패할 수 있다.
+        ImageOps.exif_transpose(image, in_place=True)
+        return image
+    except (MemoryError, DecodeError):
+        raise
+    except OSError as e:
+        # errno가 있으면 운영체제가 낸 오류(파일 없음, 권한, 디렉터리, 디스크)다. 다시 하면 나을 수 있다.
+        # Pillow의 디코딩 오류(잘린 파일, 알 수 없는 형식)는 errno가 없다.
+        if e.errno is not None:
+            raise
+        raise DecodeError(f"{type(e).__name__}: {e}") from e
+    except Exception as e:  # noqa: BLE001 - 이 구간은 파일 내용만 다루므로 나머지는 모두 내용 탓이다
+        # 디코더마다 던지는 예외가 다르다(libheif 보안 한도는 RuntimeError, 깨진 EXIF 재기록은 TypeError 등).
+        raise DecodeError(f"{type(e).__name__}: {e}") from e
+
+
+def _reject_oversized_png(src):
+    # Pillow 12.3.0은 APNG를 여는 순간 헤더 크기만큼 캔버스를 잡았다(103바이트 파일로 910MB). 13.0.0에서는 재현되지 않지만
+    # (30MB) 버전이 바뀌어도 막히도록 열기 전에 첫 IHDR의 크기를 한 번 더 본다. IHDR이 앞에 없는 파일은 아래 크기 검사가 막는다.
+    with open(src, "rb") as file:
+        header = file.read(24)
+    if header[:8] == PNG_SIGNATURE and header[12:16] == b"IHDR":
+        _reject_too_many_pixels(*struct.unpack(">II", header[16:24]))
+
+
+def _reject_too_many_pixels(width, height):
+    if width * height > MAX_DECODED_PIXELS:
+        raise DecodeError(f"too many pixels to decode: {width}x{height}")
+
+
+def _to_saveable_mode(image):
+    has_alpha = image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info
+    if image.mode == "I" or image.mode.startswith("I;16"):
+        # 16비트 회색조는 그대로 RGB로 바꾸면 255를 넘는 값이 모두 흰색이 된다. 8비트로 줄인 뒤 바꾼다.
+        image = image.convert("I").point(lambda value: value * (1 / 256)).convert("L")
+    if image.mode == "RGBA" or (image.mode == "RGB" and not has_alpha):
+        return image
+    # RGB PNG의 색 키(tRNS)처럼 투명도가 info에만 있으면 RGBA로 바꿔야 유지된다.
+    return image.convert("RGBA" if has_alpha else "RGB")
+
+
+def _save_atomically(image, dst, icc_profile):
+    # 쓰다 실패해도 반쯤 쓴 파일이 출력 경로에 남지 않게 한다. 임시 파일 이름은 실행마다 달라 서로 덮어쓰지 않는다.
+    descriptor, name = tempfile.mkstemp(dir=dst.parent, prefix=dst.name + ".", suffix=".partial")
+    os.close(descriptor)
+    partial = Path(name)
+    try:
+        image.save(partial, "WEBP", quality=WEBP_QUALITY, method=4, icc_profile=icc_profile)
+        partial.replace(dst)
+    finally:
+        partial.unlink(missing_ok=True)

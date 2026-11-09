@@ -180,6 +180,26 @@ public class TravelRecord extends BaseEntity {
     }
 
     /**
+     * 이 수정으로 빠지는 사진의 S3 객체들. 썸네일을 포함한다.
+     */
+    public List<String> mediaKeysRemovedBy(ObjectKeys requested) {
+        Set<ObjectKey> kept = Set.copyOf(requested.keys());
+        return media.stream()
+                .filter(recordMedia -> !kept.contains(recordMedia.objectKey()))
+                .flatMap(recordMedia -> recordMedia.storedKeys().stream())
+                .toList();
+    }
+
+    /**
+     * 이 일지의 사진 전부의 S3 객체들. 썸네일을 포함한다.
+     */
+    public List<String> allMediaKeys() {
+        return media.stream()
+                .flatMap(recordMedia -> recordMedia.storedKeys().stream())
+                .toList();
+    }
+
+    /**
      * 요청된 Object Key 순서를 이 일지의 미디어 정렬 순서로 삼는다.
      * 이미 가진 미디어는 순서만 바꾸고, 새 키는 미디어를 만들며, 빠진 것은 컬렉션에서 떨어져
      * orphanRemoval로 삭제된다. 키의 형식과 중복은 {@link ObjectKeys}가 이미 보장한다.

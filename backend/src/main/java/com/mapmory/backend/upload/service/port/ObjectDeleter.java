@@ -17,4 +17,9 @@ public interface ObjectDeleter {
      * @return 지우지 못한 키
      */
     List<String> delete(Collection<String> objectKeys);
+
+    /**
+     * 이 키가 우리 경로 안에 있어 지울 수 있는지 알려 준다.
+     */
+    boolean owns(String objectKey);
 }

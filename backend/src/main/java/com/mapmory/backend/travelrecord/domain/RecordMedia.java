@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.hibernate.annotations.CreationTimestamp;
 
 @Entity
@@ -77,6 +78,16 @@ public class RecordMedia {
 
     public Long travelRecordId() {
         return travelRecord.getId();
+    }
+
+    /**
+     * S3에 있는 이 사진의 객체들. 썸네일이 따로 있으면 함께 준다.
+     */
+    List<String> storedKeys() {
+        if (thumbKey == null || thumbKey.isBlank()) {
+            return List.of(getObjectKey());
+        }
+        return List.of(getObjectKey(), thumbKey);
     }
 
     public String getThumbnailObjectKey() {
