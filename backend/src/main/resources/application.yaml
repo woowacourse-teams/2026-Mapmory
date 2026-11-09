@@ -261,6 +261,7 @@ management:
         include:
           - health
           - prometheus
+          - deploymentcache
       discovery:
         enabled: false
 
@@ -270,6 +271,8 @@ management:
       show-details: never
     prometheus:
       access: read-only
+    deploymentcache:
+      access: unrestricted
 
   metrics:
     tags:

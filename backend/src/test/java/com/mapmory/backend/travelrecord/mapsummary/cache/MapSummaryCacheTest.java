@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.region.domain.RegionType;
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -19,7 +20,8 @@ class MapSummaryCacheTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final MapSummaryCache cache = new MapSummaryCache(
             new MapSummaryCacheProperties(100, Duration.ofMinutes(10)),
-            meterRegistry
+            meterRegistry,
+            new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
     );
 
     @Test
@@ -58,7 +60,8 @@ class MapSummaryCacheTest {
     void evictsByRegionRowCount() {
         MapSummaryCache small = new MapSummaryCache(
                 new MapSummaryCacheProperties(30, Duration.ofHours(1)),
-                new SimpleMeterRegistry()
+                new SimpleMeterRegistry(),
+                new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
         );
 
         for (long memberId = 1; memberId <= 5; memberId++) {

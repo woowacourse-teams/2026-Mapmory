@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.member.Member;
@@ -55,7 +56,8 @@ class RegionMapSummaryServiceTest {
     private final OperationTimer operationTimer = new OperationTimer(new SimpleMeterRegistry());
     private final MapSummaryCache mapSummaryCache = new MapSummaryCache(
             new MapSummaryCacheProperties(100, Duration.ofMinutes(10)),
-            new SimpleMeterRegistry()
+            new SimpleMeterRegistry(),
+            new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
     );
 
     @Nested
