@@ -47,15 +47,6 @@ test("CodePipeline automatically deploys only the tested landing artifact after 
   assert.doesNotMatch(workflow, /id-token:|configure-aws-credentials|secrets\.|\bssh\b.*-|\bscp\b/);
 });
 
-test("Recap operator guidance follows the shared automatic landing deployment policy", () => {
-  const guidance = readFileSync(new URL("../travel-map-campaign/AGENTS.md", import.meta.url), "utf8");
-  assert.match(guidance, /Follow \.\.\/DEPLOYMENT\.md/);
-  assert.match(guidance, /V2\/SUPERSEDED/);
-  assert.match(guidance, /no AWS manual approval action/);
-  assert.match(guidance, /protected landing-release PR merge.*starts production deployment/);
-  assert.match(guidance, /main PR merge does not/);
-});
-
 test("CodeBuild binds the tested source SHA to a static-only CodeDeploy bundle", () => {
   assert.match(buildspec, /CODEBUILD_RESOLVED_SOURCE_VERSION.*SOURCE_COMMIT_ID/);
   assert.match(buildspec, /VITE_LANDING_VERSION=v4 npm run build/);
@@ -102,8 +93,8 @@ test("deployment shell syntax is valid", { skip: !existsSync(bash) }, () => {
 
 test("all local health checks explicitly bypass proxy environment variables", () => {
   const probes = hook.match(/curl --noproxy '\*'/g) || [];
-  assert.equal(probes.length, 7);
-  assert.equal((hook.match(/--resolve map-mory.com:443:127.0.0.1/g) || []).length, 7);
+  assert.equal(probes.length, 2);
+  assert.equal((hook.match(/--resolve map-mory.com:443:127.0.0.1/g) || []).length, 2);
 });
 
 test("CodeDeploy rejects use from the backend group before filesystem access", () => {
@@ -115,7 +106,7 @@ test("CodeDeploy rejects use from the backend group before filesystem access", (
   assert.match(result.stderr, /only in the landing/);
 });
 
-for (const scenario of ["success", "proxy-env", "reload-failure", "identity-failure", "http-failure", "nginx-failure", "bad-marker", "bad-id", "missing-previous", "outside-previous", "duplicate", "symlink-bundle", "locked", "missing-recap", "bad-recap-marker", "recap-http-failure", "recap-identity-failure", "recap-shell-failure", "missing-trips", "bad-trips-marker", "trips-http-failure", "trips-identity-failure", "trips-shell-failure", "trips-redirect-failure"]) {
+for (const scenario of ["success", "proxy-env", "reload-failure", "identity-failure", "http-failure", "nginx-failure", "bad-marker", "bad-id", "missing-previous", "outside-previous", "duplicate", "symlink-bundle", "locked"]) {
   test(`CodeDeploy activation fixture: ${scenario}`, { skip: process.platform === "win32" ? "Linux filesystem/flock fixture runs in CI and CodeBuild" : false }, () => {
     const fixture = fileURLToPath(new URL("./fixtures/codedeploy-activation.sh", import.meta.url));
     const result = spawnSync(bash, [fixture, scenario], {encoding: "utf8", timeout: 15000});

@@ -2,6 +2,8 @@
 
 갱신: 2026-10-18 · GA4 웹 스트림: `G-MC93CZWLZF`
 
+> 2026-11-09: `/recap/` 캠페인과 `/trips/` 실험 페이지를 삭제했다. 아래 Recap(`surface=recap`, `travel_map_*`) 항목은 그 전 기간 데이터를 읽기 위한 기록이며, 이후로는 이 이벤트가 오지 않는다. `/trips/`의 `trips_*` 이벤트 정의는 [docs/history/trips-measurement-plan.md](docs/history/trips-measurement-plan.md)에 남겼다.
+
 ## 판단할 성과
 
 **1차 성과는 App Store / Google Play로 이동한 방문자 비율이다.**

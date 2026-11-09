@@ -7,18 +7,12 @@ trap 'rm -rf -- "$fixture"' EXIT
 root="$fixture/landing"
 bundle="$fixture/bundle"
 mkdir -p "$root/releases/old" "$bundle/client" "$fixture/outside"
-mkdir -p "$bundle/client/recap"
-mkdir -p "$bundle/client/trips"
 printf old > "$root/releases/old/index.html"
 printf external > "$fixture/outside/index.html"
 ln -s "$root/releases/old" "$root/current"
 sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 printf new > "$bundle/client/index.html"
 printf '%s\n' "$sha" > "$bundle/client/release.txt"
-printf '<script src="/recap/assets/app.js"></script>' > "$bundle/client/recap/index.html"
-printf '%s\n' "$sha" > "$bundle/client/recap/release.txt"
-printf '<input id="photo-input"><script src="./app.js"></script>' > "$bundle/client/trips/index.html"
-printf '%s\n' "$sha" > "$bundle/client/trips/release.txt"
 deployment_id=d-TEST123
 
 # Never call host services or the network. Filesystem operations stay under mktemp.
@@ -35,32 +29,6 @@ curl() {
   [[ "$*" == *"--noproxy *"* ]] || return 97
   [[ "$*" == *"--resolve map-mory.com:443:127.0.0.1"* ]] || return 98
   [[ "$scenario" != http-failure ]] || return 22
-  if [[ "$*" == *'/trips?'* ]]; then
-    if [[ "$scenario" == trips-redirect-failure ]]; then printf '200 '; else printf '308 https://map-mory.com/trips/?deployment=%s' "$deployment_id"; fi
-    return
-  fi
-  if [[ "$*" == *'/trips/'* ]]; then
-    [[ "$scenario" != trips-http-failure ]] || return 22
-    if [[ "$*" == *release.txt* ]]; then
-      if [[ "$scenario" == trips-identity-failure ]]; then printf wrong; else printf '%s' "$sha"; fi
-    elif [[ "$scenario" == trips-shell-failure ]]; then
-      printf '<html>landing fallback</html>'
-    else
-      printf '<input id="photo-input"><script src="./app.js"></script>'
-    fi
-    return
-  fi
-  if [[ "$*" == *'/recap/'* ]]; then
-    [[ "$scenario" != recap-http-failure ]] || return 22
-    if [[ "$*" == *release.txt* ]]; then
-      if [[ "$scenario" == recap-identity-failure ]]; then printf wrong; else printf '%s' "$sha"; fi
-    elif [[ "$scenario" == recap-shell-failure ]]; then
-      printf '<html>landing fallback</html>'
-    else
-      printf '<script src="/recap/assets/app.js"></script>'
-    fi
-    return
-  fi
   if [[ "$*" == *release.txt* ]]; then
     if [[ "$scenario" == identity-failure ]]; then printf wrong; else printf '%s' "$sha"; fi
   fi
@@ -68,10 +36,6 @@ curl() {
 case "$scenario" in
   proxy-env) export HTTPS_PROXY=http://invalid.proxy.test:9999 ALL_PROXY=http://invalid.proxy.test:9999 ;;
   bad-marker) printf '../bad' > "$bundle/client/release.txt" ;;
-  missing-recap) rm -- "$bundle/client/recap/index.html" ;;
-  bad-recap-marker) printf wrong > "$bundle/client/recap/release.txt" ;;
-  missing-trips) rm -- "$bundle/client/trips/index.html" ;;
-  bad-trips-marker) printf wrong > "$bundle/client/trips/release.txt" ;;
   bad-id) deployment_id=../bad ;;
   missing-previous) unlink "$root/current" ;;
   outside-previous) ln -sfnT "$fixture/outside" "$root/current" ;;

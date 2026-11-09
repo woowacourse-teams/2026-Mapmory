@@ -10,8 +10,6 @@ phases:
     commands:
       - cd "$CODEBUILD_SRC_DIR/landing"
       - npm ci
-      - npm --prefix travel-map-campaign ci
-      - npm --prefix trips ci
   pre_build:
     commands:
       - '[[ "${VITE_GA_MEASUREMENT_ID:-}" =~ ^G-[A-Z0-9]+$ ]]'
@@ -21,11 +19,7 @@ phases:
   build:
     commands:
       - VITE_LANDING_VERSION=v4 npm run build
-      - npm --prefix travel-map-campaign run build
-      - npm --prefix trips run build
       - npm test
-      - npm --prefix travel-map-campaign run test:built
-      - npm --prefix trips test
   post_build:
     commands:
       - |
