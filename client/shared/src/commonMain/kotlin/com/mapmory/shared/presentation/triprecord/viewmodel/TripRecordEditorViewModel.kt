@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import com.mapmory.shared.app.BackgroundTripRecordSaver
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.domain.model.Location
+import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.PlaceCandidate
 import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.PlaceRules
@@ -56,6 +57,9 @@ class TripRecordEditorViewModel(
     private var placeSelectionGeneration = 0
     private var placeSessionToken: String? = null
     private var rejectedPlaceName: String? = null
+    private var photoRegionGeneration = 0
+    private var suggestedCoverPhotoId: String? = null
+    private var autoFilledLocationId: Long? = null
 
     var uiState by mutableStateOf(TripRecordEditorUiState())
         private set
@@ -68,6 +72,9 @@ class TripRecordEditorViewModel(
         placeSelectionGeneration += 1
         placeSessionToken = null
         rejectedPlaceName = null
+        photoRegionGeneration += 1
+        suggestedCoverPhotoId = null
+        autoFilledLocationId = null
         uiState = TripRecordEditorUiState()
         savedRecordId = null
         isRouteInitialized = false
@@ -93,6 +100,9 @@ class TripRecordEditorViewModel(
         placeSelectionGeneration += 1
         placeSessionToken = null
         rejectedPlaceName = null
+        photoRegionGeneration += 1
+        suggestedCoverPhotoId = null
+        autoFilledLocationId = null
         uiState = TripRecordEditorUiState(
             selectedLocation = location?.takeIf(Location::isSelectableTripRecordDestination),
             isPlaceSearchAvailable = placeRepository != null,
@@ -124,6 +134,9 @@ class TripRecordEditorViewModel(
         placeSelectionGeneration += 1
         placeSessionToken = null
         rejectedPlaceName = null
+        photoRegionGeneration += 1
+        suggestedCoverPhotoId = null
+        autoFilledLocationId = null
         val allTags = (uiState.availableTags + record.tags).distinctBy { it.id }
         uiState = TripRecordEditorUiState(
             recordId = record.id,
@@ -300,6 +313,8 @@ class TripRecordEditorViewModel(
 
     fun selectLocation(location: Location) {
         if (!location.isSelectableTripRecordDestination()) return
+        photoRegionGeneration += 1
+        autoFilledLocationId = null
         // 지역을 직접 고르면 장소 검색 세션은 끝난다.
         placeSessionToken = null
         val place = uiState.selectedPlace
@@ -308,6 +323,8 @@ class TripRecordEditorViewModel(
         val keepsPlace = placeCountryCode == null || placeCountryCode == location.tripRecordCountryCode()
         uiState = uiState.copy(
             selectedLocation = location,
+            photoRegionAttribution = null,
+            photoRegionAttributionUrl = null,
             selectedPlace = place.takeIf { keepsPlace },
             placeSelectionErrorMessage = null,
             manualRegionRequired = false,
@@ -363,6 +380,8 @@ class TripRecordEditorViewModel(
     }
 
     suspend fun selectPlace(candidate: PlaceCandidate): Location? {
+        photoRegionGeneration += 1
+        autoFilledLocationId = null
         val repository = placeRepository ?: return null
         val generation = ++placeSelectionGeneration
         uiState = uiState.copy(
@@ -428,6 +447,57 @@ class TripRecordEditorViewModel(
         )
     }
 
+    suspend fun suggestRegionForCover(photos: List<SelectedPhoto>) {
+        val repository = placeRepository ?: return
+        val cover = photos.firstOrNull() ?: return
+        if (suggestedCoverPhotoId == cover.id) return
+        suggestedCoverPhotoId = cover.id
+        val generation = ++photoRegionGeneration
+        val photo = photos.firstOrNull { it.latitude != null && it.longitude != null } ?: return
+        val latitude = requireNotNull(photo.latitude)
+        val longitude = requireNotNull(photo.longitude)
+        if (!latitude.isFinite() || latitude !in -90.0..90.0 ||
+            !longitude.isFinite() || longitude !in -180.0..180.0) return
+        val initialLocation = uiState.selectedLocation
+        val suggestion = try {
+            repository.suggestRegion(latitude, longitude)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            // 화면을 나가 취소된 조회는 같은 대표 사진으로 돌아왔을 때 다시 시도한다.
+            if (generation == photoRegionGeneration) suggestedCoverPhotoId = null
+            throw cancelled
+        }
+        suggestion.onSuccess { result ->
+            if (generation != photoRegionGeneration || uiState.isSaving) return@onSuccess
+            if (result.manualRegionRequired) return@onSuccess
+            val region = result.suggestedRegion ?: return@onSuccess
+            val catalog = regionCatalog ?: return@onSuccess
+            val provinceCode = region.provinceCode?.let { "KR-${it.removePrefix("KR-")}" }
+            val location = when {
+                result.countryCode == "KR" && provinceCode != null && region.districtCode != null ->
+                    catalog.findDistrict(provinceCode, region.districtCode)
+                        ?: catalog.findDistrict(provinceCode, region.districtCode.collapseCityDistrictCode())
+                result.countryCode == "KR" && provinceCode != null -> catalog.findByCode(provinceCode)
+                result.countryCode != null && result.countryCode != "KR" -> catalog.findByCode(result.countryCode)
+                else -> null
+            }?.takeIf(Location::isSelectableTripRecordDestination) ?: return@onSuccess
+            // 직접 고른 구·군은 유지하고, 같은 시·도 전체를 선택한 경우만 세분화한다.
+            if (initialLocation != null) {
+                val selectedProvince = if (initialLocation.isSelectableKoreanProvince()) initialLocation
+                    else if (initialLocation.id == autoFilledLocationId) initialLocation.parentId?.let(catalog::findById)
+                    else null
+                if (initialLocation.countryId != 1L || selectedProvince?.regionCode != provinceCode) return@onSuccess
+                if (location.type != LocationType.DISTRICT) return@onSuccess
+            }
+            autoFilledLocationId = location.id
+            uiState = uiState.copy(
+                selectedLocation = location,
+                manualRegionRequired = false,
+                photoRegionAttribution = result.attribution,
+                photoRegionAttributionUrl = result.attributionUrl,
+            ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
+        }
+    }
+
     private fun currentPlaceSessionToken(): String =
         placeSessionToken ?: newPlaceSessionToken().also { placeSessionToken = it }
 
@@ -446,8 +516,12 @@ class TripRecordEditorViewModel(
     }
 
     fun clearLocation() {
+        photoRegionGeneration += 1
+        autoFilledLocationId = null
         uiState = uiState.copy(
             selectedLocation = null,
+            photoRegionAttribution = null,
+            photoRegionAttributionUrl = null,
         ).revalidatedAfterChange(TripRecordEditorErrorTarget.LOCATION)
     }
 
