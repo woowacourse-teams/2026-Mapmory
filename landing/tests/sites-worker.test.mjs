@@ -41,6 +41,28 @@ test("falls back to index.html for an unknown app route", async () => {
   assert.deepEqual(calls, ["/flow/step-two?source=share", "/index.html"]);
 });
 
+test("serves the one invite page for every group invite link", async () => {
+  const calls = [];
+  const response = await worker.fetch(
+    new Request("https://example.test/invite/q9Xw2abc", { headers: { accept: "text/html" } }),
+    {
+      ASSETS: {
+        fetch: async (request) => {
+          const { pathname } = new URL(request.url);
+          calls.push(pathname);
+          return new Response(pathname === "/invite/index.html" ? "invite" : "missing", {
+            status: pathname === "/invite/index.html" ? 200 : 404,
+          });
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "invite");
+  assert.deepEqual(calls, ["/invite/q9Xw2abc", "/invite/index.html"]);
+});
+
 test("does not turn missing API or write requests into the app shell", async () => {
   for (const request of [
     new Request("https://example.test/api/missing", { headers: { accept: "application/json" } }),

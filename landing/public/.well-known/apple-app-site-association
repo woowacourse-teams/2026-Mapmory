@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["22YUT65LMV.com.mapmory.ios", "22YUT65LMV.com.mapmory.ios.internal"],
+        "components": [
+          { "/": "/invite/*", "comment": "그룹 초대 링크" }
+        ]
+      }
+    ]
+  }
+}

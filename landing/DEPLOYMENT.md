@@ -55,6 +55,8 @@ Users may enter `https://map-mory.com/trips`. The canonical address is
 This keeps the experiment's relative script, CSS, worker, parser and data paths
 inside `/trips/`. Missing files under that prefix return 404, not the root SPA.
 
+Group invite links (`/invite/*`, `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`): before the first release that ships them, merge the locations in `nginx/invite.conf` into the live map-mory.com HTTPS server block, run `nginx -t`, then reload Nginx. Verify that both `.well-known` files return 200 as `application/json` without a redirect and that `/invite/abc` shows the invite page.
+
 Before the first production promotion, inspect the live Mapmory Nginx server block
 and compare it with `nginx/trips.conf`. That file is a reviewed configuration
 example, **not automatically installed** by this PR, package or deployment hook.
