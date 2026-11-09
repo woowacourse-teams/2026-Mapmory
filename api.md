@@ -1718,7 +1718,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-`entries`는 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `photos`는 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+`entries`는 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `photos`는 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식(서명 URL, 만료 시간 초)으로 서명하되, 앨범에는 썸네일 주소가 더 있다.
 
 `photos[].viewUrl`은 원본이고 전체 화면 뷰어에서 쓴다. `photos[].thumbnailUrl`은 서버가 만든 썸네일(WebP, 긴 변 1080px)이고 그리드처럼 작게 보여 줄 때 쓴다. 썸네일이 아직 없으면 `thumbnailUrl`도 원본 주소다. 두 주소의 만료 시간은 각각 `viewUrlExpiresIn`, `thumbnailUrlExpiresIn`(초)이다. 앨범 열기·기록 담기·앨범 수정 응답의 `photos`도 같은 형태다.
 

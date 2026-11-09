@@ -265,6 +265,8 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[0].owner.nickname").value("민호"))
                 .andExpect(jsonPath("$.data.entries[0].owner.me").value(true))
                 .andExpect(jsonPath("$.data.entries[0].addedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("c.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("지수"));
         addEntry(minho, group.getId(), albumId, minhoRecord.getId())
                 .andExpect(status().isOk())
@@ -296,11 +298,13 @@ class AlbumIntegrationTest extends IntegrationTest {
 
     @Test
     void 멤버는_누구나_보낸_값만_바꾼다() throws Exception {
-        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null));
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
 
         update(minho, group.getId(), albumId, "{\"name\": \" 도쿄 봄 \"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("도쿄 봄"))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("a.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.region.id").value(seoul.getId()));
         update(minho, group.getId(), albumId, "{\"regionId\": " + busan.getId() + "}")
                 .andExpect(status().isOk())
