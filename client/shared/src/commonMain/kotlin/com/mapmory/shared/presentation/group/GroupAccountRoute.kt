@@ -24,6 +24,7 @@ internal fun GroupAccountRoute(
     modifier: Modifier = Modifier,
     initialGroupId: Long? = null,
     initialAlbumId: Long? = null,
+    notificationLoginMessage: String? = null,
     onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
@@ -56,6 +57,7 @@ internal fun GroupAccountRoute(
                 restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
                 restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text("그룹", style = MaterialTheme.typography.headlineMedium)
+                    notificationLoginMessage?.let { Text(it, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) }
                     restoreError?.let { Text(it) }
                     SocialLoginPanel(session, container.accountLoginController)
                 }

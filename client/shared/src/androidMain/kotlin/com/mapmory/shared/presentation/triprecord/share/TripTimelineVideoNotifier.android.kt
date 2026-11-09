@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -17,6 +19,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import com.mapmory.shared.data.settings.isTravelVideoCompletionNotificationEnabled
+import com.mapmory.shared.MapmoryNotificationIntent
 
 @Composable
 internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifier {
@@ -47,12 +50,12 @@ private class AndroidTripTimelineVideoNotifier(
         if (!canPostNotifications(manager)) return false
         ensureChannel(manager)
         clearProgress(jobId)
-        val notification = NotificationCompat.Builder(context, ChannelId)
+        val notification = NotificationCompat.Builder(context, TripTimelineVideoNotificationChannelId)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("여행 영상이 준비됐어요")
             .setContentText("앱에서 미리 보고 저장하거나 공유해 보세요.")
             .setAutoCancel(true)
-            .apply { launchPendingIntent()?.let { setContentIntent(it) } }
+            .apply { readyPendingIntent(jobId)?.let { setContentIntent(it) } }
             .build()
         manager.notify("share-video-$jobId", jobId.hashCode(), notification)
         return true
@@ -63,7 +66,7 @@ private class AndroidTripTimelineVideoNotifier(
         val manager = context.getSystemService(NotificationManager::class.java)
         if (!canPostNotifications(manager)) return
         ensureChannel(manager)
-        val notification = NotificationCompat.Builder(context, ChannelId)
+        val notification = NotificationCompat.Builder(context, TripTimelineVideoNotificationChannelId)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("여행 영상 생성 중")
             .setContentText("앱 화면을 닫아도 생성은 계속돼요.")
@@ -82,7 +85,7 @@ private class AndroidTripTimelineVideoNotifier(
 
     private fun ensureChannel(manager: NotificationManager) {
         manager.createNotificationChannel(
-            NotificationChannel(ChannelId, "여행 영상", NotificationManager.IMPORTANCE_DEFAULT),
+            NotificationChannel(TripTimelineVideoNotificationChannelId, "여행 영상", NotificationManager.IMPORTANCE_DEFAULT),
         )
     }
 
@@ -92,7 +95,7 @@ private class AndroidTripTimelineVideoNotifier(
         ) return false
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-            manager.getNotificationChannel(ChannelId)?.importance != NotificationManager.IMPORTANCE_NONE
+            manager.getNotificationChannel(TripTimelineVideoNotificationChannelId)?.importance != NotificationManager.IMPORTANCE_NONE
     }
 
     private fun launchPendingIntent(): PendingIntent? =
@@ -104,7 +107,20 @@ private class AndroidTripTimelineVideoNotifier(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         }
+
+    private fun readyPendingIntent(jobId: Long): PendingIntent? =
+        context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { intent ->
+            intent.action = MapmoryNotificationIntent.ACTION_OPEN_VIDEO
+            intent.putExtra(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, jobId)
+            intent.data = Uri.parse("mapmory://notification/video/$jobId")
+            PendingIntent.getActivity(
+                context,
+                jobId.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
 }
 
-private const val ChannelId = "share-video-ready"
+internal const val TripTimelineVideoNotificationChannelId = "share-video-ready"
 private const val NotificationRequestCode = 31002

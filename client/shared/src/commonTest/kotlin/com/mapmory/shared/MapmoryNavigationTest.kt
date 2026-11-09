@@ -1,0 +1,52 @@
+package com.mapmory.shared
+
+import com.mapmory.shared.navigation.RecordsRoute
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class MapmoryNavigationTest {
+    @Test
+    fun `invalid notification identifiers are ignored`() {
+        val navigation = MapmoryNavigation()
+
+        navigation.openRecordNotification(0, preserveBackStack = false)
+        navigation.openVideoNotification(-1, preserveBackStack = true)
+
+        assertNull(navigation.notificationRequest.value)
+    }
+
+    @Test
+    fun `record notification request preserves target and cold launch policy`() {
+        val navigation = MapmoryNavigation()
+
+        navigation.openRecordNotification(42, preserveBackStack = false)
+
+        val request = requireNotNull(navigation.notificationRequest.value)
+        assertEquals(NotificationNavigationTarget.Record(42), request.target)
+        assertFalse(request.preserveBackStack)
+    }
+
+    @Test
+    fun `video request can await login and resumes to the previous route`() {
+        val navigation = MapmoryNavigation()
+        val returnRoute = RecordsRoute(locationId = 7)
+
+        navigation.openVideoNotification(91, preserveBackStack = true)
+        val requestId = requireNotNull(navigation.notificationRequest.value).id
+        navigation.awaitNotificationLogin(requestId, returnRoute)
+
+        val waitingRequest = requireNotNull(navigation.notificationRequest.value)
+        assertEquals(NotificationNavigationTarget.Video(91), waitingRequest.target)
+        assertTrue(waitingRequest.preserveBackStack)
+        assertTrue(waitingRequest.awaitingLogin)
+        assertEquals(returnRoute, waitingRequest.returnRoute)
+
+        navigation.consumeNotification(requestId + 1)
+        assertEquals(waitingRequest, navigation.notificationRequest.value)
+        navigation.consumeNotification(requestId)
+        assertNull(navigation.notificationRequest.value)
+    }
+}

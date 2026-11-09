@@ -1,6 +1,7 @@
 package com.mapmory.android
 
 import android.os.Bundle
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.SystemClock
@@ -31,12 +32,18 @@ import androidx.compose.ui.res.colorResource
 import androidx.lifecycle.lifecycleScope
 import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
+import com.mapmory.shared.MapmoryNotificationIntent
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private var processHasStarted = false
+    }
+
+    private val navigation = MapmoryNavigation()
     private val appViewModel: MapmoryAppViewModel by viewModels()
     private val analyticsLogger by lazy { FirebaseAnalyticsLogger(applicationContext) }
     private val developerToolsInfo by lazy { loadDeveloperToolsInfo() }
@@ -48,6 +55,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // OS-restored state after process death is not a live in-app back stack.
+        if (handleNotificationIntent(intent, preserveBackStack = processHasStarted && savedInstanceState != null)) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+        processHasStarted = true
         val notificationPermission = registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {}
@@ -66,7 +78,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            val navigation = remember { MapmoryNavigation() }
             var lastBackPressedAt by remember { mutableLongStateOf(0L) }
             var isDarkTheme by rememberSaveable { mutableStateOf(false) }
             val systemBarColor = colorResource(
@@ -133,6 +144,40 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (handleNotificationIntent(intent, preserveBackStack = true)) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+    }
+
+    private fun handleNotificationIntent(intent: Intent?, preserveBackStack: Boolean): Boolean {
+        intent ?: return false
+        val action = intent.action
+        val targetId = when (action) {
+            MapmoryNotificationIntent.ACTION_OPEN_RECORD -> intent
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_RECORD_ID, 0L)
+                .takeIf { it > 0L }
+            MapmoryNotificationIntent.ACTION_OPEN_VIDEO -> intent
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, 0L)
+                .takeIf { it > 0L }
+            null, Intent.ACTION_MAIN -> intent.extras?.let { extras ->
+                sequenceOf(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, "jobId", "job_id")
+                    .mapNotNull { key -> extras.get(key)?.toString()?.toLongOrNull() }
+                    .firstOrNull { it > 0L }
+            }
+            else -> null
+        } ?: return false
+
+        if (action == MapmoryNotificationIntent.ACTION_OPEN_RECORD) {
+            navigation.openRecordNotification(targetId, preserveBackStack)
+        } else {
+            navigation.openVideoNotification(targetId, preserveBackStack)
+        }
+        return true
     }
 }
 

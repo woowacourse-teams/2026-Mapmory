@@ -43,7 +43,7 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
             }
         }
     }
-    override fun onCompleted(save: BackgroundTripRecordSave) {
+    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {
         lastNotificationBucket = -1
         UNUserNotificationCenter.currentNotificationCenter().removeDeliveredNotificationsWithIdentifiers(listOf("record-progress"))
         if (!isPhotoRecordCompletionNotificationEnabled() ||

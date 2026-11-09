@@ -42,6 +42,24 @@ internal class MapmoryNavigator(
         forwardEntries.clear()
     }
 
+    fun currentRoute(): Any? {
+        val entry = navController.currentBackStackEntry ?: return null
+        return when {
+            entry.destination.hasRoute<MapRoute>() -> MapRoute
+            entry.destination.hasRoute<RecordsRoute>() -> entry.toRoute<RecordsRoute>()
+            entry.destination.hasRoute<EditorRoute>() -> entry.toRoute<EditorRoute>()
+            entry.destination.hasRoute<DetailRoute>() -> entry.toRoute<DetailRoute>()
+            entry.destination.hasRoute<TripTimelineVideoNotificationRoute>() -> entry.toRoute<TripTimelineVideoNotificationRoute>()
+            entry.destination.hasRoute<GroupsRoute>() -> GroupsRoute
+            entry.destination.hasRoute<GroupPreviewRoute>() -> GroupPreviewRoute
+            entry.destination.hasRoute<ProfileRoute>() -> ProfileRoute
+            entry.destination.hasRoute<TripAchievementsRoute>() -> TripAchievementsRoute
+            entry.destination.hasRoute<SettingsRoute>() -> SettingsRoute
+            entry.destination.hasRoute<DeveloperToolsRoute>() -> DeveloperToolsRoute
+            else -> null
+        }
+    }
+
     fun navigateBack(): Boolean {
         val currentDestination = navController.currentDestination ?: return false
         clearForwardHistory()

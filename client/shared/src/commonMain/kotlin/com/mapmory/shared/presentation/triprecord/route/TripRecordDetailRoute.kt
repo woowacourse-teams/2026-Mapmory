@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun TripRecordDetailRoute(
     recordId: Long,
+    isNotificationEntry: Boolean = false,
+    accountGeneration: Long = 0L,
     tripRecordRevision: Long,
     viewModel: TripRecordDetailViewModel,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
@@ -72,8 +74,14 @@ internal fun TripRecordDetailRoute(
         )
     }
 
-    LaunchedEffect(viewModel, recordId, tripRecordRevision) {
-        viewModel.loadIfNeeded(recordId, tripRecordRevision)
+    var loadedAccountGeneration by remember(viewModel, recordId) { mutableStateOf(accountGeneration) }
+    LaunchedEffect(viewModel, recordId, tripRecordRevision, isNotificationEntry, accountGeneration) {
+        if (isNotificationEntry || loadedAccountGeneration != accountGeneration) {
+            viewModel.load(recordId)
+        } else {
+            viewModel.loadIfNeeded(recordId, tripRecordRevision)
+        }
+        loadedAccountGeneration = accountGeneration
     }
 
     var reportedView by rememberSaveable(recordId) { mutableStateOf(false) }
@@ -88,6 +96,10 @@ internal fun TripRecordDetailRoute(
     TripRecordDetailScreen(
         modifier = modifier,
         uiState = viewModel.uiState,
+        notificationEntryError = if (isNotificationEntry) {
+            "기록을 불러오지 못했어요. 로그인 계정과 연결 상태를 확인한 뒤 다시 시도해 주세요."
+        } else null,
+        onRetryClick = if (isNotificationEntry) ({ scope.launch { viewModel.load(recordId) } }) else null,
         initialLocationName = initialLocationName,
         initialLatestDate = initialLatestDate,
         initialPhotoCount = initialPhotoCount,
