@@ -39,6 +39,7 @@ import com.mapmory.backend.travelrecord.TravelRecordChangedEvent;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCacheProperties;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
+import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
 import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -146,7 +147,9 @@ class TravelRecordServiceTest {
                 mock(PlatformTransactionManager.class),
                 eventPublisher,
                 travelRecordListCache,
-                activeMemberGuard
+                activeMemberGuard,
+                mock(OrphanedMediaRepository.class),
+                mock(com.mapmory.backend.upload.storage.DerivedObjectKeys.class)
         );
     }
 

@@ -36,6 +36,9 @@ class KoreanAddressRegionMatcherTest {
     private final Region seongnam = Region.of(gyeonggi, korea, "41130", "성남시", RegionType.DISTRICT);
     private final Region gyeonggiGwangju = Region.of(gyeonggi, korea, "41610", "광주시", RegionType.DISTRICT);
     private final Region yangyang = Region.of(gangwon, korea, "42830", "양양군", RegionType.DISTRICT);
+    private final Region chungnam = Region.of(korea, korea, "44", "충청남도", RegionType.PROVINCE);
+    private final Region boryeong = Region.of(chungnam, korea, "44180", "보령시", RegionType.DISTRICT);
+    private final Region busanDonggu = Region.of(busan, korea, "26170", "동구", RegionType.DISTRICT);
     private final Region sejongCity = Region.of(sejong, korea, "36110", "세종시", RegionType.DISTRICT);
 
     private KoreanAddressRegionMatcher matcher;
@@ -45,13 +48,14 @@ class KoreanAddressRegionMatcherTest {
         matcher = new KoreanAddressRegionMatcher(regionResolver);
         when(regionResolver.findCountryIfPresent("KR")).thenReturn(Optional.of(korea));
         when(regionResolver.children(korea, RegionType.PROVINCE))
-                .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong));
+                .thenReturn(List.of(seoul, busan, gwangju, gyeonggi, gangwon, sejong, chungnam));
         when(regionResolver.children(seoul, RegionType.DISTRICT)).thenReturn(List.of(jongno));
-        when(regionResolver.children(busan, RegionType.DISTRICT)).thenReturn(List.of(haeundae, busanjin));
+        when(regionResolver.children(busan, RegionType.DISTRICT)).thenReturn(List.of(haeundae, busanjin, busanDonggu));
         when(regionResolver.children(gwangju, RegionType.DISTRICT)).thenReturn(List.of(gwangjuDonggu));
         when(regionResolver.children(gyeonggi, RegionType.DISTRICT)).thenReturn(List.of(seongnam, gyeonggiGwangju));
         when(regionResolver.children(gangwon, RegionType.DISTRICT)).thenReturn(List.of(yangyang));
         when(regionResolver.children(sejong, RegionType.DISTRICT)).thenReturn(List.of(sejongCity));
+        when(regionResolver.children(chungnam, RegionType.DISTRICT)).thenReturn(List.of(boryeong));
     }
 
     @Test
@@ -93,6 +97,27 @@ class KoreanAddressRegionMatcherTest {
     void 시도를_찾지_못하면_직접_선택하도록_빈_값을_준다() {
         assertThat(matcher.match(korea("없는도", "없는시"))).isEmpty();
         assertThat(matcher.match(new RegionAddress("KR", null, List.of()))).isEmpty();
+    }
+
+    @Test
+    void 시도가_없는_주소는_전국에_하나뿐인_시군구로_찾는다() {
+        // Google 대천해수욕장 상세: 대천해수욕장, 보령시(locality), 대한민국만 온다.
+        assertThat(matcher.match(new RegionAddress("KR", null, List.of("보령시")))).contains(boryeong);
+    }
+
+    @Test
+    void 시도가_없는_주소는_일반구가_있어도_시로_찾는다() {
+        assertThat(matcher.match(new RegionAddress("KR", null, List.of("성남시", "분당구")))).contains(seongnam);
+    }
+
+    @Test
+    void 시도가_없는_주소의_시군구_이름이_여러_시도에_있으면_고르지_않는다() {
+        assertThat(matcher.match(new RegionAddress("KR", null, List.of("동구")))).isEmpty();
+    }
+
+    @Test
+    void 시도가_없는_주소의_시군구를_찾지_못하면_빈_값을_준다() {
+        assertThat(matcher.match(new RegionAddress("KR", null, List.of("없는시")))).isEmpty();
     }
 
     @Test

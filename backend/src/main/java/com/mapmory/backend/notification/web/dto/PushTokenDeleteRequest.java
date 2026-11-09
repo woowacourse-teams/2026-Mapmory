@@ -1,9 +1,9 @@
 package com.mapmory.backend.notification.web.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public record PushTokenDeleteRequest(
-        @NotBlank @Size(max = 255) String token
+        @NotNull @Positive Long pushTokenId
 ) {
 }

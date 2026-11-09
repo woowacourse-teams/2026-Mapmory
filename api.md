@@ -1,6 +1,6 @@
 # Mapmory API 명세
 
-> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림, 그룹 공유(구현 전 설계)
+> 기준일: 2026-10-22 · 범위: 인증, 회원, 지역 선택, 장소 검색, 지도 마킹, 여행 기록, 여행 통계, 이미지 첨부, 사용자 생성 태그, 관리자, 서비스 의견, 출시 알림, 그룹 공유(일부 구현 전 설계)
 
 이 문서는 Mapmory API의 기준 계약이다. API 목록의 `구현 전 설계` 항목은 구현에 앞서 합의한 목표 계약이며, 구현이 끝나면 `구현됨`으로 상태를 변경한다.
 
@@ -44,6 +44,7 @@
 | 구현됨 | `PATCH` | `/admin/service-feedback/{feedbackId}/status` | 내부 처리 상태 변경 |
 | 구현됨 | `GET` | `/places/search` | 장소 검색(Google Places Autocomplete) |
 | 구현됨 | `GET` | `/places/{placeId}` | 장소 선택·추천 지역 조회 |
+| 구현됨 | `POST` | `/places/location` | 사진 좌표로 추천 지역 조회(Google Geocoding) |
 | 구현됨 | `POST` | `/uploads/presigned-urls` | 이미지 업로드용 Presigned URL 발급 |
 | 구현됨 | `POST` | `/travel-records` | 여행 기록 생성 |
 | 구현됨 | `GET` | `/travel-records` | 내 여행 기록 목록 조회 |
@@ -66,12 +67,12 @@
 | 구현됨 | `GET` | `/invitations/{tokenOrCode}` | 초대 미리보기 |
 | 구현됨 | `POST` | `/invitations/{tokenOrCode}/accept` | 초대 수락 |
 | 구현 전 설계 | `DELETE` | `/groups/{groupId}/members/me` | 그룹 나가기 |
-| 구현 전 설계 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
-| 구현 전 설계 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
+| 구현됨 | `POST` | `/groups/{groupId}/albums` | 내 기록으로 앨범 열기 |
+| 구현됨 | `POST` | `/groups/{groupId}/albums/{albumId}/entries` | 앨범에 내 기록 붙이기 |
 | 구현 전 설계 | `DELETE` | `/groups/{groupId}/albums/{albumId}/entries/{travelRecordId}` | 앨범에서 내 기록 내리기 |
-| 구현 전 설계 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
-| 구현 전 설계 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
-| 구현 전 설계 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
+| 구현됨 | `PATCH` | `/groups/{groupId}/albums/{albumId}` | 앨범 이름·지역 바꾸기 |
+| 구현됨 | `GET` | `/groups/{groupId}/albums` | 앨범 목록 |
+| 구현됨 | `GET` | `/groups/{groupId}/albums/{albumId}` | 앨범 상세(기록 하나처럼) |
 | 구현 전 설계 | `PUT` | `/push-tokens` | 알림용 기기 토큰 등록 |
 | 구현 전 설계 | `DELETE` | `/push-tokens` | 알림용 기기 토큰 삭제 |
 | 구현 전 설계 | `GET` | `/notification-settings` | 내 알림 설정 |
@@ -309,10 +310,9 @@ Access Token이 아니라 ID Token을 보낸다.
 
 `POST /api/v1/auth/logout`
 
-전달한 Refresh Token을 폐기한다. 그 토큰이 이미 재발급에 쓰였다면 그 재발급으로 발급된 Refresh Token까지 폐기한다.
-앱은 마지막으로 받은 Refresh Token으로 로그아웃한다.
-로그아웃 전에 진행 중인 재발급을 기다리거나 취소한다. 같은 토큰으로 로그아웃 뒤 재발급하면 재사용으로 판단돼
-회원의 Refresh Token이 모두 폐기된다.
+전달한 Refresh Token이 속한 세션(로그인 한 번에서 재발급으로 이어진 토큰들)의 Refresh Token을 모두 폐기한다.
+이전에 받은 토큰으로 로그아웃해도 그 세션의 최신 토큰까지 폐기된다. 같은 회원의 다른 기기 세션은 남는다.
+앱은 마지막으로 받은 Refresh Token으로 로그아웃한다. 로그아웃 뒤 그 세션의 토큰으로 재발급하면 `401 INVALID_REFRESH_TOKEN`이다.
 
 ```json
 {
@@ -382,7 +382,7 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | 보호 API 전체 | `INVALID_ACCESS_TOKEN` | 위조·형식 오류, **`Authorization` 헤더 없음** | 로그인 화면으로 |
 | 회원 API (`/members/me`) | `INACTIVE_MEMBER` | 탈퇴했거나 버려진 게스트의 남은 Access Token | 로그인 화면으로 |
 | `POST /auth/token/refresh` | `EXPIRED_REFRESH_TOKEN` | Refresh Token 만료 | 로그인 화면으로 |
-| `POST /auth/token/refresh` | `INVALID_REFRESH_TOKEN` | 없는 토큰, 재사용 감지로 전부 폐기, 로그아웃한 토큰, 탈퇴·버려진 게스트 | 로그인 화면으로 |
+| `POST /auth/token/refresh` | `INVALID_REFRESH_TOKEN` | 없는 토큰, 재사용 감지로 그 세션 폐기, 로그아웃한 토큰, 탈퇴·버려진 게스트 | 로그인 화면으로 |
 
 ```text
 보호 API ─▶ 401 EXPIRED_ACCESS_TOKEN
@@ -457,7 +457,13 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 }
 ```
 
-업로드 후 24시간 안에 여행 기록과 연결되지 않은 객체는 고아 객체로 정리한다.
+여행 기록에 연결하지 않은 객체는 아직 지우지 않는다(#186). 기록을 지우거나 수정으로 사진을 빼면 연결됐던 객체는 다음 정리 배치에서 영구히 지운다.
+
+#### 오류
+
+| 상태 | 코드 | 설명 |
+| --- | --- | --- |
+| `429` | `UPLOAD_RATE_LIMITED` | 회원별 발급 파일 수가 1시간 300개 또는 하루 1,000개를 넘음. 남은 양보다 많이 요청하면 전부 거절한다. 응답의 `retryAfterSeconds`(정수)는 다시 요청할 수 있을 때까지 남은 초다. 시간 한도와 하루 한도 중 늦게 풀리는 쪽 기준이며, 최대 86,400초다 |
 
 ## 4. Tag API
 
@@ -1244,21 +1250,58 @@ Authorization: Bearer {accessToken}
 - `suggestedRegion`은 주소 이름으로 맞춘 **추천값**이다. 시·군·구를 못 맞추면 시·도까지만 추천한다. 지역을 전혀 찾지 못하면 `suggestedRegion`이 `null`, `manualRegionRequired`가 `true`이며 사용자가 지역을 직접 고른다.
 - 기록 저장 시 `placeId`만 보내면 이 추천 지역을 쓰고, 사용자가 지역을 고쳤다면 지역 코드도 함께 보낸다.
 
+### 사진 좌표로 지역 추천
+
+`POST /api/v1/places/location`
+
+대표 사진(첫 사진)의 촬영 위치로 기록 지역을 추천한다. 대표 사진에 위치가 없으면 다음 사진의 위치를 보낸다. 좌표는 URL에 남지 않도록 본문으로 받고, 서버는 저장하거나 로그에 남기지 않는다.
+
+```json
+{
+  "latitude": 35.8694,
+  "longitude": 128.6062
+}
+```
+
+#### Response `200 OK`
+
+```json
+{
+  "data": {
+    "countryCode": "KR",
+    "suggestedRegion": {
+      "country": { "code": "KR", "name": "대한민국" },
+      "province": { "code": "27", "name": "대구광역시" },
+      "district": { "code": "27110", "name": "중구" }
+    },
+    "manualRegionRequired": false,
+    "attribution": "Google Maps",
+    "attributionUrl": "https://www.google.com/maps"
+  }
+}
+```
+
+- 응답 모양은 장소 선택과 같다. 앱은 `suggestedRegion`을 저장 화면의 지역에 미리 채우고, 사용자는 바꿀 수 있다.
+- 바다처럼 주소가 없는 좌표면 `countryCode`·`suggestedRegion`이 `null`, `manualRegionRequired`가 `true`다. 이때는 지금처럼 사용자가 고른다.
+- 회원 한도는 장소 선택과 함께 센다.
+
 ### 호출 한도
 
 - 검색은 회원별 1분에 20회, 선택은 회원별 UTC 하루 100회다. 요청 값 검증보다 먼저 세므로 `400`으로 끝날 요청도 횟수에 들어간다.
-- Google 호출은 서버 전체 기준 분당 60회(서버별), 자동완성·상세 각각 UTC 월 9,000회로 제한한다.
+- Google 호출은 서버별 분당 60회, 자동완성·상세·좌표 → 지역(Geocoding) 각각 UTC 월 20,000회(개발 서버의 Geocoding은 3,000회)로 제한한다. 무료 사용량(각 10,000건)에 가까운 9,000건째에 운영 알림이 온다.
 
 ### 장소 오류
 
 | 상태 | `code` | 조건 |
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | `query`·`sessionToken` 형식이 올바르지 않음 |
+| `400` | `VALIDATION_ERROR` | `latitude`·`longitude`가 빠짐 |
+| `400` | `INVALID_COORDINATE` | 위도가 -90~90, 경도가 -180~180을 벗어남 |
 | `400` | `INVALID_PLACE_ID` | 장소 ID가 영문·숫자·`-`·`_` 1~255자가 아님 |
 | `404` | `PLACE_NOT_FOUND` | 제공자에 장소가 없음 |
 | `429` | `PLACE_RATE_LIMITED` | 회원 한도 또는 Google 분당 한도 초과 |
 | `429` | `PLACE_SEARCH_BUDGET_EXHAUSTED` | 이번 달 자동완성 한도 소진 |
-| `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 한도 소진 |
+| `503` | `PLACE_PROVIDER_BUDGET_EXHAUSTED` | 이번 달 상세 조회 또는 Geocoding 한도 소진 |
 | `503` | `PLACE_PROVIDER_UNAVAILABLE` | Google 장애·서킷 열림·키 없음·한도 저장소 장애 |
 
 ## 10. 출시 알림 API
@@ -1355,9 +1398,12 @@ Authorization: Bearer {accessToken}
 
 - 이름·닉네임은 `탈퇴한 회원`으로 바뀌고, 소셜 계정 연결 정보는 지워진다.
 - 모든 Refresh Token을 폐기한다. 앱은 저장한 토큰을 지운다.
+- 속한 모든 그룹에서 나간다. 그룹 나가기와 같이 앨범 항목이 내려가고, 방장은 다음 멤버에게 넘어가며, 혼자인 그룹은 지워진다. 처리에 실패하면 하루 안에 다시 처리한다.
+- 그 회원의 기기로 알림이 가지 않는다. 등록한 기기 토큰(`/push-tokens`)은 하루 안에 지운다. 버려진 게스트도 같다.
 - 이미 발급된 Access Token은 만료(최대 30분)까지 남지만, 회원 정보 API는 `401 INACTIVE_MEMBER`, 토큰 재발급은 `401 INVALID_REFRESH_TOKEN`이다.
 - 같은 소셜 계정으로 다시 로그인하면 **새 회원**으로 가입한다(`isNewMember: true`). 탈퇴 전 기록은 이어지지 않는다.
 - 이미 탈퇴했으면 아무것도 하지 않고 `204`를 반환한다.
+- 버려진 게스트의 Access Token이면 `401 INACTIVE_MEMBER`다. 탈퇴한 적이 없으므로 탈퇴 처리하지 않는다.
 - 탈퇴한 게스트의 Access Token을 실어 소셜 로그인하면 승격하지 않고 새 회원으로 가입한다.
 
 #### Response `204 No Content`
@@ -1374,7 +1420,7 @@ Authorization: Bearer {accessToken}
 
 ## 12. Group API
 
-> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기)·T2 초대(만들기·미리보기·수락) 구현됨, 나머지는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
+> 상태: T1 그룹(만들기·목록·조회·이름 바꾸기)·T2 초대(만들기·미리보기·수락)·앨범(열기·붙이기·바꾸기·목록·상세) 구현됨, 앨범에서 내리기는 구현 전 설계 · 결정과 이유는 [ADR 0022](backend/docs/adr/0022-group-sharing-albums.md)
 
 친구·가족이 같은 여행을 앨범 하나로 함께 본다. **저장은 각자, 보기는 하나로** 한다. 사진은 늘 자기 여행 기록에 저장하고, 앨범은 그 기록들을 id로 묶는다. 앱은 앨범을 기록 하나처럼 보여 준다.
 
@@ -1478,7 +1524,7 @@ Authorization: Bearer {accessToken}
 
 `POST /api/v1/groups/{groupId}/invitations`
 
-링크용 토큰과 직접 입력용 6자리 코드를 함께 발급한다. 앱은 `token`으로 링크를 만들어 공유창에 넘긴다.
+링크용 토큰과 직접 입력용 6자리 코드를 함께 발급한다. `inviteUrl`은 서버가 토큰으로 만든 초대 링크(`https://map-mory.com/invite/{token}`)이고, 앱은 이 값을 그대로 공유창에 넘긴다. 링크를 연 앱은 주소 끝의 토큰으로 미리보기·수락을 부른다.
 
 #### Response `201 Created`
 
@@ -1487,6 +1533,7 @@ Authorization: Bearer {accessToken}
   "data": {
     "token": "q9Xw2...",
     "code": "4KD7PZ",
+    "inviteUrl": "https://map-mory.com/invite/q9Xw2...",
     "expiresAt": "2026-10-23T18:00:00"
   }
 }
@@ -1591,25 +1638,40 @@ Authorization: Bearer {accessToken}
 
 `GET /api/v1/groups/{groupId}/albums`
 
-최근에 연 앨범부터 반환한다.
+최근에 기록이 담긴 앨범부터 반환하고, 같으면 id가 큰 앨범이 먼저다. `page`는 0부터, `size`는 1~50이며 기본값은 `0`, `20`이다. 범위를 벗어나면 `400 VALIDATION_ERROR`다.
 
 #### Response `200 OK`
 
 ```json
 {
-  "data": [
-    {
-      "id": 7,
-      "name": "도쿄 3월",
-      "region": { "code": "JP", "name": "일본" },
-      "startDate": "2026-03-01",
-      "endDate": "2026-03-04",
-      "coverViewUrl": "https://...signed-url",
-      "contributorNicknames": ["지수", "민호"]
-    }
-  ]
+  "data": {
+    "items": [
+      {
+        "id": 7,
+        "name": "도쿄 3월",
+        "region": { "id": 392, "code": "JP", "type": "COUNTRY", "name": "일본" },
+        "startDate": "2026-03-01",
+        "endDate": "2026-03-04",
+        "coverPhoto": { "viewUrl": "https://...signed-url", "viewUrlExpiresIn": 300 },
+        "contributors": [
+          { "memberId": 12, "nickname": "지수", "me": true },
+          { "memberId": 15, "nickname": "민호", "me": false }
+        ],
+        "recordCount": 2,
+        "photoCount": 5,
+        "lastAddedAt": "2026-03-05T09:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "hasNext": false
+  }
 }
 ```
+
+`coverPhoto`는 사진이 없으면 `null`이다. 담긴 기록이 모두 지워진 앨범은 `startDate`와 `endDate`가 `null`이고, 담긴 기록이 없는 앨범은 목록에 나오지 않는다. `lastAddedAt`은 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 
 ### 앨범 상세
 
@@ -1623,34 +1685,40 @@ Authorization: Bearer {accessToken}
 {
   "data": {
     "id": 7,
+    "groupId": 3,
     "name": "도쿄 3월",
-    "region": { "code": "JP", "name": "일본" },
+    "region": { "id": 392, "code": "JP", "type": "COUNTRY", "name": "일본" },
     "startDate": "2026-03-01",
     "endDate": "2026-03-04",
-    "records": [
+    "opener": { "memberId": 12, "nickname": "지수", "me": true },
+    "myTravelRecordIds": [101],
+    "entries": [
       {
         "travelRecordId": 101,
-        "nickname": "지수",
-        "mine": true,
+        "owner": { "memberId": 12, "nickname": "지수", "me": true },
         "title": "도쿄 첫날",
         "content": "",
         "startDate": "2026-03-01",
-        "endDate": "2026-03-03"
-      }
-    ],
-    "media": [
-      {
-        "travelRecordId": 101,
-        "nickname": "지수",
-        "viewUrl": "https://...signed-url",
-        "viewUrlExpiresIn": 300
+        "endDate": "2026-03-03",
+        "placeName": null,
+        "photos": [
+          {
+            "id": 1,
+            "viewUrl": "https://...signed-url",
+            "viewUrlExpiresIn": 300,
+            "sortOrder": 0
+          }
+        ],
+        "addedAt": "2026-03-05T09:00:00"
       }
     ]
   }
 }
 ```
 
-항목은 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `media`는 그 순서대로 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+`entries`는 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `photos`는 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식으로 서명한다.
+
+`addedAt`은 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 
 ### 앨범 알림
 

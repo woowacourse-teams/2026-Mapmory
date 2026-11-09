@@ -42,7 +42,8 @@ public class PushToken extends BaseEntity {
     }
 
     /**
-     * 같은 기기에서 다른 회원으로 로그인했다. 이 기기의 알림은 이제 그 회원이 받는다.
+     * 등록의 소유 회원과 플랫폼을 갱신한다.
+     * 계정 전환 시에는 서비스가 기존 행을 삭제하고 새로 등록해 이전 ID를 재사용하지 않는다.
      */
     public void assignTo(Long memberId, PushPlatform platform) {
         this.memberId = Objects.requireNonNull(memberId, "memberId must not be null");

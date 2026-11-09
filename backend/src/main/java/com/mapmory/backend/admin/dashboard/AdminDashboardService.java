@@ -48,11 +48,11 @@ public class AdminDashboardService {
         return new AdminDashboardResponse(
                 new Period(from, to),
                 new MemberStatistics(
-                        memberRepository.count(),
-                        memberRepository.countByProvider(AuthProvider.GUEST),
-                        memberRepository.countByProvider(AuthProvider.KAKAO),
-                        memberRepository.countByProvider(AuthProvider.GOOGLE),
-                        memberRepository.countByProvider(AuthProvider.APPLE),
+                        memberRepository.countActive(),
+                        memberRepository.countActiveByProvider(AuthProvider.GUEST),
+                        memberRepository.countActiveByProvider(AuthProvider.KAKAO),
+                        memberRepository.countActiveByProvider(AuthProvider.GOOGLE),
+                        memberRepository.countActiveByProvider(AuthProvider.APPLE),
                         memberRepository.countCreatedBetween(fromInclusive, toExclusive)
                 ),
                 new TravelRecordStatistics(

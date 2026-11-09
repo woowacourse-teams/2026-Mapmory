@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import java.util.UUID;
 
 @Component
 public class S3ShareVideoStorage implements ShareVideoStorage {
@@ -15,6 +18,7 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
     private final S3Client s3Client;
     private final String bucket;
     private final String keyPrefix;
+    private final S3StorageProperties.Client client;
 
     public S3ShareVideoStorage(
             final S3Client s3Client,
@@ -23,16 +27,34 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();
         this.keyPrefix = properties.keyPrefix();
+        this.client = properties.client();
     }
 
     @Override
     public String upload(final Long jobId, final Path videoPath) {
         String objectKey = createObjectKey(jobId);
 
+        uploadAttempt(objectKey, videoPath);
+        return objectKey;
+    }
+
+    @Override
+    public String attemptObjectKey(final Long jobId, final String attemptId) {
+        UUID uuid = UUID.fromString(attemptId);
+        return keyPrefix + "/share-videos/%d/%s/travel-timeline.mp4".formatted(jobId, uuid);
+    }
+
+    @Override
+    public void uploadAttempt(final String objectKey, final Path videoPath) {
+
+        // 클라이언트 기본 한도는 사진 확인 같은 작은 요청 기준이라, 크기가 큰 영상 업로드에는 따로 긴 한도를 건다.
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(objectKey)
                 .contentType(CONTENT_TYPE)
+                .overrideConfiguration(override -> override
+                        .apiCallAttemptTimeout(client.videoUploadAttemptTimeout())
+                        .apiCallTimeout(client.videoUploadTotalTimeout()))
                 .build();
 
         s3Client.putObject(
@@ -40,7 +62,19 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
                 RequestBody.fromFile(videoPath)
         );
 
-        return objectKey;
+    }
+
+    @Override
+    public boolean exists(final String objectKey) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(objectKey).build());
+            return true;
+        } catch (S3Exception exception) {
+            if (exception.statusCode() == 404) {
+                return false;
+            }
+            throw exception;
+        }
     }
 
     private String createObjectKey(final Long jobId) {

@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.domain;
 
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.tag.Tag;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -9,10 +10,63 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
+
+    // 정리 직전에 다시 쓰이는 키를 찾는다.
+    @Query("SELECT m.objectKey.value FROM RecordMedia m WHERE m.objectKey.value IN :keys")
+    List<String> findObjectKeysIn(@Param("keys") Collection<String> keys);
+
+    @Query("SELECT m.thumbKey FROM RecordMedia m WHERE m.thumbKey IN :keys")
+    List<String> findThumbKeysIn(@Param("keys") Collection<String> keys);
+
+    // 썸네일 워커(렌더러 서버)가 쓴다. thumb_key는 원본에서 만든 파생 데이터라 애그리거트 불변식과 무관해,
+    // 루트를 거치지 않고 바로 읽고 채운다(ADR 0029). 빈 문자열도 썸네일 없음으로 본다(RecordMedia#getThumbnailObjectKey).
+    @Query("""
+        SELECT new com.mapmory.backend.travelrecord.domain.MediaWithoutThumbnail(m.id, m.objectKey.value)
+        FROM RecordMedia m
+        WHERE (m.thumbKey IS NULL OR m.thumbKey = '') AND m.id > :cursor
+        ORDER BY m.id
+        """)
+    List<MediaWithoutThumbnail> findMediaWithoutThumbnail(@Param("cursor") Long cursor, Pageable pageable);
+
+    // S3에 올라간 것을 확인한 키만 넣는다. 이미 값이 있으면 덮어쓰지 않는다.
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE RecordMedia m SET m.thumbKey = :thumbKey
+        WHERE m.id = :id AND (m.thumbKey IS NULL OR m.thumbKey = '')
+        """)
+    int attachThumbnail(@Param("id") Long id, @Param("thumbKey") String thumbKey);
+
+    @Query("SELECT CASE WHEN COUNT(m) > 0 THEN TRUE ELSE FALSE END FROM RecordMedia m WHERE m.id = :id")
+    boolean existsMediaById(@Param("id") Long id);
+
+    @Query("""
+        SELECT COUNT(m) FROM RecordMedia m
+        WHERE (m.thumbKey IS NULL OR m.thumbKey = '') AND m.createdAt < :before
+        """)
+    long countMediaWithoutThumbnailCreatedBefore(@Param("before") LocalDateTime before);
+
+    // 회원 데이터 파기가 지울 기록을 나눠 읽는다. 지운 뒤 다시 읽으므로 항상 처음부터 읽는다.
+    @Query("SELECT r.id FROM TravelRecord r WHERE r.member.id = :memberId ORDER BY r.id")
+    List<Long> findIdsByMemberId(@Param("memberId") Long memberId, Pageable pageable);
+
+    @Query("SELECT m.objectKey.value FROM RecordMedia m WHERE m.travelRecord.id IN :ids")
+    List<String> findObjectKeysByTravelRecordIdIn(@Param("ids") Collection<Long> ids);
+
+    @Query("SELECT m.thumbKey FROM RecordMedia m WHERE m.travelRecord.id IN :ids AND m.thumbKey IS NOT NULL")
+    List<String> findThumbKeysByTravelRecordIdIn(@Param("ids") Collection<Long> ids);
+
+    // 회원 데이터 파기. 사진·태그 연결 행은 DB의 ON DELETE CASCADE가 지운다.
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM TravelRecord r WHERE r.id IN :ids")
+    void deleteAllByIdIn(@Param("ids") Collection<Long> ids);
 
     /**
      * 상세 응답은 지역을 국가·시도·시군구로 펼쳐 보여주므로 Region의 parent·root까지 필요하다.
