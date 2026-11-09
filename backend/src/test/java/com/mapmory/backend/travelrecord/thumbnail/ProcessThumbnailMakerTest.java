@@ -86,6 +86,40 @@ class ProcessThumbnailMakerTest {
     }
 
     @Test
+    void 상대_경로도_호출한_쪽의_작업_디렉터리_기준으로_넘긴다() throws IOException {
+        ProcessThumbnailMaker maker = makerRunning("printf '%s ' \"$1\" \"$2\" > \"$2\"");
+        Path relative = Path.of("").toAbsolutePath().relativize(output());
+
+        maker.make(Path.of("").toAbsolutePath().relativize(original()), relative);
+
+        assertThat(Files.readString(output())).isEqualTo(original() + " " + output() + " ");
+    }
+
+    // 종료 중 인터럽트되면 변환 프로세스를 남기지 않는다. 남으면 워커가 지운 작업 디렉터리에 계속 쓴다.
+    @Test
+    void 기다리다_인터럽트되면_프로세스를_끝낸다() throws Exception {
+        Path pidFile = directory.resolve("pid");
+        ProcessThumbnailMaker maker = makerRunning("echo $$ > \"" + pidFile + "\"; sleep 30");
+        Thread thread = new Thread(() -> {
+            try {
+                maker.make(original(), output());
+            } catch (ThumbnailMakeException ignored) {
+            }
+        });
+        thread.start();
+        while (!Files.exists(pidFile) || Files.readString(pidFile).isBlank()) {
+            Thread.sleep(20);
+        }
+        long pid = Long.parseLong(Files.readString(pidFile).strip());
+
+        thread.interrupt();
+        thread.join(10_000);
+
+        assertThat(thread.isAlive()).isFalse();
+        assertThat(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)).isFalse();
+    }
+
+    @Test
     void 스크립트가_없으면_실패한다() {
         ProcessThumbnailMaker maker = new ProcessThumbnailMaker(
                 ThumbnailWorkerPropertiesFixture.with(directory.resolve("missing"), "/bin/sh", Duration.ofSeconds(5)));

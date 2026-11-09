@@ -16,7 +16,7 @@ class DerivedObjectKeysTest {
     @CsvSource({
             "mapmory/dev/travel-records/7/abc.heic, mapmory/dev/derived/thumb/7/abc.webp",
             "mapmory/dev/travel-records/7/abc.jpg, mapmory/dev/derived/thumb/7/abc.webp",
-            "mapmory/dev/travel-records/123/9f1c-uuid.PNG, mapmory/dev/derived/thumb/123/9f1c-uuid.webp",
+            "mapmory/dev/travel-records/123/9f1c-uuid.png, mapmory/dev/derived/thumb/123/9f1c-uuid.webp",
     })
     void 원본_키에서_썸네일_키를_만든다(String original, String thumbnail) {
         assertThat(keys.thumbnailOf(original)).contains(thumbnail);
@@ -34,6 +34,10 @@ class DerivedObjectKeysTest {
             "mapmory/dev/travel-records/7/.jpg",
             "mapmory/dev/derived/thumb/7/abc.webp",
             "mapmory/dev/travel-records/7/../8/abc.jpg",
+            // 서버는 jpg·png·webp·heic만 발급한다. 정리 배치의 역조회(originalCandidatesOf)와 규칙을 맞춘다.
+            "mapmory/dev/travel-records/7/abc.jpeg",
+            "mapmory/dev/travel-records/7/abc.PNG",
+            "mapmory/dev/travel-records/7/abc.gif",
     })
     void 우리_원본_형식이_아니면_빈_값이다(String original) {
         assertThat(keys.thumbnailOf(original)).isEmpty();

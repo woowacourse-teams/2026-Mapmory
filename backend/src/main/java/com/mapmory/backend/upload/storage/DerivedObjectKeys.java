@@ -31,8 +31,9 @@ public class DerivedObjectKeys {
     private final String derivedDirectory;
 
     public DerivedObjectKeys(S3StorageProperties properties) {
+        // 서버가 발급하는 확장자만 받는다(S3ObjectKeyGenerator). 정리 배치의 역조회(originalCandidatesOf)와 같은 규칙이다.
         this.original = Pattern.compile(Pattern.quote(properties.travelRecordsDirectory())
-                + "(\\d+)/([^/.][^/]*)\\.[A-Za-z0-9]+");
+                + "(\\d+)/([^/.][^/]*)\\.(?:" + String.join("|", canonicalExtensions()) + ")");
         this.travelRecordsDirectory = properties.travelRecordsDirectory();
         this.derivedDirectory = properties.keyPrefix() + "/derived/";
         this.thumbnailDirectory = derivedDirectory + "thumb/";
@@ -65,9 +66,13 @@ public class DerivedObjectKeys {
             return List.of();
         }
         String stem = travelRecordsDirectory + matcher.group(1) + "/" + matcher.group(2) + ".";
-        return Arrays.stream(UploadFileType.values())
-                .map(type -> stem + type.canonicalExtension())
+        return canonicalExtensions().stream()
+                .map(extension -> stem + extension)
                 .toList();
+    }
+
+    private static List<String> canonicalExtensions() {
+        return Arrays.stream(UploadFileType.values()).map(UploadFileType::canonicalExtension).toList();
     }
 
     public boolean isDerived(String objectKey) {

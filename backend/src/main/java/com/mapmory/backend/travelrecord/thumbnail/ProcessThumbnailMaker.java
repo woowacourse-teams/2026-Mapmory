@@ -36,7 +36,9 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
 
     @Override
     public Outcome make(Path original, Path thumbnail) {
-        int exitCode = run(original.toString(), thumbnail.toString(), "--max-edge", String.valueOf(properties.maxEdge()));
+        // 프로세스는 스크립트 디렉터리에서 돌므로 상대 경로를 그대로 넘기면 엉뚱한 곳을 가리킨다.
+        int exitCode = run(original.toAbsolutePath().normalize().toString(), thumbnail.toAbsolutePath().normalize().toString(),
+                "--max-edge", String.valueOf(properties.maxEdge()));
         if (exitCode == EXIT_UNDECODABLE) {
             return Outcome.UNDECODABLE;
         }
@@ -61,8 +63,9 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
         }
         List<String> command = new ArrayList<>(List.of(properties.pythonCommand(), script.toString()));
         command.addAll(List.of(arguments));
+        Process process = null;
         try {
-            Process process = new ProcessBuilder(command)
+            process = new ProcessBuilder(command)
                     .directory(scriptDirectory.toFile())
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
@@ -71,6 +74,10 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
         } catch (IOException e) {
             throw new ThumbnailMakeException("cannot run thumbnail process", e);
         } catch (InterruptedException e) {
+            // 종료 중이라도 변환 프로세스를 남기지 않는다. 남으면 워커가 지운 작업 디렉터리에 계속 쓴다.
+            if (process != null) {
+                terminateQuietly(process);
+            }
             Thread.currentThread().interrupt();
             throw new ThumbnailMakeException("interrupted while waiting for thumbnail process", e);
         }
@@ -82,6 +89,11 @@ public class ProcessThumbnailMaker implements ThumbnailMaker {
             throw new ThumbnailMakeException("thumbnail process timed out after " + properties.processTimeout());
         }
         return process.exitValue();
+    }
+
+    private void terminateQuietly(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
     }
 
     private void terminate(Process process) throws InterruptedException {
