@@ -1,3 +1,4 @@
+DELETE FROM orphaned_media;
 DELETE FROM record_media;
 DELETE FROM place_rate_limit_bucket;
 DELETE FROM travel_record_tag;

@@ -4,6 +4,7 @@ import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.ErrorKind;
+import com.mapmory.backend.common.exception.RateLimitedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,16 @@ public class BusinessExceptionHandler {
                 exception.getDetail(),
                 request
         );
+    }
+
+    @ExceptionHandler(RateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handle(
+            RateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        ResponseEntity<ProblemDetail> response = handle((BusinessException) exception, request);
+        response.getBody().setProperty("retryAfterSeconds", exception.getRetryAfterSeconds());
+        return response;
     }
 
     private static void log(

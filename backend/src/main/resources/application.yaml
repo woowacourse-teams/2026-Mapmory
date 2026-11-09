@@ -51,23 +51,50 @@ google:
   # 비어 있으면 모든 구글 로그인을 거부한다. (ADR 0019)
   client-ids: ${GOOGLE_CLIENT_IDS:}
   jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  # Google 장소 검색(Places API)과 사진 좌표 → 지역(Geocoding API)이 같이 쓰는 키와 타임아웃이다.
+  # 키가 비어 있으면 두 기능 모두 PLACE_PROVIDER_UNAVAILABLE로 실패한다. GCP에서 이 키에 두 API를 다 허용해야 한다. (docs/place-search.md)
+  api-key: ${GOOGLE_PLACES_API_KEY:}
+  # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GoogleHttpClients).
+  # connect는 TCP+TLS 연결 한도다. 잰 연결 최대 134ms × 3 = 402ms → 400ms.
+  # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99 303ms × 3 = 909ms → 1s. 둘을 합쳐 최악 1.4초쯤 기다린다.
+  # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
+  connect-timeout: 400ms
+  read-timeout: 1s
+  # 장소 검색(places)과 사진 좌표 → 지역(geocoding)은 연결 풀·한도·서킷 브레이커를 따로 쓴다. 한쪽이 몰리거나 멈춰도 다른 쪽을 막지 않는다.
+  # Google 쿼터와 월 무료 사용량이 API(SKU)마다 따로라(자동완성·상세·Geocoding 각 10,000건) 우리 한도도 API마다 둔다.
+  # 호스트 주소(base-url)는 코드의 기본값을 쓴다. 테스트만 바꾼다.
   places:
-    # Places API (New) 키. 비어 있으면 장소 검색과 선택이 PLACE_PROVIDER_UNAVAILABLE로 실패한다. (docs/place-search.md)
-    api-key: ${GOOGLE_PLACES_API_KEY:}
-    # 2026-11-04 dev EC2에서 자동완성·상세를 200번 잰 값의 약 3배로 둔다. 클라이언트는 Apache HttpClient다(GooglePlacesClient).
-    # connect는 TCP+TLS 연결 한도다. 잰 연결 최대 134ms × 3 = 402ms → 400ms.
-    # read는 연결된 뒤 응답을 기다리는 한도다. 잰 응답 대기 p99 303ms × 3 = 909ms → 1s. 둘을 합쳐 최악 1.4초쯤 기다린다.
-    # 다른 외부 호출(JWKS, 애플)은 재지 않아 spring.http.clients 공통 값(2초/3초)을 그대로 쓴다.
-    connect-timeout: 400ms
-    read-timeout: 1s
     rate-limit:
-      # 월 무료 사용량(Autocomplete 10,000건, Place Details Essentials 10,000건)을 넘지 않도록 UTC 달마다 센다.
-      autocomplete-per-month: 9000
-      details-per-month: 9000
-      # 서버마다 메모리에서 센다. 몰린 요청이 월 한도를 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
+      # 서버마다 메모리에서 센다. 자동완성과 상세를 합쳐 센다. 몰린 요청이 무료 사용량을 다 쓰는 데 2시간 반(9,000 / 60)은 걸리게 한다.
+      # 연결 풀 크기도 이 값이다.
       requests-per-minute: 60
+      # 엔드포인트(GooglePlacesEndpoint)마다 UTC 달마다 센다. 엔드포인트를 더하면 여기에도 한 줄 더한다(빠지면 기동이 실패한다).
+      # 상한에 닿으면 막는다. 상한을 무료 사용량(10,000)의 두 배로 두고 무료를 넘기 전에 알림을 받는다.
+      # 상한까지 다 쓰면 SKU마다 10,000건이 과금된다(자동완성 약 $28, 상세 $50).
+      per-month:
+        autocomplete: 20000
+        details: 20000
+      # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_PLACES_FREE_USAGE)를 남겨 Discord로 알린다. 무료 10,000건보다 조금 앞이다.
+      # Google 월은 태평양 시간 기준이라 UTC 달과 몇 시간 어긋난다.
+      free-alert-at: 9000
     # Google이 멈추면 부르지도 않고 바로 실패해, 사용자가 3초씩 기다리거나 월 한도를 쓰지 않게 한다.
     # 최근 60초 동안 5번 이상 불렀고 그중 절반 이상이 타임아웃·연결 오류·5xx면 60초 동안 연다. 그 뒤 3번 시험해 본다.
+    circuit-breaker:
+      window: 60s
+      minimum-calls: 5
+      failure-rate-percent: 50
+      open-duration: 60s
+      half-open-calls: 3
+  # 사진 좌표 → 지역(Geocoding API, POST /api/v1/places/location). 개발 서버는 application-dev.yaml에서 월 한도를 낮춘다.
+  geocoding:
+    rate-limit:
+      # 사진 좌표 → 지역(POST /api/v1/places/location)은 글자마다 부르는 검색보다 적게 불려 작게 둔다(2026-11-06 결정).
+      # 서버 한 대에서 1분에 21번째 요청부터 PLACE_RATE_LIMITED(429)다. 월 상한을 다 쓰는 데 17시간쯤(20,000 / 20) 걸린다.
+      requests-per-minute: 20
+      per-month: 20000
+      # 이번 달 이만큼 쓴 순간 ERROR 로그(GOOGLE_GEOCODING_FREE_USAGE)를 남긴다.
+      free-alert-at: 9000
+    # 장소 검색과 같은 기준이다. 따로 열리고 닫힌다.
     circuit-breaker:
       window: 60s
       minimum-calls: 5
@@ -124,6 +151,11 @@ upload:
   policy:
     max-file-size: 10MB
     max-files-per-request: 100
+  # 회원별 업로드 URL 발급 한도. 파일 수로 세고 서버마다 메모리에서 센다.
+  # 시간 한도는 100장짜리 기록 세 개를 한 번에 올릴 수 있는 양이다. 이 값으로 회원 한 명이 하루에 쓸 수 있는 저장량은 최대 10GB다.
+  rate-limit:
+    files-per-member-per-hour: 300
+    files-per-member-per-day: 1000
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
@@ -157,6 +189,24 @@ media:
       origin-path: ${CLOUDFRONT_ORIGIN_PATH:mapmory}
       key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:}
       private-key-path: ${CLOUDFRONT_PRIVATE_KEY_PATH:}
+  thumbnail:
+    # 사진 썸네일을 만들어 record_media.thumb_key를 채운다(#631, ADR 0029). 렌더러 서버에서만 true로 켠다.
+    # 썸네일이 없는 사진을 10초마다 20장씩 읽고, 영상을 만드는 동안에는 쉰다. 배포하면 기존 사진도 차례로 채운다.
+    worker:
+      enabled: ${THUMBNAIL_WORKER_ENABLED:false}
+      poll-delay: ${THUMBNAIL_WORKER_POLL_DELAY:10s}
+      batch-size: ${THUMBNAIL_WORKER_BATCH_SIZE:20}
+      max-edge: 1080
+      # 노이즈를 넣은 12MP 합성 사진이 Apple M2에서 HEIC 1.5초, JPEG 0.4초였다(프로세스 시작 포함, 5회 중앙값).
+      # 렌더러(t4g.small, CPU 크레딧)는 더 느리므로 넉넉히 둔다. 실제 렌더러 시간은 dev에서 잰다.
+      process-timeout: 30s
+      # 같은 사진이 이만큼 실패하면 건너뛰고 6시간 뒤 다시 해 본다. 그동안 그 사진은 원본으로 보인다.
+      max-failures: 3
+      script-directory: ${THUMBNAIL_SCRIPT_DIRECTORY:${user.dir}/../thumbnail}
+      python-command: ${THUMBNAIL_PYTHON_COMMAND:python3}
+      work-directory: ${THUMBNAIL_WORK_DIRECTORY:${java.io.tmpdir}/mapmory/thumbnails}
+      # 원본 내려받기와 썸네일 올리기 한 번의 한도. 사진 확인용 기본 한도(1초)로는 수 MB 원본을 받지 못한다.
+      transfer-timeout: 30s
 
 share-video:
   worker:

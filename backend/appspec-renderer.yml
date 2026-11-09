@@ -6,6 +6,8 @@ files:
     destination: /opt/mapmory-renderer
   - source: video-renderer
     destination: /opt/mapmory-renderer/video-renderer
+  - source: thumbnail
+    destination: /opt/mapmory-renderer/thumbnail
   - source: mapmory-render-worker.service
     destination: /etc/systemd/system
 
