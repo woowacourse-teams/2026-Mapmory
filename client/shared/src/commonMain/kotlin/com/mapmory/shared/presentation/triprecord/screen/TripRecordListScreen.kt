@@ -5,6 +5,8 @@ import com.mapmory.shared.presentation.components.ScrollToTopEffect
 
 import com.mapmory.shared.presentation.components.MapmoryAsyncImage
 import com.mapmory.shared.presentation.components.MapmoryBackButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
@@ -576,6 +578,7 @@ internal fun JournalLayoutSwitcher(
 ) {
     Row(
         modifier = Modifier
+            .selectableGroup()
             .clip(RoundedCornerShape(11.dp))
             .background(TripRecordPalette.current.surfaceElevated)
             .padding(3.dp),
@@ -587,17 +590,22 @@ internal fun JournalLayoutSwitcher(
             TripRecordListLayout.COLLECTION to "여행지별",
         ).forEach { (option, label) ->
             val selected = layout == option
-            Text(
-                text = label,
-                color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.secondaryText,
-                fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            Box(
                 modifier = Modifier
+                    .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (selected) TripRecordPalette.current.surface else TripRecordPalette.current.surfaceElevated)
-                    .clickable(role = Role.Button) { onLayoutChange(option) }
+                    .selectable(selected = selected, role = Role.Tab) { onLayoutChange(option) }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    color = if (selected) TripRecordPalette.current.primary else TripRecordPalette.current.secondaryText,
+                    fontSize = 12.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
         }
     }
 }

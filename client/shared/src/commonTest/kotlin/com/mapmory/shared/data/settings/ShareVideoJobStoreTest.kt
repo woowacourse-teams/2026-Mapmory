@@ -9,6 +9,22 @@ import kotlin.test.assertTrue
 
 class ShareVideoJobStoreTest {
     @Test
+    fun statusNetworkFailureDoesNotAllowAnotherGenerationRequest() {
+        for (status in listOf(null, ShareVideoStatus.PENDING, ShareVideoStatus.RENDERING, ShareVideoStatus.COMPLETED)) {
+            val store = MemoryShareVideoJobStore()
+            store.saveJobId(15L, startedAtEpochMillis = 100L)
+            status?.let(store::updateStatus)
+
+            store.updateStatusCheckError("네트워크 연결을 확인해 주세요")
+            assertFalse(store.tryStartCreationRequest(), "A status lookup failure must not duplicate job $status")
+            store.retryStatusCheck()
+            assertFalse(store.tryStartCreationRequest())
+            assertEquals(15L, store.loadJobId())
+            assertEquals(status, store.state.value.status)
+        }
+    }
+
+    @Test
     fun preventsDuplicateCreationUntilTheCurrentJobFails() {
         val store = MemoryShareVideoJobStore()
 

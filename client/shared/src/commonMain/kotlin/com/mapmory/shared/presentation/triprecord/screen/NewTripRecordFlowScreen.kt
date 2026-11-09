@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1131,7 +1132,7 @@ internal fun NewTripRecordFlowScreen(
                             isPreparing = uiState.isSaving || pendingSave,
                             isSelectingAll = isSelectingAllPhotos,
                             isRefreshingFilter = isRefreshingRecordedPhotoFilter,
-                            actionLabel = if (startWithPhotoSearch) saveActionLabel else "대표 사진 선택",
+                            actionLabel = if (startWithPhotoSearch) saveActionLabel else "다음",
                             recordedPhotoIds = recordedPhotoIds,
                             excludeRecordedPhotos = excludeRecordedPhotos,
                             showRecordedFilter = !startWithPhotoSearch,
@@ -1807,6 +1808,7 @@ private fun FlowTopBar(
                 {
                     TextButton(
                         onClick = onActionClick,
+                        modifier = Modifier.widthIn(min = 88.dp),
                         enabled = actionEnabled,
                         contentPadding = PaddingValues(horizontal = 10.dp),
                     ) {
@@ -2372,7 +2374,6 @@ private fun PhotoPickerStep(
     Column(Modifier.fillMaxSize()) {
         FlowTopBar(
             title = "사진 고르기",
-            titleAlignedStart = true,
             onBackClick = onBackClick,
             actionLabel = actionLabel,
             actionStatusLabel = when {
@@ -2387,6 +2388,12 @@ private fun PhotoPickerStep(
                 !isSelectingAll &&
                 !isRefreshingFilter,
             onActionClick = onCompleteClick,
+        )
+        Text(
+            text = "선택한 사진: ${pagingState.selectedIds.size}장",
+            color = TripRecordPalette.current.secondaryText,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
         )
         Box(
             modifier = Modifier
@@ -2452,7 +2459,6 @@ private fun PhotoPickerStep(
                     Column(Modifier.padding(start = 20.dp, end = 24.dp)) {
                         PhotoPickerHeader(
                             locationName = locationName,
-                            selectedCount = pagingState.selectedIds.size,
                             hasPhotos = pagingState.photos.isNotEmpty(),
                             allSelected = pagingState.isAllSelectionActive() && !isSelectingAll,
                             onAllToggle = onAllToggle,
@@ -2699,7 +2705,6 @@ private fun CoverPhotoSelectionStep(
 @Composable
 private fun PhotoPickerHeader(
     locationName: String,
-    selectedCount: Int,
     hasPhotos: Boolean,
     allSelected: Boolean,
     onAllToggle: () -> Unit,
@@ -2713,26 +2718,13 @@ private fun PhotoPickerHeader(
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp,
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 14.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Text(
-                text = "$locationName 사진 고르기",
-                color = TripRecordPalette.current.headingText,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = "${selectedCount}장 선택",
-                color = TripRecordPalette.current.accent,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+        Text(
+            text = "$locationName 사진 고르기",
+            color = TripRecordPalette.current.headingText,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 14.dp),
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

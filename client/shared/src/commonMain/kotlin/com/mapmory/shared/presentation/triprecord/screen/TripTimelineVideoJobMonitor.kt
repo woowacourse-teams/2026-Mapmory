@@ -19,7 +19,9 @@ import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 
 @Composable
 internal fun TripTimelineVideoJobMonitor(
@@ -70,6 +72,8 @@ internal fun TripTimelineVideoJobMonitor(
             } catch (error: Exception) {
                 Result.failure(error)
             }
+            currentCoroutineContext().ensureActive()
+            if (jobStore.state.value.jobId != jobId) break
             if (result.isSuccess) {
                 val status = result.getOrThrow().status
                 when (status) {

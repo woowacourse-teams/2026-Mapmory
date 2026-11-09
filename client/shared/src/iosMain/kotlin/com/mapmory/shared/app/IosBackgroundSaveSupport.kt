@@ -45,7 +45,9 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
     override fun onCompleted(save: BackgroundTripRecordSave) {
         lastNotificationBucket = -1
         UNUserNotificationCenter.currentNotificationCenter().removeDeliveredNotificationsWithIdentifiers(listOf("record-progress"))
-        if (!isPhotoRecordCompletionNotificationEnabled()) return
+        if (!isPhotoRecordCompletionNotificationEnabled() ||
+            UIApplication.sharedApplication.applicationState == UIApplicationStateActive
+        ) return
         val content = UNMutableNotificationContent().apply {
             setTitle("사진 업로드 완료")
             setBody("${save.locationName} 기록이 저장됐어요")

@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -118,7 +120,7 @@ internal fun TripSettingsScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        modifier = Modifier.fillMaxWidth().selectableGroup().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         ThemeOption(
@@ -160,7 +162,7 @@ internal fun TripSettingsScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        modifier = Modifier.fillMaxWidth().selectableGroup().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         ThemeOption(
