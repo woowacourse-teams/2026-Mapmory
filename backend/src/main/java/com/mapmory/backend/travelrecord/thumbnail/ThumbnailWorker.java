@@ -41,7 +41,7 @@ import org.springframework.transaction.support.TransactionOperations;
  * <ul>
  *   <li>thumb_key에는 S3에 올라간 것을 확인한 키만 넣는다. 그 전에는 비어 있어 앱은 원본을 본다.</li>
  *   <li>올린 뒤 채우기 전에 사진 행이 사라졌으면(사진 빼기, 기록 삭제, 회원 파기) 만든 썸네일을 정리 큐에 넣는다.</li>
- *   <li>같은 사진이 maxFailures번 실패하면 건너뛰고, 6시간마다 실패 기록을 비워 다시 해 본다. 원본 내용 때문에 못 만든 사진도 그때 다시 본다.</li>
+ *   <li>같은 사진이 maxFailures번 실패하면 건너뛰고, 6시간마다 실패 기록을 비워 다시 해 본다. 원본 내용 때문에 못 만든 사진은 다시 하지 않는다.</li>
  *   <li>같은 서버에서 공유 영상을 만들기 시작하면 사진 한 장을 마친 뒤 쉰다. 메모리를 나눠 쓰고, 썸네일은 늦어져도 원본이 보인다.</li>
  *   <li>한 쪽을 다 읽었는데 할 일이 없었으면(옛 키, 포기한 사진) 기다리지 않고 다음 쪽을 읽는다. 새 사진이 그만큼 기다리지 않는다.</li>
  *   <li>처음 돌 때 스크립트·Python·패키지가 준비됐는지 확인하고, 아니면 10분 뒤 다시 확인할 때까지 아무것도 하지 않는다.</li>
@@ -73,6 +73,8 @@ public class ThumbnailWorker {
 
     private final Map<Long, Integer> failures = new HashMap<>();
     private final Set<Long> unsupported = new HashSet<>();
+    // 원본 내용 때문에 못 만든 사진. 다시 해도 같아 실패 기록과 달리 비우지 않는다.
+    private final Set<Long> undecodable = new HashSet<>();
     private final AtomicLong backlog = new AtomicLong();
     private long cursor;
     private Boolean ready;
@@ -135,18 +137,25 @@ public class ThumbnailWorker {
 
     private boolean isReady() {
         Instant now = clock.instant();
-        if (Boolean.FALSE.equals(ready) && !now.isBefore(readyCheckedAt.plus(READY_RECHECK))) {
-            ready = null;
+        boolean stopped = Boolean.FALSE.equals(ready);
+        if (Boolean.TRUE.equals(ready) || (stopped && now.isBefore(readyCheckedAt.plus(READY_RECHECK)))) {
+            return ready;
         }
-        if (ready == null) {
-            readyCheckedAt = now;
-            try {
-                maker.checkReady();
-                ready = true;
-            } catch (Exception e) {
-                ready = false;
+        readyCheckedAt = now;
+        try {
+            maker.checkReady();
+            if (stopped) {
+                log.info("썸네일 변환 환경이 준비되어 썸네일 워커를 다시 시작합니다.");
+            }
+            ready = true;
+        } catch (Exception e) {
+            ready = false;
+            // 준비되지 않은 동안 10분마다 다시 확인한다. 알림이 쏟아지지 않게 처음 멈출 때만 error로 남기고 센다.
+            if (stopped) {
+                log.warn("썸네일 변환 환경이 아직 준비되지 않았습니다. reason={}", e.getMessage());
+            } else {
                 count("not_ready");
-                log.error("썸네일 변환 환경이 준비되지 않아 썸네일 워커를 멈춥니다. {} 뒤 다시 확인합니다.", READY_RECHECK, e);
+                log.error("썸네일 변환 환경이 준비되지 않아 썸네일 워커를 멈춥니다. {}마다 다시 확인합니다.", READY_RECHECK, e);
             }
         }
         return ready;
@@ -182,7 +191,7 @@ public class ThumbnailWorker {
      * @return 저장소나 변환기에 손을 댔으면 true. 건너뛴 사진이면 false
      */
     private boolean process(MediaWithoutThumbnail media) {
-        if (failures.getOrDefault(media.id(), 0) >= properties.maxFailures()) {
+        if (undecodable.contains(media.id()) || failures.getOrDefault(media.id(), 0) >= properties.maxFailures()) {
             return false;
         }
         Optional<String> thumbnailKey = derivedObjectKeys.thumbnailOf(media.objectKey());
@@ -227,7 +236,7 @@ public class ThumbnailWorker {
         Path thumbnail = workDirectory.resolve("thumbnail.webp");
         storage.download(media.objectKey(), original);
         if (maker.make(original, thumbnail) == Outcome.UNDECODABLE) {
-            failures.put(media.id(), properties.maxFailures());
+            undecodable.add(media.id());
             count("undecodable");
             log.warn("원본 내용 때문에 썸네일을 만들 수 없어 원본으로 둡니다. mediaId={}, objectKey={}",
                     media.id(), media.objectKey());

@@ -131,10 +131,27 @@ class ThumbnailWorkerTest {
         }
         maker.failure = null;
 
-        clock.advance(Duration.ofHours(6));
+        clock.advance(Duration.ofHours(6).minusMinutes(1));
+        worker.processNext();
+        verify(repository, never()).attachThumbnail(anyLong(), any());
+
+        clock.advance(Duration.ofMinutes(1));
+        worker.processNext();
+        verify(repository).attachThumbnail(10L, THUMBNAIL);
+    }
+
+    // 원본 내용 때문에 못 만든 사진은 다시 해도 같다. 시간이 지나도 원본을 다시 받지 않는다.
+    @Test
+    void 원본_내용_때문에_못_만든_사진은_시간이_지나도_다시_하지_않는다() {
+        pending(PHOTO);
+        maker.outcome = Outcome.UNDECODABLE;
         worker.processNext();
 
-        verify(repository).attachThumbnail(10L, THUMBNAIL);
+        clock.advance(Duration.ofDays(1));
+        worker.processNext();
+
+        assertThat(maker.calls).isEqualTo(1);
+        assertThat(count("undecodable")).isEqualTo(1);
     }
 
     @Test
@@ -228,6 +245,20 @@ class ThumbnailWorkerTest {
         clock.advance(Duration.ofMinutes(1));
         worker.processNext();
         verify(repository).attachThumbnail(10L, THUMBNAIL);
+    }
+
+    @Test
+    void 다시_확인해도_준비되지_않았으면_다시_십_분을_기다리고_한_번만_센다() {
+        maker.ready = false;
+        worker.processNext();
+        clock.advance(Duration.ofMinutes(10));
+        worker.processNext();
+
+        clock.advance(Duration.ofMinutes(9));
+        worker.processNext();
+
+        assertThat(maker.readyChecks).isEqualTo(2);
+        assertThat(count("not_ready")).isEqualTo(1);
     }
 
     @Test

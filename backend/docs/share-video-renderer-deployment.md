@@ -55,7 +55,6 @@ API 서버의 배포 흐름과 영상 렌더러 서버의 배포 흐름을 개�
 2. 렌더러의 Python 버전이 3.10 이상인지(`python3 --version`), 배포 로그에 위 `WARNING`이 없는지, `/opt/mapmory-renderer/thumbnail/.venv/bin/python /opt/mapmory-renderer/thumbnail/make_thumbnail.py --check`가 0으로 끝나는지.
 3. 실제 사진 한 장 변환: `/opt/mapmory-renderer/thumbnail/.venv/bin/python make_thumbnail.py in.heic out.webp`와 `/usr/bin/time -v`로 시간과 최대 메모리.
 4. 기준값: 켜기 전에 #631 5-1절의 S3 원본 크기 통계를 남긴다. 켜고 나면 다시 잴 수 없다.
-
 5. 빈 문자열 `thumb_key`가 없는지: `SELECT COUNT(*) FROM record_media WHERE thumb_key = '';` 회원 파기는 `thumb_key IS NOT NULL`로 키를 읽어 빈 문자열이 있으면 실패한다(이번 변경 전부터 있던 동작).
 
 ### 켜기
@@ -73,7 +72,7 @@ API 서버에서는 켜지 않는다(기본값 `false`).
 
 ### 켠 뒤 볼 것
 
-- `mapmory.thumbnail.worker{result}`: `created`가 늘고 `failed`·`given_up`이 드문지. `unsupported_key`는 접두사를 붙이기 전의 옛 키 수다. `not_ready`가 1이면 변환 환경(경로, Python, 패키지)이 준비되지 않아 워커가 멈춘 것이다. 고친 뒤 서비스를 다시 띄운다.
+- `mapmory.thumbnail.worker{result}`: `created`가 늘고 `failed`·`given_up`이 드문지. `unsupported_key`는 접두사를 붙이기 전의 옛 키 수다. `not_ready`가 늘었으면 변환 환경(경로, Python, 패키지)이 준비되지 않아 워커가 멈춘 것이다. 워커는 10분마다 다시 확인하므로, 가상환경을 고치면 재시작 없이 10분 안에 이어 간다. 환경변수를 고쳤다면 서비스를 다시 띄운다.
 - `mapmory.thumbnail.backlog`: 한 시간이 넘었는데 썸네일이 없는 사진 수. 옛 키와 원본 내용 때문에 못 만든 사진도 들어가므로, 백필이 끝나면 `unsupported_key` 수 근처에 머문다. 그보다 많으면 `given_up`·`undecodable` 로그로 원인을 본다.
 - `SELECT COUNT(*) FROM record_media WHERE thumb_key IS NULL OR thumb_key = '';`
 - 렌더러 CPU 크레딧(CloudWatch). 백필 중 바닥나면 `THUMBNAIL_WORKER_BATCH_SIZE`를 줄이거나 `THUMBNAIL_WORKER_POLL_DELAY`를 늘린다.
