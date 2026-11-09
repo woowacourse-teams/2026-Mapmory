@@ -1,8 +1,0 @@
-node_modules/
-dist/
-design-qa/
-.env
-.env.*
-!.env.example
-*.log
-.DS_Store
