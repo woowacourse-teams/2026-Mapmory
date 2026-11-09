@@ -169,7 +169,10 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                     GroupAlbum(value.id.toString(), value.name, value.region.name,
                         listOfNotNull(value.startDate, value.endDate).distinct().joinToString(" – "),
                         value.entries.flatMap { entry -> entry.photos.map { photo ->
-                            GroupPhoto(photo.id.toString(), entry.travelRecordId, entry.owner.memberId.toString(), entry.owner.nickname, photo.viewUrl)
+                            GroupPhoto(
+                                photo.id.toString(), entry.travelRecordId, entry.owner.memberId.toString(), entry.owner.nickname,
+                                imageUri = photo.viewUrl, thumbnailUri = photo.thumbnailUrl,
+                            )
                         } }, contributorNames = value.entries.distinctBy { it.owner.memberId }.map { it.owner.nickname })
                 }
                 when {
