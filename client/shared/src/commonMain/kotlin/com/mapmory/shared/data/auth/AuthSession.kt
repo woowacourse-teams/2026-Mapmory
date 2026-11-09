@@ -198,12 +198,14 @@ internal class GuestSessionManager(
         return changeAccount(null)
     }
 
+    override suspend fun leaveWithdrawalRecovery(): Result<Unit> = endSession(false, null, null, leaveRecovery = true)
+
     override suspend fun logout(): Result<Unit> = endSession(false, null, null)
 
     override suspend fun withdraw(identityToken: String?, authorizationCode: String?): Result<Unit> =
         endSession(true, identityToken, authorizationCode)
 
-    private suspend fun endSession(withdraw: Boolean, identityToken: String?, authorizationCode: String?): Result<Unit> {
+    private suspend fun endSession(withdraw: Boolean, identityToken: String?, authorizationCode: String?, leaveRecovery: Boolean = false): Result<Unit> {
         if (withdraw && !state.value.pendingLogout) {
             val ready = ensureAuthenticated()
             if (ready.isFailure) return ready
@@ -222,6 +224,15 @@ internal class GuestSessionManager(
                 authenticationMutex.withLock {
                     var marker = tokenStore.pendingProvider().provider
                     if (marker != null && !marker.startsWith("LOGOUT")) return@withLock Result.failure(PendingAccountException())
+                    if (leaveRecovery) {
+                        if (marker?.startsWith("LOGOUT:withdraw") != true) return@withLock Result.failure(IllegalStateException("진행 중인 탈퇴 복구가 없어요."))
+                        // Leaving recovery does not establish whether the server deleted the account.
+                        // Retain confirmed success if only local cleanup remains.
+                        if (marker != "LOGOUT:withdraw:revoked") {
+                            tokenStore.markPendingProvider("LOGOUT:withdraw:unconfirmed")
+                            marker = "LOGOUT:withdraw:unconfirmed"
+                        }
+                    }
                     // Read the latest pair without refreshing a token we are about to revoke.
                     val current = if (didLoadStoredTokens) tokens else tokenStore.read().tokens
                     if (!canChangeAccount()) return@withLock Result.failure(AccountBusyException())

@@ -66,6 +66,7 @@ internal class AuthRemoteRepository(
     override suspend fun withdraw(accessToken: String, identityToken: String?, authorizationCode: String?): Result<Unit> = apiCall {
         if (identityToken != null && authorizationCode != null) {
             client.post("$authUrl/apple/withdrawal") {
+                attributes.put(SessionOwnsAuthRetry, true)
                 timeout { requestTimeoutMillis = 20_000 }
                 bearerAuth(accessToken)
                 contentType(ContentType.Application.Json)
@@ -73,6 +74,7 @@ internal class AuthRemoteRepository(
             }.requireSuccess()
         } else {
             client.delete("${authUrl.removeSuffix("/auth")}/members/me") {
+                attributes.put(SessionOwnsAuthRetry, true)
                 timeout { requestTimeoutMillis = 20_000 }
                 bearerAuth(accessToken)
             }.requireSuccess()

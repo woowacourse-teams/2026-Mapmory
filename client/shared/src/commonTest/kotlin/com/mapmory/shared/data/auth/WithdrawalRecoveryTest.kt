@@ -48,6 +48,42 @@ class WithdrawalRecoveryTest {
         gateway.expired = true
     }
 
+    @Test fun closingRecoveryAfterRestartClearsLocalSessionWithoutAnotherWithdrawal() = runBlocking {
+        val store = Store(); val gateway = Gateway()
+        startFailedWithdrawal(store, gateway)
+        val restarted = GuestSessionManager(gateway, store)
+        val before = gateway.requests.size
+        try {
+            assertIs<WithdrawalUnconfirmedException>(restarted.leaveWithdrawalRecovery().exceptionOrNull())
+            assertEquals(before, gateway.requests.size)
+            assertNull(store.marker)
+            assertNull(store.saved)
+            assertFalse(restarted.state.value.pendingLogout)
+            assertTrue(restarted.state.value.withdrawalUnconfirmed)
+        } finally { restarted.close() }
+        val next = GuestSessionManager(gateway, store)
+        try {
+            assertFalse(next.state.value.pendingLogout)
+            next.ensureAuthenticated().getOrThrow()
+            assertEquals("guest", next.getAccessToken())
+        } finally { next.close() }
+    }
+
+    @Test fun closingRecoveryPreservesCleanupIntentWhenStorageFails() = runBlocking {
+        val store = Store(); val gateway = Gateway()
+        startFailedWithdrawal(store, gateway)
+        store.failClear = true
+        val restarted = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(restarted.leaveWithdrawalRecovery().isFailure)
+            assertEquals("LOGOUT:withdraw:unconfirmed", store.marker)
+            assertTrue(restarted.state.value.pendingLogout)
+            store.failClear = false
+            assertIs<WithdrawalUnconfirmedException>(restarted.leaveWithdrawalRecovery().exceptionOrNull())
+            assertFalse(restarted.state.value.pendingLogout)
+        } finally { restarted.close() }
+    }
+
     @Test fun requestNeverArrivedRefreshesAndRetriesAfterRestart() = runBlocking {
         val store = Store(); val gateway = Gateway()
         startFailedWithdrawal(store, gateway)

@@ -11,6 +11,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
+import io.ktor.util.AttributeKey
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
@@ -27,6 +28,8 @@ internal fun HttpClient.installMapmoryAuthRetry(
     val apiUrl = Url(apiBaseUrl)
 
     plugin(HttpSend).intercept { request ->
+        // Withdrawal owns refresh while holding the session mutex. Never re-enter it here.
+        if (request.attributes.getOrNull(SessionOwnsAuthRetry) == true) return@intercept execute(request)
         val failedAccessToken = request.headers[HttpHeaders.Authorization].bearerTokenOrNull()
         val response = execute(request)
 
@@ -73,3 +76,5 @@ private fun io.ktor.http.URLBuilder.isSameApi(apiUrl: Url): Boolean = build().le
 private const val BearerPrefix = "Bearer "
 private const val ExpiredAccessTokenCode = "EXPIRED_ACCESS_TOKEN"
 private val AuthErrorJson = Json { ignoreUnknownKeys = true }
+
+internal val SessionOwnsAuthRetry = AttributeKey<Boolean>("SessionOwnsAuthRetry")
