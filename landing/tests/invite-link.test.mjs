@@ -9,7 +9,11 @@ test("Android app links trust only the Mapmory package", () => {
   assert.deepEqual(entry.relation, ["delegate_permission/common.handle_all_urls"]);
   assert.equal(entry.target.namespace, "android_app");
   assert.equal(entry.target.package_name, "com.mapmory.android");
+  // Play Console > 앱 무결성 > 앱 서명 키 인증서의 SHA-256. 자리표시자가 남아 있으면 앱 링크 검증이 실패한다.
   assert.ok(entry.target.sha256_cert_fingerprints.length > 0);
+  for (const fingerprint of entry.target.sha256_cert_fingerprints) {
+    assert.match(fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+  }
 });
 
 test("iOS universal links open only invite paths in the Mapmory apps", () => {
