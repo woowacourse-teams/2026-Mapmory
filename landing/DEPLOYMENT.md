@@ -13,7 +13,7 @@
 
 Canonical repository is `woowacourse-teams/2026-Mapmory` (`upstream`). `landing-release` is the landing-only production branch. Its initial SHA is `e91d82c727878da8ab05bee1f330f348b3542df3`, with the same landing tree as merged/reviewed PR #240.
 
-Development starts at `upstream/main` and goes through a landing-only PR to `main`, including CodeRabbit review and all required/path-relevant checks. The existing landing UI, Recap and deployment tooling share this integration line. Do not develop directly against `landing-release`.
+Development starts at `upstream/main` and goes through a landing-only PR to `main`, including CodeRabbit review and all required/path-relevant checks. The existing landing UI and deployment tooling share this integration line. Do not develop directly against `landing-release`.
 
 Production promotion is a separate, explicitly requested PR to `landing-release`. Start its worktree from the latest release head, carry only the reviewed `landing/**` and landing-owned workflow changes from a recorded main SHA, and validate that exact combined result. Do not merge `develop` or another integration branch wholesale to obtain landing files. Do not remove newer release-only changes without reconciling them. Keep a record of the source main SHA and the promotion head. Rate-limited or skipped bot reviews are not completed reviews. Use a merge commit and retain the source branch. Never push directly, force-push or delete the release branch. The existing [Landing release ruleset](https://github.com/woowacourse-teams/2026-Mapmory/rules/22160463) requires `Landing release validation`, resolved conversations and the latest base.
 
@@ -41,73 +41,13 @@ The EC2 `ec2-project` role is an instance role, not the human console user. It m
 
 ## Build, deploy and verification
 
-### Trips photo experiment under /trips/
+### Removed /recap/ and /trips/ experiments (2026-11-09)
 
-The metadata-only experiment is a third static surface. Source is `landing/trips/src/`;
-`npm --prefix trips run build` emits only `trips/dist/trips/`. The packager adds it as
-`client/trips/`, alongside the unchanged root landing and `client/recap/`.
-All three surfaces are one atomic deployment/rollback unit; no extra AWS resource
-is needed. A missing Trips build fails packaging rather than silently dropping it.
-CI/CodeBuild install, build and test Trips before packaging.
+The travel campaign (`/recap/`, source `travel-map-campaign/`) and the metadata-only photo experiment (`/trips/`, source `trips/`) were removed. The bundle now contains only the root landing in `client/`, and the activation hook checks only `/release.txt` and `/`.
 
-Users may enter `https://map-mory.com/trips`. The canonical address is
-`https://map-mory.com/trips/`, reached by a **308 redirect preserving the query**.
-This keeps the experiment's relative script, CSS, worker, parser and data paths
-inside `/trips/`. Missing files under that prefix return 404, not the root SPA.
+The live Nginx server block still had `/recap` and `/trips` locations when they were removed. Remove them only **after** a release without those folders is live: back up the config, delete only those location blocks, run `nginx -t`, then reload. Keep the invite and `.well-known` locations below. Afterwards `/recap/` and `/trips/` are handled by the server block's default location, like any other unknown path.
 
 Group invite links (`/invite/*`, `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`): before the first release that ships them, merge the locations in `nginx/invite.conf` into the live map-mory.com HTTPS server block, run `nginx -t`, then reload Nginx. Verify that both `.well-known` files return 200 as `application/json` without a redirect and that `/invite/abc` shows the invite page.
-
-Before the first production promotion, inspect the live Mapmory Nginx server block
-and compare it with `nginx/trips.conf`. That file is a reviewed configuration
-example, **not automatically installed** by this PR, package or deployment hook.
-Separately obtain approval to add only those locations, back up the actual config,
-run `nginx -t`, then reload Nginx. Preserve TLS, root, API and Recap configuration.
-Do not claim that a local preview proves the production routes are installed.
-
-The activation hook checks `/trips/release.txt` against the same tested SHA,
-checks that `/trips/` returns the experiment entry (not the landing fallback),
-and checks the 308 redirect and query preservation. A failed check restores the
-previous complete release. Linux fixtures cover missing files, marker mismatch,
-HTTP failure, wrong shell and incorrect redirect in addition to previous cases.
-
-After the release is separately authorized and merged, verify those same public
-URLs, a real `/trips/app.js` request, missing-asset 404, and the unchanged homepage,
-Recap and backend. Physical iOS/Android file-picker behavior requires device
-testing; metadata support does not guarantee every browser can preview HEIC/RAW.
-
-The original fork's `.openai/hosting.json`, experiments, tests, screenshots and
-personal photos are not copied into the deployment output. All photo reading and
-classification remains in browser memory; no photo upload endpoint is deployed.
-
-### Travel campaign under /recap/
-
-The campaign is served at `https://map-mory.com/recap/`; the existing landing remains at `/`. Both use the single automatic landing pipeline, existing build project, deployment group and release root. They deploy and roll back together. Do not create a separate campaign pipeline. No new DNS record, certificate, server port, IAM resource or backend change is part of this integration.
-
-CodeBuild and release CI also install/build/test `travel-map-campaign`. Its `dist/recap` is built with Vite base `/recap/`; the packager copies only those static files into `client/recap/`, leaving the main landing HTML/assets intact. Main's Landing CI also checks a real combined archive without deploying it. The root/Sites `dist/client` and Worker output of the campaign are not deployed into that folder. Missing campaign output or a root-base campaign build causes packaging to fail rather than silently publish a landing-only release.
-
-Campaign `npm test` builds its fixtures first; `npm run test:sites` builds the Sites fixtures first. CI and CodeBuild use `npm run test:built` only after their explicit build step, avoiding a second build that could replace configured analytics assets.
-
-Both `/release.txt` and `/recap/release.txt` must contain the same tested SHA. The activation hook checks both, and requires `/recap/` to return the campaign shell rather than the landing fallback. A recap failure restores the previous complete release, just like a landing failure.
-
-Before first production execution, inspect the existing Nginx server block. The existing `root /var/www/mapmory/current;` should serve both sets of files. These locations were installed on 2026-09-03; verify rather than adding duplicates. Do not replace unrelated routes or TLS settings:
-
-```nginx
-location = /recap {
-    return 308 /recap/$is_args$args;
-}
-location = /recap/index.html {
-    add_header Cache-Control "no-cache" always;
-    try_files $uri =404;
-}
-location ^~ /recap/assets/ {
-    try_files $uri =404;
-}
-location ^~ /recap/ {
-    try_files $uri $uri/ /recap/index.html;
-}
-```
-
-The PR does not apply Nginx configuration. Check `nginx -t` and retain the previous config before any separately approved server change. Verify `/recap` redirects while preserving the query, `/recap/` and a direct app route refresh show the campaign, missing `/recap/assets/*` returns 404, and the unchanged `/` still shows the landing.
 
 Local validation in `landing/`: `npm ci`, `npm run build`, `npm test`. Linux CI and CodeBuild additionally execute the real filesystem activation/rollback fixtures (service/network calls are mocked); Windows skips only those Linux-specific fixtures.
 

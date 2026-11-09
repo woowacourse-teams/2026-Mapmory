@@ -2,7 +2,7 @@
 
 core = Latin, punctuation, symbols, jamo and the 2,350 common Hangul syllables (KS X 1001), which cover the landing's
 copy; ext = the other 8,822 syllables. src/styles.css lists ext as a second family after core, so a browser downloads it
-only when the page shows a syllable core lacks. The original files stay for /recap/.
+only when the page shows a syllable core lacks. The original files stay as this script's input.
 Run: python3 scripts/split-landing-font.py  (needs fontTools + brotli)
 """
 from pathlib import Path

@@ -1,5 +1,7 @@
 # Mapmory PostHog 운영 대시보드 설정
 
+> 2026-11-09: `/recap/` 캠페인과 `/trips/` 실험 페이지를 삭제했다. 아래 Recap(`surface=recap`, `travel_map_*`) 항목은 그 전 기간 데이터를 읽기 위한 기록이며, 이후로는 이 이벤트가 오지 않는다.
+
 갱신: 2026-10-13 · 현재 스키마: `analytics_schema_version=2`
 
 기존 `Landing · Product Experience v2` 대시보드는 출시 전 기록으로 보존한다. 현재 랜딩 운영 타일은 `landing_version=v4`로 분리하고 최종 전환은 두 스토어의 `download_click`로 본다. 출시 알림 폼을 현재 퍼널에 다시 넣지 않는다.
