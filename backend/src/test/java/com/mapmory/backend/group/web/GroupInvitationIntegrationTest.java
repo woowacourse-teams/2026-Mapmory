@@ -64,11 +64,15 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
 
     @Test
     void 멤버는_토큰과_6자리_코드가_든_1일짜리_초대를_만든다() throws Exception {
-        createInvitation(jisu, group.getId())
+        String body = createInvitation(jisu, group.getId())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.token").value(matchesPattern("[A-Za-z0-9_-]{43}")))
                 .andExpect(jsonPath("$.data.code").value(matchesPattern("[A-HJ-NP-Z2-9]{6}")))
-                .andExpect(jsonPath("$.data.expiresAt").exists());
+                .andExpect(jsonPath("$.data.expiresAt").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = JsonPath.read(body, "$.data.token");
+        assertThat(JsonPath.<String>read(body, "$.data.inviteUrl")).isEqualTo("https://map-mory.com/invite/" + token);
 
         assertThat(groupInvitationRepository.findAll()).singleElement()
                 .satisfies(invitation -> {
