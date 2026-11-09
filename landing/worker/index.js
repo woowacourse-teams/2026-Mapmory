@@ -15,7 +15,8 @@ export default {
     }
 
     const indexUrl = new URL(request.url);
-    indexUrl.pathname = "/index.html";
+    // Every group invite link (/invite/{token}) shows the one invite page, like nginx/invite.conf.
+    indexUrl.pathname = pathname.startsWith("/invite/") ? "/invite/index.html" : "/index.html";
     indexUrl.search = "";
     return env.ASSETS.fetch(new Request(indexUrl, request));
   },

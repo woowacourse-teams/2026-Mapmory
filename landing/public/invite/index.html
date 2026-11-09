@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <!-- 주소에 하루짜리 초대 토큰이 있다. 폰트 요청의 Referer로 서버 로그에 남지 않게 한다. -->
+  <meta name="referrer" content="no-referrer">
+  <title>Mapmory 그룹 초대</title>
+  <meta name="description" content="Mapmory 그룹에 초대받았어요. 앱에서 링크를 열면 바로 참여할 수 있어요.">
+  <meta property="og:title" content="Mapmory 그룹에 초대받았어요">
+  <meta property="og:description" content="앱에서 열면 함께 여행 지도를 채울 수 있어요.">
+  <meta property="og:type" content="website">
+  <style>
+    @font-face { font-family: "LINE Seed KR"; src: url("/assets/fonts/line-seed-kr-regular-core.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+    @font-face { font-family: "LINE Seed KR"; src: url("/assets/fonts/line-seed-kr-bold-core.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+    :root {
+      --bg: #f7f5f0; --surface: #fffdf9; --line: #e4dfd4; --ink: #161512; --muted: #6f6b62;
+      --accent: #3c7a58; --accent-ink: #33694b; --on-accent: #ffffff;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12110f; --surface: #1b1a17; --line: #34322c; --ink: #f3f0e8; --muted: #b3ada1;
+        --accent: #8cc3a2; --accent-ink: #9fd0b2; --on-accent: #12110f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 24px 16px;
+      background: var(--bg); color: var(--ink);
+      font-family: "LINE Seed KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      line-height: 1.5; word-break: keep-all;
+    }
+    main {
+      width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 20px; padding: 32px 24px;
+    }
+    .brand { font-weight: 700; color: var(--accent-ink); margin: 0 0 20px; }
+    h1 { font-size: 24px; line-height: 1.35; margin: 0 0 8px; }
+    p { margin: 0; color: var(--muted); }
+    .stores { display: grid; gap: 10px; margin: 28px 0 0; }
+    .store {
+      display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 12px;
+      font-weight: 700; text-decoration: none; background: var(--accent); color: var(--on-accent);
+    }
+    .store.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    .store:focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+    .steps { margin: 28px 0 0; padding: 20px 0 0; border-top: 1px solid var(--line); }
+    .steps h2 { font-size: 15px; margin: 0 0 8px; }
+    .steps ol { margin: 0; padding-left: 20px; color: var(--muted); }
+    .steps li + li { margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">Mapmory</p>
+    <h1>그룹에 초대받았어요</h1>
+    <p>Mapmory 앱에서 이 링크를 열면 어떤 그룹인지 보고 바로 참여할 수 있어요.</p>
+
+    <div class="stores">
+      <a class="store" id="store-primary" href="https://apps.apple.com/kr/app/mapmory-%EC%97%AC%ED%96%89-%EA%B8%B0%EB%A1%9D-%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/id6807056166">iOS 앱 받기</a>
+      <a class="store secondary" id="store-secondary" href="https://play.google.com/store/apps/details?id=com.mapmory.android">Android 앱 받기</a>
+    </div>
+
+    <section class="steps" aria-labelledby="steps-title">
+      <h2 id="steps-title">앱이 이미 있다면</h2>
+      <ol>
+        <li>받은 초대 링크를 카카오톡이나 메시지에서 다시 눌러 주세요.</li>
+        <li>그래도 이 화면이 열리면, 초대한 사람에게 6자리 초대 코드를 받아 앱의 <b>그룹 → 코드로 참여</b>에 넣어 주세요.</li>
+      </ol>
+      <p style="margin-top:12px">초대는 만든 뒤 하루 동안 쓸 수 있어요.</p>
+    </section>
+  </main>
+  <script>
+    // Android에서는 Play 스토어 버튼을 먼저 보여 준다. 판단이 틀려도 두 버튼은 모두 남는다.
+    (function () {
+      if (!/Android/i.test(navigator.userAgent)) return;
+      var primary = document.getElementById("store-primary");
+      var secondary = document.getElementById("store-secondary");
+      primary.parentNode.insertBefore(secondary, primary);
+      secondary.classList.remove("secondary");
+      primary.classList.add("secondary");
+    })();
+  </script>
+</body>
+</html>
