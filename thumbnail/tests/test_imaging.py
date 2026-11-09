@@ -1,3 +1,5 @@
+import struct
+import zlib
 from pathlib import Path
 
 from PIL import Image, ImageCms
@@ -194,14 +196,77 @@ def test_한도보다_큰_JPEG도_줄여_읽어_만든다(tmp_path):
     assert open_output(out).size == (1080, 810)
 
 
-def test_메모리가_부족하면_DecodeError가_아니라_그대로_던진다(tmp_path, monkeypatch):
+def test_메모리가_부족하면_DecodeError가_아니라_그대로_던진다(make_jpeg, tmp_path, monkeypatch):
+    src = make_jpeg(1)
+
     def out_of_memory(*args, **kwargs):
         raise MemoryError
 
     monkeypatch.setattr(Image, "open", out_of_memory)
 
     with pytest.raises(MemoryError):
-        make_thumbnail(tmp_path / "a.jpg", tmp_path / "out.webp", max_edge=1080)
+        make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
+
+
+# 103바이트 APNG도 Pillow가 여는 순간 헤더 크기만큼 캔버스를 잡는다(22000x22000이면 약 900MB). 열기 전에 막는다.
+def test_헤더_크기가_한도를_넘는_APNG는_열기_전에_DecodeError다(tmp_path, monkeypatch):
+    src = tmp_path / "evil.png"
+    src.write_bytes(apng_header(22000, 22000))
+    opened = []
+    real_open = Image.open
+    monkeypatch.setattr(Image, "open", lambda *args, **kwargs: opened.append(1) or real_open(*args, **kwargs))
+
+    with pytest.raises(DecodeError):
+        make_thumbnail(src, tmp_path / "out.webp", max_edge=1080)
+
+    assert opened == []
+
+
+def test_색_키로_투명한_RGB_PNG는_투명도를_유지한다(tmp_path):
+    src = tmp_path / "keyed.png"
+    image = Image.new("RGB", (40, 20), BACKGROUND)
+    image.paste(MARKER, (0, 0, 10, 5))
+    image.save(src, transparency=BACKGROUND)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    result = open_output(out).convert("RGBA")
+    assert result.getpixel((30, 15))[3] == 0
+    assert result.getpixel((2, 2))[3] == 255
+
+
+def test_16비트_회색조는_밝기를_유지한다(tmp_path):
+    src = tmp_path / "gray16.png"
+    Image.new("I;16", (40, 20), 30000).save(src)
+    out = tmp_path / "out.webp"
+
+    make_thumbnail(src, out, max_edge=1080)
+
+    red, green, blue = open_output(out).convert("RGB").getpixel((20, 10))
+    assert 100 <= red <= 135
+
+
+# 같은 출력 경로를 다른 실행이 쓰고 있어도 그 실행의 임시 파일을 건드리지 않는다.
+def test_다른_실행의_임시_파일을_건드리지_않는다(make_jpeg, tmp_path):
+    out = tmp_path / "out.webp"
+    other = tmp_path / "out.webp.partial"
+    other.write_bytes(b"other process")
+
+    make_thumbnail(make_jpeg(1), out, max_edge=1080)
+
+    assert other.read_bytes() == b"other process"
+    assert sorted(p.name for p in tmp_path.iterdir() if p.name.startswith("out.webp")) == ["out.webp", "out.webp.partial"]
+
+
+def apng_header(width, height):
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+            + chunk(b"acTL", struct.pack(">II", 1, 0))
+            + chunk(b"fcTL", struct.pack(">IIIIIHHBB", 0, width, height, 0, 0, 1, 1, 1, 0))
+            + chunk(b"IEND", b""))
 
 
 def test_업로드에서_허용하지_않는_형식은_DecodeError다(tmp_path):

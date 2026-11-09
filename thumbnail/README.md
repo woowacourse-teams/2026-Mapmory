@@ -23,16 +23,18 @@ python3 -m venv .venv
 - **HEIC는 Pillow 플러그인(`register_heif_opener`)으로 연다.** 플러그인은 `irot`/`imir`를 적용하고 EXIF 방향을 1로 되돌린다. `pillow_heif.open_heif()`로 열면 되돌리지 않아 `exif_transpose`와 겹쳐 두 번 돈다(테스트 `test_HEIC의_방향은_한_번만_적용된다`).
 - 긴 변을 `--max-edge` 이하로 줄이고, 원본보다 키우지 않는다. WebP quality 75로 저장한다.
 - 색 프로필(ICC)은 RGB 계열 원본일 때 유지한다. iPhone 사진은 Display P3라 빼면 색이 바랜다. 회색조·CMYK 원본의 프로필은 RGB 출력과 맞지 않아 뺀다.
-- 투명한 PNG는 투명도를 유지한다.
-- 16비트 회색조 PNG는 하얗게 나올 수 있다. 사진 업로드에서는 드물어 다루지 않았다.
+- 투명한 PNG는 투명도를 유지한다. RGB PNG의 색 키(tRNS) 투명도도 유지한다.
+- 16비트 회색조 PNG는 8비트로 줄여 밝기를 유지한다.
 - JPEG는 필요한 크기 근처로 줄여 읽어 메모리를 아낀다(`Image.draft`).
-- 펼칠 화소 수가 7,000만을 넘으면 만들지 않는다(종료 코드 2). 작은 PNG도 펼치면 GB 단위가 될 수 있어 렌더러(2GB) 메모리를 지키기 위해서다. iPhone 48MP와 파노라마는 통과한다. JPEG는 줄여 읽은 뒤의 크기로 보므로 108MP·200MP 원본도 만든다. HEIC는 헤더 크기를 속이면 이 검사를 지나 libheif 자체 한도까지 갈 수 있다.
+- 펼칠 화소 수가 7,000만을 넘으면 만들지 않는다(종료 코드 2). 작은 PNG도 펼치면 GB 단위가 될 수 있어 렌더러(2GB) 메모리를 지키기 위해서다. iPhone 48MP와 파노라마는 통과한다. JPEG는 줄여 읽은 뒤의 크기로 보므로 108MP·200MP 원본도 만든다. PNG는 열기 전에 헤더 크기를 읽어 막는다. APNG는 Pillow가 여는 순간 헤더 크기만큼 메모리를 잡기 때문이다. HEIC는 헤더 크기를 속이면 이 검사를 지나 libheif 자체 한도까지 갈 수 있다.
 - 업로드가 허용하는 JPEG, PNG, WebP, HEIC만 연다. 그 밖의 형식은 종료 코드 2다.
 - 출력은 임시 파일에 쓴 뒤 옮겨, 실패해도 반쯤 쓴 파일이 남지 않는다.
 
 ## 버전
 
-렌더러 서버는 Ubuntu 22.04 arm64의 Python 3.10을 쓴다. Pillow 13은 Python 3.10을 지원하지 않아 12.3.0으로 고정했다. 두 패키지 모두 이 환경용 wheel이 있고, pillow-heif wheel 안에 libheif가 들어 있어 `apt`로 따로 설치할 필요가 없다.
+렌더러 서버는 Amazon Linux 2023(arm64)이다. 기본 `python3`는 3.9라 `dnf install -y python3.12`로 따로 설치하고, 그 Python으로 가상환경을 만든다(Amazon Linux는 venv가 Python 패키지에 들어 있다).
+
+Pillow는 13.0.0 이상을 쓴다. 13.0.0이 사용자가 올린 파일을 디코딩할 때 걸리는 Critical 보안 문제(JPEG 디코더 버퍼 오버플로, 모드 전환 뒤 낡은 메모리 재사용 등)를 고쳤고, 12.x에는 이 수정이 없다. Pillow 13은 Python 3.11 이상이 필요하다. 두 패키지 모두 이 환경용 wheel이 있고, pillow-heif wheel 안에 libheif가 들어 있어 따로 설치할 것은 없다. CI도 같은 OS·CPU·Python(`amazonlinux:2023` arm64 컨테이너, Python 3.12)에서 돈다.
 
 ## 테스트
 

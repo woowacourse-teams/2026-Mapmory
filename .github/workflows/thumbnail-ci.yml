@@ -19,28 +19,28 @@ concurrency:
   group: thumbnail-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-defaults:
-  run:
-    working-directory: thumbnail
-
 jobs:
   test:
     name: Test thumbnail script
-    # 렌더러 서버(Ubuntu 22.04, arm64)와 같은 OS·Python 버전·CPU에서 돌린다.
-    runs-on: ubuntu-22.04-arm
+    # 렌더러 서버(Amazon Linux 2023, arm64)와 같은 OS·CPU·Python에서 돌린다.
+    runs-on: ubuntu-24.04-arm
+    container: amazonlinux:2023
     timeout-minutes: 10
 
     steps:
+      # 체크아웃에 git과 tar가 필요한데 기본 이미지에 없다. 렌더러와 같이 dnf로 Python 3.12를 설치한다.
+      - name: Install system packages
+        run: dnf install -y --quiet git tar gzip python3.12
+
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.10"
-
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        working-directory: thumbnail
+        run: |
+          python3.12 -m venv .venv
+          .venv/bin/pip install --quiet -r requirements-dev.txt
 
       - name: Run tests
-        run: python -m pytest -q
+        working-directory: thumbnail
+        run: .venv/bin/python -m pytest -q

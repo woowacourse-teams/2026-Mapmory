@@ -1,5 +1,8 @@
 """사진 한 장을 목록용 썸네일로 줄인다. 키나 저장소는 모르고 파일 경로만 다룬다."""
 
+import os
+import struct
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -11,6 +14,7 @@ register_heif_opener()
 
 WEBP_QUALITY = 75
 RGB_MODES = ("RGB", "RGBA", "P", "PA")
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 # 업로드가 허용하는 형식만 연다(UploadFileType). 나머지 디코더(TIFF, EPS 등)에는 닿지 않게 한다.
 ALLOWED_FORMATS = ["JPEG", "PNG", "WEBP", "HEIF"]
 # 펼칠 화소 수의 한도. iPhone 48MP(약 4,880만)와 파노라마(최대 약 6,300만으로 알려짐)는 통과시킨다.
@@ -42,6 +46,7 @@ def make_thumbnail(src, dst, max_edge=1080):
 def _decode_upright(src, max_edge):
     """원본을 읽고 방향을 픽셀에 반영한다. 파일 내용 때문에 실패하면 DecodeError, 실행 환경 때문이면 그 예외 그대로다."""
     try:
+        _reject_oversized_png(src)
         image = Image.open(src, formats=ALLOWED_FORMATS)
         # JPEG는 필요한 크기 근처로 줄여 읽어 메모리와 시간을 아낀다. 다른 형식에서는 아무 일도 하지 않는다.
         image.draft("RGB", (max_edge, max_edge))
@@ -66,16 +71,33 @@ def _decode_upright(src, max_edge):
         raise DecodeError(f"{type(e).__name__}: {e}") from e
 
 
+def _reject_oversized_png(src):
+    # APNG는 Pillow가 여는 순간(첫 프레임 준비) 헤더 크기만큼 캔버스를 잡는다. 103바이트 파일로도 수백 MB가 된다.
+    # 그래서 PNG는 열기 전에 IHDR의 크기를 직접 읽어 거절한다.
+    with open(src, "rb") as file:
+        header = file.read(24)
+    if header[:8] == PNG_SIGNATURE and header[12:16] == b"IHDR":
+        width, height = struct.unpack(">II", header[16:24])
+        if width * height > MAX_DECODED_PIXELS:
+            raise DecodeError(f"too many pixels to decode: {width}x{height}")
+
+
 def _to_saveable_mode(image):
-    if image.mode in ("RGB", "RGBA"):
+    has_alpha = image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info
+    if image.mode == "I" or image.mode.startswith("I;16"):
+        # 16비트 회색조는 그대로 RGB로 바꾸면 255를 넘는 값이 모두 흰색이 된다. 8비트로 줄인 뒤 바꾼다.
+        image = image.convert("I").point(lambda value: value * (1 / 256)).convert("L")
+    if image.mode == "RGBA" or (image.mode == "RGB" and not has_alpha):
         return image
-    has_alpha = image.mode in ("LA", "PA") or "transparency" in image.info
+    # RGB PNG의 색 키(tRNS)처럼 투명도가 info에만 있으면 RGBA로 바꿔야 유지된다.
     return image.convert("RGBA" if has_alpha else "RGB")
 
 
 def _save_atomically(image, dst, icc_profile):
-    # 쓰다 실패해도 반쯤 쓴 파일이 출력 경로에 남지 않게 한다.
-    partial = dst.with_name(dst.name + ".partial")
+    # 쓰다 실패해도 반쯤 쓴 파일이 출력 경로에 남지 않게 한다. 임시 파일 이름은 실행마다 달라 서로 덮어쓰지 않는다.
+    descriptor, name = tempfile.mkstemp(dir=dst.parent, prefix=dst.name + ".", suffix=".partial")
+    os.close(descriptor)
+    partial = Path(name)
     try:
         image.save(partial, "WEBP", quality=WEBP_QUALITY, method=4, icc_profile=icc_profile)
         partial.replace(dst)
