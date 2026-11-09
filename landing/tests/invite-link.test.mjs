@@ -29,12 +29,13 @@ test("the invite page never shows the token or group details and points to both 
   assert.match(page, /apps\.apple\.com\/kr\/app\/.*id6807056166/);
   assert.match(page, /play\.google\.com\/store\/apps\/details\?id=com\.mapmory\.android/);
   assert.match(page, /코드로 참여/);
-  assert.doesNotMatch(page, /location\.pathname|fetch\(/);
+  // The token is in the path. The page must not read the URL, call out, or load analytics.
+  assert.doesNotMatch(page, /location|document\.URL|fetch\(|XMLHttpRequest|sendBeacon|posthog|gtag|<script[^>]+src=/i);
 });
 
 test("nginx example serves the association files as JSON and every invite path as one page", () => {
   const conf = read("nginx/invite.conf");
   assert.match(conf, /location = \/\.well-known\/apple-app-site-association \{[^}]*default_type application\/json;/);
   assert.match(conf, /location = \/\.well-known\/assetlinks\.json \{[^}]*default_type application\/json;/);
-  assert.match(conf, /location \^~ \/invite\/ \{[^}]*try_files \/invite\/index\.html =404;/);
+  assert.match(conf, /location \^~ \/invite\/ \{[^}]*access_log off;[^}]*try_files \/invite\/index\.html =404;/);
 });
