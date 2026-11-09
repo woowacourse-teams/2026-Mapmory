@@ -19,6 +19,7 @@ import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.support.SecuredTestController;
 import com.mapmory.backend.upload.service.port.ObjectDeleter;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
+import com.mapmory.backend.upload.service.port.StoredObjectLister;
 import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
 import java.time.Clock;
@@ -84,6 +85,9 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
 
     @MockitoSpyBean
     protected ObjectDeleter objectDeleter;
+
+    @MockitoSpyBean
+    protected StoredObjectLister storedObjectLister;
 
     @MockitoSpyBean
     protected KakaoIdentityAdapter kakaoIdentityAdapter;

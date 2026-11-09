@@ -270,6 +270,49 @@ fields @timestamp, requestId, event, @message
 메트릭으로 이상 위치 찾기 → Request ID 로그로 구체적인 원인 찾기
 ```
 
+### 상황 4: 기록에 붙지 않은 S3 객체 대조 배치를 확인한다
+
+대조 배치는 매일 20:00 UTC에 돌고, 찾은 키는 다음 19:30 UTC 정리 배치가 지운다. (#186, ADR 0018)
+
+| 이벤트 | 뜻 |
+| --- | --- |
+| `UNLINKED_MEDIA_RECONCILE_DONE` | 대조 끝. `dryRun`, `scanned`, `candidates`, `queued`, `unrecognized`, `failedPages`, `listFailed`, `sample`을 본다 |
+| `UNLINKED_MEDIA_PAGE_FAILED` | 한 쪽을 대조하지 못했다. 다음 쪽은 계속 읽고, 이 쪽은 다음 날 다시 읽는다 |
+| `UNLINKED_MEDIA_LIST_FAILED` | 목록 조회가 실패해 멈췄다. `DONE`에 그때까지의 수가 남고, 다음 날 처음부터 다시 읽는다 |
+| `UNLINKED_MEDIA_RECONCILE_FAILED` | 예상하지 못한 오류로 끝났다 |
+
+메트릭은 `mapmory.media.unlinked.reconcile`(`outcome=CANDIDATE|QUEUED|UNRECOGNIZED|FAILED_PAGE|FAILED_LIST`, `dryRun`)과
+`mapmory.media.orphaned.cleanup`(`outcome=DELETED|FAILED`)이다.
+
+`UPLOAD_UNLINKED_MEDIA_DRY_RUN=true`로 시작한다. 끄기 전에 다음을 확인한다.
+
+1. 며칠 동안 `sample`의 키가 정말 기록에 없는지 DB에서 확인하고, `candidates`가 예상 범위인지 본다. `sample`은 날마다 무작위로 뽑는다.
+2. `unrecognized`가 0이 아니면 어떤 객체인지 확인한다. 이 객체들은 지워지지 않는다.
+3. 운영과 개발의 `AWS_S3_KEY_PREFIX`가 다른지 확인한다. 같으면 서로의 사진을 고아로 판단한다.
+4. 각 환경의 `record_media`에 상대 환경의 `{prefix}/travel-records/`로 시작하는 키가 없는지 확인한다. 예전에 prefix를 바꿨다면 그 환경의 사진이 이쪽 경로에 있을 수 있다.
+5. 앱이 `MEDIA_NOT_UPLOADED`에서 새 키로 다시 올리도록 고쳐 배포됐는지 확인한다(#622).
+6. EC2 CloudWatch Agent 설정의 전송 대상에 `mapmory_media_unlinked_reconcile_total`, `mapmory_media_orphaned_cleanup_total`이 들어 있는지 확인한다. 빠져 있으면 EC2의 `/actuator/prometheus`에서만 보인다.
+
+끄면 지운 객체는 모든 버전까지 영구히 사라진다.
+
+실삭제를 켠 뒤 `candidates`가 예상보다 크면 dry-run을 다시 켜는 것만으로는 멈추지 않는다. 이미 큐에 들어간 행은
+정리 배치가 dry-run과 상관없이 지운다. 다음 순서로 막는다. 시각은 모두 UTC다.
+
+1. **다음 19:30 전에 3번까지 끝낸다.** 늦으면 큐의 키가 모든 버전까지 영구히 지워진다.
+2. `SELECT DATE(created_at), COUNT(*) FROM orphaned_media GROUP BY 1`로 언제 들어간 행이 있는지 본다.
+   앞선 날의 대조로 들어와 삭제에 실패한 행이 남아 있을 수 있다.
+3. 문제의 `UNLINKED_MEDIA_RECONCILE_DONE`을 남긴 대조가 시작한 20:00 이후의 행을 지운다.
+   한국 시각 오전에 발견했다면 그 대조는 전날(UTC) 20:00에 시작했다.
+
+   ```sql
+   DELETE FROM orphaned_media WHERE created_at >= '2026-11-07 20:00:00';
+   ```
+
+4. **다음 20:00 전에** `UPLOAD_UNLINKED_MEDIA_DRY_RUN=true`로 재기동한다.
+
+dry-run을 다시 끄면 대조 배치가 올라간 지 3일이 지난 서버 형식의 키를 다시 찾는다. 다만 기록에서 뺀 사진의 행 중
+낯선 형식이거나 현재 prefix 밖에 있는 키는 다시 찾지 못하므로, 지우기 전에 따로 확인한다.
+
 ## Health 엔드포인트 구분
 
 Mapmory에는 이름이 비슷한 두 엔드포인트가 있다.
