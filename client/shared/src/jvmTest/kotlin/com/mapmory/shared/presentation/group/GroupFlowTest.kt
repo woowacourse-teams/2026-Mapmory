@@ -18,6 +18,16 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalComposeUiApi::class)
 class GroupFlowTest {
     @Test
+    fun `album grid prefers thumbnail and falls back to original while viewer keeps original`() {
+        val photo = GroupPhoto("1", 1, "member-a", "김민수", "original.jpg", "thumbnail.webp")
+        val legacyPhoto = GroupPhoto("2", 2, "member-b", "지우", "legacy.jpg")
+
+        assertEquals("thumbnail.webp", photo.gridImageUri)
+        assertEquals("original.jpg", photo.imageUri)
+        assertEquals("legacy.jpg", legacyPhoto.gridImageUri)
+    }
+
+    @Test
     fun `social names do not merge different members`() {
         val album = GroupAlbum("a", "여행", "제주", "오늘", listOf(
             GroupPhoto("1", 1, "member-a", "김민수"),

@@ -307,6 +307,7 @@ internal fun NewTripRecordFlowScreen(
     onPhotoLoadingChanged: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onBackClick: () -> Unit,
+    onCoverRegionRequested: suspend (List<SelectedPhoto>) -> Unit = {},
     onConfirmedPhotoLoadingBackClick: () -> Unit = onBackClick,
     recordedPhotoIds: Set<String> = emptySet(),
     photoUsageReady: Boolean = true,
@@ -955,6 +956,42 @@ internal fun NewTripRecordFlowScreen(
         }
     }
 
+    LaunchedEffect(step, selectedCoverPhotoId) {
+        if (step == NewRecordFlowStep.COVER_SELECTION) {
+            val cover = selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId }
+                ?: selectedPhotos.firstOrNull()
+            if (cover != null) onCoverRegionRequested(listOf(cover) + selectedPhotos.filterNot { it.id == cover.id })
+        }
+    }
+    var showRegionPicker by remember { mutableStateOf(false) }
+    var regionQuery by remember { mutableStateOf("") }
+    if (showRegionPicker) {
+        AlertDialog(
+            onDismissRequest = { showRegionPicker = false },
+            title = { Text("기록 지역 변경") },
+            text = {
+                Column {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = regionQuery,
+                        onValueChange = { regionQuery = it },
+                        label = { Text("지역 검색") },
+                    )
+                    LazyColumn(Modifier.heightIn(max = 280.dp)) {
+                        items(selectableLocations.filter {
+                            regionQuery.isNotBlank() && it.flowDisplayName(locations).contains(regionQuery.trim(), ignoreCase = true)
+                        }, key = { it.id }) { location ->
+                            TextButton(onClick = {
+                                onLocationSelected(location)
+                                showRegionPicker = false
+                            }) { Text(location.flowDisplayName(locations)) }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showRegionPicker = false }) { Text("닫기") } },
+        )
+    }
+
     // Gallery callbacks may arrive before their loading=false callback.
     LaunchedEffect(pendingSave, uiState.isPhotoLoading, uiState.selectedPhotos) {
         if (pendingSave && !uiState.isPhotoLoading && uiState.selectedPhotos.isNotEmpty()) {
@@ -1214,6 +1251,18 @@ internal fun NewTripRecordFlowScreen(
                             onBackClick = ::returnToPreviousStep,
                             onPhotoSelected = { selectedCoverPhotoId = it },
                             onConfirm = ::confirmCoverPhotoSelection,
+                            regionContent = {
+                                TextButton(onClick = { regionQuery = ""; showRegionPicker = true }) {
+                                    Text("기록 지역: ${uiState.selectedLocation?.flowDisplayName(locations) ?: "지역 선택"}  변경")
+                                }
+                                val attribution = uiState.photoRegionAttribution
+                                if (attribution != null) {
+                                    val uriHandler = LocalUriHandler.current
+                                    TextButton(onClick = {
+                                        uiState.photoRegionAttributionUrl?.let(uriHandler::openUri)
+                                    }) { Text(attribution) }
+                                }
+                            },
                         )
 
                     }
@@ -2584,6 +2633,7 @@ private fun CoverPhotoSelectionStep(
     onBackClick: () -> Unit,
     onPhotoSelected: (String) -> Unit,
     onConfirm: () -> Unit,
+    regionContent: @Composable () -> Unit = {},
 ) {
     val selectedPhoto = photos.firstOrNull { it.id == selectedPhotoId } ?: photos.firstOrNull()
     Column(Modifier.fillMaxSize()) {
@@ -2610,6 +2660,7 @@ private fun CoverPhotoSelectionStep(
                 color = TripRecordPalette.current.secondaryText,
                 fontSize = 15.sp,
             )
+            regionContent()
             if (selectedPhoto != null) {
                 MapmoryAsyncImage(
                     imageBytes = selectedPhoto.previewBytes ?: selectedPhoto.originalBytes,
