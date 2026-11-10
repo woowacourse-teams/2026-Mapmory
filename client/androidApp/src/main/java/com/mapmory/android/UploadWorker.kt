@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -33,25 +34,26 @@ internal class AndroidBackgroundSaveExecution(private val context: Context, name
     }
     override suspend fun <T> run(block: suspend () -> T): T = block()
     override fun onProgress(save: BackgroundTripRecordSave) {
-        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isAppInForeground()) {
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isMapmoryAppInForeground(context)) {
             manager().notify(UploadNotificationId, notification(context, save.title, "${save.progressPercent}% 업로드 중", save.progressPercent))
         }
     }
-    override fun onCompleted(save: BackgroundTripRecordSave) {
-        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isAppInForeground()) manager().notify(
+    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {
+        if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isMapmoryAppInForeground(context)) manager().notify(
             save.id.hashCode(),
-            notification(context, "사진 업로드 완료", "${save.locationName} 기록이 저장됐어요", null),
+            notification(context, "사진 업로드 완료", "${save.locationName} 기록이 저장됐어요", null, recordId),
         )
-    }
-    private fun isAppInForeground(): Boolean {
-        val process = ActivityManager.RunningAppProcessInfo()
-        ActivityManager.getMyMemoryState(process)
-        // A foreground service has IMPORTANCE_FOREGROUND_SERVICE, not FOREGROUND.
-        return process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-            process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
     }
     private fun manager() = context.getSystemService(NotificationManager::class.java)
     private fun canNotify() = Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+}
+
+internal fun isMapmoryAppInForeground(context: Context): Boolean {
+    val process = ActivityManager.RunningAppProcessInfo()
+    ActivityManager.getMyMemoryState(process)
+    // A foreground service has IMPORTANCE_FOREGROUND_SERVICE, not FOREGROUND.
+    return process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+        process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
 }
 
 class UploadWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
@@ -69,11 +71,28 @@ class UploadWorker(context: Context, parameters: WorkerParameters) : CoroutineWo
 
 private const val UploadNotificationId = 31001
 private const val UploadChannel = "trip-record-uploads"
-private fun notification(context: Context, title: String, text: String, progress: Int?): Notification {
+private fun notification(
+    context: Context,
+    title: String,
+    text: String,
+    progress: Int?,
+    recordId: Long? = null,
+): Notification {
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(
         NotificationChannel(UploadChannel, "사진 업로드", NotificationManager.IMPORTANCE_LOW),
     )
-    val intent = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val launchIntent = Intent(context, MainActivity::class.java)
+    if (recordId != null) {
+        launchIntent.action = com.mapmory.shared.MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        launchIntent.putExtra(com.mapmory.shared.MapmoryNotificationIntent.EXTRA_RECORD_ID, recordId)
+        launchIntent.data = Uri.parse("mapmory://notification/record/$recordId")
+    }
+    val intent = PendingIntent.getActivity(
+        context,
+        recordId?.hashCode() ?: 0,
+        launchIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
     return NotificationCompat.Builder(context, UploadChannel)
         .setSmallIcon(android.R.drawable.stat_sys_upload)
         .setContentTitle(title).setContentText(text).setContentIntent(intent)
