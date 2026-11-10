@@ -18,6 +18,11 @@ import com.mapmory.shared.data.settings.AndroidThemePreference
 import com.mapmory.shared.data.remote.MapmoryApiException
 
 class MapmoryAppViewModel(application: Application) : AndroidViewModel(application) {
+    private val invitationPreferences = application.getSharedPreferences("group-invitations", android.content.Context.MODE_PRIVATE)
+    val invitations = com.mapmory.shared.presentation.group.GroupInvitationInbox(
+        initialUrl = invitationPreferences.getString("pending-url", null),
+        save = { url -> invitationPreferences.edit().putString("pending-url", url).apply() },
+    )
     val forceUpdate = com.mapmory.android.update.AndroidForceUpdateController(application)
     override fun onCleared() { forceUpdate.close() }
 

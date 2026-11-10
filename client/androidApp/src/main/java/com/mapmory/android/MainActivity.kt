@@ -1,6 +1,7 @@
 package com.mapmory.android
 
 import android.os.Bundle
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.SystemClock
@@ -46,8 +47,16 @@ class MainActivity : ComponentActivity() {
         appViewModel.forceUpdate.refresh()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.dataString?.let { appViewModel.invitations.receive(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) intent?.dataString?.let { appViewModel.invitations.receive(it) }
+        lifecycleScope.launch { restoreInstallInvitation(applicationContext, appViewModel.invitations) }
         val notificationPermission = registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {}
@@ -66,7 +75,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            val navigation = remember { MapmoryNavigation() }
+            val navigation = remember { MapmoryNavigation(appViewModel.invitations) }
             var lastBackPressedAt by remember { mutableLongStateOf(0L) }
             var isDarkTheme by rememberSaveable { mutableStateOf(false) }
             val systemBarColor = colorResource(
@@ -95,6 +104,23 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
+                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
+                    ) {
+                        MapmoryApp(
+                            container = appViewModel.container,
+                            navigation = navigation,
+                            analytics = analyticsLogger,
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            onThemeChanged = { isDarkTheme = it },
+                            developerToolsInfo = developerToolsInfo,
+                            updateState = appViewModel.forceUpdate.state,
+                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
+                        )
+                    }
+
+                    // Dispatch to the active screen before NavHost can pop the entire destination.
                     BackHandler {
                         if (navigation.popBackStack()) {
                             lastBackPressedAt = 0L
@@ -112,24 +138,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
-                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
-                    ) {
-                        MapmoryApp(
-                            container = appViewModel.container,
-                            navigation = navigation,
-                            analytics = analyticsLogger,
-                            contentWindowInsets = WindowInsets.safeDrawing,
-                            onThemeChanged = { isDarkTheme = it },
-                            developerToolsInfo = developerToolsInfo,
-                            updateState = appViewModel.forceUpdate.state,
-                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
-                        )
-                    }
-
-
                 }
             }
         }

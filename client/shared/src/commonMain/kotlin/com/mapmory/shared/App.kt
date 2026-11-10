@@ -160,6 +160,7 @@ fun MapmoryApp(
     }
 
     CompositionLocalProvider(
+        com.mapmory.shared.presentation.group.LocalGroupInvitationInbox provides navigation?.invitations,
         com.mapmory.shared.presentation.triprecord.screen.LocalGroupFeatureEnabled provides true,
         com.mapmory.shared.navigation.LocalNavigationGestureMotion provides remember { com.mapmory.shared.navigation.NavigationGestureMotion() },
         LocalMapmoryTheme provides themeState,

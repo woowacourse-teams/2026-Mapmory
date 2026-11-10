@@ -93,7 +93,7 @@ class GroupRemoteRepositoryTest {
                 0 -> {
                     assertEquals("POST", request.method.value)
                     assertEquals("/api/v1/groups/3/invitations", request.url.encodedPath)
-                    jsonResponse("""{"data":{"token":"link-token","code":"4KD7PZ","expiresAt":"2026-10-28T18:00:00"}}""", HttpStatusCode.Created)
+                    jsonResponse("""{"data":{"token":"link-token","code":"4KD7PZ","inviteUrl":"https://map-mory.com/invite/link-token","expiresAt":"2026-10-28T18:00:00"}}""", HttpStatusCode.Created)
                 }
                 1 -> {
                     assertEquals("GET", request.method.value)
@@ -110,6 +110,7 @@ class GroupRemoteRepositoryTest {
             val issued = repository.createInvitation(3).getOrThrow()
             assertEquals("link-token", issued.token)
             assertEquals("4KD7PZ", issued.code)
+            assertEquals("https://map-mory.com/invite/link-token", issued.inviteUrl)
             assertEquals(LocalDateTime(2026, 10, 28, 18, 0), issued.expiresAt)
             assertFalse(issued.toString().contains(issued.token))
             assertFalse(issued.toString().contains(issued.code))
@@ -120,6 +121,16 @@ class GroupRemoteRepositoryTest {
             // The repository preserves the server's successful idempotent acceptance response.
             assertEquals(ExpectedGroup, repository.acceptInvitation("link-token").getOrThrow())
             assertEquals(3, calls)
+        }
+    }
+
+    @Test fun olderServersCanStillIssueCodeInvitations() = runBlocking {
+        withRepository({
+            jsonResponse("""{"data":{"token":"link-token","code":"4KD7PZ","expiresAt":"2026-10-28T18:00:00"}}""", HttpStatusCode.Created)
+        }) { repository, _ ->
+            val issued = repository.createInvitation(3).getOrThrow()
+            assertEquals("4KD7PZ", issued.code)
+            assertEquals(null, issued.inviteUrl)
         }
     }
 
