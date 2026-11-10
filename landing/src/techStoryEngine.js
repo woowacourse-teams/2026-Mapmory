@@ -5,7 +5,7 @@ import land110 from "world-atlas/land-110m.json";
 import KOREA from "./data/tech-korea-map.json";
 import SPRITE from "./data/storySprite.js";
 import { classifyGlobeGesture } from "./globe-gesture.js";
-import { TECH_COUNTRIES, TECH_PROVINCES, techScenes } from "./techStory.js";
+import { TECH_COUNTRIES, TECH_PROVINCES, gatherSlots, techScenes } from "./techStory.js";
 
 // Port of 티온's approved #tech sketch (v8, 2026-10-23), made scroll-driven on 10-28 (티온: visitors flick through
 // without reading, and waiting for a replay feels slow). Mounted by TechStory.jsx into its own markup; returns destroy.
@@ -78,16 +78,13 @@ export function mountTechStory(root, { share, onScene = () => {}, onInteract = (
   // the 제주 photos spread through it; the rest are hidden, and the DOM order follows the grid for keyboard order
   function arrange(count, cols) {
     const slots = new Array(count).fill(null);
-    const J = jejuTiles.length, rows = Math.ceil(count / cols);
-    jejuTiles.forEach((t, j) => {
-      // one per row band, stepping across columns, so they never line up in one column
-      let i = Math.min(count - 1, Math.floor(((j + 0.5) * rows) / J) * cols + ((j * 5 + 2) % cols));
-      while (slots[i]) i = (i + 1) % count;
-      slots[i] = t;
-    });
+    // a small grid takes only the 제주 photos that fit (gatherSlots); the ones left over wait hidden with the rest
+    const cells = gatherSlots(count, cols, jejuTiles.length);
+    cells.forEach((i, j) => { slots[i] = jejuTiles[j]; });
+    const spare = [...otherTiles, ...jejuTiles.slice(cells.length)];
     let o = 0;
-    for (let i = 0; i < count; i++) if (!slots[i]) slots[i] = otherTiles[o++];
-    const rest = otherTiles.slice(o);
+    for (let i = 0; i < count; i++) if (!slots[i]) slots[i] = spare[o++];
+    const rest = spare.slice(o);
     [...slots, ...rest].forEach((t) => gather.appendChild(t));
     slots.forEach((t) => { t.hidden = false; });
     rest.forEach((t) => { t.hidden = true; });

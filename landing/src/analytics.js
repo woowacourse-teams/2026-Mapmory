@@ -93,6 +93,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
   TECH_STORY_VIEW: "tech_story_view",
   TECH_STORY_SCENE: "tech_story_scene",
   TECH_STORY_INTERACT: "tech_story_interact",
+  GROUP_ALBUM_VIEW: "group_album_view",
 });
 
 // The #tech section's touchable element per scene (1-6), one tech_story_interact per type per page.
@@ -260,6 +261,8 @@ export function trackEvent(name, parameters = {}) {
   if ((name === ANALYTICS_EVENTS.TECH_STORY_SCENE || name === ANALYTICS_EVENTS.TECH_STORY_INTERACT)
     && !(Number.isInteger(parameters.scene_index) && parameters.scene_index >= 1 && parameters.scene_index <= 7)) return false;
   if (name === ANALYTICS_EVENTS.TECH_STORY_INTERACT && !TECH_STORY_INTERACTIONS.includes(parameters.interaction_type)) return false;
+  // The #group scene: one passive reach event, never experience_view (reports on experience_* count the globe).
+  if (name === ANALYTICS_EVENTS.GROUP_ALBUM_VIEW && parameters.experience_type !== "group_album") return false;
   const eventParameters = buildEventParameters(parameters);
   let tracked = false;
 
