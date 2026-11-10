@@ -17,6 +17,17 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Mapmory Landing Decisions
 
+### Direction 다: quiet type, words on the left (2026-11-10)
+
+티온 picked direction 다 out of three hero drafts ("엄청 고급스럽네"): fewer weights and colours, the words in a left column on wide screens. Where this section and the one below disagree (button colour, QR card, title size numbers), this section wins.
+
+- Page-level buttons are black pills: `--btn` with `--on-btn` (`.button-primary`, the pressed hero chip, the active globe shortcut). `--ink` with `--on-ink` (app green) stays for things drawn inside a phone screen. Do not add a second filled colour to the page.
+- Secondary text is muted and weight 400 (kicker, chips, notes, nav, labels); only titles and buttons are bold. In a two-line title the second line is muted: wrap it in `<span class="title-soft">` (hero `h1 span`, `#group`, download). No pill or card around the kicker or the QR.
+- Hero at 1100px and wider: the words sit in a left column (`--hero-side: 1` on `.wall-hero` in `src/photo-story.css`) and the wall gathers its photos to the right. The engine reads `--hero-side` in `measureWords()` (`src/heroWallEngine.js`) and keeps the gathered grid, the idle lens and photo taps out of the column; change the CSS flag and the engine follows, do not hard-code the width in the engine. Under 1100px the hero stays centred, as on phones.
+- The hero title size follows the window height on wide screens: `28.7svh - 140px` when the QR shows, `28.7svh - 122px` when it does not. After any change to the hero block, check at 1440x900, 1280x800, 1280x700, 1366x650 and 1100x800, before and after a place is picked, that the kicker stays below the header (84px) and the words end above the foot.
+- The desktop QR is a plain white 112px image with a one-line caption beside it (no card); the scanning rules in the section below still hold (black on white in both themes, 4-module margin, `?qr=desktop_hero`, no `utm_*`).
+- Trust and download at 1000px and wider are two columns: the title on the left (the trust title sticks while the list scrolls), the content on the right, left aligned. Phones keep the centred single column.
+
 ### App look, group album, own-store button (2026-11-10)
 
 티온 (11-10): the landing wears the app's clothes (mood B) and gets a group album scene; the hero changes follow four weeks of GA4 numbers (10/14 to 11/10). Where this section and an older one disagree, this section wins.

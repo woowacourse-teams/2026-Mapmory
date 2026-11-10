@@ -45,7 +45,8 @@ async function render() {
 test("the group album scene renders a real heading, five slots on each side and five named photos", async () => {
   const html = await render();
   assert.match(html, /^<section class="ga" id="group" aria-labelledby="group-title">/);
-  assert.match(html, /<h2 id="group-title">친구와 다녀온 여행은<br\/>한 앨범에 모여요<\/h2>/);
+  // 2026-11-10 (direction 다): the second line of a two-line title is muted
+  assert.match(html, /<h2 id="group-title">친구와 다녀온 여행은<br\/><span class="title-soft">한 앨범에 모여요<\/span><\/h2>/);
   assert.match(html, /<div class="ga-scene" aria-hidden="true">/); // the picture is decoration; the heading says it
   assert.equal(html.match(/data-src="true"/g).length, 5);
   assert.equal(html.match(/data-dst="true"/g).length, 5);
@@ -98,11 +99,32 @@ test("the desktop QR keeps a quiet zone and square corners and shows only where 
   assert.match(svg, /fill="#ffffff"/);
   const styles = await read("../src/styles.css");
   assert.match(styles, /\.hero-qr img \{ display: block; width: 112px; height: 112px; background: #fff; \}/);
-  // the card adds 82px to the centred hero words: it shows only in windows tall enough, and the title shrinks with the
-  // window's height on the same query so the kicker never slides under the floating header
-  const QR_QUERY = /@media \(min-width: 900px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ /;
-  assert.match(styles, new RegExp(QR_QUERY.source + "\\.hero-qr \\{ display: flex; \\} \\}"));
+  // the QR makes the hero words taller, so it shows only in windows tall enough
+  assert.match(styles, /@media \(min-width: 900px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ \.hero-qr \{ display: flex; \} \}/);
+});
+
+test("direction 다: a quiet hero whose words sit in a left column on wide screens", async () => {
   const hero = await read("../src/photo-story.css");
-  assert.match(hero, new RegExp(QR_QUERY.source + "\\.wall-hero h1 \\{ font-size: clamp\\(40px, min\\(8vw, 28svh - 148px\\), 92px\\); \\} \\}"));
-  assert.match(hero, /@media \(min-width: 900px\) \{ \.wall-hero h1 \{ font-size: clamp\(40px, min\(8vw, 28svh - 123px\), 92px\); \} \}/);
+  const styles = await read("../src/styles.css");
+  const engine = await read("../src/heroWallEngine.js");
+  // no pills or bold secondary text: a plain kicker, a muted second title line, black buttons
+  assert.match(hero, /\.wall-hero-kicker \{ display: inline-block; color: var\(--muted\); font-size: 14px; font-weight: 400;/);
+  assert.match(hero, /\.wall-hero h1 span \{ display: block; color: var\(--muted\);/);
+  assert.match(hero, /\.wall-hero-chips button\[aria-pressed="true"\] \{ background: var\(--btn\); border-color: var\(--btn\); color: var\(--on-btn\); \}/);
+  assert.match(styles, /\.button-primary \{ color: var\(--on-btn\); background: var\(--btn\); border-color: var\(--btn\); border-radius: 999px; \}/);
+  assert.match(styles, /--btn: #18201b;\s*--on-btn: #f6f9f7;/);
+  assert.match(styles, /--btn: #edf3ef;\s*--on-btn: #101513;/);
+  // the side layout starts where the buttons and the QR fit one row of the column, and tells the engine
+  const side = hero.match(/@media \(min-width: 1100px\) \{\n([\s\S]*?)\n\}\n/)[1];
+  assert.match(side, /\.wall-hero \{ --hero-side: 1; --hero-left: max\(24px, calc\(50% - 540px\)\); \}/);
+  assert.match(side, /\.wall-hero-copy \{ left: var\(--hero-left\); transform: translateY\(-50%\); width: min\(600px, 54vw\); text-align: left; \}/);
+  // the column is centred between the header and the foot: the title follows the window's height, sooner with the QR
+  assert.match(side, /\.wall-hero h1 \{ font-size: clamp\(34px, min\(5vw, 28\.7svh - 122px\), 72px\); \}/);
+  assert.match(hero, /@media \(min-width: 1100px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ \.wall-hero h1 \{ font-size: clamp\(34px, min\(5vw, 28\.7svh - 140px\), 72px\); \} \}/);
+  assert.match(styles, /@media \(min-width: 1100px\) \{ \.hero-store \{ justify-content: flex-start; \} \}/);
+  // the engine keeps the lens, the taps and a picked place's photos in the open part beside the words
+  assert.match(engine, /side = getComputedStyle\(hero\)\.getPropertyValue\("--hero-side"\)\.trim\(\) === "1";/);
+  assert.match(engine, /if \(side\) \{\s*\/\/ beside the words[^\n]*\n\s*const beside = \{ x0: open, y0: 108, x1: W - 32, y1: H - 32 \};/);
+  assert.match(engine, /if \(side && px < open - 40\) return null;/);
+  assert.match(engine, /if \(side\) lens\.tx = Math\.max\(lens\.tx, open \+ 40\);/);
 });

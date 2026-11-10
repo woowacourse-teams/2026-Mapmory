@@ -141,7 +141,7 @@ export function GroupAlbum() {
       <div className="ga-stage">
         <div className="ga-copy">
           <p className="ga-label">함께 모으기</p>
-          <h2 id="group-title">친구와 다녀온 여행은<br />한 앨범에 모여요</h2>
+          <h2 id="group-title">친구와 다녀온 여행은<br /><span className="title-soft">한 앨범에 모여요</span></h2>
         </div>
         <div className="ga-scene" ref={sceneRef} aria-hidden="true">
           <div className="ga-friends">
