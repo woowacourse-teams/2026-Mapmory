@@ -292,17 +292,16 @@ private fun MapPlaceSearchField(
                 color = palette.primary,
                 strokeWidth = 2.dp,
             )
-            state.query.isNotBlank() -> Text(
-                text = "×",
-                color = palette.secondaryText,
-                fontSize = 18.sp,
-                textAlign = TextAlign.Center,
+            state.query.isNotBlank() -> Box(
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button) { onQueryChange("") }
+                    .clickable(role = Role.Button, onClickLabel = "검색어 지우기") { onQueryChange("") }
                     .semantics { contentDescription = "검색어 지우기" },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("×", color = palette.secondaryText, fontSize = 20.sp)
+            }
         }
     }
 }
