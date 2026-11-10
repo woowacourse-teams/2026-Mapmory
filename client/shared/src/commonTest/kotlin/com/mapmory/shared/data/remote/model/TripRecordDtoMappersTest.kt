@@ -162,6 +162,7 @@ class ApiDtoMappersTest {
                     viewUrl = "https://bucket.example.com/photo.jpg?signature=first",
                     viewUrlExpiresIn = 300,
                     sortOrder = 2,
+                    thumbnailUrl = "https://bucket.example.com/photo.webp?signature=fresh",
                 ),
             ),
             createdAt = "2026-08-14T10:30:00",
@@ -174,6 +175,10 @@ class ApiDtoMappersTest {
         assertEquals(
             "https://bucket.example.com/photo.jpg?signature=first",
             result.media.single().url,
+        )
+        assertEquals(
+            "https://bucket.example.com/photo.webp?signature=fresh",
+            result.media.single().thumbnailUrl,
         )
     }
 

@@ -15,6 +15,7 @@ data class TripRecordMedia(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val capturedAt: String? = null,
+    val thumbnailUrl: String? = null,
 )
 
 @kotlinx.serialization.Serializable

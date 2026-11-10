@@ -61,6 +61,7 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
                     objectKey = item.objectKey,
                     sortOrder = item.sortOrder,
                     url = item.viewUrl,
+                    thumbnailUrl = item.thumbnailUrl,
                 )
             }
             .ifEmpty {

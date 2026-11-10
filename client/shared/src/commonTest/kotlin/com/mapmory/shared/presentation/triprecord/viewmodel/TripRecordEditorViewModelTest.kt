@@ -33,6 +33,44 @@ import kotlin.test.assertTrue
 
 class TripRecordEditorViewModelTest {
     @Test
+    fun `수정_화면에서_썸네일과_원본_URL을_각각_보존한다`() {
+        val originalUrl = "https://bucket.example.com/original.jpg?signature=fresh"
+        val thumbnailUrl = "https://bucket.example.com/thumbnail.webp?signature=fresh"
+        val location = Location(101, 1, 1, "11680", "강남구", LocationType.DISTRICT)
+        val repository = FakeTripRecordRepository { "2026-10-01T00:00:00Z" }
+        val viewModel = TripRecordEditorViewModel(
+            createTripRecord = CreateTripRecordUseCase(repository),
+            updateTripRecord = UpdateTripRecordUseCase(repository),
+        )
+
+        viewModel.startEditing(
+            record = TripRecordData(
+                id = 1,
+                locationId = location.id,
+                title = "서울 여행",
+                content = "",
+                startDate = "2026-10-01",
+                endDate = null,
+                media = listOf(
+                    TripRecordMedia(
+                        id = 1,
+                        objectKey = "records/1/photo.jpg",
+                        sortOrder = 0,
+                        url = originalUrl,
+                        thumbnailUrl = thumbnailUrl,
+                    ),
+                ),
+                createdAt = "2026-10-01T00:00:00Z",
+                updatedAt = "2026-10-01T00:00:00Z",
+            ),
+            location = location,
+        )
+
+        assertEquals(thumbnailUrl, viewModel.uiState.selectedPhotos.single().thumbnailUri)
+        assertEquals(originalUrl, viewModel.uiState.selectedPhotos.single().fullResolutionUri)
+    }
+
+    @Test
     fun `장소_검색_서비스를_사용할_수_없으면_내부_설정_오류_대신_안내를_표시한다`() = runSuspend {
         val placeRepository = object : PlaceRepository {
             override suspend fun searchPlaces(query: String, sessionToken: String) = Result.failure<List<PlaceCandidate>>(
