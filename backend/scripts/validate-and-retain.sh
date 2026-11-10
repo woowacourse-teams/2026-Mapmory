@@ -6,6 +6,8 @@ require_deployment_id
 
 previous_port=$(state_value previous-port)
 target_port=$(state_value target-port)
+previous_slot=$(slot_for_port "$previous_port")
+previous_service=$(service_for_slot "$previous_slot")
 release=$(state_value release-path)
 
 rollback_on_error() {
@@ -24,6 +26,50 @@ trap rollback_on_error ERR
 wait_for_health "$target_port" 30
 curl --fail --silent --show-error --max-time 5 \
   "http://127.0.0.1:$target_port/actuator/health" >/dev/null
+
+# 전환 후 10분 동안 새 슬롯을 관찰한다. 2초 간격 상태 확인이 5회 연속 실패하거나
+# Nginx가 다른 포트를 가리키면 이전 슬롯으로 복구한다.
+soak_seconds=600
+probe_interval_seconds=2
+max_consecutive_failures=5
+failure_count=0
+soak_started_at=$(date --iso-8601=seconds)
+printf '%s\n' "$soak_started_at" > "$MAPMORY_DEPLOYMENT_DIR/soak-started-at"
+soak_deadline=$((SECONDS + soak_seconds))
+while (( SECONDS < soak_deadline )); do
+  if [[ -f "$MAPMORY_DEPLOYMENT_DIR/request-rollback" ]]; then
+    echo "운영자 롤백 요청 파일을 확인했습니다." >&2
+    false
+  fi
+
+  if [[ $(read_active_port) != "$target_port" ]]; then
+    echo "관찰 중 Nginx 대상 포트가 변경됐습니다." >&2
+    false
+  fi
+
+  if curl --fail --silent --show-error --max-time 3 \
+    "http://127.0.0.1:$target_port/actuator/health" >/dev/null 2>&1; then
+    failure_count=0
+  else
+    failure_count=$((failure_count + 1))
+    echo "health probe 실패: $failure_count/$max_consecutive_failures"
+    if (( failure_count >= max_consecutive_failures )); then
+      echo "health probe가 연속 실패해 이전 슬롯으로 복구합니다." >&2
+      false
+    fi
+  fi
+
+  sleep "$probe_interval_seconds"
+done
+
+printf '%s\n' "$(date --iso-8601=seconds)" > "$MAPMORY_DEPLOYMENT_DIR/soak-completed-at"
+
+# 관찰이 끝나면 이전 프로세스는 종료하고 JAR와 current 링크는 롤백용으로 보존한다.
+if systemctl is-active --quiet "$previous_service"; then
+  if ! systemctl stop "$previous_service"; then
+    echo "이전 프로세스를 정상 종료하지 못했습니다. 트래픽은 새 슬롯에 유지합니다." >&2
+  fi
+fi
 
 [[ -f "$release/mapmory-backend.jar" && -f "$release/sha256" ]]
 (cd "$release" && sha256sum --check --status sha256)
@@ -54,7 +100,7 @@ for release in releases.iterdir():
         status = (release / ".mapmory-release").read_text().strip()
         if status == "success":
             successful.append(release)
-        elif status == "failed" and release.stat().st_mtime < time.time() - 7 * 24 * 60 * 60:
+        elif status in {"pending", "failed"} and release.stat().st_mtime < time.time() - 7 * 24 * 60 * 60:
             failed.append(release)
 
 successful.sort(key=lambda path: path.stat().st_mtime, reverse=True)
@@ -70,7 +116,7 @@ for release in failed:
     if release.resolve() in protected:
         continue
     shutil.rmtree(release)
-    print(f"7일 지난 실패 릴리스 정리: {release.name}")
+    print(f"7일 지난 미완료 릴리스 정리: {release.name}")
 PY
 
 trap - ERR

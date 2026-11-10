@@ -54,6 +54,14 @@ service_for_slot() {
   esac
 }
 
+management_port_for_app_port() {
+  case "$1" in
+    8080) echo 8081 ;;
+    8090) echo 8091 ;;
+    *) echo "지원하지 않는 앱 포트입니다: $1" >&2; return 1 ;;
+  esac
+}
+
 find_nginx_config() {
   if [[ -n $MAPMORY_NGINX_CONF_OVERRIDE ]]; then
     [[ -f $MAPMORY_NGINX_CONF_OVERRIDE ]] || {
@@ -177,6 +185,13 @@ ensure_slot_link() {
 restore_previous_route() {
   local previous_port=$1
   local candidate_port=$2
+
+  local previous_slot previous_service
+  previous_slot=$(slot_for_port "$previous_port")
+  previous_service=$(service_for_slot "$previous_slot")
+  systemctl start "$previous_service" || return 1
+  wait_for_health "$previous_port" 180 || return 1
+
   local current_port
   current_port=$(read_active_port) || return 1
   if [[ $current_port == "$candidate_port" ]]; then
@@ -188,19 +203,17 @@ restore_previous_route() {
     return 1
   fi
 
-  local previous_slot previous_service
-  previous_slot=$(slot_for_port "$previous_port")
-  previous_service=$(service_for_slot "$previous_slot")
-  systemctl start "$previous_service"
-  wait_for_health "$previous_port" 180
 }
 
 wait_for_health() {
   local port=$1
   local timeout_seconds=$2
+  local management_port
+  management_port=$(management_port_for_app_port "$port")
   local deadline=$((SECONDS + timeout_seconds))
   while (( SECONDS < deadline )); do
-    if curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
+    if curl --fail --silent --show-error --max-time 3 \
+      "http://127.0.0.1:$management_port/actuator/health" >/dev/null 2>&1; then
       echo "앱 health 확인 완료: $port"
       return 0
     fi
