@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.MapmoryAnalyticsEvent
@@ -74,7 +75,8 @@ internal fun TripRecordListRoute(
         }
     }
 
-    var countryCount by remember(tripStatisticsRepository, tripRecordRevision) { mutableStateOf<Int?>(null) }
+    // 기록이 바뀌어 다시 불러오는 동안에도 마지막 국가 수를 유지해 영상 카드 높이가 흔들리지 않게 한다.
+    var countryCount by rememberSaveable { mutableStateOf<Int?>(null) }
     var countryCountFailed by remember(tripStatisticsRepository, tripRecordRevision) { mutableStateOf(false) }
     var countryCountAttempt by remember { mutableStateOf(0) }
     LaunchedEffect(shareVideoRepository, tripStatisticsRepository, tripRecordRevision, countryCountAttempt) {

@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -270,6 +271,7 @@ internal fun TripRecordListScreen(
                     if (shareVideoRepository != null && filter.locationId == null) {
                         TripTimelineVideoEntry(
                             countryCount = videoCountryCount,
+                            isCountryCountLoading = videoCountryCount == null && retryVideoCountryCount == null,
                             compact = hasSeenVideoPreview,
                             onClick = {
                                 onVideoPreviewOpened()
@@ -296,7 +298,11 @@ internal fun TripRecordListScreen(
                         TripRecordListUiState.Idle,
                         TripRecordListUiState.Loading,
                         -> if (pendingSaves.isEmpty()) {
-                            TripRecordListSkeleton(modifier = Modifier.weight(1f))
+                            TripRecordListSkeleton(
+                                layout = layout,
+                                afterLayoutSwitcher = showLayoutSwitcher,
+                                modifier = Modifier.weight(1f),
+                            )
                         } else {
                             TripRecordList(
                                 records = emptyList(),
@@ -441,6 +447,7 @@ internal fun TripRecordListScreen(
 @Composable
 internal fun TripTimelineVideoEntry(
     countryCount: Int?,
+    isCountryCountLoading: Boolean = false,
     compact: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -506,6 +513,9 @@ internal fun TripTimelineVideoEntry(
                     lineHeight = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+            } else if (countryCount == null && isCountryCountLoading) {
+                // 국가 수가 오기 전에도 같은 줄 높이를 잡아 두어 응답 뒤 카드가 커지며 아래 화면을 밀지 않게 한다.
+                VideoEntryLinePlaceholder(Modifier.fillMaxWidth(0.3f))
             }
             Text(
                 if (canCreate) "내 여행 영상을 만들 수 있어요" else "지도 위로 다시 보는 여행",
@@ -542,6 +552,16 @@ internal fun TripTimelineVideoEntry(
                     fontWeight = FontWeight.SemiBold,
                 )
 
+            } else if (isCountryCountLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    repeat(2) {
+                        SkeletonBox(Modifier.weight(1f).height(4.dp), RoundedCornerShape(2.dp))
+                    }
+                }
+                VideoEntryLinePlaceholder(Modifier.fillMaxWidth(0.35f))
             }
             Button(
                 onClick = onClick,
@@ -556,6 +576,22 @@ internal fun TripTimelineVideoEntry(
                 Text(if (canCreate) "영상 스타일 미리보기" else "예시 영상 보기")
             }
         }
+    }
+}
+
+/** 영상 카드의 12sp/18sp 보조 문구와 같은 높이를 차지하는 자리표시. */
+@Composable
+private fun VideoEntryLinePlaceholder(modifier: Modifier = Modifier) {
+    Box(modifier.clearAndSetSemantics {}) {
+        Text(
+            " ",
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.Transparent,
+            maxLines = 1,
+        )
+        SkeletonBox(Modifier.matchParentSize().padding(vertical = 4.dp))
     }
 }
 
@@ -2101,7 +2137,7 @@ private fun TripRecordCard(
     )
 }
 
-/** 실제 목록과 스켈레톤이 같은 카드 크기와 정렬을 사용한다. */
+/** 저장 대기 중인 기록과 함께 보여 주는 가로형 기록 카드. */
 @Composable
 internal fun TripRecordCardLayout(
     photo: @Composable () -> Unit,
