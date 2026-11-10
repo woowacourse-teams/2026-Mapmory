@@ -119,6 +119,8 @@ fun TripRecordDetailScreen(
     onProfileClick: () -> Unit = {},
     onInternalBackHandlerChanged: ((() -> Boolean)?) -> Unit = {},
     onForwardHandlerChanged: ((() -> Boolean)?) -> Unit = {},
+    notificationEntryError: String? = null,
+    onRetryClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     initialLocationName: String? = null,
     initialLatestDate: String? = null,
@@ -193,7 +195,8 @@ fun TripRecordDetailScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(uiState.message, color = TripRecordPalette.current.danger)
+                Text(notificationEntryError ?: uiState.message, color = TripRecordPalette.current.danger)
+                if (onRetryClick != null) TextButton(onClick = onRetryClick) { Text("다시 시도") }
                 TextButton(onClick = onBackClick) { Text("목록으로") }
             }
 

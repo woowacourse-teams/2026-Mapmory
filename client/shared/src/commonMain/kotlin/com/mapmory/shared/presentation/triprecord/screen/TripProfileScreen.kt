@@ -339,7 +339,7 @@ private fun SummaryValue(label: String, value: Int, modifier: Modifier = Modifie
 @Composable
 private fun RankingCard(topLocations: List<TopLocationUiModel>) {
     StatsCard {
-        Text("가장 많이 방문한 곳", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text("기록을 가장 많이 남긴 곳", color = TripRecordPalette.current.headingText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         if (topLocations.isEmpty()) {
             Text(
                 text = "아직 집계할 여행 기록이 없어요",
@@ -388,7 +388,7 @@ private fun RankingRow(index: Int, location: TopLocationUiModel) {
             modifier = Modifier.padding(start = 10.dp).weight(1f),
         )
         Text(
-            text = "${location.visitCount}회",
+            text = "${location.visitCount}건",
             color = TripRecordPalette.current.secondaryAccent,
             fontSize = 12.sp,
             fontWeight = FontWeight.ExtraBold,

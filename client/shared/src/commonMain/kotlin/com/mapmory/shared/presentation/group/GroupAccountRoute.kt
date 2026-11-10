@@ -24,6 +24,7 @@ internal fun GroupAccountRoute(
     modifier: Modifier = Modifier,
     initialGroupId: Long? = null,
     initialAlbumId: Long? = null,
+    notificationLoginMessage: String? = null,
     onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
@@ -50,12 +51,20 @@ internal fun GroupAccountRoute(
     TripRecordBackground(modifier) {
         GroupTheme {
         Column(Modifier.fillMaxSize()) {
-            val needsLogin = account?.pendingLogin == true || account?.recoveryRequired == true ||
-                account?.member?.provider == MemberProvider.GUEST
+            val needsLogin = account?.pendingLogin == true || account?.member?.provider == MemberProvider.GUEST
             when {
                 restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
+                account?.recoveryRequired == true -> Column(Modifier.weight(1f).fillMaxWidth().padding(20.dp)) {
+                    Text("그룹 연결을 복구해 주세요", style = MaterialTheme.typography.headlineMedium)
+                    Text("현재 계정을 다시 인증하면 그룹을 계속 이용할 수 있어요.")
+                    TextButton(
+                        onClick = { container.accountLoginController?.requestRecoveryPrompt() },
+                        enabled = container.accountLoginController != null,
+                    ) { Text("계정 복구") }
+                }
                 restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text("그룹", style = MaterialTheme.typography.headlineMedium)
+                    notificationLoginMessage?.let { Text(it, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) }
                     restoreError?.let { Text(it) }
                     SocialLoginPanel(session, container.accountLoginController)
                 }

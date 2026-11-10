@@ -19,12 +19,15 @@ import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.repository.ShareVideoRepository
 import com.mapmory.shared.presentation.triprecord.share.rememberAnalyticsTripTimelineVideoNotifier
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 
 @Composable
 internal fun TripTimelineVideoJobMonitor(
     repository: ShareVideoRepository,
     jobStore: ShareVideoJobStore,
+    notificationEntry: Boolean = false,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val notifier = rememberAnalyticsTripTimelineVideoNotifier()
@@ -53,7 +56,7 @@ internal fun TripTimelineVideoJobMonitor(
         }
         if (jobState.status == ShareVideoStatus.COMPLETED) {
             notifier.clearProgress(jobId)
-            if (!jobStore.hasCompletionBeenNotified(jobId)) {
+            if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
                 if (notifier.showReady(jobId)) jobStore.markCompletionNotified(jobId)
             }
             return@LaunchedEffect
@@ -70,12 +73,14 @@ internal fun TripTimelineVideoJobMonitor(
             } catch (error: Exception) {
                 Result.failure(error)
             }
+            currentCoroutineContext().ensureActive()
+            if (jobStore.state.value.jobId != jobId) break
             if (result.isSuccess) {
                 val status = result.getOrThrow().status
                 when (status) {
                     ShareVideoStatus.COMPLETED -> {
                         notifier.clearProgress(jobId)
-                        if (!jobStore.hasCompletionBeenNotified(jobId)) {
+                        if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
                             if (notifier.showReady(jobId)) jobStore.markCompletionNotified(jobId)
                         }
                         jobStore.updateStatus(status)
@@ -97,14 +102,20 @@ internal fun TripTimelineVideoJobMonitor(
                 val error = result.exceptionOrNull() ?: IllegalStateException()
                 if (error is MapmoryApiException && error.code == "SHARE_VIDEO_JOB_NOT_FOUND") {
                     notifier.clearProgress(jobId)
-                    jobStore.clear()
+                    if (notificationEntry) {
+                        jobStore.updateStatusCheckError("이 영상을 확인할 수 없어요. 로그인 계정과 연결 상태를 확인한 뒤 다시 시도해 주세요.")
+                    } else {
+                        jobStore.clear()
+                    }
                     break
                 }
                 val friendlyError = error.toUserFriendlyRemoteFailure()
                 consecutiveFailures += 1
                 if (consecutiveFailures >= 5) {
                     jobStore.updateStatusCheckError(
-                        if (friendlyError is MapmoryConnectionException) {
+                        if (notificationEntry) {
+                            "영상 상태를 확인하지 못했어요. 연결 상태를 확인한 뒤 다시 시도해 주세요."
+                        } else if (friendlyError is MapmoryConnectionException) {
                             "네트워크 연결이 불안정해 영상 상태를 확인하지 못했어요. 같은 작업으로 다시 확인할 수 있어요."
                         } else {
                             "${friendlyError.message ?: "영상 상태를 확인하지 못했어요."} 같은 작업으로 다시 확인할 수 있어요."

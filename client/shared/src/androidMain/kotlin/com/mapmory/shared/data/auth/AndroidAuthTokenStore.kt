@@ -35,9 +35,20 @@ class AndroidAuthTokenStore(context: Context, apiBaseUrl: String) : AuthTokenSto
         check(preferences.edit().putString("recent_login_provider", provider).commit())
     }
 
+    override fun sessionProvider() = AuthPendingRead(preferences.getString(SessionProviderKey, null))
+
+    override fun saveSessionProvider(provider: String?) {
+        check(preferences.edit().putString(SessionProviderKey, provider).commit()) {
+            "현재 계정 정보를 저장하지 못했습니다."
+        }
+    }
+
     override fun clear() {
         check(preferences.edit().remove(TokensKey).commit()) {
             "인증 토큰을 삭제하지 못했습니다."
+        }
+        check(preferences.edit().remove(SessionProviderKey).commit()) {
+            "현재 계정 정보를 삭제하지 못했습니다."
         }
     }
 }
@@ -52,3 +63,4 @@ private fun String.toAuthTokensOrNull(): AuthTokens? {
 
 private const val PreferencesName = "mapmory_auth"
 private const val TokensKey = "tokens"
+private const val SessionProviderKey = "session_provider"

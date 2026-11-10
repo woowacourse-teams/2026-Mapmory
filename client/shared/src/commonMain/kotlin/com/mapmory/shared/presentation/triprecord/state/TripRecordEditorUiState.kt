@@ -17,6 +17,8 @@ data class TripRecordEditorUiState(
     val isSelectingPlace: Boolean = false,
     val placeSelectionErrorMessage: String? = null,
     val manualRegionRequired: Boolean = false,
+    val photoRegionAttribution: String? = null,
+    val photoRegionAttributionUrl: String? = null,
     val title: String = "",
     val content: String = "",
     val startDate: String = "",

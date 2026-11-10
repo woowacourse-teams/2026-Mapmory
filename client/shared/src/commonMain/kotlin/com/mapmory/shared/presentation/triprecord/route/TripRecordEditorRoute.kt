@@ -209,6 +209,7 @@ internal fun TripRecordEditorRoute(
         onPlaceCandidateSelected = viewModel::selectPlace,
         onSelectedPlaceCleared = viewModel::clearSelectedPlace,
         onPhotosAdded = viewModel::addPhotos,
+        onCoverRegionRequested = viewModel::suggestRegionForCover,
         onPhotoRemoved = viewModel::removeMediaObjectKey,
         onPhotoLoadingChanged = viewModel::setPhotoLoading,
         onSaveClick = ::save,
