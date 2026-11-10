@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @DataJpaTest
 @DisplayName("지역 지도 요약 Repository")
@@ -32,6 +34,9 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private RegionMapSummaryRepository regionMapSummaryRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("선택한 태그가 연결된 기록만 지역별로 합산한다")
@@ -212,6 +217,30 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
                             ExpectedAllSummary.of(province, country, 2),
                             ExpectedAllSummary.of(district, province, 1)
                     );
+        }
+
+        @Test
+        @DisplayName("기록 수 × 지역 수로 조인하지 않고 회원 인덱스와 지역 PK로만 찾는다")
+        void doesNotJoinEveryRecordWithEveryRegion() throws NoSuchMethodException {
+            // region과 OR로 조인하던 첫 구현은 MySQL이 조건 없는 해시 조인을 골라
+            // 기록 5,000건에서 248만 줄을 만들었다(261ms → 고친 뒤 10ms, 로컬 Testcontainers 8.4).
+            Member member = member("실행 계획 회원");
+            saveRecords(member, country("Z3", "실행 계획 국가"), 3);
+            flushAndClear();
+            String sql = RegionMapSummaryRepository.class
+                    .getMethod("findAllRegionMapSummaries", Long.class, Long.class)
+                    .getAnnotation(Query.class)
+                    .value()
+                    .replace(":memberId", String.valueOf(member.getId()))
+                    .replace(":tagId", "NULL");
+
+            String plan = jdbcTemplate.queryForObject("EXPLAIN FORMAT=TREE " + sql, String.class);
+
+            assertThat(plan)
+                    .contains("idx_record_member_region")
+                    .doesNotContainIgnoringCase("hash join")
+                    .doesNotContainIgnoringCase("table scan on summary_region")
+                    .doesNotContainIgnoringCase("index scan on summary_region");
         }
 
         @Test
