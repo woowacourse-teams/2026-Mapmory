@@ -6,6 +6,7 @@ require_deployment_id
 
 previous_port=$(state_value previous-port)
 target_port=$(state_value target-port)
+management_port=$(management_port_for_app_port "$target_port")
 previous_slot=$(slot_for_port "$previous_port")
 previous_service=$(service_for_slot "$previous_slot")
 release=$(state_value release-path)
@@ -25,7 +26,7 @@ trap rollback_on_error ERR
 [[ $(read_active_port) == "$target_port" ]]
 wait_for_health "$target_port" 30
 curl --fail --silent --show-error --max-time 5 \
-  "http://127.0.0.1:$target_port/actuator/health" >/dev/null
+  "http://127.0.0.1:$management_port/actuator/health" >/dev/null
 
 # 전환 후 5분 동안 새 슬롯을 관찰한다. 2초 간격 상태 확인이 5회 연속 실패하거나
 # Nginx가 다른 포트를 가리키면 이전 슬롯으로 복구한다.
@@ -48,7 +49,7 @@ while (( SECONDS < soak_deadline )); do
   fi
 
   if curl --fail --silent --show-error --max-time 3 \
-    "http://127.0.0.1:$target_port/actuator/health" >/dev/null 2>&1; then
+    "http://127.0.0.1:$management_port/actuator/health" >/dev/null 2>&1; then
     failure_count=0
   else
     failure_count=$((failure_count + 1))
