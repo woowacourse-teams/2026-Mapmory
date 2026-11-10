@@ -17,13 +17,13 @@ import com.mapmory.shared.data.remote.MapmoryApiException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: TripRecordRepository, shares: AlbumShareCoordinator, navigation: AlbumNavigationState, groupName: String, memberCount: Int, onBack: () -> Unit, onInvite: () -> Unit, onManageGroup: () -> Unit, onPhotoVisibilityChanged: (Boolean) -> Unit, onLeaveGroup: (() -> Unit)? = null, membershipBusy: Boolean = false, recordRevision: Long = 0, onGroupUnavailable: () -> Unit = {}, onCreateRecord: () -> Unit = {}) {
+internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: TripRecordRepository, shares: AlbumShareCoordinator, navigation: AlbumNavigationState, cachedList: RetainedAlbumList, groupName: String, memberCount: Int, onBack: () -> Unit, onInvite: () -> Unit, onManageGroup: () -> Unit, onPhotoVisibilityChanged: (Boolean) -> Unit, onLeaveGroup: (() -> Unit)? = null, membershipBusy: Boolean = false, recordRevision: Long = 0, onGroupUnavailable: () -> Unit = {}, onCreateRecord: () -> Unit = {}) {
     val analytics = LocalMapmoryAnalytics.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember(groupId) { SnackbarHostState() }
-    var list by remember(groupId) { mutableStateOf<List<AlbumSummary>?>(null) }
-    var page by remember(groupId) { mutableIntStateOf(0) }
-    var more by remember(groupId) { mutableStateOf(false) }
+    var list by cachedList::items
+    var page by cachedList::page
+    var more by cachedList::more
     var detail by navigation.detail
     var selectedPhoto by navigation.selectedPhoto
     var loading by remember(groupId) { mutableStateOf(false) }
@@ -175,6 +175,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                             )
                         } }, contributorNames = value.entries.distinctBy { it.owner.memberId }.map { it.owner.nickname })
                 }
+                com.mapmory.shared.presentation.components.MapmoryPhotoExpansion(selectedPhoto) { targetPhoto ->
                 when {
                     pick -> AlbumRecordPicker(
                         records = ownRecords.orEmpty(), loading = loading, error = error.takeIf { ownRecords == null },
@@ -191,8 +192,8 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                         onMore = { scope.launch { loadRecords(recordPage + 1) } },
                         onRetry = { scope.launch { loadRecords() } },
                     )
-                    album != null && selectedPhoto != null && album.photos.isNotEmpty() -> {
-                        GroupPhotoScreen(album, album.photos.indexOfFirst { it.imageUri == selectedPhoto }.coerceAtLeast(0),
+                    album != null && targetPhoto != null && album.photos.isNotEmpty() -> {
+                        GroupPhotoScreen(album, album.photos.indexOfFirst { it.imageUri == targetPhoto }.coerceAtLeast(0),
                             onBack = { selectedPhoto = null },
                             onPageChanged = { _, index -> selectedPhoto = album.photos[index].imageUri })
                     }
@@ -209,31 +210,48 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                                 photoCount = item.photoCount, contributorNames = item.contributors.map { it.nickname })
                         }),
                         headerActions = actions,
+                        albumsLoading = list == null && error == null,
+                        albumsAvailable = list != null,
                         onBack = onBack, onInvite = onInvite,
                         onAdd = { if (!busy) { snackbarHostState.currentSnackbarData?.dismiss(); add = true } },
                         onAlbum = { scope.launch { open(it.toLong()) } },
                     ) }
                 }
+                }
             }
             if (!pick && detail == null && more) TextButton(onClick = { scope.launch { load(page + 1) } }, enabled = !busy) { Text("더 보기") }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (!pick && list == null) error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (!pick && list == null) error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = { scope.launch { load() } }, enabled = !busy) { Text("다시 시도") }
+            }
         }
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(16.dp),
         )
     }
-    if (add) AlertDialog(
+    if (add) androidx.compose.ui.window.Dialog(
         onDismissRequest = { add = false },
-        title = { Text("앨범에 사진 추가") },
-        text = { Column {
-            Text("새 기록을 만들거나 내 기록을 앨범에 담아 보세요.")
-            TextButton(onClick = { add = false; onCreateRecord() }, enabled = !busy && storageError == null) { Text("새 기록 추가") }
-            TextButton(onClick = { add = false; pick = true; scope.launch { loadRecords() } }, enabled = !busy) { Text("내 기록 불러오기") }
-        } },
-        confirmButton = { TextButton(onClick = { add = false }) { Text("닫기") } },
-    )
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = true,
+        ),
+    ) {
+        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                GroupButton("불러오기", onClick = {
+                    add = false
+                    pick = true
+                    scope.launch { loadRecords() }
+                }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy)
+                GroupButton("새로 만들기", onClick = {
+                    add = false
+                    onCreateRecord()
+                }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy && storageError == null)
+            }
+        }
+    }
     acknowledge?.let { operation ->
         AlertDialog(onDismissRequest = { acknowledge = null }, title = { Text("공유 작업을 종료할까요?") },
             text = { Text("서버에서 이미 앨범이 만들어졌을 수 있어요. 목록을 확인한 뒤 종료해 주세요. 종료해도 서버의 앨범은 삭제되지 않아요.") },

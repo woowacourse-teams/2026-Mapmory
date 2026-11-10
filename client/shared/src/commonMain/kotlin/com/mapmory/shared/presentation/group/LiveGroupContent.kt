@@ -219,7 +219,7 @@ internal fun LiveGroupContent(
             } else if (albumRepository != null && shareCoordinator != null) {
                 key(group.id) {
                     LiveAlbumContent(group.id, albumRepository, tripRecordRepository, shareCoordinator, albumNavigation,
-                        groupName = group.name, memberCount = group.members.size,
+                        groupName = group.name, memberCount = group.members.size, cachedList = retainedNavigation.albumList(group.id),
                         onBack = { back.value() }, onInvite = { open(LiveGroupSheet.INVITE) },
                         onManageGroup = { name = group.name; open(LiveGroupSheet.RENAME) },
                         onLeaveGroup = leaveCoordinator?.let { { open(LiveGroupSheet.LEAVE) } },
