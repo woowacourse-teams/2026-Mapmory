@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
-import { TECH_COPY, TECH_COUNTRIES, TECH_PLACES, TECH_PROVINCES, TECH_SCENES, TECH_SHARE, TECH_STEPS, techScenes } from "../src/techStory.js";
+import { TECH_COPY, TECH_COUNTRIES, TECH_PLACES, TECH_PROVINCES, TECH_SCENES, TECH_SHARE, TECH_STEPS, gatherSlots, techScenes } from "../src/techStory.js";
 import KOREA from "../src/data/tech-korea-map.json" with { type: "json" };
 import countries110 from "world-atlas/countries-110m.json" with { type: "json" };
 import SPRITE from "../src/data/storySprite.js";
@@ -191,4 +191,24 @@ test("every scene's touchable element is one measured interaction, and the plan 
   assert.deepEqual([...TECH_STORY_INTERACTIONS], TECH_SCENES.map((scene) => scene.interaction).filter(Boolean));
   for (const name of ["tech_story_view", "tech_story_scene", "tech_story_interact"]) assert.match(plan, new RegExp("`" + name + "`"));
   assert.match(plan, /### 기술 소개 피드백 루프/);
+});
+
+test("the gather grid places the picked photos in any grid size and always ends (2026-11-10: short phones froze)", () => {
+  const jeju = SPRITE.tiles.filter(([key]) => key === "jeju").length;
+  assert.equal(jeju, 8);
+  // every grid the engine can ask for: 3 to 6 columns, 1 to 12 rows, up to the 72 tiles it builds
+  for (let cols = 3; cols <= 6; cols++) for (let rows = 1; rows <= 12; rows++) {
+    const count = Math.min(72, cols * rows);
+    const cells = gatherSlots(count, cols, jeju);
+    assert.equal(new Set(cells).size, cells.length, `${cols}x${rows}: no cell twice`);
+    assert.ok(cells.every((i) => Number.isInteger(i) && i >= 0 && i < count), `${cols}x${rows}: inside the grid`);
+    // all eight when the grid has room, otherwise at least one, and a row's worth of other photos stays
+    assert.equal(cells.length, Math.min(jeju, Math.max(1, count - cols)), `${cols}x${rows}`);
+  }
+  // 2 rows of 3 (a phone 500 to 632px tall): three 제주 photos, three others
+  assert.equal(gatherSlots(6, 3, 8).length, 3);
+  // a grid with room keeps the layout it had: one photo per row band, stepping across the columns
+  assert.deepEqual(gatherSlots(18, 3, 8), [2, 4, 3, 8, 10, 12, 14, 16]);
+  assert.match(engine, /const cells = gatherSlots\(count, cols, jejuTiles\.length\);/);
+  assert.doesNotMatch(stripComments(engine), /while \(slots\[i\]\)/);
 });
