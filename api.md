@@ -798,6 +798,8 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
         "objectKey": "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg",
         "viewUrl": "https://...presigned-get-url",
         "viewUrlExpiresIn": 300,
+        "thumbnailUrl": "https://...presigned-get-url",
+        "thumbnailUrlExpiresIn": 300,
         "sortOrder": 0
       }
     ],
@@ -816,7 +818,7 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 }
 ```
 
-`objectKeys`와 `media`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. `media[].viewUrl`은 Presigned GET URL이고 `viewUrlExpiresIn`은 만료까지 남은 초다. 국가 단위 기록은 `province`와 `district`가, 시·도 단위 기록은 `district`가 `null`이다.
+`objectKeys`와 `media`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. `media[].viewUrl`은 원본의 Presigned GET URL이고 `viewUrlExpiresIn`은 만료까지 남은 초다. 전체 화면 뷰어처럼 크게 보여 줄 때 쓴다. `media[].thumbnailUrl`은 썸네일(WebP, 긴 변 1080px)의 조회 URL이고 `thumbnailUrlExpiresIn`은 그 만료까지 남은 초다. 그리드, 대표 사진처럼 작게 보여 줄 때 쓴다. 썸네일은 저장 뒤 워커가 만들므로, 아직 없으면 `thumbnailUrl`은 `viewUrl`과 같은 원본 URL이다. 국가 단위 기록은 `province`와 `district`가, 시·도 단위 기록은 `district`가 `null`이다.
 
 `place*` 필드는 장소를 연결한 기록에만 값이 있고 아니면 모두 `null`이다. 예전 Geoapify 장소로 저장된 기록은 `placeProvider`가 `GEOAPIFY`로 남는다. `PUT`은 전체 수정이므로 `placeId`를 빼면 기존 장소 연결이 제거된다.
 
