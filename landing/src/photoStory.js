@@ -42,6 +42,8 @@ export const HERO_COPY = Object.freeze({
   diff: "기록 안 해도, 찍은 사진으로 여행 지도",
   ask: "어떻게 찾았는지 보기 ↓",
   made: "Mapmory 팀이 만들었어요",
+  // 2026-11-10 (GA4 10/14–11/10: most store clicks happen on the first screen, 4 in 10 visitors scroll past it): a jump to #group
+  group: "새로 생겼어요 · 친구와 간 여행은 한 앨범에 ↓",
 });
 
 export const heroPickedCopy = ({ name, count }) => ({

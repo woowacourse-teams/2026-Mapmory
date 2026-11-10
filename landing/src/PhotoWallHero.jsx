@@ -71,6 +71,7 @@ function PhotoWallHero({ storeActions }) {
         {pick && <a className="wall-hero-ask" href="#how">{HERO_COPY.ask}</a>}
       </div>
       <div className="wall-hero-foot">
+        <a className="wall-hero-new" href="#group" onClick={() => trackEvent(ANALYTICS_EVENTS.EXPERIENCE_CTA_CLICK, { experience_type: "group_album", cta_placement: "hero" })}>{HERO_COPY.group}</a>
         <span>{HERO_COPY.made}</span>
       </div>
     </section>

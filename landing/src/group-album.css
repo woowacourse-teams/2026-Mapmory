@@ -1,0 +1,40 @@
+/* 2026-11-09 group album scene (see GroupAlbum.jsx). A tall track with one sticky stage; the scroll is the playhead.
+   2026-11-10: the album sits in the same phone as the tech story so the two sections read as one app. */
+.ga { --ga-ph: min(68svh, 620px); --ga-body: #18201b; position: relative; height: 300svh; }
+.ga-stage { position: sticky; top: 0; height: 100svh; width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 88px 0 16px; display: grid; grid-template-rows: auto 1fr; gap: 16px; overflow: hidden; }
+.ga-copy { text-align: center; }
+.ga-label { margin: 0 0 4px; color: var(--accent-ink); font-size: 14px; line-height: 20px; font-weight: 700; letter-spacing: 0.04em; }
+.ga-copy h2 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: clamp(20px, 5.6vw, 24px); line-height: 1.38; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ga-scene { position: relative; display: grid; grid-template-rows: auto auto; gap: 16px; justify-items: center; align-content: start; }
+.ga-friends { display: flex; gap: 8px; justify-content: center; }
+.ga-mini { width: 104px; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); display: grid; gap: 8px; transition: opacity 0.3s var(--ease-out); }
+.ga-mini.is-empty { opacity: 0.45; }
+.ga-mini b { display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 20px; }
+.ga-mini b::before { content: ""; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--accent); }
+.ga-mini-slots { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ga-phone { position: relative; width: calc(var(--ga-ph) * 0.462); height: var(--ga-ph); padding: calc(var(--ga-ph) * 0.018); border-radius: calc(var(--ga-ph) * 0.07); background: var(--ga-body); box-shadow: 0 30px 60px -24px rgba(24, 32, 27, 0.35); }
+.ga-screen { position: relative; height: 100%; padding: 40px 12px 12px; border-radius: calc(var(--ga-ph) * 0.054); background: #fff; color: #18201b; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.ga-notch { position: absolute; top: 8px; left: 50%; width: 30%; height: 18px; border-radius: 12px; background: var(--ga-body); transform: translateX(-50%); }
+.ga-bar { margin-bottom: 8px; color: #3b7a5c; font-size: 12px; line-height: 16px; font-weight: 700; }
+.ga-meta, .ga-who { color: #6b756f; font-size: 12px; line-height: 16px; }
+.ga-title { font-size: 18px; line-height: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.ga-grid { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ga-slot { aspect-ratio: 1; border-radius: 8px; background: #eef2ef; }
+.ga-mini .ga-slot { background: var(--surface-soft); border-radius: 6px; }
+.ga-photo { position: absolute; left: 0; top: 0; border-radius: 8px; background-size: cover; background-position: center; transform-origin: 0 0; will-change: transform; pointer-events: none; box-shadow: 0 6px 16px -8px rgba(24, 32, 27, 0.5); }
+.ga-photo i { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: 999px; background: #fff; color: #18201b; font-size: 12px; line-height: 16px; font-style: normal; font-weight: 700; opacity: 0; transition: opacity 0.25s var(--ease-out); }
+.ga-photo.is-in { box-shadow: none; }
+.ga-photo.is-in i { opacity: 1; }
+:root[data-theme="dark"] .ga { --ga-body: #2b2a26; }
+:root[data-theme="dark"] .ga-phone { box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.14); }
+@media (max-width: 899px) { .ga { --ga-ph: min(100svh - 300px, 560px); } }
+@media (min-width: 900px) {
+  .ga-stage { grid-template-columns: 1.15fr 1fr; grid-template-rows: 1fr; align-items: center; gap: 48px; }
+  .ga-copy { order: 2; text-align: left; }
+  .ga-label { margin-bottom: 8px; }
+  .ga-copy h2 { font-size: clamp(24px, 2.6vw, 32px); }
+  .ga-scene { grid-template-rows: none; grid-template-columns: auto auto; gap: 40px; align-items: center; align-content: center; justify-content: end; }
+  .ga-friends { flex-direction: column; gap: 16px; }
+  .ga-mini { width: 148px; padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .ga { height: auto; } .ga-stage { position: relative; height: auto; } .ga-photo, .ga-mini, .ga-photo i { transition: none; } }

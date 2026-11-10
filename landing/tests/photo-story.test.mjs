@@ -37,6 +37,7 @@ test("the hero is the sketch's example roll: 제주 / 일본 / 미국, 4.5 s aut
     diff: "기록 안 해도, 찍은 사진으로 여행 지도",
     ask: "어떻게 찾았는지 보기 ↓",
     made: "Mapmory 팀이 만들었어요",
+    group: "새로 생겼어요 · 친구와 간 여행은 한 앨범에 ↓",
   });
   assert.deepEqual(HERO_PLACES.map((p) => heroPickedCopy(p)), [
     { kicker: "제주 사진 31장을 불러왔어요", sub: "제주는 31장" },
@@ -53,6 +54,9 @@ test("chip taps keep the hero_demo_select contract; the auto-pick is never measu
   assert.match(hero, /choose\(HERO_AUTO_PICK, "autoplay"\)/);
   assert.match(app, /<StoreButton placement="hero" platform="ios" label="iOS 앱 받기" \/>/);
   assert.match(app, /<StoreButton placement="hero" platform="android" label="Android 앱 받기" \/>/);
+  // 2026-11-10: a phone shows its own store as the one big button; the hero placement stays "hero" for both
+  assert.match(app, /<StoreButton placement="hero" platform=\{own\} label="앱 받기" \/>/);
+  assert.match(app, /\/assets\/qr-desktop-hero\.svg/);
   assert.match(app, /<StoreButton placement="final" platform="ios"/);
   assert.match(app, /<StoreButton placement="final" platform="android"/);
   assert.doesNotMatch(app, /placement="replay"|PhotoFinderHero|TravelReplay|<LaunchWaitlistForm/);
@@ -209,7 +213,8 @@ test("the server-rendered hero and stories have real headings, the chips and the
     assert.equal(heroHtml.match(/aria-pressed="false"/g).length, 3);
     // the store buttons sit under the promise line; the foot keeps only the byline (2026-10-29 design review)
     assert.match(heroHtml, /<p class="wall-hero-diff">[^<]+<\/p><div class="wall-hero-actions"><div class="store-buttons"><\/div><\/div>/);
-    assert.match(heroHtml, /<div class="wall-hero-foot"><span>Mapmory 팀이 만들었어요<\/span><\/div>/);
+    // 2026-11-10: the foot also carries the jump to the new group album scene
+    assert.match(heroHtml, /<div class="wall-hero-foot"><a class="wall-hero-new" href="#group">새로 생겼어요 · 친구와 간 여행은 한 앨범에 ↓<\/a><span>Mapmory 팀이 만들었어요<\/span><\/div>/);
     assert.doesNotMatch(heroHtml, /wall-hero-ask/); // the "how did it find them" link appears only after a pick
   } finally {
     await rm(dir, { recursive: true, force: true });

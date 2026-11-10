@@ -15,8 +15,8 @@ test("mobile gallery keeps controls outside the uncropped photo and touch target
   assert.match(stylesSource, /\.world-memory-modal \.memory-sheet-gallery-controls > button \{ width: 44px; height: 44px;/);
   assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--ink\);/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title \{[^}]*display: flex;/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-single-title h2 \{[^}]*Nanum Pen Script/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-mobile-photo-caption \{[^}]*Nanum Pen Script/s);
+  assert.match(stylesSource, /\.world-memory-modal \.memory-single-title h2 \{[^}]*LINE Seed Sans KR/s);
+  assert.match(stylesSource, /\.world-memory-modal \.memory-mobile-photo-caption \{[^}]*LINE Seed Sans KR/s);
   assert.match(stylesSource, /--memory-diary-title-size: clamp\(22px, 3vw, 26px\)/);
 });
 

@@ -60,8 +60,9 @@ test("team photos ship as webp", async () => {
   for (const [, file] of app.matchAll(/"\/assets\/(team-[^"]+\.webp)"/g)) await access(new URL(`../public/assets/${file}`, import.meta.url));
 });
 
-test("handwriting font does not block the first paint", async () => {
+test("no external font stylesheet blocks the first paint", async () => {
   const html = await read("../index.html");
   assert.doesNotMatch(css, /@import/);
-  assert.match(html, /Nanum\+Pen\+Script[^>]*media="print"[^>]*onload="this\.media='all'"/);
+  // 2026-11-10 (app look): the handwriting and serif web fonts are gone, so no font stylesheet is requested at all
+  assert.doesNotMatch(html, /fonts\.googleapis\.com|Nanum/);
 });
