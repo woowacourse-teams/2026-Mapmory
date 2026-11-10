@@ -34,6 +34,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.painter.Painter
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
+import coil3.request.CachePolicy
 import coil3.request.crossfade
 import coil3.size.Size
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
@@ -61,6 +62,7 @@ internal fun MapmoryAsyncImage(
     fallbackBytes: ByteArray? = null,
     fallbackUri: String? = null,
     cacheKey: String? = null,
+    cacheOnDisk: Boolean = true,
     blackLoadingBackground: Boolean = false,
     decodeOriginalSize: Boolean = false,
     contentDescription: String,
@@ -109,13 +111,14 @@ internal fun MapmoryAsyncImage(
         if (model == null) latestOnLoadFailed()
     }
     val context = LocalPlatformContext.current
-    val request = remember(context, model, cacheKey, useFallback, blackLoadingBackground, decodeOriginalSize) {
+    val request = remember(context, model, cacheKey, cacheOnDisk, useFallback, blackLoadingBackground, decodeOriginalSize) {
         ImageRequest.Builder(context).data(model).apply {
             crossfade(false)
             if (decodeOriginalSize) size(Size.ORIGINAL)
+            if (!cacheOnDisk) diskCachePolicy(CachePolicy.DISABLED)
             cacheKey?.let { key ->
                 memoryCacheKey("$key:$useFallback:$decodeOriginalSize")
-                diskCacheKey("$key:$useFallback:$decodeOriginalSize")
+                if (cacheOnDisk) diskCacheKey("$key:$useFallback:$decodeOriginalSize")
             }
         }.build()
     }
