@@ -141,7 +141,7 @@ internal fun TripTimelineVideoDialog(
     var showFullscreenPreview by remember { mutableStateOf(false) }
     val previewLayout = video != null || status == ShareVideoStatus.COMPLETED
     val startedAtEpochMillis = jobState.startedAtEpochMillis
-    val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
+    val activeJob = jobState.isTracking
     val canCreate = canCreateTripTimelineVideo(countryCount)
     val showSample = !notificationOnly && !previewLayout && !creationInProgress && !activeJob
     val expanded = shouldExpandTripTimelineVideoDialog(video != null, status)
@@ -160,7 +160,8 @@ internal fun TripTimelineVideoDialog(
     }
 
     fun dismissDialog() {
-        if (activeJob) notifier.showProgress(jobId)
+        val current = jobStore.state.value
+        if (current.isTracking) current.jobId?.let(notifier::showProgress)
         telemetry.action(ShareMediaAction.CLOSED)
         onDismiss()
     }

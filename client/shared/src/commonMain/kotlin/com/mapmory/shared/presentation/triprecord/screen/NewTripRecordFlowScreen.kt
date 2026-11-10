@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1169,7 +1170,7 @@ internal fun NewTripRecordFlowScreen(
                             isPreparing = uiState.isSaving || pendingSave,
                             isSelectingAll = isSelectingAllPhotos,
                             isRefreshingFilter = isRefreshingRecordedPhotoFilter,
-                            actionLabel = if (startWithPhotoSearch) saveActionLabel else "대표 사진 선택",
+                            actionLabel = if (startWithPhotoSearch) saveActionLabel else "다음",
                             recordedPhotoIds = recordedPhotoIds,
                             excludeRecordedPhotos = excludeRecordedPhotos,
                             showRecordedFilter = !startWithPhotoSearch,
@@ -1857,6 +1858,7 @@ private fun FlowTopBar(
                 {
                     TextButton(
                         onClick = onActionClick,
+                        modifier = Modifier.widthIn(min = 88.dp),
                         enabled = actionEnabled,
                         contentPadding = PaddingValues(horizontal = 10.dp),
                     ) {
@@ -2423,7 +2425,6 @@ private fun PhotoPickerStep(
     Column(Modifier.fillMaxSize()) {
         FlowTopBar(
             title = "사진 고르기",
-            titleAlignedStart = true,
             onBackClick = onBackClick,
             actionLabel = actionLabel,
             actionStatusLabel = when {

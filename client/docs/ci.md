@@ -70,15 +70,15 @@ gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androi
 - `:shared:androidConnectedCheck`: 실제 Android 기기 또는 에뮬레이터가 필요하므로 PR마다 실행하지 않고 로컬 수동 검증으로 둡니다.
 - iOS 실제 기기 빌드·Archive: 배포 서명과 Apple Developer 계정이 필요하므로 별도 작업으로 둡니다.
 
-## iOS 컴파일 CI
+## iOS 검증 CI
 
-`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 iOS Simulator용 Debug 빌드를 실행합니다. 병합 후 push에서는 다시 실행하지 않습니다.
+`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 추적 중인 Swift 파일을 `swiftc -frontend -parse`로 구문 검사합니다. 필수 체크 이름은 호환성을 위해 `Build iOS Simulator`로 남아 있지만, 실제 Simulator 빌드나 Swift 타입 검사, Compose framework 연결 검증을 수행하지는 않습니다. 병합 후 push에서는 다시 실행하지 않습니다.
 
 - Runner: `macos-26`
-- Xcode scheme: `Mapmory`
-- 프로젝트: `client/iosApp/Mapmory.xcodeproj`
-- 서명: `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`
-- 목적: 실제 배포가 아니라 Swift 코드와 Compose Multiplatform framework 연결 상태를 컴파일 단계에서 확인
+- PR 검증: Swift 구문 검사만 실행
+- 수동 실행: `Mapmory` scheme, `client/iosApp/Mapmory.xcodeproj`, Debug, `iphoneos`, `generic/platform=iOS` 대상으로 서명 없는 앱 빌드
+- 수동 빌드 서명 설정: `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`
+- 기기 동작, 알림 전달, 안전 영역과 테마는 별도 실행 검증 필요
 
 iOS 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합니다.
 
@@ -93,7 +93,7 @@ iOS 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합니다
 - `client/gradle.properties`
 - `client/gradlew`, `client/gradlew.bat`
 
-백엔드, 랜딩 또는 Android 앱 전용 변경에서도 필수 체크가 대기 상태로 남지 않도록 workflow 자체는 실행하고, `Detect iOS changes` 결과에 따라 `Build iOS Simulator` job을 건너뜁니다. `workflow_dispatch`로 수동 실행한 경우에는 변경 경로와 관계없이 iOS Simulator 빌드를 실행합니다.
+백엔드, 랜딩 또는 Android 앱 전용 변경에서도 필수 체크가 대기 상태로 남지 않도록 workflow 자체는 실행하고, `Detect iOS changes` 결과에 따라 `Build iOS Simulator` job을 건너뜁니다. `workflow_dispatch`로 수동 실행한 경우에는 변경 경로와 관계없이 `Build unsigned iOS app`을 실행합니다. PR 구문 검사 통과만으로 iOS 컴파일 검증을 완료했다고 보고하지 않습니다.
 
 수동 계측 테스트는 Android 기기 또는 에뮬레이터를 연결한 뒤 다음 명령으로 실행합니다.
 
