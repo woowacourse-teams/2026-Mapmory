@@ -17,6 +17,7 @@ import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.tag.TagService;
+import com.mapmory.backend.tag.TagErrorCode;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCache;
 import com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCacheProperties;
@@ -76,6 +77,7 @@ class RegionMapSummaryServiceTest {
 
             assertThat(responses).containsExactly(new RegionMapSummary(
                     1L,
+                    null,
                     "KR",
                     RegionType.COUNTRY,
                     "대한민국",
@@ -102,12 +104,13 @@ class RegionMapSummaryServiceTest {
             when(member.getId()).thenReturn(10L);
             when(regionRepository.existsById(parentRegionId)).thenReturn(true);
             when(regionMapSummaryRepository.findRegionMapSummaries(10L, parentRegionId, null))
-                    .thenReturn(List.of(result(childRegionId, regionCode, name, regionType, 1L)));
+                    .thenReturn(List.of(result(childRegionId, parentRegionId, regionCode, name, regionType, 1L)));
 
             List<RegionMapSummary> responses = service.getSummaries(member, parentRegionId, null);
 
             assertThat(responses).containsExactly(new RegionMapSummary(
                     childRegionId,
+                    parentRegionId,
                     regionCode,
                     RegionType.valueOf(regionType),
                     name,
@@ -142,6 +145,83 @@ class RegionMapSummaryServiceTest {
 
             assertThat(responses).singleElement().extracting(RegionMapSummary::recordCount).isEqualTo(1L);
             verify(tagService).getOwnedTag(member, 7L);
+        }
+    }
+
+    @Nested
+    @DisplayName("모든 단계의 요약을 한 번에 조회할 때")
+    class GetAllSummaries {
+
+        @Test
+        @DisplayName("국가·시도·시군구 요약에 부모 ID와 색상 단계를 붙여 반환한다")
+        void returnsEveryLevelWithParentAndLevel() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(regionMapSummaryRepository.findAllRegionMapSummaries(10L, null)).thenReturn(List.of(
+                    result(1L, null, "KR", "대한민국", "COUNTRY", 6L),
+                    result(15L, 1L, "49", "제주특별자치도", "PROVINCE", 3L),
+                    result(150L, 15L, "50110", "제주시", "DISTRICT", 1L)
+            ));
+
+            List<RegionMapSummary> responses = service.getAllSummaries(member, null);
+
+            assertThat(responses).containsExactly(
+                    new RegionMapSummary(1L, null, "KR", RegionType.COUNTRY, "대한민국", 6L, MapColorLevel.HIGH),
+                    new RegionMapSummary(15L, 1L, "49", RegionType.PROVINCE, "제주특별자치도", 3L,
+                            MapColorLevel.MEDIUM),
+                    new RegionMapSummary(150L, 15L, "50110", RegionType.DISTRICT, "제주시", 1L, MapColorLevel.LOW)
+            );
+        }
+
+        @Test
+        @DisplayName("태그가 있으면 소유권을 확인하고 해당 태그로 센다")
+        void filtersByOwnedTag() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(tagService.getOwnedTag(member, 7L)).thenReturn(org.mockito.Mockito.mock(Tag.class));
+            when(regionMapSummaryRepository.findAllRegionMapSummaries(10L, 7L))
+                    .thenReturn(List.of(result(1L, null, "KR", "대한민국", "COUNTRY", 1L)));
+
+            List<RegionMapSummary> responses = service.getAllSummaries(member, 7L);
+
+            assertThat(responses).singleElement().extracting(RegionMapSummary::recordCount).isEqualTo(1L);
+            verify(tagService).getOwnedTag(member, 7L);
+        }
+
+        @Test
+        @DisplayName("다른 회원의 태그면 기록을 세지 않고 거절한다")
+        void rejectsTagOfOtherMember() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(tagService.getOwnedTag(member, 7L))
+                    .thenThrow(new BusinessException(TagErrorCode.TAG_NOT_FOUND));
+
+            assertThatThrownBy(() -> service.getAllSummaries(member, 7L))
+                    .isInstanceOfSatisfying(BusinessException.class, exception ->
+                            assertThat(exception.getErrorCode()).isEqualTo(TagErrorCode.TAG_NOT_FOUND));
+            verify(regionMapSummaryRepository, never()).findAllRegionMapSummaries(10L, 7L);
+        }
+
+        @Test
+        @DisplayName("전체 조회는 루트 조회와 캐시를 섞지 않고, 회원 캐시를 비우면 다시 읽는다")
+        void cachesSeparatelyFromRootsAndEvictsWithMember() {
+            RegionMapSummaryService service = service();
+            when(member.getId()).thenReturn(10L);
+            when(regionMapSummaryRepository.findRegionMapSummaries(10L, null, null))
+                    .thenReturn(List.of(result(1L, "KR", "대한민국", "COUNTRY", 3L)));
+            when(regionMapSummaryRepository.findAllRegionMapSummaries(10L, null))
+                    .thenReturn(List.of(
+                            result(1L, null, "KR", "대한민국", "COUNTRY", 3L),
+                            result(15L, 1L, "49", "제주특별자치도", "PROVINCE", 3L)));
+
+            service.getSummaries(member, null, null);
+            List<RegionMapSummary> all = service.getAllSummaries(member, null);
+            service.getAllSummaries(member, null);
+            mapSummaryCache.evictMember(10L);
+            service.getAllSummaries(member, null);
+
+            assertThat(all).hasSize(2);
+            verify(regionMapSummaryRepository, times(2)).findAllRegionMapSummaries(10L, null);
         }
     }
 
@@ -200,10 +280,26 @@ class RegionMapSummaryServiceTest {
             String regionType,
             long recordCount
     ) {
+        return result(regionId, null, regionCode, name, regionType, recordCount);
+    }
+
+    private static RegionMapSummaryQueryResult result(
+            Long regionId,
+            Long parentRegionId,
+            String regionCode,
+            String name,
+            String regionType,
+            long recordCount
+    ) {
         return new RegionMapSummaryQueryResult() {
             @Override
             public Long getRegionId() {
                 return regionId;
+            }
+
+            @Override
+            public Long getParentRegionId() {
+                return parentRegionId;
             }
 
             @Override

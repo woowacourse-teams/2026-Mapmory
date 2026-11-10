@@ -43,11 +43,22 @@ public class MapSummaryCache {
 
     public List<RegionMapSummary> get(Long memberId, Long parentRegionId, Long tagId,
                                       Supplier<List<RegionMapSummary>> loader) {
+        return get(new Key(memberId, Scope.LEVEL, parentRegionId, tagId), loader);
+    }
+
+    /**
+     * 모든 단계를 한 번에 담은 요약이다. 루트 요약(parentRegionId = null)과 키가 겹치지 않게 범위를 나눈다.
+     */
+    public List<RegionMapSummary> getAll(Long memberId, Long tagId, Supplier<List<RegionMapSummary>> loader) {
+        return get(new Key(memberId, Scope.ALL, null, tagId), loader);
+    }
+
+    private List<RegionMapSummary> get(Key cacheKey, Supplier<List<RegionMapSummary>> loader) {
         DeploymentCacheControl.Snapshot snapshot = control.snapshot();
         if (snapshot.bypass()) {
             return List.copyOf(loader.get());
         }
-        GenerationKey key = new GenerationKey(snapshot.generation(), new Key(memberId, parentRegionId, tagId));
+        GenerationKey key = new GenerationKey(snapshot.generation(), cacheKey);
         List<RegionMapSummary> result = cache.get(key, ignored -> List.copyOf(loader.get()));
         if (control.snapshot().generation() != snapshot.generation()) {
             cache.invalidate(key);
@@ -67,6 +78,13 @@ public class MapSummaryCache {
     private record GenerationKey(long generation, Key key) {
     }
 
-    private record Key(Long memberId, Long parentRegionId, Long tagId) {
+    private enum Scope {
+        /** 한 부모의 직속 하위(부모가 없으면 루트)만 */
+        LEVEL,
+        /** 국가·시도·시군구 전체 */
+        ALL
+    }
+
+    private record Key(Long memberId, Scope scope, Long parentRegionId, Long tagId) {
     }
 }
