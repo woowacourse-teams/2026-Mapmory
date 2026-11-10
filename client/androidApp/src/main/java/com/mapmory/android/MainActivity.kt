@@ -32,31 +32,68 @@ import androidx.compose.ui.res.colorResource
 import androidx.lifecycle.lifecycleScope
 import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
+import com.mapmory.shared.MapmoryNotificationIntent
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private var processHasStarted = false
+        private const val STATE_NOTIFICATION_ACTION = "notification_action"
+        private const val STATE_NOTIFICATION_TARGET_ID = "notification_target_id"
+    }
+
     private val appViewModel: MapmoryAppViewModel by viewModels()
+    private val navigation: MapmoryNavigation get() = appViewModel.navigation
     private val analyticsLogger by lazy { FirebaseAnalyticsLogger(applicationContext) }
     private val developerToolsInfo by lazy { loadDeveloperToolsInfo() }
+    private var pendingNotificationAction: String? = null
+    private var pendingNotificationTargetId: Long? = null
 
     override fun onResume() {
         super.onResume()
         appViewModel.forceUpdate.refresh()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        intent.dataString?.let { appViewModel.invitations.receive(it) }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) intent?.dataString?.let { appViewModel.invitations.receive(it) }
         lifecycleScope.launch { restoreInstallInvitation(applicationContext, appViewModel.invitations) }
+        pendingNotificationAction = savedInstanceState?.getString(STATE_NOTIFICATION_ACTION)
+        pendingNotificationTargetId = savedInstanceState?.getLong(STATE_NOTIFICATION_TARGET_ID)?.takeIf { it > 0L }
+        val restoredAction = pendingNotificationAction
+        val restoredTargetId = pendingNotificationTargetId
+        if (restoredAction != null && restoredTargetId != null) {
+            // ViewModel state survives rotation; saved state restores the request after process death.
+            if (!navigation.hasPendingNotification()) {
+                val extra = if (restoredAction == MapmoryNotificationIntent.ACTION_OPEN_RECORD) {
+                    MapmoryNotificationIntent.EXTRA_RECORD_ID
+                } else {
+                    MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID
+                }
+                handleNotificationIntent(
+                    Intent(this, MainActivity::class.java)
+                        .setAction(restoredAction)
+                        .putExtra(extra, restoredTargetId),
+                    preserveBackStack = false,
+                )
+            }
+            setIntent(Intent(this, MainActivity::class.java))
+        } else if (handleNotificationIntent(intent, preserveBackStack = processHasStarted && savedInstanceState != null)) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+        processHasStarted = true
+        lifecycleScope.launch {
+            navigation.notificationPending.collect { isPending ->
+                if (!isPending) {
+                    pendingNotificationAction = null
+                    pendingNotificationTargetId = null
+                }
+            }
+        }
         val notificationPermission = registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {}
@@ -75,7 +112,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            val navigation = remember { MapmoryNavigation(appViewModel.invitations) }
             var lastBackPressedAt by remember { mutableLongStateOf(0L) }
             var isDarkTheme by rememberSaveable { mutableStateOf(false) }
             val systemBarColor = colorResource(
@@ -141,6 +177,56 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.dataString?.let { appViewModel.invitations.receive(it) }
+        setIntent(intent)
+        if (handleNotificationIntent(intent, preserveBackStack = true)) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (navigation.hasPendingNotification()) {
+            pendingNotificationAction?.let { outState.putString(STATE_NOTIFICATION_ACTION, it) }
+            pendingNotificationTargetId?.let { outState.putLong(STATE_NOTIFICATION_TARGET_ID, it) }
+        }
+    }
+
+    private fun handleNotificationIntent(intent: Intent?, preserveBackStack: Boolean): Boolean {
+        intent ?: return false
+        val action = intent.action
+        val targetId = when (action) {
+            MapmoryNotificationIntent.ACTION_OPEN_RECORD -> intent
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_RECORD_ID, 0L)
+                .takeIf { it > 0L }
+            MapmoryNotificationIntent.ACTION_OPEN_VIDEO -> intent
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, 0L)
+                .takeIf { it > 0L }
+            null, Intent.ACTION_MAIN -> intent.extras?.let { extras ->
+                sequenceOf(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, "jobId", "job_id")
+                    .mapNotNull { key -> extras.get(key)?.toString()?.toLongOrNull() }
+                    .firstOrNull { it > 0L }
+            }
+            else -> null
+        } ?: return false
+
+        val isRecord = action == MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        pendingNotificationAction = if (isRecord) {
+            MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        } else {
+            MapmoryNotificationIntent.ACTION_OPEN_VIDEO
+        }
+        pendingNotificationTargetId = targetId
+        if (isRecord) {
+            navigation.openRecordNotification(targetId, preserveBackStack)
+        } else {
+            navigation.openVideoNotification(targetId, preserveBackStack)
+        }
+        return true
     }
 }
 

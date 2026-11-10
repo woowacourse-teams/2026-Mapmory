@@ -10,6 +10,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.mapmory.shared.app.BackgroundTripRecordCompletion
 import com.mapmory.shared.presentation.triprecord.screen.TripRecordSavedCard
@@ -31,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,7 +40,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.mapmory.shared.MapmoryNavigation
+import com.mapmory.shared.NotificationNavigationTarget
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.data.auth.MemberProvider
+import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.logging.mapmoryDebugLog
 import com.mapmory.shared.presentation.developer.DeveloperToolsScreen
@@ -54,11 +60,14 @@ import com.mapmory.shared.presentation.triprecord.screen.TripAchievementUnlockDi
 import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoJobMonitor
 import com.mapmory.shared.presentation.triprecord.screen.newlyEarnedTripAchievementBadges
 import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
+import com.mapmory.shared.presentation.triprecord.screen.TripTimelineVideoDialog
+import kotlin.time.Clock
 
 @Composable
 internal fun MapmoryNavHost(
     navController: NavHostController,
     navigator: MapmoryNavigator,
+    navigation: MapmoryNavigation?,
     container: AppContainer,
     foregroundSince: TimeSource.Monotonic.ValueTimeMark?,
     backHandlerRegistry: MapmoryBackHandlerRegistry,
@@ -72,6 +81,8 @@ internal fun MapmoryNavHost(
     isMascotPreviewEnabled: Boolean,
     onMascotPreviewEnabledChange: (Boolean) -> Unit,
 ) {
+    val accountState = container.accountSession?.state?.collectAsState()?.value
+    val notificationRequest = navigation?.notificationRequest?.collectAsState(initial = null)?.value
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
     var newlyEarnedBadges by remember(navController) { mutableStateOf<List<TripAchievementBadge>?>(null) }
@@ -92,13 +103,64 @@ internal fun MapmoryNavHost(
     val invitationUrl = invitationInbox?.pendingUrl
     val account = container.accountSession?.state?.collectAsState()?.value
     val initialDestination = remember(navController) {
-        if (invitationUrl != null || ((account?.generation ?: 0) > 0 && account?.stage != "logged_out")) GroupsRoute else MapRoute
+        if (notificationRequest?.preserveBackStack == false) RecordsRoute() else if (invitationUrl != null || ((account?.generation ?: 0) > 0 && account?.stage != "logged_out")) GroupsRoute else MapRoute
     }
     val navigationReady = currentEntry != null
     LaunchedEffect(invitationUrl, invitationInbox?.revision, navigationReady, navController) {
         if (invitationUrl != null && navigationReady && navController.currentDestination?.hasRoute<GroupsRoute>() != true) {
             navigator.navigateToGroups()
         }
+    }
+    val hasAuthenticatedAccount = container.accountSession == null ||
+        (accountState?.member?.provider?.let { it != MemberProvider.GUEST } == true &&
+            accountState?.transitioning != true && accountState?.pendingLogin != true &&
+            accountState?.pendingLogout != true && accountState?.pendingWithdrawal != true &&
+            accountState?.recoveryRequired != true)
+    LaunchedEffect(navigation, notificationRequest?.id, notificationRequest?.awaitingLogin, accountState?.generation, currentEntry?.id) {
+        val request = notificationRequest ?: return@LaunchedEffect
+        val currentRoute = navigator.currentRoute()
+        if (request.awaitingLogin) {
+            if (!hasAuthenticatedAccount) {
+                if (currentRoute != GroupsRoute) navigation?.cancelNotification(request.id)
+                return@LaunchedEffect
+            }
+            val returnRoute = request.returnRoute ?: RecordsRoute()
+            if (currentRoute != returnRoute) {
+                navController.navigate(returnRoute) {
+                    popUpTo<GroupsRoute> { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        } else if (!hasAuthenticatedAccount) {
+            val returnRoute = if (request.preserveBackStack) currentRoute ?: RecordsRoute() else RecordsRoute()
+            if (currentRoute != GroupsRoute) {
+                navController.navigate(GroupsRoute) {
+                    if (!request.preserveBackStack) {
+                        popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                    }
+                    launchSingleTop = true
+                }
+            }
+            navigation?.awaitNotificationLogin(request.id, returnRoute)
+            return@LaunchedEffect
+        }
+
+        if (!request.preserveBackStack) {
+            navController.navigate(RecordsRoute()) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+
+        when (val target = request.target) {
+            is NotificationNavigationTarget.Record -> navController.navigate(
+                DetailRoute(recordId = target.id, notificationRequestId = request.id),
+            )
+            is NotificationNavigationTarget.Video -> navController.navigate(
+                TripTimelineVideoNotificationRoute(target.jobId, request.id),
+            )
+        }
+        navigation?.consumeNotification(request.id)
     }
     val editing = currentEntry?.destination?.hasRoute<EditorRoute>() == true
     val accessibilityManager = LocalAccessibilityManager.current
@@ -276,6 +338,9 @@ internal fun MapmoryNavHost(
             com.mapmory.shared.presentation.group.GroupAccountRoute(
                 container = container,
                 modifier = Modifier.windowInsetsPadding(contentWindowInsets),
+                notificationLoginMessage = notificationRequest?.takeIf { it.awaitingLogin }?.let {
+                    "알림에 연결된 기록을 열려면 로그인해 주세요. 로그인 후 해당 화면으로 이동합니다."
+                },
                 onMapClick = navigator::navigateToMap,
                 onRecordClick = { navigator.navigateToRecords() },
                 onProfileClick = navigator::navigateToProfile,
@@ -409,6 +474,8 @@ internal fun MapmoryNavHost(
                     ),
                 ),
                 recordId = route.recordId,
+                isNotificationEntry = route.notificationRequestId != null,
+                accountGeneration = accountState?.generation ?: 0L,
                 initialLocationName = route.locationName,
                 initialLatestDate = route.latestDate,
                 initialPhotoCount = route.photoCount,
@@ -427,6 +494,44 @@ internal fun MapmoryNavHost(
                 onOpenProfile = navigator::navigateToProfile,
                 isTimelineLayout = journalLayout == TripRecordListLayout.TIMELINE,
             )
+        }
+
+        composable<TripTimelineVideoNotificationRoute> { backStackEntry ->
+            SideEffect { gestureMotion.composedEntryId = backStackEntry.id }
+            val route = backStackEntry.toRoute<TripTimelineVideoNotificationRoute>()
+            val jobStore = remember(route.notificationRequestId) {
+                MemoryShareVideoJobStore().also {
+                    it.saveJobId(route.jobId, Clock.System.now().toEpochMilliseconds())
+                }
+            }
+            val repository = container.shareVideoRepository
+            if (repository == null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { navigator.navigateBack() },
+                    title = { androidx.compose.material3.Text("영상을 확인할 수 없어요") },
+                    text = { androidx.compose.material3.Text("여행 영상 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { navigator.navigateBack() }) {
+                            androidx.compose.material3.Text("닫기")
+                        }
+                    },
+                )
+            } else {
+                TripTimelineVideoJobMonitor(
+                    repository = repository,
+                    jobStore = jobStore,
+                    notificationEntry = true,
+                )
+                TripTimelineVideoDialog(
+                    repository = repository,
+                    jobStore = jobStore,
+                    creationScope = rememberCoroutineScope(),
+                    countryCount = null,
+                    retryCountryCount = null,
+                    notificationOnly = true,
+                    onDismiss = { navigator.navigateBack() },
+                )
+            }
         }
         }
 

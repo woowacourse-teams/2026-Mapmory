@@ -54,27 +54,27 @@ class UploadNotificationLifecycleTest {
             val execution = AndroidBackgroundSaveExecution(context, "notification-lifecycle-test")
             ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
                 waitForImportance(foreground = true)
-                execution.onCompleted(save)
+                execution.onCompleted(save, id)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
 
                 // In-app navigation does not stop the host Activity.
                 scenario.onActivity { it.title = "다른 화면" }
-                execution.onCompleted(save)
+                execution.onCompleted(save, id)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
 
                 instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_HOME").close()
                 waitForImportance(foreground = false)
-                execution.onCompleted(save)
+                execution.onCompleted(save, id)
                 waitForNotification(manager, id.hashCode())
                 manager.cancel(id.hashCode())
 
                 scenario.close()
-                execution.onCompleted(save)
+                execution.onCompleted(save, id)
                 waitForNotification(manager, id.hashCode())
                 manager.cancel(id.hashCode())
 
                 preferences.edit().putBoolean("photo_record_completion", false).commit()
-                execution.onCompleted(save)
+                execution.onCompleted(save, id)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
             }
         } finally {

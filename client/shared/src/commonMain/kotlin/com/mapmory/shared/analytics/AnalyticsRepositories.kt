@@ -65,6 +65,9 @@ internal class AnalyticsPlaceRepository(
     private val delegate: PlaceRepository,
     private val analytics: MapmoryAnalytics,
 ) : PlaceRepository {
+    override suspend fun suggestRegion(latitude: Double, longitude: Double) =
+        delegate.suggestRegion(latitude, longitude)
+
     override suspend fun searchPlaces(query: String, sessionToken: String) =
         analytics.observeOperation("place_search") { delegate.searchPlaces(query, sessionToken) }
     override suspend fun selectPlace(placeId: String, sessionToken: String) =

@@ -24,6 +24,7 @@ internal fun GroupAccountRoute(
     modifier: Modifier = Modifier,
     initialGroupId: Long? = null,
     initialAlbumId: Long? = null,
+    notificationLoginMessage: String? = null,
     onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
@@ -105,6 +106,7 @@ internal fun GroupAccountRoute(
                             invitationCode = ""
                         }, enabled = invitationCode.length == 6) { Text("초대 확인") }
                     }
+                    notificationLoginMessage?.let { Text(it, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) }
                     restoreError?.let { Text(it) }
                     SocialLoginPanel(session, container.accountLoginController)
                 }

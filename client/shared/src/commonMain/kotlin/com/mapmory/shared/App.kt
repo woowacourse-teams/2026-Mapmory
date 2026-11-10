@@ -176,6 +176,7 @@ fun MapmoryApp(
                         MapmoryNavHost(
                             navController = navController,
                             navigator = navigator,
+                            navigation = navigation,
                             container = appContainer,
                             foregroundSince = foregroundSince,
                             backHandlerRegistry = backHandlerRegistry,

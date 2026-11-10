@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.MapmoryNavigation
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.data.auth.AndroidAuthTokenStore
 import com.mapmory.shared.data.media.AndroidLocalPhotoDataSource
@@ -23,6 +24,7 @@ class MapmoryAppViewModel(application: Application) : AndroidViewModel(applicati
         initialUrl = invitationPreferences.getString("pending-url", null),
         save = { url -> invitationPreferences.edit().putString("pending-url", url).apply() },
     )
+    val navigation = MapmoryNavigation(invitations)
     val forceUpdate = com.mapmory.android.update.AndroidForceUpdateController(application)
     override fun onCleared() { forceUpdate.close() }
 

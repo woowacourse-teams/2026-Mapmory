@@ -34,7 +34,10 @@ internal data class GroupPhoto(
     val uploaderId: String,
     val uploaderName: String, // Display name supplied by social login.
     val imageUri: String? = null,
-)
+    val thumbnailUri: String? = null,
+) {
+    val gridImageUri: String? get() = thumbnailUri ?: imageUri
+}
 
 internal val previewGroup = GroupSummary(
     id = "preview-group",
