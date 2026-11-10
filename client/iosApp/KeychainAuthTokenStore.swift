@@ -56,6 +56,14 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
         UserDefaults.standard.set(provider, forKey: legacyKey + "_recent_login_provider")
     }
 
+    func sessionProvider() throws -> AuthPendingRead {
+        AuthPendingRead(provider: UserDefaults.standard.string(forKey: legacyKey + "_session_provider"))
+    }
+
+    func saveSessionProvider(provider: String?) throws {
+        UserDefaults.standard.set(provider, forKey: legacyKey + "_session_provider")
+    }
+
     func clear() throws {
         let status = SecItemDelete(baseQuery() as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -63,6 +71,7 @@ final class KeychainAuthTokenStore: NSObject, AuthTokenStore {
                           userInfo: [NSLocalizedDescriptionKey: "로그인 정보를 삭제하지 못했습니다. 다시 시도해 주세요."])
         }
         UserDefaults.standard.removeObject(forKey: legacyKey)
+        UserDefaults.standard.removeObject(forKey: legacyKey + "_session_provider")
     }
 
     private func loadFromKeychain() throws -> AuthTokens? {

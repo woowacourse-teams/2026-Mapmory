@@ -15,7 +15,10 @@ internal class PhotoUsageTripRecordRepository(
         delegate.createTripRecord(draft).remember(draft)
 
     override suspend fun createTripRecord(draft: TripRecordDraft, onProgress: (Int) -> Unit) =
-        ((delegate as? ProgressReportingTripRecordRepository)?.createTripRecord(draft, onProgress)
+        createTripRecord(draft, onProgress, promptOnAuthFailure = true)
+
+    override suspend fun createTripRecord(draft: TripRecordDraft, onProgress: (Int) -> Unit, promptOnAuthFailure: Boolean) =
+        ((delegate as? ProgressReportingTripRecordRepository)?.createTripRecord(draft, onProgress, promptOnAuthFailure)
             ?: delegate.createTripRecord(draft)).remember(draft)
 
     override suspend fun updateTripRecord(id: Long, draft: TripRecordDraft) =

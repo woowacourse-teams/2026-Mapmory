@@ -27,18 +27,7 @@ internal fun SocialLoginPanel(
     LaunchedEffect(measured) { measured?.panelViewed() }
     val ui = controller?.state?.collectAsState()?.value ?: LoginUiState()
     val account = session?.state?.collectAsState()?.value
-    var recoveryProvider by remember { mutableStateOf<SocialProvider?>(null) }
     var previewMessage by remember { mutableStateOf<String?>(null) }
-    recoveryProvider?.let { provider ->
-        AlertDialog(onDismissRequest = { recoveryProvider = null },
-            title = { Text("계정으로 다시 로그인할까요?") },
-            text = { Text("현재 세션을 복구하지 못했어요. 기존 소셜 계정의 기록은 다시 불러올 수 있지만, 게스트 기록을 이 계정에 연결하는 것은 보장할 수 없어요.") },
-            confirmButton = { TextButton(onClick = {
-                recoveryProvider = null
-                if (measured != null) controller?.launch(measured, provider, recoverInvalidSession = true)
-            }) { Text("계정으로 로그인") } },
-            dismissButton = { TextButton(onClick = { recoveryProvider = null }) { Text("취소") } })
-    }
     Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).background(palette.surface, RoundedCornerShape(16.dp)).border(1.dp, palette.border, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("그룹은 로그인 후 이용할 수 있어요", color = palette.headingText, style = MaterialTheme.typography.titleMedium)
         Text("로그인하고 함께 여행 기록을 모아보세요.", color = palette.muted, style = MaterialTheme.typography.bodyMedium)
@@ -59,8 +48,7 @@ internal fun SocialLoginPanel(
                 Box(if (recent) Modifier.fillMaxWidth().semantics { stateDescription = "최근 로그인" }.border(2.dp, palette.primary, RoundedCornerShape(12.dp)).padding(4.dp) else Modifier.fillMaxWidth()) {
             SocialLoginButton(provider = provider, onClick = {
                 if (controller != null) {
-                    if (account?.recoveryRequired == true) recoveryProvider = provider
-                    else controller.launch(measured, provider)
+                    controller.launch(measured, provider)
                 }
                 else measured.launch(provider) { result ->
                     previewMessage = when (result) {
