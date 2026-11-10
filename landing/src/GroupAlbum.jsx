@@ -91,13 +91,15 @@ export function GroupAlbum() {
     }
 
     const schedule = () => { if (onScreen && !frame) frame = window.requestAnimationFrame(draw); };
-    // the slots move when the scene or the phone screen changes size, and when the web font arrives
+    // the slots move when the scene or the phone screen changes size, when the window does (the album grid goes from
+    // 2 to 3 columns under 760px tall without either box changing), and when the web font arrives
     const resize = new ResizeObserver(measure);
     resize.observe(scene);
     resize.observe(screen);
     document.fonts?.ready.then(() => { if (!cancelled) measure(); });
     reduce.addEventListener?.("change", measure);
     short.addEventListener?.("change", measure);
+    window.addEventListener("resize", measure);
 
     // the photos load and the scroll is followed only while the track is near or on screen
     const near = new IntersectionObserver(([entry]) => {
@@ -109,10 +111,12 @@ export function GroupAlbum() {
     near.observe(track);
     window.addEventListener("scroll", schedule, { passive: true });
 
-    // group_album_view: once, after the scene has been at least half on screen in a visible tab for 1 s
+    // group_album_view: once, after the scene has lain across the middle of the window in a visible tab for 1 s. That
+    // means at least half of the scene is on screen, or half of the window when the scene is the taller one (unpinned
+    // on a phone on its side, where a share of the scene can never be reached).
     const view = createPassiveViewTracker({ onView: () => trackEvent(ANALYTICS_EVENTS.GROUP_ALBUM_VIEW, { experience_type: "group_album" }) });
     const syncView = () => view.update(half && document.visibilityState === "visible");
-    const seen = new IntersectionObserver(([entry]) => { half = entry.isIntersecting; syncView(); }, { threshold: 0.5 });
+    const seen = new IntersectionObserver(([entry]) => { half = entry.isIntersecting; syncView(); }, { rootMargin: "-50% 0px -50% 0px" });
     seen.observe(scene);
     document.addEventListener("visibilitychange", syncView);
 
@@ -127,6 +131,7 @@ export function GroupAlbum() {
       window.removeEventListener("scroll", schedule);
       reduce.removeEventListener?.("change", measure);
       short.removeEventListener?.("change", measure);
+      window.removeEventListener("resize", measure);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);

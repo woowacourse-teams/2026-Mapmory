@@ -53,7 +53,7 @@
 | `tech_story_view` | 기술 소개 섹션(`#how`, 2026-10-27부터 사진 이야기 대신 이 섹션이 그 자리에 있어 `how_story_*`는 더 나가지 않는다) 고정 화면이 활성 탭에서 35% 이상 보이는 상태로 1초 연속 (2026-10-27 섹션 추가부터) | `experience_type=tech_story`; 페이지당 1회. 첫 `tech_story_scene`·`tech_story_interact` 앞에 늘 먼저 온다 |
 | `tech_story_scene` | 기술 소개 한 장면이 폰 화면에 0.7초 머묾(탭 활성) | `experience_type=tech_story`, `scene_index=1-7` (2026-10-29부터: 1 장소 입력, 2 사진첩에서 뽑아오기, 3 서버로 안 감, 4 골라서 기록, 5 지도 칠하기, 6 지구본, 7 공유 영상. 그 전 1-6과 장면 뜻이 다르므로 이날부터 따로 비교); 장면별 페이지당 1회 |
 | `tech_story_interact` | 기술 소개 폰 화면의 요소를 처음 직접 조작함 | `experience_type=tech_story`, `scene_index=1-7`, `interaction_type=place_pick\|gather\|save\|map_toggle\|globe_drag\|year_pick` (2026-10-29: `flip` → `place_pick`, 장소 칸 누르기. 장면 3 '찾는 동안 사진은 서버로 안 가요'는 누를 것이 없어 interact가 없음. 공유 장면은 7번, `year_pick`); 종류별 페이지당 1회. 자동 시연(위치 입력, 제주 모으기, 접기, 칠하기)은 보내지 않음 |
-| `group_album_view` | 그룹 앨범 장면(`#group`)이 활성 탭에서 절반 이상 보이는 상태로 1초 연속 (2026-11-10 추가). 탭이 가려지면 시간을 다시 잼 | `experience_type=group_album`; 페이지당 1회. `experience_view`와 다른 이벤트라 지구본 보고서에 섞이지 않음 |
+| `group_album_view` | 그룹 앨범 장면(`#group`)이 활성 탭에서 화면 한가운데에 걸친 상태로 1초 연속 (2026-11-10 추가; 장면의 절반 이상, 장면이 화면보다 길면 화면의 절반 이상이 보이는 상태). 탭이 가려지면 시간을 다시 잼 | `experience_type=group_album`; 페이지당 1회. `experience_view`와 다른 이벤트라 지구본 보고서에 섞이지 않음 |
 | `how_play_save` (how_story 배포 전) | 저장 후 칠해진 지도가 화면에 반영된 뒤 | `experience_type=how_play`, `demo_place=busan\|gangwon\|gyeongbuk`, `save_index=1-3`, `selected_photos`; 페이지당 장소별 1회. 2026-10-08부터 how_story 배포일까지의 데이터에만 있음 |
 
 체험 유형: `globe`. (`how_play`는 2026-10-08부터 how_story 배포일까지. `how_story`는 `experience_*`를 보내지 않고 `experience_cta_click`·`how_story_*`에만 붙음. `korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)

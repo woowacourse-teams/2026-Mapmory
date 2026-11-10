@@ -5,7 +5,7 @@
 import { SPRITE, getSpriteImage } from "./photoStory.js";
 import { clamp, drawSpriteTile, easeOut, fitCanvas, font, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
 
-const TOKENS = ["canvas", "surface", "text", "accent", "ink", "on-ink", "ps-on-accent", "ps-dot", "ps-shadow"];
+const TOKENS = ["canvas", "surface", "text", "accent", "ink", "on-ink", "ps-dot", "ps-shadow"];
 const rand = (n) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
 
 // mountHeroWall(hero section, canvas, { reducedMotion, onPick }) -> { setPick(key | null), destroy() }

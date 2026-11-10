@@ -196,7 +196,7 @@ main { overflow-x: clip; }
 .download-actions .button-store { width: 100%; min-width: 0; padding-inline: 12px; font-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .button:hover:not(:disabled) { transform: translateY(-2px); }
-  .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 84%, var(--canvas)); }
+  .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, #000); }
   .header-store-popover .button-store:hover { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
 }
 .button:active:not(:disabled) { transform: scale(0.97); }
@@ -278,7 +278,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .memory-gallery-arrow.is-prev { left: 12px; }
 .memory-gallery-arrow.is-next { right: 12px; }
 .memory-photo-meta { position: absolute; left: 12px; right: 12px; bottom: 12px; min-height: 40px; padding: 8px 10px; border: 1px solid #40505b; border-radius: 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #eafff6; background: rgba(8, 14, 19, 0.9); font-size: 11px; font-weight: 700; }
-.memory-photo-caption { min-width: 0; overflow: hidden; font: 700 var(--memory-diary-title-size)/1.15 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.memory-photo-caption { min-width: 0; overflow: hidden; font: 700 17px/1.3 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
 .memory-mobile-photo-caption { display: none; }
 .memory-sheet-gallery-controls { display: none; }
 .memory-single-title { display: none; }
@@ -490,7 +490,8 @@ footer p { margin: 10px 0 0; }
   .world-memory-modal .memory-sheet-gallery-controls > button { width: 44px; height: 44px; padding: 0; border: 1px solid var(--memory-line); border-radius: 50%; display: grid; place-items: center; color: var(--memory-text); background: var(--memory-raised); }
   .world-memory-modal .memory-sheet-gallery-controls > button:disabled { opacity: 0.3; }
   .world-memory-modal .memory-sheet-gallery-controls > div { min-width: 0; display: grid; justify-items: center; gap: 5px; }
-  .world-memory-modal .memory-mobile-photo-caption { max-width: 100%; display: block; overflow: hidden; color: var(--memory-text); font: 700 var(--memory-diary-title-size)/1.15 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  /* 15px: the longest caption fits the 222px between the arrows of a 360px phone in the bold interface face */
+  .world-memory-modal .memory-mobile-photo-caption { max-width: 100%; display: block; overflow: hidden; color: var(--memory-text); font: 700 15px/1.3 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
   .memory-sheet-photo-count { color: var(--memory-muted); font-size: 10px; font-weight: 700; }
   .memory-sheet-photo-dots { height: 7px; display: flex; align-items: center; gap: 5px; }
   .memory-sheet-photo-dots span { width: 6px; height: 6px; border-radius: 50%; background: #718079; }
@@ -589,4 +590,5 @@ footer p { margin: 10px 0 0; }
 .hero-store .store-buttons.is-own .button-store { min-width: 220px; min-height: 52px; font-size: 16px; }
 .hero-qr { display: none; margin: 0; padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); align-items: center; gap: 12px; color: var(--text); font-size: 14px; line-height: 20px; font-weight: 700; text-align: left; }
 .hero-qr img { display: block; width: 112px; height: 112px; background: #fff; }
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) { .hero-qr { display: flex; } }
+/* not in windows under 700px tall: the card would push the words under the header and onto the foot */
+@media (min-width: 900px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .hero-qr { display: flex; } }

@@ -81,16 +81,28 @@ test("group album measurement: its own passive view event and the hero jump, nev
   assert.equal(trackEvent("group_album_view", { experience_type: "globe" }), false);
   assert.match(source, /createPassiveViewTracker\(\{ onView: \(\) => trackEvent\(ANALYTICS_EVENTS\.GROUP_ALBUM_VIEW, \{ experience_type: "group_album" \}\) \}\)/);
   assert.match(source, /document\.addEventListener\("visibilitychange", syncView\)/);
+  // the scene must lie across the middle of the window: a share of the scene cannot be reached when it is unpinned
+  // and taller than the window (a phone on its side)
+  assert.match(source, /new IntersectionObserver\(\(\[entry\]\) => \{ half = entry\.isIntersecting; syncView\(\); \}, \{ rootMargin: "-50% 0px -50% 0px" \}\)/);
+  // the album grid changes columns with the window's height, which neither observed box reports
+  assert.match(source, /window\.addEventListener\("resize", measure\)/);
+  assert.match(source, /window\.removeEventListener\("resize", measure\)/);
   assert.doesNotMatch(source, /EXPERIENCE_VIEW/);
   assert.match(hero, /trackEvent\(ANALYTICS_EVENTS\.EXPERIENCE_CTA_CLICK, \{ experience_type: "group_album", cta_placement: "hero_group" \}\)/);
 });
 
-test("the desktop QR keeps a quiet zone and square corners, and points at the landing without UTMs", async () => {
+test("the desktop QR keeps a quiet zone and square corners and shows only where it fits", async () => {
   const svg = await read("../public/assets/qr-desktop-hero.svg");
   const size = Number(svg.match(/viewBox="0 0 (\d+) \d+"/)[1]);
   assert.equal((size - 8 - 17) % 4, 0); // modules + a 4-module quiet zone on each side
   assert.match(svg, /fill="#ffffff"/);
   const styles = await read("../src/styles.css");
   assert.match(styles, /\.hero-qr img \{ display: block; width: 112px; height: 112px; background: #fff; \}/);
-  assert.match(styles, /@media \(min-width: 900px\) and \(hover: hover\) and \(pointer: fine\) \{ \.hero-qr \{ display: flex; \} \}/);
+  // the card adds 82px to the centred hero words: it shows only in windows tall enough, and the title shrinks with the
+  // window's height on the same query so the kicker never slides under the floating header
+  const QR_QUERY = /@media \(min-width: 900px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ /;
+  assert.match(styles, new RegExp(QR_QUERY.source + "\\.hero-qr \\{ display: flex; \\} \\}"));
+  const hero = await read("../src/photo-story.css");
+  assert.match(hero, new RegExp(QR_QUERY.source + "\\.wall-hero h1 \\{ font-size: clamp\\(40px, min\\(8vw, 28svh - 148px\\), 92px\\); \\} \\}"));
+  assert.match(hero, /@media \(min-width: 900px\) \{ \.wall-hero h1 \{ font-size: clamp\(40px, min\(8vw, 28svh - 123px\), 92px\); \} \}/);
 });

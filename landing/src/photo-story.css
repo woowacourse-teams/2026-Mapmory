@@ -2,7 +2,6 @@
    plus main's .how-section and its globe link. Canvas colours come from the --ps-* tokens below; the dark block at the
    end restyles both in place when the header's theme toggle flips data-theme. */
 .wall-hero, .ps {
-  --ps-on-accent: #ffffff;
   --ps-dot: #d9d3c6;
   --ps-shadow: rgba(22, 21, 18, 0.18);
   --ps-roll-bg: #efece4;
@@ -20,6 +19,12 @@
 .wall-hero-kicker { display: inline-block; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 14px; font-weight: 700; }
 .wall-hero h1 { margin: 18px 0 0; font-family: var(--serif); font-size: clamp(40px, 8vw, 92px); line-height: 1.12; letter-spacing: -0.03em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
 .wall-hero h1 span { display: block; color: var(--text); text-wrap: balance; }
+/* 2026-11-10: the words are centred in the hero, so a tall block slides up under the floating header. On wide screens
+   the title gives way to the window's height instead (3 lines of title + 233px of everything else must fit between
+   the header and the foot); with the QR card beside the store buttons (styles.css, same query) the block is 82px
+   taller, so the title starts shrinking sooner. */
+@media (min-width: 900px) { .wall-hero h1 { font-size: clamp(40px, min(8vw, 28svh - 123px), 92px); } }
+@media (min-width: 900px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .wall-hero h1 { font-size: clamp(40px, min(8vw, 28svh - 148px), 92px); } }
 .wall-hero-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 26px; pointer-events: auto; }
 .wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 200ms var(--ease-out), background-color 200ms var(--ease-out), border-color 200ms var(--ease-out); }
 .wall-hero-chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
@@ -34,6 +39,8 @@
 .wall-hero-new { min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent-ink); font-size: 14px; font-weight: 700; text-decoration: none; pointer-events: auto; box-shadow: var(--shadow); transition: transform 200ms var(--ease-out); }
 /* phones: the pill takes the place of the byline so the photos of a picked place keep their band (heroWallEngine gather) */
 @media (max-width: 519px) { .wall-hero-foot span { display: none; } .wall-hero-new { font-size: 13px; padding: 0 14px; } }
+/* a phone on its side: without the byline the pill sits clear of the link under the store buttons */
+@media (max-height: 499px) { .wall-hero-foot span { display: none; } }
 @media (hover: hover) { .wall-hero-new:hover { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .wall-hero-new { transition: none; } }
 @media (hover: hover) and (pointer: fine) {
@@ -94,7 +101,6 @@
 }
 
 :root[data-theme="dark"] .wall-hero, :root[data-theme="dark"] .ps {
-  --ps-on-accent: #0f1512;
   --ps-dot: #2b3631;
   --ps-shadow: rgba(0, 0, 0, 0.5);
   --ps-roll-bg: #18201c;

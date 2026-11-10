@@ -1053,7 +1053,7 @@ function App() {
       </section>
 
       <section className="download-section" id="download">
-        <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요.</h2>
+        <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요</h2>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
           <StoreButton placement="final" platform="ios" label={<>iOS <small>App Store</small></>} />
           <StoreButton placement="final" platform="android" label={<>Android <small>Google Play</small></>} />
