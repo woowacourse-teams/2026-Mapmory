@@ -217,7 +217,7 @@ internal fun GroupAlbumScreen(
                         subtitle = "${album.place} · ${album.date.replace('-', '.')}",
                         height = heroHeight,
                         photo = {
-                            MapmoryAsyncImage(imageBytes = null, imageUri = cover.imageUri,
+                            MapmoryAsyncImage(imageBytes = null, imageUri = cover.gridImageUri,
                                 contentDescription = "${album.name} 대표 사진", modifier = Modifier.fillMaxSize(),
                                 shape = RectangleShape)
                         },
@@ -252,7 +252,7 @@ internal fun GroupAlbumScreen(
                 itemsIndexed(rows, key = { _, row -> "photos:${row.first().id}" }) { _, row ->
                     JournalAlbumPhotoRow(row, columns, { photoSize }, Modifier.animateItem().padding(horizontal = 20.dp)) { photo, cell ->
                         Box(cell.clickable { onPhoto(album.photos.indexOf(photo)) }) {
-                            MapmoryAsyncImage(imageBytes = null, imageUri = photo.imageUri,
+                            MapmoryAsyncImage(imageBytes = null, imageUri = photo.gridImageUri,
                                 contentDescription = "${photo.uploaderName}님이 올린 사진",
                                 modifier = Modifier.fillMaxSize(), shape = RectangleShape,
                                 sharedCornerRadius = 0.dp)
