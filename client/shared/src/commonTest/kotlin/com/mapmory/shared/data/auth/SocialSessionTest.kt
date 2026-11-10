@@ -12,9 +12,12 @@ class SocialSessionTest {
         var failWrite = false
         var pending: String? = null
         var recent: String? = null
+        var sessionProvider: String? = null
         var allowClear = false
         override fun recentLoginProvider() = AuthPendingRead(recent)
         override fun saveRecentLoginProvider(provider: String) { recent = provider }
+        override fun sessionProvider() = AuthPendingRead(sessionProvider)
+        override fun saveSessionProvider(provider: String?) { sessionProvider = provider }
         var writes = 0
         override fun load(): AuthTokens? { check(!failRead); return tokens }
         override fun save(tokens: AuthTokens) { writes++; check(!failWrite); this.tokens = tokens }
@@ -33,6 +36,7 @@ class SocialSessionTest {
         var invalidRefresh = false
         var bearer: String? = null
         var memberProvider = MemberProvider.GOOGLE
+        var issuedTokens = social
         var exchangeBlock: (suspend () -> Unit)? = null
         override suspend fun loginAsGuest(): Result<AuthTokens> { guestCalls++; return Result.success(guest) }
         override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
@@ -45,7 +49,7 @@ class SocialSessionTest {
             if (invalidAccess) return Result.failure(apiError("INVALID_ACCESS_TOKEN"))
             if (expired) return Result.failure(apiError("EXPIRED_ACCESS_TOKEN"))
             if (exchangeFailure) return Result.failure(IllegalStateException("response lost"))
-            return Result.success(SocialSessionTokens(social, true))
+            return Result.success(SocialSessionTokens(issuedTokens, true))
         }
         override suspend fun logout(refreshToken: String) = Result.success(Unit)
         override suspend fun member(accessToken: String): Result<AccountMember> = if (memberFailure)
@@ -118,6 +122,114 @@ class SocialSessionTest {
             assertNull(session.withLocalAccountLease { "wrong account" })
         } finally { session.close() }
     }
+
+    @Test fun sameAccountReauthenticationRequiresMatchingJwtSubjectAndMemberProvider() = runBlocking {
+        val old = AuthTokens(jwt("member-1"), "old-refresh")
+        val store = Store(old).apply { sessionProvider = MemberProvider.GOOGLE.name }
+        val gateway = Gateway().apply { issuedTokens = AuthTokens(jwt("member-1"), "new-refresh") }
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 })
+        var invalidations = 0
+        session.onAccountChanged = { invalidations++ }
+        try {
+            session.state.value.let { assertEquals(MemberProvider.GOOGLE, it.sessionProvider) }
+            session.withAuthenticatedSession<Unit> { Result.failure(apiError("INVALID_ACCESS_TOKEN")) }
+            val generation = session.state.value.generation
+
+            val recovered = session.reauthenticateSameAccount(MemberProvider.GOOGLE, "fresh-proof")
+
+            assertTrue(recovered.isSuccess)
+            assertEquals("new-refresh", store.tokens?.refreshToken)
+            assertEquals(MemberProvider.GOOGLE.name, store.sessionProvider)
+            assertEquals(generation, session.state.value.generation)
+            assertEquals(0, invalidations)
+        } finally { session.close() }
+    }
+
+    @Test fun sameAccountReauthenticationIsAllowedWhileRecoverableLocalSavesRemain() = runBlocking {
+        val old = AuthTokens(jwt("member-1"), "old-refresh")
+        val store = Store(old).apply { sessionProvider = MemberProvider.GOOGLE.name }
+        val gateway = Gateway().apply { issuedTokens = AuthTokens(jwt("member-1"), "new-refresh") }
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 }).apply {
+            canChangeAccount = { false }
+        }
+        try {
+            session.withAuthenticatedSession<Unit> { Result.failure(apiError("INVALID_ACCESS_TOKEN")) }
+
+            val recovered = session.reauthenticateSameAccount(MemberProvider.GOOGLE, "fresh-proof")
+
+            assertTrue(recovered.isSuccess)
+            assertEquals("new-refresh", store.tokens?.refreshToken)
+        } finally { session.close() }
+    }
+
+    @Test fun startupRecoveryCanBeOpenedExplicitlyAfterRestoreFails() = runBlocking {
+        val store = Store(guest)
+        val gateway = Gateway().apply { invalidRefresh = true }
+        val session = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(session.restore().isFailure)
+            assertTrue(session.state.value.recoveryRequired)
+            assertEquals(0L, session.state.value.recoveryPromptId)
+
+            session.requestRecoveryPrompt()
+
+            assertEquals(1L, session.state.value.recoveryPromptId)
+            assertEquals(guest, store.tokens)
+        } finally { session.close() }
+    }
+
+    @Test fun sameAccountReauthenticationFailsClosedWhenJwtSubjectDiffers() = runBlocking {
+        val old = AuthTokens(jwt("member-1"), "old-refresh")
+        val store = Store(old).apply { sessionProvider = MemberProvider.GOOGLE.name }
+        val gateway = Gateway().apply { issuedTokens = AuthTokens(jwt("member-2"), "other-refresh") }
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 })
+        try {
+            session.withAuthenticatedSession<Unit> { Result.failure(apiError("INVALID_ACCESS_TOKEN")) }
+
+            val recovered = session.reauthenticateSameAccount(MemberProvider.GOOGLE, "fresh-proof")
+
+            assertTrue(recovered.isFailure)
+            assertEquals(old, store.tokens)
+            assertEquals(0, gateway.guestCalls)
+            assertEquals(MemberProvider.GOOGLE, session.state.value.sessionProvider)
+        } finally { session.close() }
+    }
+
+    @Test fun sameAccountReauthenticationFailsClosedWhenJwtSubjectIsMissing() = runBlocking {
+        val old = AuthTokens("header.eyJleHAiOjIwMDB9.signature", "old-refresh")
+        val store = Store(old).apply { sessionProvider = MemberProvider.GOOGLE.name }
+        val gateway = Gateway().apply { issuedTokens = AuthTokens(jwt("member-1"), "other-refresh") }
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 })
+        try {
+            session.withAuthenticatedSession<Unit> { Result.failure(apiError("INVALID_ACCESS_TOKEN")) }
+            assertTrue(session.reauthenticateSameAccount(MemberProvider.GOOGLE, "fresh-proof").isFailure)
+            assertEquals(old, store.tokens)
+            assertEquals(0, gateway.guestCalls)
+        } finally { session.close() }
+    }
+
+    @Test fun sameAccountReauthenticationFailsClosedWhenMeProviderDiffers() = runBlocking {
+        val old = AuthTokens(jwt("member-1"), "old-refresh")
+        val store = Store(old).apply { sessionProvider = MemberProvider.GOOGLE.name }
+        val gateway = Gateway().apply {
+            issuedTokens = AuthTokens(jwt("member-1"), "other-refresh")
+            memberProvider = MemberProvider.KAKAO
+        }
+        val session = GuestSessionManager(gateway, store, nowEpochSeconds = { 1000 })
+        try {
+            session.withAuthenticatedSession<Unit> { Result.failure(apiError("INVALID_ACCESS_TOKEN")) }
+
+            assertTrue(session.reauthenticateSameAccount(MemberProvider.GOOGLE, "fresh-proof").isFailure)
+            assertEquals(old, store.tokens)
+            assertEquals(0, gateway.guestCalls)
+        } finally { session.close() }
+    }
+
+    private fun jwt(subject: String) = "header.${when (subject) {
+        "member-1" -> "eyJzdWIiOiJtZW1iZXItMSIsImV4cCI6MjAwMH0"
+        "member-2" -> "eyJzdWIiOiJtZW1iZXItMiIsImV4cCI6MjAwMH0"
+        else -> error("Unexpected test subject")
+    }}.signature"
 
     @Test fun loginSavesNewTokensAndClearsAccountDataBeforePublishingSuccess() = runBlocking {
         val store = Store(); val gateway = Gateway(); val session = GuestSessionManager(gateway, store)
@@ -260,7 +372,8 @@ class SocialSessionTest {
 
     @Test fun invalidRefreshNeedsExplicitRecoveryConsentAndNeverMintsGuest() = runBlocking {
         val gateway = Gateway().apply { invalidRefresh = true }
-        val session = GuestSessionManager(gateway, Store(guest))
+        val store = Store(guest)
+        val session = GuestSessionManager(gateway, store)
         try {
             assertTrue(session.login(MemberProvider.GOOGLE, "proof").isFailure)
             assertEquals(0, gateway.exchangeCalls)
@@ -269,6 +382,46 @@ class SocialSessionTest {
             assertNull(gateway.bearer)
             assertEquals(0, gateway.guestCalls)
             assertEquals(1, gateway.exchangeCalls)
+        } finally { session.close() }
+    }
+
+    @Test fun terminalCredentialFailurePromptsOnlyForExplicitOperationAndPreservesGuestTokens() = runBlocking {
+        val gateway = Gateway().apply { invalidRefresh = true }
+        val store = Store(guest)
+        val session = GuestSessionManager(gateway, store)
+        try {
+            assertTrue(session.withAuthenticatedSession<Unit>(promptOnAuthFailure = false) {
+                error("Request must not run with an invalid refresh token")
+            }.isFailure)
+            assertTrue(session.state.value.recoveryRequired)
+            assertEquals(0L, session.state.value.recoveryPromptId)
+
+            assertTrue(session.withAuthenticatedSession<Unit>(promptOnAuthFailure = true) {
+                error("Request must not run with an invalid refresh token")
+            }.isFailure)
+            assertEquals(1L, session.state.value.recoveryPromptId)
+            assertEquals(guest, store.tokens)
+
+            assertTrue(session.retryExistingCredentials().isFailure)
+            assertTrue(session.state.value.recoveryRequired)
+            assertEquals(guest, store.tokens)
+            assertEquals(0, gateway.guestCalls)
+        } finally { session.close() }
+    }
+
+    @Test fun transientServerFailureDoesNotPromptForCredentialRecovery() = runBlocking {
+        val original = AuthTokens(jwt("member-1"), "refresh")
+        val store = Store(original)
+        val session = GuestSessionManager(Gateway(), store, nowEpochSeconds = { 1000 })
+        try {
+            val result = session.withAuthenticatedSession<Unit>(promptOnAuthFailure = true) {
+                Result.failure(MapmoryApiException(503, "HTTP_503", null, null, null, emptyList()))
+            }
+
+            assertTrue(result.isFailure)
+            assertFalse(session.state.value.recoveryRequired)
+            assertEquals(0L, session.state.value.recoveryPromptId)
+            assertEquals(original, store.tokens)
         } finally { session.close() }
     }
 

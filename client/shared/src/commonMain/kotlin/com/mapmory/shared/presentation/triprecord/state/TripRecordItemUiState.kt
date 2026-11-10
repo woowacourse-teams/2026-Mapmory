@@ -29,6 +29,8 @@ data class TripRecordPhotoUiState(
     val previewUri: String? = null,
     /** 확대 화면에서만 사용하는 서버 원본 URL. */
     val fullResolutionUri: String? = null,
+    /** 상세와 수정 화면의 작은 이미지에 사용하는 서버 썸네일 URL. */
+    val thumbnailUri: String? = null,
     val sortOrder: Int,
     val isUploaded: Boolean = false,
     val latitude: Double? = null,
@@ -97,6 +99,7 @@ fun TripRecordData.toTripRecordItemUiState(
                 previewBytes = PhotoPreviewBytes.from(media.previewBytes ?: media.originalBytes),
                 previewUri = media.previewUri,
                 fullResolutionUri = media.url,
+                thumbnailUri = media.thumbnailUrl,
                 sortOrder = media.sortOrder,
                 isUploaded = true,
                 latitude = media.latitude,

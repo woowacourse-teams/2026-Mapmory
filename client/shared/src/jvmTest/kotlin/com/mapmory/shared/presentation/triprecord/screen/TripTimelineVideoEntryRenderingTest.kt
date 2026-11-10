@@ -10,6 +10,7 @@ import com.mapmory.shared.MapmoryThemeState
 import com.mapmory.shared.data.settings.MapmoryThemePalette
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -56,5 +57,43 @@ class TripTimelineVideoEntryRenderingTest {
             assertTrue(heights[1] >= 48, "접힌 버튼도 최소 터치 영역을 유지한다")
             assertTrue(heights[1] < heights[0] / 2, "접힌 버튼이 사진 목록에 공간을 돌려준다")
         }
+    }
+
+    @Test
+    fun `국가_수를_불러오는_동안에도_불러온_뒤와_같은_높이를_유지한다`() {
+        val loadingHeight = renderExpandedHeight(countryCount = null, isCountryCountLoading = true)
+        val loadedHeight = renderExpandedHeight(countryCount = 0, isCountryCountLoading = false)
+        assertEquals(loadedHeight, loadingHeight, "국가 수 응답 뒤 카드 높이가 바뀌면 아래 목록이 밀린다")
+    }
+
+    private fun renderExpandedHeight(countryCount: Int?, isCountryCountLoading: Boolean): Int {
+        var height = 0
+        val scene = ImageComposeScene(width = 354, height = 400) {
+            CompositionLocalProvider(
+                LocalMapmoryTheme provides MapmoryThemeState(
+                    isDark = false,
+                    palette = MapmoryThemePalette.MAPMORY_GREEN,
+                    onThemeChange = {},
+                    onPaletteChange = {},
+                ),
+            ) {
+                ProvideTripRecordPalettes(isDark = false) {
+                    TripRecordTheme {
+                        TripTimelineVideoEntry(
+                            countryCount = countryCount,
+                            isCountryCountLoading = isCountryCountLoading,
+                            onClick = {},
+                            modifier = Modifier.onSizeChanged { height = it.height },
+                        )
+                    }
+                }
+            }
+        }
+        try {
+            repeat(3) { scene.render(it * 16_666_667L).close() }
+        } finally {
+            scene.close()
+        }
+        return height
     }
 }

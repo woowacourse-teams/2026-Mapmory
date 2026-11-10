@@ -19,6 +19,17 @@ internal fun String.hasUsableJwtLifetime(
     return expiration > nowEpochSeconds + minimumRemainingSeconds
 }
 
+/** Extracts an unverified subject only for local same-account comparison, never authorization. */
+internal fun String.jwtSubjectOrNull(): String? {
+    val payload = split('.').takeIf { it.size == JwtPartCount }?.get(1) ?: return null
+    return runCatching {
+        Json.parseToJsonElement(payload.decodeBase64Url().decodeToString())
+            .jsonObject[SubjectClaim]?.jsonPrimitive
+            ?.takeIf { it.isString }
+            ?.toString()?.removeSurrounding("\"")?.takeIf(String::isNotBlank)
+    }.getOrNull()
+}
+
 private fun String.decodeBase64Url(): ByteArray {
     val output = ArrayList<Byte>((length * 3) / 4)
     var buffer = 0
@@ -38,6 +49,7 @@ private fun String.decodeBase64Url(): ByteArray {
 }
 
 private const val ExpirationClaim = "exp"
+private const val SubjectClaim = "sub"
 private const val JwtPartCount = 3
 private const val MinimumRemainingAccessTokenSeconds = 30L
 private const val BitsPerBase64Character = 6

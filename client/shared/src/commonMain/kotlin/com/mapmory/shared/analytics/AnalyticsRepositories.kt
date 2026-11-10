@@ -17,8 +17,11 @@ internal class AnalyticsTripRecordRepository(
     override suspend fun createTripRecord(draft: TripRecordDraft) = createTripRecord(draft) {}
 
     override suspend fun createTripRecord(draft: TripRecordDraft, onProgress: (Int) -> Unit) =
+        createTripRecord(draft, onProgress, promptOnAuthFailure = true)
+
+    override suspend fun createTripRecord(draft: TripRecordDraft, onProgress: (Int) -> Unit, promptOnAuthFailure: Boolean) =
         analytics.observeOperation("record_create") {
-            (delegate as? ProgressReportingTripRecordRepository)?.createTripRecord(draft, onProgress)
+            (delegate as? ProgressReportingTripRecordRepository)?.createTripRecord(draft, onProgress, promptOnAuthFailure)
                 ?: delegate.createTripRecord(draft)
         }
 

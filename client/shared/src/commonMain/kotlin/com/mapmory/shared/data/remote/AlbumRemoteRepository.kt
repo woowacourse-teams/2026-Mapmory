@@ -20,16 +20,17 @@ internal class AlbumRemoteRepository(private val client: HttpClient, private val
         request<AlbumPage>(HttpMethod.Get, groupId, null) { parameter("page", page); parameter("size", 20) }
     }
     override suspend fun detail(groupId: Long, albumId: Long) = authenticated { request<AlbumDetail>(HttpMethod.Get, groupId, albumId) }
-    override suspend fun create(groupId: Long, recordId: Long, name: String?, regionId: Long?) = authenticated {
+    override suspend fun create(groupId: Long, recordId: Long, name: String?, regionId: Long?) = authenticated(promptOnAuthFailure = true) {
         request<AlbumDetail>(HttpMethod.Post, groupId, null) { contentType(ContentType.Application.Json); setBody(CreateAlbumRequest(recordId, name, regionId)) }
     }
-    override suspend fun addRecord(groupId: Long, albumId: Long, recordId: Long) = authenticated {
+    override suspend fun addRecord(groupId: Long, albumId: Long, recordId: Long) = authenticated(promptOnAuthFailure = true) {
         request<AlbumDetail>(HttpMethod.Post, groupId, albumId, "entries") { contentType(ContentType.Application.Json); setBody(AddRecordRequest(recordId)) }
     }
-    override suspend fun update(groupId: Long, albumId: Long, name: String?, regionId: Long?) = authenticated {
+    override suspend fun update(groupId: Long, albumId: Long, name: String?, regionId: Long?) = authenticated(promptOnAuthFailure = true) {
         request<AlbumDetail>(HttpMethod.Patch, groupId, albumId) { contentType(ContentType.Application.Json); setBody(UpdateAlbumRequest(name, regionId)) }
     }
-    private suspend fun <T> authenticated(block: suspend () -> T): Result<T> = session.withAuthenticatedSession { apiCall { block() } }
+    private suspend fun <T> authenticated(promptOnAuthFailure: Boolean = false, block: suspend () -> T): Result<T> =
+        session.withAuthenticatedSession(promptOnAuthFailure = promptOnAuthFailure) { apiCall { block() } }
     private suspend inline fun <reified T> request(method: HttpMethod, groupId: Long, albumId: Long?, suffix: String? = null, crossinline configure: HttpRequestBuilder.() -> Unit = {}): T = client.request(apiBaseUrl.trimEnd('/')) {
         this.method = method
         url { appendPathSegments(*(listOf("groups", groupId.toString(), "albums") + listOfNotNull(albumId?.toString(), suffix)).toTypedArray()) }

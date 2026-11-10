@@ -39,6 +39,7 @@ internal fun LiveGroupContent(
     backHandlerRegistry: MapmoryBackHandlerRegistry,
     backHandlerOwnerId: String,
     refresh: Int,
+    cacheScope: Long,
     onBusyChanged: (Boolean) -> Unit,
     onPhotoVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -78,6 +79,7 @@ internal fun LiveGroupContent(
         if (state.sheet == LiveGroupSheet.INVITE) state.validateIssuedInvitation()
     }
     val scope = rememberCoroutineScope()
+    val failedCoverUrls = remember { mutableSetOf<String>() }
     val clipboard = LocalClipboardManager.current
     val shareInvitation = rememberInvitationShare()
     val invitationInbox = LocalGroupInvitationInbox.current
@@ -213,7 +215,11 @@ internal fun LiveGroupContent(
                     onCreate = { open(LiveGroupSheet.CREATE) },
                     onJoin = { open(LiveGroupSheet.JOIN) },
                     onGroup = { clearNotice(); scope.launch { state.openGroup(it.toLong()) } },
-                    onRetry = { scope.launch { state.load() } },
+                    onRetry = { failedCoverUrls.clear(); scope.launch { state.load() } },
+                    onPhotoLoadFailed = { url ->
+                        if (failedCoverUrls.add(groupPhotoCacheKey(url, cacheScope) ?: url)) scope.launch { state.load() }
+                    },
+                    cacheScope = cacheScope,
                 )
                 }
             } else if (albumRepository != null && shareCoordinator != null) {
@@ -227,7 +233,7 @@ internal fun LiveGroupContent(
                         recordRevision = recordRevision,
                         onCreateRecord = { onCreateRecord(group.id, albumNavigation.detail.value?.id) },
                         onGroupUnavailable = { state.removeGroup(group.id) },
-                        onPhotoVisibilityChanged = onPhotoVisibilityChanged)
+                        onPhotoVisibilityChanged = onPhotoVisibilityChanged, cacheScope = cacheScope)
                 }
             }
         }
