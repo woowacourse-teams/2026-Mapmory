@@ -138,7 +138,7 @@ class BackgroundTripRecordSaver internal constructor(
         }
         persist()
         execution.onQueued()
-        launch(id)
+        launch(id, promptOnAuthFailure = true)
         return id
     }
 
@@ -164,7 +164,7 @@ class BackgroundTripRecordSaver internal constructor(
             }
         }
         execution.onQueued()
-        launch(id)
+        launch(id, promptOnAuthFailure = true)
     }
 
     fun dismissFailure(id: Long) {
@@ -194,11 +194,11 @@ class BackgroundTripRecordSaver internal constructor(
         }
     }
 
-    private fun launch(id: Long) {
+    private fun launch(id: Long, promptOnAuthFailure: Boolean = false) {
         scope.launch {
             queueMutex.withLock {
                 try {
-                    save(id)
+                    save(id, promptOnAuthFailure)
                 } catch (error: kotlinx.coroutines.CancellationException) {
                     throw error
                 } catch (error: Exception) {
@@ -211,7 +211,7 @@ class BackgroundTripRecordSaver internal constructor(
         }
     }
 
-    private suspend fun save(id: Long) = execution.run {
+    private suspend fun save(id: Long, promptOnAuthFailure: Boolean) = execution.run {
         val draft = try {
             prepareDraft(id)
         } catch (error: kotlinx.coroutines.CancellationException) {
@@ -235,10 +235,10 @@ class BackgroundTripRecordSaver internal constructor(
         }
 
         val result = run {
-            var latest = create(id, draft)
+            var latest = create(id, draft, promptOnAuthFailure)
             if (latest.isFailure && id !in serverSaveStarted) {
                 delay(automaticRetryDelayMillis)
-                latest = create(id, draft)
+                latest = create(id, draft, promptOnAuthFailure = false)
             }
             latest
         }
@@ -324,12 +324,18 @@ class BackgroundTripRecordSaver internal constructor(
         }
     }
 
-    private suspend fun create(id: Long, draft: TripRecordDraft): Result<com.mapmory.shared.domain.model.TripRecordData> {
+    private suspend fun create(
+        id: Long,
+        draft: TripRecordDraft,
+        promptOnAuthFailure: Boolean,
+    ): Result<com.mapmory.shared.domain.model.TripRecordData> {
         attemptStarts[id] = TimeSource.Monotonic.markNow()
         updateProgress(id, 0)
-        return (repository as? ProgressReportingTripRecordRepository)?.createTripRecord(draft) { progress ->
-            updateProgress(id, progress)
-        } ?: repository.createTripRecord(draft)
+        return (repository as? ProgressReportingTripRecordRepository)?.createTripRecord(
+            draft = draft,
+            onProgress = { progress -> updateProgress(id, progress) },
+            promptOnAuthFailure = promptOnAuthFailure,
+        ) ?: repository.createTripRecord(draft)
     }
 
     private fun updateProgress(id: Long, progress: Int) {
