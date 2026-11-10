@@ -444,7 +444,48 @@ class TravelRecordServiceTest {
         assertThat(result.mediaViews())
                 .extracting(mediaView -> mediaView.recordMedia().getSortOrder())
                 .containsExactly(0, 1);
+        assertThat(result.mediaViews())
+                .allSatisfy(mediaView -> assertThat(mediaView.thumbnailUrl()).isEqualTo(mediaView.viewUrl()));
         verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/a.jpg");
+        verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/b.jpg");
+    }
+
+    @Test
+    void 썸네일이_있는_사진만_썸네일_키로_따로_서명한다() {
+        TravelRecord travelRecord = TravelRecord.of(
+                mock(Member.class),
+                Region.of(null, null, "JP", "일본", RegionType.COUNTRY),
+                "도쿄 여행",
+                null,
+                LocalDate.of(2026, 8, 11),
+                null,
+                TODAY
+        );
+        ReflectionTestUtils.setField(travelRecord, "id", 102L);
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(
+                "mapmory/travel-records/a.jpg",
+                "mapmory/travel-records/b.jpg"
+        )));
+        ReflectionTestUtils.setField(travelRecord.getMedia().getFirst(), "thumbKey", "derived/thumb/a.webp");
+        when(travelRecordRepository.findByIdAndMemberId(102L, 10L))
+                .thenReturn(Optional.of(travelRecord));
+
+        TravelRecordDetail result = travelRecordService.findById(member, 102L);
+
+        assertThat(result.mediaViews())
+                .extracting(mediaView -> mediaView.thumbnailUrl().url())
+                .containsExactly(
+                        "https://download.example/derived/thumb/a.webp",
+                        "https://download.example/mapmory/travel-records/b.jpg"
+                );
+        assertThat(result.mediaViews())
+                .extracting(mediaView -> mediaView.viewUrl().url())
+                .containsExactly(
+                        "https://download.example/mapmory/travel-records/a.jpg",
+                        "https://download.example/mapmory/travel-records/b.jpg"
+                );
+        verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/a.jpg");
+        verify(recordMediaUrlService).createViewUrl("derived/thumb/a.webp");
         verify(recordMediaUrlService).createViewUrl("mapmory/travel-records/b.jpg");
     }
 

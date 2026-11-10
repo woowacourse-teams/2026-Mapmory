@@ -315,7 +315,11 @@ class TravelRecordControllerTest {
                         .value("mapmory/travel-records/a.jpg"))
                 .andExpect(jsonPath("$.data.media[0].viewUrl")
                         .value("https://download.example/mapmory/travel-records/a.jpg"))
-                .andExpect(jsonPath("$.data.media[0].viewUrlExpiresIn").value(300L));
+                .andExpect(jsonPath("$.data.media[0].viewUrlExpiresIn").value(300L))
+                .andExpect(jsonPath("$.data.media[0].thumbnailUrl")
+                        .value("https://download.example/thumb/mapmory/travel-records/a.jpg"))
+                .andExpect(jsonPath("$.data.media[0].thumbnailUrlExpiresIn").value(200L))
+                .andExpect(jsonPath("$.data.media[0].sortOrder").value(0));
     }
 
     @Test
@@ -388,10 +392,12 @@ class TravelRecordControllerTest {
         TravelRecord travelRecord = travelRecord(title, content);
         travelRecord.synchronizeMedia(ObjectKeys.from(objectKeys));
         List<MediaView> mediaViews = travelRecord.getMedia().stream()
-                .map(recordMedia -> new MediaView(recordMedia, new ExpiringUrl(
-                        "https://download.example/" + recordMedia.getObjectKey(),
-                        300L
-                )))
+                .map(recordMedia -> new MediaView(
+                        recordMedia,
+                        new ExpiringUrl("https://download.example/" + recordMedia.getObjectKey(), 300L),
+                        // 원본과 다른 주소·만료 시간을 줘 두 값이 섞이지 않고 각자 자리로 가는지 본다
+                        new ExpiringUrl("https://download.example/thumb/" + recordMedia.getObjectKey(), 200L)
+                ))
                 .toList();
 
         return new TravelRecordDetail(travelRecord, List.of(), mediaViews);
