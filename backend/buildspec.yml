@@ -18,9 +18,11 @@ phases:
   post_build:
     commands:
       - mkdir -p deploy/scripts
+      - mkdir -p deploy/systemd
       - cp build/libs/mapmory-backend.jar deploy/
       - cp appspec.yml deploy/
       - cp scripts/*.sh deploy/scripts/
+      - cp systemd/*.service deploy/systemd/
 
 artifacts:
   base-directory: backend/deploy

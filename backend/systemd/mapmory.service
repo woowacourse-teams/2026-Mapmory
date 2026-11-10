@@ -1,0 +1,25 @@
+[Unit]
+Description=Mapmory Blue application
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/mapmory
+EnvironmentFile=/etc/mapmory.env
+EnvironmentFile=-/etc/mapmory-deployment-cache.env
+LogsDirectory=mapmory-blue
+LogsDirectoryMode=0755
+ExecStartPre=/opt/mapmory/bin/validate-spring-profile.sh
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /opt/mapmory/slots/blue/current/mapmory-backend.jar --server.address=127.0.0.1 --server.port=8080 --management.server.address=127.0.0.1 --management.server.port=8081 --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=30s --spring.flyway.enabled=true --share-video.worker.enabled=false --notification.outbox.enabled=true --logging.file.name=/var/log/mapmory-blue/application.log
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=120s
+SendSIGKILL=no
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

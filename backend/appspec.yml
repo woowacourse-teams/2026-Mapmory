@@ -3,22 +3,39 @@ os: linux
 
 files:
   - source: mapmory-backend.jar
-    destination: /opt/mapmory
+    destination: /opt/mapmory/deploy-staging
+  - source: systemd/mapmory.service
+    destination: /etc/systemd/system
+  - source: systemd/mapmory-green.service
+    destination: /etc/systemd/system
+  - source: systemd/mapmory-active-slot.service
+    destination: /etc/systemd/system
+  - source: scripts/deployment-common.sh
+    destination: /opt/mapmory/bin
+  - source: scripts/start-active-slot-on-boot.sh
+    destination: /opt/mapmory/bin
+  - source: scripts/validate-spring-profile.sh
+    destination: /opt/mapmory/bin
 
 file_exists_behavior: OVERWRITE
 
 hooks:
-  ApplicationStop:
-    - location: scripts/stop.sh
-      timeout: 60
+  BeforeInstall:
+    - location: scripts/bootstrap-blue-green.sh
+      timeout: 240
+      runas: root
+
+  AfterInstall:
+    - location: scripts/prepare-inactive-slot.sh
+      timeout: 240
       runas: root
 
   ApplicationStart:
-    - location: scripts/start.sh
+    - location: scripts/switch-traffic.sh
       timeout: 60
       runas: root
 
   ValidateService:
-    - location: scripts/health-check.sh
-      timeout: 180
+    - location: scripts/validate-and-retain.sh
+      timeout: 720
       runas: root
