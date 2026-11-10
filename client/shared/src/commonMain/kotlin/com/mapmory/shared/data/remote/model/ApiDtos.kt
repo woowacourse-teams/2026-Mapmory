@@ -181,6 +181,18 @@ data class PlaceSelectionDto(
 )
 
 @Serializable
+data class PhotoLocationRequestDto(val latitude: Double, val longitude: Double)
+
+@Serializable
+data class PhotoRegionSuggestionDto(
+    val countryCode: String? = null,
+    val suggestedRegion: TripRecordRegionDto? = null,
+    val manualRegionRequired: Boolean = false,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
+)
+
+@Serializable
 data class TripRecordMediaDto(
     val id: Long,
     val objectKey: String,

@@ -56,3 +56,11 @@ data class PlaceSelection(
     val suggestedRegion: PlaceRegionSuggestion?,
     val manualRegionRequired: Boolean,
 )
+
+data class PhotoRegionSuggestion(
+    val countryCode: String?,
+    val suggestedRegion: PlaceRegionSuggestion?,
+    val manualRegionRequired: Boolean,
+    val attribution: String? = null,
+    val attributionUrl: String? = null,
+)
