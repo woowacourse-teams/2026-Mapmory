@@ -36,6 +36,7 @@ class TripRecordItemUiStateTest {
                     objectKey = "records/101/original.jpg",
                     sortOrder = 0,
                     url = originalUrl,
+                    thumbnailUrl = "https://bucket.example.com/thumbnail.webp?signature=fresh",
                     previewUri = "file:///preview.jpg",
                 ),
             ),
@@ -45,6 +46,10 @@ class TripRecordItemUiStateTest {
 
         assertEquals("file:///preview.jpg", state.photos.single().previewUri)
         assertEquals(originalUrl, state.photos.single().fullResolutionUri)
+        assertEquals(
+            "https://bucket.example.com/thumbnail.webp?signature=fresh",
+            state.photos.single().thumbnailUri,
+        )
     }
 
     @Test

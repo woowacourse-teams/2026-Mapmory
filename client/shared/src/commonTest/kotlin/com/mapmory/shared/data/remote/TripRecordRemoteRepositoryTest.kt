@@ -112,6 +112,10 @@ class TripRecordRemoteRepositoryTest {
         assertEquals(2, requestCount)
         assertEquals(jejuCity.id, created.locationId)
         assertEquals("travel-records/guest/a.jpg", created.media.single().objectKey)
+        assertEquals(
+            "https://bucket.example.com/photo.webp?signature=fresh",
+            created.media.single().thumbnailUrl,
+        )
         client.close()
     }
 
@@ -320,6 +324,6 @@ class TripRecordRemoteRepositoryTest {
 
     private fun detailResponse(title: String?): String {
         val encodedTitle = title?.let { "\"$it\"" } ?: "null"
-        return """{"data":{"id":101,"title":$encodedTitle,"content":"골목을 걸었다.","region":{"country":{"code":"KR","name":"대한민국"},"province":{"code":"49","name":"제주특별자치도"},"district":{"code":"50110","name":"제주시"}},"startDate":"2026-08-11","endDate":null,"objectKeys":["travel-records/guest/a.jpg"],"tags":[{"id":7,"name":"가족"}],"createdAt":"2026-08-14T10:30:00","updatedAt":"2026-08-15T09:00:00"}}"""
+        return """{"data":{"id":101,"title":$encodedTitle,"content":"골목을 걸었다.","region":{"country":{"code":"KR","name":"대한민국"},"province":{"code":"49","name":"제주특별자치도"},"district":{"code":"50110","name":"제주시"}},"startDate":"2026-08-11","endDate":null,"objectKeys":["travel-records/guest/a.jpg"],"media":[{"id":55,"objectKey":"travel-records/guest/a.jpg","viewUrl":"https://bucket.example.com/photo.jpg?signature=fresh","viewUrlExpiresIn":300,"thumbnailUrl":"https://bucket.example.com/photo.webp?signature=fresh","thumbnailUrlExpiresIn":300,"sortOrder":0}],"tags":[{"id":7,"name":"가족"}],"createdAt":"2026-08-14T10:30:00","updatedAt":"2026-08-15T09:00:00"}}"""
     }
 }

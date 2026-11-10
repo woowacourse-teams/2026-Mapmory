@@ -373,8 +373,8 @@ private fun TripRecordPhotoAlbum(
                                     imageBytes = representativePhoto.previewBytes?.bytesForDecoding()
                                         ?: representativePhoto.originalBytes?.bytesForDecoding(),
                                     imageUri = representativePhoto.previewUri ?: representativePhoto.localOriginalUri
-                                        ?: representativePhoto.fullResolutionUri,
-                                    cacheKey = "trip-preview:${representativePhoto.id}",
+                                        ?: representativePhoto.thumbnailUri ?: representativePhoto.fullResolutionUri,
+                                    cacheKey = "trip-thumbnail:${representativePhoto.id}",
                                     fallbackUri = representativePhoto.fullResolutionUri,
                                     fallbackBytes = representativePhoto.originalBytes?.bytesForDecoding(),
                                     contentDescription = "${record.locationName} 대표 사진 확대",
@@ -722,8 +722,8 @@ private fun TripRecordPhotoTimeline(
                                             imageBytes = photo.previewBytes?.bytesForDecoding()
                                                 ?: photo.originalBytes?.bytesForDecoding(),
                                             imageUri = photo.previewUri ?: photo.localOriginalUri
-                                                ?: photo.fullResolutionUri,
-                                            cacheKey = "trip-preview:${photo.id}",
+                                                ?: photo.thumbnailUri ?: photo.fullResolutionUri,
+                                            cacheKey = "trip-thumbnail:${photo.id}",
                                             fallbackUri = photo.fullResolutionUri,
                                             fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                                             contentDescription = "${group.displayDate} 여행 사진 확대",
@@ -801,8 +801,8 @@ private fun AlbumPhotoRow(
         MapmoryAsyncImage(
             imageBytes = photo.previewBytes?.bytesForDecoding()
                 ?: photo.originalBytes?.bytesForDecoding(),
-            imageUri = photo.previewUri ?: photo.localOriginalUri ?: photo.fullResolutionUri,
-            cacheKey = "trip-preview:${photo.id}",
+            imageUri = photo.previewUri ?: photo.localOriginalUri ?: photo.thumbnailUri ?: photo.fullResolutionUri,
+            cacheKey = "trip-thumbnail:${photo.id}",
             fallbackUri = photo.fullResolutionUri,
             fallbackBytes = photo.originalBytes?.bytesForDecoding(),
             contentDescription = "$displayDate 여행 사진 확대",
@@ -910,17 +910,17 @@ private fun ExpandedTripPhotoViewer(
                             ?: photo.previewBytes?.bytesForDecoding()
                     },
                     imageUri = when {
-                        usePreview -> photo.previewUri ?: photo.localOriginalUri
+                        usePreview -> photo.previewUri ?: photo.localOriginalUri ?: photo.thumbnailUri
                         localBytes != null || photo.originalBytes != null -> null
                         else -> photo.localOriginalUri ?: photo.fullResolutionUri ?: photo.previewUri
                     },
-                    cacheKey = if (usePreview) "trip-preview:${photo.id}" else "trip-full:${photo.id}",
+                    cacheKey = if (usePreview) "trip-thumbnail:${photo.id}" else "trip-full:${photo.id}",
                     blackLoadingBackground = true,
                     decodeOriginalSize = !usePreview,
                     fallbackUri = when {
                         usePreview -> null
                         photo.localOriginalUri != null -> photo.fullResolutionUri ?: photo.previewUri
-                        else -> photo.previewUri
+                        else -> photo.thumbnailUri ?: photo.previewUri
                     },
                     fallbackBytes = photo.originalBytes?.bytesForDecoding(),
                     contentDescription = "$locationName 확대 사진 ${page + 1}",

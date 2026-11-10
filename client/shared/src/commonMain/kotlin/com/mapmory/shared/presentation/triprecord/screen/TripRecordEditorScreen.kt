@@ -102,6 +102,7 @@ import com.mapmory.shared.presentation.triprecord.startDatePickerMaximumDate
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorErrorTarget
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import com.mapmory.shared.presentation.triprecord.state.TripRecordPhotoUiState
+import com.mapmory.shared.presentation.triprecord.state.localOriginalUri
 import com.mapmory.shared.presentation.triprecord.selectableTripRecordDestinations
 import com.mapmory.shared.preview.PreviewSurface
 import com.mapmory.shared.preview.previewLocations
@@ -1228,7 +1229,8 @@ private fun PhotoPreview(
 private fun PhotoPreview(photo: TripRecordPhotoUiState, modifier: Modifier = Modifier) {
     MapmoryAsyncImage(
         imageBytes = photo.previewBytes?.bytesForDecoding(),
-        imageUri = photo.previewUri,
+        imageUri = photo.previewUri ?: photo.localOriginalUri ?: photo.thumbnailUri ?: photo.fullResolutionUri,
+        fallbackUri = photo.fullResolutionUri,
         contentDescription = photo.displayName,
         modifier = modifier,
     )

@@ -199,6 +199,7 @@ data class TripRecordMediaDto(
     val viewUrl: String,
     val viewUrlExpiresIn: Long,
     val sortOrder: Int,
+    val thumbnailUrl: String? = null,
 )
 
 @Serializable

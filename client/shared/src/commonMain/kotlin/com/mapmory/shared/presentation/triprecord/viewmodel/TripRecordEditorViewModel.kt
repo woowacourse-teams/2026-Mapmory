@@ -163,6 +163,7 @@ class TripRecordEditorViewModel(
                         localPhotoId = media.localPreviewKey,
                         previewUri = media.previewUri,
                         fullResolutionUri = media.url,
+                        thumbnailUri = media.thumbnailUrl,
                     )
             },
             availableTags = allTags,
