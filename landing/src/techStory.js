@@ -83,6 +83,22 @@ export const TECH_SHARE = Object.freeze({
 
 export const techScenes = (share = TECH_SHARE) => TECH_SCENES.filter((scene) => !scene.share || share.enabled);
 
+// Where the picked place's photos sit in the gather grid of `count` cells: one per row band, stepping across the
+// columns so they never line up in one column. A grid too small for all of them takes only as many as leave a row for
+// other photos (a phone 500 to 632px tall shows 2 rows of 3, and there are 8 제주 photos). 2026-11-10: asking for more
+// cells than the grid has made the search for a free cell spin forever, which froze the page on those phones.
+export function gatherSlots(count, cols, picked) {
+  const fit = Math.max(0, Math.min(picked, count, Math.max(1, count - cols)));
+  const rows = Math.ceil(count / cols), taken = new Array(count).fill(false), cells = [];
+  for (let j = 0; j < fit; j++) {
+    let i = Math.min(count - 1, Math.floor(((j + 0.5) * rows) / fit) * cols + ((j * 5 + 2) % cols));
+    while (taken[i]) i = (i + 1) % count;
+    taken[i] = true;
+    cells.push(i);
+  }
+  return cells;
+}
+
 // The example records, one source for the whole story (티온, 10-28: the map must show the places that were really
 // recorded, not random ones). Places at home are cities and fill their 시·도 (`sd`, a key of `pv` in
 // src/data/tech-korea-map.json); places abroad are countries and fill the country (`country`, its name in
