@@ -193,22 +193,37 @@ test("every scene's touchable element is one measured interaction, and the plan 
   assert.match(plan, /### 기술 소개 피드백 루프/);
 });
 
-test("the gather grid places the picked photos in any grid size and always ends (2026-11-10: short phones froze)", () => {
+test("the gather grid places the picked photos in any grid size and always ends (2026-11-10: short phones froze)", async () => {
   const jeju = SPRITE.tiles.filter(([key]) => key === "jeju").length;
   assert.equal(jeju, 8);
-  // every grid the engine can ask for: 3 to 6 columns, 1 to 12 rows, up to the 72 tiles it builds
-  for (let cols = 3; cols <= 6; cols++) for (let rows = 1; rows <= 12; rows++) {
-    const count = Math.min(72, cols * rows);
-    const cells = gatherSlots(count, cols, jeju);
-    assert.equal(new Set(cells).size, cells.length, `${cols}x${rows}: no cell twice`);
-    assert.ok(cells.every((i) => Number.isInteger(i) && i >= 0 && i < count), `${cols}x${rows}: inside the grid`);
-    // all eight when the grid has room, otherwise at least one, and a row's worth of other photos stays
-    assert.equal(cells.length, Math.min(jeju, Math.max(1, count - cols)), `${cols}x${rows}`);
+  // the placement as it was before the fix, for grids that hold every photo (the old search never ended otherwise)
+  const before = (count, cols, picked) => {
+    const rows = Math.ceil(count / cols), taken = new Array(count).fill(false), cells = [];
+    for (let j = 0; j < picked; j++) {
+      let i = Math.min(count - 1, Math.floor(((j + 0.5) * rows) / picked) * cols + ((j * 5 + 2) % cols));
+      while (taken[i]) i = (i + 1) % count;
+      taken[i] = true;
+      cells.push(i);
+    }
+    return cells;
+  };
+  // every grid the engine can ask for: 3, 4 or 6 columns and whole rows, up to the 72 tiles it builds
+  for (const cols of [3, 4, 6]) for (let rows = 1; rows * cols <= 72; rows++) {
+    const count = cols * rows, cells = gatherSlots(count, cols, jeju), at = `${cols}x${rows}`;
+    assert.equal(new Set(cells).size, cells.length, `${at}: no cell twice`);
+    assert.ok(cells.every((i) => Number.isInteger(i) && i >= 0 && i < count), `${at}: inside the grid`);
+    if (count >= jeju) assert.deepEqual(cells, before(count, cols, jeju), `${at}: a grid with room is laid out as before`);
+    else assert.equal(cells.length, count, `${at}: a smaller grid takes as many as it has cells`);
   }
-  // 2 rows of 3 (a phone 500 to 632px tall): three 제주 photos, three others
-  assert.equal(gatherSlots(6, 3, 8).length, 3);
-  // a grid with room keeps the layout it had: one photo per row band, stepping across the columns
+  // the grids that froze: one or two rows of three on a phone 500 to 632px tall, one row of six on a low wide window
+  assert.equal(gatherSlots(3, 3, 8).length, 3);
+  assert.equal(gatherSlots(6, 3, 8).length, 6);
+  assert.equal(gatherSlots(6, 6, 8).length, 6);
   assert.deepEqual(gatherSlots(18, 3, 8), [2, 4, 3, 8, 10, 12, 14, 16]);
+  // nothing it can be asked makes it spin or throw
+  assert.deepEqual(gatherSlots(0, 3, 8), []);
+  assert.equal(gatherSlots(5, 3, 100).length, 5);
   assert.match(engine, /const cells = gatherSlots\(count, cols, jejuTiles\.length\);/);
   assert.doesNotMatch(stripComments(engine), /while \(slots\[i\]\)/);
+  assert.doesNotMatch(stripComments(await read("../src/techStory.js")), /while \(/);
 });
