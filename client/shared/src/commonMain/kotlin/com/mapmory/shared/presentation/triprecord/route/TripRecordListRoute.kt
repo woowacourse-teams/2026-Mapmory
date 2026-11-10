@@ -83,7 +83,8 @@ internal fun TripRecordListRoute(
         if (shareVideoRepository == null) return@LaunchedEffect
         countryCountFailed = false
         val result = tripStatisticsRepository.getStatistics()
-        countryCount = result.getOrNull()?.visitedCountryCodes?.toSet()?.size
+        // 실패하면 마지막 값을 그대로 두고, 재시도 안내는 countryCountFailed로 보여 준다.
+        result.getOrNull()?.let { countryCount = it.visitedCountryCodes.toSet().size }
         countryCountFailed = result.isFailure
     }
 
