@@ -71,6 +71,24 @@ class MapSummaryCacheTest {
         assertThat(small.weightedSize()).isLessThanOrEqualTo(30);
     }
 
+    @Test
+    @DisplayName("전체 요약 항목도 지역 줄 수로 무게를 매기고, 같은 회원의 계층 항목과 따로 쌓인다")
+    void weighsAllScopeByRowsSeparatelyFromLevelScope() {
+        AtomicInteger loads = new AtomicInteger();
+
+        cache.get(1L, null, null, () -> rows(1));
+        cache.get(1L, 5L, null, () -> rows(17));
+        cache.getAll(1L, null, () -> rows(18));
+        cache.getAll(1L, null, () -> load(loads));
+
+        assertThat(loads).hasValue(0);
+        assertThat(cache.weightedSize()).isEqualTo(1 + 17 + 18);
+
+        cache.evictMember(1L);
+
+        assertThat(cache.weightedSize()).isZero();
+    }
+
     private List<RegionMapSummary> rows(int count) {
         return LongStream.rangeClosed(1, count)
                 .mapToObj(id -> new RegionMapSummary(id, null, "R" + id, RegionType.PROVINCE, "지역" + id, 1L, MapColorLevel.LOW))
