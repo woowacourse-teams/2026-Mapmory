@@ -15,6 +15,33 @@ import kotlinx.datetime.LocalDateTime
 import kotlin.test.*
 
 class LiveGroupStateTest {
+    @Test fun linkedInvitationUsesTokenAndCancelledGestureRestoresTheSameInvitation() = runBlocking {
+        val repository = Repository()
+        val state = LiveGroupState(repository)
+        state.openInvitation("link-token")
+        assertEquals(LiveGroupSheet.JOIN, state.sheet)
+        assertEquals("link-token", state.invitationToken)
+        assertEquals("초대 그룹", state.preview?.groupName)
+        assertTrue(state.gestureBack())
+        assertTrue(state.gestureForward())
+        assertEquals("link-token", state.invitationToken)
+        state.acceptInvitation(checkNotNull(state.invitationToken))
+        assertEquals("link-token", repository.acceptedCode)
+        assertEquals(81, state.group?.id)
+        assertNull(state.sheet)
+        state.openSheet(LiveGroupSheet.JOIN)
+        assertNull(state.invitationToken)
+    }
+
+    @Test fun ordinaryBackDiscardsTheGroupSavedByAnEarlierGesture() = runBlocking {
+        val state = LiveGroupState(Repository())
+        state.openGroup(81)
+        assertTrue(state.gestureBack())
+        assertNull(state.group)
+        assertFalse(state.back())
+        assertFalse(state.gestureForward())
+    }
+
     @Test fun departureDuringFirstListLoadKeepsOtherMemberships() = runBlocking {
         val repository = Repository().apply {
             listedGroups = listOf(GroupSummary(81, "나갈 그룹", 1, 0), GroupSummary(82, "남을 그룹", 2, 1))
@@ -180,6 +207,30 @@ class LiveGroupStateTest {
         assertNull(state.group)
         assertTrue(state.gestureForward())
         assertEquals("변경된 이름", state.group?.name)
+    }
+
+    @Test fun issuedInvitationSurvivesClosingAndScreenRecreationUntilServerExpiresIt() = runBlocking {
+        val repository = Repository()
+        val cache = mutableMapOf<Long, IssuedGroupInvitation>()
+        val state = LiveGroupState(repository, issuedInvitations = cache)
+        state.openGroup(81)
+        state.openSheet(LiveGroupSheet.INVITE)
+        state.issueInvitation()
+        val issued = state.invitation
+        state.dismissSheet()
+        state.openSheet(LiveGroupSheet.INVITE)
+        assertEquals(issued, state.invitation)
+        state.issueInvitation()
+        assertEquals(1, repository.issueCalls)
+        val restored = LiveGroupState(repository, issuedInvitations = cache)
+        restored.openGroup(81)
+        restored.openSheet(LiveGroupSheet.INVITE)
+        restored.validateIssuedInvitation()
+        assertEquals(issued, restored.invitation)
+        repository.previewError = error("INVITATION_NOT_FOUND", 404)
+        restored.validateIssuedInvitation()
+        assertNull(restored.invitation)
+        assertTrue(cache.isEmpty())
     }
 
     private class Repository : GroupRepository {

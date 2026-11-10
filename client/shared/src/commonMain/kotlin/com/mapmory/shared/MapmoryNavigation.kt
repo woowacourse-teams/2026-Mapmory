@@ -14,7 +14,9 @@ object MapmoryNotificationIntent {
 }
 
 /** Allows a platform entry point to delegate system back presses to the shared NavController. */
-class MapmoryNavigation {
+class MapmoryNavigation(
+    val invitations: com.mapmory.shared.presentation.group.GroupInvitationInbox = com.mapmory.shared.presentation.group.GroupInvitationInbox(),
+) {
     private var backHandler: (() -> Boolean)? = null
     private val mutableNotificationRequest = MutableStateFlow<NotificationNavigationRequest?>(null)
     internal val notificationRequest: StateFlow<NotificationNavigationRequest?> =

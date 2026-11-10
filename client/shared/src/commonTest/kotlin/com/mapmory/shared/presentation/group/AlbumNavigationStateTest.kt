@@ -5,6 +5,55 @@ import com.mapmory.shared.domain.group.AlbumEntry
 import com.mapmory.shared.domain.group.AlbumPhoto
 
 class AlbumNavigationStateTest {
+    @Test fun gestureBackAndForwardWalkThroughPickerPhotoAndAlbumOneAtATime() {
+        val navigation = AlbumNavigationState()
+        navigation.showAlbum(album())
+        navigation.selectedPhoto.value = "photo"
+        navigation.pick.value = true
+
+        assertTrue(navigation.gestureBack())
+        assertFalse(navigation.pick.value)
+        assertTrue(navigation.gestureBack())
+        assertNull(navigation.selectedPhoto.value)
+        assertTrue(navigation.gestureBack())
+        assertNull(navigation.detail.value)
+        assertFalse(navigation.gestureBack())
+
+        assertTrue(navigation.gestureForward())
+        assertNotNull(navigation.detail.value)
+        assertNull(navigation.selectedPhoto.value)
+        assertTrue(navigation.gestureForward())
+        assertEquals("photo", navigation.selectedPhoto.value)
+        assertTrue(navigation.gestureForward())
+        assertTrue(navigation.pick.value)
+        assertFalse(navigation.gestureForward())
+    }
+
+    @Test fun cancelledGesturesRestoreTheExactAlbumAndPhoto() {
+        val navigation = AlbumNavigationState()
+        navigation.showAlbum(album())
+        navigation.selectedPhoto.value = "photo"
+        assertTrue(navigation.gestureBack())
+        assertTrue(navigation.gestureForward())
+        assertEquals("photo", navigation.selectedPhoto.value)
+        assertEquals(album(), navigation.detail.value)
+
+        assertTrue(navigation.gestureBack())
+        assertTrue(navigation.gestureForward())
+        assertTrue(navigation.gestureBack())
+        assertNull(navigation.selectedPhoto.value)
+        assertNotNull(navigation.detail.value)
+    }
+
+    @Test fun selectingAnotherAlbumDiscardsGestureForwardHistory() {
+        val navigation = AlbumNavigationState()
+        navigation.showAlbum(album())
+        assertTrue(navigation.gestureBack())
+        navigation.showAlbum(album().copy(id = 99))
+        assertFalse(navigation.gestureForward())
+        assertEquals(99L, navigation.detail.value?.id)
+    }
+
     @Test fun selectingAnotherAlbumInvalidatesPendingRestoreBeforeItsResponseArrives() {
         val navigation = AlbumNavigationState()
         val restore = navigation.beginAlbumRequest()

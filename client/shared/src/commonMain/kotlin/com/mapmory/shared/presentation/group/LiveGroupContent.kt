@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
@@ -19,12 +20,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mapmory.shared.domain.repository.GroupRepository
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.navigation.MapmoryBackHandlerRegistry
 import com.mapmory.shared.navigation.PlatformBackHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,12 +50,42 @@ internal fun LiveGroupContent(
     onCreateRecord: (Long, Long?) -> Unit = { _, _ -> },
 ) {
     val analytics = LocalMapmoryAnalytics.current
-    val state = remember(repository, analytics, leaveCoordinator) {
-        LiveGroupState(repository, analytics) { leaveCoordinator?.membershipConfirmed(it) }
+    val issuedInvitations = rememberSaveable(
+        repository,
+        saver = androidx.compose.runtime.saveable.listSaver<
+            MutableMap<Long, com.mapmory.shared.domain.group.IssuedGroupInvitation>, String>(
+            save = { entries ->
+                entries.flatMap { (id, invite) ->
+                    listOf(id.toString(), invite.token, invite.code, invite.expiresAt.toString(), invite.inviteUrl.orEmpty())
+                }
+            },
+            restore = { values ->
+                values.chunked(5).associate { fields ->
+                    fields[0].toLong() to com.mapmory.shared.domain.group.IssuedGroupInvitation(
+                        fields[1], fields[2], kotlinx.datetime.LocalDateTime.parse(fields[3]),
+                        fields[4].takeIf { it.isNotEmpty() },
+                    )
+                }.toMutableMap()
+            },
+        ),
+    ) { mutableMapOf<Long, com.mapmory.shared.domain.group.IssuedGroupInvitation>() }
+    val retainedNavigation = androidx.lifecycle.viewmodel.compose.viewModel {
+        RetainedGroupNavigationState(
+            LiveGroupState(repository, analytics, issuedInvitations) { leaveCoordinator?.membershipConfirmed(it) },
+        )
+    }
+    val state = retainedNavigation.group
+    LaunchedEffect(state, state.sheet, state.group?.id) {
+        if (state.sheet == LiveGroupSheet.INVITE) state.validateIssuedInvitation()
     }
     val scope = rememberCoroutineScope()
     val failedCoverUrls = remember { mutableSetOf<String>() }
     val clipboard = LocalClipboardManager.current
+    val shareInvitation = rememberInvitationShare()
+    val invitationInbox = LocalGroupInvitationInbox.current
+    val pendingInvitationUrl = invitationInbox?.pendingUrl
+    var openedInvitationUrl by remember(state) { mutableStateOf<String?>(null) }
+    val linkToken = state.invitationToken
     var name by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
@@ -76,6 +109,19 @@ internal fun LiveGroupContent(
             returnTargetRestored = true
         }
     }
+    LaunchedEffect(state, pendingInvitationUrl) {
+        val url = pendingInvitationUrl ?: return@LaunchedEffect
+        val token = groupInvitationToken(url) ?: return@LaunchedEffect
+        snapshotFlow { state.busy }.first { !it }
+        openedInvitationUrl = url
+        state.openInvitation(token)
+    }
+    LaunchedEffect(state.sheet, state.busy) {
+        if (!state.busy && state.sheet != LiveGroupSheet.JOIN) {
+            openedInvitationUrl?.let { invitationInbox?.dismiss(it) }
+            openedInvitationUrl = null
+        }
+    }
     LaunchedEffect(leaveResult) {
         if (leaveResult?.status == GroupLeaveStatus.LEFT) {
             state.removeGroup(leaveResult.groupId)
@@ -86,7 +132,7 @@ internal fun LiveGroupContent(
     }
     LaunchedEffect(state.busy) { onBusyChanged(state.busy) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
-    val albumNavigation = remember(state.group?.id) { AlbumNavigationState() }
+    val albumNavigation = retainedNavigation.album(state.group?.id)
     var albumReturnRestored by remember(state) { mutableStateOf(false) }
     LaunchedEffect(state.group?.id, initialAlbumId) {
         if (!albumReturnRestored && state.group?.id == initialGroupId && initialAlbumId != null) {
@@ -98,26 +144,50 @@ internal fun LiveGroupContent(
         }
     }
     val back = rememberUpdatedState {
+        albumNavigation.clearForward()
+        state.clearForward()
         if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
         else if (state.sheet != null || state.busy) state.back()
         else albumNavigation.back() || state.back()
     }
+    var lastGestureWasAlbum by remember(state) { mutableStateOf(false) }
     val gestureBack = rememberUpdatedState {
         if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
-        else if (state.sheet != null || state.busy) state.gestureBack()
-        else albumNavigation.back() || state.gestureBack()
+        else if (backHandlerRegistry.isRestoringGesture) {
+            if (lastGestureWasAlbum) albumNavigation.gestureBack() else state.gestureBack()
+        } else if (state.sheet != null || state.busy) {
+            lastGestureWasAlbum = false
+            state.gestureBack()
+        } else {
+            lastGestureWasAlbum = albumNavigation.gestureBack()
+            lastGestureWasAlbum || state.gestureBack()
+        }
+    }
+    val gestureForward = rememberUpdatedState {
+        if (leaving && state.sheet == LiveGroupSheet.LEAVE) true
+        else if (backHandlerRegistry.isRestoringGesture) {
+            if (lastGestureWasAlbum) albumNavigation.gestureForward() else state.gestureForward()
+        } else if (state.busy) true
+        else {
+            lastGestureWasAlbum = state.sheet == null && albumNavigation.gestureForward()
+            lastGestureWasAlbum || state.gestureForward()
+        }
     }
     DisposableEffect(backHandlerRegistry, backHandlerOwnerId) {
         val registration = backHandlerRegistry.register(
             backHandlerOwnerId,
             gestureBack = { gestureBack.value() },
-            gestureForward = state::gestureForward,
+            gestureForward = { gestureForward.value() },
             handler = { back.value() },
         )
         onDispose { backHandlerRegistry.unregister(registration) }
     }
     PlatformBackHandler(enabled = state.busy || state.group != null || state.sheet != null) { back.value() }
-    fun open(sheet: LiveGroupSheet) { clearNotice(); state.openSheet(sheet) }
+    fun open(sheet: LiveGroupSheet) {
+        clearNotice()
+        albumNavigation.clearForward()
+        state.openSheet(sheet)
+    }
     LaunchedEffect(state.error, state.sheet) {
         if (state.sheet == null && state.groups != null) state.error?.let {
             if (snackbar.showSnackbar(it, actionLabel = "다시 시도") == SnackbarResult.ActionPerformed) scope.launch { state.load() }
@@ -191,7 +261,7 @@ internal fun LiveGroupContent(
                 Text(when (sheet) {
                     LiveGroupSheet.CREATE -> "새 그룹 만들기"
                     LiveGroupSheet.RENAME -> "그룹 이름 변경"
-                    LiveGroupSheet.JOIN -> "코드로 참여"
+                    LiveGroupSheet.JOIN -> if (linkToken == null) "코드로 참여" else "그룹 초대"
                     LiveGroupSheet.INVITE -> "멤버 초대"
                     LiveGroupSheet.LEAVE -> "그룹에서 나갈까요?"
                 }, style = MaterialTheme.typography.headlineSmall)
@@ -211,24 +281,46 @@ internal fun LiveGroupContent(
                         }, Modifier.fillMaxWidth(), enabled = name.isNotBlank() && !state.busy)
                     }
                     LiveGroupSheet.JOIN -> {
-                        OutlinedTextField(code, { value ->
-                            code = value.filter { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }.take(6).uppercase()
-                            state.resetPreview()
-                        }, label = { Text("6자리 초대 코드") }, enabled = !state.busy, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        GroupButton("초대 확인", { scope.launch { state.checkInvitation(code) } }, Modifier.fillMaxWidth(), enabled = code.length == 6 && !state.busy)
+                        if (linkToken == null) {
+                            OutlinedTextField(code, { value ->
+                                code = value.filter { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }.take(6).uppercase()
+                                state.resetPreview()
+                            }, label = { Text("6자리 초대 코드") }, enabled = !state.busy, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            GroupButton("초대 확인", { scope.launch { state.checkInvitation(code) } }, Modifier.fillMaxWidth(), enabled = code.length == 6 && !state.busy)
+                        } else if (state.preview == null) {
+                            GroupButton("초대 다시 확인", { scope.launch { state.checkInvitation(checkNotNull(linkToken)) } }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                        }
                         state.preview?.let { preview ->
                             Text(preview.groupName, style = MaterialTheme.typography.titleMedium)
                             GroupMuted("멤버 ${preview.memberCount}명 / 최대 30명")
                             GroupButton(if (preview.alreadyMember) "그룹으로 이동" else "참여하기", {
-                                scope.launch { state.acceptInvitation(code) }
+                                scope.launch { state.acceptInvitation(linkToken ?: code) }
                             }, Modifier.fillMaxWidth(), enabled = !state.busy && (!preview.full || preview.alreadyMember))
                         }
                     }
                     LiveGroupSheet.INVITE -> {
                         GroupMuted("멤버 누구나 초대할 수 있어요. 초대 코드는 발급 후 하루 동안 유효해요.")
                         val invitation = state.invitation
-                        if (invitation == null) GroupButton("초대 코드 만들기", { scope.launch { state.issueInvitation() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                        if (invitation == null) GroupButton("초대 만들기", { scope.launch { state.issueInvitation() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
                         else {
+                            invitation.inviteUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                                GroupButton("초대 링크 공유", {
+                                    val message = "Mapmory 그룹에 초대해요.\n$url\n초대 코드: ${invitation.code}\n설치 후 그룹 탭에서 코드를 입력해 주세요."
+                                    runCatching { shareInvitation(message) }.onFailure { showNotice("공유창을 열지 못했어요. 링크를 복사해 주세요.") }
+                                }, Modifier.fillMaxWidth())
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                        .clickable(role = Role.Button, onClickLabel = "초대 링크 복사") {
+                                            clipboard.setText(AnnotatedString(url))
+                                            if (needsClipboardConfirmation()) showNotice("초대 링크를 복사했어요")
+                                        },
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("🔗", modifier = Modifier.clearAndSetSemantics {})
+                                    Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                             val copyInvitation = {
                                 clipboard.setText(AnnotatedString(invitation.code))
                                 if (needsClipboardConfirmation()) showNotice("초대 코드를 복사했어요")

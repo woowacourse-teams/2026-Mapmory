@@ -57,8 +57,11 @@ class MainActivity : ComponentActivity() {
         appViewModel.forceUpdate.refresh()
     }
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) intent?.dataString?.let { appViewModel.invitations.receive(it) }
+        lifecycleScope.launch { restoreInstallInvitation(applicationContext, appViewModel.invitations) }
         pendingNotificationAction = savedInstanceState?.getString(STATE_NOTIFICATION_ACTION)
         pendingNotificationTargetId = savedInstanceState?.getLong(STATE_NOTIFICATION_TARGET_ID)?.takeIf { it > 0L }
         val restoredAction = pendingNotificationAction
@@ -137,6 +140,23 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
+                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
+                    ) {
+                        MapmoryApp(
+                            container = appViewModel.container,
+                            navigation = navigation,
+                            analytics = analyticsLogger,
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            onThemeChanged = { isDarkTheme = it },
+                            developerToolsInfo = developerToolsInfo,
+                            updateState = appViewModel.forceUpdate.state,
+                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
+                        )
+                    }
+
+                    // Dispatch to the active screen before NavHost can pop the entire destination.
                     BackHandler {
                         if (navigation.popBackStack()) {
                             lastBackPressedAt = 0L
@@ -154,24 +174,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.mapmory.shared.presentation.auth.LocalSocialLoginLauncher provides
-                            androidx.compose.runtime.remember { AndroidSocialLoginLauncher(this@MainActivity) },
-                    ) {
-                        MapmoryApp(
-                            container = appViewModel.container,
-                            navigation = navigation,
-                            analytics = analyticsLogger,
-                            contentWindowInsets = WindowInsets.safeDrawing,
-                            onThemeChanged = { isDarkTheme = it },
-                            developerToolsInfo = developerToolsInfo,
-                            updateState = appViewModel.forceUpdate.state,
-                            onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
-                        )
-                    }
-
-
                 }
             }
         }
@@ -179,6 +181,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        intent.dataString?.let { appViewModel.invitations.receive(it) }
         setIntent(intent)
         if (handleNotificationIntent(intent, preserveBackStack = true)) {
             setIntent(Intent(this, MainActivity::class.java))

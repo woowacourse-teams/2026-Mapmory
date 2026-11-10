@@ -38,6 +38,7 @@ struct MapmoryApp: App {
     @Environment(\.scenePhase) private var scenePhase
     private let forceUpdate: IosForceUpdateController
     private let analyticsLogger: FirebaseAnalyticsLogger
+    private let navigation: MapmoryNavigation
 
     init() {
 #if INTERNAL
@@ -48,6 +49,13 @@ struct MapmoryApp: App {
         analyticsLogger = FirebaseAnalyticsLogger()
 #endif
         forceUpdate = IosForceUpdateController()
+        let defaults = UserDefaults.standard
+        let key = "pending-group-invitation"
+        let inbox = GroupInvitationInbox(initialUrl: defaults.string(forKey: key), save: { url in
+            if let url = url { defaults.set(url, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+        })
+        navigation = MapmoryNavigation(invitations: inbox)
     }
 
     var body: some Scene {
@@ -58,23 +66,39 @@ struct MapmoryApp: App {
                     isDarkTheme: $isDarkTheme,
                     analyticsLogger: analyticsLogger,
                     forceUpdate: forceUpdate,
+                    navigation: navigation,
                 )
             }
-            .onOpenURL { _ = IosSocialLoginLauncher.handle($0) }
-            .onAppear { forceUpdate.refresh() }
+            .onOpenURL { url in
+                if !navigation.invitations.receive(url: url.absoluteString) {
+                    _ = IosSocialLoginLauncher.handle(url)
+                }
+            }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL {
+                    _ = navigation.invitations.receive(url: url.absoluteString)
+                }
+            }
+            .onAppear {
+                forceUpdate.refresh()
+            }
             .onChange(of: scenePhase) { phase in
-                if phase == .active { forceUpdate.refresh() }
+                if phase == .active {
+                    forceUpdate.refresh()
+                }
             }
             .ignoresSafeArea()
             .preferredColorScheme(isDarkTheme ? .dark : .light)
         }
     }
+
 }
 
 private struct ComposeView: UIViewControllerRepresentable {
     @Binding var isDarkTheme: Bool
     let analyticsLogger: FirebaseAnalyticsLogger
     let forceUpdate: IosForceUpdateController
+    let navigation: MapmoryNavigation
 
     func makeCoordinator() -> Coordinator {
         Coordinator(isDarkTheme: $isDarkTheme)
@@ -82,7 +106,6 @@ private struct ComposeView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let coordinator = context.coordinator
-        let navigation = MapmoryNavigation()
         let composeViewController = MainViewControllerKt.MainViewController(
             apiBaseUrl: AppConfiguration.apiBaseUrl,
             onThemeChanged: { isDark in

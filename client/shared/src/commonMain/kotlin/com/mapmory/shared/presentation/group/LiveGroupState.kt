@@ -21,6 +21,7 @@ internal enum class LiveGroupSheet { CREATE, JOIN, INVITE, RENAME, LEAVE }
 internal class LiveGroupState(
     private val repository: GroupRepository,
     private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
+    private val issuedInvitations: MutableMap<Long, IssuedGroupInvitation> = mutableMapOf(),
     private val onMembershipConfirmed: (Long) -> Unit = {},
 ) {
     var groups by mutableStateOf<List<RemoteGroupSummary>?>(null)
@@ -39,19 +40,24 @@ internal class LiveGroupState(
         private set
     var creationUncertain by mutableStateOf(false)
         private set
+    var invitationToken by mutableStateOf<String?>(null)
+        private set
 
     private data class NavigationSnapshot(
         val group: GroupDetail?, val sheet: LiveGroupSheet?,
         val invitation: IssuedGroupInvitation?, val preview: GroupInvitationPreview?, val error: String?,
+        val invitationToken: String?,
     )
     private var forward: NavigationSnapshot? = null
     private var membershipRevision = 0L
     private val removedAtRevision = mutableMapOf<Long, Long>()
 
+    fun clearForward() { forward = null }
+
     fun gestureBack(): Boolean {
         if (busy) return true
         if (sheet == null && group == null) return false
-        val snapshot = NavigationSnapshot(group, sheet, invitation, preview, error)
+        val snapshot = NavigationSnapshot(group, sheet, invitation, preview, error, invitationToken)
         back()
         forward = snapshot
         return true
@@ -62,6 +68,7 @@ internal class LiveGroupState(
         val snapshot = forward ?: return false
         group = snapshot.group; sheet = snapshot.sheet
         invitation = snapshot.invitation; preview = snapshot.preview; error = snapshot.error
+        invitationToken = snapshot.invitationToken
         forward = null
         return true
     }
@@ -71,8 +78,16 @@ internal class LiveGroupState(
         forward = null
         sheet = value
         error = null
-        invitation = null
+        invitation = if (value == LiveGroupSheet.INVITE) issuedInvitations[group?.id] else null
         preview = null
+        invitationToken = null
+    }
+
+    suspend fun openInvitation(token: String) {
+        if (busy) return
+        openSheet(LiveGroupSheet.JOIN)
+        invitationToken = token
+        checkInvitation(token)
     }
 
     fun dismissSheet() {
@@ -80,11 +95,13 @@ internal class LiveGroupState(
         sheet = null
         invitation = null
         preview = null
+        invitationToken = null
         error = null
     }
 
     fun back(): Boolean {
         if (busy) return true
+        clearForward()
         if (sheet != null) { dismissSheet(); return true }
         if (group != null) { group = null; error = null; return true }
         return false
@@ -93,6 +110,7 @@ internal class LiveGroupState(
     fun resetPreview() { if (!busy) { preview = null; error = null } }
 
     fun removeGroup(id: Long) {
+        issuedInvitations.remove(id)
         membershipRevision++
         removedAtRevision[id] = membershipRevision
         forward = null
@@ -102,6 +120,7 @@ internal class LiveGroupState(
             sheet = null
             invitation = null
             preview = null
+            invitationToken = null
             error = null
         }
     }
@@ -161,7 +180,22 @@ internal class LiveGroupState(
         val current = group ?: return@perform
         // Keep a successfully issued code visible instead of generating another on repeated taps.
         if (invitation != null) return@perform
-        repository.createInvitation(current.id).onSuccess { invitation = it }.onFailure { error = message(it) }
+        repository.createInvitation(current.id).onSuccess {
+            issuedInvitations[current.id] = it
+            invitation = it
+        }.onFailure { error = message(it) }
+    }
+
+    suspend fun validateIssuedInvitation() = perform {
+        val current = group ?: return@perform
+        val issued = invitation ?: return@perform
+        repository.previewInvitation(issued.token).onFailure {
+            if (it is MapmoryApiException && it.statusCode == 404) {
+                issuedInvitations.remove(current.id)
+                invitation = null
+            }
+            error = message(it)
+        }
     }
 
     suspend fun checkInvitation(code: String) = perform {
@@ -185,6 +219,7 @@ internal class LiveGroupState(
         sheet = null
         invitation = null
         preview = null
+        invitationToken = null
         creationUncertain = false
     }
 
