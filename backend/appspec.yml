@@ -8,6 +8,8 @@ files:
     destination: /etc/systemd/system
   - source: systemd/mapmory-green.service
     destination: /etc/systemd/system
+  - source: systemd/mapmory-active-slot.service
+    destination: /etc/systemd/system
   - source: scripts/deployment-common.sh
     destination: /opt/mapmory/bin
   - source: scripts/start-active-slot-on-boot.sh
