@@ -13,7 +13,10 @@ data class ShareVideoJobState(
     val startedAtEpochMillis: Long? = null,
     val isCreationRequestInProgress: Boolean = false,
     val statusCheckRetryCount: Int = 0,
-)
+) {
+    val isTracking: Boolean
+        get() = jobId != null && (status == null || status == ShareVideoStatus.PENDING || status == ShareVideoStatus.RENDERING)
+}
 
 interface ShareVideoJobStore {
     val state: StateFlow<ShareVideoJobState>
