@@ -117,6 +117,7 @@ internal fun TripTimelineVideoDialog(
     countryCount: Int?,
     retryCountryCount: (() -> Unit)?,
     onDismiss: () -> Unit,
+    notificationOnly: Boolean = false,
 ) {
     val analytics = LocalMapmoryAnalytics.current
     val telemetry = remember(analytics) { ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE) }
@@ -142,7 +143,7 @@ internal fun TripTimelineVideoDialog(
     val startedAtEpochMillis = jobState.startedAtEpochMillis
     val activeJob = jobId != null && status != ShareVideoStatus.COMPLETED && status != ShareVideoStatus.FAILED
     val canCreate = canCreateTripTimelineVideo(countryCount)
-    val showSample = !previewLayout && !creationInProgress && !activeJob
+    val showSample = !notificationOnly && !previewLayout && !creationInProgress && !activeJob
     val expanded = shouldExpandTripTimelineVideoDialog(video != null, status)
     val dialogHeightFraction by animateFloatAsState(
         targetValue = if (showSample) 0.94f else tripTimelineVideoDialogHeightFraction(expanded),
@@ -236,9 +237,13 @@ internal fun TripTimelineVideoDialog(
                         message = "영상이 아직 준비 중이에요. 완료되면 미리보기를 불러올게요."
                     }
                     "SHARE_VIDEO_GENERATION_FAILED", "SHARE_VIDEO_JOB_NOT_FOUND" -> {
-                        notifier.clearProgress(activeJobId)
-                        jobStore.clear()
-                        message = error.message ?: "영상 작업을 찾지 못했어요. 다시 만들어 주세요."
+                        if (notificationOnly) {
+                            message = "이 영상을 확인할 수 없어요. 로그인 계정과 연결 상태를 확인한 뒤 다시 시도해 주세요."
+                        } else {
+                            notifier.clearProgress(activeJobId)
+                            jobStore.clear()
+                            message = error.message ?: "영상 작업을 찾지 못했어요. 다시 만들어 주세요."
+                        }
                     }
                     else -> {
                         val friendlyError = error.toUserFriendlyRemoteFailure()
@@ -424,11 +429,13 @@ internal fun TripTimelineVideoDialog(
                                         colors = ButtonDefaults.buttonColors(containerColor = TripRecordPalette.current.primary),
                                     ) { Text("공유하기", color = Color.White) }
                                 }
-                                TextButton(
-                                    onClick = { showStyleSheet = true },
-                                    enabled = !busy && !creationInProgress && !activeJob,
-                                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                                ) { Text("영상 스타일 바꾸기", color = TripRecordPalette.current.primary) }
+                                if (!notificationOnly) {
+                                    TextButton(
+                                        onClick = { showStyleSheet = true },
+                                        enabled = !busy && !creationInProgress && !activeJob,
+                                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                                    ) { Text("영상 스타일 바꾸기", color = TripRecordPalette.current.primary) }
+                                }
                             }
                         } else {
                             Column(
@@ -462,7 +469,7 @@ internal fun TripTimelineVideoDialog(
                                     ) { Text("미리보기 다시 불러오기") }
                                 }
                             }
-                            if (status == ShareVideoStatus.COMPLETED) {
+                            if (status == ShareVideoStatus.COMPLETED && !notificationOnly) {
                                 TextButton(
                                     onClick = { showStyleSheet = true },
                                     enabled = !busy && !creationInProgress && !activeJob,
@@ -583,7 +590,7 @@ internal fun TripTimelineVideoDialog(
         }
     }
 
-    if (showStyleSheet) {
+    if (showStyleSheet && !notificationOnly) {
         ModalBottomSheet(
             onDismissRequest = { showStyleSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

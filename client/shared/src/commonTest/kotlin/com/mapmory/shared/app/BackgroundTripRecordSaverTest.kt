@@ -41,9 +41,10 @@ class BackgroundTripRecordSaverTest {
                     running = true
                     try { return block() } finally { running = false }
                 }
-                override fun onCompleted(save: BackgroundTripRecordSave) {
+                override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {
                     assertTrue(running, "iOS background time must cover the completion notification")
                     assertTrue(store.read().isEmpty(), "Persist success before announcing it")
+                    assertEquals(101L, recordId)
                     notified = true
                 }
             },

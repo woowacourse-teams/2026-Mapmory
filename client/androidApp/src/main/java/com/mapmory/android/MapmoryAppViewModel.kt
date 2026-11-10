@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.app.AppContainer
+import com.mapmory.shared.MapmoryNavigation
 import com.mapmory.shared.app.createGuestRemoteAppContainer
 import com.mapmory.shared.data.auth.AndroidAuthTokenStore
 import com.mapmory.shared.data.media.AndroidLocalPhotoDataSource
@@ -18,6 +19,7 @@ import com.mapmory.shared.data.settings.AndroidThemePreference
 import com.mapmory.shared.data.remote.MapmoryApiException
 
 class MapmoryAppViewModel(application: Application) : AndroidViewModel(application) {
+    val navigation = MapmoryNavigation()
     val forceUpdate = com.mapmory.android.update.AndroidForceUpdateController(application)
     override fun onCleared() { forceUpdate.close() }
 
