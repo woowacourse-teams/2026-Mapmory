@@ -5,7 +5,7 @@
 import { SPRITE, getSpriteImage } from "./photoStory.js";
 import { clamp, drawSpriteTile, easeOut, fitCanvas, font, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
 
-const TOKENS = ["canvas", "surface", "text", "accent", "ps-on-accent", "ps-dot", "ps-shadow"];
+const TOKENS = ["canvas", "surface", "text", "accent", "ink", "on-ink", "ps-dot", "ps-shadow"];
 const rand = (n) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
 
 // mountHeroWall(hero section, canvas, { reducedMotion, onPick }) -> { setPick(key | null), destroy() }
@@ -48,17 +48,23 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       slots.set(t, { x: x0 + (i - row * c) * (s + gap), y: y0 + row * (s + gap), s });
     });
   }
+  // the foot (the group album pill and the byline) sits over the wall: gathered photos stop above it
+  function footTop() {
+    const foot = hero.querySelector(".wall-hero-foot");
+    if (!foot) return H - 44;
+    return Math.min(H - 44, foot.getBoundingClientRect().top - hero.getBoundingClientRect().top);
+  }
   function gather() {
     slots = new Map();
     if (!pick || !W) return;
     const kept = tiles.filter((t) => t.place === pick && t.x + t.s > 0 && t.x < W);
     const small = W < 520, gap = small ? 8 : 12, max = small ? 84 : 112, pad = 16;
-    const below = { x0: pad, y0: words.y1 + 4, x1: W - pad, y1: H - (small ? 40 : 52) };
+    const below = { x0: pad, y0: words.y1 + 4, x1: W - pad, y1: footTop() - 8 };
     const readable = small ? 56 : 72;
     if (fitGrid(kept.length, below, gap, max).s >= readable) { placeGrid(kept, below, gap, max); return; }
     // phones: the sides are a sliver, so the band below keeps as many as it holds at a size that reads (2026-10-29,
     // 티온: on a short phone 제주 and 일본 shrank into slivers at the edges while 미국's seven still fitted below)
-    const top = 96, bottom = H - 52, half = Math.ceil(kept.length / 2);
+    const top = 96, bottom = footTop() - 8, half = Math.ceil(kept.length / 2);
     const left = { x0: pad, y0: top, x1: words.x0, y1: bottom }, right = { x0: words.x1, y0: top, x1: W - pad, y1: bottom };
     // tablets (520-768 wide) have side columns too narrow to read, so they take the phone path below
     const sidesRead = !small && Math.min(fitGrid(half, left, gap, max).s, fitGrid(kept.length - half, right, gap, max).s) >= readable;
@@ -143,8 +149,8 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       const label = `📍 ${t.label}`, tw = ctx.measureText(label).width + 22, th = W < 520 ? 28 : 32;
       const lx = Math.min(W - tw - 8, Math.max(8, x + s / 2 - tw / 2)), ly = y - th - 8;
       ctx.shadowColor = tok["ps-shadow"]; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
-      ctx.fillStyle = t.place ? tok.accent : tok.surface; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill(); ctx.shadowColor = "transparent";
-      ctx.fillStyle = t.place ? tok["ps-on-accent"] : tok.text; ctx.textBaseline = "middle"; ctx.fillText(label, lx + 11, ly + th / 2 + 1);
+      ctx.fillStyle = t.place ? tok.ink : tok.surface; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill(); ctx.shadowColor = "transparent";
+      ctx.fillStyle = t.place ? tok["on-ink"] : tok.text; ctx.textBaseline = "middle"; ctx.fillText(label, lx + 11, ly + th / 2 + 1);
       ctx.strokeStyle = t.place ? tok.accent : tok.text; ctx.lineWidth = 2; roundRect(ctx, x - 2, y - 2, s + 4, s + 4, 10); ctx.stroke();
     }
     return settling;
