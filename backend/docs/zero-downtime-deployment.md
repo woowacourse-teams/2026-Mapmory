@@ -1,162 +1,122 @@
-# 무중단 배포와 롤백 설계·개발환경 검증 기록
+# 무중단 배포와 롤백
 
-## 목표와 범위
+## 현재 상태
 
-기존 CodeDeploy 현재 위치 배포는 실행 중인 앱을 교체하는 동안 요청 실패가 생길 수 있다. 이를 줄이기 위해 개발 서버 한 대에서 Blue와 Green 앱 프로세스를 따로 띄우고, Nginx가 요청을 전달하는 포트를 바꾸는 Blue-Green 전환을 설계하고 검증했다.
+| 항목 | 상태 |
+| --- | --- |
+| 개발 서버 Blue-Green 수동 전환·롤백 | 완료, 기록 있음 |
+| CodeDeploy 자동화 코드 | 저장소에 구현·커밋됨 |
+| 자동화 코드의 EC2 적용·검증 | 아직 안 함 |
+| 운영 배포 중 외부 요청 실패 수·중단 시간 측정 | 증거 부족, 추가 측정 필요 |
 
-이 문서는 **개발 서버에서 수행한 수동 전환과 롤백 리허설 기록**이다. 운영 서버에 같은 구성을 적용하거나 배포 자동화를 완료한 기록은 아니다. 이번 검증에서 전환 중 요청을 연속 측정하지 않았으므로 무중단이나 실패 0건을 입증하지 않는다.
+**자동화 코드를 커밋한 것과 서버에 적용해 검증한 것은 다릅니다.** 운영 적용 전에 개발 서버에서 반복 전환, 실패 복구, 외부 요청 측정을 먼저 해야 합니다.
 
-## 선택한 방식과 판단
+## 배포 방식
 
-초기에는 CodeDeploy 현재 위치 배포와 단일 앱 프로세스만 운영했다. 배포 중 앱을 사용할 때 요청 실패를 경험했지만, 외부 요청을 연속 전송해 실패 건수와 끊긴 시간을 계측하지는 못했다.
+한 EC2에서 Blue와 Green 앱을 별도 프로세스로 실행하고, Nginx가 한쪽 슬롯으로 요청을 보냅니다. 새 버전은 현재 요청을 받지 않는 슬롯에서 준비합니다.
 
-한 EC2에서 두 프로세스를 함께 실행하고 Nginx로 전환하는 **단일 호스트 Blue-Green**을 개발 서버에서 먼저 검증하기로 했다. 새 프로세스를 준비하는 동안 기존 프로세스가 계속 요청을 처리하고, 전환 후 문제가 생기면 Nginx 경로를 이전 프로세스로 돌릴 수 있다. 별도 인스턴스 두 대를 만드는 대신 현재 서버에서 검증할 수 있는 선택이다.
+```mermaid
+flowchart LR
+  Build[CodeBuild: JAR와 배포 파일 생성] --> Stage[CodeDeploy: JAR를 staging에 복사]
+  Stage --> Candidate[비활성 슬롯에 릴리스 설치·시작]
+  Candidate --> Health{Actuator health 정상?}
+  Health -- 아니오 --> Keep[기존 슬롯 유지]
+  Health -- 예 --> Switch[Nginx를 후보 슬롯으로 전환]
+  Switch --> Observe[5분 관찰]
+  Observe -- 실패 --> Restore[이전 슬롯 시작·확인 후 트래픽 복구]
+  Observe -- 통과 --> Stop[이전 프로세스 중지]
+  Stop --> Retain[이전 JAR는 롤백용으로 보존]
+```
 
-## 용량과 스키마 호환성 결정
+| 고정 슬롯 | 앱 포트 | 관리 포트 | systemd 서비스 |
+| --- | ---: | ---: | --- |
+| Blue | 8080 | 8081 | `mapmory` |
+| Green | 8090 | 8091 | `mapmory-green` |
 
-초기 인스턴스 메모리는 총 1.8 GiB였고, 관측 당시 사용 가능 메모리는 349 MiB였다. Java 프로세스 RSS는 약 595 MiB였으며, CodeDeploy 에이전트와 CloudWatch Agent 등도 메모리를 사용했다. 두 JVM을 겹쳐 실행할 수 있도록 인스턴스 유형을 키우는 방식을 선택했고, 운영·개발 서버 모두 확장했다. 새 인스턴스를 하나 더 추가하는 선택지와의 실제 청구액 비교는 측정하지 않았다.
+슬롯 이름은 바뀌지 않습니다. Nginx가 Green으로 전환되면 Green이 활성이고 Blue가 비활성입니다. 다음 배포는 Blue에 새 버전을 준비합니다.
 
-확장 후 관측값은 다음과 같다. 모두 한 시점의 스냅샷이며 부하 시험 결과는 아니다.
+## 확정 정책
 
-| 환경 | 총 메모리 | 사용 | 사용 가능 |
-| --- | ---: | ---: | ---: |
-| 운영 | 3.7 GiB | 1.2 GiB | 2.5 GiB |
-| 개발 | 3.7 GiB | 867 MiB | 2.8 GiB |
+| 주제 | 정책 |
+| --- | --- |
+| DB 마이그레이션 | 후보 슬롯 시작 때 Flyway를 실행합니다. 기존 버전과 호환되는 추가·확장 변경만 함께 배포합니다. |
+| 컬럼·테이블 삭제 | 팀이 별도 후속 변경으로 작성하고 배포합니다. 자동화가 사용 여부를 판단해 삭제하지 않습니다. |
+| DB 롤백 | 앱 롤백 때 DB를 과거로 되돌리지 않습니다. 삭제·이름 변경은 이전 앱을 더는 되돌릴 필요가 없어진 뒤 별도 배포로 합니다. |
+| 공유 영상 워커 | 두 API 슬롯에서는 끕니다. 렌더러 서버가 처리합니다. |
+| 알림 워커 | 두 API 슬롯에서 켭니다. DB의 `FOR UPDATE SKIP LOCKED`로 작업을 나눕니다. FCM 중복 전송 가능성은 남으므로 검증이 필요합니다. |
+| 자동 롤백 | 후보 Actuator health가 2초 간격으로 5회 연속 실패하면 복구합니다. 인증 기능 확인 실패는 관찰 중 롤백 요청 파일로 전달할 수 있습니다. |
+| 이전 프로세스 | 전환 후 5분간 유지하고, 통과하면 중지합니다. 이전 JAR는 보존합니다. |
+| 릴리스 보존 | 두 슬롯이 참조하는 JAR와 최근 성공 릴리스 3개를 보존합니다. 실패·미완료 릴리스는 7일 뒤 정리 대상입니다. |
 
-앱 두 버전이 같은 데이터베이스를 바라보므로 구·신 버전이 동시에 실행되는 동안 스키마도 양쪽과 호환되어야 한다. 컬럼 이름 변경이나 삭제를 새 앱 배포와 한 번에 묶지 않는다. 먼저 새 컬럼 등 확장 변경을 적용하고, 앱이 구·신 스키마와 공존하도록 전환한 뒤, 이전 버전이 더 이상 해당 컬럼을 읽거나 쓰지 않고 롤백 대기 기간도 지난 것을 확인한 후 별도 단계에서 구 컬럼을 제거한다. Green 서비스에서는 중복 마이그레이션 실행을 막기 위해 Flyway를 비활성화했다. 운영 스키마 변경 절차는 별도로 검증해야 한다.
+Flyway 변경은 앱 배포 때 **새 Flyway migration 파일이 포함되어 있을 때만** 실행됩니다. 나중에 컬럼을 삭제하려면 팀이 별도 마이그레이션을 만들어 리뷰·배포해야 합니다. Flyway가 삭제 시점을 자동으로 판단하지 않습니다.
 
-## 개발 서버 구성
+수동 Green 검증 때 사용한 `spring.flyway.enabled=false`는 API 응답 비교용 임시 설정이었습니다. 그 Green은 DB 마이그레이션을 적용하지 않았습니다. 자동화용 Blue·Green 서비스 설정은 Flyway를 켭니다.
 
-| 구분 | Blue | Green |
+## CodeDeploy 실행 순서
+
+| 단계 | 파일 | 동작 |
 | --- | --- | --- |
-| systemd 서비스 | `mapmory` | `mapmory-green` |
-| 앱 포트 | `8080` | `8090` |
-| 관리 포트 | `8081` | `8091` |
-| 릴리스 JAR | 기존 서비스 경로 | `/opt/mapmory/releases/green-20261110-012828/mapmory-backend.jar` |
-| Nginx 전환 | `mapmory-dev.conf`의 `proxy_pass` 대상 포트 변경 | 동일 |
+| 아티팩트 빌드 | `backend/buildspec.yml` | JAR, AppSpec, 스크립트, systemd 파일을 패키징 |
+| 파일 배치 | `backend/appspec.yml` | JAR는 `/opt/mapmory/deploy-staging`, 서비스 파일은 `/etc/systemd/system`에 복사 |
+| `BeforeInstall` | `bootstrap-blue-green.sh` | Nginx 포트로 활성 슬롯을 찾고 배포별 상태를 기록 |
+| `AfterInstall` | `prepare-inactive-slot.sh` | 비활성 슬롯에 새 JAR를 보존·연결하고 시작해 health 확인 |
+| `ApplicationStart` | `switch-traffic.sh` | Nginx 설정을 검사하고 후보 슬롯으로 전환. 실패하면 복구 |
+| `ValidateService` | `validate-and-retain.sh` | 5분 관찰, 필요 시 복구, 통과 시 이전 프로세스 중지와 JAR 정리 |
 
-Green은 고정 슬롯 `/opt/mapmory/slots/green/current`를 통해 버전이 지정된 릴리스 디렉터리를 참조한다. Green 실행 설정에는 개발 프로필과 별도 포트를 사용하고, 중복 실행을 피해야 하는 작업 및 Flyway 실행은 비활성화했다. Blue와 Green 서비스 모두 `/etc/mapmory.env`와 `/etc/mapmory-deployment-cache.env`를 읽도록 설정했다.
+주요 코드는 [AppSpec](/Users/one/wooteco/mapmory/2026-Mapmory/backend/appspec.yml), [배포 스크립트](/Users/one/wooteco/mapmory/2026-Mapmory/backend/scripts), [systemd 서비스](/Users/one/wooteco/mapmory/2026-Mapmory/backend/systemd)에 있습니다.
 
-이번 Green 릴리스 JAR와 원본 JAR의 SHA-256은 모두 `aeba74ceb3f35e3af670ccb1951dfed4b2b84e3cbd2954879a7bb6ba5409472f`였다. 이는 복사된 JAR 파일이 같다는 확인이며, 릴리스 파일을 보존하거나 정리하는 자동화가 있다는 뜻은 아니다.
+## JAR 저장·정리 예시
 
-Green 준비 후 `/actuator/health`는 `UP`, `/actuator/deploymentcache`는 `BYPASS`, generation `0`으로 응답했다.
+```text
+/opt/mapmory/
+├── deploy-staging/mapmory-backend.jar       # 다음 배포 때 덮어씀
+├── slots/
+│   ├── blue/current  -> releases/d-104      # 이전 버전, 롤백 후보
+│   └── green/current -> releases/d-105      # 현재 활성 버전
+└── releases/
+    ├── bootstrap-blue-...                   # 초기 복사본, 자동 삭제 안 함
+    ├── d-103                                # 최근 성공 3개에 포함되어 보존
+    ├── d-104                                # Blue가 참조하므로 보존
+    └── d-105                                # Green이 참조하므로 보존
+```
 
-## 검증 및 롤백 기록
+- 성공 릴리스는 최근 3개와 두 슬롯이 가리키는 릴리스를 보존합니다. 나머지 성공 릴리스는 다음 성공 배포의 정리 단계에서 삭제됩니다.
+- 실패·미완료 릴리스는 진단용으로 7일 보존하고, 슬롯이 더는 참조하지 않으면 다음 성공 배포 때 삭제합니다.
+- bootstrap 릴리스와 배포 상태 파일·Nginx 백업은 현재 자동 정리하지 않습니다.
 
-### Green 기능 확인 및 트래픽 전환
+## 롤백 기준과 인증 확인
 
-- 인증이 필요한 목록 요청을 Blue와 Green 각각에 보내 두 응답 모두 `HTTP 200`을 확인했다.
-- 두 응답 모두 조회 20건, 전체 21건이었고 목록 응답 비교 결과는 `True`였다.
-- `/etc/nginx/conf.d/mapmory-dev.conf`를 백업했고, 백업 파일과 전환 전 설정이 같은지 `cmp`로 확인했다.
-- Nginx 대상을 `127.0.0.1:8080`에서 `127.0.0.1:8090`으로 변경했다.
-- `nginx -t`가 성공했고 Nginx reload 후 아이폰에서 앱 기능을 확인했다.
+- 후보는 관리 포트의 `/actuator/health`로 확인합니다. 5회 연속 실패하면 이전 슬롯을 시작하고 health를 확인한 뒤 Nginx를 되돌립니다.
+- 인증된 API 기능은 자동 health만으로 검증되지 않습니다. 5분 관찰 중 아이폰에서 실제 기능을 확인합니다.
+- 기능 확인이 실패하면 다음 파일을 만들면 검증 스크립트가 롤백합니다.
 
-### Blue 롤백 리허설
+```bash
+sudo touch /var/lib/mapmory-deployments/<DEPLOYMENT_ID>/request-rollback
+```
 
-| 항목 | 기록 |
+- 외부에서 인증 없이 호출할 수 있는 `/health`를 계속 요청해 전체 요청 수·실패 수·끊긴 시간을 별도로 기록합니다. 이 엔드포인트는 앱 응답 확인용이며 DB나 로그인 기능까지 증명하지 않습니다.
+
+## 첫 자동화 배포 주의
+
+CodeDeploy의 `ApplicationStop`은 새 아티팩트를 받기 전에 **이전 revision의 스크립트**로 실행됩니다. 현재 이전 스크립트는 Blue를 중지하므로 첫 자동화 배포에는 다운로드 시간까지 중단이 생길 수 있습니다. 첫 적용은 개발 서버에서 먼저 확인하고 무중단으로 기록하지 않습니다. [AWS CodeDeploy 후크 순서](https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-hooks.html)
+
+## 개발 서버 리허설 기록
+
+| 확인 항목 | 기록 |
 | --- | --- |
-| 시작 | 2026-11-10 01:59:51 KST |
-| 완료 | 2026-11-10 02:02:20 KST |
-| 절차 소요 | 2분 29초 |
-| 전환 | Nginx 대상 `8090` → `8080`, `nginx -t` 통과 후 Nginx reload |
-| 결과 | 아이폰에서 Blue 경로의 앱 동작 확인 |
+| Blue·Green 인증 목록 요청 | 둘 다 HTTP 200, 조회 20건·전체 21건, 응답 동일 |
+| Green 상태 | `/actuator/health` UP, deployment cache BYPASS |
+| Green 전환 | Nginx 8080 → 8090, `nginx -t` 통과, 아이폰 동작 확인 |
+| Blue 롤백 | 2026-11-10 01:59:51–02:02:20 KST, 절차 2분 29초 |
+| 롤백 후 상태 | Blue 8080만 실행, `/health` HTTP 200, Green 중지 |
+| 중단 시간 계측 | 안 함. 2분 29초는 롤백 절차 시간이지 서비스 중단 시간이 아님 |
 
-2분 29초는 설정 변경부터 롤백 확인까지의 절차 소요 시간이다. 전환 중 연속 요청을 측정하지 않았으므로 서비스 중단 시간으로 해석할 수 없다.
+당시 인스턴스는 메모리 3.7 GiB로 확장했습니다. 두 프로세스가 겹치는 피크 메모리와 자동화 스크립트는 아직 개발 서버에서 검증하지 않았습니다.
 
-### 현재 개발 서버 상태
+## 다음 확인
 
-롤백 후 `mapmory`, `nginx`는 `active`였고 Blue `8080/health`는 `HTTP 200`이었다. Green을 중지한 뒤 최종 확인 결과는 다음과 같다.
-
-- `mapmory-green`의 `MainPID=0`
-- Green 포트 `8090`은 LISTEN 상태가 아님
-- Blue 포트 `8080`만 LISTEN 상태이며 Blue `/health`는 `HTTP 200`
-- Green의 systemd 결과는 `Result=exit-code`, `ExecMainStatus=143`으로 `failed` 표시
-
-이전 종료 로그에는 Spring graceful shutdown 완료가 기록된 뒤 종료 코드 143으로 systemd가 서비스를 `failed`로 표시한 사례가 있다. 따라서 현재는 Green 프로세스가 실제로 종료된 것을 포트와 PID로 확인했지만, systemd 종료 상태 처리 방식은 정리되지 않았다.
-
-그때의 수동 검증 종료 상태는 Nginx 대상 Blue `8080`, Blue만 LISTEN 중이었다. Green `8090`은 중지되어 다음 전환의 후보였다. 아래 자동화 구현은 Nginx가 실제 가리키는 포트를 매 배포마다 다시 읽어 반대 슬롯을 선택한다.
-
-## CodeDeploy 자동화 구현
-
-코드에서 기존 고정 경로 덮어쓰기 흐름을 슬롯 전환 방식으로 바꿨다. CodeDeploy가 배포 ID마다 상태를 보관하고 Nginx가 실제로 가리키는 포트로 활성 슬롯을 판별한다. 포트 `8080`은 Blue, `8090`은 Green이다.
-
-| 파일 | 역할 |
-| --- | --- |
-| `backend/appspec.yml` | JAR를 `/opt/mapmory/deploy-staging`에 받고, 두 systemd 유닛을 설치한 뒤 배포 후크 실행 |
-| `backend/scripts/bootstrap-blue-green.sh` | Nginx 활성 포트 확인, 기존 JAR를 슬롯 릴리스로 보존, 배포별 이전 슬롯 기록 |
-| `backend/scripts/prepare-inactive-slot.sh` | 반대 슬롯의 서비스를 멈추고 신규 JAR를 고유 릴리스 디렉터리에 복사, `current` 심볼릭 링크를 원자적으로 교체, 시작 및 헬스 확인 |
-| `backend/scripts/switch-traffic.sh` | 활성 포트가 시작 때 기록한 값과 같은지 확인한 뒤 Nginx 설정 검사·reload, 오류 시 이전 포트로 복구 |
-| `backend/scripts/validate-and-retain.sh` | 전환 후 5분간 2초 간격으로 Actuator health를 확인하고, 5회 연속 실패 시 이전 슬롯으로 복구. 통과하면 이전 프로세스를 종료하고 JAR 체크섬 검증·릴리스 정리 |
-| `backend/scripts/deployment-common.sh` | 포트 판별, Nginx 설정의 안전한 변경, 서비스명·슬롯 매핑, 헬스 확인 공통 함수 |
-| `backend/systemd/mapmory.service`, `mapmory-green.service` | 슬롯별 JAR 경로와 포트, graceful shutdown, 종료 코드 143 정상 처리 설정 |
-| `backend/buildspec.yml` | JAR, AppSpec, 스크립트와 systemd 유닛을 CodeDeploy 아티팩트에 포함 |
-
-각 CodeDeploy 실행은 `DEPLOYMENT_ID`별 상태 디렉터리에 이전·대상 포트와 릴리스 경로를 남긴다. 배포 도중 Nginx 대상이 수동으로 달라졌거나 Mapmory upstream을 하나로 판별할 수 없으면 스크립트가 중단한다. `/etc/nginx/conf.d/*.conf` 중 `127.0.0.1:8080` 또는 `:8090`을 가리키는 설정이 정확히 하나여야 한다. 다른 경로를 쓰는 환경은 `MAPMORY_NGINX_CONF`를 CodeDeploy hook 환경에 제공하도록 배포 환경을 맞춰야 한다.
-
-JAR 보존 규칙은 다음과 같다.
-
-- 성공한 배포마다 `/opt/mapmory/releases/<CodeDeploy deployment ID>/mapmory-backend.jar`에 불변 릴리스를 저장한다.
-- 두 슬롯의 `current`가 가리키는 릴리스는 항상 보호한다.
-- 최근 성공한 릴리스 3개를 추가로 보존한다. 실패한 후보 JAR는 진단을 위해 7일 보존하고, 7일이 지난 뒤 슬롯에서 참조하지 않을 때 정리한다. bootstrap 파일은 자동 정리하지 않는다.
-- `/opt/mapmory/deploy-staging/mapmory-backend.jar`는 다음 배포에서 덮어쓰는 단일 스테이징 파일이며, 릴리스 기록으로 사용하지 않는다.
-- 배포 상태 파일과 Nginx 설정 백업은 현재 자동 정리하지 않는다.
-
-CodeDeploy의 `ApplicationStop`은 신규 아티팩트 다운로드보다 먼저 실행되고, 이전 성공 revision의 AppSpec에 지정된 스크립트를 사용한다. 그러므로 이 변경을 처음 배포하는 한 번은 이전 `ApplicationStop`이 Blue를 멈춘다. 새 `BeforeInstall`은 슬롯을 준비하고 기존 Blue를 재시작하지만, CodeDeploy가 먼저 새 아티팩트를 내려받아야 해당 후크가 실행되므로 중단은 파일 다운로드와 후크 시작까지 이어질 수 있다. **최초 자동화 배포를 무중단이라고 간주하지 않는다.** 첫 자동화 배포는 개발 환경에서 수행하고, 실제 요청 연속 측정과 실패 복구까지 확인한 다음 운영 전환을 별도로 계획해야 한다. 그 이후 revision에는 `ApplicationStop` 훅을 두지 않아 활성 슬롯을 미리 중지하지 않는다. [AWS CodeDeploy AppSpec 후크 문서](https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-hooks.html)
-
-### DB 마이그레이션 정책
-
-- Blue는 배포 중 계속 서비스하고, 시작하는 후보 슬롯에서 `spring.flyway.enabled=true`로 미적용 마이그레이션을 실행한다. Flyway는 마이그레이션 이력을 DB에 기록하므로 이미 적용한 스크립트를 다시 적용하지 않는다.
-- 후보가 시작되기 전에 마이그레이션이 끝나야 health 확인을 통과한다. 실패하면 Nginx를 바꾸지 않고 기존 슬롯을 유지한다.
-- 롤백 때 DB를 과거로 되돌리지 않는다. 마이그레이션은 기존 앱도 사용할 수 있는 추가·확장 변경으로 제한한다. 컬럼 삭제나 이름 변경은 별도 후속 배포에서 수행한다.
-- 수동 Green 검증에서 넣었던 `spring.flyway.enabled=false`는 API 동작만 비교하려고 쓴 임시 설정이다. 그 Green은 DB 변경을 적용하지 않았다.
-
-### 워커 정책
-
-- Blue와 Green API 서비스 모두 `share-video.worker.enabled=false`로 둔다. 공유 영상 작업은 별도 renderer 서버가 처리한다.
-- 두 API 슬롯 모두 `notification.outbox.enabled=true`, `notification.fcm.enabled=true`로 설정한다. 배포 중에는 DB의 `FOR UPDATE SKIP LOCKED`와 선점 만료 시간으로 알림 작업을 나눈다.
-- FCM 전송 후 처리 결과를 저장하기 전에 프로세스가 죽거나 선점이 만료되면 중복 전송이 가능하다. 이는 at-least-once 동작이며 개발 서버에서 두 슬롯 동시 실행을 검증해야 한다.
-
-### 프로세스와 롤백 정책
-
-- 후보 health 확인, Nginx 전환 후 5분 동안 이전 프로세스를 유지한다. 2초 간격 Actuator health가 5회 연속 실패하면 자동으로 이전 슬롯으로 복구한다.
-- 인증된 기능의 수동 확인이 실패하면 관찰 구간 중 CodeDeploy 배포 ID 디렉터리에 `request-rollback` 파일을 만들 수 있다. 검증 스크립트가 이를 감지해 자동 복구한다.
-- 5분 동안 통과하면 이전 프로세스를 종료한다. 이전 JAR와 슬롯 링크는 롤백을 위해 남긴다. 따라서 평상시에는 앱 프로세스 하나만 실행한다.
-- 이전 프로세스가 종료된 뒤 롤백하면 이전 서비스를 먼저 시작하고 health를 확인한 다음 Nginx를 되돌린다.
-- 아이폰에서 수행하는 인증 기능 스모크 테스트는 자동 health 검사와 별도다. 외부 연속 요청 측정으로 전체 요청·실패 수·중단 시간을 기록하고, 유효한 계정으로 수동 기능 확인을 5분 관찰 구간에 수행한다.
-
-배포 후 5분 구간의 Actuator health와 외부 요청 측정은 서로 다른 증거다. Actuator는 후보 프로세스·의존성 상태를 확인하지만, 인증된 실제 기능까지 증명하지 않는다.
-
-## 아직 완료되지 않은 조건
-
-### 운영 배포 중 외부 요청 계측
-
-스프린트 조건은 운영 배포 중 외부에서 계속 요청을 보내고 실패 요청 수와 끊긴 시간을 기록하는 것이다. 이전 운영 배포 중 아이폰 사용과 요청 실패를 경험했으나, 현재 남은 기록만으로는 연속 요청 수, 실패 수, 중단 시간을 정확히 제시할 수 없다. 운영 배포를 다시 수행할 경우 외부 측정부터 준비하고, 배포 시작·종료 시각과 요청 결과를 함께 기록해야 한다.
-
-### 자동화와 릴리스 보존
-
-CodeDeploy 자동화와 릴리스 보존 스크립트는 저장소에 구현했다. 단, 아직 CodeBuild/CodeDeploy 아티팩트를 만들거나 EC2에 적용하지 않았다. 운영 인스턴스의 서비스 유닛과 개발 인스턴스의 현재 슬롯 포인터가 저장소 설정과 같은지도 원격에서 확인하지 않았다. 따라서 구현 완료와 실제 배포 완료는 구분한다.
-
-## 이어서 할 일
-
-### 스프린트 완료에 필요한 작업
-
-- [ ] 이전 운영 배포 기록에 외부 연속 요청, 실패 수, 끊긴 시간이 모두 남아 있는지 확인한다.
-- [ ] 수치가 부족하면 외부 측정 도구를 먼저 준비하고 운영 배포 중 결과를 기록한다.
-- [ ] 실제 측정 구간, 전체 요청 수, 실패 요청 수, 최초 실패와 복구 시각을 이 문서에 추가한다.
-- [ ] 이 문서에서 두 완료 조건의 증거 위치를 명시하고, 스프린트 제출에 요구사항 선택 이유와 배운 점을 적는다.
-
-### 반복 운영 전에 권장하는 개선
-
-- [ ] 개발 서버 현재 상태를 재확인한다. Green의 143 종료코드와 실제 unit 파일, 슬롯 current 링크, Nginx upstream을 기록한다.
-- [ ] CodeDeploy의 개발 배포 그룹이 이 AppSpec revision을 받도록 연결되어 있는지 확인한다. 첫 배포는 구 revision의 `ApplicationStop` 영향으로 잠깐의 중단이 생길 수 있음을 일정에 반영한다.
-- [ ] 개발 환경에서 신규 아티팩트를 배포하고 Blue↔Green 반복 전환을 수행한다. 앱·관리 포트 health, 모바일 요청, 배포 ID별 상태 파일과 릴리스 링크를 확인한다.
-- [ ] 전환 후 5분간 후보 Actuator health가 유지되는지, 5회 연속 실패 시 롤백되는지 개발 환경에서 확인한다.
-- [ ] 두 API 프로세스 동시 실행 중 알림 작업 분배와 중복 전송 여부를 확인한다. 공유 영상 워커가 API 양 슬롯에서 꺼져 있고 renderer에서 동작하는지도 확인한다.
-- [ ] 아이폰 기능 확인과 외부 연속 요청 측정을 병행한다. 앱 기능 실패를 관찰 구간의 롤백 요청 파일로 전달할 수 있는지 확인하고, 실패 수와 끊긴 시간을 기록한다.
-- [ ] 5분 뒤 이전 앱 프로세스만 종료되고 이전 JAR는 남는지 확인한다. 중지된 이전 프로세스로 롤백할 때 시작·health 확인 후 트래픽이 돌아오는지 검증한다.
-- [ ] 최근 성공 릴리스 3개, 두 슬롯 참조 파일, 7일 이내 실패·미완료 후보가 보존되는지 확인하고 JAR 체크섬을 검증한다.
-- [ ] 모든 검증이 끝난 뒤에만 운영 배포 대상 브랜치와 첫 마이그레이션 일정을 따로 정한다. 운영 적용은 이 변경만으로 승인되거나 실행된 것이 아니다.
-
-## 참고: 현재의 무중단 주장 범위
-
-개발 서버에서 Green 전환과 Blue 롤백 뒤 앱이 정상 동작하는 것은 확인했다. 전환 중 외부 요청 실패 수와 중단 시간을 계측하지 않았으므로, 이 문서만으로 무중단을 입증하지 않는다. 또한 한 EC2 내부의 Blue-Green은 배포 중 앱 프로세스 교체의 위험을 줄이는 방법이지 EC2나 Nginx 장애까지 견디는 고가용성 구성이 아니다.
+- [ ] 개발 서버에 코드를 적용하기 전 실제 Nginx 설정·환경 변수·서비스 파일을 대조한다.
+- [ ] 첫 자동화 배포에서 구 `ApplicationStop`으로 생기는 중단을 측정한다.
+- [ ] Blue↔Green 반복 전환, Flyway 호환 마이그레이션, 두 알림 워커 동시 실행을 검증한다.
+- [ ] 5분 health 실패 롤백, 수동 롤백 요청, 이전 프로세스 재시작을 검증한다.
+- [ ] 외부 연속 요청 측정 결과를 추가해 스프린트 완료 조건을 채운다.
