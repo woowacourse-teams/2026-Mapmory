@@ -36,6 +36,13 @@ internal data class DetailRoute(
     val locationName: String? = null,
     val latestDate: String? = null,
     val photoCount: Int? = null,
+    val notificationRequestId: Long? = null,
+)
+
+@Serializable
+internal data class TripTimelineVideoNotificationRoute(
+    val jobId: Long,
+    val notificationRequestId: Long,
 )
 
 @Serializable

@@ -56,7 +56,7 @@ interface BackgroundSaveExecution {
     fun attach(saver: BackgroundTripRecordSaver) {}
     fun onQueued() {}
     fun onProgress(save: BackgroundTripRecordSave) {}
-    fun onCompleted(save: BackgroundTripRecordSave) {}
+    fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {}
     suspend fun <T> run(block: suspend () -> T): T
 }
 
@@ -267,7 +267,7 @@ class BackgroundTripRecordSaver internal constructor(
                             completedAt = completedAt,
                         ),
                     )
-                    completed?.let(execution::onCompleted)
+                    completed?.let { execution.onCompleted(it, record.id) }
                     onSaved()
                 } finally {
                     // Keep completed saves out of retry UI even if a local callback fails.
