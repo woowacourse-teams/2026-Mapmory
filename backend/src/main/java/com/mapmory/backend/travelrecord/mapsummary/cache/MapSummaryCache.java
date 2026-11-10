@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
@@ -23,14 +24,17 @@ public class MapSummaryCache {
 
     static final String NAME = "mapSummary";
 
-    private final Cache<Key, List<RegionMapSummary>> cache;
+    private final Cache<GenerationKey, List<RegionMapSummary>> cache;
+    private final DeploymentCacheControl control;
 
-    public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry) {
+    public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry,
+                           DeploymentCacheControl control) {
+        this.control = control;
         this.cache = Caffeine.newBuilder()
                 // 항목마다 지역 수가 1개(루트)부터 수백 개(하위)까지 달라, 개수 대신 지역 줄 수 합으로 메모리를 묶는다.
                 // 꽉 차면 덜 쓰인 항목부터 버린다(축출). 무게는 버릴 순서가 아니라 버릴 양만 정한다.
                 .maximumWeight(properties.maximumWeight())
-                .weigher((Key key, List<RegionMapSummary> summaries) -> Math.max(1, summaries.size()))
+                .weigher((GenerationKey key, List<RegionMapSummary> summaries) -> Math.max(1, summaries.size()))
                 .expireAfterWrite(properties.timeToLive())
                 .recordStats()
                 .build();
@@ -39,16 +43,28 @@ public class MapSummaryCache {
 
     public List<RegionMapSummary> get(Long memberId, Long parentRegionId, Long tagId,
                                       Supplier<List<RegionMapSummary>> loader) {
-        return cache.get(new Key(memberId, parentRegionId, tagId), ignored -> List.copyOf(loader.get()));
+        DeploymentCacheControl.Snapshot snapshot = control.snapshot();
+        if (snapshot.bypass()) {
+            return List.copyOf(loader.get());
+        }
+        GenerationKey key = new GenerationKey(snapshot.generation(), new Key(memberId, parentRegionId, tagId));
+        List<RegionMapSummary> result = cache.get(key, ignored -> List.copyOf(loader.get()));
+        if (control.snapshot().generation() != snapshot.generation()) {
+            cache.invalidate(key);
+        }
+        return result;
     }
 
     public void evictMember(Long memberId) {
-        cache.asMap().keySet().removeIf(key -> key.memberId().equals(memberId));
+        cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
     }
 
     long weightedSize() {
         cache.cleanUp();
         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
+    }
+
+    private record GenerationKey(long generation, Key key) {
     }
 
     private record Key(Long memberId, Long parentRegionId, Long tagId) {
