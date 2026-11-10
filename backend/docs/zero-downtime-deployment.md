@@ -43,7 +43,7 @@ flowchart LR
 | 컬럼·테이블 삭제 | 팀이 별도 후속 변경으로 작성하고 배포합니다. 자동화가 사용 여부를 판단해 삭제하지 않습니다. |
 | DB 롤백 | 앱 롤백 때 DB를 과거로 되돌리지 않습니다. 삭제·이름 변경은 이전 앱을 더는 되돌릴 필요가 없어진 뒤 별도 배포로 합니다. |
 | 공유 영상 워커 | 두 API 슬롯에서는 끕니다. 렌더러 서버가 처리합니다. |
-| 알림 워커 | 두 API 슬롯에서 켭니다. DB의 `FOR UPDATE SKIP LOCKED`로 작업을 나눕니다. FCM 중복 전송 가능성은 남으므로 검증이 필요합니다. |
+| 알림 워커 | 두 API 슬롯에서 켭니다. DB의 `FOR UPDATE SKIP LOCKED`로 작업을 나눕니다. FCM 전송 활성화는 기존 환경 설정 `NOTIFICATION_FCM_ENABLED`를 따릅니다(미설정 시 false). 서비스 파일에서 강제로 켜지 않습니다. 활성화된 환경에서는 중복 전송 가능성 검증이 필요합니다. |
 | 자동 롤백 | 후보 Actuator health가 2초 간격으로 5회 연속 실패하면 복구합니다. 인증 기능 확인 실패는 관찰 중 롤백 요청 파일로 전달할 수 있습니다. |
 | 이전 프로세스 | 전환 후 5분간 유지하고, 통과하면 중지합니다. 이전 JAR는 보존합니다. |
 | 릴리스 보존 | 두 슬롯이 참조하는 JAR와 최근 성공 릴리스 3개를 보존합니다. 실패·미완료 릴리스는 7일 뒤 정리 대상입니다. |
@@ -133,7 +133,7 @@ sudo touch /var/lib/mapmory-deployments/<DEPLOYMENT_ID>/request-rollback
 - 캐시: `/etc/mapmory-deployment-cache.env`의 `DEPLOYMENT_CACHE_INITIAL_MODE=BYPASS`. 두 슬롯이 공통으로 읽습니다.
 - Nginx: 현재 운영 API는 `/etc/nginx/conf.d/mapmory-api.conf`. 공통 코드는 `.conf` 파일 중 8080/8090 대상을 하나로 찾으며, 랜딩 파일은 수정하지 않습니다. 대상이 여러 개면 배포를 중단합니다.
 - 로그: CloudWatch Agent에 Blue·Green 파일 수집 설정을 등록·검증해야 합니다. 이 PR은 Agent 설정을 자동 변경하지 않습니다.
-- DB·워커: DB 연결 여유와 렌더러 처리 상태, 두 알림 워커의 동시 실행 조건은 머지 전에 확인해야 합니다.
+- DB·워커: DB 연결 여유와 렌더러 처리 상태, 두 알림 워커의 동시 실행 조건은 머지 전에 확인해야 합니다. 운영의 FCM은 현재 비활성화 상태이며 프로젝트 ID가 없으므로, 환경 설정을 유지합니다. FCM 프로젝트 ID나 인증 정보를 이번 배포 목적으로 새로 등록하지 않습니다.
 - 운영 이전 정상 버전 백업: `/opt/mapmory/prod-before-blue-green-20261110-175746`.
 
 ## 개발 서버 리허설 기록
