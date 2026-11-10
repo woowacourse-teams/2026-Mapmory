@@ -147,6 +147,9 @@ internal class AuthenticatedPlaceRepository(
     private val session: GuestSessionManager,
     private val delegate: PlaceRepository,
 ) : PlaceRepository {
+    override suspend fun suggestRegion(latitude: Double, longitude: Double) =
+        session.withAuthenticatedSession { delegate.suggestRegion(latitude, longitude) }
+
     override suspend fun searchPlaces(query: String, sessionToken: String): Result<List<PlaceCandidate>> =
         session.withAuthenticatedSession { delegate.searchPlaces(query, sessionToken) }
 
