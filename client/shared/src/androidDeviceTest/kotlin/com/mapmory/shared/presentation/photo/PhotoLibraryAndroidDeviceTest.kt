@@ -8,6 +8,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.exifinterface.media.ExifInterface
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
@@ -19,6 +21,28 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PhotoLibraryAndroidDeviceTest {
+    @Test
+    fun `시스템_사진_선택기에_위치_공유를_요청하고_사용자_선택_URI를_유지한다`() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val intent = LocationAwarePhotoPicker().createIntent(
+            context,
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+        )
+        if (intent.action == MediaStore.ACTION_PICK_IMAGES) {
+            assertTrue(intent.getBooleanExtra("android.provider.extra.REQUEST_LOCATION_METADATA_ACCESS", false))
+            assertEquals("image/*", intent.type)
+        }
+        for (path in listOf("picker", "picker_get_content", "picker_transcoded")) {
+            val pickerUri = Uri.parse("content://media/$path/0/photopicker/media/123")
+            assertEquals(pickerUri, pickerUri.forPhotoMetadata(requireOriginal = true))
+        }
+        val mediaUri = Uri.parse("content://media/external/images/media/123")
+        assertEquals(mediaUri, mediaUri.forPhotoMetadata(requireOriginal = false))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            assertEquals(MediaStore.setRequireOriginal(mediaUri), mediaUri.forPhotoMetadata(requireOriginal = true))
+        }
+    }
+
     @Test
     fun `MediaStore_스냅샷과_사진_리더는_Android_ContentResolver를_사용한다`() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext

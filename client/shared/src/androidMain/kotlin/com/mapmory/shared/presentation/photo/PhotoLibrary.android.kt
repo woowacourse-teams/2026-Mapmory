@@ -52,6 +52,23 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import com.mapmory.shared.data.local.photo.PhotoMetadataEntity
 
+internal class LocationAwarePhotoPicker : ActivityResultContracts.PickMultipleVisualMedia() {
+    override fun createIntent(context: Context, input: PickVisualMediaRequest): Intent =
+        super.createIntent(context, input).apply {
+            if (action == MediaStore.ACTION_PICK_IMAGES) {
+                // compileSdk 36에는 상수가 없으며, 지원하지 않는 선택기는 이 요청을 무시한다.
+                putExtra("android.provider.extra.REQUEST_LOCATION_METADATA_ACCESS", true)
+            }
+        }
+}
+
+internal fun Uri.forPhotoMetadata(requireOriginal: Boolean): Uri {
+    // 선택기 URI는 사용자가 허용한 메타데이터를 그대로 제공하며 원본 요청을 거부할 수 있다.
+    val isPickerUri = authority == MediaStore.AUTHORITY &&
+        pathSegments.firstOrNull() in listOf("picker", "picker_get_content", "picker_transcoded")
+    return if (requireOriginal && !isPickerUri) MediaStore.setRequireOriginal(this) else this
+}
+
 private data class PendingAndroidRecommendation(
     val location: Location,
     val parentName: String?,
@@ -279,7 +296,7 @@ actual fun rememberPhotoLibraryActions(
     }
 
     val galleryPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(),
+        contract = remember { LocationAwarePhotoPicker() },
     ) { uris ->
         if (uris.isEmpty()) {
             latestLoadingChanged(false)
@@ -988,17 +1005,13 @@ private fun Context.queryPhotoMetadata(uri: Uri): Pair<String?, Long?> {
 }
 
 internal fun Context.readCoordinates(uri: Uri): Pair<Double, Double>? = try {
-    val metadataUri = if (
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-        ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_MEDIA_LOCATION,
-        ) == PackageManager.PERMISSION_GRANTED
-    ) {
-        MediaStore.setRequireOriginal(uri)
-    } else {
-        uri
-    }
+    val metadataUri = uri.forPhotoMetadata(
+        requireOriginal = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_MEDIA_LOCATION,
+            ) == PackageManager.PERMISSION_GRANTED,
+    )
     contentResolver.openInputStream(metadataUri)?.use { input ->
         ExifInterface(input).latLong?.let { it[0] to it[1] }
     }
