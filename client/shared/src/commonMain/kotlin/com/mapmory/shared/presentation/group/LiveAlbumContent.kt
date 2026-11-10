@@ -6,18 +6,26 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.mapmory.shared.analytics.LocalMapmoryAnalytics
 import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.domain.group.AlbumSummary
+import com.mapmory.shared.domain.group.AlbumDetail
 import com.mapmory.shared.domain.model.TripRecordSummary
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.repository.AlbumRepository
 import com.mapmory.shared.domain.repository.TripRecordRepository
 import com.mapmory.shared.data.remote.MapmoryApiException
 import kotlinx.coroutines.launch
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
-internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: TripRecordRepository, shares: AlbumShareCoordinator, navigation: AlbumNavigationState, groupName: String, memberCount: Int, onBack: () -> Unit, onInvite: () -> Unit, onManageGroup: () -> Unit, onPhotoVisibilityChanged: (Boolean) -> Unit, onLeaveGroup: (() -> Unit)? = null, membershipBusy: Boolean = false, recordRevision: Long = 0, onGroupUnavailable: () -> Unit = {}, onCreateRecord: () -> Unit = {}) {
+internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: TripRecordRepository, shares: AlbumShareCoordinator, navigation: AlbumNavigationState, groupName: String, memberCount: Int, onBack: () -> Unit, onInvite: () -> Unit, onManageGroup: () -> Unit, onPhotoVisibilityChanged: (Boolean) -> Unit, onLeaveGroup: (() -> Unit)? = null, membershipBusy: Boolean = false, recordRevision: Long = 0, onGroupUnavailable: () -> Unit = {}, onCreateRecord: () -> Unit = {}, cacheScope: Long = 0) {
     val analytics = LocalMapmoryAnalytics.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember(groupId) { SnackbarHostState() }
@@ -45,6 +53,10 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
     LaunchedEffect(selectedPhoto != null) { onPhotoVisibilityChanged(selectedPhoto != null) }
     DisposableEffect(Unit) { onDispose { onPhotoVisibilityChanged(false) } }
     var name by remember(groupId) { mutableStateOf("") }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var detailUrlFetchedAt by remember(groupId) { mutableStateOf<TimeMark?>(null) }
+    var detailUrlLifetime by remember(groupId) { mutableStateOf(Duration.INFINITE) }
+    val failedPhotoUrls = remember(groupId) { mutableSetOf<String>() }
 
     suspend fun load(next: Int = 0) {
         if (loading || shares.isRunning) return
@@ -62,7 +74,11 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         loading = true; error = null
         val revision = navigation.beginAlbumRequest()
         try { albums.detail(groupId, id).onSuccess {
-            if (revision == navigation.revision && navigation.showAlbum(it)) analytics.emit("album_viewed", mapOf("execution_mode" to "live"))
+            if (revision == navigation.revision) {
+                detailUrlFetchedAt = TimeSource.Monotonic.markNow()
+                detailUrlLifetime = it.shortestPhotoUrlLifetime()
+                if (navigation.showAlbum(it)) analytics.emit("album_viewed", mapOf("execution_mode" to "live"))
+            }
         }.onFailure {
             if (revision != navigation.revision) return@onFailure
             when {
@@ -104,9 +120,24 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
             loadedRecordRevision = recordRevision
         }
     }
+    DisposableEffect(lifecycle, groupId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START && detail != null &&
+                detailUrlFetchedAt?.elapsedNow()?.let { it >= detailUrlLifetime } == true) {
+                scope.launch { detail?.id?.let { open(it) } }
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    fun photoLoadFailed(url: String) {
+        if (!failedPhotoUrls.add(groupPhotoCacheKey(url, cacheScope) ?: url)) return
+        scope.launch { detail?.id?.let { open(it) } ?: load() }
+    }
 
     suspend fun refreshContent() {
         if (busy) return
+        failedPhotoUrls.clear()
         refreshing = true
         try {
             when {
@@ -194,13 +225,15 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                     album != null && selectedPhoto != null && album.photos.isNotEmpty() -> {
                         GroupPhotoScreen(album, album.photos.indexOfFirst { it.imageUri == selectedPhoto }.coerceAtLeast(0),
                             onBack = { selectedPhoto = null },
-                            onPageChanged = { _, index -> selectedPhoto = album.photos[index].imageUri })
+                            onPageChanged = { _, index -> selectedPhoto = album.photos[index].imageUri },
+                            onPhotoLoadFailed = ::photoLoadFailed, cacheScope = cacheScope)
                     }
                     album != null -> scrollStates.SaveableStateProvider("album:$groupId:${album.id}") { GroupAlbumScreen(album,
                         headerActions = actions,
                         onBack = { navigation.showList(); scope.launch { load() } },
                         onAddPhotos = { if (!busy) { snackbarHostState.currentSnackbarData?.dismiss(); add = true } },
-                        onPhoto = { index -> selectedPhoto = album.photos[index].imageUri; analytics.emit("album_photo_viewed", mapOf("execution_mode" to "live")) }) }
+                        onPhoto = { index -> selectedPhoto = album.photos[index].imageUri; analytics.emit("album_photo_viewed", mapOf("execution_mode" to "live")) },
+                        onPhotoLoadFailed = ::photoLoadFailed, cacheScope = cacheScope) }
                     else -> scrollStates.SaveableStateProvider("group:$groupId") { GroupHomeScreen(
                         group = GroupSummary(groupId.toString(), groupName, memberCount, list.orEmpty().map { item ->
                             GroupAlbum(item.id.toString(), item.name, item.region.name,
@@ -212,6 +245,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
                         onBack = onBack, onInvite = onInvite,
                         onAdd = { if (!busy) { snackbarHostState.currentSnackbarData?.dismiss(); add = true } },
                         onAlbum = { scope.launch { open(it.toLong()) } },
+                        onPhotoLoadFailed = ::photoLoadFailed, cacheScope = cacheScope,
                     ) }
                 }
             }
@@ -249,3 +283,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
             try { albums.update(groupId, id, name = name.trim()).onSuccess { detail = it; rename = false }.onFailure { renameError = "이름을 변경하지 못했어요. 다시 시도해 주세요." } } finally { loading = false }
         } }) { Text("저장") } }, dismissButton = { TextButton(onClick = { rename = false }, enabled = !busy) { Text("취소") } })
 }
+
+internal fun AlbumDetail.shortestPhotoUrlLifetime(): Duration = entries.flatMap { entry ->
+    entry.photos.flatMap { photo -> listOfNotNull(photo.thumbnailUrlExpiresIn?.seconds, photo.viewUrlExpiresIn.seconds) }
+}.minOrNull() ?: Duration.INFINITE

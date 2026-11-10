@@ -99,6 +99,18 @@ internal fun MapmoryNavHost(
         onDispose { lifecycle.removeObserver(observer) }
     }
     val currentEntry by navController.currentBackStackEntryAsState()
+    val invitationInbox = com.mapmory.shared.presentation.group.LocalGroupInvitationInbox.current
+    val invitationUrl = invitationInbox?.pendingUrl
+    val account = container.accountSession?.state?.collectAsState()?.value
+    val initialDestination = remember(navController) {
+        if (notificationRequest?.preserveBackStack == false) RecordsRoute() else if (invitationUrl != null || ((account?.generation ?: 0) > 0 && account?.stage != "logged_out")) GroupsRoute else MapRoute
+    }
+    val navigationReady = currentEntry != null
+    LaunchedEffect(invitationUrl, invitationInbox?.revision, navigationReady, navController) {
+        if (invitationUrl != null && navigationReady && navController.currentDestination?.hasRoute<GroupsRoute>() != true) {
+            navigator.navigateToGroups()
+        }
+    }
     val hasAuthenticatedAccount = container.accountSession == null ||
         (accountState?.member?.provider?.let { it != MemberProvider.GUEST } == true &&
             accountState?.transitioning != true && accountState?.pendingLogin != true &&
@@ -202,8 +214,7 @@ internal fun MapmoryNavHost(
         }
         NavHost(
             navController = navController,
-            startDestination = if (notificationRequest?.preserveBackStack == false) RecordsRoute() else if ((container.accountSession?.state?.value?.generation ?: 0) > 0 &&
-                container.accountSession?.state?.value?.stage != "logged_out") GroupsRoute else MapRoute,
+            startDestination = initialDestination,
             // Bottom-tab navigation is a state switch, so it should not use push-style motion on iOS.
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },

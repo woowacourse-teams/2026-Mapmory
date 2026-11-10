@@ -10,7 +10,7 @@ data class GroupDetail(val id: Long, val name: String, val members: List<GroupMe
 data class GroupMemberView(val nickname: String, val owner: Boolean, val me: Boolean, val memberId: Long? = null, val joinedAt: String? = null)
 
 /** The server returns a local date-time without an offset; do not interpret it as UTC. */
-data class IssuedGroupInvitation(val token: String, val code: String, val expiresAt: LocalDateTime) {
+data class IssuedGroupInvitation(val token: String, val code: String, val expiresAt: LocalDateTime, val inviteUrl: String? = null) {
     override fun toString(): String = "IssuedGroupInvitation(token=***, code=***, expiresAt=$expiresAt)"
 }
 

@@ -21,7 +21,7 @@ internal data class GroupDetailDto(val id: Long, val name: String, val members: 
 internal data class GroupMemberDto(val nickname: String, val owner: Boolean, val me: Boolean, val memberId: Long? = null, val joinedAt: String? = null)
 
 @Serializable
-internal data class GroupInvitationDto(val token: String, val code: String, val expiresAt: String) {
+internal data class GroupInvitationDto(val token: String, val code: String, val expiresAt: String, val inviteUrl: String? = null) {
     override fun toString(): String = "GroupInvitationDto(***)"
 }
 
@@ -30,5 +30,5 @@ internal data class GroupInvitationPreviewDto(val groupName: String, val memberC
 
 internal fun GroupSummaryDto.toDomain() = GroupSummary(id, name, memberCount, albumCount, coverPhoto)
 internal fun GroupDetailDto.toDomain() = GroupDetail(id, name, members.map { GroupMemberView(it.nickname, it.owner, it.me, it.memberId, it.joinedAt) })
-internal fun GroupInvitationDto.toDomain() = IssuedGroupInvitation(token, code, LocalDateTime.parse(expiresAt))
+internal fun GroupInvitationDto.toDomain() = IssuedGroupInvitation(token, code, LocalDateTime.parse(expiresAt), inviteUrl)
 internal fun GroupInvitationPreviewDto.toDomain() = GroupInvitationPreview(groupName, memberCount, alreadyMember, groupId, full, expiresAt)

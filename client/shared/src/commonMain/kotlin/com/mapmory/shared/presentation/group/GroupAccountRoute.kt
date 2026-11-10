@@ -37,6 +37,28 @@ internal fun GroupAccountRoute(
     var retry by remember { mutableStateOf(0) }
     var restoring by remember { mutableStateOf(true) }
     var restoreError by remember { mutableStateOf<String?>(null) }
+    val invitationInbox = LocalGroupInvitationInbox.current
+    val invitationUrl = invitationInbox?.pendingUrl
+    var invitationPreview by remember(invitationUrl) { mutableStateOf<com.mapmory.shared.domain.group.GroupInvitationPreview?>(null) }
+    var invitationError by remember(invitationUrl) { mutableStateOf<String?>(null) }
+    var invitationLoading by remember(invitationUrl) { mutableStateOf(false) }
+    var invitationCode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(invitationUrl, restoring, account?.generation, retry) {
+        val token = invitationUrl?.let(::groupInvitationToken) ?: return@LaunchedEffect
+        if (restoring || restoreError != null || account?.transitioning == true ||
+            account?.member?.provider != MemberProvider.GUEST || account.pendingLogin || account.recoveryRequired
+        ) return@LaunchedEffect
+        val repository = container.groupRepository ?: return@LaunchedEffect
+        invitationLoading = true
+        invitationError = null
+        try {
+            repository.previewInvitation(token).onSuccess { invitationPreview = it }.onFailure {
+                invitationError = if ((it as? com.mapmory.shared.data.remote.MapmoryApiException)?.code == "INVITATION_NOT_FOUND")
+                    "초대가 없거나 만료됐어요. 새 초대를 요청해 주세요."
+                else "초대 정보를 불러오지 못했어요. 다시 시도해 주세요."
+            }
+        } finally { invitationLoading = false }
+    }
     LaunchedEffect(session, account?.generation, retry) {
         session?.state?.first { !it.transitioning }
         restoring = true; restoreError = null
@@ -64,6 +86,33 @@ internal fun GroupAccountRoute(
                 }
                 restoreError != null || needsLogin -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text("그룹", style = MaterialTheme.typography.headlineMedium)
+                    invitationInbox?.pendingUrl?.let { url ->
+                        invitationPreview?.let { preview ->
+                            Text("${preview.groupName} 그룹에 초대됐어요.", style = MaterialTheme.typography.titleMedium)
+                            Text("멤버 ${preview.memberCount}명 / 최대 30명")
+                        }
+                        if (invitationLoading) CircularProgressIndicator()
+                        invitationError?.let { message ->
+                            Text(message)
+                            TextButton(onClick = { retry++ }) { Text("초대 다시 확인") }
+                        }
+                        Text("로그인 후 이 초대에 참여할 수 있어요.")
+                        TextButton(onClick = { invitationInbox.dismiss(url) }) { Text("초대 닫기") }
+                    }
+                    if (invitationInbox != null && invitationUrl == null) {
+                        OutlinedTextField(
+                            value = invitationCode,
+                            onValueChange = { value -> invitationCode = value.filter { it.isLetterOrDigit() && it.code < 128 }.take(6).uppercase() },
+                            label = { Text("6자리 초대 코드") },
+                            supportingText = { Text("받은 코드를 입력하거나 길게 눌러 붙여넣어 주세요.") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextButton(onClick = {
+                            invitationInbox.receive("https://map-mory.com/invite/$invitationCode")
+                            invitationCode = ""
+                        }, enabled = invitationCode.length == 6) { Text("초대 확인") }
+                    }
                     notificationLoginMessage?.let { Text(it, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) }
                     restoreError?.let { Text(it) }
                     SocialLoginPanel(session, container.accountLoginController)
@@ -82,6 +131,7 @@ internal fun GroupAccountRoute(
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,
                         refresh = retry,
+                        cacheScope = account?.generation ?: 0,
                         onBusyChanged = { busy = it },
                         onPhotoVisibilityChanged = { photoVisible = it },
                         modifier = Modifier.weight(1f),
