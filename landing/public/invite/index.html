@@ -44,6 +44,7 @@
       display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 12px;
       font-weight: 700; text-decoration: none; background: var(--accent); color: var(--on-accent);
     }
+    .store[hidden] { display: none; }
     .store.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
     .store:focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
     .steps { margin: 28px 0 0; padding: 20px 0 0; border-top: 1px solid var(--line); }
@@ -59,28 +60,49 @@
     <p>Mapmory 앱에서 이 링크를 열면 어떤 그룹인지 보고 바로 참여할 수 있어요.</p>
 
     <div class="stores">
-      <a class="store" id="store-primary" href="https://apps.apple.com/kr/app/mapmory-%EC%97%AC%ED%96%89-%EA%B8%B0%EB%A1%9D-%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/id6807056166">iOS 앱 받기</a>
+      <a class="store" id="open-app" href="#" hidden>앱에서 초대 열기</a>
+      <a class="store" id="store-primary" href="https://apps.apple.com/app/id6807056166">iOS 앱 받기</a>
       <a class="store secondary" id="store-secondary" href="https://play.google.com/store/apps/details?id=com.mapmory.android">Android 앱 받기</a>
     </div>
 
     <section class="steps" aria-labelledby="steps-title">
       <h2 id="steps-title">앱이 이미 있다면</h2>
       <ol>
-        <li>받은 초대 링크를 카카오톡이나 메시지에서 다시 눌러 주세요.</li>
+        <li>Android에서 <b>앱에서 초대 열기</b> 버튼이 보이면 눌러 주세요. 버튼이 없거나 iPhone이면 받은 초대 링크를 카카오톡이나 메시지에서 다시 눌러 주세요.</li>
         <li>그래도 이 화면이 열리면, 초대한 사람에게 6자리 초대 코드를 받아 앱의 <b>그룹 → 코드로 참여</b>에 넣어 주세요.</li>
       </ol>
       <p style="margin-top:12px">초대는 만든 뒤 하루 동안 쓸 수 있어요.</p>
     </section>
   </main>
   <script>
-    // Android에서는 Play 스토어 버튼을 먼저 보여 준다. 판단이 틀려도 두 버튼은 모두 남는다.
+    // Android: 카카오톡 같은 앱 안 브라우저는 앱 링크를 앱으로 넘기지 않고 이 페이지를 연다.
+    // 그래서 사용자가 누르는 "앱에서 초대 열기" 버튼(intent URL)과, 토큰을 referrer로 담은 Play 스토어 링크를 준다.
+    // 스토어로 자동 이동하지 않는다. 설치된 앱까지 스토어로 보내면 초대가 사라진다.
+    // 토큰은 우리 서버나 분석 도구로 보내지 않는다. 다만 Play 스토어 링크의 referrer에 담기므로 Google에는 전달된다(신규 설치 후 초대 복원용).
     (function () {
       if (!/Android/i.test(navigator.userAgent)) return;
-      var primary = document.getElementById("store-primary");
-      var secondary = document.getElementById("store-secondary");
-      primary.parentNode.insertBefore(secondary, primary);
-      secondary.classList.remove("secondary");
-      primary.classList.add("secondary");
+      var openApp = document.getElementById("open-app");
+      var appStore = document.getElementById("store-primary");
+      var playStore = document.getElementById("store-secondary");
+      var match = /^\/invite\/([A-Za-z0-9_-]{6,512})\/?$/.exec(window.location.pathname);
+      if (match) {
+        var token = match[1];
+        var store = new URL("https://play.google.com/store/apps/details");
+        store.searchParams.set("id", "com.mapmory.android");
+        store.searchParams.set("referrer", new URLSearchParams({ invite_token: token }).toString());
+        playStore.href = store.href;
+        openApp.href = "intent://map-mory.com/invite/" + token +
+          "#Intent;scheme=https;package=com.mapmory.android;S.browser_fallback_url=" +
+          encodeURIComponent(store.href) + ";end";
+        openApp.hidden = false;
+        openApp.parentNode.insertBefore(openApp, appStore);
+        playStore.classList.add("secondary");
+      } else {
+        playStore.classList.remove("secondary");
+      }
+      // iOS 버튼은 Android에서 맨 뒤로 보낸다.
+      appStore.parentNode.appendChild(appStore);
+      appStore.classList.add("secondary");
     })();
   </script>
 </body>
