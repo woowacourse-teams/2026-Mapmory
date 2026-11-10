@@ -20,6 +20,10 @@ staged_jar="$MAPMORY_ROOT/deploy-staging/mapmory-backend.jar"
 }
 
 systemctl daemon-reload
+# 부팅 시 Nginx가 가리키는 슬롯만 실행하도록 고정 서비스 자동 시작을 교체한다.
+# enable을 먼저 해 두면 중간 실패에도 다음 부팅 때 서비스가 전부 빠지는 상황을 막는다.
+systemctl enable mapmory-active-slot.service
+systemctl disable mapmory mapmory-green
 systemctl stop "$target_service" || true
 rm -rf -- "$release"
 install -d -o root -g root -m 755 "$release"

@@ -8,6 +8,12 @@ files:
     destination: /etc/systemd/system
   - source: systemd/mapmory-green.service
     destination: /etc/systemd/system
+  - source: scripts/deployment-common.sh
+    destination: /opt/mapmory/bin
+  - source: scripts/start-active-slot-on-boot.sh
+    destination: /opt/mapmory/bin
+  - source: scripts/validate-spring-profile.sh
+    destination: /opt/mapmory/bin
 
 file_exists_behavior: OVERWRITE
 

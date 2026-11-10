@@ -47,6 +47,9 @@ flowchart LR
 | 자동 롤백 | 후보 Actuator health가 2초 간격으로 5회 연속 실패하면 복구합니다. 인증 기능 확인 실패는 관찰 중 롤백 요청 파일로 전달할 수 있습니다. |
 | 이전 프로세스 | 전환 후 5분간 유지하고, 통과하면 중지합니다. 이전 JAR는 보존합니다. |
 | 릴리스 보존 | 두 슬롯이 참조하는 JAR와 최근 성공 릴리스 3개를 보존합니다. 실패·미완료 릴리스는 7일 뒤 정리 대상입니다. |
+| 서버 재부팅 | 개별 슬롯 서비스는 부팅 자동 시작에서 제외합니다. Nginx가 가리키는 슬롯을 부팅 서비스가 읽고 시작합니다. |
+| 로그 | Blue와 Green은 각각 `/var/log/mapmory-blue/application.log`, `/var/log/mapmory-green/application.log`에 기록합니다. CloudWatch Agent도 두 파일을 모두 수집해야 합니다. |
+| 실행 프로파일 | `/etc/mapmory.env`에 서버 환경에 맞는 `SPRING_PROFILES_ACTIVE=dev` 또는 `prod`를 설정합니다. 값이 없거나 다른 값이면 서비스가 시작되지 않습니다. |
 
 Flyway 변경은 앱 배포 때 **새 Flyway migration 파일이 포함되어 있을 때만** 실행됩니다. 나중에 컬럼을 삭제하려면 팀이 별도 마이그레이션을 만들어 리뷰·배포해야 합니다. Flyway가 삭제 시점을 자동으로 판단하지 않습니다.
 
@@ -62,6 +65,19 @@ Flyway 변경은 앱 배포 때 **새 Flyway migration 파일이 포함되어 �
 | `AfterInstall` | `prepare-inactive-slot.sh` | 비활성 슬롯에 새 JAR를 보존·연결하고 시작해 health 확인 |
 | `ApplicationStart` | `switch-traffic.sh` | Nginx 설정을 검사하고 후보 슬롯으로 전환. 실패하면 복구 |
 | `ValidateService` | `validate-and-retain.sh` | 5분 관찰, 필요 시 복구, 통과 시 이전 프로세스 중지와 JAR 정리 |
+
+배포 후 `prepare-inactive-slot.sh`가 `mapmory-active-slot.service`만 부팅 자동 시작 대상으로 두고,
+개별 Blue·Green 서비스는 비활성화합니다. EC2 재부팅 시 부팅 서비스가 Nginx의 `proxy_pass`를 읽어
+활성 슬롯만 시작하고 health를 확인합니다. 배포 대상 EC2의 systemd에는 CloudWatch Agent가 다음 두 로그를
+모두 수집하도록 설정해야 합니다.
+
+```text
+/var/log/mapmory-blue/application.log
+/var/log/mapmory-green/application.log
+```
+
+기존 수집 설정이 `/var/log/mapmory/application.log` 하나만 바라보면, 배포 전에 CloudWatch Agent 설정을
+두 경로로 갱신하고 Agent 설정 검증·재시작을 마쳐야 합니다. 이 저장소는 서버의 Agent 설정을 직접 변경하지 않습니다.
 
 주요 코드는 [AppSpec](/Users/one/wooteco/mapmory/2026-Mapmory/backend/appspec.yml), [배포 스크립트](/Users/one/wooteco/mapmory/2026-Mapmory/backend/scripts), [systemd 서비스](/Users/one/wooteco/mapmory/2026-Mapmory/backend/systemd)에 있습니다.
 
@@ -115,8 +131,11 @@ CodeDeploy의 `ApplicationStop`은 새 아티팩트를 받기 전에 **이전 re
 
 ## 다음 확인
 
+- [ ] 개발 서버의 `/etc/mapmory.env`에 `SPRING_PROFILES_ACTIVE=dev`가 있고 운영 서버에는 `prod`가 있는지 확인한다.
+- [ ] 배포 대상 EC2의 CloudWatch Agent가 Blue·Green 로그 파일을 모두 수집하는지 확인한다.
 - [ ] 개발 서버에 코드를 적용하기 전 실제 Nginx 설정·환경 변수·서비스 파일을 대조한다.
 - [ ] 첫 자동화 배포에서 구 `ApplicationStop`으로 생기는 중단을 측정한다.
+- [ ] Green 전환 후 EC2 재부팅 리허설을 해 Nginx 활성 슬롯만 시작되는지 확인한다.
 - [ ] Blue↔Green 반복 전환, Flyway 호환 마이그레이션, 두 알림 워커 동시 실행을 검증한다.
 - [ ] 5분 health 실패 롤백, 수동 롤백 요청, 이전 프로세스 재시작을 검증한다.
 - [ ] 외부 연속 요청 측정 결과를 추가해 스프린트 완료 조건을 채운다.
