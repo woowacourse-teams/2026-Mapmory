@@ -38,7 +38,9 @@ test("the invite page never shows the token or group details and points to both 
   assert.match(page, /코드로 참여/);
   // The token stays on the page: no network calls, analytics or external scripts, and no automatic navigation.
   assert.doesNotMatch(page, /document\.URL|fetch\(|XMLHttpRequest|sendBeacon|posthog|gtag|<script[^>]+src=/i);
-  assert.doesNotMatch(page, /location\.(href|assign|replace)\s*[=(]|window\.open\(|http-equiv="refresh"/i);
+  assert.doesNotMatch(page, /location(\.href)?\s*=[^=]|location\.(assign|replace)\(|window\.open\(|http-equiv="refresh"|\.src\s*=/i);
+  // .store sets display:flex, which would otherwise override the hidden attribute and show a dead "#" button.
+  assert.match(page, /\.store\[hidden\]\s*\{\s*display:\s*none;\s*\}/);
 });
 
 const PLAY = "https://play.google.com/store/apps/details?id=com.mapmory.android";
