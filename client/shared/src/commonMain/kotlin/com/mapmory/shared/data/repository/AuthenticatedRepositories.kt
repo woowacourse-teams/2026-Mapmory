@@ -38,27 +38,34 @@ internal class AuthenticatedTripRecordRepository(
         withAuthenticatedSession { delegate.getTripRecord(id) }
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
-        withAuthenticatedSession { delegate.createTripRecord(draft) }
+        withAuthenticatedSession(promptOnAuthFailure = true) { delegate.createTripRecord(draft) }
 
     override suspend fun createTripRecord(
         draft: TripRecordDraft,
         onProgress: (Int) -> Unit,
-    ): Result<TripRecordData> = withAuthenticatedSession {
+    ): Result<TripRecordData> = createTripRecord(draft, onProgress, promptOnAuthFailure = true)
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+        promptOnAuthFailure: Boolean,
+    ): Result<TripRecordData> = withAuthenticatedSession(promptOnAuthFailure) {
         val reporting = delegate as? ProgressReportingTripRecordRepository
-        reporting?.createTripRecord(draft, onProgress) ?: delegate.createTripRecord(draft)
+        reporting?.createTripRecord(draft, onProgress, promptOnAuthFailure) ?: delegate.createTripRecord(draft)
     }
 
     override suspend fun updateTripRecord(
         id: Long,
         draft: TripRecordDraft,
-    ): Result<TripRecordData> = withAuthenticatedSession { delegate.updateTripRecord(id, draft) }
+    ): Result<TripRecordData> = withAuthenticatedSession(promptOnAuthFailure = true) { delegate.updateTripRecord(id, draft) }
 
     override suspend fun deleteTripRecord(id: Long): Result<Unit> =
-        withAuthenticatedSession { delegate.deleteTripRecord(id) }
+        withAuthenticatedSession(promptOnAuthFailure = true) { delegate.deleteTripRecord(id) }
 
     private suspend fun <T> withAuthenticatedSession(
+        promptOnAuthFailure: Boolean = false,
         request: suspend () -> Result<T>,
-    ): Result<T> = session.withAuthenticatedSession(request)
+    ): Result<T> = session.withAuthenticatedSession(promptOnAuthFailure = promptOnAuthFailure, request = request)
 }
 
 internal class AuthenticatedMapSummaryRepository(
@@ -75,7 +82,7 @@ internal class AuthenticatedMapSummaryRepository(
 
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
-    ): Result<T> = session.withAuthenticatedSession(request)
+    ): Result<T> = session.withAuthenticatedSession(request = request)
 }
 
 internal class AuthenticatedTagRepository(
@@ -83,14 +90,18 @@ internal class AuthenticatedTagRepository(
     private val delegate: TagRepository,
 ) : TagRepository {
     override suspend fun getTags(): Result<List<Tag>> =
-        withAuthenticatedSession(delegate::getTags)
+        withAuthenticatedSession { delegate.getTags() }
 
     override suspend fun createTag(name: String): Result<Tag> =
-        withAuthenticatedSession { delegate.createTag(name) }
+        withAuthenticatedSession(promptOnAuthFailure = true) { delegate.createTag(name) }
 
     private suspend fun <T> withAuthenticatedSession(
+        promptOnAuthFailure: Boolean = false,
         request: suspend () -> Result<T>,
-    ): Result<T> = session.withAuthenticatedSession(request)
+    ): Result<T> = session.withAuthenticatedSession(
+        promptOnAuthFailure = promptOnAuthFailure,
+        request = request,
+    )
 }
 
 internal class AuthenticatedTripStatisticsRepository(
@@ -110,7 +121,7 @@ internal class AuthenticatedServiceFeedbackRepository(
         category: ServiceFeedbackCategory,
         content: String,
         platform: ServiceFeedbackPlatform,
-    ): Result<Unit> = session.withAuthenticatedSession { delegate.submit(category, content, platform) }
+    ): Result<Unit> = session.withAuthenticatedSession(promptOnAuthFailure = true) { delegate.submit(category, content, platform) }
 }
 
 internal class AuthenticatedShareVideoRepository(
@@ -118,7 +129,7 @@ internal class AuthenticatedShareVideoRepository(
     private val delegate: ShareVideoRepository,
 ) : ShareVideoRepository {
     override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> =
-        withAuthenticatedSession { delegate.createTravelTimeline(style) }
+        withAuthenticatedSession(promptOnAuthFailure = true) { delegate.createTravelTimeline(style) }
 
     override suspend fun getJob(jobId: Long): Result<ShareVideoJob> =
         withAuthenticatedSession { delegate.getJob(jobId) }
@@ -127,8 +138,9 @@ internal class AuthenticatedShareVideoRepository(
         withAuthenticatedSession { delegate.getDownloadUrl(jobId) }
 
     private suspend fun <T> withAuthenticatedSession(
+        promptOnAuthFailure: Boolean = false,
         request: suspend () -> Result<T>,
-    ): Result<T> = session.withAuthenticatedSession(request)
+    ): Result<T> = session.withAuthenticatedSession(promptOnAuthFailure = promptOnAuthFailure, request = request)
 }
 
 internal class AuthenticatedPlaceRepository(

@@ -113,6 +113,83 @@ class AccountLoginController(
         }
     }
 
+    /** Reauthenticate the current member only; never route through the account-switch login path. */
+    fun reauthenticateSameAccount(
+        launcher: SocialLoginLauncher,
+        provider: SocialProvider,
+        onCancelled: () -> Unit,
+    ) {
+        if (!mutableState.compareAndSet(mutableState.value.takeIf { !it.busy } ?: return, LoginUiState(busy = true))) return
+        val expected = session.state.value.sessionProvider
+        if (expected == null || expected == MemberProvider.GUEST || expected.name != provider.name) {
+            mutableState.value = LoginUiState(message = "현재 계정과 같은 로그인 방식을 확인할 수 없어요.")
+            return
+        }
+        val started = TimeSource.Monotonic.markNow()
+        val parameters = mapOf("source" to "auth_recovery", "provider" to provider.name.lowercase())
+        val delivered = MutableStateFlow(false)
+        try {
+            launcher.launch(provider) { result ->
+                if (delivered.compareAndSet(false, true)) scope.launch {
+                    when (result) {
+                        SocialLoginCancelled -> {
+                            finish("cancelled", "provider_auth", started, parameters)
+                            onCancelled()
+                        }
+                        is SocialLoginFailure -> {
+                            analytics.reportFailure("social_account_reauthentication", IllegalStateException(result.message), parameters)
+                            finish("failure", "provider_auth", started, parameters, result.message)
+                        }
+                        is SocialLoginSuccess -> {
+                            val credential = result.credential
+                            if (credential.provider != provider || credential.idToken.isNullOrBlank()) {
+                                finish("failure", "provider_auth", started, parameters, "인증 정보를 확인하지 못했어요. 다시 시도해 주세요.")
+                            } else {
+                                val recovered = session.reauthenticateSameAccount(
+                                    MemberProvider.valueOf(provider.name),
+                                    credential.idToken,
+                                )
+                                recovered.fold(
+                                    { finish("success", "same_account_reauthenticated", started, parameters) },
+                                    { error ->
+                                        analytics.reportFailure("social_account_reauthentication", error, parameters)
+                                        finish("failure", "same_account_reauthenticated", started, parameters,
+                                            error.message ?: "현재 계정을 확인하지 못했어요. 요청한 작업은 실행하지 않았습니다.")
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            if (delivered.compareAndSet(false, true)) {
+                if (error is CancellationException) {
+                    finish("cancelled", "provider_auth", started, parameters)
+                    onCancelled()
+                } else finish("failure", "provider_auth", started, parameters,
+                    "로그인 화면을 열지 못했어요. 다시 시도해 주세요.")
+            }
+        }
+    }
+
+    fun retryExistingCredentials() {
+        if (!mutableState.compareAndSet(mutableState.value.takeIf { !it.busy } ?: return, LoginUiState(busy = true))) return
+        scope.launch {
+            val result = session.retryExistingCredentials()
+            result.fold(
+                { mutableState.value = LoginUiState(message = "저장된 연결을 확인했어요. 원래 작업을 다시 눌러 주세요.") },
+                { error -> mutableState.value = LoginUiState(message = when {
+                    error is MapmoryApiException && error.statusCode in 500..599 -> "서버에 연결할 수 없어요. 기존 기록은 이 기기에 보관되어 있어요. 연결을 확인하고 다시 시도해 주세요."
+                    error is MapmoryApiException && error.statusCode == 401 -> "저장된 연결을 복구하지 못했어요. 기록과 작성 내용은 보관 중이며 새 계정은 만들지 않았어요."
+                    else -> "기존 연결을 확인하지 못했어요. 기록과 작성 내용은 보관 중이에요. 연결을 확인하고 다시 시도해 주세요."
+                }) },
+            )
+        }
+    }
+
+    fun requestRecoveryPrompt() = session.requestRecoveryPrompt()
+
     fun resume() {
         if (mutableState.value.busy) return
         mutableState.value = LoginUiState(busy = true)

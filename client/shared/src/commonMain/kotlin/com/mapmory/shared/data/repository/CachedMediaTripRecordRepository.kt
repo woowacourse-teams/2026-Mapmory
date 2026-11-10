@@ -48,9 +48,15 @@ internal class CachedMediaTripRecordRepository(
     override suspend fun createTripRecord(
         draft: TripRecordDraft,
         onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> = createTripRecord(draft, onProgress, promptOnAuthFailure = true)
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+        promptOnAuthFailure: Boolean,
     ): Result<TripRecordData> {
         val reporting = delegate as? ProgressReportingTripRecordRepository
-        return (reporting?.createTripRecord(draft, onProgress) ?: delegate.createTripRecord(draft))
+        return (reporting?.createTripRecord(draft, onProgress, promptOnAuthFailure) ?: delegate.createTripRecord(draft))
             .map { record -> record.cacheAvailablePreviews() }
     }
 

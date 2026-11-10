@@ -52,6 +52,12 @@ internal class UploadingTripRecordRepository(
     override suspend fun createTripRecord(
         draft: TripRecordDraft,
         onProgress: (Int) -> Unit,
+    ): Result<TripRecordData> = createTripRecord(draft, onProgress, promptOnAuthFailure = true)
+
+    override suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+        promptOnAuthFailure: Boolean,
     ): Result<TripRecordData> = saveWithUploadedMedia(
         draft = draft,
         onProgress = onProgress,

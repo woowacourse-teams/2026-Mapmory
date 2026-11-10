@@ -55,6 +55,13 @@ interface AuthTokenStore {
 
     @Throws(Exception::class)
     fun saveRecentLoginProvider(provider: String) = Unit
+
+    /** Non-secret identity metadata used only to restrict same-account recovery. */
+    @Throws(Exception::class)
+    fun sessionProvider(): AuthPendingRead = AuthPendingRead(null)
+
+    @Throws(Exception::class)
+    fun saveSessionProvider(provider: String?) = Unit
 }
 
 internal interface AuthGateway {
@@ -85,9 +92,14 @@ internal class GuestSessionManager(
     private val elapsedMillis: () -> Long = run { val start = TimeSource.Monotonic.markNow(); { start.elapsedNow().inWholeMilliseconds } },
     private val onRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
 ) : AccessTokenProvider, AccountSession {
-    private val accountState = MutableStateFlow(AccountState(recentLoginProvider = runCatching {
-        tokenStore.recentLoginProvider().provider?.let { MemberProvider.valueOf(it) }?.takeUnless { it == MemberProvider.GUEST }
-    }.getOrNull()))
+    private val accountState = MutableStateFlow(AccountState(
+        recentLoginProvider = runCatching {
+            tokenStore.recentLoginProvider().provider?.let { MemberProvider.valueOf(it) }?.takeUnless { it == MemberProvider.GUEST }
+        }.getOrNull(),
+        sessionProvider = runCatching {
+            tokenStore.sessionProvider().provider?.let(MemberProvider::valueOf)
+        }.getOrNull(),
+    ))
     override val state: StateFlow<AccountState> = accountState.asStateFlow()
     private val operationMutex = Mutex()
     private var activeOperations = 0
@@ -109,7 +121,10 @@ internal class GuestSessionManager(
     }
 
     /** Keep the lease until uploads AND cache writes finish; refresh uses a separate mutex. */
-    internal suspend fun <T> withAuthenticatedSession(request: suspend () -> Result<T>): Result<T> {
+    internal suspend fun <T> withAuthenticatedSession(
+        promptOnAuthFailure: Boolean = false,
+        request: suspend () -> Result<T>,
+    ): Result<T> {
         val denied = operationMutex.withLock {
             when {
                 state.value.transitioning -> AccountTransitionException()
@@ -119,18 +134,37 @@ internal class GuestSessionManager(
                 else -> { activeOperations++; null }
             }
         }
-        if (denied != null) return Result.failure(denied)
+        if (denied != null) {
+            markRecoveryIfTerminal(denied, promptOnAuthFailure)
+            return Result.failure(denied)
+        }
         return try {
             ensureAuthenticated().fold({ request() }, { Result.failure(it) }).also { result ->
                 val error = result.exceptionOrNull()
-                if (error is MapmoryApiException && error.code in setOf("INVALID_ACCESS_TOKEN", "INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN", "INACTIVE_MEMBER")) {
-                    invalidSessionFailure = error
-                    accountState.value = state.value.copy(recoveryRequired = true)
-                }
+                markRecoveryIfTerminal(error, promptOnAuthFailure)
             }
         }
         finally { withContext(NonCancellable) { operationMutex.withLock { activeOperations-- } } }
     }
+
+    private fun markRecoveryIfTerminal(error: Throwable?, prompt: Boolean) {
+        if (!error.isTerminalAuthFailure()) return
+        invalidSessionFailure = error
+        accountState.value = state.value.copy(
+            recoveryRequired = true,
+            recoveryPromptId = if (prompt) state.value.recoveryPromptId + 1 else state.value.recoveryPromptId,
+        )
+    }
+
+    override fun requestRecoveryPrompt() {
+        val current = state.value
+        if (current.recoveryRequired) {
+            accountState.value = current.copy(recoveryPromptId = current.recoveryPromptId + 1)
+        }
+    }
+
+    private fun Throwable?.isTerminalAuthFailure(): Boolean = this is MapmoryApiException &&
+        statusCode == 401 && code in TerminalAuthCodes
 
     /** Read local data under an account lease without refreshing credentials. */
     internal suspend fun <T> withLocalAccountLease(read: suspend () -> T): T? {
@@ -181,6 +215,7 @@ internal class GuestSessionManager(
             gateway.member(checkNotNull(tokens).accessToken).also { result ->
                 result.onSuccess {
                     rememberLoginProvider(it.provider)
+                    rememberSessionProvider(it.provider)
                     accountState.value = state.value.copy(member = it)
                 }
             }
@@ -190,6 +225,114 @@ internal class GuestSessionManager(
     override suspend fun login(provider: MemberProvider, idToken: String, recoverInvalidSession: Boolean): Result<AccountMember> {
         require(provider != MemberProvider.GUEST && idToken.isNotBlank())
         return changeAccount(provider to idToken, recoverInvalidSession)
+    }
+
+    /** Reauthenticates the stored identity without account-switch cache/navigation effects. */
+    override suspend fun reauthenticateSameAccount(provider: MemberProvider, idToken: String): Result<AccountMember> {
+        if (!state.value.recoveryRequired) return Result.failure(IllegalStateException("다시 인증이 필요한 상태가 아니에요."))
+        if (provider == MemberProvider.GUEST || idToken.isBlank()) return Result.failure(IllegalArgumentException("로그인 정보를 확인해 주세요."))
+        val expectedProvider = state.value.sessionProvider
+        if (expectedProvider != provider) {
+            return Result.failure(IllegalStateException("현재 계정과 같은 로그인 방식인지 확인할 수 없어요."))
+        }
+        val denied = operationMutex.withLock {
+            when {
+                state.value.transitioning -> AccountTransitionException()
+                state.value.pendingLogout -> PendingLogoutException()
+                state.value.pendingLogin -> PendingAccountException()
+                activeOperations > 0 -> AccountBusyException()
+                else -> { accountState.value = state.value.copy(transitioning = true, stage = "reauthenticate"); null }
+            }
+        }
+        if (denied != null) return Result.failure(denied)
+        return try {
+            withContext(NonCancellable) {
+                authenticationMutex.withLock {
+                    if (!didLoadStoredTokens) {
+                        tokens = tokenStore.read().tokens
+                        didLoadStoredTokens = true
+                    }
+                    val current = tokens ?: return@withLock Result.failure(IllegalStateException("기존 계정 정보를 확인할 수 없어 안전하게 다시 로그인할 수 없어요."))
+                    val originalSubject = current.accessToken.jwtSubjectOrNull()
+                        ?: return@withLock Result.failure(IllegalStateException("기존 계정 정보를 확인할 수 없어 안전하게 다시 로그인할 수 없어요."))
+                    val issued = gateway.socialLogin(provider, idToken, null).getOrElse { return@withLock Result.failure(it) }
+                    val reauthenticatedSubject = issued.tokens.accessToken.jwtSubjectOrNull()
+                        ?: return@withLock Result.failure(IllegalStateException("다른 계정일 수 있어 로그인을 완료하지 않았어요."))
+                    if (reauthenticatedSubject != originalSubject) {
+                        return@withLock Result.failure(IllegalStateException("현재 계정과 다른 계정으로 확인되어 전환하지 않았어요."))
+                    }
+                    val member = gateway.member(issued.tokens.accessToken).getOrElse { return@withLock Result.failure(it) }
+                    if (member.provider != provider) {
+                        return@withLock Result.failure(IllegalStateException("현재 계정과 같은 로그인 방식인지 확인할 수 없어요."))
+                    }
+                    tokenStore.save(issued.tokens)
+                    tokens = issued.tokens
+                    isAuthenticated = true
+                    pendingPersistence = false
+                    blockedFailure = null
+                    invalidSessionFailure = null
+                    retryAt = 0
+                    accountState.value = state.value.copy(
+                        member = member,
+                        sessionProvider = provider,
+                        recoveryRequired = false,
+                        recoveryProvider = null,
+                        needsProviderProof = false,
+                        stage = "reauthenticated",
+                    )
+                    rememberLoginProvider(provider)
+                    rememberSessionProvider(provider)
+                    Result.success(member)
+                }
+            }
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Result.failure(error)
+        } finally {
+            accountState.value = state.value.copy(transitioning = false)
+        }
+    }
+
+    /** Retry only the credential already stored on this device; never creates a replacement guest. */
+    override suspend fun retryExistingCredentials(): Result<Unit> {
+        if (!state.value.recoveryRequired) return Result.failure(IllegalStateException("다시 연결이 필요한 상태가 아니에요."))
+        return sharedAuthentication("existing-credential-retry") {
+            authenticationMutex.withLock {
+                if (state.value.pendingLogout || state.value.pendingLogin || state.value.transitioning) {
+                    return@withLock Result.failure(AccountTransitionException())
+                }
+                if (!didLoadStoredTokens) {
+                    val read = runCatching { tokenStore.read().tokens }
+                    val stored = read.getOrElse { return@withLock Result.failure(it) }
+                    tokens = stored
+                    didLoadStoredTokens = true
+                }
+                val existing = tokens ?: return@withLock Result.failure(
+                    IllegalStateException("기기에 보관된 연결 정보를 찾지 못했어요. 새 게스트 계정은 만들지 않았습니다."),
+                )
+                // This is an explicit user retry, so bypass only the local terminal cooldown.
+                blockedFailure = null
+                invalidSessionFailure = null
+                retryAt = 0
+                refreshWithRetry(existing.refreshToken).fold(
+                    onSuccess = { refreshed ->
+                        acceptIssuedTokens(refreshed).also { saved ->
+                            if (saved.isSuccess) accountState.value = state.value.copy(
+                                recoveryRequired = false,
+                                recoveryProvider = null,
+                                needsProviderProof = false,
+                                stage = "credentials_retried",
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        invalidSessionFailure = error
+                        accountState.value = state.value.copy(recoveryRequired = true, stage = "credentials_retry_failed")
+                        Result.failure(error)
+                    },
+                )
+            }
+        }
     }
 
     override suspend fun resumeLogin(): Result<AccountMember> {
@@ -259,6 +402,7 @@ internal class GuestSessionManager(
                     })
                     accountState.value = state.value.copy(stage = "logout_store")
                     tokenStore.clear()
+                    tokenStore.saveSessionProvider(null)
                     tokens = null
                     pendingPersistence = false
                     isAuthenticated = false
@@ -418,9 +562,11 @@ internal class GuestSessionManager(
         onAccountChanged()
         tokenStore.markPendingProvider(null)
         rememberLoginProvider(member.provider)
+        rememberSessionProvider(member.provider)
         accountState.value = AccountState(member = member, transitioning = true,
             generation = pendingGeneration, guestAbandoned = pendingAbandoned, stage = "completed",
-            recentLoginProvider = state.value.recentLoginProvider)
+            recentLoginProvider = state.value.recentLoginProvider,
+            sessionProvider = member.provider)
         socialTokensReceived = false
         omitPreviousSession = false
         return Result.success(member)
@@ -431,6 +577,11 @@ internal class GuestSessionManager(
         // A convenience hint must never turn a valid authentication into a failed login.
         runCatching { tokenStore.saveRecentLoginProvider(provider.name) }
         accountState.value = state.value.copy(recentLoginProvider = provider)
+    }
+
+    private fun rememberSessionProvider(provider: MemberProvider) {
+        runCatching { tokenStore.saveSessionProvider(provider.name) }
+        accountState.value = state.value.copy(sessionProvider = provider)
     }
 
     private val authenticationMutex = Mutex()
@@ -481,7 +632,7 @@ internal class GuestSessionManager(
                     (error is MapmoryApiException && error.statusCode in 500..599)
                 if (!transient || attempt == 2) {
                     blockedFailure = error
-                    retryAt = if (error is MapmoryApiException && error.code in setOf("INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN")) Long.MAX_VALUE else elapsedMillis() + 60_000
+            retryAt = if (error.isTerminalAuthFailure()) Long.MAX_VALUE else elapsedMillis() + 60_000
                     return result
                 }
                 retryDelay(1_000L shl attempt)
@@ -539,13 +690,16 @@ internal class GuestSessionManager(
             }
         }
 
-        val authentication = tokens
-            ?.let { refreshWithRetry(it.refreshToken) }
-            ?: gateway.loginAsGuest()
+        val authentication = tokens?.let { refreshWithRetry(it.refreshToken) } ?: gateway.loginAsGuest()
 
         authentication.fold(
             onSuccess = { issuedTokens ->
-                acceptIssuedTokens(issuedTokens)
+                acceptIssuedTokens(issuedTokens).also { accepted ->
+                    if (accepted.isSuccess && state.value.sessionProvider == null) {
+                        runCatching { tokenStore.saveSessionProvider(MemberProvider.GUEST.name) }
+                        accountState.value = state.value.copy(sessionProvider = MemberProvider.GUEST)
+                    }
+                }
             },
             onFailure = { error ->
                 if (tokens != null) reportRefreshFailureOnce("startup", error)
@@ -613,3 +767,7 @@ internal class GuestSessionManager(
         onRefreshFailed(stage, error)
     }
 }
+
+private val TerminalAuthCodes = setOf(
+    "INVALID_ACCESS_TOKEN", "INVALID_REFRESH_TOKEN", "EXPIRED_REFRESH_TOKEN", "INACTIVE_MEMBER",
+)

@@ -32,4 +32,11 @@ interface ProgressReportingTripRecordRepository : TripRecordRepository {
         draft: TripRecordDraft,
         onProgress: (Int) -> Unit,
     ): Result<TripRecordData>
+
+    /** Lets restored/background work opt out of foreground auth-recovery prompts. */
+    suspend fun createTripRecord(
+        draft: TripRecordDraft,
+        onProgress: (Int) -> Unit,
+        promptOnAuthFailure: Boolean,
+    ): Result<TripRecordData> = createTripRecord(draft, onProgress)
 }
