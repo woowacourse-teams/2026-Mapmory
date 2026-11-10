@@ -98,7 +98,8 @@ export function sceneOf(trackIndex, beat) {
 export const STATIC_MAX_HEIGHT = 500;
 
 // ── trust + FAQ and the download section (sketch v11, the end of the page)
-export const TRUST_LINE = "사진을 찾는 일은 폰 안에서만. 앱에는 직접 고른 사진만 올라가고, 나만 볼 수 있어요.";
+// 2026-11-10: "나만 볼 수 있어요" alone stopped being true once a record can be put in a group album (backend ADR 0022)
+export const TRUST_LINE = "사진을 찾는 일은 폰 안에서만. 앱에는 직접 고른 사진만 올라가고, 내가 공유하기 전에는 나만 볼 수 있어요.";
 export const FREE_LINE = "무료로 받을 수 있어요";
 export const FAQ_ITEMS = Object.freeze([
   { question: "사진첩 사진을 전부 가져가나요?", answer: "아니요. 사진을 찾는 일은 폰 안에서만 이뤄지고, 서버에는 기록을 저장할 때 직접 고른 사진만 올라가요." },

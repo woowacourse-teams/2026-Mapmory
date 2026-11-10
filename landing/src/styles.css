@@ -54,7 +54,7 @@
   --accent: #4d9272;
   --accent-strong: #4d9272;
   /* Small green text: AA on paper, surface and accent-soft. Keep --accent-strong for icons, borders and fills. */
-  --accent-ink: #3b7a5c;
+  --accent-ink: #367356;
   /* buttons and chosen chips: ink on paper (light), paper on ink (dark) */
   --ink: #3f8264;
   --on-ink: #ffffff;
@@ -582,12 +582,11 @@ footer p { margin: 10px 0 0; }
 .skip-link:focus { top: 12px; }
 .footer-link { min-height: 44px; display: inline-flex; align-items: center; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
-/* 2026-11-10 GA4 round: own-store button on phones, QR beside the buttons on computers (see HeroStoreActions) */
+/* 2026-11-10 GA4 round: one own-store button on phones, a QR beside the buttons on computers (see HeroStoreActions).
+   The QR keeps its own white quiet zone and square corners so cameras read it in the dark theme too. */
 .hero-store { display: flex; align-items: center; justify-content: center; gap: 16px; }
-.hero-store .store-buttons.is-own { grid-template-columns: max-content; justify-items: center; gap: 4px; }
-.hero-store .store-buttons.is-own .button-store:not(.is-quiet) { min-width: 220px; min-height: 56px; font-size: 16px; }
-.hero-store .button-store.is-quiet { min-height: 44px; padding: 0 12px; border: 0; background: none; box-shadow: none; color: var(--text); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
-.hero-store .button-store.is-quiet svg { display: none; }
+.hero-store .store-buttons.is-own { grid-template-columns: max-content; }
+.hero-store .store-buttons.is-own .button-store { min-width: 220px; min-height: 52px; font-size: 16px; }
 .hero-qr { display: none; margin: 0; padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); align-items: center; gap: 12px; color: var(--text); font-size: 14px; line-height: 20px; font-weight: 700; text-align: left; }
-.hero-qr img { display: block; width: 72px; height: 72px; border-radius: 8px; background: #fff; }
+.hero-qr img { display: block; width: 112px; height: 112px; background: #fff; }
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) { .hero-qr { display: flex; } }

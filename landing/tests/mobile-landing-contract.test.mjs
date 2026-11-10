@@ -15,8 +15,8 @@ test("mobile gallery keeps controls outside the uncropped photo and touch target
   assert.match(stylesSource, /\.world-memory-modal \.memory-sheet-gallery-controls > button \{ width: 44px; height: 44px;/);
   assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--ink\);/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title \{[^}]*display: flex;/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-single-title h2 \{[^}]*LINE Seed Sans KR/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-mobile-photo-caption \{[^}]*LINE Seed Sans KR/s);
+  // 2026-11-10 (app look): memory titles and captions use the one interface family; no handwriting face is left
+  assert.doesNotMatch(stylesSource, /Nanum|cursive|Noto Serif/);
   assert.match(stylesSource, /--memory-diary-title-size: clamp\(22px, 3vw, 26px\)/);
 });
 

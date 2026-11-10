@@ -1,6 +1,8 @@
 # Mapmory 현재 랜딩·Recap 측정 계획
 
-갱신: 2026-10-18 · GA4 웹 스트림: `G-MC93CZWLZF`
+갱신: 2026-11-10 · GA4 웹 스트림: `G-MC93CZWLZF`
+
+> 2026-11-10: 첫 화면 스토어 버튼이 휴대폰에서는 자기 스토어 하나만 나온다(`cta_placement=hero` 그대로, `store` 값으로 구분). 컴퓨터 첫 화면에 QR(`?qr=desktop_hero`)이 생겼고, 그룹 앨범 장면(`#group`)과 `group_album_view`, 첫 화면 바로가기 `cta_placement=hero_group`이 추가됐다. 컴퓨터 화면에서 기술 소개 장면 사이 스크롤 길이도 줄였으므로(92 → 64svh, 처음과 끝 장면 제외) `tech_story_scene` 도달률은 이 배포 전후를 나눠서 본다.
 
 > 2026-11-09: `/recap/` 캠페인과 `/trips/` 실험 페이지를 삭제했다. 아래 Recap(`surface=recap`, `travel_map_*`) 항목은 그 전 기간 데이터를 읽기 위한 기록이며, 이후로는 이 이벤트가 오지 않는다. `/trips/`의 `trips_*` 이벤트 정의는 [docs/history/trips-measurement-plan.md](docs/history/trips-measurement-plan.md)에 남겼다.
 
@@ -27,11 +29,17 @@
 - 기기는 기본 `device category`로 비교한다. 모바일 모션 완료와 데스크톱 스크롤 완료를 직접 비교하지 않는다.
 - 체험 퍼널은 진단용이지 전체 전환의 필수 경로가 아니다. 체험/비체험 전환율 차이는 관찰된 상관관계이며 인과 효과가 아니다.
 
+## QR과 내부 링크 (2026-11-10)
+
+- 컴퓨터 첫 화면 QR은 `https://map-mory.com/?qr=desktop_hero`를 담는다. QR로 들어온 방문은 `page_view`의 `page_location`에 `qr=desktop_hero`가 들어 있는 것으로 센다. 전용 이벤트는 없다.
+- 우리 사이트 안의 링크와 QR에는 `utm_*`를 붙이지 않는다. 방문자가 들어온 캠페인 정보가 내부 UTM으로 덮어써지기 때문이다.
+- QR을 찍은 사람의 스토어 클릭은 휴대폰 세션의 `download_click`으로 잡힌다. 컴퓨터 세션의 전환으로는 보이지 않으므로, 컴퓨터 전환율은 QR 유입 수와 같이 읽는다.
+
 ## 랜딩 이벤트 사전
 
 | 이벤트 | 현재 발생 지점 | 속성 / 중복 정책 |
 | --- | --- | --- |
-| `experience_cta_click` | 헤더 메뉴·사용법 섹션의 지구본 미리 보기 링크, 헤더 사용 방법 링크(how_story, header_nav; how_story 배포 전에는 how_play) | `experience_type`, `cta_placement`; 클릭마다 |
+| `experience_cta_click` | 헤더 메뉴·사용법 섹션의 지구본 미리 보기 링크, 헤더 사용 방법 링크(how_story, header_nav; how_story 배포 전에는 how_play) | `experience_type`, `cta_placement`; 클릭마다. 2026-11-10부터 첫 화면 알약 링크 `새로 생겼어요 …`는 `experience_type=group_album`, `cta_placement=hero_group` |
 | `experience_view` | 활성 탭에서 영역이 뷰포트 기준 50% 이상 1초 노출, 또는 명시적 첫 조작. (how_story 배포 전 how_play는 사용법 폰 화면 `.how-play-phone` 기준) | `experience_type`; 유형별 페이지당 1회 |
 | `experience_start` | 나라 선택·드래그 의도·확대 (how_story 배포 전에는 사용법 첫 장소 탭 place_select도) | `interaction_type`; 유형별 페이지당 1회 |
 | `memory_open` | 패널이 React 화면에 반영된 뒤 | `memory_id`, `selection_source`, `open_index`, `time_since_start_seconds`; 첫 연속 체험에서 기억별 1회 |
@@ -45,6 +53,7 @@
 | `tech_story_view` | 기술 소개 섹션(`#how`, 2026-10-27부터 사진 이야기 대신 이 섹션이 그 자리에 있어 `how_story_*`는 더 나가지 않는다) 고정 화면이 활성 탭에서 35% 이상 보이는 상태로 1초 연속 (2026-10-27 섹션 추가부터) | `experience_type=tech_story`; 페이지당 1회. 첫 `tech_story_scene`·`tech_story_interact` 앞에 늘 먼저 온다 |
 | `tech_story_scene` | 기술 소개 한 장면이 폰 화면에 0.7초 머묾(탭 활성) | `experience_type=tech_story`, `scene_index=1-7` (2026-10-29부터: 1 장소 입력, 2 사진첩에서 뽑아오기, 3 서버로 안 감, 4 골라서 기록, 5 지도 칠하기, 6 지구본, 7 공유 영상. 그 전 1-6과 장면 뜻이 다르므로 이날부터 따로 비교); 장면별 페이지당 1회 |
 | `tech_story_interact` | 기술 소개 폰 화면의 요소를 처음 직접 조작함 | `experience_type=tech_story`, `scene_index=1-7`, `interaction_type=place_pick\|gather\|save\|map_toggle\|globe_drag\|year_pick` (2026-10-29: `flip` → `place_pick`, 장소 칸 누르기. 장면 3 '찾는 동안 사진은 서버로 안 가요'는 누를 것이 없어 interact가 없음. 공유 장면은 7번, `year_pick`); 종류별 페이지당 1회. 자동 시연(위치 입력, 제주 모으기, 접기, 칠하기)은 보내지 않음 |
+| `group_album_view` | 그룹 앨범 장면(`#group`)이 활성 탭에서 절반 이상 보이는 상태로 1초 연속 (2026-11-10 추가). 탭이 가려지면 시간을 다시 잼 | `experience_type=group_album`; 페이지당 1회. `experience_view`와 다른 이벤트라 지구본 보고서에 섞이지 않음 |
 | `how_play_save` (how_story 배포 전) | 저장 후 칠해진 지도가 화면에 반영된 뒤 | `experience_type=how_play`, `demo_place=busan\|gangwon\|gyeongbuk`, `save_index=1-3`, `selected_photos`; 페이지당 장소별 1회. 2026-10-08부터 how_story 배포일까지의 데이터에만 있음 |
 
 체험 유형: `globe`. (`how_play`는 2026-10-08부터 how_story 배포일까지. `how_story`는 `experience_*`를 보내지 않고 `experience_cta_click`·`how_story_*`에만 붙음. `korea_detail`, `korea_memory_add`, `download_cta_click`의 `cta_placement=korea_memory`는 2026-10-08 대한민국 체험 섹션 삭제 전 데이터에만 있음)

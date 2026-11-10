@@ -56,7 +56,7 @@
 .ts-field:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
 .ts-load { margin-top: 8px; padding: 11px; border-radius: 14px; background: var(--ts-accent-soft); color: var(--ts-screen-muted); text-align: center;
   transition: background 200ms var(--ease-out), color 200ms var(--ease-out), transform 200ms var(--ts-ease-out); }
-.ts-load.is-ready { background: var(--ts-accent); color: #fff; }
+.ts-load.is-ready { background: var(--ink); color: var(--on-ink); }
 .ts-load.is-pressed { transform: scale(0.97); }
 /* the album under the form shows once the button is pressed */
 .ts-load-screen .ts-gather { margin-top: 10px; opacity: 0; transition: opacity 250ms var(--ease-out); }
@@ -111,7 +111,7 @@
 .ts-pick.is-folded .ts-rec-card { opacity: 1; transform: none; transition: opacity 200ms var(--ts-ease-out), transform 200ms var(--ts-ease-out); }
 /* by hand the card comes in once the photos have folded */
 .ts-pick.is-manual.is-folded .ts-rec-card { transition-delay: 280ms; }
-.ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ts-accent); color: #fff; font: inherit; text-align: center; cursor: pointer; transition: background 200ms var(--ease-out), color 200ms var(--ease-out); }
+.ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ink); color: var(--on-ink); font: inherit; text-align: center; cursor: pointer; transition: background 200ms var(--ease-out), color 200ms var(--ease-out); }
 .ts-save:disabled { background: var(--ts-accent-soft); color: var(--accent-ink); cursor: default; }
 .ts-save:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
 
@@ -151,7 +151,7 @@
 .ts-years button.is-on::after { background: var(--ts-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ts-accent) 22%, transparent); }
 .ts-years button:focus-visible { outline: 2px solid var(--ts-accent); border-radius: 6px; }
 .ts-share-btn { margin: 0 10px; padding: 11px; border-radius: 12px; background: #ffffff1a; color: #f2f4f6; text-align: center; transition: background 200ms var(--ease-out), color 200ms var(--ease-out), transform 200ms var(--ts-ease-out); }
-.ts-share-btn.is-pressed { background: var(--ts-accent); color: #fff; transform: scale(0.97); }
+.ts-share-btn.is-pressed { background: var(--ink); color: var(--on-ink); transform: scale(0.97); }
 
 /* ── the words: the hand-written step label and one title. They stay in the sticky stage and change in place with the
    scene, so a quick scroll never waits for words to pass (티온, 10-27). */
@@ -170,6 +170,8 @@
 .ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
 /* 2026-11-10: 92 → 64 (GA4 since 10-28: 15 people rested on scene 1, 6 on scene 2; the trip between scenes was long) */
 .ts-beat { min-height: 64vh; min-height: 64svh; }
+/* the first beat types the place as the stage pins and the last one hands over to the next section: both keep 92 */
+@media (min-width: 761px) { .ts-beat:first-child, .ts-beat:last-child { min-height: 92vh; min-height: 92svh; } }
 .ts-bridge { height: 45vh; height: 45svh; }
 
 @media (max-width: 760px) {

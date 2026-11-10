@@ -201,25 +201,27 @@ function ThemeToggle({ theme, onChange }) {
 }
 
 // 2026-11-10 (GA4 10/14–11/10): on phones every store click matched the phone's own store, so a phone shows one big
-// button for its store and the other as a small link. On computers (55% of visitors, 14 of 23 clicks) a store page
-// cannot install anything, so a QR code to this page sits beside the buttons (utm_medium=qr shows up in GA4 sources).
-// The server render and the first client render show both buttons; the phone's own store is known only after mount.
+// button for its store (the header's 앱 받기 menu still offers both). On computers (55% of visitors, 14 of 23 clicks) a
+// store page cannot install anything, so a QR code to this page sits beside the two buttons; its address carries
+// `?qr=desktop_hero` (no UTM, so a visitor's campaign attribution is never replaced by an internal one).
+// The page is client-rendered (createRoot), so the phone's store is known on the first paint.
+const ownStore = () => {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPod/i.test(ua)) return "ios";
+  return null;
+};
+
 function HeroStoreActions() {
-  const [own, setOwn] = useState(null);
-  useEffect(() => {
-    const ua = window.navigator.userAgent;
-    if (/Android/i.test(ua)) setOwn("android");
-    else if (/iPhone|iPod/i.test(ua)) setOwn("ios");
-  }, []);
-  const other = own === "ios" ? "android" : "ios";
+  const [own] = useState(ownStore);
   return (
     <div className="hero-store">
       <div className={`store-buttons${own ? " is-own" : ""}`} role="group" aria-label="Mapmory 앱 다운로드">
         {own
-          ? <><StoreButton placement="hero" platform={own} label="앱 받기" /><StoreButton className="is-quiet" placement="hero" platform={other} label={other === "ios" ? "iPhone은 여기" : "Android는 여기"} /></>
+          ? <StoreButton placement="hero" platform={own} label="앱 받기" />
           : <><StoreButton placement="hero" platform="ios" label="iOS 앱 받기" /><StoreButton placement="hero" platform="android" label="Android 앱 받기" /></>}
       </div>
-      <p className="hero-qr"><img src="/assets/qr-desktop-hero.svg" alt="Mapmory 랜딩으로 가는 QR 코드" width="72" height="72" /><span>폰 카메라로 찍으면<br />폰에서 바로 받아요</span></p>
+      <p className="hero-qr"><img src="/assets/qr-desktop-hero.svg" alt="Mapmory 랜딩 주소가 담긴 QR 코드" width="112" height="112" /><span>폰 카메라로 찍으면<br />폰에서 바로 받아요</span></p>
     </div>
   );
 }

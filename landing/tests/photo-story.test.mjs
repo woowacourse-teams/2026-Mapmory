@@ -56,6 +56,8 @@ test("chip taps keep the hero_demo_select contract; the auto-pick is never measu
   assert.match(app, /<StoreButton placement="hero" platform="android" label="Android 앱 받기" \/>/);
   // 2026-11-10: a phone shows its own store as the one big button; the hero placement stays "hero" for both
   assert.match(app, /<StoreButton placement="hero" platform=\{own\} label="앱 받기" \/>/);
+  assert.match(app, /const \[own\] = useState\(ownStore\);/); // known on the first paint: no two-button flash on phones
+  assert.doesNotMatch(app, /utm_/); // the QR address never carries an internal UTM
   assert.match(app, /\/assets\/qr-desktop-hero\.svg/);
   assert.match(app, /<StoreButton placement="final" platform="ios"/);
   assert.match(app, /<StoreButton placement="final" platform="android"/);
@@ -85,7 +87,8 @@ test("#how is #roll then #rec: six beats with the sketch's words and the footnot
 });
 
 test("trust + FAQ and download use the sketch's words exactly", () => {
-  assert.equal(TRUST_LINE, "사진을 찾는 일은 폰 안에서만. 앱에는 직접 고른 사진만 올라가고, 나만 볼 수 있어요.");
+  // 2026-11-10: a record put in a group album is seen by that group, so the promise is "until I share it"
+  assert.equal(TRUST_LINE, "사진을 찾는 일은 폰 안에서만. 앱에는 직접 고른 사진만 올라가고, 내가 공유하기 전에는 나만 볼 수 있어요.");
   assert.equal(FREE_LINE, "무료로 받을 수 있어요");
   assert.deepEqual(FAQ_ITEMS.map(({ question }) => question), [
     "사진첩 사진을 전부 가져가나요?", "사진 접근을 전부 허용해야 하나요?", "위치 정보가 없는 사진은요?", "남긴 기록은 지울 수 있나요?",

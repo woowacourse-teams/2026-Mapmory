@@ -32,6 +32,8 @@
 @keyframes wall-ask-in { from { opacity: 0; transform: translateY(6px); } }
 .wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; pointer-events: none; }
 .wall-hero-new { min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent-ink); font-size: 14px; font-weight: 700; text-decoration: none; pointer-events: auto; box-shadow: var(--shadow); transition: transform 200ms var(--ease-out); }
+/* phones: the pill takes the place of the byline so the photos of a picked place keep their band (heroWallEngine gather) */
+@media (max-width: 519px) { .wall-hero-foot span { display: none; } .wall-hero-new { font-size: 13px; padding: 0 14px; } }
 @media (hover: hover) { .wall-hero-new:hover { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .wall-hero-new { transition: none; } }
 @media (hover: hover) and (pointer: fine) {

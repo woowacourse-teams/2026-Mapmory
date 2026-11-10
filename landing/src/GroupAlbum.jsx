@@ -1,22 +1,24 @@
 import { useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, trackEvent } from "./analytics.js";
+import { createPassiveViewTracker } from "./howStoryAnalytics.js";
 import "./group-album.css";
 
 // 2026-11-09 (티온 picked "그룹 앨범만"): one scroll-driven scene after the tech story. Three friends' photos fly into one
-// shared album and each lands with its uploader's name, like the app's group album (client/docs/design/group-album-ui-plan.md:
-// the album gathers each member's own records and names who uploaded every photo). Scroll position is the playhead; no
-// timers or taps. Names and dates are examples; the photos are the team's own US trip photos.
+// shared album and each lands with its uploader's name, like the app's group album (backend ADR 0022: an album gathers
+// each member's own records and shows who added every photo). Scroll position is the playhead; no timers or taps.
+// Names and dates are examples; the photos are small crops of the team's own US trip photos (public/assets/group/,
+// 256px, loaded only when the scene comes near).
 const PEOPLE = [
   { name: "성우", photos: [0, 1] },
   { name: "민지", photos: [2, 3] },
   { name: "지우", photos: [4] },
 ];
 const PHOTOS = [
-  "/assets/team-usa-antelope-canyon.webp",
-  "/assets/team-usa-bryce-canyon.webp",
-  "/assets/team-usa-las-vegas-day.webp",
-  "/assets/team-usa-las-vegas-fountain.webp",
-  "/assets/team-usa-las-vegas-venetian.webp",
+  "/assets/group/usa-antelope-canyon.webp",
+  "/assets/group/usa-bryce-canyon.webp",
+  "/assets/group/usa-las-vegas-day.webp",
+  "/assets/group/usa-las-vegas-fountain.webp",
+  "/assets/group/usa-las-vegas-venetian.webp",
 ];
 const ORDER = [0, 2, 4, 1, 3];
 const ownerOf = (index) => PEOPLE.find((person) => person.photos.includes(index)).name;
@@ -34,30 +36,27 @@ export function GroupAlbum() {
     const targets = [...scene.querySelectorAll("[data-dst]")];
     const flyers = [...scene.querySelectorAll("[data-fly]")];
     const minis = [...scene.querySelectorAll("[data-mini]")];
+    const screen = scene.querySelector("[data-screen]");
     const who = scene.querySelector("[data-who]");
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const short = window.matchMedia("(max-height: 499px)"); // landscape phones: not pinned, the finished album
     let boxes = [];
     let frame = 0;
-
-    const measure = () => {
-      const origin = scene.getBoundingClientRect();
-      boxes = flyers.map((_, i) => {
-        const a = sources[i].getBoundingClientRect();
-        const b = targets[i].getBoundingClientRect();
-        return { ax: a.left - origin.left, ay: a.top - origin.top, as: a.width, bx: b.left - origin.left, by: b.top - origin.top, bs: b.width };
-      });
-      draw();
-    };
+    let onScreen = false;
+    let half = false;
+    let whoText = "";
+    let cancelled = false;
 
     const progress = () => {
       const rect = track.getBoundingClientRect();
       const room = rect.height - window.innerHeight;
+      // no room to scroll (reduced motion, landscape phones: the track is not pinned) shows the finished album
       return room > 0 ? Math.min(1, Math.max(0, -rect.top / room)) : 1;
     };
 
     function draw() {
       frame = 0;
-      const p = reduce.matches ? 1 : progress();
+      const p = reduce.matches || short.matches ? 1 : progress();
       ORDER.forEach((i, k) => {
         const box = boxes[i];
         if (!box) return;
@@ -76,33 +75,58 @@ export function GroupAlbum() {
         const left = person.photos.some((i) => !flyers[i].classList.contains("is-in"));
         minis[j].classList.toggle("is-empty", !left);
       });
-      who.textContent = landed.length ? `함께 올린 사람 · ${landed.map((person) => person.name).join(", ")}` : "함께 올린 사람";
+      const next = landed.length ? `함께 올린 사람 · ${landed.map((person) => person.name).join(", ")}` : "함께 올린 사람";
+      if (next !== whoText) { whoText = next; who.textContent = next; }
     }
 
-    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(draw); };
+    // where each photo starts (its friend's slot) and lands (its album slot), relative to the scene
+    function measure() {
+      const origin = scene.getBoundingClientRect();
+      boxes = flyers.map((_, i) => {
+        const a = sources[i].getBoundingClientRect();
+        const b = targets[i].getBoundingClientRect();
+        return { ax: a.left - origin.left, ay: a.top - origin.top, as: a.width, bx: b.left - origin.left, by: b.top - origin.top, bs: b.width };
+      });
+      draw();
+    }
+
+    const schedule = () => { if (onScreen && !frame) frame = window.requestAnimationFrame(draw); };
+    // the slots move when the scene or the phone screen changes size, and when the web font arrives
     const resize = new ResizeObserver(measure);
     resize.observe(scene);
-    window.addEventListener("scroll", schedule, { passive: true });
+    resize.observe(screen);
+    document.fonts?.ready.then(() => { if (!cancelled) measure(); });
     reduce.addEventListener?.("change", measure);
-    measure();
-    // experience_view (experience_type group_album): once, after the scene has been at least half on screen for 1 s
-    let seenTimer = 0;
-    const seen = new IntersectionObserver(([entry]) => {
-      window.clearTimeout(seenTimer);
-      if (!entry.isIntersecting) return;
-      seenTimer = window.setTimeout(() => {
-        if (document.visibilityState !== "visible") return;
-        trackEvent(ANALYTICS_EVENTS.EXPERIENCE_VIEW, { experience_type: "group_album" });
-        seen.disconnect();
-      }, 1000);
-    }, { threshold: 0.5 });
+    short.addEventListener?.("change", measure);
+
+    // the photos load and the scroll is followed only while the track is near or on screen
+    const near = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      if (!onScreen) return;
+      flyers.forEach((el, i) => { if (!el.style.backgroundImage) el.style.backgroundImage = `url(${PHOTOS[i]})`; });
+      measure();
+    }, { rootMargin: "100% 0px" });
+    near.observe(track);
+    window.addEventListener("scroll", schedule, { passive: true });
+
+    // group_album_view: once, after the scene has been at least half on screen in a visible tab for 1 s
+    const view = createPassiveViewTracker({ onView: () => trackEvent(ANALYTICS_EVENTS.GROUP_ALBUM_VIEW, { experience_type: "group_album" }) });
+    const syncView = () => view.update(half && document.visibilityState === "visible");
+    const seen = new IntersectionObserver(([entry]) => { half = entry.isIntersecting; syncView(); }, { threshold: 0.5 });
     seen.observe(scene);
+    document.addEventListener("visibilitychange", syncView);
+
+    measure();
     return () => {
-      seen.disconnect();
-      window.clearTimeout(seenTimer);
+      cancelled = true;
       resize.disconnect();
+      near.disconnect();
+      seen.disconnect();
+      view.stop();
+      document.removeEventListener("visibilitychange", syncView);
       window.removeEventListener("scroll", schedule);
       reduce.removeEventListener?.("change", measure);
+      short.removeEventListener?.("change", measure);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
@@ -124,17 +148,17 @@ export function GroupAlbum() {
             ))}
           </div>
           <div className="ga-phone">
-            <div className="ga-screen">
+            <div className="ga-screen" data-screen>
               <span className="ga-notch" />
               <span className="ga-bar">그룹 앨범</span>
               <span className="ga-meta">라스베이거스 · 2025.07.14 – 07.19</span>
               <span className="ga-title">미국에서 함께한 여행</span>
               <span className="ga-who" data-who>함께 올린 사람</span>
-              <div className="ga-grid">{PHOTOS.map((_, i) => <span key={i} data-dst className="ga-slot" />)}</div>
+              <div className="ga-grid">{PHOTOS.map((src) => <span key={src} data-dst className="ga-slot" />)}</div>
             </div>
           </div>
           {PHOTOS.map((src, i) => (
-            <span className="ga-photo" data-fly key={src} style={{ backgroundImage: `url(${src})` }}><i>{ownerOf(i)}</i></span>
+            <span className="ga-photo" data-fly key={src}><i>{ownerOf(i)}</i></span>
           ))}
         </div>
       </div>
