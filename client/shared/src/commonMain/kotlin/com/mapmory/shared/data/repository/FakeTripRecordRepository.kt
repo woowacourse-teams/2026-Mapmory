@@ -146,6 +146,24 @@ class FakeTripRecordRepository(
         }
     }
 
+    override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> = runCatching {
+        getRootRegions(tagId).getOrThrow().flatMap { root ->
+            val children = getChildRegions(root.regionId, tagId).getOrThrow()
+            buildList {
+                add(root)
+                children.forEach { child ->
+                    add(child.copy(parentRegionId = root.regionId))
+                    if (child.type == MapRegionType.PROVINCE) {
+                        addAll(
+                            getChildRegions(child.regionId, tagId).getOrThrow()
+                                .map { it.copy(parentRegionId = child.regionId) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     override suspend fun getStatistics(): Result<TripStatistics> = runCatching {
         val visitedCountryCodes = records.mapNotNull { record ->
             rootLocation(regionCatalog.findById(record.locationId))?.regionCode

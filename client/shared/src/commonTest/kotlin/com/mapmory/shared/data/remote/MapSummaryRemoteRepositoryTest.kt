@@ -16,6 +16,40 @@ import kotlin.test.assertEquals
 
 class MapSummaryRemoteRepositoryTest {
     @Test
+    fun fullMapSummaryUsesOneEndpointAndParsesParentIds() = runBlocking {
+        var requestCount = 0
+        val client = HttpClient(MockEngine) {
+            configureCommonHttpClient()
+            engine {
+                addHandler { request ->
+                    requestCount++
+                    assertEquals("Bearer guest-token", request.headers[HttpHeaders.Authorization])
+                    assertEquals("7", request.url.parameters["tagId"])
+                    assertEquals("/api/v1/travel-records/map-summary", request.url.encodedPath)
+                    respond(
+                        content = ByteReadChannel(
+                            """{"data":[{"regionId":1,"parentRegionId":null,"code":"KR","regionType":"COUNTRY","name":"대한민국","count":12,"level":"HIGH"},{"regionId":11,"parentRegionId":1,"code":"11","regionType":"PROVINCE","name":"서울특별시","count":12,"level":"HIGH"}]}""",
+                        ),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            }
+        }
+        val repository = MapSummaryRemoteRepository(
+            client = client,
+            apiBaseUrl = "https://api.example.com/api/v1",
+            accessTokenProvider = AccessTokenProvider { "guest-token" },
+        )
+
+        val summaries = repository.getMapSummary(tagId = 7).getOrThrow()
+
+        assertEquals(1, requestCount)
+        assertEquals(listOf(null, 1L), summaries.map { it.parentRegionId })
+        client.close()
+    }
+
+    @Test
     fun rootsAndChildrenUseSummaryEndpointsAndBearerToken() = runBlocking {
         var requestCount = 0
         val client = HttpClient(MockEngine) {

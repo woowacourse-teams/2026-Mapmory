@@ -11,6 +11,7 @@ import com.mapmory.shared.domain.model.PlaceSelection
 import com.mapmory.shared.domain.model.Location
 import com.mapmory.shared.domain.model.LocationType
 import com.mapmory.shared.domain.model.MapRegionSummary
+import com.mapmory.shared.domain.model.MapRegionType
 import com.mapmory.shared.domain.model.Tag
 import com.mapmory.shared.domain.region.RegionCatalog
 import com.mapmory.shared.domain.repository.MapSummaryRepository
@@ -230,29 +231,22 @@ class MapViewModel(
         val selectedTagId = uiState.selectedTagId?.takeIf { selectedId ->
             tags.any { it.id == selectedId }
         }
-        val roots = mapSummaryRepository.getRootRegions(selectedTagId).getOrElse { error ->
+        val summaries = mapSummaryRepository.getMapSummary(selectedTagId).getOrElse { error ->
             uiState = uiState.copy(
                 errorMessage = error.message ?: "지도 기록을 불러오지 못했습니다.",
             )
             return
         }
+        val roots = summaries.filter { it.type == MapRegionType.COUNTRY }
         val korea = roots.firstOrNull { it.code == KoreaCountryCode }
         val provinces = korea?.let { root ->
-            mapSummaryRepository.getChildRegions(root.regionId, selectedTagId).getOrElse { error ->
-                uiState = uiState.copy(
-                    rootRegions = roots,
-                    errorMessage = error.message ?: "대한민국 지역 기록을 불러오지 못했습니다.",
-                )
-                return
-            }
+            summaries.filter { it.type == MapRegionType.PROVINCE && it.parentRegionId == root.regionId }
         }.orEmpty()
-        val districtsByProvince = mutableMapOf<String, List<MapRegionSummary>>()
-        provinces.filter { it.count > 0 }.forEach { province ->
-            val provinceCode = "$KoreanProvincePrefix${province.code}"
-            val districts = mapSummaryRepository.getChildRegions(province.regionId, selectedTagId).getOrElse {
-                mapSummaryRepository.getCachedChildRegions(province.regionId, selectedTagId) ?: return@forEach
-            }
-            districtsByProvince[provinceCode] = districts
+        val districtsByRegionId = summaries
+            .filter { it.type == MapRegionType.DISTRICT }
+            .groupBy(MapRegionSummary::parentRegionId)
+        val districtsByProvince = provinces.associate { province ->
+            "$KoreanProvincePrefix${province.code}" to districtsByRegionId[province.regionId].orEmpty()
         }
 
         uiState = uiState.copy(
@@ -286,20 +280,7 @@ class MapViewModel(
         if (visibleDetail?.provinceCode != provinceCode) {
             uiState = uiState.copy(koreaMap = KoreaMapUiState.DistrictLoading(provinceCode))
         }
-        val serverProvinceCode = provinceCode.removePrefix(KoreanProvincePrefix)
-        val province = uiState.koreaProvinces.firstOrNull { it.code == serverProvinceCode }
-        val summaries = uiState.districtsByProvince[provinceCode] ?: province?.let { summary ->
-            mapSummaryRepository.getChildRegions(summary.regionId, uiState.selectedTagId).getOrElse { error ->
-                if (!isCurrentProvinceLoad(generation, selectionGeneration)) return
-                uiState = uiState.copy(
-                    koreaMap = KoreaMapUiState.Error(
-                        provinceCode = provinceCode,
-                        message = error.message ?: "지역별 기록을 불러오지 못했습니다.",
-                    ),
-                )
-                return
-            }
-        }.orEmpty()
+        val summaries = uiState.districtsByProvince[provinceCode].orEmpty()
         if (!isCurrentProvinceLoad(generation, selectionGeneration)) return
         uiState = uiState.copy(
             districtsByProvince = uiState.districtsByProvince + (provinceCode to summaries),

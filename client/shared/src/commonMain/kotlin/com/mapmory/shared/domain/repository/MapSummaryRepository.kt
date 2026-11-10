@@ -10,4 +10,6 @@ interface MapSummaryRepository {
     suspend fun getRootRegions(tagId: Long? = null): Result<List<MapRegionSummary>>
 
     suspend fun getChildRegions(regionId: Long, tagId: Long? = null): Result<List<MapRegionSummary>>
+
+    suspend fun getMapSummary(tagId: Long? = null): Result<List<MapRegionSummary>>
 }

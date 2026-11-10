@@ -41,6 +41,8 @@ internal class AnalyticsMapSummaryRepository(
         analytics.observeOperation("map_root_load") { delegate.getRootRegions(tagId) }
     override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
         analytics.observeOperation("map_region_load") { delegate.getChildRegions(regionId, tagId) }
+    override suspend fun getMapSummary(tagId: Long?) =
+        analytics.observeOperation("map_summary_load") { delegate.getMapSummary(tagId) }
 }
 
 internal class AnalyticsStatisticsRepository(
