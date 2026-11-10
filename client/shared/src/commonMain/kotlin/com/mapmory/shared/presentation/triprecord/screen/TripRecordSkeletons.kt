@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.mapmory.shared.presentation.triprecord.TripRecordListLayout
 import com.mapmory.shared.preview.PreviewSurface
 
 @Composable
@@ -70,31 +71,131 @@ internal fun SkeletonBox(
     )
 }
 
+/**
+ * 일지 목록 로딩 중 자리표시. 보기 방식마다 실제 목록(사진: 대표 카드+2열, 시간순: 월 구분+타임라인 카드,
+ * 여행지별: 대표 모음+2열)과 같은 크기와 간격을 써서 응답 뒤에 화면이 밀리지 않게 한다.
+ */
 @Composable
 internal fun TripRecordListSkeleton(
+    layout: TripRecordListLayout,
+    afterLayoutSwitcher: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 18.dp),
-    ) {
-        items(listOf(0, 1), key = { it }) {
-            SkeletonTripRecordCard()
+    when (layout) {
+        TripRecordListLayout.PHOTO -> LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(bottom = 18.dp),
+            userScrollEnabled = false,
+        ) {
+            item(key = "featured") {
+                SkeletonBox(Modifier.fillMaxWidth().height(258.dp), RoundedCornerShape(20.dp))
+            }
+            item(key = "recent-heading") {
+                SkeletonCardText(15.sp, Modifier.padding(top = 2.dp).fillMaxWidth(0.3f), FontWeight.Bold)
+            }
+            item(key = "recent-row") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(2) { SkeletonCompactPhotoCard(Modifier.weight(1f)) }
+                }
+            }
+        }
+        TripRecordListLayout.TIMELINE -> LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = 18.dp),
+            userScrollEnabled = false,
+        ) {
+            item(key = "month") {
+                // 실제 목록은 보기 전환 버튼 아래 10dp 간격 + 8dp 여백, 버튼이 없으면 14dp 여백 + 8dp로 시작한다.
+                // 로딩 중에는 화면이 버튼 아래(또는 빈 자리)에 14dp를 이미 두므로 남은 만큼만 띄운다.
+                SkeletonTimelineMonth(Modifier.padding(top = if (afterLayoutSwitcher) 4.dp else 8.dp, bottom = 2.dp))
+            }
+            items(listOf(0, 1, 2), key = { "timeline-$it" }) { SkeletonTimelineCard() }
+        }
+        TripRecordListLayout.COLLECTION -> LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 18.dp),
+            userScrollEnabled = false,
+        ) {
+            item(key = "collection-heading") {
+                SkeletonCardText(15.sp, Modifier.padding(top = 4.dp, bottom = 2.dp).fillMaxWidth(0.4f), FontWeight.Bold)
+            }
+            item(key = "collection-featured") {
+                SkeletonBox(Modifier.fillMaxWidth().height(232.dp), RoundedCornerShape(22.dp))
+            }
+            item(key = "collection-row") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(2) { SkeletonBox(Modifier.weight(1f).height(178.dp), RoundedCornerShape(18.dp)) }
+                }
+            }
         }
     }
 }
 
+/** CompactPhotoTripRecordCard와 같은 96dp 사진 + 두 줄 텍스트 구조. */
 @Composable
-private fun SkeletonTripRecordCard() {
-    TripRecordCardLayout(
-        photo = { TripPhotoPlaceholder(Modifier.fillMaxSize(), RoundedCornerShape(12.dp)) },
-        details = {
-            SkeletonCardText(11.sp, Modifier.fillMaxWidth(0.65f))
-            Spacer(Modifier.height(7.dp))
-            SkeletonCardText(19.sp, Modifier.fillMaxWidth(0.5f), FontWeight.Bold)
-        },
-    )
+private fun SkeletonCompactPhotoCard(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
+    ) {
+        Column {
+            SkeletonBox(Modifier.fillMaxWidth().height(96.dp), RectangleShape)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SkeletonCardText(12.sp, Modifier.fillMaxWidth(0.7f), FontWeight.Bold)
+                SkeletonCardText(10.sp, Modifier.fillMaxWidth(0.85f))
+            }
+        }
+    }
+}
+
+/** TripRecordTimelineList의 월 구분 줄과 같은 높이. */
+@Composable
+private fun SkeletonTimelineMonth(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SkeletonBox(Modifier.size(8.dp), CircleShape)
+        SkeletonCardText(12.sp, Modifier.width(72.dp), FontWeight.Bold)
+        Box(Modifier.weight(1f).height(1.dp).background(TripRecordPalette.current.border))
+    }
+}
+
+/** TimelineTripRecordCard와 같은 94x83 사진 + 세 줄 텍스트 구조. */
+@Composable
+private fun SkeletonTimelineCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = TripRecordPalette.current.surface),
+        border = BorderStroke(1.dp, TripRecordPalette.current.border),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBox(Modifier.size(width = 94.dp, height = 83.dp), RoundedCornerShape(9.dp))
+            Column(
+                modifier = Modifier.weight(1f).padding(end = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SkeletonCardText(10.sp, Modifier.fillMaxWidth(0.45f))
+                SkeletonCardText(13.sp, Modifier.fillMaxWidth(0.75f), FontWeight.Bold)
+                SkeletonCardText(10.sp, Modifier.fillMaxWidth(0.6f))
+            }
+            Text("›", color = TripRecordPalette.current.secondaryText, fontSize = 22.sp)
+        }
+    }
 }
 
 /** 실제 Text와 같은 줄 높이를 측정해 글꼴 배율이 달라도 카드 높이를 맞춘다. */
@@ -357,7 +458,28 @@ private fun SkeletonRankingCard() {
 @Composable
 internal fun TripRecordListSkeletonPreview() {
     PreviewSurface {
-        TripRecordListSkeleton(modifier = Modifier.fillMaxSize())
+        TripRecordListSkeleton(
+            layout = TripRecordListLayout.PHOTO,
+            afterLayoutSwitcher = true,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(
+    name = "기록 목록 스켈레톤 · 시간순",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 900,
+)
+@Composable
+internal fun TripRecordTimelineSkeletonPreview() {
+    PreviewSurface {
+        TripRecordListSkeleton(
+            layout = TripRecordListLayout.TIMELINE,
+            afterLayoutSwitcher = true,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
