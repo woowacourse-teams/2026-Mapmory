@@ -86,7 +86,7 @@ Green 준비 후 `/actuator/health`는 `UP`, `/actuator/deploymentcache`는 `BYP
 | `backend/scripts/bootstrap-blue-green.sh` | Nginx 활성 포트 확인, 기존 JAR를 슬롯 릴리스로 보존, 배포별 이전 슬롯 기록 |
 | `backend/scripts/prepare-inactive-slot.sh` | 반대 슬롯의 서비스를 멈추고 신규 JAR를 고유 릴리스 디렉터리에 복사, `current` 심볼릭 링크를 원자적으로 교체, 시작 및 헬스 확인 |
 | `backend/scripts/switch-traffic.sh` | 활성 포트가 시작 때 기록한 값과 같은지 확인한 뒤 Nginx 설정 검사·reload, 오류 시 이전 포트로 복구 |
-| `backend/scripts/validate-and-retain.sh` | 전환 후 10분간 2초 간격으로 Actuator health를 확인하고, 5회 연속 실패 시 이전 슬롯으로 복구. 통과하면 이전 프로세스를 종료하고 JAR 체크섬 검증·릴리스 정리 |
+| `backend/scripts/validate-and-retain.sh` | 전환 후 5분간 2초 간격으로 Actuator health를 확인하고, 5회 연속 실패 시 이전 슬롯으로 복구. 통과하면 이전 프로세스를 종료하고 JAR 체크섬 검증·릴리스 정리 |
 | `backend/scripts/deployment-common.sh` | 포트 판별, Nginx 설정의 안전한 변경, 서비스명·슬롯 매핑, 헬스 확인 공통 함수 |
 | `backend/systemd/mapmory.service`, `mapmory-green.service` | 슬롯별 JAR 경로와 포트, graceful shutdown, 종료 코드 143 정상 처리 설정 |
 | `backend/buildspec.yml` | JAR, AppSpec, 스크립트와 systemd 유닛을 CodeDeploy 아티팩트에 포함 |
@@ -118,13 +118,13 @@ CodeDeploy의 `ApplicationStop`은 신규 아티팩트 다운로드보다 먼저
 
 ### 프로세스와 롤백 정책
 
-- 후보 health 확인, Nginx 전환 후 10분 동안 이전 프로세스를 유지한다. 2초 간격 Actuator health가 5회 연속 실패하면 자동으로 이전 슬롯으로 복구한다.
+- 후보 health 확인, Nginx 전환 후 5분 동안 이전 프로세스를 유지한다. 2초 간격 Actuator health가 5회 연속 실패하면 자동으로 이전 슬롯으로 복구한다.
 - 인증된 기능의 수동 확인이 실패하면 관찰 구간 중 CodeDeploy 배포 ID 디렉터리에 `request-rollback` 파일을 만들 수 있다. 검증 스크립트가 이를 감지해 자동 복구한다.
-- 10분 동안 통과하면 이전 프로세스를 종료한다. 이전 JAR와 슬롯 링크는 롤백을 위해 남긴다. 따라서 평상시에는 앱 프로세스 하나만 실행한다.
+- 5분 동안 통과하면 이전 프로세스를 종료한다. 이전 JAR와 슬롯 링크는 롤백을 위해 남긴다. 따라서 평상시에는 앱 프로세스 하나만 실행한다.
 - 이전 프로세스가 종료된 뒤 롤백하면 이전 서비스를 먼저 시작하고 health를 확인한 다음 Nginx를 되돌린다.
-- 아이폰에서 수행하는 인증 기능 스모크 테스트는 자동 health 검사와 별도다. 외부 연속 요청 측정으로 전체 요청·실패 수·중단 시간을 기록하고, 유효한 계정으로 수동 기능 확인을 10분 관찰 구간에 수행한다.
+- 아이폰에서 수행하는 인증 기능 스모크 테스트는 자동 health 검사와 별도다. 외부 연속 요청 측정으로 전체 요청·실패 수·중단 시간을 기록하고, 유효한 계정으로 수동 기능 확인을 5분 관찰 구간에 수행한다.
 
-배포 후 10분 구간의 Actuator health와 외부 요청 측정은 서로 다른 증거다. Actuator는 후보 프로세스·의존성 상태를 확인하지만, 인증된 실제 기능까지 증명하지 않는다.
+배포 후 5분 구간의 Actuator health와 외부 요청 측정은 서로 다른 증거다. Actuator는 후보 프로세스·의존성 상태를 확인하지만, 인증된 실제 기능까지 증명하지 않는다.
 
 ## 아직 완료되지 않은 조건
 
@@ -150,10 +150,10 @@ CodeDeploy 자동화와 릴리스 보존 스크립트는 저장소에 구현했�
 - [ ] 개발 서버 현재 상태를 재확인한다. Green의 143 종료코드와 실제 unit 파일, 슬롯 current 링크, Nginx upstream을 기록한다.
 - [ ] CodeDeploy의 개발 배포 그룹이 이 AppSpec revision을 받도록 연결되어 있는지 확인한다. 첫 배포는 구 revision의 `ApplicationStop` 영향으로 잠깐의 중단이 생길 수 있음을 일정에 반영한다.
 - [ ] 개발 환경에서 신규 아티팩트를 배포하고 Blue↔Green 반복 전환을 수행한다. 앱·관리 포트 health, 모바일 요청, 배포 ID별 상태 파일과 릴리스 링크를 확인한다.
-- [ ] 전환 후 10분간 후보 Actuator health가 유지되는지, 5회 연속 실패 시 롤백되는지 개발 환경에서 확인한다.
+- [ ] 전환 후 5분간 후보 Actuator health가 유지되는지, 5회 연속 실패 시 롤백되는지 개발 환경에서 확인한다.
 - [ ] 두 API 프로세스 동시 실행 중 알림 작업 분배와 중복 전송 여부를 확인한다. 공유 영상 워커가 API 양 슬롯에서 꺼져 있고 renderer에서 동작하는지도 확인한다.
 - [ ] 아이폰 기능 확인과 외부 연속 요청 측정을 병행한다. 앱 기능 실패를 관찰 구간의 롤백 요청 파일로 전달할 수 있는지 확인하고, 실패 수와 끊긴 시간을 기록한다.
-- [ ] 10분 뒤 이전 앱 프로세스만 종료되고 이전 JAR는 남는지 확인한다. 중지된 이전 프로세스로 롤백할 때 시작·health 확인 후 트래픽이 돌아오는지 검증한다.
+- [ ] 5분 뒤 이전 앱 프로세스만 종료되고 이전 JAR는 남는지 확인한다. 중지된 이전 프로세스로 롤백할 때 시작·health 확인 후 트래픽이 돌아오는지 검증한다.
 - [ ] 최근 성공 릴리스 3개, 두 슬롯 참조 파일, 7일 이내 실패·미완료 후보가 보존되는지 확인하고 JAR 체크섬을 검증한다.
 - [ ] 모든 검증이 끝난 뒤에만 운영 배포 대상 브랜치와 첫 마이그레이션 일정을 따로 정한다. 운영 적용은 이 변경만으로 승인되거나 실행된 것이 아니다.
 

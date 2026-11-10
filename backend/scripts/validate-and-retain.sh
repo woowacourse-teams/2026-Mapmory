@@ -27,9 +27,9 @@ wait_for_health "$target_port" 30
 curl --fail --silent --show-error --max-time 5 \
   "http://127.0.0.1:$target_port/actuator/health" >/dev/null
 
-# 전환 후 10분 동안 새 슬롯을 관찰한다. 2초 간격 상태 확인이 5회 연속 실패하거나
+# 전환 후 5분 동안 새 슬롯을 관찰한다. 2초 간격 상태 확인이 5회 연속 실패하거나
 # Nginx가 다른 포트를 가리키면 이전 슬롯으로 복구한다.
-soak_seconds=600
+soak_seconds=300
 probe_interval_seconds=2
 max_consecutive_failures=5
 failure_count=0
