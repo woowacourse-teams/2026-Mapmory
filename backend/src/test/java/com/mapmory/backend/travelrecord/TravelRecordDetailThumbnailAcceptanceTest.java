@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
+import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,25 @@ class TravelRecordDetailThumbnailAcceptanceTest extends IntegrationTest {
         expectThumbnailOnlyOnFirstPhoto(result);
     }
 
+    @Test
+    void 사진_순서를_바꾸고_새_사진을_더해도_썸네일은_자기_사진을_따라간다() throws Exception {
+        String newPhotoKey = photoKeyOfLatestMember(UUID.randomUUID() + ".jpg");
+
+        mockMvc.perform(put("/api/v1/travel-records/" + recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(recordBody("순서를 바꾼 제주 여행", newPhotoKey, secondPhotoKey, firstPhotoKey)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.media.length()").value(3))
+                .andExpect(jsonPath("$.data.media[0].objectKey").value(newPhotoKey))
+                .andExpect(jsonPath("$.data.media[0].thumbnailUrl").value(SIGNED_URL_PREFIX + newPhotoKey))
+                .andExpect(jsonPath("$.data.media[1].objectKey").value(secondPhotoKey))
+                .andExpect(jsonPath("$.data.media[1].thumbnailUrl").value(SIGNED_URL_PREFIX + secondPhotoKey))
+                .andExpect(jsonPath("$.data.media[2].objectKey").value(firstPhotoKey))
+                .andExpect(jsonPath("$.data.media[2].viewUrl").value(SIGNED_URL_PREFIX + firstPhotoKey))
+                .andExpect(jsonPath("$.data.media[2].thumbnailUrl").value(SIGNED_URL_PREFIX + firstThumbnailKey));
+    }
+
     private void expectThumbnailOnlyOnFirstPhoto(ResultActions result) throws Exception {
         result
                 .andExpect(jsonPath("$.data.media.length()").value(2))
@@ -107,15 +127,21 @@ class TravelRecordDetailThumbnailAcceptanceTest extends IntegrationTest {
     }
 
     private String recordBody(String title) {
+        return recordBody(title, firstPhotoKey, secondPhotoKey);
+    }
+
+    private String recordBody(String title, String... objectKeys) {
         return """
                 {
                   "countryCode": "JP",
                   "title": "%s",
                   "content": "기록 본문",
                   "startDate": "2026-08-01",
-                  "objectKeys": ["%s", "%s"]
+                  "objectKeys": [%s]
                 }
-                """.formatted(title, firstPhotoKey, secondPhotoKey);
+                """.formatted(title, String.join(", ", Arrays.stream(objectKeys)
+                .map(key -> "\"" + key + "\"")
+                .toList()));
     }
 
     private String guestAccessToken() throws Exception {
