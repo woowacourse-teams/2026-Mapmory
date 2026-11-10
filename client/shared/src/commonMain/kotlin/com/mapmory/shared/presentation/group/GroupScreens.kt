@@ -81,6 +81,8 @@ internal fun GroupListScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
+    onPhotoLoadFailed: (String) -> Unit = {},
+    cacheScope: Long = 0,
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
@@ -109,7 +111,7 @@ internal fun GroupListScreen(
                         GroupCard(onClick = { onGroup(group.id) }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 GroupImage(group.coverUri?.let { GroupPhoto("cover", 0, "", "", it) } ?: group.albums.firstOrNull()?.photos?.firstOrNull(),
-                                    Modifier.size(88.dp), "${group.name} 대표 사진")
+                                    Modifier.size(88.dp), "${group.name} 대표 사진", onPhotoLoadFailed, cacheScope)
                                 Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(group.name, fontWeight = FontWeight.Bold, maxLines = 2)
                                     GroupMuted("멤버 ${group.memberCount}명 · 앨범 ${group.albumCount}개")
@@ -134,6 +136,8 @@ internal fun GroupHomeScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
+    onPhotoLoadFailed: (String) -> Unit = {},
+    cacheScope: Long = 0,
 ) {
     val scrollState = rememberLazyListState()
     GroupScrollObserver(scrollState, { scrollState.isScrollInProgress }, onScrolled)
@@ -168,7 +172,7 @@ internal fun GroupHomeScreen(
             items(group.albums, key = { it.id }) { album ->
                 GroupCard(onClick = { onAlbum(album.id) }) {
                     Column {
-                        GroupImage(album.photos.firstOrNull(), Modifier.fillMaxWidth().height(172.dp), "${album.name} 대표 사진")
+                        GroupImage(album.photos.firstOrNull(), Modifier.fillMaxWidth().height(172.dp), "${album.name} 대표 사진", onPhotoLoadFailed, cacheScope)
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(album.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             GroupMuted("${album.date} · 사진 ${album.photoCount}장")
@@ -190,6 +194,8 @@ internal fun GroupAlbumScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
+    onPhotoLoadFailed: (String) -> Unit = {},
+    cacheScope: Long = 0,
 ) {
     val scrollState = rememberLazyListState()
     var columns by rememberSaveable(album.id) { mutableStateOf(2) }
@@ -219,7 +225,8 @@ internal fun GroupAlbumScreen(
                         photo = {
                             MapmoryAsyncImage(imageBytes = null, imageUri = cover.gridImageUri,
                                 contentDescription = "${album.name} 대표 사진", modifier = Modifier.fillMaxSize(),
-                                shape = RectangleShape)
+                                shape = RectangleShape, cacheKey = groupPhotoCacheKey(cover.gridImageUri, cacheScope), cacheOnDisk = false,
+                                onLoadFailed = { cover.gridImageUri?.let(onPhotoLoadFailed) })
                         },
                     ) else Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
                         Text(album.name, fontSize = 25.sp, fontWeight = FontWeight.Bold)
@@ -255,7 +262,8 @@ internal fun GroupAlbumScreen(
                             MapmoryAsyncImage(imageBytes = null, imageUri = photo.gridImageUri,
                                 contentDescription = "${photo.uploaderName}님이 올린 사진",
                                 modifier = Modifier.fillMaxSize(), shape = RectangleShape,
-                                sharedCornerRadius = 0.dp)
+                                sharedCornerRadius = 0.dp, cacheKey = groupPhotoCacheKey(photo.gridImageUri, cacheScope), cacheOnDisk = false,
+                                onLoadFailed = { photo.gridImageUri?.let(onPhotoLoadFailed) })
                             GroupPhotoOwnerBadge(photo.uploaderName, columns < 5,
                                 Modifier.align(Alignment.BottomStart))
                         }
@@ -289,6 +297,8 @@ internal fun GroupPhotoScreen(
     album: GroupAlbum, initialPage: Int, onBack: () -> Unit,
     currentMemberId: String? = null, onDelete: (GroupPhoto) -> Unit = {},
     onPageChanged: (Int, Int) -> Unit = { _, _ -> },
+    onPhotoLoadFailed: (String) -> Unit = {},
+    cacheScope: Long = 0,
 ) {
     val pager = rememberPagerState(initialPage = initialPage.coerceIn(album.photos.indices)) { album.photos.size }
     var zoom by remember(album.id, pager.currentPage) { mutableStateOf(1f) }
@@ -333,6 +343,8 @@ internal fun GroupPhotoScreen(
         }) { page ->
             MapmoryAsyncImage(imageBytes = null, imageUri = album.photos[page].imageUri,
                 contentDescription = "${album.photos[page].uploaderName}님이 올린 사진", shape = RoundedCornerShape(0.dp),
+                cacheKey = groupPhotoCacheKey(album.photos[page].imageUri, cacheScope), cacheOnDisk = false,
+                onLoadFailed = { album.photos[page].imageUri?.let(onPhotoLoadFailed) },
                 contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
                     .transformable(state = transform, canPan = { zoom > 1f }, lockRotationOnZoomPan = true)
                     .pointerInput(album.photos[page].id) { detectTapGestures(onDoubleTap = { if (zoom > 1f) { zoom = 1f; pan = Offset.Zero } else zoom = 2f }) }
@@ -386,10 +398,15 @@ internal fun GroupCard(onClick: (() -> Unit)? = null, content: @Composable () ->
 }
 
 @Composable
-private fun GroupImage(photo: GroupPhoto?, modifier: Modifier, description: String) {
+private fun GroupImage(photo: GroupPhoto?, modifier: Modifier, description: String,
+                       onPhotoLoadFailed: (String) -> Unit = {}, cacheScope: Long = 0) {
     MapmoryAsyncImage(imageBytes = null, imageUri = photo?.imageUri, contentDescription = description,
-        modifier = modifier, shape = RoundedCornerShape(0.dp))
+        modifier = modifier, shape = RoundedCornerShape(0.dp), cacheKey = groupPhotoCacheKey(photo?.imageUri, cacheScope), cacheOnDisk = false,
+        onLoadFailed = { photo?.imageUri?.let(onPhotoLoadFailed) })
 }
+
+internal fun groupPhotoCacheKey(url: String?, cacheScope: Long = 0): String? =
+    url?.substringBefore('?')?.let { "group-photo:$cacheScope:$it" }
 
 @Composable
 internal fun GroupMuted(text: String) {

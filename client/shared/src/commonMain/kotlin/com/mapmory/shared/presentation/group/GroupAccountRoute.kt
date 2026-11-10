@@ -73,6 +73,7 @@ internal fun GroupAccountRoute(
                         backHandlerRegistry = backHandlerRegistry,
                         backHandlerOwnerId = backHandlerOwnerId,
                         refresh = retry,
+                        cacheScope = account?.generation ?: 0,
                         onBusyChanged = { busy = it },
                         onPhotoVisibilityChanged = { photoVisible = it },
                         modifier = Modifier.weight(1f),
