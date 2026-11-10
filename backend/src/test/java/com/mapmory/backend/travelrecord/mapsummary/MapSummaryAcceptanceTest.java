@@ -42,6 +42,8 @@ class MapSummaryAcceptanceTest extends IntegrationTest {
     @Test
     void 기록을_만들고_고치고_지우면_다음_전체_요약에_바로_반영된다() throws Exception {
         String token = guestAccessToken();
+        summary(token)
+                .andExpect(jsonPath("$.data", hasSize(0)));
 
         long recordId = createRecord(token, districtBody("종로 여행", null));
         summary(token)
