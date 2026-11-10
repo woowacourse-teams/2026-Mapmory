@@ -14,8 +14,11 @@ Mapmory의 관측 기능은 다음 네 가지 역할로 나뉜다.
 애플리케이션이 로그와 메트릭을 **만드는 코드**는 구현되어 있다. 운영 로그는 파일로 남고,
 메트릭은 `/actuator/prometheus`에 노출된다.
 
-운영 EC2의 CloudWatch Agent는 `/var/log/mapmory/application.log`와 Prometheus 메트릭을
-CloudWatch로 전송한다. 애플리케이션 로그 그룹 `/mapmory/prod/application`의 보존 기간은
+Blue-Green 배포에서는 CloudWatch Agent가 슬롯별 로그 파일인
+`/var/log/mapmory-blue/application.log`, `/var/log/mapmory-green/application.log`와 Prometheus 메트릭을
+모두 CloudWatch로 전송해야 한다. 운영 EC2의 기존 Agent 설정은 현재 단일 로그 경로를 사용하므로,
+두 경로로 갱신하기 전까지 Green 로그 수집은 보장되지 않는다. 애플리케이션 로그 그룹
+`/mapmory/prod/application`의 보존 기간은
 7일이고 Prometheus EMF 로그 그룹 `/mapmory/prod/prometheus-emf`의 보존 기간은 14일이다.
 `dashboard-mapmory-prod` 대시보드와 EC2·RDS 인프라 알람, `mapmory-prod-alerts` SNS 알림 채널도
 구성되어 있다.
@@ -155,8 +158,12 @@ ERROR [requestId:550e8400-...] Unhandled exception while processing POST /api/..
 운영에서는 프로그램이 필드별로 검색하기 쉬운 JSON 로그를 사용하며 다음 파일에 기록한다.
 
 ```text
-/var/log/mapmory/application.log
+/var/log/mapmory-blue/application.log
+/var/log/mapmory-green/application.log
 ```
+
+Blue와 Green은 배포 중 동시에 실행될 수 있어 로그를 서로 다른 파일에 쓴다. 운영 EC2의 CloudWatch Agent
+로그 수집 설정에는 두 파일 경로가 모두 있어야 한다. Agent 설정은 서버에서 관리하며 배포 코드가 자동 변경하지 않는다.
 
 개념상 다음과 같은 정보가 한 로그에 들어간다.
 
@@ -398,7 +405,7 @@ curl -s http://localhost:8080/actuator/prometheus \
 ### AWS 운영 상태와 남은 작업
 
 - [x] EC2 IAM Role과 CloudWatch Agent 설정
-- [x] `/var/log/mapmory/application.log`를 CloudWatch Logs에 전송
+- [ ] `/var/log/mapmory-blue/application.log`와 `/var/log/mapmory-green/application.log`를 CloudWatch Logs에 전송
 - [x] 애플리케이션 로그 그룹 보존 기간 7일 설정
 - [x] Prometheus 메트릭 수집 설정
 - [x] Prometheus EMF 로그 그룹 보존 기간 14일 설정

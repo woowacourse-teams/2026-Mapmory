@@ -39,8 +39,9 @@ flowchart LR
 - S3는 퍼블릭 접근을 차단한다. 모든 객체 키에는 `mapmory/` 접두사를 붙이고 Presigned URL로만 업로드·조회한다.
 - 운영 EC2는 현재 키 기반 SSH 접속을 사용한다. 접근 대상을 제한하고, 향후 SSM Session Manager
   전용 접속으로 전환할 때 SSH 인바운드 규칙을 제거한다.
-- CloudWatch Agent가 `/var/log/mapmory/application.log`를
-  `/mapmory/prod/application` 로그 그룹으로 전송하며, 로그 그룹 보존 기간은 7일로 설정한다.
+- Blue-Green 배포에서는 CloudWatch Agent가 앱 로그(`/var/log/mapmory-blue/application.log`,
+  `/var/log/mapmory-green/application.log`)를 `/mapmory/prod/application` 로그 그룹으로 전송해야 한다.
+  로그 그룹 보존 기간은 7일이다. Agent의 현재 서버 설정은 단일 로그 경로이므로 배포 전 갱신이 필요하다.
 - Prometheus EMF 로그 그룹 `/mapmory/prod/prometheus-emf`의 보존 기간은 14일이다.
 - `dashboard-mapmory-prod` 대시보드와 EC2·RDS 알람을 구성하고
   `mapmory-prod-alerts` SNS 주제로 알림을 전달한다.
