@@ -31,7 +31,7 @@ public record TravelRecordCommand(
     }
 
     /**
-     * 사진 촬영일 없이 만든다. 촬영일을 보내지 않는 요청과 테스트가 쓴다.
+     * 사진 촬영일 없이 만든다. 촬영일을 받지 않는 v1 요청과 테스트가 쓴다.
      */
     public TravelRecordCommand(
             String countryCode,

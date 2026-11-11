@@ -599,10 +599,7 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
     "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg"
   ],
   "tagIds": [9, 12],
-  "placeId": null,
-  "capturedDates": {
-    "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg": "2026-08-11"
-  }
+  "placeId": null
 }
 ```
 
@@ -636,11 +633,10 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `objectKeys` | String[] | 예 | 업로드 완료된 Object Key 목록. 1장 이상 100장 이하 |
 | `tagIds` | Long[] | 아니요 | 빈 배열 허용, 최대 5개, 중복 불가, 모두 현재 회원 소유 |
 | `placeId` | String | 아니요 | `GET /places/search` 후보의 장소 ID, 최대 255자. 지역 코드가 없으면 이 장소로 지역을 정함 |
-| `capturedDates` | Map<String, String> | 아니요 | Object Key → 사진 촬영일(`YYYY-MM-DD`). 모르는 사진은 빼고 보낸다. 최대 100개 |
 
 `objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 사진은 1장 이상 100장 이하여야 하며, 값이 없거나 `null`·빈 배열이면 `PHOTO_REQUIRED`로 거절한다.
 
-`capturedDates`는 사진첩(EXIF·MediaStore)에서 읽은 촬영일이고 `record_media.captured_date`에 저장한다. 다른 기기나 그룹 멤버도 같은 날짜로 사진을 묶을 수 있게 하려는 값이다. 카메라 시계가 틀린 사진이 있어도 저장을 실패시키지 않는다. 형식이 틀린 날짜, 1900-01-01 이전이거나 서버 기준 내일보다 뒤인 날짜, 형식이 틀린 키는 모르는 날짜로 보고 버린다. `objectKeys`에 없는 키는 무시한다. 수정 요청에서 촬영일을 보내지 않은 사진은 저장된 촬영일을 그대로 둔다.
+사진 촬영일은 v1에서 받지 않는다. 촬영일을 함께 보내려면 [v2 생성·수정](#여행-기록-생성수정-v2)을 쓴다. v1로 수정해도 저장된 촬영일은 지워지지 않는다.
 
 `content`가 없거나 `null`이면 서버는 빈 문자열로 정규화해 저장한다.
 
@@ -877,6 +873,38 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 | --- | --- | --- |
 | `400` | `VALIDATION_ERROR` | 여행 기록 ID가 양의 정수가 아님 |
 | `404` | `TRAVEL_RECORD_NOT_FOUND` | 기록이 없거나 현재 회원의 기록이 아님 |
+
+### 여행 기록 생성·수정 (v2)
+
+`POST /api/v2/travel-records`
+`PUT /api/v2/travel-records/{travelRecordId}`
+
+v1 생성·수정과 같고, 사진을 `objectKeys` 대신 `photos`로 받는다. 사진 하나의 Object Key와 촬영일을 한 객체로 묶는다. 응답, 오류, 나머지 필드 규칙은 v1과 같다. 버전을 나눈 이유는 ADR 0030에 있다.
+
+#### Request Body
+
+```json
+{
+  "countryCode": "JP",
+  "title": "일본 여행",
+  "content": "",
+  "startDate": "2026-08-11",
+  "endDate": "2026-08-12",
+  "photos": [
+    { "objectKey": "travel-records/10/7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg", "capturedDate": "2026-08-11" },
+    { "objectKey": "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg", "capturedDate": null }
+  ],
+  "tagIds": [8]
+}
+```
+
+| 필드 | 타입 | 필수 | 제약조건 |
+| --- | --- | --- | --- |
+| `photos` | Object[] | 예 | 1개 이상 100개 이하. 배열 순서가 사진 순서 |
+| `photos[].objectKey` | String | 예 | 업로드 완료된 Object Key. v1 `objectKeys`의 원소와 같은 규칙 |
+| `photos[].capturedDate` | String | 아니요 | 사진 촬영일(`YYYY-MM-DD`). 모르면 `null` |
+
+`capturedDate`는 사진첩(EXIF·MediaStore)에서 읽은 날짜이고 `record_media.captured_date`에 저장한다. 다른 기기나 그룹 멤버도 같은 날짜로 사진을 묶을 수 있게 하려는 값이다. 카메라 시계가 틀린 사진이 흔해서 날짜 때문에 저장을 실패시키지 않는다. 형식이 틀리거나, 1900-01-01 이전이거나, 서버 기준 내일보다 뒤인 날짜는 모르는 날짜로 보고 버린다. 수정 요청에서 `capturedDate`가 `null`인 사진은 저장된 촬영일을 그대로 둔다.
 
 ## 6. 지도 요약 API
 
