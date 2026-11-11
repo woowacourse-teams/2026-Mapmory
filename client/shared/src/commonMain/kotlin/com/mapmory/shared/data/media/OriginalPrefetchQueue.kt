@@ -41,7 +41,8 @@ internal class OriginalPrefetchQueue(
     }
 
     private sealed interface Command {
-        class Prefetch(val localIds: List<String>) : Command
+        /** [download] false only records the selection (e.g. Low Data Mode) without fetching. */
+        class Prefetch(val localIds: List<String>, val download: Boolean) : Command
         class Release(val localIds: Set<String>, val done: CompletableDeferred<Unit>?) : Command
         class Await(val localId: String, val job: CompletableDeferred<Job?>) : Command
     }
@@ -59,30 +60,50 @@ internal class OriginalPrefetchQueue(
     private val commands = Channel<Command>(Channel.UNLIMITED)
 
     init {
-        scope.launch {
-            for (command in commands) {
-                try {
-                    when (command) {
-                        is Command.Prefetch -> enqueue(command.localIds)
-                        is Command.Release -> startRelease(command.localIds, command.done)
-                        is Command.Await -> command.job.complete(mutex.withLock { entries[command.localId]?.job })
+        // ATOMIC: even if the scope is cancelled before the consumer first runs, its finally still
+        // closes the channel, so no caller waits on a consumer that never started.
+        scope.launch(start = CoroutineStart.ATOMIC) {
+            try {
+                for (command in commands) {
+                    try {
+                        when (command) {
+                            is Command.Prefetch -> enqueue(command.localIds, command.download)
+                            is Command.Release -> startRelease(command.localIds, command.done)
+                            is Command.Await -> command.job.complete(mutex.withLock { entries[command.localId]?.job })
+                        }
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        // One failed command must not stop handling the ones after it, nor leave its caller waiting.
+                        command.completeUnhandled()
                     }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
-                    // One failed command must not stop handling the ones after it, nor leave its caller waiting.
-                    when (command) {
-                        is Command.Release -> command.done?.complete(Unit)
-                        is Command.Await -> command.job.complete(null)
-                        is Command.Prefetch -> Unit
-                    }
+                }
+            } finally {
+                // If the consumer ever stops, callers must not wait on it: refuse new commands and
+                // answer the queued ones. A save then downloads the original itself.
+                commands.close()
+                while (true) {
+                    commands.tryReceive().getOrNull()?.completeUnhandled() ?: break
                 }
             }
         }
     }
 
+    private fun Command.completeUnhandled() {
+        when (this) {
+            is Command.Release -> done?.complete(Unit)
+            is Command.Await -> job.complete(null)
+            is Command.Prefetch -> Unit
+        }
+    }
+
     fun prefetch(localIds: List<String>) {
-        if (localIds.isNotEmpty()) commands.trySend(Command.Prefetch(localIds))
+        if (localIds.isNotEmpty()) commands.trySend(Command.Prefetch(localIds, download = true))
+    }
+
+    /** 받지는 않고 다시 골랐다는 것만 기록한다. 앞서 요청한 지우기가 이 사진의 원본을 지우지 않는다. */
+    fun markSelected(localIds: List<String>) {
+        if (localIds.isNotEmpty()) commands.trySend(Command.Prefetch(localIds, download = false))
     }
 
     /** 지우기를 요청하고 바로 돌아온다. 이어서 부른 [prefetch]보다 먼저 처리된다. */
@@ -94,7 +115,7 @@ internal class OriginalPrefetchQueue(
     suspend fun release(localIds: Set<String>) {
         if (localIds.isEmpty()) return
         val done = CompletableDeferred<Unit>()
-        commands.trySend(Command.Release(localIds, done))
+        if (commands.trySend(Command.Release(localIds, done)).isFailure) return
         done.await()
     }
 
@@ -104,17 +125,17 @@ internal class OriginalPrefetchQueue(
      */
     suspend fun awaitPrefetch(localId: String): Boolean {
         val lookup = CompletableDeferred<Job?>()
-        commands.trySend(Command.Await(localId, lookup))
+        if (commands.trySend(Command.Await(localId, lookup)).isFailure) return false
         val job = lookup.await() ?: return false
         job.join()
         return true
     }
 
-    private suspend fun enqueue(localIds: List<String>) = mutex.withLock {
+    private suspend fun enqueue(localIds: List<String>, download: Boolean) = mutex.withLock {
         // Enqueued in the given order; Semaphore hands out permits first-in, first-out.
         localIds.distinct().forEach { id ->
             lastPrefetchSequence[id] = ++prefetchSequence
-            if (entries[id] != null) return@forEach
+            if (!download || entries[id] != null) return@forEach
             val entry = Entry()
             entry.job = scope.launch(start = CoroutineStart.LAZY) { run(id, entry) }
             entries[id] = entry

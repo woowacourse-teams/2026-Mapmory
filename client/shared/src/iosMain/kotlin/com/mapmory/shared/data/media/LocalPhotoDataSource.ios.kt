@@ -54,6 +54,8 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource, OriginalPhotoPrefetcher {
         if (assetIds.isEmpty()) return
         if (!shouldPrefetchOriginals(lowDataMode = IosNetworkConditions.isLowDataMode)) {
             logPhotoPerformance("prefetch_skipped reason=low_data_mode photos=${assetIds.size}")
+            // Still record the selection so an earlier release keeps originals already downloaded.
+            iosOriginalPrefetchQueue.markSelected(assetIds)
             return
         }
         iosOriginalPrefetchQueue.prefetch(assetIds)

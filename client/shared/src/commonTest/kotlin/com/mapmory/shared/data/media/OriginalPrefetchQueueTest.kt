@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -265,5 +266,41 @@ class OriginalPrefetchQueueTest {
         settle()
         releasing.await()
         assertEquals(listOf("b"), store.deleted)
+    }
+
+    @Test
+    fun `대기열이_멈추면_저장은_기다리지_않고_바로_직접_받는다`() = runBlocking {
+        // A save must never hang on the queue; the app-wide scope is not expected to end, but if it does
+        // every pending and later lookup completes at once.
+        val queueJob = SupervisorJob(coroutineContext[Job])
+        val store = FakeOriginalStore()
+        val queue = OriginalPrefetchQueue(
+            scope = CoroutineScope(coroutineContext + queueJob),
+            download = store::download,
+            delete = store::delete,
+        )
+        queueJob.cancel()
+        settle()
+
+        val waited = withTimeout(1_000) { queue.awaitPrefetch("a") }
+        assertFalse(waited)
+        withTimeout(1_000) { queue.release(setOf("a")) }
+    }
+
+    @Test
+    fun `받지_않고_선택만_기록해도_그_뒤의_지우기에서_다시_고른_사진으로_본다`() = queueTest { queue, store ->
+        // Low Data Mode re-selects a photo without downloading; its original must still be kept.
+        queue.prefetch(listOf("a"))
+        settle()
+        val releasing = async { queue.release(setOf("a")) }
+        settle()
+        queue.markSelected(listOf("a"))
+        settle()
+
+        store.finish("a")
+        settle()
+        releasing.await()
+        assertTrue(store.deleted.isEmpty())
+        assertEquals(listOf("a"), store.started)
     }
 }
