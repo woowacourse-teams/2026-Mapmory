@@ -46,6 +46,9 @@ data class CreateShareVideoRequestDto(
 data class PushTokenRequestDto(
     val token: String,
     val platform: String,
+    val previousPushTokenId: Long? = null,
+    val photoRecordCompletionEnabled: Boolean = true,
+    val travelVideoCompletionEnabled: Boolean = true,
 )
 
 @Serializable

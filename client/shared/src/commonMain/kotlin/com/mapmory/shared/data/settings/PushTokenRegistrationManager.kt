@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 
 data class PushTokenRegistration(
     val accountIdentity: String,
@@ -52,6 +53,7 @@ class PushTokenRegistrationManager(
     private val deviceState = MutableStateFlow(DeviceState())
     private var registeredToken: String? = null
     private var registeredAccount: String? = null
+    private var registeredPreferences: Pair<Boolean, Boolean>? = null
 
     init {
         require(platform == "ANDROID" || platform == "IOS")
@@ -63,18 +65,18 @@ class PushTokenRegistrationManager(
         photoEnabled: Boolean,
         videoEnabled: Boolean,
     ) {
-        deviceState.value = deviceState.value.copy(
+        deviceState.update { it.copy(
             token = token?.takeIf(String::isNotBlank),
             notificationPermissionGranted = notificationPermissionGranted,
             photoEnabled = photoEnabled,
             videoEnabled = videoEnabled,
             deviceStateKnown = true,
-        )
+        ) }
         scope.launch { runCatchingSync() }
     }
 
     fun onSessionReady() {
-        deviceState.value = deviceState.value.copy(accountChanging = false)
+        deviceState.update { it.copy(accountChanging = false) }
         if (deviceState.value.deviceStateKnown) scope.launch { runCatchingSync() }
     }
 
@@ -87,18 +89,18 @@ class PushTokenRegistrationManager(
     suspend fun refreshVideoPushTokenId(rejectedId: Long): Long? = refreshRejectedTokenId(rejectedId, photo = false)
 
     suspend fun beforeAccountChanged(oldAccessToken: String?) {
-        deviceState.value = deviceState.value.copy(accountChanging = true)
+        deviceState.update { it.copy(accountChanging = true) }
         withContext(Dispatchers.Default) {
             withTimeoutOrNull(AccountSwitchCleanupTimeoutMillis) {
                 mutex.withLock {
                     val registration = runCatching { store.read() }.getOrNull()
                     val oldIdentity = oldAccessToken?.jwtSubjectOrNull()
                     if (registration != null && oldIdentity != null && registration.accountIdentity == oldIdentity) {
-                        runCatching { delete(registration.pushTokenId, oldAccessToken) }
+                        if (runCatching { delete(registration.pushTokenId, oldAccessToken) }.isFailure) return@withLock
                     }
                     clearLocalRegistration()
                 }
-            } ?: clearLocalRegistration()
+            }
         }
     }
 
@@ -107,7 +109,7 @@ class PushTokenRegistrationManager(
     private suspend fun tokenIdFor(photo: Boolean): Long? = try {
         mutex.withLock {
             val state = deviceState.value
-            if (state.accountChanging) return@withLock null
+            if (state.accountChanging || !state.deviceStateKnown) return@withLock null
             val enabled = if (photo) state.photoEnabled else state.videoEnabled
             if (!state.notificationPermissionGranted || !enabled) {
                 if (!state.photoEnabled && !state.videoEnabled || !state.notificationPermissionGranted) {
@@ -122,24 +124,29 @@ class PushTokenRegistrationManager(
             val existing = runCatching { store.read() }.getOrNull()
             if (existing != null && existing.accountIdentity != accountIdentity) clearLocalRegistration()
             val registration = store.read()?.takeIf { it.accountIdentity == accountIdentity }
-            if (registration != null && registeredToken == token && registeredAccount == accountIdentity) {
+            if (registration != null && registeredToken == token && registeredAccount == accountIdentity &&
+                registeredPreferences == (state.photoEnabled to state.videoEnabled)) {
                 return@withLock registration.pushTokenId
             }
 
             val response = client.put(endpoint) {
                 bearerAuth(accessToken)
                 contentType(ContentType.Application.Json)
-                setBody(PushTokenRequestDto(token = token, platform = platform))
+                setBody(PushTokenRequestDto(token, platform, registration?.pushTokenId,
+                    state.photoEnabled, state.videoEnabled))
             }.requireSuccess().body<ApiResponseDto<PushTokenRegistrationDto>>().data
             require(response.pushTokenId > 0L)
             if (!isRegistrationCurrent(token, accountIdentity)) {
-                runCatching { delete(response.pushTokenId, accessToken) }
+                if (response.pushTokenId != registration?.pushTokenId) {
+                    runCatching { delete(response.pushTokenId, accessToken) }
+                }
                 return@withLock null
             }
             val updated = PushTokenRegistration(accountIdentity, response.pushTokenId)
             store.write(updated)
             registeredToken = token
             registeredAccount = accountIdentity
+            registeredPreferences = state.photoEnabled to state.videoEnabled
             if (registration != null && registration.pushTokenId != response.pushTokenId) {
                 runCatching { delete(registration.pushTokenId, accessToken) }
             }
@@ -164,7 +171,7 @@ class PushTokenRegistrationManager(
         try {
             mutex.withLock {
                 val state = deviceState.value
-                if (state.accountChanging) return
+                if (state.accountChanging || !state.deviceStateKnown) return
                 val accessToken = accessTokenProvider.getAccessToken()
                 if (!state.notificationPermissionGranted || (!state.photoEnabled && !state.videoEnabled)) {
                     deregister(accessToken)
@@ -185,20 +192,25 @@ class PushTokenRegistrationManager(
         val previous = runCatching { store.read() }.getOrNull()
         if (previous != null && previous.accountIdentity != identity) clearLocalRegistration()
         val current = store.read()?.takeIf { it.accountIdentity == identity }
-        if (current != null && registeredToken == token && registeredAccount == identity) return current.pushTokenId
+        if (current != null && registeredToken == token && registeredAccount == identity &&
+            registeredPreferences == (state.photoEnabled to state.videoEnabled)) return current.pushTokenId
         val response = client.put(endpoint) {
             bearerAuth(accessToken)
             contentType(ContentType.Application.Json)
-            setBody(PushTokenRequestDto(token = token, platform = platform))
+            setBody(PushTokenRequestDto(token, platform, current?.pushTokenId,
+                state.photoEnabled, state.videoEnabled))
         }.requireSuccess().body<ApiResponseDto<PushTokenRegistrationDto>>().data
         require(response.pushTokenId > 0L)
         if (!isRegistrationCurrent(token, identity)) {
-            runCatching { delete(response.pushTokenId, accessToken) }
+            if (response.pushTokenId != current?.pushTokenId) {
+                runCatching { delete(response.pushTokenId, accessToken) }
+            }
             return null
         }
         store.write(PushTokenRegistration(identity, response.pushTokenId))
         registeredToken = token
         registeredAccount = identity
+        registeredPreferences = state.photoEnabled to state.videoEnabled
         if (current != null && current.pushTokenId != response.pushTokenId) {
             runCatching { delete(current.pushTokenId, accessToken) }
         }
@@ -216,7 +228,7 @@ class PushTokenRegistrationManager(
         val registration = runCatching { store.read() }.getOrNull()
         val identity = accessToken?.jwtSubjectOrNull()
         if (registration != null && identity != null && registration.accountIdentity == identity) {
-            runCatching { delete(registration.pushTokenId, accessToken) }
+            delete(registration.pushTokenId, accessToken)
         }
         clearLocalRegistration()
     }
@@ -233,6 +245,7 @@ class PushTokenRegistrationManager(
         runCatching { store.clear() }
         registeredToken = null
         registeredAccount = null
+        registeredPreferences = null
     }
 
     private data class DeviceState(

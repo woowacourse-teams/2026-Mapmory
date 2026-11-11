@@ -25,6 +25,7 @@ internal fun refreshPushToken(context: Context) {
 internal fun syncPushToken(context: Context, token: String?) {
     currentPushToken = token
     val application = context.applicationContext
+    ensureCompletionNotificationChannels(application)
     val permissionGranted = (Build.VERSION.SDK_INT < 33 ||
         application.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
         NotificationManagerCompat.from(application).areNotificationsEnabled()
@@ -35,7 +36,7 @@ internal fun syncPushToken(context: Context, token: String?) {
         token = token,
         notificationPermissionGranted = permissionGranted,
         photoEnabled = isPhotoRecordCompletionNotificationEnabled(application) && channelEnabled(PhotoRecordNotificationChannelId),
-        videoEnabled = isTravelVideoCompletionNotificationEnabled(application) && channelEnabled("share-video-ready"),
+        videoEnabled = isTravelVideoCompletionNotificationEnabled(application) && channelEnabled(TravelVideoNotificationChannelId),
     )
 }
 

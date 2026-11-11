@@ -37,6 +37,15 @@ internal fun ensureAppUpdateNotificationChannel(context: android.content.Context
     }
 }
 
+internal fun ensureCompletionNotificationChannels(context: android.content.Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val manager = context.getSystemService(NotificationManager::class.java)
+    manager.createNotificationChannel(NotificationChannel(
+        PhotoRecordNotificationChannelId, "여행 기록 완료", NotificationManager.IMPORTANCE_DEFAULT))
+    manager.createNotificationChannel(NotificationChannel(
+        TravelVideoNotificationChannelId, "여행 영상", NotificationManager.IMPORTANCE_DEFAULT))
+}
+
 class MapmoryFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         syncPushToken(applicationContext, token)
@@ -124,4 +133,4 @@ class MapmoryFirebaseMessagingService : FirebaseMessagingService() {
     }
 }
 
-private const val TravelVideoNotificationChannelId = "share-video-ready"
+internal const val TravelVideoNotificationChannelId = "share-video-ready"
