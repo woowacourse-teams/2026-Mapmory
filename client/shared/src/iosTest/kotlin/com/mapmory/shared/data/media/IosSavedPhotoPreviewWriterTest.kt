@@ -1,6 +1,12 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package com.mapmory.shared.data.media
 
 import kotlinx.coroutines.runBlocking
+import platform.Foundation.writeToFile
+import platform.Foundation.NSUUID
+import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSFileManager
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -66,5 +72,32 @@ class IosSavedPhotoPreviewWriterTest {
         }
 
         assertFalse(IosSavedPhotoPreviewWriter(cache).write("local-id", "travel-records/1/a.jpg", IosPhotoFixtures.rotatedHeic))
+    }
+
+    @Test
+    fun aStagedUploadFileRebuildsThePreviewUnderBothKeysAt1080Pixels() = runBlocking {
+        // #693: a completed transfer has no bytes in memory, only its staged upload file.
+        val path = "${NSTemporaryDirectory()}${NSUUID().UUIDString}.upload"
+        assertTrue(IosPhotoFixtures.rotatedHeic.iosPhotoData().writeToFile(path, atomically = true))
+        val cache = MemoryPreviewCache().apply { entries["local-id"] = byteArrayOf(1) }
+        try {
+            assertTrue(IosSavedPhotoPreviewWriter(cache).writeFromFile("local-id", "travel-records/1/a.jpg", path))
+
+            val local = assertNotNull(cache.entries["local-id"])
+            assertContentEquals(local, cache.entries["travel-records/1/a.jpg"])
+            val (width, height) = assertNotNull(local.iosPhotoData().photoDimensions())
+            assertEquals(1080, maxOf(width, height))
+        } finally {
+            NSFileManager.defaultManager.removeItemAtPath(path, null)
+        }
+    }
+
+    @Test
+    fun aMissingStagedFileKeepsTheExistingPreview() = runBlocking {
+        val cache = MemoryPreviewCache().apply { entries["local-id"] = byteArrayOf(1) }
+
+        assertFalse(IosSavedPhotoPreviewWriter(cache).writeFromFile("local-id", "travel-records/1/a.jpg", "/missing.upload"))
+
+        assertEquals(setOf("local-id"), cache.entries.keys)
     }
 }

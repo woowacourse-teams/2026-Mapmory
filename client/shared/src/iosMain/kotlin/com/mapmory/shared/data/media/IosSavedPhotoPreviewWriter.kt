@@ -16,12 +16,27 @@ import kotlin.native.Platform
 class IosSavedPhotoPreviewWriter(
     private val cache: PhotoPreviewCache = IosPhotoPreviewCache(),
 ) : SavedPhotoPreviewWriter {
-    override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray): Boolean {
+    override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray): Boolean =
+        replace(localId, objectKey, source = "upload") {
+            originalBytes.iosPhotoData().photoDisplayJpeg(SavedPreviewSizePx)
+        }
+
+    /** Decodes the staged upload file straight from disk, without loading the original into memory (#693). */
+    override suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean =
+        replace(localId, objectKey, source = "staged_file") {
+            iosPhotoFileDisplayJpeg(path, SavedPreviewSizePx)
+        }
+
+    private suspend fun replace(
+        localId: String,
+        objectKey: String,
+        source: String,
+        makePreview: () -> ByteArray?,
+    ): Boolean {
         val startedAt = NSDate().timeIntervalSinceReferenceDate
         // Decoding, encoding and the file writes run off the caller's thread, one photo at a time.
         val written = withContext(Dispatchers.Default) {
-            val preview = originalBytes.iosPhotoData().photoDisplayJpeg(SavedPreviewSizePx)
-                ?: return@withContext null
+            val preview = makePreview() ?: return@withContext null
             // IosPhotoPreviewCache.write fails silently, so both keys are read back. The save later copies
             // the local key onto the objectKey; reporting a replacement while the local key still holds the
             // small preview would let that copy bring it back. Otherwise the caller keeps its own preview.
@@ -33,7 +48,7 @@ class IosSavedPhotoPreviewWriter(
         } ?: return false
         if (Platform.isDebugBinary) {
             val elapsed = ((NSDate().timeIntervalSinceReferenceDate - startedAt) * 1000).toLong()
-            NSLog("MapmoryPhotoPerf saved_preview_ms=$elapsed bytes=$written")
+            NSLog("MapmoryPhotoPerf saved_preview_ms=$elapsed bytes=$written source=$source")
         }
         return true
     }

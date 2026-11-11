@@ -134,7 +134,11 @@ internal class UploadingTripRecordRepository(
         pendingKeys.forEachIndexed { index, key ->
             uploader.completedObjectKey(key)?.let { objectKey ->
                 objectKeyByLocalId[key] = objectKey
-                if (mediaCacheMutex.withLock { key in previewReplacedLocalIds }) replacedPreviewLocalIds += key
+                if (mediaCacheMutex.withLock { key in previewReplacedLocalIds } ||
+                    rebuildPreviewFromCompletedTransfer(key, objectKey)
+                ) {
+                    replacedPreviewLocalIds += key
+                }
                 onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
                 return@forEachIndexed
             }
@@ -204,6 +208,25 @@ internal class UploadingTripRecordRepository(
     private suspend fun forgetReplacedPreviews(localIds: List<String>) {
         if (savedPreviewWriter == null) return
         mediaCacheMutex.withLock { previewReplacedLocalIds -= localIds.toSet() }
+    }
+
+    /**
+     * A completed transfer has no original bytes (relaunch, or a cancelled save whose OS upload finished),
+     * but its staged upload file stays until forget(); rebuild the preview from that file (#693).
+     */
+    private suspend fun rebuildPreviewFromCompletedTransfer(localId: String, objectKey: String): Boolean {
+        val writer = savedPreviewWriter ?: return false
+        val rebuilt = try {
+            val path = uploader.completedOriginalPath(localId) ?: return false
+            writer.writeFromFile(localId, objectKey, path)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A better preview is optional; the save must not fail because of it.
+            false
+        }
+        if (rebuilt) mediaCacheMutex.withLock { previewReplacedLocalIds += localId }
+        return rebuilt
     }
 
     private suspend fun writeSavedPreview(localId: String, objectKey: String, original: ByteArray): Boolean {

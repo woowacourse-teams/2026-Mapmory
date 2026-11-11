@@ -10,6 +10,12 @@ import com.mapmory.shared.domain.model.TripRecordMediaDraft
  */
 fun interface SavedPhotoPreviewWriter {
     suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray): Boolean
+
+    /**
+     * 이미 올라간 전송을 건너뛸 때, 원본 바이트 대신 남아 있는 업로드 파일로 같은 교체를 한다(#693).
+     * 파일을 디스크에서 바로 디코딩하므로 원본을 다시 받거나 메모리에 올리지 않는다.
+     */
+    suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean = false
 }
 
 /**

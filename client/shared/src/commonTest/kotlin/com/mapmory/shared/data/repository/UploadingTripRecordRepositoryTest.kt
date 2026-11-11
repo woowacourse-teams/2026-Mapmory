@@ -467,6 +467,114 @@ class UploadingTripRecordRepositoryTest {
 
         assertTrue(record.media.all { it.previewBytes == null })
     }
+
+    private class CompletedTransferUploader(
+        private val originalPaths: Map<String, String>,
+    ) : PhotoUploader {
+        override suspend fun completedObjectKey(localId: String) = "uploaded/$localId.jpg"
+        override suspend fun completedOriginalPath(localId: String) = originalPaths[localId]
+        override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> =
+            error("A completed transfer must not upload again")
+    }
+
+    private class RecordingFileWriter(private val result: () -> Boolean = { true }) : SavedPhotoPreviewWriter {
+        val fileWrites = mutableListOf<Triple<String, String, String>>()
+        override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray) =
+            error("A completed transfer has no original bytes")
+        override suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean {
+            fileWrites += Triple(localId, objectKey, path)
+            return result()
+        }
+    }
+
+    @Test
+    fun aCompletedTransferRebuildsThePreviewFromItsStagedOriginalFile() = runBlocking {
+        // #693: after relaunch or a cancelled save, the upload is already done and the bytes are gone,
+        // but the staged upload file stays until forget(), so the preview is rebuilt from it.
+        val writer = RecordingFileWriter()
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(mapOf("content://photo/0" to "/staged/0.upload")),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = writer,
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("restored", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertEquals(
+            listOf(Triple("content://photo/0", "uploaded/content://photo/0.jpg", "/staged/0.upload")),
+            writer.fileWrites,
+        )
+        assertNull(record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aCompletedTransferWithoutAStagedFileKeepsItsDraftPreview() = runBlocking {
+        val writer = RecordingFileWriter()
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(originalPaths = emptyMap()),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = writer,
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("no file", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertTrue(writer.fileWrites.isEmpty())
+        assertContentEquals(byteArrayOf(1), record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aFailingRebuildFromTheStagedFileNeverFailsTheSave() = runBlocking {
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(mapOf("content://photo/0" to "/staged/0.upload")),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = RecordingFileWriter { error("decode failed") },
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("decode fails", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertContentEquals(byteArrayOf(1), record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aPreviewAlreadyRebuiltInThisSessionIsNotRebuiltAgainFromTheStagedFile() = runBlocking {
+        // Photo 0 is uploaded with its bytes (preview rebuilt), photo 1 fails; the retry skips photo 0.
+        val completed = mutableMapOf<String, String>()
+        val fileWrites = mutableListOf<String>()
+        var failPhotoOne = true
+        val repository = UploadingTripRecordRepository(
+            uploader = object : PhotoUploader {
+                override suspend fun completedObjectKey(localId: String) = completed[localId]
+                override suspend fun completedOriginalPath(localId: String) = "/staged/$localId.upload"
+                override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> {
+                    val source = sources.single()
+                    if (source.localId.endsWith("/1") && failPhotoOne) {
+                        return Result.failure(IllegalStateException("offline"))
+                    }
+                    val objectKey = "travel-records/10/uploaded-${source.localId.substringAfterLast('/')}.jpg"
+                    completed[source.localId] = objectKey
+                    return Result.success(listOf(UploadedPhoto(source, objectKey)))
+                }
+                override suspend fun forget(localIds: List<String>) {
+                    localIds.forEach(completed::remove)
+                }
+            },
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = object : SavedPhotoPreviewWriter {
+                override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray) = true
+                override suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean {
+                    fileWrites += localId
+                    return true
+                }
+            },
+        )
+        val draft = draftWithPhotos("retry", listOf(byteArrayOf(1), byteArrayOf(2)))
+
+        assertTrue(repository.updateTripRecord(101, draft).isFailure)
+        failPhotoOne = false
+        repository.updateTripRecord(101, draft).getOrThrow()
+
+        assertTrue(fileWrites.isEmpty())
+    }
 }
 
 private class CapturingTripRecordRepository : TripRecordRepository {
