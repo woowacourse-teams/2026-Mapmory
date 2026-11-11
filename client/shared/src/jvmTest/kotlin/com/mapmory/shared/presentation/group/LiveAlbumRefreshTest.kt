@@ -29,12 +29,13 @@ class LiveAlbumRefreshTest {
     private fun checkRefresh(failure: Throwable, expectedAlbum: Boolean, expectedGroupUnavailable: Boolean) {
         val repository = Repository()
         val navigation = AlbumNavigationState().apply { showAlbum(album()) }
+        val cachedList = RetainedAlbumList()
         val revision = mutableStateOf(0L)
         val owner = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         val shares = AlbumShareCoordinator(repository, MemoryAlbumShareStore(), owner, NoOpMapmoryAnalytics)
         var unavailable = false
         val scene = ImageComposeScene(412, 892) {
-            LiveAlbumContent(3, repository, FakeTripRecordRepository(now = { "2026-10-29T12:00:00" }), shares, navigation,
+            LiveAlbumContent(3, repository, FakeTripRecordRepository(now = { "2026-10-29T12:00:00" }), shares, navigation, cachedList,
                 "그룹", 2, {}, {}, {}, {}, recordRevision = revision.value,
                 onGroupUnavailable = { unavailable = true })
         }
