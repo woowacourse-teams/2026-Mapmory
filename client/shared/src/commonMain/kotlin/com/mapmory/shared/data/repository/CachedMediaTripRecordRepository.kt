@@ -96,7 +96,7 @@ internal class CachedMediaTripRecordRepository(
                     null
                 }
             }
-        // 기기에서 읽은 촬영일은 덮어쓰지 않는다. 서버 값은 기기 값이 없을 때만 남긴다.
+        // 화면에는 서버 값을 먼저 쓰고, 기기 캐시는 비어 있을 때만 채운다. 기기에서 읽은 값을 서버 값으로 덮지 않는다.
         if (resolvedDate != null && cachedDate == null) {
             loader.rememberCapturedAt(objectKey, resolvedDate)
         }

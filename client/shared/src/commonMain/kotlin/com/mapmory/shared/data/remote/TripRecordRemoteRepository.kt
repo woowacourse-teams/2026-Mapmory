@@ -35,7 +35,11 @@ class TripRecordRemoteRepository(
     private val recordsUrl = "${apiBaseUrl.trimEnd('/')}/travel-records"
 
     // 생성·수정만 v2다. 사진 Object Key와 촬영일을 한 객체로 보낸다. 조회와 삭제는 v1 그대로다.
-    private val writeRecordsUrl = "${apiBaseUrl.trimEnd('/').replace(ApiV1Suffix, "/v2")}/travel-records"
+    private val writeRecordsUrl = apiBaseUrl.trimEnd('/').let { base ->
+        // v1 주소로 v2 본문을 보내면 모든 저장이 실패하므로, 주소를 바꿀 수 없으면 바로 알린다.
+        require(ApiV1Suffix.containsMatchIn(base)) { "API 주소는 /v1로 끝나야 합니다: $base" }
+        "${base.replace(ApiV1Suffix, "/v2")}/travel-records"
+    }
 
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         apiCall {

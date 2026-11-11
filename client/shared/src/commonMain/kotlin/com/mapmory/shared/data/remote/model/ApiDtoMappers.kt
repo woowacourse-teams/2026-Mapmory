@@ -177,8 +177,8 @@ internal fun String?.toIsoCapturedDate(): String? {
 /** 서버 촬영일(yyyy-MM-dd)을 기기 사진첩과 같은 yyyy.MM.dd로 바꿔 한 기록 안에서 표기와 정렬이 섞이지 않게 한다. */
 internal fun String?.toLocalCapturedDate(): String? = toIsoCapturedDate()?.replace('-', '.')
 
-// 앞에 숫자가 더 붙은 값(12026.09.11)은 날짜로 보지 않는다. EXIF 원문(yyyy:MM:dd)도 받는다.
-private val CapturedDatePattern = Regex("(?<!\\d)(\\d{4})[.\\-/:](\\d{1,2})[.\\-/:](\\d{1,2})")
+// 앞뒤에 숫자가 더 붙은 값(12026.09.11, 2026.09.111)은 날짜로 보지 않는다. EXIF 원문(yyyy:MM:dd)도 받는다.
+private val CapturedDatePattern = Regex("(?<!\\d)(\\d{4})[.\\-/:](\\d{1,2})[.\\-/:](\\d{1,2})(?!\\d)")
 
 private fun Location.toRegionQuery(
     regionCatalog: RegionCatalog,

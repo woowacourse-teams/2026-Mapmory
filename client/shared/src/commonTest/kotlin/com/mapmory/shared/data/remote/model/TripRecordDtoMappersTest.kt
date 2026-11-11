@@ -320,6 +320,7 @@ class ApiDtoMappersTest {
         assertEquals("2026-07-05", "2026/7/5".toIsoCapturedDate())
         assertEquals("2026-08-11", "2026:08:11 10:00:00".toIsoCapturedDate())
         assertEquals(null, "12026.09.11".toIsoCapturedDate())
+        assertEquals(null, "2026.09.111".toIsoCapturedDate())
     }
 
     @Test
