@@ -46,12 +46,18 @@ class TripRecordEditorViewModel(
     private val getTags: GetTagsUseCase? = null,
     private val createTag: CreateTagUseCase? = null,
     private val backgroundTripRecordSaver: BackgroundTripRecordSaver? = null,
+    originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
     private val recordedPhotoIndex: com.mapmory.shared.data.media.RecordedPhotoIndex? = null,
     private val placeRepository: PlaceRepository? = null,
     private val newPlaceSessionToken: () -> String = ::randomPlaceSessionToken,
 ) : ViewModel() {
     val recordedPhotoIds = recordedPhotoIndex?.ids ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
     val pendingPhotoIds = backgroundTripRecordSaver?.pendingPhotoIds ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())
+
+    // Photos queued for a background save read their originals soon, so they are never released here.
+    private val originalPrefetch = originalPhotoPrefetcher?.let { prefetcher ->
+        com.mapmory.shared.data.media.OriginalPrefetchSession(prefetcher) { pendingPhotoIds.value }
+    }
     private var isRouteInitialized = false
     private var placeSearchGeneration = 0
     private var placeSelectionGeneration = 0
@@ -66,6 +72,17 @@ class TripRecordEditorViewModel(
 
     var savedRecordId: Long? = null
         private set
+
+    /** 사진 선택을 확정했을 때 원본을 미리 받는다. [localIds]는 업로드 순서(대표 사진 먼저)다. */
+    fun prefetchOriginals(localIds: List<String>) {
+        originalPrefetch?.select(localIds)
+    }
+
+    override fun onCleared() {
+        // Leaving the editor: a saved draft's photos are pending and stay; anything else was abandoned.
+        originalPrefetch?.close()
+        super.onCleared()
+    }
 
     fun reset() {
         placeSearchGeneration += 1

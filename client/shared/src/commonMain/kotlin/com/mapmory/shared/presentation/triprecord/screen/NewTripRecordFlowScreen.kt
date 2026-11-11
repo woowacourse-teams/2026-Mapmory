@@ -18,6 +18,8 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,6 +55,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -117,6 +123,13 @@ import com.mapmory.shared.presentation.map.data.GeneratedKoreaDistrictMapData
 import com.mapmory.shared.presentation.map.data.GeneratedWorldMapData
 import com.mapmory.shared.presentation.map.domain.findCurrentTripRecordLocation
 import com.mapmory.shared.presentation.map.rememberCurrentLocationActions
+import com.mapmory.shared.presentation.photo.CoverPreview
+import com.mapmory.shared.presentation.photo.CoverPreviewEvent
+import com.mapmory.shared.presentation.photo.CoverPreviewGraceMillis
+import com.mapmory.shared.presentation.photo.CoverPreviewStage
+import com.mapmory.shared.presentation.photo.after
+import com.mapmory.shared.presentation.photo.initialCoverPreviewDisplay
+import com.mapmory.shared.presentation.photo.layers
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
 import com.mapmory.shared.presentation.photo.PhotoLoadingProgress
@@ -130,11 +143,14 @@ import com.mapmory.shared.presentation.photo.selectAllLoadedPhotos
 import com.mapmory.shared.presentation.photo.setSelection
 import com.mapmory.shared.presentation.photo.shouldLoadNextRecommendationPage
 import com.mapmory.shared.presentation.photo.toggleSelection
+import com.mapmory.shared.presentation.photo.withCoverPreview
 import com.mapmory.shared.presentation.triprecord.selectableTripRecordDestinations
 import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -308,6 +324,8 @@ internal fun NewTripRecordFlowScreen(
     onSaveClick: () -> Unit,
     onBackClick: () -> Unit,
     onCoverRegionRequested: suspend (List<SelectedPhoto>) -> Unit = {},
+    /** 대표 사진 단계로 넘어갈 때 고른 사진 id를 업로드 순서(대표 사진 먼저)로 알린다. 원본 미리 받기에 쓴다. */
+    onPhotoSelectionConfirmed: (List<String>) -> Unit = {},
     onConfirmedPhotoLoadingBackClick: () -> Unit = onBackClick,
     recordedPhotoIds: Set<String> = emptySet(),
     photoUsageReady: Boolean = true,
@@ -367,6 +385,14 @@ internal fun NewTripRecordFlowScreen(
     var photoPermissionIssue by remember { mutableStateOf<PhotoLibraryPermissionIssue?>(null) }
     var recommendationPagingState by retainedState.paging
     var selectedCoverPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Only the current cover's large preview is kept; switching photos replaces it.
+    var coverPreview by remember { mutableStateOf<CoverPreview?>(null) }
+    // Photo whose large preview request is in flight; cleared by its callback or cancellation.
+    var coverPreviewLoadingId by remember { mutableStateOf<String?>(null) }
+    // Photo whose large preview request ended (with or without an image); lets the cover image stop waiting.
+    var coverPreviewFinishedId by remember { mutableStateOf<String?>(null) }
+    var isWaitingForCoverPreview by remember { mutableStateOf(false) }
+    val coverSaveScope = rememberCoroutineScope()
     var forwardStep by retainedState.forwardStep
     var forwardPreview by retainedState.forwardPreview
     var lastAutoLoadTriggerKey by remember { mutableStateOf<RecommendationLoadKey?>(null) }
@@ -544,6 +570,7 @@ internal fun NewTripRecordFlowScreen(
                     )
                     selectedCoverPhotoId = acceptedPhotos.first().id
                     stepName = NewRecordFlowStep.COVER_SELECTION.name
+                    onPhotoSelectionConfirmed(acceptedPhotos.map(SelectedPhoto::id))
                 }
                 photoMessage = null
             }
@@ -619,6 +646,33 @@ internal fun NewTripRecordFlowScreen(
             photoLibrary.loadFullResolutionPreview(photo) { bytes ->
                 if (previewPhotoId == photoId) fullResolutionPreviewBytes = bytes
             }
+        }
+    }
+
+    // The grid preview is 256px; the cover screen shows one photo large, so request it separately.
+    val coverPreviewPhoto = if (step == NewRecordFlowStep.COVER_SELECTION) {
+        selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId } ?: selectedPhotos.firstOrNull()
+    } else {
+        null
+    }
+    DisposableEffect(coverPreviewPhoto?.id) {
+        onDispose {
+            photoLibrary.cancelCoverPreview()
+            coverPreviewLoadingId = null
+            // A finished (failed) request for the photo being left must not skip the wait on return.
+            coverPreviewFinishedId = null
+        }
+    }
+    LaunchedEffect(coverPreviewPhoto?.id) {
+        val photo = coverPreviewPhoto ?: return@LaunchedEffect
+        if (coverPreview?.photoId == photo.id) return@LaunchedEffect
+        coverPreviewLoadingId = photo.id
+        if (coverPreviewFinishedId == photo.id) coverPreviewFinishedId = null
+        // Platforms without a large preview (Android) answer null immediately, so nothing waits.
+        photoLibrary.loadCoverPreview(photo) { bytes ->
+            if (coverPreviewLoadingId == photo.id) coverPreviewLoadingId = null
+            coverPreviewFinishedId = photo.id
+            if (bytes != null) coverPreview = CoverPreview(photo.id, bytes)
         }
     }
 
@@ -1027,6 +1081,10 @@ internal fun NewTripRecordFlowScreen(
                 ?: selectedPhotos.first()
             selectedCoverPhotoId = coverPhoto.id
             stepName = NewRecordFlowStep.COVER_SELECTION.name
+            // Download originals while the cover and text are being chosen, so saving does not wait on iCloud.
+            onPhotoSelectionConfirmed(
+                listOf(coverPhoto.id) + selectedPhotos.map(SelectedPhoto::id).filterNot { it == coverPhoto.id },
+            )
             photoMessage = null
             return
         }
@@ -1034,8 +1092,17 @@ internal fun NewTripRecordFlowScreen(
         pendingSave = true
     }
 
+    fun saveWithCoverPhoto(coverPhoto: SelectedPhoto) {
+        // The saved cover's preview stays in the device cache for the record list and detail hero.
+        replaceEditorPhotos(
+            (listOf(coverPhoto) + selectedPhotos.filterNot { it.id == coverPhoto.id })
+                .withCoverPreview(coverPhoto.id, coverPreview),
+        )
+        pendingSave = true
+    }
+
     fun confirmCoverPhotoSelection() {
-        if (uiState.isSaving || pendingSave) return
+        if (uiState.isSaving || pendingSave || isWaitingForCoverPreview) return
         val coverPhoto = selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId }
             ?: selectedPhotos.firstOrNull()
         if (coverPhoto == null) {
@@ -1043,8 +1110,22 @@ internal fun NewTripRecordFlowScreen(
             photoMessage = "앨범에 넣을 사진을 한 장 이상 선택해 주세요."
             return
         }
-        replaceEditorPhotos(listOf(coverPhoto) + selectedPhotos.filterNot { it.id == coverPhoto.id })
-        pendingSave = true
+        if (coverPreviewLoadingId != coverPhoto.id) {
+            saveWithCoverPhoto(coverPhoto)
+            return
+        }
+        // Saving before the large preview arrives would cache the 256px grid preview as the cover.
+        isWaitingForCoverPreview = true
+        coverSaveScope.launch {
+            try {
+                withTimeoutOrNull(CoverPreviewSaveWaitMillis) {
+                    snapshotFlow { coverPreviewLoadingId }.first { it != coverPhoto.id }
+                }
+            } finally {
+                isWaitingForCoverPreview = false
+            }
+            if (stepName == NewRecordFlowStep.COVER_SELECTION.name) saveWithCoverPhoto(coverPhoto)
+        }
     }
 
     TripRecordBackground(
@@ -1247,9 +1328,13 @@ internal fun NewTripRecordFlowScreen(
                         NewRecordFlowStep.COVER_SELECTION -> CoverPhotoSelectionStep(
                             photos = selectedPhotos,
                             selectedPhotoId = selectedCoverPhotoId,
-                            isSaving = uiState.isSaving || pendingSave,
+                            largePreview = coverPreview,
+                            largePreviewSupported = photoLibrary.coverPreviewSupported,
+                            largePreviewFinishedId = coverPreviewFinishedId,
+                            isSaving = uiState.isSaving || pendingSave || isWaitingForCoverPreview,
                             onBackClick = ::returnToPreviousStep,
-                            onPhotoSelected = { selectedCoverPhotoId = it },
+                            // The pending save already captured its cover; changing it now would be ignored.
+                            onPhotoSelected = { if (!isWaitingForCoverPreview) selectedCoverPhotoId = it },
                             onConfirm = ::confirmCoverPhotoSelection,
                             regionContent = {
                                 TextButton(onClick = { regionQuery = ""; showRegionPicker = true }) {
@@ -2629,6 +2714,9 @@ private fun PhotoPickerStep(
 private fun CoverPhotoSelectionStep(
     photos: List<SelectedPhoto>,
     selectedPhotoId: String?,
+    largePreview: CoverPreview?,
+    largePreviewSupported: Boolean,
+    largePreviewFinishedId: String?,
     isSaving: Boolean,
     onBackClick: () -> Unit,
     onPhotoSelected: (String) -> Unit,
@@ -2636,6 +2724,7 @@ private fun CoverPhotoSelectionStep(
     regionContent: @Composable () -> Unit = {},
 ) {
     val selectedPhoto = photos.firstOrNull { it.id == selectedPhotoId } ?: photos.firstOrNull()
+    val largePreviewBytes = largePreview?.takeIf { it.photoId == selectedPhoto?.id }?.bytes
     Column(Modifier.fillMaxSize()) {
         FlowTopBar(
             title = "대표 사진 선택",
@@ -2662,15 +2751,17 @@ private fun CoverPhotoSelectionStep(
             )
             regionContent()
             if (selectedPhoto != null) {
-                MapmoryAsyncImage(
-                    imageBytes = selectedPhoto.previewBytes ?: selectedPhoto.originalBytes,
-                    imageUri = selectedPhoto.previewUri,
-                    fallbackUri = selectedPhoto.fullResolutionUri,
-                    contentDescription = "대표 사진 미리보기: ${selectedPhoto.displayName}",
-                    cacheKey = "cover-selection:${selectedPhoto.id}",
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                    shape = RoundedCornerShape(22.dp),
-                )
+                // Each photo gets its own wait, timer and crossfade state.
+                key(selectedPhoto.id) {
+                    CoverPreviewImage(
+                        photo = selectedPhoto,
+                        largePreviewBytes = largePreviewBytes,
+                        largePreviewSupported = largePreviewSupported,
+                        largePreviewUnavailable = largePreviewBytes == null &&
+                            largePreviewFinishedId == selectedPhoto.id,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -2759,6 +2850,73 @@ private fun CoverPhotoSelectionStep(
     }
 }
 
+
+/**
+ * Waits up to [CoverPreviewGraceMillis] for the large preview so a fast one replaces nothing.
+ * A late one is shown over the 256px preview with a crossfade instead of a hard swap.
+ * Without large previews (Android) it shows the small preview at once, as before.
+ */
+@Composable
+private fun CoverPreviewImage(
+    photo: SelectedPhoto,
+    largePreviewBytes: ByteArray?,
+    largePreviewSupported: Boolean,
+    largePreviewUnavailable: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(22.dp)
+    val description = "대표 사진 미리보기: ${photo.displayName}"
+    var display by remember { mutableStateOf(initialCoverPreviewDisplay(largePreviewSupported)) }
+    LaunchedEffect(Unit) {
+        delay(CoverPreviewGraceMillis)
+        display = display.after(CoverPreviewEvent.GRACE_EXPIRED)
+    }
+    LaunchedEffect(largePreviewUnavailable) {
+        if (largePreviewUnavailable) display = display.after(CoverPreviewEvent.LARGE_UNAVAILABLE)
+    }
+    val crossfadeProgress by animateFloatAsState(
+        targetValue = if (display.stage == CoverPreviewStage.LARGE && display.crossfade) 1f else 0f,
+        animationSpec = tween(CoverPreviewCrossfadeMillis),
+        label = "cover-preview-crossfade",
+    )
+    val layers = display.layers(crossfadeProgress)
+    Box(modifier) {
+        if (display.stage == CoverPreviewStage.WAITING) {
+            TripPhotoPlaceholder(Modifier.fillMaxSize(), shape)
+        }
+        // Composed while waiting too, so it is already decoded if the grace period runs out.
+        MapmoryAsyncImage(
+            imageBytes = photo.previewBytes ?: photo.originalBytes,
+            imageUri = photo.previewUri,
+            fallbackUri = photo.fullResolutionUri,
+            contentDescription = description,
+            cacheKey = "cover-selection:${photo.id}",
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (layers.smallVisible) Modifier else Modifier.alpha(0f))
+                .then(if (display.stage == CoverPreviewStage.LARGE) Modifier.clearAndSetSemantics {} else Modifier),
+            shape = shape,
+        )
+        if (largePreviewBytes != null) {
+            // Stays transparent until decoded, so its loading placeholder never covers the small preview.
+            MapmoryAsyncImage(
+                imageBytes = largePreviewBytes,
+                contentDescription = description,
+                cacheKey = "cover-selection:${photo.id}:large",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = layers.largeAlpha }
+                    .then(if (display.stage != CoverPreviewStage.LARGE) Modifier.clearAndSetSemantics {} else Modifier),
+                shape = shape,
+                onReadyChanged = { ready ->
+                    if (ready) display = display.after(CoverPreviewEvent.LARGE_READY)
+                },
+            )
+        }
+    }
+}
+
+private const val CoverPreviewCrossfadeMillis = 250
 
 @Composable
 private fun PhotoPickerHeader(
@@ -3190,3 +3348,6 @@ private fun GalleryPickerButton(onClick: () -> Unit) {
         }
     }
 }
+
+/** Upper bound on how long saving waits for the cover's large preview before using the grid preview. */
+private const val CoverPreviewSaveWaitMillis = 2_000L
