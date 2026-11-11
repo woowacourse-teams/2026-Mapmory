@@ -2,6 +2,7 @@ package com.mapmory.backend.travelrecord.application;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 여행 일지 생성·수정에 필요한 값을 서비스 계층 형태로 담는다.
@@ -21,18 +22,34 @@ public record TravelRecordCommand(
         List<String> objectKeys,
         List<Long> tagIds,
         String placeId,
-        Long pushTokenId
+        Long pushTokenId,
+        Map<String, String> capturedDates
 ) {
+    public TravelRecordCommand {
+        objectKeys = objectKeys == null ? List.of() : objectKeys;
+        tagIds = tagIds == null ? List.of() : tagIds;
+        capturedDates = capturedDates == null ? Map.of() : capturedDates;
+    }
+
     public TravelRecordCommand(String countryCode, String provinceCode, String districtCode, String title,
             String content, LocalDate startDate, LocalDate endDate, List<String> objectKeys,
             List<Long> tagIds, String placeId) {
         this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
-                objectKeys, tagIds, placeId, null);
+                objectKeys, tagIds, placeId, null, Map.of());
     }
 
-    public TravelRecordCommand {
-        objectKeys = objectKeys == null ? List.of() : objectKeys;
-        tagIds = tagIds == null ? List.of() : tagIds;
+    public TravelRecordCommand(String countryCode, String provinceCode, String districtCode, String title,
+            String content, LocalDate startDate, LocalDate endDate, List<String> objectKeys,
+            List<Long> tagIds, String placeId, Long pushTokenId) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
+                objectKeys, tagIds, placeId, pushTokenId, Map.of());
+    }
+
+    public TravelRecordCommand(String countryCode, String provinceCode, String districtCode, String title,
+            String content, LocalDate startDate, LocalDate endDate, List<String> objectKeys,
+            List<Long> tagIds, String placeId, Map<String, String> capturedDates) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
+                objectKeys, tagIds, placeId, null, capturedDates);
     }
 
     public boolean hasRegion() {

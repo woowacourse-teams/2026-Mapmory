@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.hibernate.annotations.CreationTimestamp;
@@ -29,11 +30,21 @@ public class RecordMedia {
     @Embedded
     private ObjectKey objectKey;
 
-    @Column(name = "thumb_key", length = 500)
+    /**
+     * 썸네일 워커가 자기 UPDATE로만 채운다({@code TravelRecordRepository#attachThumbnail}). 엔티티 변경(순서, 촬영일)이
+     * 트랜잭션 시작 때 읽은 빈 값으로 워커가 막 채운 키를 덮지 않도록 엔티티 UPDATE에서는 빼 둔다.
+     */
+    @Column(name = "thumb_key", length = 500, updatable = false)
     private String thumbKey;
 
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
+
+    /**
+     * 사진 촬영일. 앱이 사진첩에서 읽어 보낸다. 모르면 null이다. 업로드 시각({@link #createdAt})과는 다르다.
+     */
+    @Column(name = "captured_date")
+    private LocalDate capturedDate;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -62,6 +73,19 @@ public class RecordMedia {
 
     public void updateSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    /**
+     * 촬영일을 받았을 때만 바꾼다. 촬영일을 보내지 않는 예전 앱이 수정해도 이미 저장된 촬영일을 지우지 않는다.
+     */
+    void recordCapturedDate(LocalDate capturedDate) {
+        if (capturedDate != null) {
+            this.capturedDate = capturedDate;
+        }
+    }
+
+    public LocalDate getCapturedDate() {
+        return capturedDate;
     }
 
     public Long getId() {

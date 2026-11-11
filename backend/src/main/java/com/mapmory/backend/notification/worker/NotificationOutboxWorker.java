@@ -59,6 +59,12 @@ public class NotificationOutboxWorker {
             return;
         }
 
+        if (!recipient.get().allowsCompletion(notification.eventType())) {
+            recordResult(notification, resultService.markSkipped(
+                    notification.outboxId(), notification.claimToken(), "NOTIFICATION_DISABLED"));
+            return;
+        }
+
         PushMessage message;
         try {
             message = messageFactory.create(notification, recipient.get());

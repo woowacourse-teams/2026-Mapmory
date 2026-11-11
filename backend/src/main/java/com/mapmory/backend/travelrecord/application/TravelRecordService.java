@@ -20,6 +20,7 @@ import com.mapmory.backend.travelrecord.api.TravelRecordDeleted;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
+import com.mapmory.backend.travelrecord.domain.PhotoCaptureDates;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -116,6 +117,7 @@ public class TravelRecordService {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        PhotoCaptureDates captureDates = PhotoCaptureDates.from(command.capturedDates(), today);
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
         uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys.values());
@@ -134,7 +136,7 @@ public class TravelRecordService {
                     today
             );
             setPlace(travelRecord, place);
-            travelRecord.synchronizeMedia(objectKeys);
+            travelRecord.synchronizeMedia(objectKeys, captureDates);
             travelRecord.retag(tagIds, findTags(member, tagIds));
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
@@ -166,6 +168,7 @@ public class TravelRecordService {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        PhotoCaptureDates captureDates = PhotoCaptureDates.from(command.capturedDates(), today);
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
 
@@ -195,7 +198,7 @@ public class TravelRecordService {
             operationTimer.record(
                     MonitoredOperation.MEDIA_SYNC,
                     () -> {
-                        travelRecord.synchronizeMedia(objectKeys);
+                        travelRecord.synchronizeMedia(objectKeys, captureDates);
                         travelRecordRepository.flush();
                         return travelRecord.getMedia();
                     }

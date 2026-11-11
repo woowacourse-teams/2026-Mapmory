@@ -34,7 +34,8 @@ public class PushTokenController {
         PushToken registered = pushTokenService.register(
                 member.getId(),
                 request.token(),
-                request.platform()
+                request.platform(), request.previousPushTokenId(),
+                request.photoRecordCompletionEnabled(), request.travelVideoCompletionEnabled()
         );
 
         PushTokenResponse response = PushTokenResponse.from(registered);

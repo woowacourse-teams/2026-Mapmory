@@ -103,7 +103,8 @@ public class TravelRecordQueryService implements TravelRecordQuery {
                                 recordMedia.getId(),
                                 recordMediaUrlService.createViewUrl(recordMedia.getObjectKey()),
                                 recordMediaUrlService.createViewUrl(recordMedia.getThumbnailObjectKey()),
-                                recordMedia.getSortOrder()))
+                                recordMedia.getSortOrder(),
+                                recordMedia.getCapturedDate()))
                         .toList()
         );
     }
