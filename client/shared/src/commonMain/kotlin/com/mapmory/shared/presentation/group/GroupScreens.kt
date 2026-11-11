@@ -97,9 +97,7 @@ internal fun GroupListScreen(
             GroupButton("코드로 참여", onJoin, Modifier.weight(1f), outlined = true)
         }
         when (state) {
-            GroupListUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            GroupListUiState.Loading -> GroupListSkeleton()
             is GroupListUiState.Error -> GroupEmpty(
                 "그룹을 불러오지 못했어요", state.message, "다시 시도", onRetry)
             is GroupListUiState.Content -> if (state.groups.isEmpty()) {
@@ -162,9 +160,7 @@ internal fun GroupHomeScreen(
                 }
             }
             if (albumsLoading) item {
-                Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                GroupAlbumSkeleton()
             }
             if (albumsAvailable && group.albums.isEmpty()) item {
                 Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {

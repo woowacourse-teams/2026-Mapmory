@@ -47,7 +47,7 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
     val storageError by shares.storageError.collectAsState()
     var acknowledge by remember(groupId) { mutableStateOf<AlbumShareOperation?>(null) }
     val busy = loading || membershipBusy || operations.any { it.status == AlbumShareStatus.RUNNING }
-    var loadedRecordRevision by remember(groupId) { mutableStateOf<Long?>(null) }
+    var loadedRecordRevision by cachedList::loadedRecordRevision
     var rename by navigation.rename
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(selectedPhoto != null) { onPhotoVisibilityChanged(selectedPhoto != null) }
@@ -64,6 +64,10 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         try { albums.list(groupId, next).onSuccess {
             list = if (next == 0) it.items else list.orEmpty() + it.items
             page = it.page; more = it.hasNext
+            if (next == 0) {
+                cachedList.fetchedAt = TimeSource.Monotonic.markNow()
+                loadedRecordRevision = recordRevision
+            }
         }.onFailure {
             if (it.isMissingGroup()) onGroupUnavailable()
             else error = "앨범을 불러오지 못했어요. 다시 시도해 주세요."
@@ -114,10 +118,10 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         }
     }
     LaunchedEffect(groupId, recordRevision, operations.any { it.status == AlbumShareStatus.RUNNING }, membershipBusy) {
-        if (!shares.isRunning && !membershipBusy && (list == null || loadedRecordRevision != recordRevision)) {
+        if (!shares.isRunning && !membershipBusy && (list == null || loadedRecordRevision != recordRevision ||
+                cachedList.fetchedAt?.elapsedNow()?.let { it >= 60.seconds } != false)) {
             load()
             detail?.id?.let { open(it) }
-            loadedRecordRevision = recordRevision
         }
     }
     DisposableEffect(lifecycle, groupId) {
