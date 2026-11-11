@@ -13,7 +13,7 @@ test("mobile gallery keeps controls outside the uncropped photo and touch target
   assert.match(stylesSource, /\.world-memory-modal \.memory-image-wrap\.is-gallery img \{ object-fit: contain; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-photo-meta \{ display: none; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-sheet-gallery-controls > button \{ width: 44px; height: 44px;/);
-  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--ink\);/s);
+  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--btn\);/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title \{[^}]*display: flex;/s);
   // 2026-11-10 (app look): memory titles and captions use the one interface family; no handwriting face is left
   assert.doesNotMatch(stylesSource, /Nanum|cursive|Noto Serif/);

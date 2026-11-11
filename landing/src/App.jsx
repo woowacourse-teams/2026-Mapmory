@@ -1026,7 +1026,7 @@ function App() {
 
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
-          <h2 id="privacy-title">사진첩은 폰 안에서만 살펴봐요</h2>
+          <h2 id="privacy-title">사진첩은 폰{"\u00a0"}안에서만 살펴봐요</h2>
         </div>
         <div className="trust-flow">
           <div className="trust-zone is-device">

@@ -43,7 +43,8 @@
   caret-color: var(--accent-strong);
   /* 2026-11-09 "앱과 같은 옷" (티온 picked B): the app's mint-white page, white cards with a light border, app green
      (#4D9272) for actions, one typeface (LINE Seed) with no serif or handwriting. --serif now points at LINE Seed so
-     older rules keep working. --ink is the button fill, a shade darker than the app green so white text passes AA. */
+     older rules keep working. --ink is the app-green fill, a shade darker than the app green so white text passes AA;
+     since direction 다 (2026-11-10) it is only for things drawn inside a phone screen, and page buttons use --btn. */
   --canvas: #f6f9f7;
   --surface: #ffffff;
   --surface-soft: #eef3f0;
@@ -55,7 +56,7 @@
   --accent-strong: #4d9272;
   /* Small green text: AA on paper, surface and accent-soft. Keep --accent-strong for icons, borders and fills. */
   --accent-ink: #367356;
-  /* buttons and chosen chips: ink on paper (light), paper on ink (dark) */
+  /* app-green fills inside the phone screens (page buttons and chosen chips use --btn below) */
   --ink: #3f8264;
   --on-ink: #ffffff;
   /* 2026-11-10 (direction 다): the page's own buttons are ink-black pills; the app green stays inside the phone screens */
@@ -202,7 +203,7 @@ main { overflow-x: clip; }
 @media (hover: hover) and (pointer: fine) {
   .button:hover:not(:disabled) { transform: translateY(-2px); }
   .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--btn) 86%, var(--canvas)); }
-  .header-store-popover .button-store:hover { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
+  .header-store-popover .button-store:hover { color: var(--on-btn); background: var(--btn); border-color: var(--btn); }
 }
 .button:active:not(:disabled) { transform: scale(0.97); }
 
@@ -246,7 +247,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .location-shortcuts { display: flex; gap: 7px; }
 .location-shortcuts button { min-height: 36px; padding: 0 11px; border: 1px solid var(--globe-line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--globe-panel); color: var(--globe-muted); cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .location-shortcuts button:hover { border-color: var(--accent); color: var(--globe-text); }
-/* a choice is marked in ink everywhere (the hero chips, this dock); it used to be the only yellow on the page */
+/* a choice is marked with the button colour everywhere (the hero chips, this dock) */
 .location-shortcuts button.is-active { color: var(--on-btn); background: var(--btn); border-color: var(--btn); }
 
 .experience-stage { display: grid; grid-template-columns: minmax(0, 1.14fr) minmax(310px, 0.86fr); gap: 16px; align-items: stretch; scroll-margin-top: 84px; }
@@ -551,8 +552,8 @@ footer p { margin: 10px 0 0; }
   .world-memory-modal .world-memory-card header small { display: none; }
   .world-memory-modal .world-memory-card .memory-location-full { display: none; }
   .world-memory-modal .world-memory-card .memory-location-compact { display: inline; }
-  .world-memory-modal .world-memory-close { min-width: 96px; min-height: 44px; height: 44px; margin-left: auto; border-color: var(--ink); color: var(--on-ink); background: var(--ink); }
-  .world-memory-close:hover { border-color: var(--ink); color: var(--on-ink); background: var(--ink); }
+  .world-memory-modal .world-memory-close { min-width: 96px; min-height: 44px; height: 44px; margin-left: auto; border-color: var(--btn); color: var(--on-btn); background: var(--btn); }
+  .world-memory-close:hover { border-color: var(--btn); color: var(--on-btn); background: var(--btn); }
   .world-memory-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; }
   .memory-photo-dots { gap: 0; }
   .memory-photo-dots button,
@@ -584,7 +585,7 @@ footer p { margin: 10px 0 0; }
 }
 
 /* 2026-11-09 audit: keyboard skip link and the privacy policy link in the footer */
-.skip-link { position: absolute; left: 16px; top: -64px; z-index: 100; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--on-ink); font-weight: 700; transition: top 0.2s var(--ease-out); }
+.skip-link { position: absolute; left: 16px; top: -64px; z-index: 100; padding: 12px 16px; border-radius: 12px; background: var(--btn); color: var(--on-btn); font-weight: 700; transition: top 0.2s var(--ease-out); }
 .skip-link:focus { top: 12px; }
 .footer-link { min-height: 44px; display: inline-flex; align-items: center; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
@@ -596,7 +597,7 @@ footer p { margin: 10px 0 0; }
 .hero-store .store-buttons.is-own .button-store { min-width: 220px; min-height: 52px; font-size: 16px; }
 .hero-qr { display: none; margin: 0; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; line-height: 20px; font-weight: 400; text-align: left; white-space: nowrap; }
 .hero-qr img { display: block; width: 112px; height: 112px; background: #fff; }
-/* not in windows under 700px tall: the card would push the words under the header and onto the foot */
+/* not in windows under 700px tall: the QR would push the words under the header and onto the foot */
 @media (min-width: 900px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .hero-qr { display: flex; } }
 
 /* 2026-11-10 (direction 다) for the rest of the page: the second line of a two-line title is muted like the hero's,

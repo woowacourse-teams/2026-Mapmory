@@ -123,8 +123,45 @@ test("direction 다: a quiet hero whose words sit in a left column on wide scree
   assert.match(hero, /@media \(min-width: 1100px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ \.wall-hero h1 \{ font-size: clamp\(34px, min\(5vw, 28\.7svh - 140px\), 72px\); \} \}/);
   assert.match(styles, /@media \(min-width: 1100px\) \{ \.hero-store \{ justify-content: flex-start; \} \}/);
   // the engine keeps the lens, the taps and a picked place's photos in the open part beside the words
-  assert.match(engine, /side = getComputedStyle\(hero\)\.getPropertyValue\("--hero-side"\)\.trim\(\) === "1";/);
-  assert.match(engine, /if \(side\) \{\s*\/\/ beside the words[^\n]*\n\s*const beside = \{ x0: open, y0: 108, x1: W - 32, y1: H - 32 \};/);
-  assert.match(engine, /if \(side && px < open - 40\) return null;/);
+  assert.match(engine, /side = style\.getPropertyValue\("--hero-side"\)\.trim\(\) === "1";/);
+  assert.match(engine, /headerSpace = parseFloat\(style\.getPropertyValue\("--header-space"\)\) \|\| 84;/); // the grid starts under the header the CSS sets
+  assert.match(engine, /placeReadable\(kept, \{ x0: open, y0: headerSpace \+ 24, x1: W - edge, y1: H - edge \}, gap, 132, readable\);/);
   assert.match(engine, /if \(side\) lens\.tx = Math\.max\(lens\.tx, open \+ 40\);/);
+  // a wall photo that reaches into the words' column is never lit, labelled or tapped (review 2026-11-11: lit photos
+  // sat on the QR caption, and unpicking flashed photos across the column)
+  assert.match(engine, /const inColumn = \(t\) => side && t\.x < open;/);
+  assert.match(engine, /const target = pick \? keep : inColumn\(t\) \? 0 : inLens;/);
+  assert.match(engine, /if \(pick \? keep : t\.v > 0\.3 && !inColumn\(t\)\) top\.push\(item\); else paint\(item\);/);
+  assert.match(engine, /if \(!pick && !inColumn\(t\) && d < hitD/);
+  assert.match(engine, /if \(a && !pick && inColumn\(tiles\[i\]\)\) continue;/);
+  // the clearing is measured from the column in pixels, so a very wide window does not fade photos under the words
+  assert.match(engine, /createLinearGradient\(open - 200, 0, open \+ Math\.min\(300, \(W - open\) \/ 2\), 0\)/);
+});
+
+test("direction 다: the centred hero keeps its words under the header in short windows", async () => {
+  const hero = await read("../src/photo-story.css");
+  // the words never rise above the header: they move down instead (the hero is 100svh, at least 560px)
+  assert.match(hero, /\.wall-hero-copy \{ --hero-lift: -54%;[^}]*transform: translate\(-50%, var\(--hero-lift\)\); transform: translate\(-50%, max\(var\(--hero-lift\), calc\(var\(--header-space\) \+ 8px - max\(50svh, 280px\)\)\)\);/);
+  assert.match(hero, /@media \(max-width: 760px\) \{\n\s*\.wall-hero-copy \{ --hero-lift: -60%; \}/);
+  // between the phone layout and the side layout the title follows the window's height (review 2026-11-11: at
+  // 1000x560 the kicker sat behind the header after a pick)
+  assert.match(hero, /@media \(min-width: 761px\) and \(max-width: 1099px\) \{ \.wall-hero h1 \{ font-size: clamp\(34px, min\(5\.4vw, 39\.9svh - 191px\), 68px\); \} \}/);
+});
+
+test("direction 다: page-level fills are the button colour, and app green stays inside the phone screens", async () => {
+  const styles = await read("../src/styles.css");
+  const tech = await read("../src/tech-story.css");
+  const engine = await read("../src/heroWallEngine.js");
+  const all = `${styles}\n${await read("../src/photo-story.css")}\n${await read("../src/group-album.css")}`;
+  assert.doesNotMatch(all, /background: var\(--ink\)/); // header menu, skip link, memory close button, chips: all --btn
+  assert.match(styles, /\.header-store-popover \.button-store:hover \{ color: var\(--on-btn\); background: var\(--btn\); border-color: var\(--btn\); \}/);
+  assert.match(styles, /\.skip-link \{[^}]*background: var\(--btn\); color: var\(--on-btn\);/);
+  assert.doesNotMatch(engine, /tok\.ink|"on-ink"/); // the lens label of a place photo
+  assert.match(engine, /ctx\.fillStyle = t\.place \? tok\.btn : tok\.surface;/);
+  // inside the phone of the tech story the app's own green buttons stay
+  assert.deepEqual([...tech.matchAll(/^(\.ts-[\w.-]+) \{[^}]*background: var\(--ink\)/gm)].map(([, sel]) => sel), [".ts-load.is-ready", ".ts-save", ".ts-share-btn.is-pressed"]);
+  // the tech story head follows the same quiet type: a muted label and a muted second title line
+  assert.match(tech, /\.ts-eyebrow \{ margin: 0; color: var\(--muted\); font-size: 14px; font-weight: 400; letter-spacing: 0\.01em; \}/);
+  assert.match(tech, /\.ts-head h2 \{[^}]*line-height: 1\.25; letter-spacing: -0\.04em;/);
+  assert.match(await read("../src/TechStory.jsx"), /<h2 id="tech-title">\{TECH_COPY\.title\[0\]\}<br \/><span className="title-soft">\{TECH_COPY\.title\[1\]\}<\/span><\/h2>/);
 });

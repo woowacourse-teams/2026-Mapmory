@@ -128,7 +128,7 @@ function TechStoryInner() {
     <div className="ts" data-variant={TECH_VARIANT} ref={rootRef}>
       <header className="ts-head">
         <p className="ts-eyebrow">{TECH_COPY.eyebrow}</p>
-        <h2 id="tech-title">{TECH_COPY.title[0]}<br />{TECH_COPY.title[1]}</h2>
+        <h2 id="tech-title">{TECH_COPY.title[0]}<br /><span className="title-soft">{TECH_COPY.title[1]}</span></h2>
       </header>
 
       <div className="ts-story">

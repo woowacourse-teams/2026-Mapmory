@@ -5,7 +5,7 @@
 import { SPRITE, getSpriteImage } from "./photoStory.js";
 import { clamp, drawSpriteTile, easeOut, fitCanvas, font, onThemeChange, readTokens, roundRect } from "./storyCanvas.js";
 
-const TOKENS = ["canvas", "surface", "text", "accent", "ink", "on-ink", "ps-dot", "ps-shadow"];
+const TOKENS = ["canvas", "surface", "text", "accent", "btn", "on-btn", "ps-dot", "ps-shadow"];
 const rand = (n) => { const x = Math.sin(n * 91.7 + 17.3) * 43758.5453; return x - Math.floor(x); };
 
 // mountHeroWall(hero section, canvas, { reducedMotion, onPick }) -> { setPick(key | null), destroy() }
@@ -22,14 +22,19 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
   // 2026-11-10 (direction 다): on wide screens the CSS puts the words in a left column (--hero-side: 1). The wall is
   // then cleared from the left edge to past the words, and the lens, the taps and a picked place's photos stay in
   // the open part on the right (`open` is where that part starts).
-  let side = false, open = 0;
+  let side = false, open = 0, headerSpace = 84;
   const measureWords = () => {
     if (!copyEl) return;
     const c = copyEl.getBoundingClientRect(), r = canvas.getBoundingClientRect(), m = 14;
     words = { x0: c.left - r.left - m, y0: c.top - r.top - m, x1: c.right - r.left + m, y1: c.bottom - r.top + m };
-    side = getComputedStyle(hero).getPropertyValue("--hero-side").trim() === "1";
+    const style = getComputedStyle(hero);
+    side = style.getPropertyValue("--hero-side").trim() === "1";
+    headerSpace = parseFloat(style.getPropertyValue("--header-space")) || 84; // the header lies over the hero's top
     open = side ? Math.min(words.x1 + 24, W * 0.7) : 0;
   };
+  // in the side layout a wall photo that reaches into the words' column stays part of the plain page there: the lens
+  // does not light it, label it or let it be tapped (a picked place's photos still fly out of it)
+  const inColumn = (t) => side && t.x < open;
 
   // a chosen place's photos rise out of the wall into a tidy grid where nothing covers them: under the words, or (on
   // desktop) on both sides of them when the band below is too low (2026-10-29: left in place, most of them sat under
@@ -60,21 +65,25 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
     if (!foot) return H - 44;
     return Math.min(H - 44, foot.getBoundingClientRect().top - hero.getBoundingClientRect().top);
   }
+  // as many of the photos as the area holds at a size that reads (at least one)
+  function placeReadable(list, r, gap, max, readable) {
+    let n = list.length;
+    while (n > 1 && fitGrid(n, r, gap, max).s < readable) n--;
+    placeGrid(list.slice(0, n), r, gap, max);
+  }
   function gather() {
     slots = new Map();
     if (!pick || !W) return;
     const kept = tiles.filter((t) => t.place === pick && t.x + t.s > 0 && t.x < W);
     const small = W < 520, gap = small ? 8 : 12, max = small ? 84 : 112, pad = 16;
+    const readable = small ? 56 : 72;
     if (side) {
-      // beside the words: as many as fit at a size that reads, in the open part under the header
-      const beside = { x0: open, y0: 108, x1: W - 32, y1: H - 32 };
-      let n = kept.length;
-      while (n > 1 && fitGrid(n, beside, gap, 132).s < 72) n--;
-      placeGrid(kept.slice(0, n), beside, gap, 132);
+      // beside the words: the open part, from under the header to the bottom, with room for bigger photos
+      const edge = 2 * pad;
+      placeReadable(kept, { x0: open, y0: headerSpace + 24, x1: W - edge, y1: H - edge }, gap, 132, readable);
       return;
     }
     const below = { x0: pad, y0: words.y1 + 4, x1: W - pad, y1: footTop() - 8 };
-    const readable = small ? 56 : 72;
     if (fitGrid(kept.length, below, gap, max).s >= readable) { placeGrid(kept, below, gap, max); return; }
     // phones: the sides are a sliver, so the band below keeps as many as it holds at a size that reads (2026-10-29,
     // 티온: on a short phone 제주 and 일본 shrank into slivers at the edges while 미국's seven still fitted below)
@@ -82,12 +91,7 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
     const left = { x0: pad, y0: top, x1: words.x0, y1: bottom }, right = { x0: words.x1, y0: top, x1: W - pad, y1: bottom };
     // tablets (520-768 wide) have side columns too narrow to read, so they take the phone path below
     const sidesRead = !small && Math.min(fitGrid(half, left, gap, max).s, fitGrid(kept.length - half, right, gap, max).s) >= readable;
-    if (!sidesRead) {
-      let n = kept.length;
-      while (n > 1 && fitGrid(n, below, gap, max).s < readable) n--;
-      placeGrid(kept.slice(0, n), below, gap, max);
-      return;
-    }
+    if (!sidesRead) { placeReadable(kept, below, gap, max, readable); return; }
     placeGrid(kept.slice(0, half), left, gap, max);
     placeGrid(kept.slice(half), right, gap, max);
   }
@@ -135,7 +139,7 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       const cx = t.x + t.s / 2, cy = t.y + t.s / 2, d = Math.hypot(cx - lens.x, cy - lens.y);
       const inLens = clamp(1 - d / LR);
       const keep = pick ? (t.place === pick ? 1 : 0) : 1;
-      const target = pick ? keep : inLens;
+      const target = pick ? keep : inColumn(t) ? 0 : inLens;
       t.v = reducedMotion ? target : t.v + (target - t.v) * 0.14;
       if (Math.abs(target - t.v) > 0.01) settling = true;
       // a calm wall: photos sit dim; the lens (or a chosen place) brings them up
@@ -149,15 +153,14 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       if (slot) { s += (slot.s - s) * k; x += (slot.x - x) * k; y += (slot.y - y) * k; }
       const item = { t, x, y, s, a: 0.16 + t.v * 0.84 - dotK * 0.1, ring: pick && keep ? k : 0 };
       t.at = { x, y, s };
-      if (pick ? keep : t.v > 0.3) top.push(item); else paint(item);
-      if (!pick && d < hitD && inLens > 0.55) { hitD = d; hit = item; }
+      if (pick ? keep : t.v > 0.3 && !inColumn(t)) top.push(item); else paint(item);
+      if (!pick && !inColumn(t) && d < hitD && inLens > 0.55) { hitD = d; hit = item; }
     }
     // a soft clearing behind the words, then the lit photos on top of it
     let g;
-    if (side) { // the left column is plain page; the wall fades in past the words
-      g = ctx.createLinearGradient(0, 0, W, 0);
-      const a = clamp(open / W);
-      g.addColorStop(0, tok.canvas); g.addColorStop(clamp(a - 0.14), tok.canvas); g.addColorStop(clamp(a + 0.2), `${tok.canvas}00`);
+    if (side) { // the left column is plain page; the wall fades in past the words, by the same amount on every width
+      g = ctx.createLinearGradient(open - 200, 0, open + Math.min(300, (W - open) / 2), 0);
+      g.addColorStop(0, tok.canvas); g.addColorStop(1, `${tok.canvas}00`);
     } else {
       g = ctx.createRadialGradient(W / 2, H * 0.47, 0, W / 2, H * 0.47, Math.max(W, H) * 0.42);
       g.addColorStop(0, tok.canvas); g.addColorStop(0.55, `${tok.canvas}e6`); g.addColorStop(1, `${tok.canvas}00`);
@@ -172,8 +175,8 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       const label = `📍 ${t.label}`, tw = ctx.measureText(label).width + 22, th = W < 520 ? 28 : 32;
       const lx = Math.min(W - tw - 8, Math.max(8, x + s / 2 - tw / 2)), ly = y - th - 8;
       ctx.shadowColor = tok["ps-shadow"]; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
-      ctx.fillStyle = t.place ? tok.ink : tok.surface; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill(); ctx.shadowColor = "transparent";
-      ctx.fillStyle = t.place ? tok["on-ink"] : tok.text; ctx.textBaseline = "middle"; ctx.fillText(label, lx + 11, ly + th / 2 + 1);
+      ctx.fillStyle = t.place ? tok.btn : tok.surface; roundRect(ctx, lx, ly, tw, th, th / 2); ctx.fill(); ctx.shadowColor = "transparent";
+      ctx.fillStyle = t.place ? tok["on-btn"] : tok.text; ctx.textBaseline = "middle"; ctx.fillText(label, lx + 11, ly + th / 2 + 1);
       ctx.strokeStyle = t.place ? tok.accent : tok.text; ctx.lineWidth = 2; roundRect(ctx, x - 2, y - 2, s + 4, s + 4, 10); ctx.stroke();
     }
     return settling;
@@ -197,9 +200,9 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
   // the photo under a point (topmost first), among the ones drawn in the last frame
   const photoAt = (e) => {
     const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
-    if (side && px < open - 40) return null; // the photos under the cleared left column cannot be seen, so not tapped
     for (let i = tiles.length - 1; i >= 0; i--) {
       const a = tiles[i].at;
+      if (a && !pick && inColumn(tiles[i])) continue; // under the cleared column: not seen, so not tapped
       if (a && px >= a.x && px <= a.x + a.s && py >= a.y && py <= a.y + a.s) return tiles[i];
     }
     return null;
