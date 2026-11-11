@@ -443,6 +443,8 @@ fun createGuestRemoteAppContainer(
     localPhotoDataSource: LocalPhotoDataSource? = null,
     /** 저장 전에 원본을 미리 받는 플랫폼만 넘긴다(iOS). */
     originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
+    /** 업로드한 원본으로 기기 미리보기를 키우는 플랫폼만 넘긴다(iOS, #686). */
+    savedPhotoPreviewWriter: com.mapmory.shared.data.media.SavedPhotoPreviewWriter? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
@@ -466,6 +468,7 @@ fun createGuestRemoteAppContainer(
         albumShareStore = albumShareStore,
         localPhotoDataSource = localPhotoDataSource,
         originalPhotoPrefetcher = originalPhotoPrefetcher,
+        savedPhotoPreviewWriter = savedPhotoPreviewWriter,
         backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
@@ -488,6 +491,8 @@ internal fun createGuestRemoteAppContainer(
     localPhotoDataSource: LocalPhotoDataSource? = null,
     /** 저장 전에 원본을 미리 받는 플랫폼만 넘긴다(iOS). */
     originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
+    /** 업로드한 원본으로 기기 미리보기를 키우는 플랫폼만 넘긴다(iOS, #686). */
+    savedPhotoPreviewWriter: com.mapmory.shared.data.media.SavedPhotoPreviewWriter? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
@@ -554,6 +559,7 @@ internal fun createGuestRemoteAppContainer(
         ),
         delegate = remoteTripRecords,
         localPhotoDataSource = localPhotoDataSource,
+        savedPreviewWriter = savedPhotoPreviewWriter,
     )
     val photoPreviewLoader = PhotoPreviewLoader(
         cache = photoPreviewCache,

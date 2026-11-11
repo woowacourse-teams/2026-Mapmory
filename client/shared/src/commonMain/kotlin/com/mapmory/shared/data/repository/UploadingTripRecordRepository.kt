@@ -1,6 +1,8 @@
 package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.media.LocalPhotoDataSource
+import com.mapmory.shared.data.media.SavedPhotoPreviewWriter
+import com.mapmory.shared.data.media.withoutReplacedPreviews
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
@@ -21,6 +23,7 @@ internal class UploadingTripRecordRepository(
     private val uploader: PhotoUploader,
     private val delegate: TripRecordRepository,
     private val localPhotoDataSource: LocalPhotoDataSource? = null,
+    private val savedPreviewWriter: SavedPhotoPreviewWriter? = null,
 ) : ProgressReportingTripRecordRepository {
     private val mediaCacheMutex = Mutex()
     private val cachedRecordById = mutableMapOf<Long, TripRecordData>()
@@ -116,6 +119,7 @@ internal class UploadingTripRecordRepository(
     ): Result<TripRecordDraft> {
         val mediaByLocalId = draft.localMedia.associateBy(TripRecordMediaDraft::objectKey)
         val objectKeyByLocalId = mutableMapOf<String, String>()
+        val replacedPreviewLocalIds = mutableSetOf<String>()
         val pendingKeys = draft.mediaObjectKeys.filterNot(draft.uploadedMediaObjectKeys::contains)
 
         if (pendingKeys.isEmpty()) onProgress(ServerSaveProgress)
@@ -162,6 +166,8 @@ internal class UploadingTripRecordRepository(
                 )
             }
             objectKeyByLocalId[key] = upload.objectKey
+            // The original is only in memory now; it is released once the record is saved (#686).
+            if (writeSavedPreview(key, upload.objectKey, bytes)) replacedPreviewLocalIds += key
             onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
         }
 
@@ -175,13 +181,25 @@ internal class UploadingTripRecordRepository(
                 uploadedMediaObjectKeys = draft.mediaObjectKeys
                     .map { key -> objectKeyByLocalId[key] ?: key }
                     .toSet(),
-                localMedia = draft.localMedia.map { media ->
+                localMedia = draft.localMedia.withoutReplacedPreviews(replacedPreviewLocalIds).map { media ->
                     objectKeyByLocalId[media.objectKey]
                         ?.let { objectKey -> media.copy(objectKey = objectKey) }
                         ?: media
                 },
             ),
         )
+    }
+
+    private suspend fun writeSavedPreview(localId: String, objectKey: String, original: ByteArray): Boolean {
+        val writer = savedPreviewWriter ?: return false
+        return try {
+            writer.write(localId, objectKey, original)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A better preview is optional; the save must not fail because of it.
+            false
+        }
     }
 
     private suspend fun uploadWithRetry(source: PhotoUploadSource): Result<List<com.mapmory.shared.data.remote.UploadedPhoto>> {
