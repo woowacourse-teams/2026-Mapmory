@@ -315,6 +315,8 @@ class ApiDtoMappersTest {
         assertEquals(null, "2026.13.40".toIsoCapturedDate())
         assertEquals(null, "날짜 없음".toIsoCapturedDate())
         assertEquals("2026-07-05", "2026/7/5".toIsoCapturedDate())
+        assertEquals("2026-08-11", "2026:08:11 10:00:00".toIsoCapturedDate())
+        assertEquals(null, "12026.09.11".toIsoCapturedDate())
     }
 
     @Test
@@ -334,7 +336,7 @@ class ApiDtoMappersTest {
             updatedAt = "2026-09-12T10:30:00",
         ).toDomain(catalog)
 
-        assertEquals(listOf("2026-09-11", null), result.media.map { it.capturedAt })
+        assertEquals(listOf("2026.09.11", null), result.media.map { it.capturedAt })
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(
