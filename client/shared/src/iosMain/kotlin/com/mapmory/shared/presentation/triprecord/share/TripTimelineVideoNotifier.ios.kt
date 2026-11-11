@@ -23,15 +23,23 @@ internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifi
 private class IosTripTimelineVideoNotifier : TripTimelineVideoNotifier {
     private val center = UNUserNotificationCenter.currentNotificationCenter()
 
-    override fun requestPermissionIfNeeded() {
-        if (!isTravelVideoCompletionNotificationEnabled()) return
-        center.getNotificationSettingsWithCompletionHandler { settings ->
-            if (settings?.authorizationStatus == UNAuthorizationStatusNotDetermined) {
-                center.requestAuthorizationWithOptions(
-                    UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
-                ) { _, _ -> }
+    override suspend fun requestPermissionIfNeeded() {
+        if (isTravelVideoCompletionNotificationEnabled()) {
+            suspendCancellableCoroutine<Unit> { continuation ->
+                center.getNotificationSettingsWithCompletionHandler { settings ->
+                    if (settings?.authorizationStatus == UNAuthorizationStatusNotDetermined) {
+                        center.requestAuthorizationWithOptions(
+                            UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
+                        ) { _, _ ->
+                            if (continuation.isActive) continuation.resume(Unit)
+                        }
+                    } else if (continuation.isActive) {
+                        continuation.resume(Unit)
+                    }
+                }
             }
         }
+        com.mapmory.shared.awaitIosPushPermissionRefresh()
     }
 
     override fun showProgress(jobId: Long) {
@@ -65,6 +73,7 @@ private class IosTripTimelineVideoNotifier : TripTimelineVideoNotifier {
 
                 clearProgress(jobId)
                 val content = UNMutableNotificationContent().apply {
+                    setUserInfo(mapOf("type" to "VIDEO_COMPLETED", "jobId" to jobId.toString()))
                     setTitle("여행 영상이 준비됐어요")
                     setBody("앱에서 미리 보고 저장하거나 공유해 보세요.")
                     setSound(platform.UserNotifications.UNNotificationSound.defaultSound())

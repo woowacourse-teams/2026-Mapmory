@@ -9,6 +9,8 @@ import com.mapmory.shared.analytics.NoOpMapmoryAnalytics
 import com.mapmory.shared.analytics.emit
 import com.mapmory.shared.analytics.reportFailure
 import kotlin.time.TimeSource
+import kotlin.time.TimeMark
+import kotlin.time.Duration.Companion.minutes
 import com.mapmory.shared.domain.group.GroupDetail
 import com.mapmory.shared.domain.group.GroupInvitationPreview
 import com.mapmory.shared.domain.group.GroupSummary as RemoteGroupSummary
@@ -22,6 +24,7 @@ internal class LiveGroupState(
     private val repository: GroupRepository,
     private val analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     private val issuedInvitations: MutableMap<Long, IssuedGroupInvitation> = mutableMapOf(),
+    private val markNow: () -> TimeMark = { TimeSource.Monotonic.markNow() },
     private val onMembershipConfirmed: (Long) -> Unit = {},
 ) {
     var groups by mutableStateOf<List<RemoteGroupSummary>?>(null)
@@ -49,6 +52,18 @@ internal class LiveGroupState(
         val invitationToken: String?,
     )
     private var forward: NavigationSnapshot? = null
+    private var listFetchedAt: TimeMark? = null
+    private var loadedRecordRevision: Long? = null
+
+    suspend fun loadIfNeeded(recordRevision: Long, force: Boolean = false) {
+        if (busy) return
+        if (force || groups == null || loadedRecordRevision != recordRevision ||
+            listFetchedAt?.elapsedNow()?.let { it >= 1.minutes } != false) {
+            load()
+            if (error == null) loadedRecordRevision = recordRevision
+        }
+    }
+
     private var membershipRevision = 0L
     private val removedAtRevision = mutableMapOf<Long, Long>()
 
@@ -134,6 +149,7 @@ internal class LiveGroupState(
             // Discarding the whole response leaves a newly composed screen with no groups.
             val visible = fresh.filterNot { (removedAtRevision[it.id] ?: 0L) > requestedRevision }
             groups = visible
+            listFetchedAt = markNow()
             group?.id?.takeIf { id -> visible.none { it.id == id } }?.let(::removeGroup)
         }.onFailure {
             error = message(it)
@@ -211,6 +227,7 @@ internal class LiveGroupState(
     private fun showGroup(detail: GroupDetail) {
         onMembershipConfirmed(detail.id)
         group = detail
+        listFetchedAt = null
         val existing = groups.orEmpty()
         val albumCount = existing.firstOrNull { it.id == detail.id }?.albumCount ?: 0
         val summary = RemoteGroupSummary(detail.id, detail.name, detail.members.size.toLong(), albumCount, existing.firstOrNull { it.id == detail.id }?.coverPhoto)

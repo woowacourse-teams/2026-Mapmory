@@ -17,6 +17,7 @@ enum class ShareVideoStatus {
 data class ShareVideoJob(
     val jobId: Long,
     val status: ShareVideoStatus,
+    val serverPushRequested: Boolean = false,
 )
 
 data class ShareVideoDownload(

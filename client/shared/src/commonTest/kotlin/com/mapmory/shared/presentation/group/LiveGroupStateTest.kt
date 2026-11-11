@@ -15,6 +15,33 @@ import kotlinx.datetime.LocalDateTime
 import kotlin.test.*
 
 class LiveGroupStateTest {
+    @Test fun emptyListIsCachedAndExpiryForceAndRevisionRefreshIt() = runBlocking {
+        val clock = kotlin.time.TestTimeSource()
+        val repository = Repository()
+        val state = LiveGroupState(repository, markNow = { clock.markNow() })
+        state.loadIfNeeded(0)
+        state.loadIfNeeded(0)
+        assertEquals(emptyList(), state.groups)
+        assertEquals(1, repository.listCalls)
+        clock += kotlin.time.Duration.parse("61s")
+        state.loadIfNeeded(0)
+        assertEquals(2, repository.listCalls)
+        state.loadIfNeeded(0, force = true)
+        assertEquals(3, repository.listCalls)
+        state.loadIfNeeded(1)
+        assertEquals(4, repository.listCalls)
+    }
+
+    @Test fun concurrentCacheReadsUseOneRequest() = runBlocking {
+        val repository = Repository().apply { listGate = CompletableDeferred() }
+        val state = LiveGroupState(repository)
+        val first = launch(start = CoroutineStart.UNDISPATCHED) { state.loadIfNeeded(0) }
+        state.loadIfNeeded(0)
+        assertEquals(1, repository.listCalls)
+        repository.listGate!!.complete(Unit)
+        first.join()
+    }
+
     @Test fun linkedInvitationUsesTokenAndCancelledGestureRestoresTheSameInvitation() = runBlocking {
         val repository = Repository()
         val state = LiveGroupState(repository)
@@ -241,12 +268,14 @@ class LiveGroupStateTest {
         var createGate: CompletableDeferred<Unit>? = null
         var listGate: CompletableDeferred<Unit>? = null
         var createCalls = 0
+        var listCalls = 0
         var issueCalls = 0
         var acceptedCode: String? = null
         private var created = false
         private fun detail() = GroupDetail(81, savedName, listOf(GroupMemberView("나", true, true)))
         override suspend fun leaveGroup(groupId: Long) = Result.success(Unit)
         override suspend fun groups(): Result<List<GroupSummary>> {
+            listCalls++
             val snapshot = listedGroups ?: if (created) listOf(GroupSummary(81, savedName, 1, 0)) else emptyList()
             listGate?.await()
             return Result.success(snapshot)

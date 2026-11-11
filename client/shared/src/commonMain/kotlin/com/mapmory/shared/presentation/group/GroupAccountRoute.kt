@@ -35,7 +35,7 @@ internal fun GroupAccountRoute(
     var photoVisible by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
-    var restoring by remember { mutableStateOf(true) }
+    var restoring by remember { mutableStateOf(account?.member == null) }
     var restoreError by remember { mutableStateOf<String?>(null) }
     val invitationInbox = LocalGroupInvitationInbox.current
     val invitationUrl = invitationInbox?.pendingUrl
@@ -61,7 +61,7 @@ internal fun GroupAccountRoute(
     }
     LaunchedEffect(session, account?.generation, retry) {
         session?.state?.first { !it.transitioning }
-        restoring = true; restoreError = null
+        restoring = account?.member == null; restoreError = null
         val result = session?.restore()
         val member = result?.getOrNull()
         restoring = false
@@ -75,7 +75,11 @@ internal fun GroupAccountRoute(
         Column(Modifier.fillMaxSize()) {
             val needsLogin = account?.pendingLogin == true || account?.member?.provider == MemberProvider.GUEST
             when {
-                restoring -> Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
+                restoring -> GroupListScreen(
+                    state = GroupListUiState.Loading,
+                    onCreate = {}, onJoin = {}, onGroup = {}, onRetry = {},
+                    modifier = Modifier.weight(1f),
+                )
                 account?.recoveryRequired == true -> Column(Modifier.weight(1f).fillMaxWidth().padding(20.dp)) {
                     Text("그룹 연결을 복구해 주세요", style = MaterialTheme.typography.headlineMedium)
                     Text("현재 계정을 다시 인증하면 그룹을 계속 이용할 수 있어요.")

@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
     val sortOrder: Int,
     val thumbnailUrl: String? = null,
     val thumbnailUrlExpiresIn: Long? = null,
+    val capturedDate: String? = null,
 )
 @Serializable data class AlbumEntry(val travelRecordId: Long, val owner: AlbumMember, val title: String?, val content: String?, val startDate: String, val endDate: String?, val placeName: String?, val photos: List<AlbumPhoto>, val addedAt: String)
 @Serializable data class AlbumSummary(val id: Long, val name: String, val region: AlbumRegion, val startDate: String?, val endDate: String?, val coverPhoto: AlbumPhotoUrl?, val contributors: List<AlbumMember>, val recordCount: Int, val photoCount: Int, val lastAddedAt: String)

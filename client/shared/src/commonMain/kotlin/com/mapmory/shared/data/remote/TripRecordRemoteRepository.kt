@@ -8,6 +8,7 @@ import com.mapmory.shared.data.remote.model.TripRecordListItemDto
 import com.mapmory.shared.data.remote.model.toDomain
 import com.mapmory.shared.data.remote.model.toRegionQuery
 import com.mapmory.shared.data.remote.model.toRequestDto
+import com.mapmory.shared.data.settings.PushTokenRegistrationManager
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
@@ -31,8 +32,16 @@ class TripRecordRemoteRepository(
     apiBaseUrl: String,
     private val accessTokenProvider: AccessTokenProvider,
     private val regionCatalog: RegionCatalog,
+    private val pushTokenRegistrationManager: PushTokenRegistrationManager? = null,
 ) : TripRecordRepository {
     private val recordsUrl = "${apiBaseUrl.trimEnd('/')}/travel-records"
+
+    // 생성·수정만 v2다. 사진 Object Key와 촬영일을 한 객체로 보낸다. 조회와 삭제는 v1 그대로다.
+    private val writeRecordsUrl = apiBaseUrl.trimEnd('/').let { base ->
+        // v1 주소로 v2 본문을 보내면 모든 저장이 실패하므로, 주소를 바꿀 수 없으면 바로 알린다.
+        require(ApiV1Suffix.containsMatchIn(base)) { "API 주소는 /v1로 끝나야 합니다: $base" }
+        "${base.replace(ApiV1Suffix, "/v2")}/travel-records"
+    }
 
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         apiCall {
@@ -71,22 +80,33 @@ class TripRecordRemoteRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {
-            val id = client.post(recordsUrl) {
-                authorizeWith(accessTokenProvider)
-                contentType(ContentType.Application.Json)
-                setBody(draft.toRequestDto(regionCatalog))
-            }.requireSuccess()
+            var pushTokenId = pushTokenRegistrationManager?.photoPushTokenId()
+            val response = try {
+                createTripRecordRequest(draft, pushTokenId)
+            } catch (error: MapmoryApiException) {
+                if (pushTokenId == null || error.code != "TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND") throw error
+                pushTokenId = pushTokenRegistrationManager?.refreshPhotoPushTokenId(pushTokenId)
+                createTripRecordRequest(draft, pushTokenId)
+            }
+            val id = response
                 .body<ApiResponseDto<IdResponseDto>>()
                 .data
                 .id
 
-            getTripRecord(id).getOrThrow()
+            getTripRecord(id).getOrThrow().copy(serverPushRequested = pushTokenId != null)
         }
+
+    private suspend fun createTripRecordRequest(draft: TripRecordDraft, pushTokenId: Long?) =
+        client.post(writeRecordsUrl) {
+            authorizeWith(accessTokenProvider)
+            contentType(ContentType.Application.Json)
+            setBody(draft.toRequestDto(regionCatalog, pushTokenId))
+        }.requireSuccess()
 
     override suspend fun updateTripRecord(id: Long, draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {
             requireValidRecordId(id)
-            client.put("$recordsUrl/$id") {
+            client.put("$writeRecordsUrl/$id") {
                 authorizeWith(accessTokenProvider)
                 contentType(ContentType.Application.Json)
                 setBody(draft.toRequestDto(regionCatalog))
@@ -110,3 +130,5 @@ class TripRecordRemoteRepository(
 }
 
 private const val MaxPageSize = 100
+
+private val ApiV1Suffix = Regex("/v1$")

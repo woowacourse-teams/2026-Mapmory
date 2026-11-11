@@ -11,26 +11,30 @@ class IosShareVideoJobStore(apiBaseUrl: String) : ShareVideoJobStore {
     private val key = "mapmory_share_video_job_id:${apiBaseUrl.trimEnd('/')}"
     private val notifiedKey = "mapmory_share_video_notified_job_id:${apiBaseUrl.trimEnd('/')}"
     private val startedAtKey = "mapmory_share_video_started_at:${apiBaseUrl.trimEnd('/')}"
+    private val serverPushRequestedKey = "mapmory_share_video_server_push_requested:${apiBaseUrl.trimEnd('/')}"
     private val mutableState = MutableStateFlow(
         ShareVideoJobState(
             jobId = preferences.integerForKey(key).takeIf { it > 0L },
             notifiedJobId = preferences.integerForKey(notifiedKey).takeIf { it > 0L },
             startedAtEpochMillis = preferences.integerForKey(startedAtKey).takeIf { it > 0L },
+            serverPushRequested = preferences.boolForKey(serverPushRequestedKey),
         ),
     )
     override val state: StateFlow<ShareVideoJobState> = mutableState.asStateFlow()
 
     override fun loadJobId(): Long? = state.value.jobId
 
-    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long) {
+    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long, serverPushRequested: Boolean) {
         require(jobId > 0L)
         preferences.setInteger(jobId, forKey = key)
         preferences.setInteger(startedAtEpochMillis, forKey = startedAtKey)
+        preferences.setBool(serverPushRequested, forKey = serverPushRequestedKey)
         mutableState.value = state.value.copy(
             jobId = jobId,
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = startedAtEpochMillis,
+            serverPushRequested = serverPushRequested,
             isCreationRequestInProgress = false,
         )
     }
@@ -75,11 +79,13 @@ class IosShareVideoJobStore(apiBaseUrl: String) : ShareVideoJobStore {
     override fun clear() {
         preferences.removeObjectForKey(key)
         preferences.removeObjectForKey(startedAtKey)
+        preferences.removeObjectForKey(serverPushRequestedKey)
         mutableState.value = state.value.copy(
             jobId = null,
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = null,
+            serverPushRequested = false,
             isCreationRequestInProgress = false,
         )
     }

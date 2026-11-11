@@ -96,7 +96,8 @@ internal class CachedMediaTripRecordRepository(
                     null
                 }
             }
-        if (resolvedDate != null && resolvedDate != cachedDate) {
+        // 화면에는 서버 값을 먼저 쓰고, 기기 캐시는 비어 있을 때만 채운다. 기기에서 읽은 값을 서버 값으로 덮지 않는다.
+        if (resolvedDate != null && cachedDate == null) {
             loader.rememberCapturedAt(objectKey, resolvedDate)
         }
         val resolvedMedia = copy(localPreviewKey = resolvedLocalPreviewKey, capturedAt = resolvedDate)

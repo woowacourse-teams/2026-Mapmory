@@ -9,6 +9,7 @@ import com.mapmory.shared.domain.model.ShareVideoJob
 import com.mapmory.shared.domain.model.ShareVideoStatus
 import com.mapmory.shared.domain.model.ShareVideoStyle
 import com.mapmory.shared.domain.repository.ShareVideoRepository
+import com.mapmory.shared.data.settings.PushTokenRegistrationManager
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -21,19 +22,32 @@ class ShareVideoRemoteRepository(
     private val client: HttpClient,
     apiBaseUrl: String,
     private val accessTokenProvider: AccessTokenProvider,
+    private val pushTokenRegistrationManager: PushTokenRegistrationManager? = null,
 ) : ShareVideoRepository {
     private val shareVideosUrl = "${apiBaseUrl.trimEnd('/')}/share-videos"
 
     override suspend fun createTravelTimeline(style: ShareVideoStyle): Result<ShareVideoJob> = apiCall {
-        client.post("$shareVideosUrl/travel-timeline") {
-            authorizeWith(accessTokenProvider)
-            contentType(ContentType.Application.Json)
-            setBody(CreateShareVideoRequestDto(style.name))
-        }.requireSuccess()
+        var pushTokenId = pushTokenRegistrationManager?.videoPushTokenId()
+        val response = try {
+            createTravelTimelineRequest(style, pushTokenId)
+        } catch (error: MapmoryApiException) {
+            if (pushTokenId == null || error.code != "SHARE_VIDEO_PUSH_TARGET_NOT_FOUND") throw error
+            pushTokenId = pushTokenRegistrationManager?.refreshVideoPushTokenId(pushTokenId)
+            createTravelTimelineRequest(style, pushTokenId)
+        }
+        response
             .body<ApiResponseDto<ShareVideoJobDto>>()
             .data
             .toDomain()
+            .copy(serverPushRequested = pushTokenId != null)
     }
+
+    private suspend fun createTravelTimelineRequest(style: ShareVideoStyle, pushTokenId: Long?) =
+        client.post("$shareVideosUrl/travel-timeline") {
+            authorizeWith(accessTokenProvider)
+            contentType(ContentType.Application.Json)
+            setBody(CreateShareVideoRequestDto(style.name, pushTokenId))
+        }.requireSuccess()
 
     override suspend fun getJob(jobId: Long): Result<ShareVideoJob> = apiCall {
         requireValidJobId(jobId)

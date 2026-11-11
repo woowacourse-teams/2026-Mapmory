@@ -69,7 +69,7 @@ internal fun LiveGroupContent(
             },
         ),
     ) { mutableMapOf<Long, com.mapmory.shared.domain.group.IssuedGroupInvitation>() }
-    val retainedNavigation = androidx.lifecycle.viewmodel.compose.viewModel {
+    val retainedNavigation = androidx.lifecycle.viewmodel.compose.viewModel(key = "group:$cacheScope") {
         RetainedGroupNavigationState(
             LiveGroupState(repository, analytics, issuedInvitations) { leaveCoordinator?.membershipConfirmed(it) },
         )
@@ -103,7 +103,8 @@ internal fun LiveGroupContent(
     val leaving = leaveResult?.status == GroupLeaveStatus.RUNNING
     var returnTargetRestored by remember(state) { mutableStateOf(false) }
     LaunchedEffect(state, refresh, recordRevision, initialGroupId) {
-        state.load()
+        state.loadIfNeeded(recordRevision, force = refresh != retainedNavigation.lastRefresh)
+        retainedNavigation.lastRefresh = refresh
         if (!returnTargetRestored && initialGroupId != null) {
             state.openGroup(initialGroupId)
             returnTargetRestored = true
@@ -124,7 +125,7 @@ internal fun LiveGroupContent(
     }
     LaunchedEffect(leaveResult) {
         if (leaveResult?.status == GroupLeaveStatus.LEFT) {
-            state.removeGroup(leaveResult.groupId)
+            retainedNavigation.removeGroup(leaveResult.groupId)
             if (leaveCoordinator.takeDepartureNotice() != null) {
                 showNotice("그룹에서 나왔어요. 내 여행 기록은 그대로 남아 있어요.")
             }
@@ -206,8 +207,8 @@ internal fun LiveGroupContent(
                 }, Modifier.fillMaxSize()) {
                 GroupListScreen(
                     state = when {
-                        state.groups == null && state.busy -> GroupListUiState.Loading
                         state.groups == null && state.error != null -> GroupListUiState.Error(checkNotNull(state.error))
+                        state.groups == null -> GroupListUiState.Loading
                         else -> GroupListUiState.Content(state.groups.orEmpty().map {
                             GroupSummary(it.id.toString(), it.name, it.memberCount.toInt(), albumCount = it.albumCount.toInt(), coverUri = it.coverPhoto?.viewUrl)
                         })
@@ -232,7 +233,7 @@ internal fun LiveGroupContent(
                         membershipBusy = leaving,
                         recordRevision = recordRevision,
                         onCreateRecord = { onCreateRecord(group.id, albumNavigation.detail.value?.id) },
-                        onGroupUnavailable = { state.removeGroup(group.id) },
+                        onGroupUnavailable = { retainedNavigation.removeGroup(group.id) },
                         onPhotoVisibilityChanged = onPhotoVisibilityChanged, cacheScope = cacheScope)
                 }
             }

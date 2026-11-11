@@ -20,8 +20,13 @@ internal class AnalyticsTripTimelineVideoNotifier(
     private val delegate: TripTimelineVideoNotifier,
     private val telemetry: ShareMediaAnalytics,
 ) : TripTimelineVideoNotifier {
-    override fun requestPermissionIfNeeded() = guard(ShareMediaOperation.NOTIFICATION_PERMISSION) {
-        delegate.requestPermissionIfNeeded()
+    override suspend fun requestPermissionIfNeeded() {
+        try {
+            delegate.requestPermissionIfNeeded()
+        } catch (error: Exception) {
+            telemetry.recordObservedFailure(ShareMediaOperation.NOTIFICATION_PERMISSION, error)
+            throw error
+        }
     }
     override fun showProgress(jobId: Long) = guard(ShareMediaOperation.NOTIFICATION_PROGRESS) { delegate.showProgress(jobId) }
     override fun clearProgress(jobId: Long) = guard(ShareMediaOperation.NOTIFICATION_CLEAR) { delegate.clearProgress(jobId) }

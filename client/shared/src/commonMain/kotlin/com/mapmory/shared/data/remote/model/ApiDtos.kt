@@ -39,6 +39,26 @@ data class ShareVideoJobDto(
 @Serializable
 data class CreateShareVideoRequestDto(
     val styleId: String,
+    val pushTokenId: Long? = null,
+)
+
+@Serializable
+data class PushTokenRequestDto(
+    val token: String,
+    val platform: String,
+    val previousPushTokenId: Long? = null,
+    val photoRecordCompletionEnabled: Boolean = true,
+    val travelVideoCompletionEnabled: Boolean = true,
+)
+
+@Serializable
+data class PushTokenRegistrationDto(
+    val pushTokenId: Long,
+)
+
+@Serializable
+data class PushTokenDeleteRequestDto(
+    val pushTokenId: Long,
 )
 
 @Serializable
@@ -200,6 +220,8 @@ data class TripRecordMediaDto(
     val viewUrlExpiresIn: Long,
     val sortOrder: Int,
     val thumbnailUrl: String? = null,
+    // 서버에 저장된 촬영일(yyyy-MM-dd). 예전 사진은 null이다.
+    val capturedDate: String? = null,
 )
 
 @Serializable
@@ -211,9 +233,18 @@ data class TripRecordRequestDto(
     val content: String,
     val startDate: String,
     val endDate: String?,
-    val objectKeys: List<String> = emptyList(),
+    // v2 쓰기 API 본문이다. 배열 순서가 사진 순서다.
+    val photos: List<TripRecordPhotoRequestDto> = emptyList(),
     val tagIds: List<Long> = emptyList(),
     val placeId: String? = null,
+    val pushTokenId: Long? = null,
+)
+
+@Serializable
+data class TripRecordPhotoRequestDto(
+    val objectKey: String,
+    // 촬영일(yyyy-MM-dd). 다른 기기와 그룹 멤버도 같은 날짜로 사진을 묶도록 서버에 남긴다. 모르면 null이다.
+    val capturedDate: String? = null,
 )
 
 @Serializable

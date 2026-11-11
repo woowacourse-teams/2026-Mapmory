@@ -3,6 +3,7 @@ package com.mapmory.shared.data.remote.model
 import com.mapmory.shared.data.local.StaticRegionCatalog
 import com.mapmory.shared.domain.model.PlaceReference
 import com.mapmory.shared.domain.model.TripRecordDraft
+import com.mapmory.shared.domain.model.TripRecordMediaDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -199,7 +200,7 @@ class ApiDtoMappersTest {
         assertEquals("KR", request.countryCode)
         assertEquals("49", request.provinceCode)
         assertEquals("50110", request.districtCode)
-        assertEquals(listOf("travel-records/guest/a.jpg"), request.objectKeys)
+        assertEquals(listOf("travel-records/guest/a.jpg"), request.photos.map { it.objectKey })
         assertEquals("geoapify-place-id", request.placeId)
     }
 
@@ -285,6 +286,61 @@ class ApiDtoMappersTest {
             assertEquals(code, request.provinceCode)
             assertEquals(null, request.districtCode)
         }
+    }
+
+    @Test
+    fun `저장_요청은_사진_순서대로_키와_촬영일을_묶어_보낸다`() {
+        val japan = catalog.requireByCode("JP")
+
+        val request = TripRecordDraft(
+            locationId = japan.id,
+            startDate = "2026-09-09",
+            mediaObjectKeys = listOf("travel-records/10/b.jpg", "travel-records/10/a.jpg", "travel-records/10/c.jpg"),
+            localMedia = listOf(
+                TripRecordMediaDraft(objectKey = "travel-records/10/a.jpg", sortOrder = 0, capturedAt = "2026.09.09"),
+                TripRecordMediaDraft(objectKey = "travel-records/10/b.jpg", sortOrder = 1, capturedAt = "2026-09-11T10:00:00"),
+                TripRecordMediaDraft(objectKey = "travel-records/10/removed.jpg", sortOrder = 3, capturedAt = "2026.09.10"),
+            ),
+        ).toRequestDto(catalog)
+
+        assertEquals(
+            listOf(
+                TripRecordPhotoRequestDto("travel-records/10/b.jpg", "2026-09-11"),
+                TripRecordPhotoRequestDto("travel-records/10/a.jpg", "2026-09-09"),
+                TripRecordPhotoRequestDto("travel-records/10/c.jpg", null),
+            ),
+            request.photos,
+        )
+    }
+
+    @Test
+    fun `유효하지_않은_촬영일은_보내지_않는다`() {
+        assertEquals(null, "2026.13.40".toIsoCapturedDate())
+        assertEquals(null, "날짜 없음".toIsoCapturedDate())
+        assertEquals("2026-07-05", "2026/7/5".toIsoCapturedDate())
+        assertEquals("2026-08-11", "2026:08:11 10:00:00".toIsoCapturedDate())
+        assertEquals(null, "12026.09.11".toIsoCapturedDate())
+        assertEquals(null, "2026.09.111".toIsoCapturedDate())
+    }
+
+    @Test
+    fun `서버가_준_촬영일을_사진_도메인에_매핑한다`() {
+        val result = TripRecordDetailDto(
+            id = 101,
+            title = "도쿄",
+            content = "",
+            region = TripRecordRegionDto(country = RegionCodeDto("JP", "일본")),
+            startDate = "2026-09-09",
+            endDate = "2026-09-11",
+            media = listOf(
+                TripRecordMediaDto(1, "travel-records/10/a.jpg", "https://a", 300, 0, capturedDate = "2026-09-11"),
+                TripRecordMediaDto(2, "travel-records/10/b.jpg", "https://b", 300, 1),
+            ),
+            createdAt = "2026-09-12T10:30:00",
+            updatedAt = "2026-09-12T10:30:00",
+        ).toDomain(catalog)
+
+        assertEquals(listOf("2026.09.11", null), result.media.map { it.capturedAt })
     }
 
     private fun draft(locationId: Long, title: String) = TripRecordDraft(
