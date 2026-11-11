@@ -930,10 +930,13 @@ private fun PHAsset.displayName(): String =
         ?.originalFilename
         ?: "여행 사진"
 
-private fun NSDate.formattedPhotoDate(): String = NSDateFormatter().run {
+private fun NSDate.formattedPhotoDate(): String? = NSDateFormatter().run {
+    val gregorianCalendar = platform.Foundation.NSCalendar.calendarWithIdentifier(
+        platform.Foundation.NSCalendarIdentifierGregorian,
+    ) ?: return null
     // 기기 달력이 불기·일본력이어도 서버와 같은 서기 연도로 적는다.
     locale = platform.Foundation.NSLocale(localeIdentifier = "en_US_POSIX")
-    calendar = platform.Foundation.NSCalendar.calendarWithIdentifier(platform.Foundation.NSCalendarIdentifierGregorian)
+    calendar = gregorianCalendar
     dateFormat = "yyyy.MM.dd"
     stringFromDate(this@formattedPhotoDate)
 }
