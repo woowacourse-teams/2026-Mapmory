@@ -55,6 +55,7 @@ import platform.Photos.PHImageContentModeAspectFit
 import platform.Photos.PHImageRequestOptions
 import platform.Photos.PHImageRequestOptionsDeliveryModeHighQualityFormat
 import platform.Photos.PHImageRequestOptionsDeliveryModeOpportunistic
+import platform.Photos.PHImageRequestOptionsResizeModeExact
 import platform.Photos.PHImageRequestOptionsVersionCurrent
 import platform.Photos.PHPhotoLibrary
 import platform.PhotosUI.PHPickerConfiguration
@@ -607,7 +608,8 @@ internal class IosPhotoLibraryController(
             }
             val date = data.originalPhotoDate()
             if (date == null) photoFailure("capture_date_missing")
-            val previewBytes = data.photoDisplayJpeg(RecommendationPreviewSizePx)
+            // The picker already delivered the data, so a smaller preview would cost quality for no speed.
+            val previewBytes = data.photoDisplayJpeg(PickerDataPreviewSizePx)
             val localId = if (previewBytes != null) cacheIosPickerPhoto(data) else null
             if (previewBytes != null && localId == null) photoFailure("original_cache")
             if (previewBytes == null) photoFailure("picker_thumbnail")
@@ -854,9 +856,11 @@ internal class IosPhotoLibraryController(
             return
         }
         // One photo only, so HighQualityFormat's single callback is worth an iCloud download.
+        // Exact keeps the result within 1080px; Fast may deliver a larger subsampled original.
         val options = PHImageRequestOptions().apply {
             version = PHImageRequestOptionsVersionCurrent
             deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
+            resizeMode = PHImageRequestOptionsResizeModeExact
             networkAccessAllowed = true
         }
         coverRequestId = PHImageManager.defaultManager().requestImageForAsset(
@@ -966,6 +970,7 @@ private fun logPhotoPerformance(message: String) {
 // Grid cells only need the on-device thumbnail; 640px forced iCloud downloads (#681).
 private const val RecommendationPreviewSizePx = 256
 private const val CoverPreviewSizePx = 1080
+private const val PickerDataPreviewSizePx = 640
 private const val PreviewJpegQuality = 0.85
 private const val IosProgressUpdateInterval = 25
 private fun Long.toPermissionIssue(): PhotoLibraryPermissionIssue =

@@ -110,11 +110,17 @@ internal class CoverPreview(
     val bytes: ByteArray,
 )
 
-/** 대표 사진의 미리보기만 [preview]로 바꿔, 저장 후 기기 캐시에 큰 이미지가 남도록 한다. */
-internal fun List<SelectedPhoto>.withCoverPreview(preview: CoverPreview?): List<SelectedPhoto> {
-    if (preview == null || none { it.id == preview.photoId }) return this
+/**
+ * 대표 사진([coverId])의 미리보기만 [preview]로 바꿔, 저장 후 기기 캐시에 큰 이미지가 남도록 한다.
+ * 이전에 대표였던 다른 사진의 큰 미리보기는 적용하지 않는다.
+ */
+internal fun List<SelectedPhoto>.withCoverPreview(
+    coverId: String,
+    preview: CoverPreview?,
+): List<SelectedPhoto> {
+    if (preview == null || preview.photoId != coverId || none { it.id == coverId }) return this
     return map { photo ->
-        if (photo.id == preview.photoId) photo.copy(previewBytes = preview.bytes) else photo
+        if (photo.id == coverId) photo.copy(previewBytes = preview.bytes) else photo
     }
 }
 

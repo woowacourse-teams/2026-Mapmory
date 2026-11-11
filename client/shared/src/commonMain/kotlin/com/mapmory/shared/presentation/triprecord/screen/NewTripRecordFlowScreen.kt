@@ -137,6 +137,8 @@ import com.mapmory.shared.presentation.triprecord.state.TripRecordEditorUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -371,6 +373,10 @@ internal fun NewTripRecordFlowScreen(
     var selectedCoverPhotoId by rememberSaveable { mutableStateOf<String?>(null) }
     // Only the current cover's large preview is kept; switching photos replaces it.
     var coverPreview by remember { mutableStateOf<CoverPreview?>(null) }
+    // Photo whose large preview request is in flight; cleared by its callback or cancellation.
+    var coverPreviewLoadingId by remember { mutableStateOf<String?>(null) }
+    var isWaitingForCoverPreview by remember { mutableStateOf(false) }
+    val coverSaveScope = rememberCoroutineScope()
     var forwardStep by retainedState.forwardStep
     var forwardPreview by retainedState.forwardPreview
     var lastAutoLoadTriggerKey by remember { mutableStateOf<RecommendationLoadKey?>(null) }
@@ -633,12 +639,18 @@ internal fun NewTripRecordFlowScreen(
         null
     }
     DisposableEffect(coverPreviewPhoto?.id) {
-        onDispose { photoLibrary.cancelCoverPreview() }
+        onDispose {
+            photoLibrary.cancelCoverPreview()
+            coverPreviewLoadingId = null
+        }
     }
     LaunchedEffect(coverPreviewPhoto?.id) {
         val photo = coverPreviewPhoto ?: return@LaunchedEffect
         if (coverPreview?.photoId == photo.id) return@LaunchedEffect
+        coverPreviewLoadingId = photo.id
+        // Platforms without a large preview (Android) answer null immediately, so nothing waits.
         photoLibrary.loadCoverPreview(photo) { bytes ->
+            if (coverPreviewLoadingId == photo.id) coverPreviewLoadingId = null
             if (bytes != null) coverPreview = CoverPreview(photo.id, bytes)
         }
     }
@@ -1055,8 +1067,17 @@ internal fun NewTripRecordFlowScreen(
         pendingSave = true
     }
 
+    fun saveWithCoverPhoto(coverPhoto: SelectedPhoto) {
+        // The saved cover's preview stays in the device cache for the record list and detail hero.
+        replaceEditorPhotos(
+            (listOf(coverPhoto) + selectedPhotos.filterNot { it.id == coverPhoto.id })
+                .withCoverPreview(coverPhoto.id, coverPreview),
+        )
+        pendingSave = true
+    }
+
     fun confirmCoverPhotoSelection() {
-        if (uiState.isSaving || pendingSave) return
+        if (uiState.isSaving || pendingSave || isWaitingForCoverPreview) return
         val coverPhoto = selectedPhotos.firstOrNull { it.id == selectedCoverPhotoId }
             ?: selectedPhotos.firstOrNull()
         if (coverPhoto == null) {
@@ -1064,12 +1085,22 @@ internal fun NewTripRecordFlowScreen(
             photoMessage = "앨범에 넣을 사진을 한 장 이상 선택해 주세요."
             return
         }
-        // The saved cover's preview stays in the device cache for the record list and detail hero.
-        replaceEditorPhotos(
-            (listOf(coverPhoto) + selectedPhotos.filterNot { it.id == coverPhoto.id })
-                .withCoverPreview(coverPreview),
-        )
-        pendingSave = true
+        if (coverPreviewLoadingId != coverPhoto.id) {
+            saveWithCoverPhoto(coverPhoto)
+            return
+        }
+        // Saving before the large preview arrives would cache the 256px grid preview as the cover.
+        isWaitingForCoverPreview = true
+        coverSaveScope.launch {
+            try {
+                withTimeoutOrNull(CoverPreviewSaveWaitMillis) {
+                    snapshotFlow { coverPreviewLoadingId }.first { it != coverPhoto.id }
+                }
+            } finally {
+                isWaitingForCoverPreview = false
+            }
+            if (stepName == NewRecordFlowStep.COVER_SELECTION.name) saveWithCoverPhoto(coverPhoto)
+        }
     }
 
     TripRecordBackground(
@@ -1273,7 +1304,7 @@ internal fun NewTripRecordFlowScreen(
                             photos = selectedPhotos,
                             selectedPhotoId = selectedCoverPhotoId,
                             largePreview = coverPreview,
-                            isSaving = uiState.isSaving || pendingSave,
+                            isSaving = uiState.isSaving || pendingSave || isWaitingForCoverPreview,
                             onBackClick = ::returnToPreviousStep,
                             onPhotoSelected = { selectedCoverPhotoId = it },
                             onConfirm = ::confirmCoverPhotoSelection,
@@ -3220,3 +3251,6 @@ private fun GalleryPickerButton(onClick: () -> Unit) {
         }
     }
 }
+
+/** Upper bound on how long saving waits for the cover's large preview before using the grid preview. */
+private const val CoverPreviewSaveWaitMillis = 2_000L
