@@ -136,6 +136,8 @@ internal fun GroupHomeScreen(
     modifier: Modifier = Modifier,
     onScrolled: () -> Unit = {},
     headerActions: (@Composable () -> Unit)? = null,
+    albumsLoading: Boolean = false,
+    albumsAvailable: Boolean = true,
     onPhotoLoadFailed: (String) -> Unit = {},
     cacheScope: Long = 0,
 ) {
@@ -149,24 +151,27 @@ internal fun GroupHomeScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupButton("멤버 초대", onInvite, Modifier.weight(1f), outlined = true)
-                    if (group.albums.isNotEmpty()) GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
+                    GroupButton("앨범 추가", onAdd, Modifier.weight(1f))
                 }
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text("함께 남긴 앨범", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    GroupMuted("앨범 ${group.albumCount}개")
+                    if (albumsAvailable) GroupMuted("앨범 ${group.albumCount}개")
                 }
             }
-            if (group.albums.isEmpty()) item {
+            if (albumsLoading) item {
+                Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+            if (albumsAvailable && group.albums.isEmpty()) item {
                 Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     EmptySymbol()
                     Text("아직 함께 남긴 사진이 없어요", fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
                     GroupMuted("첫 앨범을 만들거나 내 여행 기록을 공유해 보세요.")
-                    Spacer(Modifier.height(24.dp))
-                    GroupButton("첫 앨범 추가하기", onAdd, Modifier.fillMaxWidth())
                 }
             }
             items(group.albums, key = { it.id }) { album ->
@@ -261,6 +266,7 @@ internal fun GroupAlbumScreen(
                         Box(cell.clickable { onPhoto(album.photos.indexOf(photo)) }) {
                             MapmoryAsyncImage(imageBytes = null, imageUri = photo.gridImageUri,
                                 contentDescription = "${photo.uploaderName}님이 올린 사진",
+                                sharedImageKey = photo.id,
                                 modifier = Modifier.fillMaxSize(), shape = RectangleShape,
                                 sharedCornerRadius = 0.dp, cacheKey = groupPhotoCacheKey(photo.gridImageUri, cacheScope), cacheOnDisk = false,
                                 onLoadFailed = { photo.gridImageUri?.let(onPhotoLoadFailed) })
@@ -343,6 +349,8 @@ internal fun GroupPhotoScreen(
         }) { page ->
             MapmoryAsyncImage(imageBytes = null, imageUri = album.photos[page].imageUri,
                 contentDescription = "${album.photos[page].uploaderName}님이 올린 사진", shape = RoundedCornerShape(0.dp),
+                sharedImageKey = album.photos[page].id.takeIf { page == pager.currentPage },
+                imageIdentity = album.photos[page].id, sharedCornerRadius = 0.dp,
                 cacheKey = groupPhotoCacheKey(album.photos[page].imageUri, cacheScope), cacheOnDisk = false,
                 onLoadFailed = { album.photos[page].imageUri?.let(onPhotoLoadFailed) },
                 contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
