@@ -23,6 +23,7 @@ import com.mapmory.shared.domain.model.TopRegionStatistics
 import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
+import kotlinx.datetime.LocalDate
 
 fun TripRecordListItemDto.toDomain(regionCatalog: RegionCatalog? = null): TripRecordSummary = TripRecordSummary(
     id = id,
@@ -62,6 +63,7 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
                     sortOrder = item.sortOrder,
                     url = item.viewUrl,
                     thumbnailUrl = item.thumbnailUrl,
+                    capturedAt = item.capturedDate,
                 )
             }
             .ifEmpty {
@@ -151,8 +153,27 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         objectKeys = mediaObjectKeys,
         tagIds = tagIds,
         placeId = place?.placeId,
+        capturedDates = capturedDatesByObjectKey(),
     )
 }
+
+private fun TripRecordDraft.capturedDatesByObjectKey(): Map<String, String> {
+    val requested = mediaObjectKeys.toSet()
+    return localMedia
+        .filter { media -> media.objectKey in requested }
+        .mapNotNull { media -> media.capturedAt.toIsoCapturedDate()?.let { date -> media.objectKey to date } }
+        .toMap()
+}
+
+/** 사진첩마다 다른 촬영일 표기(yyyy.MM.dd, yyyy-MM-ddTHH:mm 등)를 서버가 받는 yyyy-MM-dd로 맞춘다. */
+internal fun String?.toIsoCapturedDate(): String? {
+    val match = CapturedDatePattern.find(this?.trim().orEmpty()) ?: return null
+    val (year, month, day) = match.destructured
+    val iso = "$year-${month.padStart(2, '0')}-${day.padStart(2, '0')}"
+    return iso.takeIf { runCatching { LocalDate.parse(it) }.isSuccess }
+}
+
+private val CapturedDatePattern = Regex("(\\d{4})[.\\-/](\\d{1,2})[.\\-/](\\d{1,2})")
 
 private fun Location.toRegionQuery(
     regionCatalog: RegionCatalog,
