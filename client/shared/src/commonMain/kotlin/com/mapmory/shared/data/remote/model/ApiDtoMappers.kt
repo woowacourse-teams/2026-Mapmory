@@ -211,6 +211,7 @@ fun MapRegionSummaryDto.toDomain(): MapRegionSummary = MapRegionSummary(
     name = name,
     count = count,
     level = MapRegionLevel.valueOf(level),
+    parentRegionId = parentRegionId,
 )
 
 fun TripStatisticsDto.toDomain(): TripStatistics = TripStatistics(

@@ -229,6 +229,7 @@ data class MapRegionSummaryDto(
     val name: String,
     val count: Long,
     val level: String,
+    val parentRegionId: Long? = null,
 )
 
 @Serializable

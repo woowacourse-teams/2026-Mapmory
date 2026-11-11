@@ -80,6 +80,9 @@ internal class AuthenticatedMapSummaryRepository(
     override suspend fun getChildRegions(regionId: Long, tagId: Long?): Result<List<MapRegionSummary>> =
         withAuthenticatedSession { delegate.getChildRegions(regionId, tagId) }
 
+    override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> =
+        withAuthenticatedSession { delegate.getMapSummary(tagId) }
+
     private suspend fun <T> withAuthenticatedSession(
         request: suspend () -> Result<T>,
     ): Result<T> = session.withAuthenticatedSession(request = request)

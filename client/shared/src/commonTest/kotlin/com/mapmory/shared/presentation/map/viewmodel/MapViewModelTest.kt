@@ -23,6 +23,7 @@ class MapViewModelTest {
     @Test
     fun `화면을_다시_그리거나_새로고침해도_확인한_현재위치를_유지한다`() = runSuspend {
         val repository = object : MapSummaryRepository {
+            override suspend fun getMapSummary(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
             override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
             override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
                 Result.success(emptyList<MapRegionSummary>())
@@ -40,10 +41,11 @@ class MapViewModelTest {
     fun `지도_재진입은_열린_지역을_유지하고_같은_데이터를_재조회하지_않는다`() = runSuspend {
         var requests = 0
         val repository = object : MapSummaryRepository {
-            override suspend fun getRootRegions(tagId: Long?): Result<List<MapRegionSummary>> {
+            override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> {
                 requests++
                 return Result.success(emptyList())
             }
+            override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
             override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
                 Result.success(emptyList<MapRegionSummary>())
         }
@@ -65,6 +67,7 @@ class MapViewModelTest {
         val repository = object : MapSummaryRepository {
             override fun getCachedRootRegions(tagId: Long?) = listOf(korea)
             override fun getCachedChildRegions(regionId: Long, tagId: Long?) = listOf(seoul)
+            override suspend fun getMapSummary(tagId: Long?) = Result.success(listOf(korea, seoul))
             override suspend fun getRootRegions(tagId: Long?) = Result.success(listOf(korea))
             override suspend fun getChildRegions(regionId: Long, tagId: Long?) = Result.success(listOf(seoul))
         }
@@ -73,6 +76,39 @@ class MapViewModelTest {
 
         assertEquals(setOf("KR"), viewModel.visitedCountryCodes)
         assertEquals(setOf("KR-11"), viewModel.visitedProvinceCodes)
+    }
+
+    @Test
+    fun `지도_새로고침은_전체_요약을_한번_받고_시도_진입은_추가_요청하지_않는다`() = runSuspend {
+        var mapSummaryRequests = 0
+        var legacyRequests = 0
+        val summaries = listOf(
+            MapRegionSummary(1, "KR", MapRegionType.COUNTRY, "대한민국", 1, MapRegionLevel.LOW),
+            MapRegionSummary(11, "11", MapRegionType.PROVINCE, "서울특별시", 1, MapRegionLevel.LOW, 1),
+            MapRegionSummary(111, "11680", MapRegionType.DISTRICT, "강남구", 1, MapRegionLevel.LOW, 11),
+        )
+        val repository = object : MapSummaryRepository {
+            override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> {
+                mapSummaryRequests++
+                return Result.success(summaries)
+            }
+            override suspend fun getRootRegions(tagId: Long?): Result<List<MapRegionSummary>> {
+                legacyRequests++
+                return Result.success(emptyList())
+            }
+            override suspend fun getChildRegions(regionId: Long, tagId: Long?): Result<List<MapRegionSummary>> {
+                legacyRequests++
+                return Result.success(emptyList())
+            }
+        }
+        val viewModel = MapViewModel(repository, StaticRegionCatalog())
+
+        viewModel.refresh()
+        viewModel.openProvince("KR-11")
+
+        assertEquals(1, mapSummaryRequests)
+        assertEquals(0, legacyRequests)
+        assertEquals(setOf("11680"), viewModel.visitedDistrictCodes("KR-11"))
     }
 
     @Test
@@ -203,6 +239,7 @@ class MapViewModelTest {
             )
         }
         val summaryRepository = object : MapSummaryRepository {
+            override suspend fun getMapSummary(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
             override suspend fun getRootRegions(tagId: Long?) = Result.success(emptyList<MapRegionSummary>())
             override suspend fun getChildRegions(regionId: Long, tagId: Long?) =
                 Result.success(emptyList<MapRegionSummary>())

@@ -15,11 +15,23 @@ class MapSummaryRemoteRepository(
     apiBaseUrl: String,
     private val accessTokenProvider: AccessTokenProvider,
 ) : MapSummaryRepository {
-    private val summaryUrl = "${apiBaseUrl.trimEnd('/')}/travel-records/map-summary/regions"
+    private val summaryUrl = "${apiBaseUrl.trimEnd('/')}/travel-records/map-summary"
+    private val regionsUrl = "$summaryUrl/regions"
+
+    override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> = apiCall {
+        require(tagId == null || tagId > 0) { "선택한 태그 정보를 확인하지 못했습니다." }
+        client.get(summaryUrl) {
+            authorizeWith(accessTokenProvider)
+            tagId?.let { parameter("tagId", it) }
+        }.requireSuccess()
+            .body<ApiResponseDto<List<MapRegionSummaryDto>>>()
+            .data
+            .map(MapRegionSummaryDto::toDomain)
+    }
 
     override suspend fun getRootRegions(tagId: Long?): Result<List<MapRegionSummary>> = apiCall {
         require(tagId == null || tagId > 0) { "선택한 태그 정보를 확인하지 못했습니다." }
-        client.get("$summaryUrl/roots") {
+        client.get("$regionsUrl/roots") {
             authorizeWith(accessTokenProvider)
             tagId?.let { parameter("tagId", it) }
         }.requireSuccess()
@@ -31,7 +43,7 @@ class MapSummaryRemoteRepository(
     override suspend fun getChildRegions(regionId: Long, tagId: Long?): Result<List<MapRegionSummary>> = apiCall {
         require(regionId > 0) { "선택한 지역 정보를 확인하지 못했습니다." }
         require(tagId == null || tagId > 0) { "선택한 태그 정보를 확인하지 못했습니다." }
-        client.get("$summaryUrl/$regionId/children") {
+        client.get("$regionsUrl/$regionId/children") {
             authorizeWith(accessTokenProvider)
             tagId?.let { parameter("tagId", it) }
         }.requireSuccess()

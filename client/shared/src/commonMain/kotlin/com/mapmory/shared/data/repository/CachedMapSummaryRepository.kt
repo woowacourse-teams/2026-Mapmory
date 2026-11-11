@@ -62,6 +62,19 @@ internal class CachedMapSummaryRepository(
             }
         }
 
+    override suspend fun getMapSummary(tagId: Long?): Result<List<MapRegionSummary>> =
+        delegate.getMapSummary(tagId).onSuccess { summaries ->
+            if (tagId == null) {
+                snapshot = MapSummarySnapshot(
+                    roots = summaries.filter { it.parentRegionId == null },
+                    childrenByRegionId = summaries
+                        .filter { it.parentRegionId != null }
+                        .groupBy { requireNotNull(it.parentRegionId) },
+                )
+                runCatching { cache.write(snapshot) }
+            }
+        }
+
     fun invalidate() {
         snapshot = MapSummarySnapshot()
         runCatching(cache::clear)

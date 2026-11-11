@@ -10,6 +10,7 @@ data class MapRegionSummary(
     val name: String,
     val count: Long,
     val level: MapRegionLevel,
+    val parentRegionId: Long? = null,
 )
 
 @Serializable
