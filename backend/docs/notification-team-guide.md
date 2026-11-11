@@ -141,3 +141,17 @@ stateDiagram-v2
 - 그룹의 기존 `PushSender`는 무효 토큰 문자열 기반 삭제를 사용한다. 지연된 응답이 새 등록에 영향을 줄 가능성을 FCM 연동 전 검토한다.
 - FCM 기본 오류 분류는 구현했다. 자동 재시도 간격·상한, 보관 기간, 배치 크기, 모니터링은 미확정이다.
 - S3 업로드 완료 후 DB 저장 실패는 영상과 알림이 미완료로 남을 수 있다. 시도별 경로와 선점 보호는 구현됐지만 자동 복구·미사용 S3 객체 정리는 미구현이다.
+
+## 사진 여행 기록 완료 알림
+
+`POST /api/v1/travel-records`는 선택적 양수 `pushTokenId`를 받는다. 생략하거나 `null`이면 기존처럼 기록만 저장한다.
+현재 로그인 회원의 등록이 아니거나 사라진 등록이면 `404 TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND`로 거절하며 기록도 저장하지 않는다.
+기록 생성과 `notification_outbox` 저장은 같은 트랜잭션에서 수행한다. 기존 V41 스키마를 그대로 사용한다.
+
+- 이벤트 유형: `PHOTO_RECORD_COMPLETED`
+- 사건 키: `photo-record:<recordId>:completed`, 같은 수신 등록에 중복 저장하지 않는다.
+- Outbox payload: `{"recordId":42}`
+- FCM data: `{"eventId":"7","type":"PHOTO_RECORD_COMPLETED","recordId":"42"}`
+
+기존 `notification.fcm.enabled=true` 워커가 영상과 사진 완료 이벤트를 각각 선점한다. 그룹 앨범 알림은 기존 `push_outbox` 경로를 계속 사용한다.
+수정 요청은 완료 알림을 생성하지 않는다. 전송은 기존과 같이 FCM 접수를 기준으로 기록하며 기기 도착이나 정확히 한 번 수신을 보장하지 않는다.

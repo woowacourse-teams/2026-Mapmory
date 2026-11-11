@@ -5,6 +5,12 @@ import com.mapmory.backend.common.exception.ErrorKind;
 
 public enum TravelRecordErrorCode implements ErrorCode {
 
+    TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND(
+            ErrorKind.NOT_FOUND,
+            "TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND",
+            "푸시 수신 등록을 찾을 수 없습니다.",
+            "현재 회원의 푸시 등록을 다시 확인해 주세요."
+    ),
     REGION_REQUIRED(
             ErrorKind.INVALID_INPUT,
             "REGION_REQUIRED",

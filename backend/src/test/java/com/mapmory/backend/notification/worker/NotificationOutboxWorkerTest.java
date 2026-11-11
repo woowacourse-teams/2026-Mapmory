@@ -71,6 +71,18 @@ class NotificationOutboxWorkerTest {
         verify(sender, never()).send(any());
     }
 
+    @Test
+    void 사진_완료_이벤트도_같은_워커에서_발송한다() {
+        ClaimedNotification photo = new ClaimedNotification(8L, "photo-claim", "PHOTO_RECORD_COMPLETED", "{}", 2L, 3L);
+        when(claimer.claimNextForType("PHOTO_RECORD_COMPLETED")).thenReturn(Optional.of(photo));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        when(factory.create(photo, token)).thenReturn(message);
+        when(sender.send(message)).thenReturn(new NotificationPushSender.Result(NotificationPushSender.Status.ACCEPTED, null));
+        worker.processNext();
+        verify(results).markSent(8L, "photo-claim");
+        verify(claimer).recoverNextExpiredForType("PHOTO_RECORD_COMPLETED");
+    }
+
     private void prepareMessage() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
         when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));
