@@ -1306,7 +1306,8 @@ internal fun NewTripRecordFlowScreen(
                             largePreview = coverPreview,
                             isSaving = uiState.isSaving || pendingSave || isWaitingForCoverPreview,
                             onBackClick = ::returnToPreviousStep,
-                            onPhotoSelected = { selectedCoverPhotoId = it },
+                            // The pending save already captured its cover; changing it now would be ignored.
+                            onPhotoSelected = { if (!isWaitingForCoverPreview) selectedCoverPhotoId = it },
                             onConfirm = ::confirmCoverPhotoSelection,
                             regionContent = {
                                 TextButton(onClick = { regionQuery = ""; showRegionPicker = true }) {

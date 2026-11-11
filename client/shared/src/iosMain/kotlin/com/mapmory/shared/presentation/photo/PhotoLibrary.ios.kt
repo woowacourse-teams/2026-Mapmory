@@ -876,9 +876,9 @@ internal class IosPhotoLibraryController(
                 hasImage = image != null,
             )
             if (result == PhotoImageResult.WAIT) return@requestImageForAsset
-            // Cancellation comes from a newer request or leaving the screen; nothing to show.
-            if (isCancelled) return@requestImageForAsset
-            if (result == PhotoImageResult.FAIL) {
+            // Our own cancellations already bumped coverGeneration and are dropped below. A cancel
+            // from Photos itself still completes with null so the screen stops waiting for it.
+            if (result == PhotoImageResult.FAIL && !isCancelled) {
                 photoFailure("cover_preview", info?.get(PHImageErrorKey) as? NSError)
             }
             val finalImage = image.takeIf { result == PhotoImageResult.DELIVER }
