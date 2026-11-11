@@ -2,6 +2,7 @@ package com.mapmory.shared.data.media
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -230,5 +231,39 @@ class OriginalPrefetchQueueTest {
 
         assertEquals(listOf("b"), store.deleted)
         assertEquals(listOf("c"), store.started)
+    }
+
+    @Test
+    fun `미리_받기_요청이_등록되기_전에_저장이_읽어도_새로_받지_않고_그_작업을_기다린다`() = queueTest { queue, store ->
+        // #689 review: prefetch() only queues a command, so a save reading right after it could
+        // miss the entry and start a second PhotoKit download of the same original.
+        queue.prefetch(listOf("a"))
+        val waiting = async(start = CoroutineStart.UNDISPATCHED) { queue.awaitPrefetch("a") }
+        settle()
+        assertFalse(waiting.isCompleted, "the save waits for the queued prefetch")
+
+        store.finish("a")
+        settle()
+        assertTrue(waiting.await())
+        assertEquals(listOf("a"), store.started)
+    }
+
+    @Test
+    fun `여러_장을_지우는_사이_먼저_끝난_사진을_다시_고르면_그_원본은_지우지_않는다`() = queueTest { queue, store ->
+        // #689 review: release {A, B} while both download; A finishes, A is selected again,
+        // then B finishes. The release must not delete A's original.
+        queue.prefetch(listOf("a", "b"))
+        settle()
+        val releasing = async { queue.release(setOf("a", "b")) }
+        settle()
+        store.finish("a")
+        settle()
+        queue.prefetch(listOf("a"))
+        settle()
+
+        store.finish("b")
+        settle()
+        releasing.await()
+        assertEquals(listOf("b"), store.deleted)
     }
 }
