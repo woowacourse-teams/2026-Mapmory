@@ -31,6 +31,9 @@ internal data class UploadedPhoto(
 
 internal fun interface PhotoUploader {
     suspend fun completedObjectKey(localId: String): String? = null
+
+    /** 완료된 전송의 원본 파일 경로. 업로드를 정리(forget)하기 전까지 남는 플랫폼만 돌려준다(iOS, #693). */
+    suspend fun completedOriginalPath(localId: String): String? = null
     suspend fun forget(localIds: List<String>) {}
     suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>>
 }
@@ -42,6 +45,7 @@ internal class PhotoUploadRemoteRepository(
 ) : PhotoUploader {
     private val transfer = createPhotoUploadTransfer(client, apiBaseUrl)
     override suspend fun completedObjectKey(localId: String): String? = transfer.completedObjectKey(localId)
+    override suspend fun completedOriginalPath(localId: String): String? = transfer.completedOriginalPath(localId)
     override suspend fun forget(localIds: List<String>) = transfer.forget(localIds)
 
     private val presignedUploadsUrl = "${apiBaseUrl.trimEnd('/')}/uploads/presigned-urls"
