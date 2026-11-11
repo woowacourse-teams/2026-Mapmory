@@ -127,6 +127,7 @@ actual fun rememberPhotoLibraryActions(
             cancelFullResolutionPreview = controller::cancelFullResolutionPreview,
             loadCoverPreview = controller::loadCoverPreview,
             cancelCoverPreview = controller::cancelCoverPreview,
+            coverPreviewSupported = true,
             cancelRecommendation = controller::cancelRecommendation,
             openAppSettings = controller::openAppSettings,
         )

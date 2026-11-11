@@ -78,6 +78,8 @@ data class PhotoLibraryActions(
         onReady: (ByteArray?) -> Unit,
     ) -> Unit = { _, onReady -> onReady(null) },
     val cancelCoverPreview: () -> Unit = {},
+    /** true면 대표 사진 화면이 [loadCoverPreview] 결과를 잠깐 기다린다. 기본값은 기다리지 않는다. */
+    val coverPreviewSupported: Boolean = false,
     val recommendationsAvailable: Boolean = true,
     val cancelRecommendation: () -> Unit = {},
     val openAppSettings: () -> Unit = {},
