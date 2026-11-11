@@ -72,6 +72,12 @@ data class PhotoLibraryActions(
         onReady: (ByteArray?) -> Unit,
     ) -> Unit = { photo, onReady -> onReady(photo.originalBytes) },
     val cancelFullResolutionPreview: () -> Unit = {},
+    /** 대표 사진 화면에서 고른 1장만 목록보다 큰 미리보기로 받는다. 지원하지 않는 플랫폼은 null을 전달한다. */
+    val loadCoverPreview: (
+        photo: SelectedPhoto,
+        onReady: (ByteArray?) -> Unit,
+    ) -> Unit = { _, onReady -> onReady(null) },
+    val cancelCoverPreview: () -> Unit = {},
     val recommendationsAvailable: Boolean = true,
     val cancelRecommendation: () -> Unit = {},
     val openAppSettings: () -> Unit = {},
@@ -97,6 +103,20 @@ expect fun rememberPhotoLibraryActions(
     onRecommendationLoadingChanged: (Boolean) -> Unit,
     onPermissionRequired: (PhotoLibraryPermissionIssue) -> Unit,
 ): PhotoLibraryActions
+
+/** [photoId] 사진의 대표 사진 화면용 큰 미리보기. */
+internal class CoverPreview(
+    val photoId: String,
+    val bytes: ByteArray,
+)
+
+/** 대표 사진의 미리보기만 [preview]로 바꿔, 저장 후 기기 캐시에 큰 이미지가 남도록 한다. */
+internal fun List<SelectedPhoto>.withCoverPreview(preview: CoverPreview?): List<SelectedPhoto> {
+    if (preview == null || none { it.id == preview.photoId }) return this
+    return map { photo ->
+        if (photo.id == preview.photoId) photo.copy(previewBytes = preview.bytes) else photo
+    }
+}
 
 internal fun mergeSelectedPhotos(
     existing: List<SelectedPhoto>,
