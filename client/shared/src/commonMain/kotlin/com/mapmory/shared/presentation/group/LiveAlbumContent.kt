@@ -273,16 +273,26 @@ internal fun LiveAlbumContent(groupId: Long, albums: AlbumRepository, records: T
         ),
     ) {
         Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                GroupButton("불러오기", onClick = {
-                    add = false
-                    pick = true
-                    scope.launch { loadRecords() }
-                }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy)
-                GroupButton("새로 만들기", onClick = {
-                    add = false
-                    onCreateRecord()
-                }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy && storageError == null)
+            Column(Modifier.padding(12.dp)) {
+                com.mapmory.shared.presentation.components.MapmoryCloseButton(
+                    onClick = { add = false },
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.End),
+                    label = "앨범 추가 선택창 닫기",
+                )
+                Column(
+                    Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    GroupButton("불러오기", onClick = {
+                        add = false
+                        pick = true
+                        scope.launch { loadRecords() }
+                    }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy)
+                    GroupButton("새로 만들기", onClick = {
+                        add = false
+                        onCreateRecord()
+                    }, modifier = Modifier.fillMaxWidth(), outlined = true, enabled = !busy && storageError == null)
+                }
             }
         }
     }
