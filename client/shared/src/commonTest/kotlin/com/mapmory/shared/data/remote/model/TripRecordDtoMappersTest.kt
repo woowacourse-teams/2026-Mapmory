@@ -200,7 +200,7 @@ class ApiDtoMappersTest {
         assertEquals("KR", request.countryCode)
         assertEquals("49", request.provinceCode)
         assertEquals("50110", request.districtCode)
-        assertEquals(listOf("travel-records/guest/a.jpg"), request.objectKeys)
+        assertEquals(listOf("travel-records/guest/a.jpg"), request.photos.map { it.objectKey })
         assertEquals("geoapify-place-id", request.placeId)
     }
 
@@ -289,24 +289,27 @@ class ApiDtoMappersTest {
     }
 
     @Test
-    fun `저장_요청에_사진별_촬영일을_서버_형식으로_담는다`() {
+    fun `저장_요청은_사진_순서대로_키와_촬영일을_묶어_보낸다`() {
         val japan = catalog.requireByCode("JP")
 
         val request = TripRecordDraft(
             locationId = japan.id,
             startDate = "2026-09-09",
-            mediaObjectKeys = listOf("travel-records/10/a.jpg", "travel-records/10/b.jpg", "travel-records/10/c.jpg"),
+            mediaObjectKeys = listOf("travel-records/10/b.jpg", "travel-records/10/a.jpg", "travel-records/10/c.jpg"),
             localMedia = listOf(
                 TripRecordMediaDraft(objectKey = "travel-records/10/a.jpg", sortOrder = 0, capturedAt = "2026.09.09"),
                 TripRecordMediaDraft(objectKey = "travel-records/10/b.jpg", sortOrder = 1, capturedAt = "2026-09-11T10:00:00"),
-                TripRecordMediaDraft(objectKey = "travel-records/10/c.jpg", sortOrder = 2, capturedAt = null),
                 TripRecordMediaDraft(objectKey = "travel-records/10/removed.jpg", sortOrder = 3, capturedAt = "2026.09.10"),
             ),
         ).toRequestDto(catalog)
 
         assertEquals(
-            mapOf("travel-records/10/a.jpg" to "2026-09-09", "travel-records/10/b.jpg" to "2026-09-11"),
-            request.capturedDates,
+            listOf(
+                TripRecordPhotoRequestDto("travel-records/10/b.jpg", "2026-09-11"),
+                TripRecordPhotoRequestDto("travel-records/10/a.jpg", "2026-09-09"),
+                TripRecordPhotoRequestDto("travel-records/10/c.jpg", null),
+            ),
+            request.photos,
         )
     }
 

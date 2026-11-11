@@ -83,9 +83,11 @@ class TripRecordRemoteRepositoryTest {
             when (requestCount) {
                 1 -> {
                     assertEquals("POST", request.method.value)
+                    assertEquals("/api/v2/travel-records", request.url.encodedPath)
                     assertEquals(ContentType.Application.Json, request.body.contentType)
                     val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
                     assertTrue("\"tagIds\":[7]" in body)
+                    assertTrue("\"photos\":[{\"objectKey\":\"travel-records/guest/a.jpg\"}]" in body)
                     jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
                 }
 
@@ -160,6 +162,7 @@ class TripRecordRemoteRepositoryTest {
         val client = client { request ->
             requestCount += 1
             assertEquals("PUT", request.method.value)
+            assertEquals("/api/v2/travel-records/101", request.url.encodedPath)
             jsonResponse(detailResponse(title = "수정된 제주 여행"))
         }
 

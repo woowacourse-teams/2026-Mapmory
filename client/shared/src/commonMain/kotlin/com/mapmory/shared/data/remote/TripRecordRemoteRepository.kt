@@ -34,6 +34,9 @@ class TripRecordRemoteRepository(
 ) : TripRecordRepository {
     private val recordsUrl = "${apiBaseUrl.trimEnd('/')}/travel-records"
 
+    // 생성·수정만 v2다. 사진 Object Key와 촬영일을 한 객체로 보낸다. 조회와 삭제는 v1 그대로다.
+    private val writeRecordsUrl = "${apiBaseUrl.trimEnd('/').replace(ApiV1Suffix, "/v2")}/travel-records"
+
     override suspend fun getTripRecords(query: TripRecordQuery): Result<TripRecordPage> =
         apiCall {
             require(query.page >= 0) { "여행 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." }
@@ -71,7 +74,7 @@ class TripRecordRemoteRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {
-            val id = client.post(recordsUrl) {
+            val id = client.post(writeRecordsUrl) {
                 authorizeWith(accessTokenProvider)
                 contentType(ContentType.Application.Json)
                 setBody(draft.toRequestDto(regionCatalog))
@@ -86,7 +89,7 @@ class TripRecordRemoteRepository(
     override suspend fun updateTripRecord(id: Long, draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {
             requireValidRecordId(id)
-            client.put("$recordsUrl/$id") {
+            client.put("$writeRecordsUrl/$id") {
                 authorizeWith(accessTokenProvider)
                 contentType(ContentType.Application.Json)
                 setBody(draft.toRequestDto(regionCatalog))
@@ -110,3 +113,5 @@ class TripRecordRemoteRepository(
 }
 
 private const val MaxPageSize = 100
+
+private val ApiV1Suffix = Regex("/v1$")

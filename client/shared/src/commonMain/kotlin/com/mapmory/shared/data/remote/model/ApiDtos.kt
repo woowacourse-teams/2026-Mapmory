@@ -213,11 +213,17 @@ data class TripRecordRequestDto(
     val content: String,
     val startDate: String,
     val endDate: String?,
-    val objectKeys: List<String> = emptyList(),
+    // v2 쓰기 API 본문이다. 배열 순서가 사진 순서다.
+    val photos: List<TripRecordPhotoRequestDto> = emptyList(),
     val tagIds: List<Long> = emptyList(),
     val placeId: String? = null,
-    // Object Key → 촬영일(yyyy-MM-dd). 다른 기기와 그룹 멤버도 같은 날짜로 사진을 묶도록 서버에 남긴다.
-    val capturedDates: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class TripRecordPhotoRequestDto(
+    val objectKey: String,
+    // 촬영일(yyyy-MM-dd). 다른 기기와 그룹 멤버도 같은 날짜로 사진을 묶도록 서버에 남긴다. 모르면 null이다.
+    val capturedDate: String? = null,
 )
 
 @Serializable

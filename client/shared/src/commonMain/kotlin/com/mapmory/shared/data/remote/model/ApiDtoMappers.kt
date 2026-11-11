@@ -150,19 +150,20 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         content = content.orEmpty(),
         startDate = startDate,
         endDate = endDate,
-        objectKeys = mediaObjectKeys,
+        photos = photoRequests(),
         tagIds = tagIds,
         placeId = place?.placeId,
-        capturedDates = capturedDatesByObjectKey(),
     )
 }
 
-private fun TripRecordDraft.capturedDatesByObjectKey(): Map<String, String> {
-    val requested = mediaObjectKeys.toSet()
-    return localMedia
-        .filter { media -> media.objectKey in requested }
-        .mapNotNull { media -> media.capturedAt.toIsoCapturedDate()?.let { date -> media.objectKey to date } }
-        .toMap()
+private fun TripRecordDraft.photoRequests(): List<TripRecordPhotoRequestDto> {
+    val capturedDateByObjectKey = localMedia.associate { media -> media.objectKey to media.capturedAt }
+    return mediaObjectKeys.map { objectKey ->
+        TripRecordPhotoRequestDto(
+            objectKey = objectKey,
+            capturedDate = capturedDateByObjectKey[objectKey].toIsoCapturedDate(),
+        )
+    }
 }
 
 /** 사진첩마다 다른 촬영일 표기(yyyy.MM.dd, yyyy-MM-ddTHH:mm 등)를 서버가 받는 yyyy-MM-dd로 맞춘다. */
