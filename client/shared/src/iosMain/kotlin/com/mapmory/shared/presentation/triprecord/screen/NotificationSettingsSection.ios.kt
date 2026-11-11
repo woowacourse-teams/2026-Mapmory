@@ -30,10 +30,12 @@ internal actual fun NotificationSettingsSection() {
         onRecordSaveChanged = { enabled ->
             preferences.setBool(enabled, forKey = PhotoRecordCompletionKey)
             recordSaveEnabled = enabled
+            com.mapmory.shared.refreshIosPushPermission()
         },
         onTravelVideoChanged = { enabled ->
             preferences.setBool(enabled, forKey = TravelVideoCompletionKey)
             travelVideoEnabled = enabled
+            com.mapmory.shared.refreshIosPushPermission()
         },
         onOpenDeviceSettings = {
             NSURL.URLWithString(UIApplicationOpenSettingsURLString)?.let { url ->

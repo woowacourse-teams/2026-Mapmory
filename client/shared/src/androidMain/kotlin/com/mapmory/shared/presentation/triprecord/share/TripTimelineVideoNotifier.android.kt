@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -14,34 +15,58 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import com.mapmory.shared.data.settings.isTravelVideoCompletionNotificationEnabled
 import com.mapmory.shared.MapmoryNotificationIntent
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+
+interface AndroidNotificationRegistrationHost {
+    suspend fun refreshNotificationRegistration()
+}
 
 @Composable
 internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifier {
-    val context = LocalContext.current.applicationContext
+    val hostContext = LocalContext.current
+    val context = hostContext.applicationContext
+    val registrationHost = generateSequence(hostContext) { (it as? ContextWrapper)?.baseContext }
+        .filterIsInstance<AndroidNotificationRegistrationHost>().firstOrNull()
+    var permissionResult by remember { mutableStateOf<CancellableContinuation<Unit>?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) {}
-    return remember(context, permissionLauncher) {
-        AndroidTripTimelineVideoNotifier(context, permissionLauncher)
+    ) {
+        permissionResult?.let { if (it.isActive) it.resume(Unit) }
+        permissionResult = null
+    }
+    return remember(context, permissionLauncher, registrationHost) {
+        AndroidTripTimelineVideoNotifier(context, permissionLauncher, registrationHost) { permissionResult = it }
     }
 }
 
 private class AndroidTripTimelineVideoNotifier(
     private val context: Context,
     private val permissionLauncher: ActivityResultLauncher<String>,
+    private val registrationHost: AndroidNotificationRegistrationHost?,
+    private val setPermissionResult: (CancellableContinuation<Unit>?) -> Unit,
 ) : TripTimelineVideoNotifier {
-    override fun requestPermissionIfNeeded() {
+    override suspend fun requestPermissionIfNeeded() {
         if (isTravelVideoCompletionNotificationEnabled(context) && Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            suspendCancellableCoroutine<Unit> { continuation ->
+                setPermissionResult(continuation)
+                continuation.invokeOnCancellation { setPermissionResult(null) }
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
+        registrationHost?.refreshNotificationRegistration()
     }
 
     override suspend fun showReady(jobId: Long): Boolean {

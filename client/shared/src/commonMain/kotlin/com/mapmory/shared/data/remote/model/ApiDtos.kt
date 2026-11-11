@@ -39,6 +39,26 @@ data class ShareVideoJobDto(
 @Serializable
 data class CreateShareVideoRequestDto(
     val styleId: String,
+    val pushTokenId: Long? = null,
+)
+
+@Serializable
+data class PushTokenRequestDto(
+    val token: String,
+    val platform: String,
+    val previousPushTokenId: Long? = null,
+    val photoRecordCompletionEnabled: Boolean = true,
+    val travelVideoCompletionEnabled: Boolean = true,
+)
+
+@Serializable
+data class PushTokenRegistrationDto(
+    val pushTokenId: Long,
+)
+
+@Serializable
+data class PushTokenDeleteRequestDto(
+    val pushTokenId: Long,
 )
 
 @Serializable
@@ -214,6 +234,7 @@ data class TripRecordRequestDto(
     val objectKeys: List<String> = emptyList(),
     val tagIds: List<Long> = emptyList(),
     val placeId: String? = null,
+    val pushTokenId: Long? = null,
 )
 
 @Serializable

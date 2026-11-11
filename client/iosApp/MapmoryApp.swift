@@ -81,10 +81,12 @@ struct MapmoryApp: App {
             }
             .onAppear {
                 forceUpdate.refresh()
+                MainViewControllerKt.refreshIosPushPermission()
             }
             .onChange(of: scenePhase) { phase in
                 if phase == .active {
                     forceUpdate.refresh()
+                    MainViewControllerKt.refreshIosPushPermission()
                 }
             }
             .ignoresSafeArea()
@@ -166,10 +168,17 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         guard FirebaseApp.app() != nil else { return true }
         Messaging.messaging().delegate = self
         application.registerForRemoteNotifications()
+        MainViewControllerKt.refreshIosPushPermission()
         return true
     }
 
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        guard FirebaseApp.app() != nil else { return }
+        Messaging.messaging().apnsToken = deviceToken
+    }
+
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        MainViewControllerKt.updateIosPushToken(token: fcmToken)
         guard fcmToken != nil else { return }
 #if DEBUG || INTERNAL
         let topic = "mapmory-app-update-dev"
@@ -185,7 +194,10 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         // A notification queued in the background may arrive after the app becomes active.
         // The in-app saved-record card owns foreground feedback.
-        if notification.request.identifier.hasPrefix("record-") {
+        let type = notification.request.content.userInfo["type"] as? String
+        let isRemoteCompletion = notification.request.trigger is UNPushNotificationTrigger &&
+            (type == "PHOTO_RECORD_COMPLETED" || type == "VIDEO_COMPLETED")
+        if isRemoteCompletion || notification.request.identifier.hasPrefix("record-") {
             completionHandler([])
             return
         }
@@ -194,6 +206,27 @@ final class UploadAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
                 ? [.banner]
                 : [.banner, .sound]
         )
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else {
+            completionHandler()
+            return
+        }
+        let data = response.notification.request.content.userInfo
+        if let type = data["type"] as? String {
+            DispatchQueue.main.async {
+                MainViewControllerKt.receiveIosPushNotification(
+                    type: type,
+                    recordId: data["recordId"] as? String,
+                    jobId: data["jobId"] as? String,
+                    preserveBackStack: true
+                )
+                completionHandler()
+            }
+        } else {
+            completionHandler()
+        }
     }
 
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {

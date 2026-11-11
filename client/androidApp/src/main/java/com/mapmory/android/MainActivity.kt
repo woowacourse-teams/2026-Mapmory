@@ -33,12 +33,19 @@ import androidx.lifecycle.lifecycleScope
 import com.mapmory.shared.MapmoryApp
 import com.mapmory.shared.MapmoryNavigation
 import com.mapmory.shared.MapmoryNotificationIntent
+import com.mapmory.shared.MapmoryNotificationTarget
+import com.mapmory.shared.parseMapmoryNotificationData
+import com.mapmory.android.update.refreshPushToken
 import com.mapmory.android.analytics.FirebaseAnalyticsLogger
 import com.mapmory.shared.developer.MapmoryDeveloperToolsInfo
 import com.mapmory.shared.data.settings.isPhotoRecordCompletionNotificationEnabled
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), com.mapmory.shared.presentation.triprecord.share.AndroidNotificationRegistrationHost {
+    override suspend fun refreshNotificationRegistration() {
+        com.mapmory.android.update.refreshPushTokenAndAwaitRegistration(applicationContext)
+    }
+
     companion object {
         private var processHasStarted = false
         private const val STATE_NOTIFICATION_ACTION = "notification_action"
@@ -55,6 +62,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         appViewModel.forceUpdate.refresh()
+        refreshPushToken(applicationContext)
     }
 
 
@@ -96,7 +104,7 @@ class MainActivity : ComponentActivity() {
         }
         val notificationPermission = registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
-        ) {}
+        ) { refreshPushToken(applicationContext) }
         lifecycleScope.launch {
             appViewModel.container.backgroundTripRecordSaver.saves.collect { saves ->
                 val preferences = getSharedPreferences("upload-notifications", MODE_PRIVATE)
@@ -199,22 +207,24 @@ class MainActivity : ComponentActivity() {
     private fun handleNotificationIntent(intent: Intent?, preserveBackStack: Boolean): Boolean {
         intent ?: return false
         val action = intent.action
+        val remoteTarget = if (action == null || action == Intent.ACTION_MAIN) {
+            parseMapmoryNotificationData(intent.extras?.let { extras ->
+                extras.keySet().associateWith { key -> extras.get(key)?.toString().orEmpty() }
+            }.orEmpty())
+        } else null
         val targetId = when (action) {
             MapmoryNotificationIntent.ACTION_OPEN_RECORD -> intent
-                .getLongExtra(MapmoryNotificationIntent.EXTRA_RECORD_ID, 0L)
-                .takeIf { it > 0L }
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_RECORD_ID, 0L).takeIf { it > 0L }
             MapmoryNotificationIntent.ACTION_OPEN_VIDEO -> intent
-                .getLongExtra(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, 0L)
-                .takeIf { it > 0L }
-            null, Intent.ACTION_MAIN -> intent.extras?.let { extras ->
-                sequenceOf(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, "jobId", "job_id")
-                    .mapNotNull { key -> extras.get(key)?.toString()?.toLongOrNull() }
-                    .firstOrNull { it > 0L }
+                .getLongExtra(MapmoryNotificationIntent.EXTRA_VIDEO_JOB_ID, 0L).takeIf { it > 0L }
+            else -> when (remoteTarget) {
+                is MapmoryNotificationTarget.Record -> remoteTarget.recordId
+                is MapmoryNotificationTarget.Video -> remoteTarget.jobId
+                null -> null
             }
-            else -> null
         } ?: return false
 
-        val isRecord = action == MapmoryNotificationIntent.ACTION_OPEN_RECORD
+        val isRecord = action == MapmoryNotificationIntent.ACTION_OPEN_RECORD || remoteTarget is MapmoryNotificationTarget.Record
         pendingNotificationAction = if (isRecord) {
             MapmoryNotificationIntent.ACTION_OPEN_RECORD
         } else {

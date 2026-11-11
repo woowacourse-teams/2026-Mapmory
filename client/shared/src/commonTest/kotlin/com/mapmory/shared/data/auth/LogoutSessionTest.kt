@@ -26,10 +26,12 @@ class LogoutSessionTest {
         var guestCalls = 0
         var refreshCalls = 0
         var failLogout = false
+        var expectedLogoutRefreshToken = "social-refresh"
+        var refreshedTokens = AuthTokens("social", "social-refresh")
         var onLogout: suspend () -> Unit = {}
         override suspend fun logout(refreshToken: String): Result<Unit> {
             logoutCalls++
-            assertEquals("social-refresh", refreshToken)
+            assertEquals(expectedLogoutRefreshToken, refreshToken)
             onLogout()
             return if (failLogout) Result.failure(IllegalStateException("response lost")) else Result.success(Unit)
         }
@@ -39,7 +41,7 @@ class LogoutSessionTest {
         }
         override suspend fun refresh(refreshToken: String): Result<AuthTokens> {
             refreshCalls++
-            return Result.success(AuthTokens("social", "social-refresh"))
+            return Result.success(refreshedTokens)
         }
     }
 
@@ -80,6 +82,58 @@ class LogoutSessionTest {
             assertEquals(1, gateway.guestCalls)
             assertEquals("new-guest", store.tokens?.accessToken)
         } finally { session.close() }
+    }
+
+    @Test fun logoutCleanupCanRefreshWithoutDeadlockingAndRevokesRotatedToken() = runBlocking {
+        val store = Store()
+        val gateway = Gateway().apply {
+            refreshedTokens = AuthTokens("rotated-access", "rotated-refresh")
+            expectedLogoutRefreshToken = "rotated-refresh"
+        }
+        val session = GuestSessionManager(gateway, store)
+        var sessionReadyCalls = 0
+        session.onSessionReady = { sessionReadyCalls++ }
+        session.onBeforeAccountChanged = { accessToken ->
+            assertEquals("social", accessToken)
+            withTimeout(1_000) { session.refreshAfterUnauthorized(checkNotNull(accessToken)).getOrThrow() }
+            assertEquals("rotated-access", session.getAccessToken())
+        }
+        try {
+            session.logout().getOrThrow()
+            assertEquals(1, gateway.refreshCalls)
+            assertEquals(1, gateway.logoutCalls)
+            assertEquals(0, sessionReadyCalls)
+            assertNull(store.tokens)
+        } finally { session.close() }
+    }
+
+    @Test fun abortedLogoutRestoresRegistrationAfterCleanup() = runBlocking {
+        for (failMarker in listOf(false, true)) {
+            val store = Store()
+            val gateway = Gateway()
+            val session = GuestSessionManager(gateway, store)
+            session.ensureAuthenticated().getOrThrow()
+            var readyCalls = 0
+            var canChange = true
+            session.onSessionReady = {
+                assertFalse(session.state.value.transitioning)
+                assertFalse(session.state.value.pendingLogout)
+                readyCalls++
+            }
+            session.canChangeAccount = { canChange }
+            session.onBeforeAccountChanged = {
+                if (failMarker) store.failMarker = true else canChange = false
+            }
+            try {
+                val result = session.logout()
+                assertTrue(result.isFailure)
+                if (!failMarker) assertIs<AccountBusyException>(result.exceptionOrNull())
+                assertEquals(1, readyCalls)
+                assertEquals(0, gateway.logoutCalls)
+                assertNotNull(store.tokens)
+                assertNull(store.marker)
+            } finally { session.close() }
+        }
     }
 
     @Test fun lostRevokeResponseBlocksOldAccountAndResumesAfterRestart() = runBlocking {

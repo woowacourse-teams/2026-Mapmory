@@ -9,6 +9,21 @@ import kotlin.test.assertTrue
 
 class MapmoryNavigationTest {
     @Test
+    fun `push data accepts only supported events and positive identifiers`() {
+        assertEquals(
+            MapmoryNotificationTarget.Record(42),
+            parseMapmoryNotificationData(mapOf("type" to "PHOTO_RECORD_COMPLETED", "recordId" to "42")),
+        )
+        assertEquals(
+            MapmoryNotificationTarget.Video(91),
+            parseMapmoryNotificationData(mapOf("type" to "VIDEO_COMPLETED", "jobId" to "91")),
+        )
+        assertNull(parseMapmoryNotificationData(mapOf("type" to "VIDEO_COMPLETED", "jobId" to "0")))
+        assertNull(parseMapmoryNotificationData(mapOf("type" to "PHOTO_RECORD_COMPLETED", "recordId" to "bad")))
+        assertNull(parseMapmoryNotificationData(mapOf("type" to "UNKNOWN", "recordId" to "42")))
+    }
+
+    @Test
     fun `invalid notification identifiers are ignored`() {
         val navigation = MapmoryNavigation()
 
