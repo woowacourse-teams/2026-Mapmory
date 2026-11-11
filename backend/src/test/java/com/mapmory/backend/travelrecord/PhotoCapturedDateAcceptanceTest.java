@@ -85,6 +85,19 @@ class PhotoCapturedDateAcceptanceTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.media[1].capturedDate").value("2026-08-02"));
     }
 
+    @Test
+    void 형식이_틀린_촬영일이_있어도_기록은_저장한다() throws Exception {
+        long recordId = create("""
+                "capturedDates": { "%s": "2026:08:01", "%s": "2026-02-30" }
+                """.formatted(firstPhotoKey, secondPhotoKey));
+
+        mockMvc.perform(get("/api/v1/travel-records/" + recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.media[0].capturedDate").doesNotExist())
+                .andExpect(jsonPath("$.data.media[1].capturedDate").doesNotExist());
+    }
+
     private long create(String extraField) throws Exception {
         MvcResult created = mockMvc.perform(post("/api/v1/travel-records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)

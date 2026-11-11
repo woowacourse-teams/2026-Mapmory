@@ -22,7 +22,7 @@ public record TravelRecordCommand(
         List<String> objectKeys,
         List<Long> tagIds,
         String placeId,
-        Map<String, LocalDate> capturedDates
+        Map<String, String> capturedDates
 ) {
     public TravelRecordCommand {
         objectKeys = objectKeys == null ? List.of() : objectKeys;

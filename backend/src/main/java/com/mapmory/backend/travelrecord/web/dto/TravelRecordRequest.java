@@ -27,9 +27,10 @@ public record TravelRecordRequest(
         String placeId,
         /*
          * 사진 Object Key별 촬영일(yyyy-MM-dd). 선택이다. 모르는 사진은 빼고 보낸다.
-         * 범위를 벗어난 날짜는 저장을 실패시키지 않고 모르는 날짜로 본다.
+         * 형식이 틀리거나 범위를 벗어난 날짜도 저장을 실패시키지 않고 모르는 날짜로 본다. 그래서 문자열로 받는다.
          */
-        Map<String, LocalDate> capturedDates
+        @Size(max = 100, message = "촬영일은 사진 수(100장)보다 많을 수 없습니다.")
+        Map<String, String> capturedDates
 ) {
     public TravelRecordCommand toCommand() {
         return new TravelRecordCommand(

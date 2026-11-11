@@ -89,7 +89,7 @@ class TravelRecordTest {
 
         travelRecord.synchronizeMedia(
                 ObjectKeys.from(List.of(KEY_A, KEY_B)),
-                PhotoCaptureDates.from(Map.of(KEY_A, LocalDate.of(2026, 9, 11)), TODAY)
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-11"), TODAY)
         );
 
         assertThat(travelRecord.getMedia())
@@ -102,7 +102,7 @@ class TravelRecordTest {
         TravelRecord travelRecord = travelRecord();
         travelRecord.synchronizeMedia(
                 ObjectKeys.from(List.of(KEY_A)),
-                PhotoCaptureDates.from(Map.of(KEY_A, LocalDate.of(2026, 9, 11)), TODAY)
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-11"), TODAY)
         );
 
         travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_B, KEY_A)));
@@ -119,7 +119,7 @@ class TravelRecordTest {
 
         travelRecord.synchronizeMedia(
                 ObjectKeys.from(List.of(KEY_A)),
-                PhotoCaptureDates.from(Map.of(KEY_A, LocalDate.of(2026, 9, 9)), TODAY)
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-09"), TODAY)
         );
 
         assertThat(travelRecord.getMedia())

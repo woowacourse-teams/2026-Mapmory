@@ -636,11 +636,11 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `objectKeys` | String[] | 예 | 업로드 완료된 Object Key 목록. 1장 이상 100장 이하 |
 | `tagIds` | Long[] | 아니요 | 빈 배열 허용, 최대 5개, 중복 불가, 모두 현재 회원 소유 |
 | `placeId` | String | 아니요 | `GET /places/search` 후보의 장소 ID, 최대 255자. 지역 코드가 없으면 이 장소로 지역을 정함 |
-| `capturedDates` | Map<String, LocalDate> | 아니요 | Object Key → 사진 촬영일(`YYYY-MM-DD`). 모르는 사진은 빼고 보낸다 |
+| `capturedDates` | Map<String, String> | 아니요 | Object Key → 사진 촬영일(`YYYY-MM-DD`). 모르는 사진은 빼고 보낸다. 최대 100개 |
 
 `objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 사진은 1장 이상 100장 이하여야 하며, 값이 없거나 `null`·빈 배열이면 `PHOTO_REQUIRED`로 거절한다.
 
-`capturedDates`는 사진첩(EXIF·MediaStore)에서 읽은 촬영일이고 `record_media.captured_date`에 저장한다. 다른 기기나 그룹 멤버도 같은 날짜로 사진을 묶을 수 있게 하려는 값이다. 카메라 시계가 틀린 사진이 있어도 저장을 실패시키지 않는다. 1900-01-01 이전이거나 서버 기준 내일보다 뒤인 날짜, 형식이 틀린 키는 모르는 날짜로 보고 버린다. `objectKeys`에 없는 키는 무시한다. 수정 요청에서 촬영일을 보내지 않은 사진은 저장된 촬영일을 그대로 둔다.
+`capturedDates`는 사진첩(EXIF·MediaStore)에서 읽은 촬영일이고 `record_media.captured_date`에 저장한다. 다른 기기나 그룹 멤버도 같은 날짜로 사진을 묶을 수 있게 하려는 값이다. 카메라 시계가 틀린 사진이 있어도 저장을 실패시키지 않는다. 형식이 틀린 날짜, 1900-01-01 이전이거나 서버 기준 내일보다 뒤인 날짜, 형식이 틀린 키는 모르는 날짜로 보고 버린다. `objectKeys`에 없는 키는 무시한다. 수정 요청에서 촬영일을 보내지 않은 사진은 저장된 촬영일을 그대로 둔다.
 
 `content`가 없거나 `null`이면 서버는 빈 문자열로 정규화해 저장한다.
 
