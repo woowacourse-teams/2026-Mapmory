@@ -18,15 +18,20 @@ class IosSavedPhotoPreviewWriter(
 ) : SavedPhotoPreviewWriter {
     override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray): Boolean {
         val startedAt = NSDate().timeIntervalSinceReferenceDate
-        // Decoding and encoding run off the main thread, one photo at a time, during the upload.
-        val preview = withContext(Dispatchers.Default) {
-            originalBytes.iosPhotoData().photoDisplayJpeg(SavedPreviewSizePx)
+        // Decoding, encoding and the file writes run off the caller's thread, one photo at a time.
+        val written = withContext(Dispatchers.Default) {
+            val preview = originalBytes.iosPhotoData().photoDisplayJpeg(SavedPreviewSizePx)
+                ?: return@withContext null
+            cache.write(objectKey, preview)
+            // IosPhotoPreviewCache.write fails silently; report a replacement only if the file landed,
+            // otherwise the caller keeps its own preview.
+            if (cache.read(objectKey)?.size != preview.size) return@withContext null
+            cache.write(localId, preview)
+            preview.size
         } ?: return false
-        cache.write(localId, preview)
-        cache.write(objectKey, preview)
         if (Platform.isDebugBinary) {
             val elapsed = ((NSDate().timeIntervalSinceReferenceDate - startedAt) * 1000).toLong()
-            NSLog("MapmoryPhotoPerf saved_preview_ms=$elapsed bytes=${preview.size}")
+            NSLog("MapmoryPhotoPerf saved_preview_ms=$elapsed bytes=$written")
         }
         return true
     }

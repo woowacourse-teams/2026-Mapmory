@@ -433,6 +433,40 @@ class UploadingTripRecordRepositoryTest {
 
         assertEquals(0, writes)
     }
+
+    @Test
+    fun aRetriedEditKeepsTheLargePreviewOfAPhotoUploadedInTheFailedAttempt() = runBlocking {
+        // #686 review: photo 0 is uploaded and its preview rebuilt, then photo 1 fails. On the retry
+        // photo 0 is skipped as an already completed transfer, so it must not hand on its small preview.
+        val completed = mutableMapOf<String, String>()
+        var failPhotoOne = true
+        val repository = UploadingTripRecordRepository(
+            uploader = object : PhotoUploader {
+                override suspend fun completedObjectKey(localId: String) = completed[localId]
+                override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> {
+                    val source = sources.single()
+                    if (source.localId.endsWith("/1") && failPhotoOne) {
+                        return Result.failure(IllegalStateException("offline"))
+                    }
+                    val objectKey = "travel-records/10/uploaded-${source.localId.substringAfterLast('/')}.jpg"
+                    completed[source.localId] = objectKey
+                    return Result.success(listOf(UploadedPhoto(source, objectKey)))
+                }
+                override suspend fun forget(localIds: List<String>) {
+                    localIds.forEach(completed::remove)
+                }
+            },
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = SavedPhotoPreviewWriter { _, _, _ -> true },
+        )
+        val draft = draftWithPhotos("retry", listOf(byteArrayOf(1), byteArrayOf(2)))
+
+        assertTrue(repository.updateTripRecord(101, draft).isFailure)
+        failPhotoOne = false
+        val record = repository.updateTripRecord(101, draft).getOrThrow()
+
+        assertTrue(record.media.all { it.previewBytes == null })
+    }
 }
 
 private class CapturingTripRecordRepository : TripRecordRepository {

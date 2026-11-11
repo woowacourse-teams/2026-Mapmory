@@ -26,6 +26,10 @@ internal class UploadingTripRecordRepository(
     private val savedPreviewWriter: SavedPhotoPreviewWriter? = null,
 ) : ProgressReportingTripRecordRepository {
     private val mediaCacheMutex = Mutex()
+
+    // Photos whose device preview was rebuilt from an upload in an earlier attempt. A retry skips their
+    // completed transfer and has no original, so it must still not hand on their small preview (#686).
+    private val previewReplacedLocalIds = mutableSetOf<String>()
     private val cachedRecordById = mutableMapOf<Long, TripRecordData>()
     private val cachedRecordOrder = mutableListOf<Long>()
 
@@ -96,6 +100,7 @@ internal class UploadingTripRecordRepository(
         if (firstResult.isSuccess || !draft.canRetryWithFreshObjectKeys(firstResult.exceptionOrNull())) {
             if (firstResult.isSuccess) {
                 uploader.forget(draft.mediaObjectKeys)
+                forgetReplacedPreviews(draft.mediaObjectKeys)
                 draft.mediaObjectKeys.forEach { localPhotoDataSource?.release(it) }
                 onProgress(100)
             }
@@ -103,10 +108,12 @@ internal class UploadingTripRecordRepository(
         }
 
         uploader.forget(draft.mediaObjectKeys)
+        forgetReplacedPreviews(draft.mediaObjectKeys)
         val retried = prepareDraft(draft, onProgress).getOrElse { error -> return Result.failure(error) }
         val result = save(retried).withCachedMedia(retried.localMedia)
         if (result.isSuccess) {
             uploader.forget(draft.mediaObjectKeys)
+            forgetReplacedPreviews(draft.mediaObjectKeys)
             draft.mediaObjectKeys.forEach { localPhotoDataSource?.release(it) }
             onProgress(100)
         }
@@ -127,6 +134,7 @@ internal class UploadingTripRecordRepository(
         pendingKeys.forEachIndexed { index, key ->
             uploader.completedObjectKey(key)?.let { objectKey ->
                 objectKeyByLocalId[key] = objectKey
+                if (mediaCacheMutex.withLock { key in previewReplacedLocalIds }) replacedPreviewLocalIds += key
                 onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
                 return@forEachIndexed
             }
@@ -167,7 +175,10 @@ internal class UploadingTripRecordRepository(
             }
             objectKeyByLocalId[key] = upload.objectKey
             // The original is only in memory now; it is released once the record is saved (#686).
-            if (writeSavedPreview(key, upload.objectKey, bytes)) replacedPreviewLocalIds += key
+            if (writeSavedPreview(key, upload.objectKey, bytes)) {
+                replacedPreviewLocalIds += key
+                mediaCacheMutex.withLock { previewReplacedLocalIds += key }
+            }
             onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
         }
 
@@ -188,6 +199,11 @@ internal class UploadingTripRecordRepository(
                 },
             ),
         )
+    }
+
+    private suspend fun forgetReplacedPreviews(localIds: List<String>) {
+        if (savedPreviewWriter == null) return
+        mediaCacheMutex.withLock { previewReplacedLocalIds -= localIds.toSet() }
     }
 
     private suspend fun writeSavedPreview(localId: String, objectKey: String, original: ByteArray): Boolean {

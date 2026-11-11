@@ -41,4 +41,15 @@ class IosSavedPhotoPreviewWriterTest {
         assertContentEquals(byteArrayOf(1), cache.entries["local-id"])
         assertEquals(setOf("local-id"), cache.entries.keys)
     }
+
+    @Test
+    fun aCacheWriteThatDidNotLandIsNotReportedAsReplaced() = runBlocking {
+        // IosPhotoPreviewCache.write returns silently on failure; the caller must then keep its own preview.
+        val cache = object : PhotoPreviewCache {
+            override suspend fun read(objectKey: String): ByteArray? = null
+            override suspend fun write(objectKey: String, bytes: ByteArray) = Unit
+        }
+
+        assertFalse(IosSavedPhotoPreviewWriter(cache).write("local-id", "travel-records/1/a.jpg", IosPhotoFixtures.rotatedHeic))
+    }
 }
