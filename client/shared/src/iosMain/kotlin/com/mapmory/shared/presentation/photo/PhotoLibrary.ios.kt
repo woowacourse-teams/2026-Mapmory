@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.mapmory.shared.data.media.originalPhotoDate
 import com.mapmory.shared.data.media.photoDisplayJpeg
+import com.mapmory.shared.data.media.iosPhotoData
 import com.mapmory.shared.data.media.loadIosAssetPhotoPreview
 import com.mapmory.shared.data.media.IosLocalPhotoDataSource
 import com.mapmory.shared.data.media.LocalPhotoDataSource
@@ -22,6 +23,7 @@ import platform.Foundation.NSError
 import platform.Photos.PHImageErrorKey
 import platform.Photos.PHImageCancelledKey
 import platform.Photos.PHImageResultIsDegradedKey
+import platform.Photos.PHImageResultIsInCloudKey
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.media.cacheIosPickerPhoto
 import com.mapmory.shared.data.media.isIosLocalPhotoAvailable
@@ -53,6 +55,8 @@ import platform.Photos.PHImageManager
 import platform.Photos.PHImageContentModeAspectFit
 import platform.Photos.PHImageRequestOptions
 import platform.Photos.PHImageRequestOptionsDeliveryModeHighQualityFormat
+import platform.Photos.PHImageRequestOptionsDeliveryModeOpportunistic
+import platform.Photos.PHImageRequestOptionsResizeModeExact
 import platform.Photos.PHImageRequestOptionsVersionCurrent
 import platform.Photos.PHPhotoLibrary
 import platform.PhotosUI.PHPickerConfiguration
@@ -63,6 +67,7 @@ import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationDidBecomeActiveNotification
 import platform.UIKit.UIApplicationOpenSettingsURLString
+import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
@@ -106,6 +111,7 @@ actual fun rememberPhotoLibraryActions(
         onDispose {
             controller.stopObservingAppActivity()
             controller.cancelFullResolutionPreview()
+            controller.cancelCoverPreview()
         }
     }
 
@@ -120,6 +126,9 @@ actual fun rememberPhotoLibraryActions(
             prepareForAdding = controller::prepareForAdding,
             loadFullResolutionPreview = controller::loadFullResolutionPreview,
             cancelFullResolutionPreview = controller::cancelFullResolutionPreview,
+            loadCoverPreview = controller::loadCoverPreview,
+            cancelCoverPreview = controller::cancelCoverPreview,
+            coverPreviewSupported = true,
             cancelRecommendation = controller::cancelRecommendation,
             openAppSettings = controller::openAppSettings,
         )
@@ -169,6 +178,9 @@ internal class IosPhotoLibraryController(
     private var fullResolutionRequestId: Int? = null
     private var fullResolutionJob: Job? = null
     private var fullResolutionGeneration = 0
+    private var coverRequestId: Int? = null
+    private var coverJob: Job? = null
+    private var coverGeneration = 0
     private var recommendationGeneration = 0
     private var recommendationSession: IosRecommendationSession? = null
     var excludedPhotoIds: Set<String> = emptySet()
@@ -548,7 +560,12 @@ internal class IosPhotoLibraryController(
     ) {
         val startIndex = session.nextIndex
         val endIndex = (startIndex + PhotoRecommendationPageSize).coerceAtMost(session.assets.size)
+        val startedAtMillis = nowMillis()
         loadAssetPreviews(session.assets.subList(startIndex, endIndex)) { photos ->
+            logPhotoPerformance(
+                "page_ms=${elapsedMillis(startedAtMillis)} photos=${photos.size} " +
+                    "page_index=${startIndex / PhotoRecommendationPageSize}",
+            )
             completion(
                 IosRecommendationPage(
                     generation = session.generation,
@@ -593,7 +610,8 @@ internal class IosPhotoLibraryController(
             }
             val date = data.originalPhotoDate()
             if (date == null) photoFailure("capture_date_missing")
-            val previewBytes = data.photoDisplayJpeg(RecommendationPreviewSizePx)
+            // The picker already delivered the data, so a smaller preview would cost quality for no speed.
+            val previewBytes = data.photoDisplayJpeg(PickerDataPreviewSizePx)
             val localId = if (previewBytes != null) cacheIosPickerPhoto(data) else null
             if (previewBytes != null && localId == null) photoFailure("original_cache")
             if (previewBytes == null) photoFailure("picker_thumbnail")
@@ -639,14 +657,16 @@ internal class IosPhotoLibraryController(
 
     private fun loadAssetPreview(asset: PHAsset, completion: (SelectedPhoto?) -> Unit) {
         val cacheKey = asset.localRecommendationPreviewCacheKey()
+        val startedAtMillis = nowMillis()
         scope.launch {
             val cachedPreview = withContext(Dispatchers.Default) {
                 previewCache.read(cacheKey)
             }
             if (cachedPreview != null) {
+                logPhotoPerformance("preview_ms=${elapsedMillis(startedAtMillis)} source=cache")
                 onMain { completion(asset.toSelectedPhoto(cachedPreview)) }
             } else {
-                requestAssetPreview(asset, cacheKey, completion)
+                requestAssetPreview(asset, cacheKey, startedAtMillis, completion)
             }
         }
     }
@@ -654,14 +674,22 @@ internal class IosPhotoLibraryController(
     private fun requestAssetPreview(
         asset: PHAsset,
         cacheKey: String,
+        startedAtMillis: Long,
         completion: (SelectedPhoto?) -> Unit,
     ) {
+        // Opportunistic lets Photos answer from the on-device thumbnail instead of downloading
+        // the iCloud original that HighQualityFormat at 640px required (#681). Without network
+        // access the list never waits on iCloud: an optimized photo's final call has no image or is
+        // marked InCloud, and the local degraded thumbnail held from the earlier call is used.
         val options = PHImageRequestOptions().apply {
             version = PHImageRequestOptionsVersionCurrent
-            deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
-            networkAccessAllowed = true
+            deliveryMode = PHImageRequestOptionsDeliveryModeOpportunistic
+            networkAccessAllowed = false
         }
         var didComplete = false
+        // Handler calls arrive on the main thread (the first may run synchronously on the calling
+        // main thread), so this needs no extra synchronization.
+        var heldDegraded: UIImage? = null
         PHImageManager.defaultManager().requestImageForAsset(
             asset = asset,
             targetSize = CGSizeMake(
@@ -671,28 +699,57 @@ internal class IosPhotoLibraryController(
             contentMode = PHImageContentModeAspectFit,
             options = options,
         ) { image, info ->
-            if (info?.get(PHImageResultIsDegradedKey) == true) return@requestImageForAsset
-            val error = info?.get(PHImageErrorKey) as? NSError
-            if (image == null) photoFailure(
-                if (info?.get(PHImageCancelledKey) == true) "preview_cancelled" else "asset_preview", error)
-
-            val previewBytes = image
-                ?.let { UIImageJPEGRepresentation(it, PreviewJpegQuality) }
-                ?.toByteArray()
-            if (image != null && previewBytes == null) photoFailure("jpeg_encode")
+            val isCancelled = info?.get(PHImageCancelledKey) == true
+            val isDegraded = info?.get(PHImageResultIsDegradedKey) == true
+            if (isDegraded && image != null) heldDegraded = image
+            val result = classifyPhotoImageResult(
+                isDegraded = isDegraded,
+                isCancelled = isCancelled,
+                hasImage = image != null,
+                isInCloud = info?.get(PHImageResultIsInCloudKey) == true,
+                hasHeldDegraded = heldDegraded != null,
+            )
+            if (result == PhotoImageResult.WAIT) return@requestImageForAsset
+            if (result == PhotoImageResult.FAIL) {
+                photoFailure(
+                    if (isCancelled) "preview_cancelled" else "asset_preview",
+                    info?.get(PHImageErrorKey) as? NSError,
+                )
+            }
+            val finalImage = when (result) {
+                PhotoImageResult.DELIVER -> image
+                PhotoImageResult.DELIVER_DEGRADED -> heldDegraded
+                else -> null
+            }
+            val isDegradedPreview = result == PhotoImageResult.DELIVER_DEGRADED
             onMain {
                 if (didComplete) return@onMain
                 didComplete = true
                 scope.launch {
+                    val previewBytes = finalImage?.let { encodePreviewJpeg(it) }
+                    if (finalImage != null && previewBytes == null) photoFailure("jpeg_encode")
                     // Recommendation results have no PHPicker provider; retry their original resource.
                     val availablePreview = previewBytes ?: loadAssetOriginalPreview(asset)
+                    val source = when {
+                        previewBytes == null -> "original_retry"
+                        isDegradedPreview -> "degraded"
+                        else -> "photokit"
+                    }
+                    logPhotoPerformance("preview_ms=${elapsedMillis(startedAtMillis)} source=$source")
                     completion(availablePreview?.let(asset::toSelectedPhoto))
-                    if (availablePreview != null) withContext(Dispatchers.Default) {
+                    // A degraded thumbnail is not cached under the 256px key, so a later request
+                    // can still get the full preview once the photo is available locally.
+                    if (availablePreview != null && !isDegradedPreview) withContext(Dispatchers.Default) {
                         previewCache.write(cacheKey, availablePreview)
                     }
                 }
             }
         }
+    }
+
+    /** JPEG encoding stays off the main thread; Photos delivers async results on the main queue. */
+    private suspend fun encodePreviewJpeg(image: UIImage): ByteArray? = withContext(Dispatchers.Default) {
+        UIImageJPEGRepresentation(image, PreviewJpegQuality)?.toByteArray()
     }
 
     private suspend fun loadAssetOriginalPreview(asset: PHAsset): ByteArray? = try {
@@ -774,6 +831,96 @@ internal class IosPhotoLibraryController(
         fullResolutionRequestId = null
     }
 
+    /**
+     * Requests only the chosen cover photo at [CoverPreviewSizePx]. A newer request or
+     * [cancelCoverPreview] invalidates older results, so a late photo never replaces the current one.
+     */
+    fun loadCoverPreview(
+        photo: SelectedPhoto,
+        completion: (ByteArray?) -> Unit,
+    ) {
+        cancelCoverPreview()
+        val generation = coverGeneration
+        val startedAtMillis = nowMillis()
+        fun deliver(bytes: ByteArray?) {
+            if (generation != coverGeneration) return
+            coverRequestId = null
+            coverJob = null
+            logPhotoPerformance(
+                "cover_preview_ms=${elapsedMillis(startedAtMillis)} loaded=${bytes != null}",
+            )
+            completion(bytes)
+        }
+        // Picker fallback IDs point at our original cache, not at PHAsset identifiers.
+        if (photo.id.startsWith("mapmory-cache://")) {
+            coverJob = scope.launch {
+                val bytes = try {
+                    withContext(Dispatchers.Default) {
+                        localPhotoDataSource.read(photo.id)
+                            ?.iosPhotoData()
+                            ?.photoDisplayJpeg(CoverPreviewSizePx)
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    analytics.reportFailure("photo_cover_preview", error)
+                    null
+                }
+                if (bytes == null) photoFailure("cached_cover_preview")
+                deliver(bytes)
+            }
+            return
+        }
+        val asset = assetForIdentifier(photo.id) ?: run {
+            deliver(null)
+            return
+        }
+        // One photo only, so HighQualityFormat's single callback is worth an iCloud download.
+        // Exact keeps the result within 1080px; Fast may deliver a larger subsampled original.
+        val options = PHImageRequestOptions().apply {
+            version = PHImageRequestOptionsVersionCurrent
+            deliveryMode = PHImageRequestOptionsDeliveryModeHighQualityFormat
+            resizeMode = PHImageRequestOptionsResizeModeExact
+            networkAccessAllowed = true
+        }
+        coverRequestId = PHImageManager.defaultManager().requestImageForAsset(
+            asset = asset,
+            targetSize = CGSizeMake(CoverPreviewSizePx.toDouble(), CoverPreviewSizePx.toDouble()),
+            contentMode = PHImageContentModeAspectFit,
+            options = options,
+        ) { image, info ->
+            val isCancelled = info?.get(PHImageCancelledKey) == true
+            val result = classifyPhotoImageResult(
+                isDegraded = info?.get(PHImageResultIsDegradedKey) == true,
+                isCancelled = isCancelled,
+                hasImage = image != null,
+            )
+            if (result == PhotoImageResult.WAIT) return@requestImageForAsset
+            // Our own cancellations already bumped coverGeneration and are dropped below. A cancel
+            // from Photos itself still completes with null so the screen stops waiting for it.
+            if (result == PhotoImageResult.FAIL && !isCancelled) {
+                photoFailure("cover_preview", info?.get(PHImageErrorKey) as? NSError)
+            }
+            val finalImage = image.takeIf { result == PhotoImageResult.DELIVER }
+            onMain {
+                if (generation != coverGeneration) return@onMain
+                coverJob = scope.launch {
+                    val bytes = finalImage?.let { encodePreviewJpeg(it) }
+                    if (finalImage != null && bytes == null) photoFailure("cover_jpeg_encode")
+                    deliver(bytes)
+                }
+            }
+        }
+    }
+
+    fun cancelCoverPreview() {
+        ++coverGeneration
+        coverJob?.cancel()
+        coverJob = null
+        coverRequestId?.let { PHImageManager.defaultManager().cancelImageRequest(it) }
+        coverRequestId = null
+    }
+
     private fun assetForIdentifier(identifier: String): PHAsset? =
         PHAsset.fetchAssetsWithLocalIdentifiers(listOf(identifier), null).firstObject as? PHAsset
 }
@@ -843,7 +990,10 @@ private fun logPhotoPerformance(message: String) {
     }
 }
 
-private const val RecommendationPreviewSizePx = 640
+// Grid cells only need the on-device thumbnail; 640px forced iCloud downloads (#681).
+private const val RecommendationPreviewSizePx = 256
+private const val CoverPreviewSizePx = 1080
+private const val PickerDataPreviewSizePx = 640
 private const val PreviewJpegQuality = 0.85
 private const val IosProgressUpdateInterval = 25
 private fun Long.toPermissionIssue(): PhotoLibraryPermissionIssue =
