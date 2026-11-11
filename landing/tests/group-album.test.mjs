@@ -121,15 +121,17 @@ test("direction 다: a quiet hero whose words sit in a left column on wide scree
   // the column is centred between the header and the foot: the title follows the window's height, sooner with the QR
   assert.match(side, /\.wall-hero h1 \{ font-size: clamp\(34px, min\(5vw, 28\.7svh - 122px\), 72px\); \}/);
   assert.match(hero, /@media \(min-width: 1100px\) and \(min-height: 700px\) and \(hover: hover\) and \(pointer: fine\) \{ \.wall-hero h1 \{ font-size: clamp\(34px, min\(5vw, 28\.7svh - 140px\), 72px\); \} \}/);
-  assert.match(styles, /@media \(min-width: 1100px\) \{ \.hero-store \{ justify-content: flex-start; \} \}/);
   // the engine keeps the lens, the taps and a picked place's photos in the open part beside the words
   assert.match(engine, /side = style\.getPropertyValue\("--hero-side"\)\.trim\(\) === "1";/);
   assert.match(engine, /headerSpace = parseFloat\(style\.getPropertyValue\("--header-space"\)\) \|\| 84;/); // the grid starts under the header the CSS sets
   assert.match(engine, /placeReadable\(kept, \{ x0: open, y0: headerSpace \+ 24, x1: W - edge, y1: H - edge \}, gap, 132, readable\);/);
-  assert.match(engine, /if \(side\) lens\.tx = Math\.max\(lens\.tx, open \+ 40\);/);
+  assert.match(engine, /if \(side\) lens\.tx = Math\.max\(lens\.tx, open \+ ts\);/);
   // a wall photo that reaches into the words' column is never lit, labelled or tapped (review 2026-11-11: lit photos
   // sat on the QR caption, and unpicking flashed photos across the column)
-  assert.match(engine, /const inColumn = \(t\) => side && t\.x < open;/);
+  assert.match(engine, /const inColumn = \(t\) => \{\n\s*if \(side\) return t\.x < open;/);
+  // centred, the photos under a line of plain text (review 2026-11-11: lit photos and labels sat on the QR caption and the kicker)
+  assert.match(engine, /const TEXT_PARTS = "\.wall-hero-kicker, \.wall-hero h1, \.wall-hero-diff, \.hero-qr, \.wall-hero-ask";/);
+  assert.match(engine, /return texts\.some\(/);
   assert.match(engine, /const target = pick \? keep : inColumn\(t\) \? 0 : inLens;/);
   assert.match(engine, /if \(pick \? keep : t\.v > 0\.3 && !inColumn\(t\)\) top\.push\(item\); else paint\(item\);/);
   assert.match(engine, /if \(!pick && !inColumn\(t\) && d < hitD/);
@@ -141,7 +143,13 @@ test("direction 다: a quiet hero whose words sit in a left column on wide scree
 test("direction 다: the centred hero keeps its words under the header in short windows", async () => {
   const hero = await read("../src/photo-story.css");
   // the words never rise above the header: they move down instead (the hero is 100svh, at least 560px)
-  assert.match(hero, /\.wall-hero-copy \{ --hero-lift: -54%;[^}]*transform: translate\(-50%, var\(--hero-lift\)\); transform: translate\(-50%, max\(var\(--hero-lift\), calc\(var\(--header-space\) \+ 8px - max\(50svh, 280px\)\)\)\);/);
+  assert.match(hero, /\.wall-hero-copy \{ --hero-lift: -54%;[^}]*transform: translate\(-50%, var\(--hero-lift\)\); width/);
+  // the clamp uses svh, so it sits behind @supports: inside var() an unknown unit would turn the whole transform off
+  assert.match(hero, /@supports \(height: 1svh\) \{ \.wall-hero-copy \{ transform: translate\(-50%, max\(var\(--hero-lift\), calc\(var\(--header-space\) \+ 8px - max\(50svh, 280px\)\)\)\); \} \}/);
+  // see-through chips and link patch only where color-mix works; solid otherwise
+  assert.match(hero, /\.wall-hero-chips button \{[^}]*background: var\(--surface\);/);
+  assert.match(hero, /@supports \(background: color-mix\(in srgb, red 50%, transparent\)\) \{\n\s*\.wall-hero-chips button \{ background: color-mix/);
+  assert.doesNotMatch(hero.replace(/@supports \(background: color-mix[\s\S]*?\n\}/, ""), /color-mix/);
   assert.match(hero, /@media \(max-width: 760px\) \{\n\s*\.wall-hero-copy \{ --hero-lift: -60%; \}/);
   // between the phone layout and the side layout the title follows the window's height (review 2026-11-11: at
   // 1000x560 the kicker sat behind the header after a pick)

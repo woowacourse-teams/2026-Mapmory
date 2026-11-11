@@ -592,7 +592,6 @@ footer p { margin: 10px 0 0; }
 /* 2026-11-10 GA4 round: one own-store button on phones, a QR beside the buttons on computers (see HeroStoreActions).
    The QR keeps its own white quiet zone and square corners so cameras read it in the dark theme too. */
 .hero-store { display: flex; align-items: center; justify-content: center; gap: 24px; }
-@media (min-width: 1100px) { .hero-store { justify-content: flex-start; } }
 .hero-store .store-buttons.is-own { grid-template-columns: max-content; }
 .hero-store .store-buttons.is-own .button-store { min-width: 220px; min-height: 52px; font-size: 16px; }
 .hero-qr { display: none; margin: 0; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; line-height: 20px; font-weight: 400; text-align: left; white-space: nowrap; }
@@ -608,7 +607,6 @@ footer p { margin: 10px 0 0; }
 @media (min-width: 1000px) {
   .trust-section { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); column-gap: 56px; align-items: start; }
   .trust-section .section-heading { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 120px; max-width: none; margin: 0; }
-  .trust-section .section-heading h2 { text-wrap: balance; }
   .trust-section .trust-flow, .trust-section .faq-list { grid-column: 2; max-width: none; margin-left: 0; margin-right: 0; }
   .download-section { padding: 72px 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); column-gap: 56px; align-items: center; text-align: left; }
   .download-section h2 { grid-column: 1; grid-row: 1 / span 3; }

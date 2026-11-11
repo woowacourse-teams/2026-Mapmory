@@ -22,19 +22,29 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
   // 2026-11-10 (direction 다): on wide screens the CSS puts the words in a left column (--hero-side: 1). The wall is
   // then cleared from the left edge to past the words, and the lens, the taps and a picked place's photos stay in
   // the open part on the right (`open` is where that part starts).
-  let side = false, open = 0, headerSpace = 84;
+  let side = false, open = 0, headerSpace = 84, texts = [];
+  // the plain lines of text in the words (kicker, title, line under the chips, QR and its caption, the ask link): they
+  // have no backing since direction 다, so the lens never lights or labels a photo under them
+  const TEXT_PARTS = ".wall-hero-kicker, .wall-hero h1, .wall-hero-diff, .hero-qr, .wall-hero-ask";
   const measureWords = () => {
     if (!copyEl) return;
     const c = copyEl.getBoundingClientRect(), r = canvas.getBoundingClientRect(), m = 14;
     words = { x0: c.left - r.left - m, y0: c.top - r.top - m, x1: c.right - r.left + m, y1: c.bottom - r.top + m };
+    texts = [...hero.querySelectorAll(TEXT_PARTS)].map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0)
+      .map((b) => ({ x0: b.left - r.left - 8, y0: b.top - r.top - 8, x1: b.right - r.left + 8, y1: b.bottom - r.top + 8 }));
     const style = getComputedStyle(hero);
     side = style.getPropertyValue("--hero-side").trim() === "1";
     headerSpace = parseFloat(style.getPropertyValue("--header-space")) || 84; // the header lies over the hero's top
     open = side ? Math.min(words.x1 + 24, W * 0.7) : 0;
   };
-  // in the side layout a wall photo that reaches into the words' column stays part of the plain page there: the lens
-  // does not light it, label it or let it be tapped (a picked place's photos still fly out of it)
-  const inColumn = (t) => side && t.x < open;
+  // a wall photo the words cover stays part of the plain page: the lens does not light it, label it or let it be
+  // tapped (a picked place's photos still fly out of it). In the side layout that is everything reaching into the
+  // words' column; centred, the photos under a line of text (a lit photo can grow by 16%, hence the margin).
+  const inColumn = (t) => {
+    if (side) return t.x < open;
+    const g = t.s * 0.1;
+    return texts.some((b) => t.x - g < b.x1 && t.x + t.s + g > b.x0 && t.y - g < b.y1 && t.y + t.s + g > b.y0);
+  };
 
   // a chosen place's photos rise out of the wall into a tidy grid where nothing covers them: under the words, or (on
   // desktop) on both sides of them when the band below is too low (2026-10-29: left in place, most of them sat under
@@ -129,10 +139,12 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       lens.tx = side ? open + (W - open) * (0.5 + 0.36 * Math.sin(t * 0.45)) : W * (0.5 + 0.36 * Math.sin(t * 0.45));
       lens.ty = H * (0.5 + 0.34 * Math.sin(t * 0.31 + 1.2));
     }
-    if (side) lens.tx = Math.max(lens.tx, open + 40); // a pointer over the words leaves the lens at the wall's edge
+    // a pointer over the words leaves the lens at the wall's edge, over the first column of photos that can light
+    const ts = tiles[0]?.s || 80;
+    if (side) lens.tx = Math.max(lens.tx, open + ts);
     const follow = reducedMotion ? 1 : 0.12;
     lens.x += (lens.tx - lens.x) * follow; lens.y += (lens.ty - lens.y) * follow;
-    const LR = W < 520 ? 92 : 150, k = pick ? (reducedMotion ? 1 : easeOut(clamp((now - pickAt) / 700))) : 0;
+    const LR = W < 520 ? 92 : Math.max(150, ts * 1.1), k = pick ? (reducedMotion ? 1 : easeOut(clamp((now - pickAt) / 700))) : 0;
     let hit = null, hitD = 1e9, settling = k < 1 && !!pick;
     const top = [];
     for (const t of tiles) {
@@ -142,6 +154,8 @@ export function mountHeroWall(hero, canvas, { reducedMotion = false, onPick } = 
       const target = pick ? keep : inColumn(t) ? 0 : inLens;
       t.v = reducedMotion ? target : t.v + (target - t.v) * 0.14;
       if (Math.abs(target - t.v) > 0.01) settling = true;
+      // under the opaque part of the side clearing a photo cannot be seen: skip drawing it (about 40% of the wall)
+      if (side && t.x + t.s < open - 200 && !(pick && keep)) { t.at = null; continue; }
       // a calm wall: photos sit dim; the lens (or a chosen place) brings them up
       const dotK = pick && !keep ? k : 0;
       if (dotK > 0.98) { t.at = null; ctx.globalAlpha = 0.7; ctx.fillStyle = tok["ps-dot"]; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, 7); ctx.fill(); continue; }
