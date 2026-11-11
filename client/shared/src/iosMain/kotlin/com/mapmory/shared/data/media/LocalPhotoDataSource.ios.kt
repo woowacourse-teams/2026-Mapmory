@@ -1,4 +1,7 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(
+    kotlinx.cinterop.ExperimentalForeignApi::class,
+    kotlin.experimental.ExperimentalNativeApi::class,
+)
 
 package com.mapmory.shared.data.media
 
@@ -7,8 +10,22 @@ import kotlinx.cinterop.usePinned
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSURL
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import platform.Foundation.NSDate
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.timeIntervalSinceNow
+import platform.Foundation.NSLog
+import platform.Network.nw_path_is_constrained
+import platform.Network.nw_path_monitor_create
+import platform.Network.nw_path_monitor_set_queue
+import platform.Network.nw_path_monitor_set_update_handler
+import platform.Network.nw_path_monitor_start
+import platform.darwin.dispatch_queue_create
+import kotlin.native.Platform
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
@@ -25,7 +42,37 @@ import platform.Photos.PHAssetResourceTypePhoto
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class IosLocalPhotoDataSource : LocalPhotoDataSource {
+class IosLocalPhotoDataSource : LocalPhotoDataSource, OriginalPhotoPrefetcher {
+    init {
+        // Start watching early so the first prefetch already knows about Low Data Mode.
+        IosNetworkConditions.start()
+    }
+
+    override fun prefetch(localIds: List<String>) {
+        // PHPicker fallback photos are already on the device.
+        val assetIds = localIds.filterNot { it.startsWith(IosPendingPhotoPrefix) }
+        if (assetIds.isEmpty()) return
+        if (!shouldPrefetchOriginals(lowDataMode = IosNetworkConditions.isLowDataMode)) {
+            logPhotoPerformance("prefetch_skipped reason=low_data_mode photos=${assetIds.size}")
+            // Still record the selection so an earlier release keeps originals already downloaded.
+            iosOriginalPrefetchQueue.markSelected(assetIds)
+            return
+        }
+        iosOriginalPrefetchQueue.prefetch(assetIds)
+    }
+
+    override fun pruneCache(keep: Set<String>) {
+        iosOriginalPrefetchScope.launch { pruneIosOriginalCache(keep) }
+    }
+
+    override fun releasePrefetched(localIds: Set<String>) {
+        // Only originals this prefetcher downloaded; picker files belong to the save flow.
+        val assetIds = localIds.filterNot { it.startsWith(IosPendingPhotoPrefix) }.toSet()
+        if (assetIds.isEmpty()) return
+        // Queued in call order, so deselecting and reselecting quickly keeps the original.
+        iosOriginalPrefetchQueue.releaseLater(assetIds)
+    }
+
     override suspend fun release(localId: String) {
         if (localId.startsWith(IosPendingPhotoPrefix)) {
             val root = NSSearchPathForDirectoriesInDomains(
@@ -45,7 +92,7 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource {
             return
         }
         val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
-        val directory = "$root/mapmory-upload-originals"
+        val directory = "$root/$IosOriginalCacheDirectoryName"
         val prefix = "$localId:".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
         val manager = NSFileManager.defaultManager
         manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()
@@ -77,44 +124,148 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource {
                 ?.takeIf(ByteArray::isNotEmpty)
         }
 
-        val asset = PHAsset.fetchAssetsWithLocalIdentifiers(listOf(localId), null)
-            .firstObject as? PHAsset
-            ?: return null
-        val resources = PHAssetResource.assetResourcesForAsset(asset)
-            .filterIsInstance<PHAssetResource>()
-        val resource = resources.firstOrNull { it.type == PHAssetResourceTypePhoto }
-            ?: resources.firstOrNull()
-            ?: return null
-
-        val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
-        val directory = "$root/mapmory-upload-originals"
-        val manager = NSFileManager.defaultManager
-        if (!manager.createDirectoryAtPath(directory, true, null, null)) return null
-        val version = asset.modificationDate?.timeIntervalSinceReferenceDate ?: 0.0
-        val key = "$localId:$version".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
-        val path = "$directory/$key"
-        if (!manager.fileExistsAtPath(path)) {
-            val temporary = "$directory/${NSUUID().UUIDString}.part"
-            val success = suspendCoroutine<Boolean> { continuation ->
-                PHAssetResourceManager.defaultManager().writeDataForAssetResource(
-                    resource,
-                    toFile = NSURL.fileURLWithPath(temporary),
-                    options = PHAssetResourceRequestOptions().apply { networkAccessAllowed = true },
-                ) { error -> continuation.resume(error == null) }
-            }
-            if (!success) {
-                manager.removeItemAtPath(temporary, null)
-                return null
-            }
-            if (!manager.moveItemAtPath(temporary, path, null)) {
-                manager.removeItemAtPath(temporary, null)
-                if (!manager.fileExistsAtPath(path)) return null
-            }
-        }
+        val startedAtMillis = nowMillis()
+        // A prefetch already downloading this photo is awaited instead of starting a second download.
+        val waited = iosOriginalPrefetchQueue.awaitPrefetch(localId)
+        val original = ensureIosOriginalFile(localId) ?: return null
+        logPhotoPerformance(
+            "original_read_ms=${elapsedMillis(startedAtMillis)} source=" + when {
+                original.downloaded -> "download"
+                waited -> "prefetch_wait"
+                else -> "cache"
+            },
+        )
         return withContext(Dispatchers.Default) {
-            NSData.dataWithContentsOfFile(path)?.toByteArray()?.takeIf(ByteArray::isNotEmpty)
+            NSData.dataWithContentsOfFile(original.path)?.toByteArray()?.takeIf(ByteArray::isNotEmpty)
         }
     }
+}
+
+private class IosOriginalFile(val path: String, val downloaded: Boolean)
+
+/** Downloads the photo's original into the upload cache once; later calls reuse the file. */
+private suspend fun ensureIosOriginalFile(localId: String): IosOriginalFile? {
+    val asset = PHAsset.fetchAssetsWithLocalIdentifiers(listOf(localId), null)
+        .firstObject as? PHAsset
+        ?: return null
+    val resources = PHAssetResource.assetResourcesForAsset(asset)
+        .filterIsInstance<PHAssetResource>()
+    val resource = resources.firstOrNull { it.type == PHAssetResourceTypePhoto }
+        ?: resources.firstOrNull()
+        ?: return null
+
+    val directory = iosOriginalCacheDirectory() ?: return null
+    val manager = NSFileManager.defaultManager
+    val version = asset.modificationDate?.timeIntervalSinceReferenceDate ?: 0.0
+    val path = "$directory/${iosOriginalCacheFileName(localId, version)}"
+    var downloaded = false
+    if (!manager.fileExistsAtPath(path)) {
+        downloaded = true
+        val temporary = "$directory/${NSUUID().UUIDString}.part"
+        val success = suspendCoroutine<Boolean> { continuation ->
+            PHAssetResourceManager.defaultManager().writeDataForAssetResource(
+                resource,
+                toFile = NSURL.fileURLWithPath(temporary),
+                options = PHAssetResourceRequestOptions().apply { networkAccessAllowed = true },
+            ) { error -> continuation.resume(error == null) }
+        }
+        if (!success) {
+            manager.removeItemAtPath(temporary, null)
+            return null
+        }
+        if (!manager.moveItemAtPath(temporary, path, null)) {
+            manager.removeItemAtPath(temporary, null)
+            if (!manager.fileExistsAtPath(path)) return null
+        }
+    }
+    return IosOriginalFile(path, downloaded)
+}
+
+internal fun iosOriginalCacheDirectory(): String? {
+    val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
+    val directory = "$root/$IosOriginalCacheDirectoryName"
+    return directory.takeIf { NSFileManager.defaultManager.createDirectoryAtPath(it, true, null, null) }
+}
+
+/** Hex of "localId:version"; [IosLocalPhotoDataSource.release] matches files by the "localId:" prefix. */
+internal fun iosOriginalCacheFileName(localId: String, version: Double): String =
+    "$localId:$version".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+
+private fun iosOriginalCacheLocalId(fileName: String): String? {
+    if (fileName.length % 2 != 0) return null
+    val bytes = fileName.chunked(2).map { it.toIntOrNull(16)?.toByte() ?: return null }.toByteArray()
+    return bytes.decodeToString().substringBeforeLast(':', missingDelimiterValue = "").takeIf(String::isNotEmpty)
+}
+
+/**
+ * Removes originals left by flows that ended without onCleared (app killed) and interrupted downloads.
+ * Runs once at startup, keeping originals that restored background saves will read.
+ * A save whose original is missing downloads it again, so removing too much costs time, not data.
+ */
+internal suspend fun pruneIosOriginalCache(keep: Set<String>) = withContext(Dispatchers.Default) {
+    val directory = iosOriginalCacheDirectory() ?: return@withContext
+    val manager = NSFileManager.defaultManager
+    manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()?.forEach { fileName ->
+        val path = "$directory/$fileName"
+        val remove = if (fileName.endsWith(".part")) {
+            // Restored saves start downloading right away; only leftovers from earlier runs are stale.
+            isOlderThan(path, StalePartialDownloadSeconds)
+        } else {
+            iosOriginalCacheLocalId(fileName)?.let { it !in keep } ?: true
+        }
+        if (remove) manager.removeItemAtPath(path, null)
+    }
+}
+
+private fun isOlderThan(path: String, seconds: Double): Boolean {
+    val modified = NSFileManager.defaultManager.attributesOfItemAtPath(path, null)
+        ?.get(NSFileModificationDate) as? NSDate
+        ?: return false
+    return -modified.timeIntervalSinceNow > seconds
+}
+
+private const val StalePartialDownloadSeconds = 10.0 * 60.0
+
+private val iosOriginalPrefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+/** App-wide so a save reading through any IosLocalPhotoDataSource sees prefetches started elsewhere. */
+private val iosOriginalPrefetchQueue = OriginalPrefetchQueue(
+    scope = iosOriginalPrefetchScope,
+    download = { localId ->
+        val startedAtMillis = nowMillis()
+        val ok = ensureIosOriginalFile(localId) != null
+        logPhotoPerformance("prefetch_ms=${elapsedMillis(startedAtMillis)} ok=$ok")
+        ok
+    },
+    delete = { localId -> IosLocalPhotoDataSource().release(localId) },
+)
+
+/** Tracks Low Data Mode (NWPath.isConstrained) for the original prefetch policy. */
+private object IosNetworkConditions {
+    @kotlin.concurrent.Volatile
+    private var constrained = false
+
+    // Held for the app's lifetime; a released monitor stops delivering path updates.
+    private val monitor = nw_path_monitor_create().also { monitor ->
+        nw_path_monitor_set_update_handler(monitor) { path -> constrained = nw_path_is_constrained(path) }
+        nw_path_monitor_set_queue(monitor, dispatch_queue_create("com.mapmory.network-conditions", null))
+        nw_path_monitor_start(monitor)
+    }
+
+    val isLowDataMode: Boolean get() = constrained
+
+    /** Object initialization starts the monitor exactly once. */
+    fun start() {
+        monitor
+    }
+}
+
+private fun nowMillis(): Long = (NSDate().timeIntervalSinceReferenceDate * 1000.0).toLong()
+
+private fun elapsedMillis(startedAtMillis: Long): Long = (nowMillis() - startedAtMillis).coerceAtLeast(0L)
+
+private fun logPhotoPerformance(message: String) {
+    if (Platform.isDebugBinary) NSLog("MapmoryPhotoPerf $message")
 }
 
 internal fun cacheIosPickerPhoto(data: NSData): String? {
@@ -158,4 +309,5 @@ private fun NSData.toByteArray(): ByteArray {
 }
 
 private const val IosPendingPhotoPrefix = "mapmory-cache://"
+private const val IosOriginalCacheDirectoryName = "mapmory-upload-originals"
 private const val IosPendingPhotoDirectory = "mapmory-pending-photos"

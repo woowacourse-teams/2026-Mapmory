@@ -136,6 +136,7 @@ private class DefaultMapmoryViewModelFactory(
     private val thumbnailLoader: TripRecordThumbnailLoader?,
     private val onTripRecordsChanged: () -> Unit,
     private val backgroundTripRecordSaver: BackgroundTripRecordSaver,
+    private val originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher?,
 ) : MapmoryViewModelFactory {
     override fun createMapViewModel(): MapViewModel = MapViewModel(
         mapSummaryRepository = mapSummaryRepository,
@@ -174,6 +175,7 @@ private class DefaultMapmoryViewModelFactory(
             getTags = GetTagsUseCase(tagRepository),
             createTag = CreateTagUseCase(tagRepository),
             backgroundTripRecordSaver = backgroundTripRecordSaver,
+            originalPhotoPrefetcher = originalPhotoPrefetcher,
             recordedPhotoIndex = recordedPhotoIndex,
             placeRepository = placeRepository,
         )
@@ -197,6 +199,7 @@ private class DefaultAppContainer(
     backgroundSaveExecution: BackgroundSaveExecution,
     private val onClose: () -> Unit,
     localPhotoDataSource: LocalPhotoDataSource?,
+    private val originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher?,
     analytics: MapmoryAnalytics,
     override val accountSession: com.mapmory.shared.data.auth.AccountSession?,
     override val groupRepository: com.mapmory.shared.domain.repository.GroupRepository?,
@@ -247,6 +250,8 @@ private class DefaultAppContainer(
     )
 
     init {
+        // The saver restored its queue above; anything else in the original cache was abandoned.
+        originalPhotoPrefetcher?.pruneCache(keep = backgroundTripRecordSaver.pendingPhotoIds.value)
         (accountSession as? GuestSessionManager)?.apply {
             val clearOtherCaches = onAccountChanged
             onAccountChanged = {
@@ -272,6 +277,7 @@ private class DefaultAppContainer(
         thumbnailLoader = thumbnailLoader,
         onTripRecordsChanged = notifyTripRecordsChanged,
         backgroundTripRecordSaver = backgroundTripRecordSaver,
+        originalPhotoPrefetcher = originalPhotoPrefetcher,
     )
 
     override fun close() {
@@ -305,6 +311,8 @@ fun createAppContainer(
     placeRepository: PlaceRepository? = null,
     onClose: () -> Unit = {},
     localPhotoDataSource: LocalPhotoDataSource? = null,
+    /** 저장 전에 원본을 미리 받는 플랫폼만 넘긴다(iOS). */
+    originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoRepository: ShareVideoRepository? = null,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
@@ -348,6 +356,7 @@ fun createAppContainer(
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
+        originalPhotoPrefetcher = originalPhotoPrefetcher,
         onClose = onClose,
         analytics = analytics,
         accountSession = accountSession,
@@ -432,6 +441,8 @@ fun createGuestRemoteAppContainer(
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
+    /** 저장 전에 원본을 미리 받는 플랫폼만 넘긴다(iOS). */
+    originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
@@ -454,6 +465,7 @@ fun createGuestRemoteAppContainer(
         shareVideoJobStore = shareVideoJobStore,
         albumShareStore = albumShareStore,
         localPhotoDataSource = localPhotoDataSource,
+        originalPhotoPrefetcher = originalPhotoPrefetcher,
         backgroundSaveExecution = backgroundSaveExecution,
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
@@ -474,6 +486,8 @@ internal fun createGuestRemoteAppContainer(
     onboardingPreference: OnboardingPreference = MemoryOnboardingPreference(),
     teamDevicePreference: TeamDevicePreference = MemoryTeamDevicePreference(),
     localPhotoDataSource: LocalPhotoDataSource? = null,
+    /** 저장 전에 원본을 미리 받는 플랫폼만 넘긴다(iOS). */
+    originalPhotoPrefetcher: com.mapmory.shared.data.media.OriginalPhotoPrefetcher? = null,
     backgroundSaveExecution: BackgroundSaveExecution = DirectBackgroundSaveExecution,
     onAuthRefreshFailed: (stage: String, error: Throwable) -> Unit = { _, _ -> },
     onClose: () -> Unit = client::close,
@@ -581,6 +595,7 @@ internal fun createGuestRemoteAppContainer(
         photoPreviewCache = photoPreviewCache,
         backgroundSaveExecution = backgroundSaveExecution,
         localPhotoDataSource = localPhotoDataSource,
+        originalPhotoPrefetcher = originalPhotoPrefetcher,
         onClose = { session.close(); onClose() },
         analytics = analytics,
     )
