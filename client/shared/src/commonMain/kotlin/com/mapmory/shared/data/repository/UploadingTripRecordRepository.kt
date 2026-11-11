@@ -1,6 +1,8 @@
 package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.media.LocalPhotoDataSource
+import com.mapmory.shared.data.media.SavedPhotoPreviewWriter
+import com.mapmory.shared.data.media.withoutReplacedPreviews
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
@@ -21,8 +23,13 @@ internal class UploadingTripRecordRepository(
     private val uploader: PhotoUploader,
     private val delegate: TripRecordRepository,
     private val localPhotoDataSource: LocalPhotoDataSource? = null,
+    private val savedPreviewWriter: SavedPhotoPreviewWriter? = null,
 ) : ProgressReportingTripRecordRepository {
     private val mediaCacheMutex = Mutex()
+
+    // Photos whose device preview was rebuilt from an upload in an earlier attempt. A retry skips their
+    // completed transfer and has no original, so it must still not hand on their small preview (#686).
+    private val previewReplacedLocalIds = mutableSetOf<String>()
     private val cachedRecordById = mutableMapOf<Long, TripRecordData>()
     private val cachedRecordOrder = mutableListOf<Long>()
 
@@ -93,6 +100,7 @@ internal class UploadingTripRecordRepository(
         if (firstResult.isSuccess || !draft.canRetryWithFreshObjectKeys(firstResult.exceptionOrNull())) {
             if (firstResult.isSuccess) {
                 uploader.forget(draft.mediaObjectKeys)
+                forgetReplacedPreviews(draft.mediaObjectKeys)
                 draft.mediaObjectKeys.forEach { localPhotoDataSource?.release(it) }
                 onProgress(100)
             }
@@ -100,10 +108,12 @@ internal class UploadingTripRecordRepository(
         }
 
         uploader.forget(draft.mediaObjectKeys)
+        forgetReplacedPreviews(draft.mediaObjectKeys)
         val retried = prepareDraft(draft, onProgress).getOrElse { error -> return Result.failure(error) }
         val result = save(retried).withCachedMedia(retried.localMedia)
         if (result.isSuccess) {
             uploader.forget(draft.mediaObjectKeys)
+            forgetReplacedPreviews(draft.mediaObjectKeys)
             draft.mediaObjectKeys.forEach { localPhotoDataSource?.release(it) }
             onProgress(100)
         }
@@ -116,6 +126,7 @@ internal class UploadingTripRecordRepository(
     ): Result<TripRecordDraft> {
         val mediaByLocalId = draft.localMedia.associateBy(TripRecordMediaDraft::objectKey)
         val objectKeyByLocalId = mutableMapOf<String, String>()
+        val replacedPreviewLocalIds = mutableSetOf<String>()
         val pendingKeys = draft.mediaObjectKeys.filterNot(draft.uploadedMediaObjectKeys::contains)
 
         if (pendingKeys.isEmpty()) onProgress(ServerSaveProgress)
@@ -123,6 +134,13 @@ internal class UploadingTripRecordRepository(
         pendingKeys.forEachIndexed { index, key ->
             uploader.completedObjectKey(key)?.let { objectKey ->
                 objectKeyByLocalId[key] = objectKey
+                // Rebuild even if replaced earlier in this session: a background save of the same draft
+                // rewrites the small preview under the local key before uploading (#693 review).
+                if (rebuildPreviewFromCompletedTransfer(key, objectKey) ||
+                    mediaCacheMutex.withLock { key in previewReplacedLocalIds }
+                ) {
+                    replacedPreviewLocalIds += key
+                }
                 onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
                 return@forEachIndexed
             }
@@ -162,6 +180,11 @@ internal class UploadingTripRecordRepository(
                 )
             }
             objectKeyByLocalId[key] = upload.objectKey
+            // The original is only in memory now; it is released once the record is saved (#686).
+            if (writeSavedPreview(key, upload.objectKey, bytes)) {
+                replacedPreviewLocalIds += key
+                mediaCacheMutex.withLock { previewReplacedLocalIds += key }
+            }
             onProgress(((index + 1) * ServerSaveProgress / pendingKeys.size).coerceAtMost(ServerSaveProgress))
         }
 
@@ -175,13 +198,49 @@ internal class UploadingTripRecordRepository(
                 uploadedMediaObjectKeys = draft.mediaObjectKeys
                     .map { key -> objectKeyByLocalId[key] ?: key }
                     .toSet(),
-                localMedia = draft.localMedia.map { media ->
+                localMedia = draft.localMedia.withoutReplacedPreviews(replacedPreviewLocalIds).map { media ->
                     objectKeyByLocalId[media.objectKey]
                         ?.let { objectKey -> media.copy(objectKey = objectKey) }
                         ?: media
                 },
             ),
         )
+    }
+
+    private suspend fun forgetReplacedPreviews(localIds: List<String>) {
+        if (savedPreviewWriter == null) return
+        mediaCacheMutex.withLock { previewReplacedLocalIds -= localIds.toSet() }
+    }
+
+    /**
+     * A completed transfer has no original bytes (relaunch, or a cancelled save whose OS upload finished),
+     * but its staged upload file stays until forget(); rebuild the preview from that file (#693).
+     */
+    private suspend fun rebuildPreviewFromCompletedTransfer(localId: String, objectKey: String): Boolean {
+        val writer = savedPreviewWriter ?: return false
+        val rebuilt = try {
+            val path = uploader.completedOriginalPath(localId) ?: return false
+            writer.writeFromFile(localId, objectKey, path)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A better preview is optional; the save must not fail because of it.
+            false
+        }
+        if (rebuilt) mediaCacheMutex.withLock { previewReplacedLocalIds += localId }
+        return rebuilt
+    }
+
+    private suspend fun writeSavedPreview(localId: String, objectKey: String, original: ByteArray): Boolean {
+        val writer = savedPreviewWriter ?: return false
+        return try {
+            writer.write(localId, objectKey, original)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A better preview is optional; the save must not fail because of it.
+            false
+        }
     }
 
     private suspend fun uploadWithRetry(source: PhotoUploadSource): Result<List<com.mapmory.shared.data.remote.UploadedPhoto>> {

@@ -1,6 +1,7 @@
 package com.mapmory.shared.data.repository
 
 import com.mapmory.shared.data.media.LocalPhotoDataSource
+import com.mapmory.shared.data.media.SavedPhotoPreviewWriter
 import com.mapmory.shared.data.remote.MapmoryApiException
 import com.mapmory.shared.data.remote.PhotoUploadSource
 import com.mapmory.shared.data.remote.PhotoUploader
@@ -19,6 +20,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class UploadingTripRecordRepositoryTest {
     @Test
@@ -349,6 +351,232 @@ class UploadingTripRecordRepositoryTest {
         assertEquals(0, detailRequestCount)
         assertNull(record.media.single().previewBytes)
         assertNull(record.media.single().originalBytes)
+    }
+
+    @Test
+    fun uploadedOriginalsReplaceTheSavedPreviewRightAfterEachUpload() = runBlocking {
+        // #686: the original is already in memory for the upload, so the device preview is rebuilt
+        // from it instead of keeping the 256px grid preview.
+        val written = mutableListOf<Triple<String, String, ByteArray>>()
+        val draft = draftWithPhotos("replace", listOf(byteArrayOf(1), byteArrayOf(2)))
+        val repository = UploadingTripRecordRepository(
+            uploader = indexedUploader(),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = SavedPhotoPreviewWriter { localId, objectKey, original ->
+                written += Triple(localId, objectKey, original)
+                true
+            },
+        )
+
+        val record = repository.createTripRecord(draft).getOrThrow()
+
+        assertEquals(
+            listOf(
+                "content://photo/0" to "travel-records/10/uploaded-0.jpg",
+                "content://photo/1" to "travel-records/10/uploaded-1.jpg",
+            ),
+            written.map { (localId, objectKey, _) -> localId to objectKey },
+        )
+        assertContentEquals(byteArrayOf(2), written[1].third)
+        // The small draft previews are not handed on, so the cache step cannot overwrite the large ones.
+        assertTrue(record.media.all { it.previewBytes == null })
+    }
+
+    @Test
+    fun aPhotoWhosePreviewWasNotReplacedKeepsItsDraftPreview() = runBlocking {
+        val draft = draftWithPhotos("partial", listOf(byteArrayOf(1), byteArrayOf(2)))
+        val repository = UploadingTripRecordRepository(
+            uploader = indexedUploader(),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = SavedPhotoPreviewWriter { localId, _, _ -> localId.endsWith("/0") },
+        )
+
+        val record = repository.createTripRecord(draft).getOrThrow()
+
+        assertNull(record.media[0].previewBytes)
+        assertContentEquals(byteArrayOf(2), record.media[1].previewBytes)
+    }
+
+    @Test
+    fun aFailingPreviewWriterNeverFailsTheSave() = runBlocking {
+        val draft = draftWithPhotos("writer fails", listOf(byteArrayOf(1)))
+        val repository = UploadingTripRecordRepository(
+            uploader = indexedUploader(),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = SavedPhotoPreviewWriter { _, _, _ -> error("encode failed") },
+        )
+
+        val record = repository.createTripRecord(draft).getOrThrow()
+
+        assertContentEquals(byteArrayOf(1), record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aCompletedBackgroundTransferHasNoOriginalSoItsPreviewIsNotRebuilt() = runBlocking {
+        var writes = 0
+        val repository = UploadingTripRecordRepository(
+            uploader = object : PhotoUploader {
+                override suspend fun completedObjectKey(localId: String) = "uploaded/recovered.jpg"
+                override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> =
+                    error("A completed transfer must not upload again")
+                override suspend fun forget(localIds: List<String>) = Unit
+            },
+            delegate = CapturingTripRecordRepository(),
+            localPhotoDataSource = LocalPhotoDataSource { error("A completed transfer must not read iCloud again") },
+            savedPreviewWriter = SavedPhotoPreviewWriter { _, _, _ -> writes += 1; true },
+        )
+
+        repository.updateTripRecord(1, TripRecordDraft(
+            locationId = 1, startDate = "2026-10-15", mediaObjectKeys = listOf("local-photo"),
+            localMedia = listOf(TripRecordMediaDraft("local-photo", 0, null)),
+        )).getOrThrow()
+
+        assertEquals(0, writes)
+    }
+
+    @Test
+    fun aRetriedEditKeepsTheLargePreviewOfAPhotoUploadedInTheFailedAttempt() = runBlocking {
+        // #686 review: photo 0 is uploaded and its preview rebuilt, then photo 1 fails. On the retry
+        // photo 0 is skipped as an already completed transfer, so it must not hand on its small preview.
+        val completed = mutableMapOf<String, String>()
+        var failPhotoOne = true
+        val repository = UploadingTripRecordRepository(
+            uploader = object : PhotoUploader {
+                override suspend fun completedObjectKey(localId: String) = completed[localId]
+                override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> {
+                    val source = sources.single()
+                    if (source.localId.endsWith("/1") && failPhotoOne) {
+                        return Result.failure(IllegalStateException("offline"))
+                    }
+                    val objectKey = "travel-records/10/uploaded-${source.localId.substringAfterLast('/')}.jpg"
+                    completed[source.localId] = objectKey
+                    return Result.success(listOf(UploadedPhoto(source, objectKey)))
+                }
+                override suspend fun forget(localIds: List<String>) {
+                    localIds.forEach(completed::remove)
+                }
+            },
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = SavedPhotoPreviewWriter { _, _, _ -> true },
+        )
+        val draft = draftWithPhotos("retry", listOf(byteArrayOf(1), byteArrayOf(2)))
+
+        assertTrue(repository.updateTripRecord(101, draft).isFailure)
+        failPhotoOne = false
+        val record = repository.updateTripRecord(101, draft).getOrThrow()
+
+        assertTrue(record.media.all { it.previewBytes == null })
+    }
+
+    private class CompletedTransferUploader(
+        private val originalPaths: Map<String, String>,
+    ) : PhotoUploader {
+        override suspend fun completedObjectKey(localId: String) = "uploaded/$localId.jpg"
+        override suspend fun completedOriginalPath(localId: String) = originalPaths[localId]
+        override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> =
+            error("A completed transfer must not upload again")
+    }
+
+    private class RecordingFileWriter(private val result: () -> Boolean = { true }) : SavedPhotoPreviewWriter {
+        val fileWrites = mutableListOf<Triple<String, String, String>>()
+        override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray) =
+            error("A completed transfer has no original bytes")
+        override suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean {
+            fileWrites += Triple(localId, objectKey, path)
+            return result()
+        }
+    }
+
+    @Test
+    fun aCompletedTransferRebuildsThePreviewFromItsStagedOriginalFile() = runBlocking {
+        // #693: after relaunch or a cancelled save, the upload is already done and the bytes are gone,
+        // but the staged upload file stays until forget(), so the preview is rebuilt from it.
+        val writer = RecordingFileWriter()
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(mapOf("content://photo/0" to "/staged/0.upload")),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = writer,
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("restored", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertEquals(
+            listOf(Triple("content://photo/0", "uploaded/content://photo/0.jpg", "/staged/0.upload")),
+            writer.fileWrites,
+        )
+        assertNull(record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aCompletedTransferWithoutAStagedFileKeepsItsDraftPreview() = runBlocking {
+        val writer = RecordingFileWriter()
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(originalPaths = emptyMap()),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = writer,
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("no file", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertTrue(writer.fileWrites.isEmpty())
+        assertContentEquals(byteArrayOf(1), record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aFailingRebuildFromTheStagedFileNeverFailsTheSave() = runBlocking {
+        val repository = UploadingTripRecordRepository(
+            uploader = CompletedTransferUploader(mapOf("content://photo/0" to "/staged/0.upload")),
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = RecordingFileWriter { error("decode failed") },
+        )
+
+        val record = repository.createTripRecord(draftWithPhotos("decode fails", listOf(byteArrayOf(1)))).getOrThrow()
+
+        assertContentEquals(byteArrayOf(1), record.media.single().previewBytes)
+    }
+
+    @Test
+    fun aCompletedTransferIsRebuiltFromItsStagedFileEvenIfReplacedEarlierInThisSession() = runBlocking {
+        // Photo 0 is uploaded with its bytes (preview rebuilt), photo 1 fails; the retry skips photo 0.
+        // #693 review: a background save of the same draft rewrites the small preview under the local key
+        // before uploading, so trusting the earlier replacement would let that small preview win again.
+        val completed = mutableMapOf<String, String>()
+        val fileWrites = mutableListOf<String>()
+        var failPhotoOne = true
+        val repository = UploadingTripRecordRepository(
+            uploader = object : PhotoUploader {
+                override suspend fun completedObjectKey(localId: String) = completed[localId]
+                override suspend fun completedOriginalPath(localId: String) = "/staged/$localId.upload"
+                override suspend fun upload(sources: List<PhotoUploadSource>): Result<List<UploadedPhoto>> {
+                    val source = sources.single()
+                    if (source.localId.endsWith("/1") && failPhotoOne) {
+                        return Result.failure(IllegalStateException("offline"))
+                    }
+                    val objectKey = "travel-records/10/uploaded-${source.localId.substringAfterLast('/')}.jpg"
+                    completed[source.localId] = objectKey
+                    return Result.success(listOf(UploadedPhoto(source, objectKey)))
+                }
+                override suspend fun forget(localIds: List<String>) {
+                    localIds.forEach(completed::remove)
+                }
+            },
+            delegate = CapturingTripRecordRepository(),
+            savedPreviewWriter = object : SavedPhotoPreviewWriter {
+                override suspend fun write(localId: String, objectKey: String, originalBytes: ByteArray) = true
+                override suspend fun writeFromFile(localId: String, objectKey: String, path: String): Boolean {
+                    fileWrites += localId
+                    return true
+                }
+            },
+        )
+        val draft = draftWithPhotos("retry", listOf(byteArrayOf(1), byteArrayOf(2)))
+
+        assertTrue(repository.updateTripRecord(101, draft).isFailure)
+        failPhotoOne = false
+        val record = repository.updateTripRecord(101, draft).getOrThrow()
+
+        assertEquals(listOf("content://photo/0"), fileWrites)
+        assertTrue(record.media.all { it.previewBytes == null })
     }
 }
 

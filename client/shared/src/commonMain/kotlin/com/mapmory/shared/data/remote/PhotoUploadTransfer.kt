@@ -8,6 +8,9 @@ import io.ktor.http.content.ByteArrayContent
 
 internal interface PhotoUploadTransfer {
     suspend fun completedObjectKey(localId: String): String? = null
+
+    /** 완료된 전송의 원본 파일이 남아 있으면 그 경로. 기본은 남기지 않는다. */
+    suspend fun completedOriginalPath(localId: String): String? = null
     suspend fun put(source: PhotoUploadSource, url: String, objectKey: String, contentType: ContentType): String
     suspend fun forget(localIds: List<String>) {}
 }

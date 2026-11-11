@@ -18,6 +18,7 @@ import kotlin.coroutines.resumeWithException
 
 internal actual fun createPhotoUploadTransfer(client: HttpClient, namespace: String): PhotoUploadTransfer = object : PhotoUploadTransfer {
     override suspend fun completedObjectKey(localId: String): String? = iosBackgroundUploads.completedObjectKey("$namespace:$localId")
+    override suspend fun completedOriginalPath(localId: String): String? = iosBackgroundUploads.completedOriginalPath("$namespace:$localId")
     override suspend fun put(source: PhotoUploadSource, url: String, objectKey: String, contentType: ContentType) = iosBackgroundUploads.put(source.copy(localId = "$namespace:${source.localId}"), url, objectKey, contentType)
     override suspend fun forget(localIds: List<String>) = iosBackgroundUploads.forget(localIds.map { "$namespace:$it" })
 }
@@ -54,6 +55,11 @@ private class IosBackgroundUploads : NSObject(), NSURLSessionTaskDelegateProtoco
 
     suspend fun completedObjectKey(localId: String): String? = withContext(Dispatchers.Main) {
         entries[localId]?.takeIf { it.completed }?.objectKey
+    }
+
+    /** The staged file of a completed upload stays until forget(); a save can rebuild its preview from it. */
+    suspend fun completedOriginalPath(localId: String): String? = withContext(Dispatchers.Main) {
+        entries[localId]?.takeIf { it.completed }?.path?.takeIf(NSFileManager.defaultManager::fileExistsAtPath)
     }
 
     suspend fun put(source: PhotoUploadSource, url: String, objectKey: String, contentType: ContentType): String = withContext(Dispatchers.Main) {

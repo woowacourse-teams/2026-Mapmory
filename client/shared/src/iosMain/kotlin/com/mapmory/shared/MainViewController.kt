@@ -107,12 +107,15 @@ private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com
     iosContainer?.let { return it }
     // One instance: saves read originals through the same source that prefetched them.
     val localPhotos = IosLocalPhotoDataSource()
+    // The saved-photo preview writer must replace entries in the same cache the app reads.
+    val photoPreviews = IosPhotoPreviewCache()
     return createGuestRemoteAppContainer(
         apiBaseUrl = apiBaseUrl,
         tokenStore = tokenStore,
-        photoPreviewCache = IosPhotoPreviewCache(),
+        photoPreviewCache = photoPreviews,
         localPhotoDataSource = localPhotos,
         originalPhotoPrefetcher = localPhotos,
+        savedPhotoPreviewWriter = com.mapmory.shared.data.media.IosSavedPhotoPreviewWriter(photoPreviews),
         backgroundSaveExecution = IosBackgroundSaveExecution(apiBaseUrl),
         mapSummaryCache = IosMapSummaryCache(),
         tripStatisticsCache = IosTripStatisticsCache(),
