@@ -23,6 +23,7 @@ import platform.Foundation.NSError
 import platform.Photos.PHImageErrorKey
 import platform.Photos.PHImageCancelledKey
 import platform.Photos.PHImageResultIsDegradedKey
+import platform.Photos.PHImageResultIsInCloudKey
 import com.mapmory.shared.data.media.IosPhotoPreviewCache
 import com.mapmory.shared.data.media.cacheIosPickerPhoto
 import com.mapmory.shared.data.media.isIosLocalPhotoAvailable
@@ -677,13 +678,18 @@ internal class IosPhotoLibraryController(
         completion: (SelectedPhoto?) -> Unit,
     ) {
         // Opportunistic lets Photos answer from the on-device thumbnail instead of downloading
-        // the iCloud original that HighQualityFormat at 640px required (#681).
+        // the iCloud original that HighQualityFormat at 640px required (#681). Without network
+        // access the list never waits on iCloud: an optimized photo's final call has no image or is
+        // marked InCloud, and the local degraded thumbnail held from the earlier call is used.
         val options = PHImageRequestOptions().apply {
             version = PHImageRequestOptionsVersionCurrent
             deliveryMode = PHImageRequestOptionsDeliveryModeOpportunistic
-            networkAccessAllowed = true
+            networkAccessAllowed = false
         }
         var didComplete = false
+        // Handler calls arrive on the main thread (the first may run synchronously on the calling
+        // main thread), so this needs no extra synchronization.
+        var heldDegraded: UIImage? = null
         PHImageManager.defaultManager().requestImageForAsset(
             asset = asset,
             targetSize = CGSizeMake(
@@ -694,10 +700,14 @@ internal class IosPhotoLibraryController(
             options = options,
         ) { image, info ->
             val isCancelled = info?.get(PHImageCancelledKey) == true
+            val isDegraded = info?.get(PHImageResultIsDegradedKey) == true
+            if (isDegraded && image != null) heldDegraded = image
             val result = classifyPhotoImageResult(
-                isDegraded = info?.get(PHImageResultIsDegradedKey) == true,
+                isDegraded = isDegraded,
                 isCancelled = isCancelled,
                 hasImage = image != null,
+                isInCloud = info?.get(PHImageResultIsInCloudKey) == true,
+                hasHeldDegraded = heldDegraded != null,
             )
             if (result == PhotoImageResult.WAIT) return@requestImageForAsset
             if (result == PhotoImageResult.FAIL) {
@@ -706,7 +716,12 @@ internal class IosPhotoLibraryController(
                     info?.get(PHImageErrorKey) as? NSError,
                 )
             }
-            val finalImage = image.takeIf { result == PhotoImageResult.DELIVER }
+            val finalImage = when (result) {
+                PhotoImageResult.DELIVER -> image
+                PhotoImageResult.DELIVER_DEGRADED -> heldDegraded
+                else -> null
+            }
+            val isDegradedPreview = result == PhotoImageResult.DELIVER_DEGRADED
             onMain {
                 if (didComplete) return@onMain
                 didComplete = true
@@ -715,12 +730,16 @@ internal class IosPhotoLibraryController(
                     if (finalImage != null && previewBytes == null) photoFailure("jpeg_encode")
                     // Recommendation results have no PHPicker provider; retry their original resource.
                     val availablePreview = previewBytes ?: loadAssetOriginalPreview(asset)
-                    logPhotoPerformance(
-                        "preview_ms=${elapsedMillis(startedAtMillis)} " +
-                            "source=${if (previewBytes != null) "photokit" else "original_retry"}",
-                    )
+                    val source = when {
+                        previewBytes == null -> "original_retry"
+                        isDegradedPreview -> "degraded"
+                        else -> "photokit"
+                    }
+                    logPhotoPerformance("preview_ms=${elapsedMillis(startedAtMillis)} source=$source")
                     completion(availablePreview?.let(asset::toSelectedPhoto))
-                    if (availablePreview != null) withContext(Dispatchers.Default) {
+                    // A degraded thumbnail is not cached under the 256px key, so a later request
+                    // can still get the full preview once the photo is available locally.
+                    if (availablePreview != null && !isDegradedPreview) withContext(Dispatchers.Default) {
                         previewCache.write(cacheKey, availablePreview)
                     }
                 }
