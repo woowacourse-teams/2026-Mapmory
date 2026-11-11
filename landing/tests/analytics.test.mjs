@@ -52,6 +52,7 @@ test("declares the agreed landing funnel events", () => {
       "tech_story_view",
       "tech_story_scene",
       "tech_story_interact",
+      "group_album_view",
     ]),
   );
 });

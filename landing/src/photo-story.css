@@ -2,11 +2,10 @@
    plus main's .how-section and its globe link. Canvas colours come from the --ps-* tokens below; the dark block at the
    end restyles both in place when the header's theme toggle flips data-theme. */
 .wall-hero, .ps {
-  --ps-on-accent: #fbf9f4;
   --ps-dot: #d9d3c6;
   --ps-shadow: rgba(22, 21, 18, 0.18);
   --ps-roll-bg: #efece4;
-  --ps-ocean-hi: #f8f6f1;
+  --ps-ocean-hi: #f6f9f7;
   --ps-ocean-lo: #e6e1d6;
   --ps-land: #d3d7cc;
   --ps-land-line: #f3f0e9;
@@ -16,35 +15,70 @@
 /* ── first screen: the wall fills the viewport under the floating header */
 .wall-hero { --header-space: 84px; position: relative; height: 100vh; height: 100svh; min-height: 560px; margin-top: calc(-1 * var(--header-space)); overflow: hidden; touch-action: pan-y; background: var(--canvas); }
 .wall-hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.wall-hero-copy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(720px, calc(100% - 32px)); text-align: center; pointer-events: none; }
-.wall-hero-kicker { display: inline-block; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 14px; font-weight: 700; }
-.wall-hero h1 { margin: 18px 0 0; font-family: var(--serif); font-size: clamp(40px, 8vw, 92px); line-height: 1.12; letter-spacing: -0.03em; font-weight: 600; word-break: keep-all; text-wrap: balance; }
-.wall-hero h1 span { display: block; color: var(--text); text-wrap: balance; }
-.wall-hero-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 26px; pointer-events: auto; }
-.wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 200ms var(--ease-out), background-color 200ms ease, border-color 200ms ease; }
-.wall-hero-chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
-.wall-hero-chips button small { margin-left: 6px; font-size: inherit; font-weight: 700; opacity: 0.7; }
-.wall-hero-diff { margin: 14px auto 0; max-width: 30em; font-size: 17px; font-weight: 700; opacity: 0.9; word-break: keep-all; text-wrap: balance; }
-.wall-hero-actions { margin-top: 22px; display: flex; justify-content: center; pointer-events: auto; }
-/* one primary colour for every store button on the page (hero, header, final); the ask is a quiet text link */
-.wall-hero-actions .button-store { min-height: 48px; padding-inline: 18px; font-size: 14px; }
-.wall-hero-ask { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--accent-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
+/* 2026-11-10 (티온 picked direction 다, "왼쪽 정렬"): a quiet hero. The words lose their pills, borders and bold
+   secondary text; the title is smaller and tighter with its second line muted; one black button. On wide screens
+   the words sit in a left column beside the photo wall (--hero-side tells the engine, which then keeps its lens and a
+   picked place's photos in the open right part); phones keep the words centred over the wall. */
+/* centred a little above the middle (--hero-lift), but never higher than just under the header: in a short window
+   the words move down instead of sliding behind it (the hero is 100svh tall, 560px at least) */
+.wall-hero-copy { --hero-lift: -54%; position: absolute; left: 50%; top: 50%; transform: translate(-50%, var(--hero-lift)); width: min(720px, calc(100% - 32px)); text-align: center; pointer-events: none; }
+/* only where svh is known: a transform with an unknown unit inside var() computes to none, and the words would leave
+   the screen (Safari before 15.4, Chrome before 108) */
+@supports (height: 1svh) { .wall-hero-copy { transform: translate(-50%, max(var(--hero-lift), calc(var(--header-space) + 8px - max(50svh, 280px)))); } }
+.wall-hero-kicker { display: inline-block; color: var(--muted); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+.wall-hero h1 { margin: 14px 0 0; font-family: var(--serif); font-size: clamp(34px, 5.4vw, 68px); line-height: 1.16; letter-spacing: -0.045em; font-weight: 700; word-break: keep-all; text-wrap: balance; }
+.wall-hero h1 span { display: block; color: var(--muted); text-wrap: balance; }
+.wall-hero-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 30px; pointer-events: auto; }
+.wall-hero-chips button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; transition: transform 200ms var(--ease-out), background-color 200ms var(--ease-out), border-color 200ms var(--ease-out); }
+/* see-through only where colour mixing works; older browsers keep the solid chip (the wall must not show through text) */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .wall-hero-chips button { background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(8px); }
+  .wall-hero-new { --new-patch: color-mix(in srgb, var(--canvas) 80%, transparent); }
+}
+.wall-hero-chips button[aria-pressed="true"] { background: var(--btn); border-color: var(--btn); color: var(--on-btn); }
+.wall-hero-chips button small { margin-left: 6px; font-size: inherit; font-weight: 400; opacity: 0.7; }
+.wall-hero-diff { margin: 20px auto 0; max-width: 30em; color: var(--muted); font-size: 16px; font-weight: 400; word-break: keep-all; text-wrap: balance; }
+.wall-hero-actions { margin-top: 28px; display: flex; justify-content: center; pointer-events: auto; }
+.wall-hero-actions .button-store { min-height: 48px; padding-inline: 20px; font-size: 14px; }
+.wall-hero-ask { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--accent-ink); font-size: 14px; font-weight: 400; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; animation: wall-ask-in 500ms var(--ease-out); }
 @keyframes wall-ask-in { from { opacity: 0; transform: translateY(6px); } }
-.wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; pointer-events: none; }
+.wall-hero-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 400; pointer-events: none; }
+.wall-hero-new { min-height: 44px; display: inline-flex; align-items: center; color: var(--accent-ink); font-size: 14px; font-weight: 400; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; }
+/* phones: the link takes the place of the byline so the photos of a picked place keep their band (heroWallEngine gather) */
+@media (max-width: 519px) { .wall-hero-foot span { display: none; } .wall-hero-new { font-size: 13px; } }
+/* a phone on its side: without the byline the link sits clear of the one under the store buttons */
+@media (max-height: 499px) { .wall-hero-foot span { display: none; } }
 @media (hover: hover) and (pointer: fine) {
   .wall-hero-chips button:hover { transform: translateY(-2px); }
 }
+/* wide screens (1100px and up, where the buttons and the QR fit one row of the column): the words in a left column that starts at the header's left edge. The column is centred between the
+   header and the foot, so the title gives way to the window's height (3 lines of title and about 290px of everything
+   else must fit); without the QR beside the buttons (styles.css, under 700px tall) there is 18px more for it. */
+@media (min-width: 1100px) {
+  .wall-hero { --hero-side: 1; --hero-left: max(24px, calc(50% - 540px)); }
+  .wall-hero-copy { left: var(--hero-left); transform: translateY(-50%); width: min(600px, 54vw); text-align: left; }
+  .wall-hero h1 { font-size: clamp(34px, min(5vw, 28.7svh - 122px), 72px); }
+  .wall-hero-chips, .wall-hero-actions { justify-content: flex-start; }
+  .wall-hero-diff { margin-left: 0; }
+  .wall-hero-foot { left: var(--hero-left); right: auto; justify-items: start; }
+}
+@media (min-width: 1100px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .wall-hero h1 { font-size: clamp(34px, min(5vw, 28.7svh - 140px), 72px); } }
+/* centred on a wide but short window (under 600px tall): the title follows the window's height so the words, with
+   the link that appears after a pick, still fit between the header and the foot */
+@media (min-width: 761px) and (max-width: 1099px) { .wall-hero h1 { font-size: clamp(34px, min(5.4vw, 39.9svh - 191px), 68px); } }
+/* centred over the wall (under 1100px) the link has photos behind it, so it gets a soft patch of page to sit on */
+@media (max-width: 1099px) { .wall-hero-new { padding: 0 12px; border-radius: 999px; background: var(--new-patch, var(--canvas)); backdrop-filter: blur(6px); } }
 @media (max-width: 900px) { .wall-hero { --header-space: 80px; } }
 @media (max-width: 760px) {
-  .wall-hero-copy { transform: translate(-50%, -60%); }
-  .wall-hero-chips button { padding: 0 13px; font-size: 14px; }
+  .wall-hero-copy { --hero-lift: -60%; }
+  .wall-hero-chips button { padding: 0 14px; }
 }
 @media (max-width: 560px) { .wall-hero { --header-space: 72px; } }
 
 /* ── #how: two pinned stories. The stage is 100svh and sticks while its track scrolls past. */
 .how-section { position: relative; padding: 0 0 72px; }
 /* the way on to the globe: the page's secondary button, right under the footnote (it used to float alone in grey) */
-.how-section > .how-experience-link { width: fit-content; min-height: 48px; margin: 0 auto; padding: 0 20px; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); background: var(--surface); font-size: 15px; font-weight: 700; transition: border-color 160ms ease, color 160ms ease; }
+.how-section > .how-experience-link { width: fit-content; min-height: 48px; margin: 0 auto; padding: 0 20px; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); background: var(--surface); font-size: 15px; font-weight: 700; transition: border-color 200ms var(--ease-out), color 200ms var(--ease-out); }
 .how-section > .how-experience-link svg { color: var(--accent-strong); }
 .how-section > .how-experience-link:hover { border-color: var(--accent-strong); color: var(--accent-ink); }
 .ps-track { position: relative; }
@@ -68,7 +102,7 @@
   .ps-beat h3 { margin-bottom: 8px; font-size: 28px; }
   .ps-beat .ps-long { display: none; }
   .ps-beat h3 em { color: inherit; } /* one impact per beat: only the kicker is coloured */
-  .ps-beat .ps-kicker { display: block; margin: 0 0 4px; color: var(--accent-strong); font: 400 28px/1.1 "Nanum Pen Script", cursive; letter-spacing: 0; }
+  .ps-beat .ps-kicker { display: block; margin: 0 0 4px; color: var(--accent-strong); font: 700 14px/20px "LINE Seed Sans KR", "LINE Seed Sans KR Ext", sans-serif; letter-spacing: 0; }
   .ps-beat p.ps-phone { display: block; margin-top: 6px; font-size: 12px; opacity: 0.6; }
 }
 @media (max-width: 560px) { .how-section { padding-bottom: 48px; } }
@@ -89,13 +123,12 @@
 }
 
 :root[data-theme="dark"] .wall-hero, :root[data-theme="dark"] .ps {
-  --ps-on-accent: #12110f;
-  --ps-dot: #34322c;
+  --ps-dot: #2b3631;
   --ps-shadow: rgba(0, 0, 0, 0.5);
-  --ps-roll-bg: #1b1a17;
-  --ps-ocean-hi: #23221e;
+  --ps-roll-bg: #18201c;
+  --ps-ocean-hi: #1f2924;
   --ps-ocean-lo: #181714;
   --ps-land: #3a3832;
-  --ps-land-line: #12110f;
+  --ps-land-line: #0f1512;
   --ps-graticule: rgba(243, 240, 232, 0.05);
 }

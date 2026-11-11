@@ -6,15 +6,15 @@
 .ts {
   --ts-accent: var(--accent-strong);
   --ts-accent-soft: var(--accent-soft);
-  --ts-phone-body: #161512;
-  --ts-screen: #fffdf9;
-  --ts-screen-fg: #161512;
+  --ts-phone-body: #18201b;
+  --ts-screen: #ffffff;
+  --ts-screen-fg: #18201b;
   --ts-screen-muted: #7d786d;
   --ts-land: #c9d8cd;
   --ts-sea: #eeece5;
   --ts-grid: var(--line);
   --ts-tl-bg: #0f141c;
-  --ts-hand: "Nanum Pen Script", "LINE Seed Sans KR", cursive;
+  --ts-hand: "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif;
   /* strong curves (emil): ease-out for anything entering or settling, ease-in-out for movement on screen */
   --ts-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ts-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -22,8 +22,8 @@
   position: relative;
 }
 .ts-head { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 8px; }
-.ts-eyebrow { margin: 0; color: var(--accent-ink); font-size: 14px; font-weight: 700; letter-spacing: 0.08em; }
-.ts-head h2 { margin: 8px 0 0; font-family: var(--serif); font-weight: 600; font-size: var(--type-h2); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ts-eyebrow { margin: 0; color: var(--muted); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+.ts-head h2 { margin: 8px 0 0; font-family: var(--serif); font-weight: 700; font-size: var(--type-h2); line-height: 1.25; letter-spacing: -0.04em; text-wrap: balance; word-break: keep-all; }
 
 /* ── stage + phone */
 .ts-story { position: relative; }
@@ -34,19 +34,19 @@
 .ts-screen-box { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: calc(var(--ph) * 0.055); background: var(--ts-screen); color: var(--ts-screen-fg); }
 .ts-notch { position: absolute; top: 8px; left: 50%; z-index: 5; width: 30%; height: 18px; border-radius: 12px; background: var(--ts-phone-body); transform: translateX(-50%); }
 .ts-screen { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 38px 10px 12px; font-size: 13px; font-weight: 700;
-  opacity: 0; visibility: hidden; transition: opacity 200ms ease, visibility 0s 200ms; }
+  opacity: 0; visibility: hidden; transition: opacity 200ms var(--ease-out), visibility 0s 200ms; }
 /* until the engine loads, the first screen's frame shows */
-.ts-screen.is-on, .ts:not(.is-live) .ts-notch + .ts-screen { opacity: 1; visibility: visible; transition: opacity 200ms ease; }
+.ts-screen.is-on, .ts:not(.is-live) .ts-notch + .ts-screen { opacity: 1; visibility: visible; transition: opacity 200ms var(--ease-out); }
 .ts-ph { border-radius: 4px; background-image: var(--ts-atlas); background-size: var(--ts-bs); }
 
 /* ── scenes 1-3, the app's own "어디 사진을 불러올까요?" screen (티온, 10-29): a place is typed into the field with the
    scroll and 사진 불러오기 lights up (1), the album's photos of that place lift (2), the others fade and the safety line
    rises (3) */
 .ts-load-screen { gap: 0; }
-.ts-app-q { margin: 6px 4px 0; font-size: 17px; font-weight: 800; line-height: 1.3; letter-spacing: -0.02em; }
-.ts-app-label { margin: 12px 4px 6px; font-size: 12px; font-weight: 800; }
+.ts-app-q { margin: 6px 4px 0; font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; }
+.ts-app-label { margin: 12px 4px 6px; font-size: 12px; font-weight: 700; }
 .ts-field { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 14px;
-  background: var(--ts-screen); color: var(--ts-screen-fg); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: border-color 200ms ease; }
+  background: var(--ts-screen); color: var(--ts-screen-fg); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: border-color 200ms var(--ease-out); }
 .ts-field > svg { flex: none; width: 15px; height: 15px; color: var(--ts-screen-muted); }
 .ts-field [data-field-text] { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
 .ts-field.is-empty [data-field-text]::before { content: "장소 또는 행정구역 검색"; color: var(--ts-screen-muted); font-weight: 400; }
@@ -55,15 +55,15 @@
 .ts-field-target svg { width: 17px; height: 17px; }
 .ts-field:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
 .ts-load { margin-top: 8px; padding: 11px; border-radius: 14px; background: var(--ts-accent-soft); color: var(--ts-screen-muted); text-align: center;
-  transition: background 200ms ease, color 200ms ease, transform 160ms var(--ts-ease-out); }
-.ts-load.is-ready { background: var(--ts-accent); color: #fff; }
+  transition: background 200ms var(--ease-out), color 200ms var(--ease-out), transform 200ms var(--ts-ease-out); }
+.ts-load.is-ready { background: var(--ink); color: var(--on-ink); }
 .ts-load.is-pressed { transform: scale(0.97); }
 /* the album under the form shows once the button is pressed */
-.ts-load-screen .ts-gather { margin-top: 10px; opacity: 0; transition: opacity 250ms ease; }
+.ts-load-screen .ts-gather { margin-top: 10px; opacity: 0; transition: opacity 250ms var(--ease-out); }
 .ts-load-screen.is-loaded .ts-gather { opacity: 1; }
 .ts-safe { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 14px;
   background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 13px; line-height: 1.35; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
-  opacity: 0; transform: translateY(12px); transition: opacity 200ms ease, transform 300ms var(--ts-ease-out); }
+  opacity: 0; transform: translateY(12px); transition: opacity 200ms var(--ease-out), transform 300ms var(--ts-ease-out); }
 .ts-safe svg { flex: none; width: 15px; height: 15px; color: var(--ts-accent); }
 .ts-safe.is-shown { opacity: 1; transform: none; }
 .ts-load-screen .ts-gather .ts-ph.is-gone { opacity: 0.06; }
@@ -80,13 +80,13 @@
 .ts-burst-veil { position: absolute; inset: 0; z-index: 1; background: rgba(22, 21, 18, 0.24); opacity: 0; }
 .ts-gather { position: relative; flex: 1; min-height: 0; }
 .ts-gather .ts-ph { position: absolute; width: var(--cw); height: var(--cw); padding: 0; border: 0; cursor: pointer; will-change: transform;
-  transition: transform 250ms var(--ts-ease-out), opacity 250ms ease, box-shadow 250ms ease; }
+  transition: transform 250ms var(--ts-ease-out), opacity 250ms var(--ease-out), box-shadow 250ms var(--ease-out); }
 .ts-gather .ts-ph.is-dim { opacity: 0.22; }
 .ts-gather .ts-ph.is-hit { z-index: 1; box-shadow: 0 0 0 2px var(--ts-accent), 0 8px 14px -6px rgba(0, 0, 0, 0.45); }
 .ts-gather .ts-ph:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 1px; }
 .ts-found { position: absolute; left: 50%; bottom: 64px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px;
   background: var(--ts-screen-fg); color: var(--ts-screen); font-size: 13px; white-space: nowrap; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5); pointer-events: none;
-  opacity: 0; transform: translate(-50%, 8px) scale(0.96); transition: opacity 200ms ease, transform 250ms var(--ts-ease-out); }
+  opacity: 0; transform: translate(-50%, 8px) scale(0.96); transition: opacity 200ms var(--ease-out), transform 250ms var(--ts-ease-out); }
 .ts-found { max-width: calc(100% - 16px); }
 .ts-found span { overflow: hidden; text-overflow: ellipsis; }
 .ts-found.is-shown { opacity: 1; transform: translate(-50%, 0) scale(1); }
@@ -96,8 +96,8 @@
    by hand (`.is-manual`) the same fold is a transition */
 .ts-pick { position: relative; flex: 1; min-height: 0; }
 .ts-pick .ts-ph { position: absolute; width: var(--pw); height: var(--pw); padding: 0; border: 0; cursor: pointer; will-change: transform; }
-.ts-pick.is-manual .ts-ph { transition: transform 300ms var(--ts-ease-in-out), opacity 250ms ease; }
-.ts-pick .ts-ph::after { content: ""; position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: rgba(0, 0, 0, 0.15); transition: background 150ms ease, opacity 150ms ease; }
+.ts-pick.is-manual .ts-ph { transition: transform 300ms var(--ts-ease-in-out), opacity 250ms var(--ease-out); }
+.ts-pick .ts-ph::after { content: ""; position: absolute; top: 5px; right: 5px; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: rgba(0, 0, 0, 0.15); transition: background 200ms var(--ease-out), opacity 200ms var(--ease-out); }
 .ts-pick .ts-ph.is-sel::after { background: var(--ts-accent); }
 .ts-pick .ts-ph:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 1px; }
 .ts-pick.is-folding .ts-ph::after { opacity: 0; }
@@ -106,12 +106,12 @@
 .ts-pick.is-folded .ts-ph:disabled { pointer-events: none; cursor: default; }
 .ts-rec-card { position: absolute; top: var(--rt, 60%); left: 8%; right: 8%; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
   background: var(--ts-screen); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35); pointer-events: none; opacity: 0; transform: translateY(8px);
-  transition: opacity 150ms ease, transform 150ms ease; }
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
 .ts-rec-card svg { flex: none; width: 16px; height: 16px; color: var(--ts-accent); }
 .ts-pick.is-folded .ts-rec-card { opacity: 1; transform: none; transition: opacity 200ms var(--ts-ease-out), transform 200ms var(--ts-ease-out); }
 /* by hand the card comes in once the photos have folded */
 .ts-pick.is-manual.is-folded .ts-rec-card { transition-delay: 280ms; }
-.ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ts-accent); color: #fff; font: inherit; text-align: center; cursor: pointer; transition: background 150ms ease, color 150ms ease; }
+.ts-save { padding: 12px; border: 0; border-radius: 12px; background: var(--ink); color: var(--on-ink); font: inherit; text-align: center; cursor: pointer; transition: background 200ms var(--ease-out), color 200ms var(--ease-out); }
 .ts-save:disabled { background: var(--ts-accent-soft); color: var(--accent-ink); cursor: default; }
 .ts-save:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
 
@@ -121,7 +121,7 @@
 .ts-regions:focus-visible { outline: 2px solid var(--ts-accent); outline-offset: 2px; }
 .ts-regions svg { width: 100%; height: 100%; }
 .ts-kr { fill: var(--ts-sea); }
-.ts-pv { fill: transparent; transition: fill 250ms ease; }
+.ts-pv { fill: transparent; transition: fill 250ms var(--ease-out); }
 .ts-pv.is-on { fill: var(--ts-accent); }
 .ts-ln { fill: none; stroke: var(--ts-screen-muted); stroke-linejoin: round; pointer-events: none; }
 .ts-ln.is-dist { stroke-opacity: 0.35; stroke-width: 0.22; }
@@ -146,29 +146,32 @@
 .ts-years::before { content: ""; position: absolute; left: 24px; right: 24px; bottom: 12px; height: 2px; background: #333d4b; }
 .ts-years button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; min-width: 48px; min-height: 48px; padding: 6px 4px 8px;
   border: 0; background: none; color: #8b95a1; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
-.ts-years button::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #333d4b; transition: background 200ms ease, box-shadow 200ms ease; }
+.ts-years button::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #333d4b; transition: background 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
 .ts-years button.is-on { color: #d6e8ff; }
 .ts-years button.is-on::after { background: var(--ts-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ts-accent) 22%, transparent); }
 .ts-years button:focus-visible { outline: 2px solid var(--ts-accent); border-radius: 6px; }
-.ts-share-btn { margin: 0 10px; padding: 11px; border-radius: 12px; background: #ffffff1a; color: #f2f4f6; text-align: center; transition: background 200ms ease, color 200ms ease, transform 160ms var(--ts-ease-out); }
-.ts-share-btn.is-pressed { background: var(--ts-accent); color: #fff; transform: scale(0.97); }
+.ts-share-btn { margin: 0 10px; padding: 11px; border-radius: 12px; background: #ffffff1a; color: #f2f4f6; text-align: center; transition: background 200ms var(--ease-out), color 200ms var(--ease-out), transform 200ms var(--ts-ease-out); }
+.ts-share-btn.is-pressed { background: var(--ink); color: var(--on-ink); transform: scale(0.97); }
 
 /* ── the words: the hand-written step label and one title. They stay in the sticky stage and change in place with the
    scene, so a quick scroll never waits for words to pass (티온, 10-27). */
 .ts-captions { position: absolute; inset: 0; z-index: 4; width: min(1000px, calc(100% - 32px)); margin: 0 auto; pointer-events: none; }
 .ts-copy { position: absolute; top: 50%; width: min(420px, 42%); opacity: 0; transform: translateY(calc(-50% + 6px));
-  transition: opacity 120ms ease, transform 120ms ease; }
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
 .ts-copy.is-right { right: 0; }
 .ts-copy.is-left { left: 0; }
 .ts-copy.is-on, .ts:not(.is-live) .ts-copy[data-caption="0"] { opacity: 1; transform: translateY(-50%);
-  transition: opacity 150ms ease, transform 220ms var(--ts-ease-out); }
-.ts-label { display: inline-flex; margin: 0 0 6px; color: var(--accent-ink); font: 400 42px/1 var(--ts-hand); }
+  transition: opacity 200ms var(--ease-out), transform 220ms var(--ts-ease-out); }
+.ts-label { display: inline-flex; margin: 0 0 8px; color: var(--muted); font: 400 14px/20px var(--ts-hand); letter-spacing: 0.01em; }
 /* the label holds still (2026-10-29: the boiling wiggle read as childish) */
 .ts-label .ts-ch { display: inline-block; white-space: pre; }
-.ts-copy h3 { margin: 0; font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.38; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ts-copy h3 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: clamp(26px, 3vw, 40px); line-height: 1.25; letter-spacing: -0.04em; text-wrap: balance; word-break: keep-all; }
 /* the scroll room under the stage: a spacer per scene and one between the steps */
 .ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
-.ts-beat { min-height: 92vh; min-height: 92svh; }
+/* 2026-11-10: 92 → 64 (GA4 since 10-28: 15 people rested on scene 1, 6 on scene 2; the trip between scenes was long) */
+.ts-beat { min-height: 64vh; min-height: 64svh; }
+/* the first beat types the place as the stage pins and the last one hands over to the next section: both keep 92 */
+@media (min-width: 761px) { .ts-beat:first-child, .ts-beat:last-child { min-height: 92vh; min-height: 92svh; } }
 .ts-bridge { height: 45vh; height: 45svh; }
 
 @media (max-width: 760px) {
@@ -182,7 +185,7 @@
   /* the words sit in the band under the phone */
   .ts-captions { top: calc(var(--ts-top) + var(--ph)); width: 100%; }
   .ts-copy.is-right, .ts-copy.is-left { left: 16px; right: 16px; width: auto; text-align: center; }
-  .ts-label { margin-bottom: 4px; font-size: 32px; }
+  .ts-label { margin-bottom: 4px; }
   .ts-copy h3 { font-size: clamp(19px, 5.6vw, 22px); }
   /* room for the phone to turn from the step-1 angle to the step-2 angle */
   .ts-bridge { height: 26svh; }
@@ -229,10 +232,10 @@
 
 :root[data-theme="dark"] .ts {
   --ts-phone-body: #2b2a26;
-  --ts-screen: #1b1a17;
-  --ts-screen-fg: #f3f0e8;
+  --ts-screen: #18201c;
+  --ts-screen-fg: #edf3ef;
   --ts-screen-muted: #9a9488;
   --ts-land: #3d5446;
-  --ts-sea: #23221e;
+  --ts-sea: #1f2924;
 }
 :root[data-theme="dark"] .ts-phone { box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.14); }

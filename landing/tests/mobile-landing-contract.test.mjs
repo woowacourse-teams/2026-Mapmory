@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
 const stylesSource = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
 
-test("mobile gallery keeps controls outside the uncropped photo and touch targets readable", () => {
+test("mobile gallery keeps controls outside the uncropped photo and touch targets readable", async () => {
   assert.match(appSource, /memory-mobile-photo-caption/);
   assert.match(appSource, /memory-sheet-gallery-controls/);
   assert.match(appSource, /!hasGallery && <div className="memory-single-title"><h2>\{memory\.title\}<\/h2><\/div>/);
@@ -13,10 +13,13 @@ test("mobile gallery keeps controls outside the uncropped photo and touch target
   assert.match(stylesSource, /\.world-memory-modal \.memory-image-wrap\.is-gallery img \{ object-fit: contain; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-photo-meta \{ display: none; \}/);
   assert.match(stylesSource, /\.world-memory-modal \.memory-sheet-gallery-controls > button \{ width: 44px; height: 44px;/);
-  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--ink\);/s);
+  assert.match(stylesSource, /\.world-memory-modal \.world-memory-close \{[^}]*min-height: 44px;[^}]*border-color: var\(--btn\);/s);
   assert.match(stylesSource, /\.world-memory-modal \.memory-single-title \{[^}]*display: flex;/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-single-title h2 \{[^}]*Nanum Pen Script/s);
-  assert.match(stylesSource, /\.world-memory-modal \.memory-mobile-photo-caption \{[^}]*Nanum Pen Script/s);
+  // 2026-11-10 (app look): memory titles and captions use the one interface family; no handwriting face is left
+  assert.doesNotMatch(stylesSource, /Nanum|cursive|Noto Serif/);
+  for (const file of ["tech-story.css", "photo-story.css", "group-album.css"]) {
+    assert.doesNotMatch(await readFile(new URL(`../src/${file}`, import.meta.url), "utf8"), /Nanum|cursive|Noto Serif/, file);
+  }
   assert.match(stylesSource, /--memory-diary-title-size: clamp\(22px, 3vw, 26px\)/);
 });
 
