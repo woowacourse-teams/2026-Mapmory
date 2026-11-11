@@ -250,6 +250,8 @@ private class DefaultAppContainer(
     )
 
     init {
+        // The saver restored its queue above; anything else in the original cache was abandoned.
+        originalPhotoPrefetcher?.pruneCache(keep = backgroundTripRecordSaver.pendingPhotoIds.value)
         (accountSession as? GuestSessionManager)?.apply {
             val clearOtherCaches = onAccountChanged
             onAccountChanged = {

@@ -57,11 +57,16 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource, OriginalPhotoPrefetcher {
         iosOriginalPrefetchQueue.prefetch(assetIds)
     }
 
+    override fun pruneCache(keep: Set<String>) {
+        iosOriginalPrefetchScope.launch { pruneIosOriginalCache(keep) }
+    }
+
     override fun releasePrefetched(localIds: Set<String>) {
         // Only originals this prefetcher downloaded; picker files belong to the save flow.
         val assetIds = localIds.filterNot { it.startsWith(IosPendingPhotoPrefix) }.toSet()
         if (assetIds.isEmpty()) return
-        iosOriginalPrefetchScope.launch { iosOriginalPrefetchQueue.release(assetIds) }
+        // Queued in call order, so deselecting and reselecting quickly keeps the original.
+        iosOriginalPrefetchQueue.releaseLater(assetIds)
     }
 
     override suspend fun release(localId: String) {
@@ -83,7 +88,7 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource, OriginalPhotoPrefetcher {
             return
         }
         val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
-        val directory = "$root/mapmory-upload-originals"
+        val directory = "$root/$IosOriginalCacheDirectoryName"
         val prefix = "$localId:".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
         val manager = NSFileManager.defaultManager
         manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()
@@ -142,13 +147,10 @@ private suspend fun ensureIosOriginalFile(localId: String): IosOriginalFile? {
         ?: resources.firstOrNull()
         ?: return null
 
-    val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
-    val directory = "$root/mapmory-upload-originals"
+    val directory = iosOriginalCacheDirectory() ?: return null
     val manager = NSFileManager.defaultManager
-    if (!manager.createDirectoryAtPath(directory, true, null, null)) return null
     val version = asset.modificationDate?.timeIntervalSinceReferenceDate ?: 0.0
-    val key = "$localId:$version".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
-    val path = "$directory/$key"
+    val path = "$directory/${iosOriginalCacheFileName(localId, version)}"
     var downloaded = false
     if (!manager.fileExistsAtPath(path)) {
         downloaded = true
@@ -170,6 +172,38 @@ private suspend fun ensureIosOriginalFile(localId: String): IosOriginalFile? {
         }
     }
     return IosOriginalFile(path, downloaded)
+}
+
+internal fun iosOriginalCacheDirectory(): String? {
+    val root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
+    val directory = "$root/$IosOriginalCacheDirectoryName"
+    return directory.takeIf { NSFileManager.defaultManager.createDirectoryAtPath(it, true, null, null) }
+}
+
+/** Hex of "localId:version"; [IosLocalPhotoDataSource.release] matches files by the "localId:" prefix. */
+internal fun iosOriginalCacheFileName(localId: String, version: Double): String =
+    "$localId:$version".encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+
+private fun iosOriginalCacheLocalId(fileName: String): String? {
+    if (fileName.length % 2 != 0) return null
+    val bytes = fileName.chunked(2).map { it.toIntOrNull(16)?.toByte() ?: return null }.toByteArray()
+    return bytes.decodeToString().substringBeforeLast(':', missingDelimiterValue = "").takeIf(String::isNotEmpty)
+}
+
+/**
+ * Removes originals left by flows that ended without onCleared (app killed) and interrupted downloads.
+ * Runs once at startup before any prefetch, keeping originals that restored background saves will read.
+ * A save whose original is missing downloads it again, so removing too much costs time, not data.
+ */
+internal suspend fun pruneIosOriginalCache(keep: Set<String>) = withContext(Dispatchers.Default) {
+    val directory = iosOriginalCacheDirectory() ?: return@withContext
+    val manager = NSFileManager.defaultManager
+    manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()?.forEach { fileName ->
+        val localId = iosOriginalCacheLocalId(fileName)
+        if (fileName.endsWith(".part") || localId == null || localId !in keep) {
+            manager.removeItemAtPath("$directory/$fileName", null)
+        }
+    }
 }
 
 private val iosOriginalPrefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -255,4 +289,5 @@ private fun NSData.toByteArray(): ByteArray {
 }
 
 private const val IosPendingPhotoPrefix = "mapmory-cache://"
+private const val IosOriginalCacheDirectoryName = "mapmory-upload-originals"
 private const val IosPendingPhotoDirectory = "mapmory-pending-photos"

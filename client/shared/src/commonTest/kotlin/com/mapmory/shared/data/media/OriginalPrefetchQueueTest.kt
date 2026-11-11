@@ -185,4 +185,36 @@ class OriginalPrefetchQueueTest {
 
         assertEquals(listOf("a", "b", "c"), store.started)
     }
+
+    @Test
+    fun `받는_중에_지우기로_한_사진을_다시_고르면_다_받은_뒤에도_지우지_않는다`() = queueTest { queue, store ->
+        queue.prefetch(listOf("a"))
+        settle()
+        val releasing = async { queue.release(setOf("a")) }
+        settle()
+        queue.prefetch(listOf("a"))
+        settle()
+
+        store.finish("a")
+        settle()
+        releasing.await()
+        assertTrue(store.deleted.isEmpty(), "the photo was selected again, so its original stays")
+        assertEquals(listOf("a"), store.started)
+    }
+
+    @Test
+    fun `지우기와_미리_받기는_부른_순서대로_처리된다`() = queueTest { queue, store ->
+        queue.prefetch(listOf("a", "b", "c"))
+        settle()
+        // Deselect c and select it again before either request has run.
+        queue.releaseLater(setOf("c"))
+        queue.prefetch(listOf("c"))
+        settle()
+
+        store.finish("a")
+        store.finish("b")
+        settle()
+        assertEquals(listOf("a", "b", "c"), store.started)
+        assertTrue(store.deleted.isEmpty())
+    }
 }

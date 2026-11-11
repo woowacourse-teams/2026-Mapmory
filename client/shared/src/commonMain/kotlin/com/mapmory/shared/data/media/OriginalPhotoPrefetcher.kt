@@ -9,6 +9,12 @@ interface OriginalPhotoPrefetcher {
 
     /** 미리 받은 원본 캐시를 지운다. 받는 중이면 끝난 뒤에 지운다. */
     fun releasePrefetched(localIds: Set<String>)
+
+    /**
+     * 앱 시작 때 한 번, [keep](복원된 백그라운드 저장의 사진) 외의 원본 캐시를 지운다.
+     * 앱이 종료돼 기록 작성 정리가 불리지 않은 원본이 쌓이지 않게 한다.
+     */
+    fun pruneCache(keep: Set<String>) {}
 }
 
 /**
