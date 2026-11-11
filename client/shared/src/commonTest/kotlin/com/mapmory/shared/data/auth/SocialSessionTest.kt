@@ -31,6 +31,7 @@ class SocialSessionTest {
         var guestCalls = 0
         var memberFailure = false
         var invalidAccess = false
+        var invalidProof = false
         var exchangeFailure = false
         var expired = false
         var invalidRefresh = false
@@ -46,6 +47,7 @@ class SocialSessionTest {
         override suspend fun socialLogin(provider: MemberProvider, idToken: String, accessToken: String?): Result<SocialSessionTokens> {
             exchangeCalls++; bearer = accessToken
             exchangeBlock?.invoke()
+            if (invalidProof) return Result.failure(apiError("INVALID_GOOGLE_TOKEN"))
             if (invalidAccess) return Result.failure(apiError("INVALID_ACCESS_TOKEN"))
             if (expired) return Result.failure(apiError("EXPIRED_ACCESS_TOKEN"))
             if (exchangeFailure) return Result.failure(IllegalStateException("response lost"))
@@ -81,6 +83,25 @@ class SocialSessionTest {
             assertTrue(session.login(MemberProvider.GOOGLE, "proof").isFailure)
             assertEquals("KAKAO", store.recent)
             assertEquals(MemberProvider.KAKAO, session.state.value.recentLoginProvider)
+        } finally { session.close() }
+    }
+
+    @Test fun refreshDuringPendingLoginKeepsRegistrationBlockedUntilDefiniteRejection() = runBlocking {
+        val gateway = Gateway().apply { invalidProof = true }
+        val session = GuestSessionManager(gateway, Store())
+        var readyCalls = 0
+        session.onSessionReady = { readyCalls++ }
+        session.onBeforeAccountChanged = { readyCalls = 0 }
+        gateway.exchangeBlock = {
+            assertTrue(session.state.value.pendingLogin)
+            session.refreshAfterUnauthorized(guest.accessToken).getOrThrow()
+            assertEquals(0, readyCalls)
+        }
+        try {
+            assertTrue(session.login(MemberProvider.GOOGLE, "invalid-proof").isFailure)
+            assertFalse(session.state.value.pendingLogin)
+            assertEquals(guest.accessToken, session.getAccessToken())
+            assertEquals(1, readyCalls)
         } finally { session.close() }
     }
 

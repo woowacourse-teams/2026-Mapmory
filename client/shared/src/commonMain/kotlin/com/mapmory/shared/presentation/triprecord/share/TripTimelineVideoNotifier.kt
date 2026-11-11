@@ -3,7 +3,7 @@ package com.mapmory.shared.presentation.triprecord.share
 import androidx.compose.runtime.Composable
 
 internal interface TripTimelineVideoNotifier {
-    fun requestPermissionIfNeeded()
+    suspend fun requestPermissionIfNeeded()
 
     fun showProgress(jobId: Long)
 

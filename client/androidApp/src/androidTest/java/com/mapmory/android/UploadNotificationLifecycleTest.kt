@@ -20,6 +20,25 @@ import org.junit.Test
 /** Exercises the real notification bridge without uploading test records to a user's account. */
 class UploadNotificationLifecycleTest {
     @Test
+    fun pushRegistrationSurvivesRecreationAndIsScopedToApi() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val api = "https://push-store-test-${System.nanoTime()}"
+        val store = com.mapmory.shared.data.settings.AndroidPushTokenRegistrationStore(context, api)
+        val other = com.mapmory.shared.data.settings.AndroidPushTokenRegistrationStore(context, "$api/other")
+        val registration = com.mapmory.shared.data.settings.PushTokenRegistration("account-1", 42L)
+        try {
+            store.write(registration)
+            assertEquals(registration, com.mapmory.shared.data.settings.AndroidPushTokenRegistrationStore(context, "$api/").read())
+            assertEquals(null, other.read())
+            store.clear()
+            assertEquals(null, store.read())
+        } finally {
+            store.clear()
+            other.clear()
+        }
+    }
+
+    @Test
     fun pendingUploadAndUncertainServerSaveSurviveStoreRecreation() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val namespace = "upload-lifecycle-test-${System.nanoTime()}"
@@ -54,27 +73,29 @@ class UploadNotificationLifecycleTest {
             val execution = AndroidBackgroundSaveExecution(context, "notification-lifecycle-test")
             ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
                 waitForImportance(foreground = true)
-                execution.onCompleted(save, id)
+                execution.onCompleted(save, id, serverPushRequested = false)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
 
                 // In-app navigation does not stop the host Activity.
                 scenario.onActivity { it.title = "다른 화면" }
-                execution.onCompleted(save, id)
+                execution.onCompleted(save, id, serverPushRequested = false)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
 
                 instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_HOME").close()
                 waitForImportance(foreground = false)
-                execution.onCompleted(save, id)
+                execution.onCompleted(save, id, serverPushRequested = true)
+                assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
+                execution.onCompleted(save, id, serverPushRequested = false)
                 waitForNotification(manager, id.hashCode())
                 manager.cancel(id.hashCode())
 
                 scenario.close()
-                execution.onCompleted(save, id)
+                execution.onCompleted(save, id, serverPushRequested = false)
                 waitForNotification(manager, id.hashCode())
                 manager.cancel(id.hashCode())
 
                 preferences.edit().putBoolean("photo_record_completion", false).commit()
-                execution.onCompleted(save, id)
+                execution.onCompleted(save, id, serverPushRequested = false)
                 assertEquals(0, manager.activeNotifications.count { it.id == id.hashCode() })
             }
         } finally {

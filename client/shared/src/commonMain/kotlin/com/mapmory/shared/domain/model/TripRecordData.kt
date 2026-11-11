@@ -15,6 +15,7 @@ data class TripRecordData(
     val thumbnailUrl: String? = null,
     val tags: List<Tag> = emptyList(),
     val place: PlaceReference? = null,
+    val serverPushRequested: Boolean = false,
 )
 
 /** 목록 API가 반환하는 얇은 모델이다. 본문과 전체 미디어는 상세 조회에서만 가져온다. */

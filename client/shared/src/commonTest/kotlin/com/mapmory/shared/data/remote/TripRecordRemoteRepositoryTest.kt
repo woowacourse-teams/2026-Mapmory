@@ -1,6 +1,9 @@
 package com.mapmory.shared.data.remote
 
 import com.mapmory.shared.data.local.StaticRegionCatalog
+import com.mapmory.shared.data.settings.PushTokenRegistration
+import com.mapmory.shared.data.settings.PushTokenRegistrationManager
+import com.mapmory.shared.data.settings.PushTokenRegistrationStore
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordQuery
 import com.mapmory.shared.domain.model.TripRecordSort
@@ -119,6 +122,74 @@ class TripRecordRemoteRepositoryTest {
             created.media.single().thumbnailUrl,
         )
         client.close()
+    }
+
+    @Test
+    fun `만료된_푸시_등록은_갱신하고_기록_저장을_재시도한다`() = runBlocking {
+        val token = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJhY2NvdW50LTEifQ."
+        val store = TripTestPushTokenRegistrationStore()
+        var registrationCount = 0
+        var createCount = 0
+        val client = client { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/push-tokens" -> {
+                    registrationCount++
+                    jsonResponse("""{"data":{"pushTokenId":${if (registrationCount == 1) 41 else 42}}}""")
+                }
+
+                "/api/v2/travel-records" -> {
+                    createCount++
+                    val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
+                    if (createCount == 1) {
+                        assertTrue("\"pushTokenId\":41" in body)
+                        jsonResponse(
+                            """{"title":"푸시 등록을 찾을 수 없습니다.","status":404,"detail":"다시 등록해 주세요.","instance":"/api/v2/travel-records","code":"TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND"}""",
+                            HttpStatusCode.NotFound,
+                            ContentType.parse("application/problem+json"),
+                        )
+                    } else {
+                        assertTrue("\"pushTokenId\":42" in body)
+                        jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
+                    }
+                }
+
+                "/api/v1/travel-records/101" -> jsonResponse(detailResponse("갱신된 등록으로 저장"))
+                else -> error("Unexpected request: ${request.url.encodedPath}")
+            }
+        }
+        val manager = PushTokenRegistrationManager(
+            client = client,
+            apiBaseUrl = "https://api.example.com/api/v1",
+            accessTokenProvider = AccessTokenProvider { token },
+            store = store,
+            platform = "ANDROID",
+        )
+        manager.updateDeviceState("device-token", true, photoEnabled = true, videoEnabled = true)
+
+        try {
+            val created = TripRecordRemoteRepository(
+                client = client,
+                apiBaseUrl = "https://api.example.com/api/v1",
+                accessTokenProvider = AccessTokenProvider { token },
+                regionCatalog = catalog,
+                pushTokenRegistrationManager = manager,
+            ).createTripRecord(
+                TripRecordDraft(
+                    locationId = catalog.requireByCode("JP").id,
+                    startDate = "2026-08-11",
+                    mediaObjectKeys = listOf("travel-records/guest/a.jpg"),
+                ),
+            ).getOrThrow()
+
+            assertEquals("갱신된 등록으로 저장", created.title)
+            assertTrue(created.serverPushRequested)
+            assertEquals(2, registrationCount)
+            assertEquals(2, createCount)
+            assertEquals(PushTokenRegistration("account-1", 42), store.read())
+        } finally {
+            manager.close()
+            client.close()
+        }
     }
 
     @Test
@@ -329,4 +400,11 @@ class TripRecordRemoteRepositoryTest {
         val encodedTitle = title?.let { "\"$it\"" } ?: "null"
         return """{"data":{"id":101,"title":$encodedTitle,"content":"골목을 걸었다.","region":{"country":{"code":"KR","name":"대한민국"},"province":{"code":"49","name":"제주특별자치도"},"district":{"code":"50110","name":"제주시"}},"startDate":"2026-08-11","endDate":null,"objectKeys":["travel-records/guest/a.jpg"],"media":[{"id":55,"objectKey":"travel-records/guest/a.jpg","viewUrl":"https://bucket.example.com/photo.jpg?signature=fresh","viewUrlExpiresIn":300,"thumbnailUrl":"https://bucket.example.com/photo.webp?signature=fresh","thumbnailUrlExpiresIn":300,"sortOrder":0}],"tags":[{"id":7,"name":"가족"}],"createdAt":"2026-08-14T10:30:00","updatedAt":"2026-08-15T09:00:00"}}"""
     }
+}
+
+private class TripTestPushTokenRegistrationStore : PushTokenRegistrationStore {
+    private var registration: PushTokenRegistration? = null
+    override fun read() = registration
+    override fun write(registration: PushTokenRegistration) { this.registration = registration }
+    override fun clear() { registration = null }
 }

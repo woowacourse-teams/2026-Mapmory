@@ -11,6 +11,7 @@ data class ShareVideoJobState(
     val notifiedJobId: Long? = null,
     val statusCheckError: String? = null,
     val startedAtEpochMillis: Long? = null,
+    val serverPushRequested: Boolean = false,
     val isCreationRequestInProgress: Boolean = false,
     val statusCheckRetryCount: Int = 0,
 ) {
@@ -23,7 +24,7 @@ interface ShareVideoJobStore {
 
     fun loadJobId(): Long?
 
-    fun saveJobId(jobId: Long, startedAtEpochMillis: Long)
+    fun saveJobId(jobId: Long, startedAtEpochMillis: Long, serverPushRequested: Boolean = false)
 
     fun tryStartCreationRequest(): Boolean
 
@@ -48,13 +49,14 @@ class MemoryShareVideoJobStore : ShareVideoJobStore {
 
     override fun loadJobId(): Long? = state.value.jobId
 
-    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long) {
+    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long, serverPushRequested: Boolean) {
         require(jobId > 0L)
         mutableState.value = state.value.copy(
             jobId = jobId,
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = startedAtEpochMillis,
+            serverPushRequested = serverPushRequested,
             isCreationRequestInProgress = false,
         )
     }
@@ -101,6 +103,7 @@ class MemoryShareVideoJobStore : ShareVideoJobStore {
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = null,
+            serverPushRequested = false,
             isCreationRequestInProgress = false,
         )
     }
