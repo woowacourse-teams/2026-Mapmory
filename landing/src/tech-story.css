@@ -22,8 +22,8 @@
   position: relative;
 }
 .ts-head { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 8px; }
-.ts-eyebrow { margin: 0; color: var(--accent-ink); font-size: 14px; font-weight: 700; letter-spacing: 0.08em; }
-.ts-head h2 { margin: 8px 0 0; font-family: var(--serif); font-weight: 700; font-size: var(--type-h2); line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ts-eyebrow { margin: 0; color: var(--muted); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+.ts-head h2 { margin: 8px 0 0; font-family: var(--serif); font-weight: 700; font-size: var(--type-h2); line-height: 1.25; letter-spacing: -0.04em; text-wrap: balance; word-break: keep-all; }
 
 /* ── stage + phone */
 .ts-story { position: relative; }
@@ -162,10 +162,10 @@
 .ts-copy.is-left { left: 0; }
 .ts-copy.is-on, .ts:not(.is-live) .ts-copy[data-caption="0"] { opacity: 1; transform: translateY(-50%);
   transition: opacity 200ms var(--ease-out), transform 220ms var(--ts-ease-out); }
-.ts-label { display: inline-flex; margin: 0 0 8px; color: var(--accent-ink); font: 700 14px/20px var(--ts-hand); letter-spacing: 0.04em; }
+.ts-label { display: inline-flex; margin: 0 0 8px; color: var(--muted); font: 400 14px/20px var(--ts-hand); letter-spacing: 0.01em; }
 /* the label holds still (2026-10-29: the boiling wiggle read as childish) */
 .ts-label .ts-ch { display: inline-block; white-space: pre; }
-.ts-copy h3 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.38; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+.ts-copy h3 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: clamp(26px, 3vw, 40px); line-height: 1.25; letter-spacing: -0.04em; text-wrap: balance; word-break: keep-all; }
 /* the scroll room under the stage: a spacer per scene and one between the steps */
 .ts-beats { position: relative; margin-top: -100vh; margin-top: -100svh; pointer-events: none; }
 /* 2026-11-10: 92 → 64 (GA4 since 10-28: 15 people rested on scene 1, 6 on scene 2; the trip between scenes was long) */

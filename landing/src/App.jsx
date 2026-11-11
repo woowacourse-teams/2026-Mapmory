@@ -1026,7 +1026,7 @@ function App() {
 
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
-          <h2 id="privacy-title">사진첩은 폰 안에서만 살펴봐요</h2>
+          <h2 id="privacy-title">사진첩은 폰{"\u00a0"}안에서만 살펴봐요</h2>
         </div>
         <div className="trust-flow">
           <div className="trust-zone is-device">
@@ -1053,7 +1053,7 @@ function App() {
       </section>
 
       <section className="download-section" id="download">
-        <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요</h2>
+        <h2>사진첩 속 여행,<br /><span className="title-soft">지금 지도로 꺼내 보세요</span></h2>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
           <StoreButton placement="final" platform="ios" label={<>iOS <small>App Store</small></>} />
           <StoreButton placement="final" platform="android" label={<>Android <small>Google Play</small></>} />

@@ -43,7 +43,8 @@
   caret-color: var(--accent-strong);
   /* 2026-11-09 "앱과 같은 옷" (티온 picked B): the app's mint-white page, white cards with a light border, app green
      (#4D9272) for actions, one typeface (LINE Seed) with no serif or handwriting. --serif now points at LINE Seed so
-     older rules keep working. --ink is the button fill, a shade darker than the app green so white text passes AA. */
+     older rules keep working. --ink is the app-green fill, a shade darker than the app green so white text passes AA;
+     since direction 다 (2026-11-10) it is only for things drawn inside a phone screen, and page buttons use --btn. */
   --canvas: #f6f9f7;
   --surface: #ffffff;
   --surface-soft: #eef3f0;
@@ -55,9 +56,12 @@
   --accent-strong: #4d9272;
   /* Small green text: AA on paper, surface and accent-soft. Keep --accent-strong for icons, borders and fills. */
   --accent-ink: #367356;
-  /* buttons and chosen chips: ink on paper (light), paper on ink (dark) */
+  /* app-green fills inside the phone screens (page buttons and chosen chips use --btn below) */
   --ink: #3f8264;
   --on-ink: #ffffff;
+  /* 2026-11-10 (direction 다): the page's own buttons are ink-black pills; the app green stays inside the phone screens */
+  --btn: #18201b;
+  --on-btn: #f6f9f7;
   --serif: "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif;
   /* the last call to action is a dark panel in both themes */
   --cta-bg: #17231d;
@@ -99,6 +103,8 @@
   --accent-ink: #8fd0ae;
   --ink: #7cc3a0;
   --on-ink: #0f1512;
+  --btn: #edf3ef;
+  --on-btn: #101513;
   --cta-bg: #18201c;
   --cta-text: #edf3ef;
   --cta-muted: #a9b6ae;
@@ -155,7 +161,7 @@ main { overflow-x: clip; }
 }
 .brand { font: 700 25px/1 "LINE Seed Sans KR", "LINE Seed Sans KR Ext", system-ui, sans-serif; letter-spacing: -0.035em; }
 .brand strong { color: var(--accent-strong); }
-.site-header nav { display: flex; gap: 34px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.site-header nav { display: flex; gap: 34px; color: var(--muted); font-size: 14px; font-weight: 400; }
 .site-header nav a:hover { color: var(--text); }
 .header-actions { justify-self: end; display: flex; align-items: center; gap: 16px; }
 .theme-toggle { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
@@ -163,7 +169,7 @@ main { overflow-x: clip; }
 .theme-toggle button.is-active { color: var(--accent-strong); background: var(--surface-soft); }
 
 .button { min-height: 52px; padding: 0 25px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; border: 1px solid transparent; cursor: pointer; transition: transform 200ms var(--ease-out), background-color 200ms var(--ease-out), border-color 200ms var(--ease-out); }
-.button-primary { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
+.button-primary { color: var(--on-btn); background: var(--btn); border-color: var(--btn); border-radius: 999px; }
 .button-secondary { color: var(--text); background: var(--surface); border-color: var(--line); }
 .button:disabled { cursor: not-allowed; opacity: 0.66; }
 .header-download { min-height: 44px; padding-inline: 20px; font-size: 14px; }
@@ -196,8 +202,8 @@ main { overflow-x: clip; }
 .download-actions .button-store { width: 100%; min-width: 0; padding-inline: 12px; font-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .button:hover:not(:disabled) { transform: translateY(-2px); }
-  .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, #000); }
-  .header-store-popover .button-store:hover { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
+  .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--btn) 86%, var(--canvas)); }
+  .header-store-popover .button-store:hover { color: var(--on-btn); background: var(--btn); border-color: var(--btn); }
 }
 .button:active:not(:disabled) { transform: scale(0.97); }
 
@@ -215,10 +221,10 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 }
 .experience-pin { position: static; }
 .section-heading { max-width: 760px; margin: 0 auto 50px; text-align: center; }
-.section-heading h2 { margin: 0; line-height: 1.3; letter-spacing: -0.02em; word-break: keep-all; }
+.section-heading h2 { margin: 0; line-height: 1.25; letter-spacing: -0.04em; word-break: keep-all; }
 /* One h2 size for every section below the hero; the hero headline stays the largest type. */
 .section-heading h2,
-.section-heading-flow h2 { font-size: var(--type-h2); line-height: 1.3; letter-spacing: -0.02em; }
+.section-heading-flow h2 { font-size: var(--type-h2); line-height: 1.25; letter-spacing: -0.04em; }
 .section-heading > p:not(.eyebrow) { margin: 22px 0 0; color: var(--muted); font-size: 16px; word-break: keep-all; }
 .section-heading-flow { max-width: none; margin-bottom: 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr); gap: 68px; align-items: end; text-align: left; }
 .section-heading-flow h2 { white-space: nowrap; }
@@ -241,8 +247,8 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 .location-shortcuts { display: flex; gap: 7px; }
 .location-shortcuts button { min-height: 36px; padding: 0 11px; border: 1px solid var(--globe-line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--globe-panel); color: var(--globe-muted); cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .location-shortcuts button:hover { border-color: var(--accent); color: var(--globe-text); }
-/* a choice is marked in ink everywhere (the hero chips, this dock); it used to be the only yellow on the page */
-.location-shortcuts button.is-active { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
+/* a choice is marked with the button colour everywhere (the hero chips, this dock) */
+.location-shortcuts button.is-active { color: var(--on-btn); background: var(--btn); border-color: var(--btn); }
 
 .experience-stage { display: grid; grid-template-columns: minmax(0, 1.14fr) minmax(310px, 0.86fr); gap: 16px; align-items: stretch; scroll-margin-top: 84px; }
 .globe-panel { height: 520px; min-width: 0; overflow: hidden; border: 1px solid var(--globe-line); border-radius: 22px; background: var(--globe-panel); box-shadow: var(--shadow); display: flex; flex-direction: column; }
@@ -354,7 +360,7 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 @media (hover: hover) and (pointer: fine) {
   .download-section .button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--cta-text) 88%, var(--cta-bg)); }
 }
-.download-section h2 { margin: 0; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.3; letter-spacing: -0.02em; word-break: keep-all; }
+.download-section h2 { margin: 0; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.25; letter-spacing: -0.04em; word-break: keep-all; }
 .download-section > p:not(.eyebrow) { margin: 22px 0 34px; color: var(--muted); }
 /* The hero's one-line trust promise, repeated at the last conversion point. */
 .download-section > p.download-trust { justify-content: center; margin: 16px 0 0; color: var(--cta-muted); }
@@ -410,13 +416,13 @@ h1 em, h2 em { color: inherit; font-style: normal; }
 @keyframes faq-in { from { opacity: 0; transform: translateY(-4px); } }
 
 /* The one-line trust promise at the last conversion point (sketch v11). */
-.trust-line { margin: 14px 0 0; display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 14px; font-weight: 700; word-break: keep-all; }
+.trust-line { margin: 14px 0 0; display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 14px; font-weight: 400; word-break: keep-all; }
 .trust-line svg { flex: 0 0 auto; color: var(--accent-strong); }
 .download-section .trust-line svg { color: var(--cta-accent); }
 .download-section .download-actions { margin-top: 30px; }
 .download-section .button-store small { margin-left: 2px; font-size: 12px; opacity: 0.75; }
 @media (max-width: 400px) { .download-section .button-store small { display: none; } }
-.download-section > p.download-free { margin: 14px 0 0; color: var(--cta-muted); font-size: 14px; font-weight: 700; }
+.download-section > p.download-free { margin: 14px 0 0; color: var(--cta-muted); font-size: 14px; font-weight: 400; }
 @media (max-width: 900px) {
   .trust-flow { grid-template-columns: 1fr; }
   .trust-arrow { height: 36px; }
@@ -546,8 +552,8 @@ footer p { margin: 10px 0 0; }
   .world-memory-modal .world-memory-card header small { display: none; }
   .world-memory-modal .world-memory-card .memory-location-full { display: none; }
   .world-memory-modal .world-memory-card .memory-location-compact { display: inline; }
-  .world-memory-modal .world-memory-close { min-width: 96px; min-height: 44px; height: 44px; margin-left: auto; border-color: var(--ink); color: var(--on-ink); background: var(--ink); }
-  .world-memory-close:hover { border-color: var(--ink); color: var(--on-ink); background: var(--ink); }
+  .world-memory-modal .world-memory-close { min-width: 96px; min-height: 44px; height: 44px; margin-left: auto; border-color: var(--btn); color: var(--on-btn); background: var(--btn); }
+  .world-memory-close:hover { border-color: var(--btn); color: var(--on-btn); background: var(--btn); }
   .world-memory-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; }
   .memory-photo-dots { gap: 0; }
   .memory-photo-dots button,
@@ -579,16 +585,32 @@ footer p { margin: 10px 0 0; }
 }
 
 /* 2026-11-09 audit: keyboard skip link and the privacy policy link in the footer */
-.skip-link { position: absolute; left: 16px; top: -64px; z-index: 100; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--on-ink); font-weight: 700; transition: top 0.2s var(--ease-out); }
+.skip-link { position: absolute; left: 16px; top: -64px; z-index: 100; padding: 12px 16px; border-radius: 12px; background: var(--btn); color: var(--on-btn); font-weight: 700; transition: top 0.2s var(--ease-out); }
 .skip-link:focus { top: 12px; }
 .footer-link { min-height: 44px; display: inline-flex; align-items: center; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
 /* 2026-11-10 GA4 round: one own-store button on phones, a QR beside the buttons on computers (see HeroStoreActions).
    The QR keeps its own white quiet zone and square corners so cameras read it in the dark theme too. */
-.hero-store { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.hero-store { display: flex; align-items: center; justify-content: center; gap: 24px; }
 .hero-store .store-buttons.is-own { grid-template-columns: max-content; }
 .hero-store .store-buttons.is-own .button-store { min-width: 220px; min-height: 52px; font-size: 16px; }
-.hero-qr { display: none; margin: 0; padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); align-items: center; gap: 12px; color: var(--text); font-size: 14px; line-height: 20px; font-weight: 700; text-align: left; }
+.hero-qr { display: none; margin: 0; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; line-height: 20px; font-weight: 400; text-align: left; white-space: nowrap; }
 .hero-qr img { display: block; width: 112px; height: 112px; background: #fff; }
-/* not in windows under 700px tall: the card would push the words under the header and onto the foot */
+/* not in windows under 700px tall: the QR would push the words under the header and onto the foot */
 @media (min-width: 900px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .hero-qr { display: flex; } }
+
+/* 2026-11-10 (direction 다) for the rest of the page: the second line of a two-line title is muted like the hero's,
+   and on wide screens the trust and download sections read like a magazine spread: the title in a left column, the
+   content beside it. */
+.title-soft { color: var(--muted); }
+.download-section .title-soft { color: var(--cta-muted); }
+@media (min-width: 1000px) {
+  .trust-section { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); column-gap: 56px; align-items: start; }
+  .trust-section .section-heading { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 120px; max-width: none; margin: 0; }
+  .trust-section .trust-flow, .trust-section .faq-list { grid-column: 2; max-width: none; margin-left: 0; margin-right: 0; }
+  .download-section { padding: 72px 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); column-gap: 56px; align-items: center; text-align: left; }
+  .download-section h2 { grid-column: 1; grid-row: 1 / span 3; }
+  .download-section .download-actions, .download-section > p.download-free, .download-section > p.download-trust { grid-column: 2; }
+  .download-section .download-actions { margin: 0; }
+  .download-section > p.download-trust { justify-content: flex-start; align-items: flex-start; }
+}
