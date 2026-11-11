@@ -599,7 +599,10 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
     "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg"
   ],
   "tagIds": [9, 12],
-  "placeId": null
+  "placeId": null,
+  "capturedDates": {
+    "travel-records/10/550e8400-e29b-41d4-a716-446655440000.jpg": "2026-08-11"
+  }
 }
 ```
 
@@ -633,8 +636,11 @@ Access Token 오류와 Refresh Token 오류는 상태가 모두 `401`이지만 *
 | `objectKeys` | String[] | 예 | 업로드 완료된 Object Key 목록. 1장 이상 100장 이하 |
 | `tagIds` | Long[] | 아니요 | 빈 배열 허용, 최대 5개, 중복 불가, 모두 현재 회원 소유 |
 | `placeId` | String | 아니요 | `GET /places/search` 후보의 장소 ID, 최대 255자. 지역 코드가 없으면 이 장소로 지역을 정함 |
+| `capturedDates` | Map<String, LocalDate> | 아니요 | Object Key → 사진 촬영일(`YYYY-MM-DD`). 모르는 사진은 빼고 보낸다 |
 
 `objectKeys`는 배열 순서대로 `record_media.sort_order`를 0부터 부여해 저장한다. 사진은 1장 이상 100장 이하여야 하며, 값이 없거나 `null`·빈 배열이면 `PHOTO_REQUIRED`로 거절한다.
+
+`capturedDates`는 사진첩(EXIF·MediaStore)에서 읽은 촬영일이고 `record_media.captured_date`에 저장한다. 다른 기기나 그룹 멤버도 같은 날짜로 사진을 묶을 수 있게 하려는 값이다. 카메라 시계가 틀린 사진이 있어도 저장을 실패시키지 않는다. 1900-01-01 이전이거나 서버 기준 내일보다 뒤인 날짜, 형식이 틀린 키는 모르는 날짜로 보고 버린다. `objectKeys`에 없는 키는 무시한다. 수정 요청에서 촬영일을 보내지 않은 사진은 저장된 촬영일을 그대로 둔다.
 
 `content`가 없거나 `null`이면 서버는 빈 문자열로 정규화해 저장한다.
 
@@ -800,7 +806,8 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
         "viewUrlExpiresIn": 300,
         "thumbnailUrl": "https://...presigned-get-url",
         "thumbnailUrlExpiresIn": 300,
-        "sortOrder": 0
+        "sortOrder": 0,
+        "capturedDate": "2026-08-11"
       }
     ],
     "tags": [
@@ -818,7 +825,7 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 }
 ```
 
-`objectKeys`와 `media`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. `media[].viewUrl`은 원본의 Presigned GET URL이고 `viewUrlExpiresIn`은 만료까지 남은 초다. 전체 화면 뷰어처럼 크게 보여 줄 때 쓴다. `media[].thumbnailUrl`은 썸네일(WebP, 긴 변 1080px)의 조회 URL이고 `thumbnailUrlExpiresIn`은 그 만료까지 남은 초다. 그리드, 대표 사진처럼 작게 보여 줄 때 쓴다. 썸네일은 저장 뒤 워커가 만들므로, 아직 없으면 `thumbnailUrl`은 `viewUrl`과 같은 원본 URL이다. 국가 단위 기록은 `province`와 `district`가, 시·도 단위 기록은 `district`가 `null`이다.
+`objectKeys`와 `media`는 `record_media.sort_order` 오름차순으로 반환하며 미디어가 없으면 빈 배열이다. `media[].viewUrl`은 원본의 Presigned GET URL이고 `viewUrlExpiresIn`은 만료까지 남은 초다. 전체 화면 뷰어처럼 크게 보여 줄 때 쓴다. `media[].thumbnailUrl`은 썸네일(WebP, 긴 변 1080px)의 조회 URL이고 `thumbnailUrlExpiresIn`은 그 만료까지 남은 초다. 그리드, 대표 사진처럼 작게 보여 줄 때 쓴다. 썸네일은 저장 뒤 워커가 만들므로, 아직 없으면 `thumbnailUrl`은 `viewUrl`과 같은 원본 URL이다. `media[].capturedDate`는 사진 촬영일이고 모르면 `null`이다. 국가 단위 기록은 `province`와 `district`가, 시·도 단위 기록은 `district`가 `null`이다.
 
 `place*` 필드는 장소를 연결한 기록에만 값이 있고 아니면 모두 `null`이다. 예전 Geoapify 장소로 저장된 기록은 `placeProvider`가 `GEOAPIFY`로 남는다. `PUT`은 전체 수정이므로 `placeId`를 빼면 기존 장소 연결이 제거된다.
 
@@ -1739,7 +1746,8 @@ Authorization: Bearer {accessToken}
             "viewUrlExpiresIn": 300,
             "thumbnailUrl": "https://...signed-url",
             "thumbnailUrlExpiresIn": 300,
-            "sortOrder": 0
+            "sortOrder": 0,
+            "capturedDate": "2026-03-04"
           }
         ],
         "addedAt": "2026-03-05T09:00:00"
@@ -1751,7 +1759,7 @@ Authorization: Bearer {accessToken}
 
 `entries`는 기록의 시작일 순이고 시작일이 같으면 담은 순서다. `photos`는 기록마다 `sort_order` 순이다. 사진 주소는 여행 기록 상세와 같은 방식(서명 URL, 만료 시간 초)으로 서명하되, 앨범에는 썸네일 주소가 더 있다.
 
-`photos[].viewUrl`은 원본이고 전체 화면 뷰어에서 쓴다. `photos[].thumbnailUrl`은 서버가 만든 썸네일(WebP, 긴 변 1080px)이고 그리드처럼 작게 보여 줄 때 쓴다. 썸네일이 아직 없으면 `thumbnailUrl`도 원본 주소다. 두 주소의 만료 시간은 각각 `viewUrlExpiresIn`, `thumbnailUrlExpiresIn`(초)이다. 앨범 열기·기록 담기·앨범 수정 응답의 `photos`도 같은 형태다.
+`photos[].viewUrl`은 원본이고 전체 화면 뷰어에서 쓴다. `photos[].thumbnailUrl`은 서버가 만든 썸네일(WebP, 긴 변 1080px)이고 그리드처럼 작게 보여 줄 때 쓴다. 썸네일이 아직 없으면 `thumbnailUrl`도 원본 주소다. 두 주소의 만료 시간은 각각 `viewUrlExpiresIn`, `thumbnailUrlExpiresIn`(초)이다. `photos[].capturedDate`는 사진 촬영일이고 모르면 `null`이다. 앨범 열기·기록 담기·앨범 수정 응답의 `photos`도 같은 형태다.
 
 `addedAt`은 시간대 접미사가 없으며 UTC 저장 계약에 따라 해석한다.
 

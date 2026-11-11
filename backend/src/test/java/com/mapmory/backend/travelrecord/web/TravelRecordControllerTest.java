@@ -110,6 +110,7 @@ class TravelRecordControllerTest {
                 null,
                 List.of(),
                 List.of(),
+                null,
                 null
         );
         TravelRecord travelRecord = TravelRecord.of(

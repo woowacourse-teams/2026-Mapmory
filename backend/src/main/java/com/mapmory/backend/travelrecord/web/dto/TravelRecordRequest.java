@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public record TravelRecordRequest(
         @Pattern(regexp = "[A-Z]{2}", message = "국가 코드는 대문자 2자리여야 합니다.")
@@ -23,7 +24,12 @@ public record TravelRecordRequest(
         List<String> objectKeys,
         List<Long> tagIds,
         @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
-        String placeId
+        String placeId,
+        /*
+         * 사진 Object Key별 촬영일(yyyy-MM-dd). 선택이다. 모르는 사진은 빼고 보낸다.
+         * 범위를 벗어난 날짜는 저장을 실패시키지 않고 모르는 날짜로 본다.
+         */
+        Map<String, LocalDate> capturedDates
 ) {
     public TravelRecordCommand toCommand() {
         return new TravelRecordCommand(
@@ -36,7 +42,8 @@ public record TravelRecordRequest(
                 endDate,
                 objectKeys,
                 tagIds,
-                placeId
+                placeId,
+                capturedDates
         );
     }
 }
