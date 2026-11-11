@@ -98,6 +98,30 @@ class TravelRecordControllerTest {
                 .build();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", ",\"pushTokenId\":null", ",\"pushTokenId\":42"})
+    void 생성_요청의_선택적_푸시_등록을_전달한다(String pushField) throws Exception {
+        when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
+                .thenReturn(travelRecord("여행", "본문"));
+        mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"countryCode\":\"JP\",\"startDate\":\"2026-08-11\"" + pushField + "}"))
+                .andExpect(status().isCreated());
+        Long expected = pushField.contains("42") ? 42L : null;
+        verify(travelRecordService).create(eq(MEMBER), ArgumentMatchers.argThat(command ->
+                java.util.Objects.equals(command.pushTokenId(), expected)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    void 푸시_등록_ID는_양수여야_한다(long pushTokenId) throws Exception {
+        mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"countryCode\":\"JP\",\"startDate\":\"2026-08-11\",\"pushTokenId\":" + pushTokenId + "}"))
+                .andExpect(status().isBadRequest());
+        verify(travelRecordService, never()).create(any(), any());
+    }
+
     @Test
     void 여행_일지를_생성한다() {
         TravelRecordRequest request = new TravelRecordRequest(

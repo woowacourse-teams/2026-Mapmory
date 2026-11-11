@@ -65,6 +65,7 @@ public class TravelRecordService {
     private final ActiveMemberGuard activeMemberGuard;
     private final OrphanedMediaRepository orphanedMediaRepository;
     private final DerivedObjectKeys derivedObjectKeys;
+    private final PhotoRecordNotificationOutboxWriter notificationOutboxWriter;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -82,7 +83,8 @@ public class TravelRecordService {
             TravelRecordListCache travelRecordListCache,
             ActiveMemberGuard activeMemberGuard,
             OrphanedMediaRepository orphanedMediaRepository,
-            DerivedObjectKeys derivedObjectKeys
+            DerivedObjectKeys derivedObjectKeys,
+            PhotoRecordNotificationOutboxWriter notificationOutboxWriter
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -101,6 +103,7 @@ public class TravelRecordService {
         this.activeMemberGuard = activeMemberGuard;
         this.orphanedMediaRepository = orphanedMediaRepository;
         this.derivedObjectKeys = derivedObjectKeys;
+        this.notificationOutboxWriter = notificationOutboxWriter;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -137,6 +140,7 @@ public class TravelRecordService {
             travelRecord.retag(tagIds, findTags(member, tagIds));
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
+            notificationOutboxWriter.save(savedTravelRecord.getId(), member.getId(), command.pushTokenId());
             eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return savedTravelRecord;

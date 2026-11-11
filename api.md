@@ -879,6 +879,8 @@ Access Token에서 식별한 현재 회원의 기록만 반환한다.
 `POST /api/v2/travel-records`
 `PUT /api/v2/travel-records/{travelRecordId}`
 
+v2도 선택 필드 `pushTokenId`(양수)를 받아 사진 저장 완료 수신 기기를 지정한다. 생략하면 완료 푸시 없이 저장하며, 촬영일 처리와 함께 적용된다.
+
 v1 생성·수정과 같고, 사진을 `objectKeys` 대신 `photos`로 받는다. 사진 하나의 Object Key와 촬영일을 한 객체로 묶는다. 응답, 오류, 나머지 필드 규칙은 v1과 같다. 버전을 나눈 이유는 ADR 0030에 있다.
 
 #### Request Body
@@ -1809,6 +1811,23 @@ Authorization: Bearer {accessToken}
 
 `PUT /api/v1/push-tokens`
 
+기기별 사진/영상 완료 알림 설정은 토큰 등록 요청에 포함한다. 생략하거나 null이면 기존 앱과 같이 true다.
+
+```json
+{
+  "token": "FCM_TOKEN",
+  "platform": "ANDROID",
+  "previousPushTokenId": 123,
+  "photoRecordCompletionEnabled": true,
+  "travelVideoCompletionEnabled": false
+}
+```
+
+`previousPushTokenId`는 선택인 양수다. 같은 회원의 기존 기기 등록 ID를 보내면 토큰이 회전해도 ID를 유지하므로 진행 중인 작업도 새 토큰을 사용한다. 이미 삭제된 ID는 새 등록으로 복구한다. 다른 회원의 ID 또는 다른 등록과 충돌하는 토큰은 `409 PUSH_REGISTRATION_CONFLICT`로 거부한다. 이전 ID를 생략한 기존 요청의 등록/계정 전환 동작은 유지한다.
+설정은 이 기기에만 적용하며 다른 기기와 그룹 알림 설정을 바꾸지 않는다. 워커가 발송 직전 현재 설정을 확인하므로 대기 중인 사진/영상 완료 알림에도 적용한다. 이미 FCM에 접수한 알림은 취소하지 않는다.
+Android 알림 채널은 사진 `trip-record-ready`, 영상 `share-video-ready`다.
+
+
 ```json
 {
   "token": "fcm-registration-token",
@@ -1818,7 +1837,11 @@ Authorization: Bearer {accessToken}
 
 앱은 로그인 뒤와 FCM이 토큰을 새로 줄 때마다 부른다. 같은 토큰이 이미 있으면 현재 회원으로 옮긴다. `platform`은 `ANDROID` 또는 `IOS`다.
 
-#### Response `204 No Content`
+#### Response `200 OK`
+
+```json
+{ "data": { "pushTokenId": 123 } }
+```
 
 ### 기기 토큰 삭제
 
@@ -1826,7 +1849,7 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "token": "fcm-registration-token"
+  "pushTokenId": 123
 }
 ```
 

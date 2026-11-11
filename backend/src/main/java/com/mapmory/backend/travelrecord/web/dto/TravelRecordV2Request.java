@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.web.dto;
 import tools.jackson.databind.JsonNode;
 import com.mapmory.backend.travelrecord.application.TravelRecordCommand;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -32,7 +33,8 @@ public record TravelRecordV2Request(
         List<@NotNull PhotoRequest> photos,
         List<Long> tagIds,
         @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
-        String placeId
+        String placeId,
+        @Positive Long pushTokenId
 ) {
 
     /**
@@ -70,6 +72,7 @@ public record TravelRecordV2Request(
                 objectKeys,
                 tagIds,
                 placeId,
+                pushTokenId,
                 capturedDates
         );
     }

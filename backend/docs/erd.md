@@ -467,6 +467,8 @@ CONSTRAINT fk_travel_record_tag_tag
 | `member_id` | `BIGINT` | NOT NULL, FK → `member.id` | 기기를 쓰는 회원 |
 | `token` | `VARCHAR(255)` | NOT NULL, UNIQUE | FCM 등록 토큰 |
 | `platform` | `VARCHAR(10)` | NOT NULL | `ANDROID`, `IOS` |
+| `photo_record_completion_enabled` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | 현재 기기의 사진 저장 완료 알림 |
+| `travel_video_completion_enabled` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | 현재 기기의 영상 완료 알림 |
 | `created_at` | `DATETIME` | NOT NULL | 등록 시각 |
 | `updated_at` | `DATETIME` | NOT NULL | 마지막 등록 시각 |
 

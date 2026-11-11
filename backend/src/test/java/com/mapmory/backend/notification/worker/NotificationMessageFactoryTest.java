@@ -35,4 +35,23 @@ class NotificationMessageFactoryTest {
         assertThatThrownBy(() -> factory.create(unknown, token)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> factory.create(invalid, token)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 사진_완료_메시지는_상세_이동에_필요한_데이터를_담는다() {
+        var message = factory.create(event("{\"recordId\":42}"), token);
+        assertThat(message.token()).isEqualTo("device-token");
+        assertThat(message.data()).containsEntry("eventId", "7")
+                .containsEntry("type", "PHOTO_RECORD_COMPLETED").containsEntry("recordId", "42");
+    }
+
+    @Test
+    void 잘못된_기록_ID는_발송하지_않는다() {
+        for (String payload : new String[]{"{}", "{\"recordId\":0}", "{\"recordId\":-1}", "invalid"}) {
+            assertThatThrownBy(() -> factory.create(event(payload), token)).isInstanceOf(RuntimeException.class);
+        }
+    }
+
+    private ClaimedNotification event(String payload) {
+        return new ClaimedNotification(7L, "claim", "PHOTO_RECORD_COMPLETED", payload, 2L, 3L);
+    }
 }

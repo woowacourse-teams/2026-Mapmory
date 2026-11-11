@@ -12,6 +12,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface NotificationOutboxRepository extends JpaRepository<NotificationOutbox, Long> {
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO notification_outbox
+                (event_type, event_key, payload, member_id, push_token_id, next_attempt_at)
+            VALUES (:eventType, :eventKey, :payload, :memberId, :pushTokenId, :nowUtc)
+            ON DUPLICATE KEY UPDATE id = id
+            """, nativeQuery = true)
+    void enqueueOnce(@Param("eventType") String eventType, @Param("eventKey") String eventKey,
+            @Param("payload") String payload, @Param("memberId") Long memberId,
+            @Param("pushTokenId") Long pushTokenId, @Param("nowUtc") LocalDateTime nowUtc);
+
     // 회원 데이터 파기.
     @Modifying
     @Transactional
