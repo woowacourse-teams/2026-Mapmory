@@ -36,11 +36,14 @@ fun resumeBackgroundUploads(apiBaseUrl: String, tokenStore: AuthTokenStore, anal
 @OptIn(ExperimentalNativeApi::class)
 private fun getIosContainer(apiBaseUrl: String, tokenStore: AuthTokenStore): com.mapmory.shared.app.AppContainer {
     iosContainer?.let { return it }
+    // One instance: saves read originals through the same source that prefetched them.
+    val localPhotos = IosLocalPhotoDataSource()
     return createGuestRemoteAppContainer(
         apiBaseUrl = apiBaseUrl,
         tokenStore = tokenStore,
         photoPreviewCache = IosPhotoPreviewCache(),
-        localPhotoDataSource = IosLocalPhotoDataSource(),
+        localPhotoDataSource = localPhotos,
+        originalPhotoPrefetcher = localPhotos,
         backgroundSaveExecution = IosBackgroundSaveExecution(apiBaseUrl),
         mapSummaryCache = IosMapSummaryCache(),
         tripStatisticsCache = IosTripStatisticsCache(),
