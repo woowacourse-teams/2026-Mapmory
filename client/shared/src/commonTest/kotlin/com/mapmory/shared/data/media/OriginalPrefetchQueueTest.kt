@@ -101,7 +101,7 @@ class OriginalPrefetchQueueTest {
 
         store.finish("a")
         settle()
-        assertTrue(waiting.isCompleted)
+        assertTrue(waiting.await(), "awaitPrefetch reports that it waited for a running prefetch")
         assertEquals(listOf("a"), store.started)
     }
 
@@ -121,8 +121,7 @@ class OriginalPrefetchQueueTest {
 
     @Test
     fun `미리_받지_않은_사진을_기다리면_바로_돌아온다`() = queueTest { queue, store ->
-        queue.awaitPrefetch("never-prefetched")
-
+        assertFalse(queue.awaitPrefetch("never-prefetched"))
         assertTrue(store.started.isEmpty())
     }
 

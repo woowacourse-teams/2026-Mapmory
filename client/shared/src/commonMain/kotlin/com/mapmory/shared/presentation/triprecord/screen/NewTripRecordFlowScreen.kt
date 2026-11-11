@@ -308,6 +308,8 @@ internal fun NewTripRecordFlowScreen(
     onSaveClick: () -> Unit,
     onBackClick: () -> Unit,
     onCoverRegionRequested: suspend (List<SelectedPhoto>) -> Unit = {},
+    /** 대표 사진 단계로 넘어갈 때 고른 사진 id를 업로드 순서(대표 사진 먼저)로 알린다. 원본 미리 받기에 쓴다. */
+    onPhotoSelectionConfirmed: (List<String>) -> Unit = {},
     onConfirmedPhotoLoadingBackClick: () -> Unit = onBackClick,
     recordedPhotoIds: Set<String> = emptySet(),
     photoUsageReady: Boolean = true,
@@ -544,6 +546,7 @@ internal fun NewTripRecordFlowScreen(
                     )
                     selectedCoverPhotoId = acceptedPhotos.first().id
                     stepName = NewRecordFlowStep.COVER_SELECTION.name
+                    onPhotoSelectionConfirmed(acceptedPhotos.map(SelectedPhoto::id))
                 }
                 photoMessage = null
             }
@@ -1027,6 +1030,10 @@ internal fun NewTripRecordFlowScreen(
                 ?: selectedPhotos.first()
             selectedCoverPhotoId = coverPhoto.id
             stepName = NewRecordFlowStep.COVER_SELECTION.name
+            // Download originals while the cover and text are being chosen, so saving does not wait on iCloud.
+            onPhotoSelectionConfirmed(
+                listOf(coverPhoto.id) + selectedPhotos.map(SelectedPhoto::id).filterNot { it == coverPhoto.id },
+            )
             photoMessage = null
             return
         }

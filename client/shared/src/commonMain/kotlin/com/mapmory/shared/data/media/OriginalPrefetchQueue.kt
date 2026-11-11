@@ -55,9 +55,11 @@ internal class OriginalPrefetchQueue(
         }
     }
 
-    suspend fun awaitPrefetch(localId: String) {
-        val job = mutex.withLock { entries[localId]?.job } ?: return
+    /** 진행 중인 미리 받기가 있으면 끝날 때까지 기다리고 true를 돌려준다. 없으면 바로 false. */
+    suspend fun awaitPrefetch(localId: String): Boolean {
+        val job = mutex.withLock { entries[localId]?.job } ?: return false
         job.join()
+        return true
     }
 
     suspend fun release(localIds: Set<String>) {
@@ -101,3 +103,9 @@ internal class OriginalPrefetchQueue(
         }
     }
 }
+
+/**
+ * 셀룰러에서도 미리 받는다. 저데이터 모드를 켠 사용자는 데이터를 아끼려는 것이므로 미리 받지 않는다.
+ * 저장할 때는 이 정책과 관계없이 원본을 받는다(#682 제품 결정).
+ */
+internal fun shouldPrefetchOriginals(lowDataMode: Boolean): Boolean = !lowDataMode
