@@ -1,7 +1,6 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
 import com.mapmory.backend.travelrecord.application.TravelRecordCommand;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -29,7 +28,7 @@ public record TravelRecordV2Request(
         @NotNull
         LocalDate startDate,
         LocalDate endDate,
-        List<@Valid @NotNull PhotoRequest> photos,
+        List<@NotNull PhotoRequest> photos,
         List<Long> tagIds,
         @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
         String placeId
