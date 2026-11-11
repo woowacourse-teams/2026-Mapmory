@@ -134,8 +134,10 @@ internal class UploadingTripRecordRepository(
         pendingKeys.forEachIndexed { index, key ->
             uploader.completedObjectKey(key)?.let { objectKey ->
                 objectKeyByLocalId[key] = objectKey
-                if (mediaCacheMutex.withLock { key in previewReplacedLocalIds } ||
-                    rebuildPreviewFromCompletedTransfer(key, objectKey)
+                // Rebuild even if replaced earlier in this session: a background save of the same draft
+                // rewrites the small preview under the local key before uploading (#693 review).
+                if (rebuildPreviewFromCompletedTransfer(key, objectKey) ||
+                    mediaCacheMutex.withLock { key in previewReplacedLocalIds }
                 ) {
                     replacedPreviewLocalIds += key
                 }

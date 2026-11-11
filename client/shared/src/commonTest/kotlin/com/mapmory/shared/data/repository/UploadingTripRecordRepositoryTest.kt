@@ -536,8 +536,10 @@ class UploadingTripRecordRepositoryTest {
     }
 
     @Test
-    fun aPreviewAlreadyRebuiltInThisSessionIsNotRebuiltAgainFromTheStagedFile() = runBlocking {
+    fun aCompletedTransferIsRebuiltFromItsStagedFileEvenIfReplacedEarlierInThisSession() = runBlocking {
         // Photo 0 is uploaded with its bytes (preview rebuilt), photo 1 fails; the retry skips photo 0.
+        // #693 review: a background save of the same draft rewrites the small preview under the local key
+        // before uploading, so trusting the earlier replacement would let that small preview win again.
         val completed = mutableMapOf<String, String>()
         val fileWrites = mutableListOf<String>()
         var failPhotoOne = true
@@ -571,9 +573,10 @@ class UploadingTripRecordRepositoryTest {
 
         assertTrue(repository.updateTripRecord(101, draft).isFailure)
         failPhotoOne = false
-        repository.updateTripRecord(101, draft).getOrThrow()
+        val record = repository.updateTripRecord(101, draft).getOrThrow()
 
-        assertTrue(fileWrites.isEmpty())
+        assertEquals(listOf("content://photo/0"), fileWrites)
+        assertTrue(record.media.all { it.previewBytes == null })
     }
 }
 
