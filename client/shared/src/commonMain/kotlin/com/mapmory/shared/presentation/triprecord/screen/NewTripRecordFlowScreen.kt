@@ -19,7 +19,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -129,6 +129,7 @@ import com.mapmory.shared.presentation.photo.CoverPreviewGraceMillis
 import com.mapmory.shared.presentation.photo.CoverPreviewStage
 import com.mapmory.shared.presentation.photo.after
 import com.mapmory.shared.presentation.photo.initialCoverPreviewDisplay
+import com.mapmory.shared.presentation.photo.layers
 import com.mapmory.shared.presentation.photo.PhotoLibraryActionsFactory
 import com.mapmory.shared.presentation.photo.PhotoLibraryPermissionIssue
 import com.mapmory.shared.presentation.photo.PhotoLoadingProgress
@@ -655,6 +656,8 @@ internal fun NewTripRecordFlowScreen(
         onDispose {
             photoLibrary.cancelCoverPreview()
             coverPreviewLoadingId = null
+            // A finished (failed) request for the photo being left must not skip the wait on return.
+            coverPreviewFinishedId = null
         }
     }
     LaunchedEffect(coverPreviewPhoto?.id) {
@@ -2741,14 +2744,17 @@ private fun CoverPhotoSelectionStep(
             )
             regionContent()
             if (selectedPhoto != null) {
-                CoverPreviewImage(
-                    photo = selectedPhoto,
-                    largePreviewBytes = largePreviewBytes,
-                    largePreviewSupported = largePreviewSupported,
-                    largePreviewUnavailable = largePreviewBytes == null &&
-                        largePreviewFinishedId == selectedPhoto.id,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                )
+                // Each photo gets its own wait, timer and crossfade state.
+                key(selectedPhoto.id) {
+                    CoverPreviewImage(
+                        photo = selectedPhoto,
+                        largePreviewBytes = largePreviewBytes,
+                        largePreviewSupported = largePreviewSupported,
+                        largePreviewUnavailable = largePreviewBytes == null &&
+                            largePreviewFinishedId == selectedPhoto.id,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -2853,19 +2859,20 @@ private fun CoverPreviewImage(
 ) {
     val shape = RoundedCornerShape(22.dp)
     val description = "대표 사진 미리보기: ${photo.displayName}"
-    var display by remember(photo.id) { mutableStateOf(initialCoverPreviewDisplay(largePreviewSupported)) }
-    LaunchedEffect(photo.id) {
+    var display by remember { mutableStateOf(initialCoverPreviewDisplay(largePreviewSupported)) }
+    LaunchedEffect(Unit) {
         delay(CoverPreviewGraceMillis)
         display = display.after(CoverPreviewEvent.GRACE_EXPIRED)
     }
-    LaunchedEffect(photo.id, largePreviewUnavailable) {
+    LaunchedEffect(largePreviewUnavailable) {
         if (largePreviewUnavailable) display = display.after(CoverPreviewEvent.LARGE_UNAVAILABLE)
     }
-    val largeAlpha by animateFloatAsState(
-        targetValue = if (display.stage == CoverPreviewStage.LARGE) 1f else 0f,
-        animationSpec = if (display.crossfade) tween(CoverPreviewCrossfadeMillis) else snap(),
+    val crossfadeProgress by animateFloatAsState(
+        targetValue = if (display.stage == CoverPreviewStage.LARGE && display.crossfade) 1f else 0f,
+        animationSpec = tween(CoverPreviewCrossfadeMillis),
         label = "cover-preview-crossfade",
     )
+    val layers = display.layers(crossfadeProgress)
     Box(modifier) {
         if (display.stage == CoverPreviewStage.WAITING) {
             TripPhotoPlaceholder(Modifier.fillMaxSize(), shape)
@@ -2879,7 +2886,7 @@ private fun CoverPreviewImage(
             cacheKey = "cover-selection:${photo.id}",
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (display.stage == CoverPreviewStage.WAITING) Modifier.alpha(0f) else Modifier)
+                .then(if (layers.smallVisible) Modifier else Modifier.alpha(0f))
                 .then(if (display.stage == CoverPreviewStage.LARGE) Modifier.clearAndSetSemantics {} else Modifier),
             shape = shape,
         )
@@ -2891,7 +2898,7 @@ private fun CoverPreviewImage(
                 cacheKey = "cover-selection:${photo.id}:large",
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = largeAlpha }
+                    .graphicsLayer { alpha = layers.largeAlpha }
                     .then(if (display.stage != CoverPreviewStage.LARGE) Modifier.clearAndSetSemantics {} else Modifier),
                 shape = shape,
                 onReadyChanged = { ready ->

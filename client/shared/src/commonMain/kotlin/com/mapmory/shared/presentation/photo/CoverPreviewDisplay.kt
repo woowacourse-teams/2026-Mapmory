@@ -48,3 +48,23 @@ internal fun CoverPreviewDisplay.after(event: CoverPreviewEvent): CoverPreviewDi
     }
     CoverPreviewStage.LARGE -> this
 }
+
+/** 두 레이어를 어떻게 그릴지. 작은 미리보기는 아래, 큰 미리보기는 위에 놓인다. */
+internal data class CoverPreviewLayers(
+    val smallVisible: Boolean,
+    val largeAlpha: Float,
+)
+
+/**
+ * [crossfadeProgress]는 크로스페이드 애니메이션 값(0~1)이다. 애니메이션 값은 상태가 바뀐 다음 프레임에야
+ * 움직이므로, 크로스페이드가 아닌 큰 미리보기는 이 값을 쓰지 않고 첫 프레임부터 완전히 보인다.
+ */
+internal fun CoverPreviewDisplay.layers(crossfadeProgress: Float): CoverPreviewLayers = when (stage) {
+    CoverPreviewStage.WAITING -> CoverPreviewLayers(smallVisible = false, largeAlpha = 0f)
+    CoverPreviewStage.SMALL -> CoverPreviewLayers(smallVisible = true, largeAlpha = 0f)
+    CoverPreviewStage.LARGE -> if (crossfade) {
+        CoverPreviewLayers(smallVisible = true, largeAlpha = crossfadeProgress)
+    } else {
+        CoverPreviewLayers(smallVisible = false, largeAlpha = 1f)
+    }
+}
