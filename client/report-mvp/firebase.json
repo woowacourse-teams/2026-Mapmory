@@ -1,0 +1,1 @@
+{"hosting":{"site":"mapmory-reports-b6a50","public":"public","ignore":["firebase.json","**/.*","**/node_modules/**"],"headers":[{"source":"**","headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow"},{"key":"X-Content-Type-Options","value":"nosniff"},{"key":"Referrer-Policy","value":"strict-origin-when-cross-origin"}]}]}}
