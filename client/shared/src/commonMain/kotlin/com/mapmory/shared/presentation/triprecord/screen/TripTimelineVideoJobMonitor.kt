@@ -56,7 +56,9 @@ internal fun TripTimelineVideoJobMonitor(
         }
         if (jobState.status == ShareVideoStatus.COMPLETED) {
             notifier.clearProgress(jobId)
-            if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
+            if (jobState.serverPushRequested) {
+                jobStore.markCompletionNotified(jobId)
+            } else if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
                 if (notifier.showReady(jobId)) jobStore.markCompletionNotified(jobId)
             }
             return@LaunchedEffect
@@ -80,7 +82,9 @@ internal fun TripTimelineVideoJobMonitor(
                 when (status) {
                     ShareVideoStatus.COMPLETED -> {
                         notifier.clearProgress(jobId)
-                        if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
+                        if (jobState.serverPushRequested) {
+                            jobStore.markCompletionNotified(jobId)
+                        } else if (!notificationEntry && !jobStore.hasCompletionBeenNotified(jobId)) {
                             if (notifier.showReady(jobId)) jobStore.markCompletionNotified(jobId)
                         }
                         jobStore.updateStatus(status)

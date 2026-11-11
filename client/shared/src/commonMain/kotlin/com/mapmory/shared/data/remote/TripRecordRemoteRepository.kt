@@ -8,6 +8,7 @@ import com.mapmory.shared.data.remote.model.TripRecordListItemDto
 import com.mapmory.shared.data.remote.model.toDomain
 import com.mapmory.shared.data.remote.model.toRegionQuery
 import com.mapmory.shared.data.remote.model.toRequestDto
+import com.mapmory.shared.data.settings.PushTokenRegistrationManager
 import com.mapmory.shared.domain.model.TripRecordData
 import com.mapmory.shared.domain.model.TripRecordDraft
 import com.mapmory.shared.domain.model.TripRecordPage
@@ -31,6 +32,7 @@ class TripRecordRemoteRepository(
     apiBaseUrl: String,
     private val accessTokenProvider: AccessTokenProvider,
     private val regionCatalog: RegionCatalog,
+    private val pushTokenRegistrationManager: PushTokenRegistrationManager? = null,
 ) : TripRecordRepository {
     private val recordsUrl = "${apiBaseUrl.trimEnd('/')}/travel-records"
 
@@ -71,17 +73,28 @@ class TripRecordRemoteRepository(
 
     override suspend fun createTripRecord(draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {
-            val id = client.post(recordsUrl) {
-                authorizeWith(accessTokenProvider)
-                contentType(ContentType.Application.Json)
-                setBody(draft.toRequestDto(regionCatalog))
-            }.requireSuccess()
+            var pushTokenId = pushTokenRegistrationManager?.photoPushTokenId()
+            val response = try {
+                createTripRecordRequest(draft, pushTokenId)
+            } catch (error: MapmoryApiException) {
+                if (pushTokenId == null || error.code != "TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND") throw error
+                pushTokenId = pushTokenRegistrationManager?.refreshPhotoPushTokenId(pushTokenId)
+                createTripRecordRequest(draft, pushTokenId)
+            }
+            val id = response
                 .body<ApiResponseDto<IdResponseDto>>()
                 .data
                 .id
 
-            getTripRecord(id).getOrThrow()
+            getTripRecord(id).getOrThrow().copy(serverPushRequested = pushTokenId != null)
         }
+
+    private suspend fun createTripRecordRequest(draft: TripRecordDraft, pushTokenId: Long?) =
+        client.post(recordsUrl) {
+            authorizeWith(accessTokenProvider)
+            contentType(ContentType.Application.Json)
+            setBody(draft.toRequestDto(regionCatalog, pushTokenId))
+        }.requireSuccess()
 
     override suspend fun updateTripRecord(id: Long, draft: TripRecordDraft): Result<TripRecordData> =
         apiCall {

@@ -45,6 +45,8 @@ import com.mapmory.shared.data.settings.MemoryOnboardingPreference
 import com.mapmory.shared.data.settings.MemoryTeamDevicePreference
 import com.mapmory.shared.data.settings.MemoryThemePreference
 import com.mapmory.shared.data.settings.MemoryShareVideoJobStore
+import com.mapmory.shared.data.settings.PushTokenRegistrationManager
+import com.mapmory.shared.data.settings.PushTokenRegistrationStore
 import com.mapmory.shared.data.settings.ShareVideoJobStore
 import com.mapmory.shared.data.settings.OnboardingPreference
 import com.mapmory.shared.data.settings.TeamDevicePreference
@@ -94,6 +96,7 @@ interface AppContainer {
     val albumShareCoordinator: AlbumShareCoordinator? get() = null
     val groupLeaveCoordinator: GroupLeaveCoordinator? get() = null
     val albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? get() = null
+    val pushTokenRegistrationManager: PushTokenRegistrationManager? get() = null
 
     val regionCatalog: RegionCatalog
     val tripRecordRepository: TripRecordRepository
@@ -187,6 +190,7 @@ private class DefaultAppContainer(
     override val serviceFeedbackRepository: ServiceFeedbackRepository?,
     override val shareVideoRepository: ShareVideoRepository?,
     override val shareVideoJobStore: ShareVideoJobStore,
+    override val pushTokenRegistrationManager: PushTokenRegistrationManager?,
     override val tagRepository: TagRepository,
     private val placeRepository: PlaceRepository?,
     override val themePreference: ThemePreference,
@@ -276,6 +280,7 @@ private class DefaultAppContainer(
 
     override fun close() {
         accountLoginController?.close()
+        pushTokenRegistrationManager?.close()
         backgroundSaveScope.cancel()
         onClose()
     }
@@ -312,6 +317,7 @@ fun createAppContainer(
     accountSession: com.mapmory.shared.data.auth.AccountSession? = null,
     groupRepository: com.mapmory.shared.domain.repository.GroupRepository? = null,
     albumRepository: com.mapmory.shared.domain.repository.AlbumRepository? = null,
+    pushTokenRegistrationManager: PushTokenRegistrationManager? = null,
 ): AppContainer {
     val cachedTripStatistics = CachedTripStatisticsRepository(
         delegate = AnalyticsStatisticsRepository(tripStatisticsRepository, analytics),
@@ -338,6 +344,7 @@ fun createAppContainer(
         serviceFeedbackRepository = serviceFeedbackRepository?.let { AnalyticsFeedbackRepository(it, analytics) },
         shareVideoRepository = shareVideoRepository?.let { AnalyticsShareVideoRepository(it, analytics, shareVideoJobStore) },
         shareVideoJobStore = shareVideoJobStore,
+        pushTokenRegistrationManager = pushTokenRegistrationManager,
         albumShareStore = albumShareStore,
         tagRepository = AnalyticsTagRepository(tagRepository, analytics),
         placeRepository = placeRepository?.let { AnalyticsPlaceRepository(it, analytics) },
@@ -437,6 +444,8 @@ fun createGuestRemoteAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
     albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
+    pushTokenRegistrationStore: PushTokenRegistrationStore? = null,
+    pushTokenPlatform: String? = null,
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -458,6 +467,8 @@ fun createGuestRemoteAppContainer(
         onAuthRefreshFailed = onAuthRefreshFailed,
         onClose = client::close,
         analytics = analytics,
+        pushTokenRegistrationStore = pushTokenRegistrationStore,
+        pushTokenPlatform = pushTokenPlatform,
     )
 }
 
@@ -480,7 +491,10 @@ internal fun createGuestRemoteAppContainer(
     analytics: MapmoryAnalytics = NoOpMapmoryAnalytics,
     shareVideoJobStore: ShareVideoJobStore = MemoryShareVideoJobStore(),
     albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
+    pushTokenRegistrationStore: PushTokenRegistrationStore? = null,
+    pushTokenPlatform: String? = null,
 ): AppContainer {
+    require((pushTokenRegistrationStore == null) == (pushTokenPlatform == null))
     val discardRecordCache = runCatching { tokenStore.read().tokens == null || tokenStore.pendingProvider().provider != null }.getOrDefault(false)
     if (discardRecordCache) {
         albumShareStore.write("[]")
@@ -496,11 +510,27 @@ internal fun createGuestRemoteAppContainer(
         session = session,
         apiBaseUrl = apiBaseUrl,
     )
+    val pushTokenRegistrationManager = pushTokenRegistrationStore?.let { store ->
+        PushTokenRegistrationManager(
+            client = client,
+            apiBaseUrl = apiBaseUrl,
+            accessTokenProvider = session,
+            store = store,
+            platform = requireNotNull(pushTokenPlatform),
+        )
+    }
+    pushTokenRegistrationManager?.let { manager ->
+        session.onSessionReady = {
+            manager.onSessionReady()
+        }
+        session.onBeforeAccountChanged = manager::beforeAccountChanged
+    }
     val remoteTripRecords = TripRecordRemoteRepository(
         client = client,
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
         regionCatalog = regionCatalog,
+        pushTokenRegistrationManager = pushTokenRegistrationManager,
     )
     val remoteMapSummary = MapSummaryRemoteRepository(
         client = client,
@@ -521,6 +551,7 @@ internal fun createGuestRemoteAppContainer(
         client = client,
         apiBaseUrl = apiBaseUrl,
         accessTokenProvider = session,
+        pushTokenRegistrationManager = pushTokenRegistrationManager,
     )
     val remoteTags = TagRemoteRepository(
         client = client,
@@ -569,6 +600,7 @@ internal fun createGuestRemoteAppContainer(
         serviceFeedbackRepository = AuthenticatedServiceFeedbackRepository(session, remoteServiceFeedback),
         shareVideoRepository = AuthenticatedShareVideoRepository(session, remoteShareVideos),
         shareVideoJobStore = shareVideoJobStore,
+        pushTokenRegistrationManager = pushTokenRegistrationManager,
         albumShareStore = albumShareStore,
         tripStatisticsCache = tripStatisticsCache,
         tagRepository = AuthenticatedTagRepository(session, remoteTags),

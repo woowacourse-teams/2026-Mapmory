@@ -129,7 +129,7 @@ internal fun TripRecordQuery.toRegionQuery(regionCatalog: RegionCatalog): Region
         location.toRegionQuery(regionCatalog, allowKoreanProvince = true)
     }
 
-internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRecordRequestDto {
+internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog, pushTokenId: Long? = null): TripRecordRequestDto {
     dateValidationError()?.let { error -> throw IllegalArgumentException(error) }
     require(mediaObjectKeys.isNotEmpty()) { TripRecordPhotoRules.RequiredMessage }
     require(mediaObjectKeys.distinct().size == mediaObjectKeys.size) {
@@ -151,6 +151,7 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog): TripRec
         objectKeys = mediaObjectKeys,
         tagIds = tagIds,
         placeId = place?.placeId,
+        pushTokenId = pushTokenId,
     )
 }
 

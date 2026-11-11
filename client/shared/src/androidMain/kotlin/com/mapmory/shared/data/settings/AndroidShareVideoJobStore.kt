@@ -14,25 +14,29 @@ class AndroidShareVideoJobStore(context: Context, apiBaseUrl: String) : ShareVid
     private val key = "job_id:${apiBaseUrl.trimEnd('/')}"
     private val notifiedKey = "notified_job_id:${apiBaseUrl.trimEnd('/')}"
     private val startedAtKey = "started_at:${apiBaseUrl.trimEnd('/')}"
+    private val serverPushRequestedKey = "server_push_requested:${apiBaseUrl.trimEnd('/')}"
     private val mutableState = MutableStateFlow(
         ShareVideoJobState(
             jobId = preferences.getLong(key, 0L).takeIf { it > 0L },
             notifiedJobId = preferences.getLong(notifiedKey, 0L).takeIf { it > 0L },
             startedAtEpochMillis = preferences.getLong(startedAtKey, 0L).takeIf { it > 0L },
+            serverPushRequested = preferences.getBoolean(serverPushRequestedKey, false),
         ),
     )
     override val state: StateFlow<ShareVideoJobState> = mutableState.asStateFlow()
 
     override fun loadJobId(): Long? = state.value.jobId
 
-    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long) {
+    override fun saveJobId(jobId: Long, startedAtEpochMillis: Long, serverPushRequested: Boolean) {
         require(jobId > 0L)
-        preferences.edit().putLong(key, jobId).putLong(startedAtKey, startedAtEpochMillis).apply()
+        preferences.edit().putLong(key, jobId).putLong(startedAtKey, startedAtEpochMillis)
+            .putBoolean(serverPushRequestedKey, serverPushRequested).apply()
         mutableState.value = state.value.copy(
             jobId = jobId,
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = startedAtEpochMillis,
+            serverPushRequested = serverPushRequested,
             isCreationRequestInProgress = false,
         )
     }
@@ -75,12 +79,13 @@ class AndroidShareVideoJobStore(context: Context, apiBaseUrl: String) : ShareVid
         state.value.notifiedJobId == jobId
 
     override fun clear() {
-        preferences.edit().remove(key).remove(startedAtKey).apply()
+        preferences.edit().remove(key).remove(startedAtKey).remove(serverPushRequestedKey).apply()
         mutableState.value = state.value.copy(
             jobId = null,
             status = null,
             statusCheckError = null,
             startedAtEpochMillis = null,
+            serverPushRequested = false,
             isCreationRequestInProgress = false,
         )
     }
