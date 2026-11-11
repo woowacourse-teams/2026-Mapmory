@@ -39,17 +39,18 @@ class IosBackgroundSaveExecution(namespace: String) : BackgroundSaveExecution {
             if (settings?.authorizationStatus == UNAuthorizationStatusNotDetermined) {
                 center.requestAuthorizationWithOptions(
                     UNAuthorizationOptionAlert or UNAuthorizationOptionSound,
-                ) { _, _ -> }
+                ) { _, _ -> com.mapmory.shared.refreshIosPushPermission() }
             }
         }
     }
-    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {
+    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long, serverPushRequested: Boolean) {
         lastNotificationBucket = -1
         UNUserNotificationCenter.currentNotificationCenter().removeDeliveredNotificationsWithIdentifiers(listOf("record-progress"))
-        if (!isPhotoRecordCompletionNotificationEnabled() ||
+        if (serverPushRequested || !isPhotoRecordCompletionNotificationEnabled() ||
             !shouldSendUploadNotification(UIApplication.sharedApplication.applicationState)
         ) return
         val content = UNMutableNotificationContent().apply {
+            setUserInfo(mapOf("type" to "PHOTO_RECORD_COMPLETED", "recordId" to recordId.toString()))
             setTitle("사진 업로드 완료")
             setBody("${save.locationName} 기록이 저장됐어요")
             setSound(UNNotificationSound.defaultSound())

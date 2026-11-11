@@ -8,7 +8,7 @@ internal actual fun rememberTripTimelineVideoNotifier(): TripTimelineVideoNotifi
     remember { JvmTripTimelineVideoNotifier() }
 
 private class JvmTripTimelineVideoNotifier : TripTimelineVideoNotifier {
-    override fun requestPermissionIfNeeded() = Unit
+    override suspend fun requestPermissionIfNeeded() = Unit
 
     override fun showProgress(jobId: Long) = Unit
 

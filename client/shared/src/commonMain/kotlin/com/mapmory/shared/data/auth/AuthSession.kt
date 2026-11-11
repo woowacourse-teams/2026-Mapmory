@@ -112,6 +112,8 @@ internal class GuestSessionManager(
     private var invalidSessionFailure: Throwable? = null
     internal var canChangeAccount: () -> Boolean = { true }
     internal var onAccountChanged: suspend () -> Unit = {}
+    internal var onSessionReady: () -> Unit = {}
+    internal var onBeforeAccountChanged: suspend (String?) -> Unit = {}
 
     init {
         // Block cache reads before the first network request after an interrupted logout.
@@ -282,6 +284,7 @@ internal class GuestSessionManager(
                     )
                     rememberLoginProvider(provider)
                     rememberSessionProvider(provider)
+                    onSessionReady()
                     Result.success(member)
                 }
             }
@@ -362,8 +365,27 @@ internal class GuestSessionManager(
             }
         }
         if (denied != null) return Result.failure(denied)
+        var cleanupAttempted = false
         return try {
             withContext(NonCancellable) {
+                val cleanupAccessToken = authenticationMutex.withLock {
+                    val marker = tokenStore.pendingProvider().provider
+                    if (marker != null && !marker.startsWith("LOGOUT")) {
+                        return@withLock Result.failure(PendingAccountException())
+                    }
+                    if (leaveRecovery && marker?.startsWith("LOGOUT:withdraw") != true) {
+                        return@withLock Result.failure(IllegalStateException("진행 중인 탈퇴 복구가 없어요."))
+                    }
+                    if (!canChangeAccount()) return@withLock Result.failure(AccountBusyException())
+                    if (!didLoadStoredTokens) {
+                        tokens = tokenStore.read().tokens
+                        didLoadStoredTokens = true
+                    }
+                    Result.success(tokens?.accessToken)
+                }.getOrElse { return@withContext Result.failure(it) }
+                // Cleanup may refresh through HttpSend, which must acquire authenticationMutex itself.
+                cleanupAttempted = true
+                onBeforeAccountChanged(cleanupAccessToken)
                 authenticationMutex.withLock {
                     var marker = tokenStore.pendingProvider().provider
                     if (marker != null && !marker.startsWith("LOGOUT")) return@withLock Result.failure(PendingAccountException())
@@ -376,8 +398,8 @@ internal class GuestSessionManager(
                             marker = "LOGOUT:withdraw:unconfirmed"
                         }
                     }
-                    // Read the latest pair without refreshing a token we are about to revoke.
-                    val current = if (didLoadStoredTokens) tokens else tokenStore.read().tokens
+                    // Cleanup may have rotated both tokens; revoke the latest refresh token.
+                    val current = tokens
                     if (!canChangeAccount()) return@withLock Result.failure(AccountBusyException())
                     if (marker == null) {
                         accountState.value = state.value.copy(stage = "logout_prepare")
@@ -430,6 +452,12 @@ internal class GuestSessionManager(
             Result.failure(error)
         } finally {
             accountState.value = state.value.copy(transitioning = false)
+            if (cleanupAttempted && !state.value.pendingLogin && !state.value.pendingLogout &&
+                !state.value.recoveryRequired && !pendingPersistence && invalidSessionFailure == null &&
+                (isAuthenticated || tokens?.accessToken?.hasUsableJwtLifetime(nowEpochSeconds()) == true) &&
+                runCatching { tokenStore.pendingProvider().provider == null }.getOrDefault(false)) {
+                onSessionReady()
+            }
         }
     }
 
@@ -495,6 +523,7 @@ internal class GuestSessionManager(
                     }
                     // A queued save must not slip in while session preparation was suspended.
                     if (!canChangeAccount()) return@withContext Result.failure(AccountBusyException())
+                    onBeforeAccountChanged(getAccessToken())
                     // Persist recovery intent before any server-side account mutation.
                     pendingProviderName = credential.first.name
                     tokenStore.markPendingProvider(credential.first.name)
@@ -538,6 +567,7 @@ internal class GuestSessionManager(
                         tokenStore.markPendingProvider(null)
                         pendingCredential = null
                         accountState.value = state.value.copy(pendingLogin = false)
+                        if (isAuthenticated && !pendingPersistence && invalidSessionFailure == null && !omitPreviousSession) onSessionReady()
                     }
                 }
                 return Result.failure(error)
@@ -563,6 +593,7 @@ internal class GuestSessionManager(
         tokenStore.markPendingProvider(null)
         rememberLoginProvider(member.provider)
         rememberSessionProvider(member.provider)
+        onSessionReady()
         accountState.value = AccountState(member = member, transitioning = true,
             generation = pendingGeneration, guestAbandoned = pendingAbandoned, stage = "completed",
             recentLoginProvider = state.value.recentLoginProvider,
@@ -664,7 +695,10 @@ internal class GuestSessionManager(
         invalidSessionFailure?.let { return@withLock Result.failure(it) }
         refreshBlock()?.let { return@withLock Result.failure(it) }
         if (pendingPersistence) return@withLock persistTokens()
-        if (isAuthenticated) return@withLock Result.success(Unit)
+        if (isAuthenticated) {
+            onSessionReady()
+            return@withLock Result.success(Unit)
+        }
 
         if (!didLoadStoredTokens) {
             try {
@@ -686,6 +720,7 @@ internal class GuestSessionManager(
             didLoadStoredTokens = true
             if (tokens?.accessToken?.hasUsableJwtLifetime(nowEpochSeconds()) == true) {
                 isAuthenticated = true
+                onSessionReady()
                 return@withLock Result.success(Unit)
             }
         }
@@ -747,7 +782,11 @@ internal class GuestSessionManager(
         // A rotated refresh token must never be replaced by the old in-memory token on disk failure.
         tokens = issuedTokens
         pendingPersistence = true
-        return persistTokens()
+        return persistTokens().also {
+            if (it.isSuccess && !state.value.pendingLogin && !state.value.pendingLogout && !state.value.transitioning) {
+                onSessionReady()
+            }
+        }
     }
 
     private fun persistTokens(): Result<Unit> = try {

@@ -13,6 +13,21 @@ object MapmoryNotificationIntent {
     const val EXTRA_VIDEO_JOB_ID = "com.mapmory.shared.extra.VIDEO_JOB_ID"
 }
 
+sealed interface MapmoryNotificationTarget {
+    data class Record(val recordId: Long) : MapmoryNotificationTarget
+    data class Video(val jobId: Long) : MapmoryNotificationTarget
+}
+
+fun parseMapmoryNotificationData(data: Map<String, String>): MapmoryNotificationTarget? = when (data["type"]) {
+    "PHOTO_RECORD_COMPLETED" -> data["recordId"]?.toLongOrNull()
+        ?.takeIf { it > 0L }
+        ?.let(MapmoryNotificationTarget::Record)
+    "VIDEO_COMPLETED" -> data["jobId"]?.toLongOrNull()
+        ?.takeIf { it > 0L }
+        ?.let(MapmoryNotificationTarget::Video)
+    else -> null
+}
+
 /** Allows a platform entry point to delegate system back presses to the shared NavController. */
 class MapmoryNavigation(
     val invitations: com.mapmory.shared.presentation.group.GroupInvitationInbox = com.mapmory.shared.presentation.group.GroupInvitationInbox(),

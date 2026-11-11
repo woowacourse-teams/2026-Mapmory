@@ -9,7 +9,7 @@ class ShareVideoNotifierAnalyticsTest {
     private class Notifier : TripTimelineVideoNotifier {
         var allowed = false
         var error: Exception? = null
-        override fun requestPermissionIfNeeded() { error?.let { throw it } }
+        override suspend fun requestPermissionIfNeeded() { error?.let { throw it } }
         override fun showProgress(jobId: Long) { error?.let { throw it } }
         override fun clearProgress(jobId: Long) { error?.let { throw it } }
         override suspend fun showReady(jobId: Long): Boolean { error?.let { throw it }; return allowed }
@@ -38,7 +38,7 @@ class ShareVideoNotifierAnalyticsTest {
         assertFalse(analytics.events.toString().contains("private"))
     }
 
-    @Test fun `permission progress and cleanup record only observed failures without attempts`() {
+    @Test fun `permission progress and cleanup record only observed failures without attempts`() = runBlocking {
         val analytics = RecordingAnalytics()
         val delegate = Notifier()
         val notifier = AnalyticsTripTimelineVideoNotifier(delegate, ShareMediaAnalytics(analytics, ShareMediaSource.TRAVEL_TIMELINE))

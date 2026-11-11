@@ -38,7 +38,8 @@ internal class AndroidBackgroundSaveExecution(private val context: Context, name
             manager().notify(UploadNotificationId, notification(context, save.title, "${save.progressPercent}% 업로드 중", save.progressPercent))
         }
     }
-    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long) {
+    override fun onCompleted(save: BackgroundTripRecordSave, recordId: Long, serverPushRequested: Boolean) {
+        if (serverPushRequested) return
         if (isPhotoRecordCompletionNotificationEnabled(context) && canNotify() && !isMapmoryAppInForeground(context)) manager().notify(
             save.id.hashCode(),
             notification(context, "사진 업로드 완료", "${save.locationName} 기록이 저장됐어요", null, recordId),

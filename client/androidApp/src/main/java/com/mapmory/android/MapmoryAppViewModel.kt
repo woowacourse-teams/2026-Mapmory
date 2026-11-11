@@ -26,9 +26,20 @@ class MapmoryAppViewModel(application: Application) : AndroidViewModel(applicati
     )
     val navigation = MapmoryNavigation(invitations)
     val forceUpdate = com.mapmory.android.update.AndroidForceUpdateController(application)
-    override fun onCleared() { forceUpdate.close() }
+    override fun onCleared() {
+        forceUpdate.close()
+        notificationPreferences.unregisterOnSharedPreferenceChangeListener(notificationPreferenceListener)
+    }
 
     val container: AppContainer = UploadContainer.get(application)
+    private val notificationPreferences = application.getSharedPreferences("mapmory_notification_preferences", android.content.Context.MODE_PRIVATE)
+    private val notificationPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        com.mapmory.android.update.refreshPushToken(application)
+    }
+
+    init {
+        notificationPreferences.registerOnSharedPreferenceChangeListener(notificationPreferenceListener)
+    }
 }
 
 internal object UploadContainer {
@@ -54,6 +65,8 @@ internal object UploadContainer {
             onboardingPreference = AndroidOnboardingPreference(application),
             teamDevicePreference = AndroidTeamDevicePreference(application),
             shareVideoJobStore = AndroidShareVideoJobStore(application, configuredApiBaseUrl),
+            pushTokenRegistrationStore = com.mapmory.shared.data.settings.AndroidPushTokenRegistrationStore(application, configuredApiBaseUrl),
+            pushTokenPlatform = "ANDROID",
             albumShareStore = com.mapmory.shared.data.settings.AndroidAlbumShareStore(application, configuredApiBaseUrl),
             backgroundSaveExecution = execution,
             onAuthRefreshFailed = { stage, error ->

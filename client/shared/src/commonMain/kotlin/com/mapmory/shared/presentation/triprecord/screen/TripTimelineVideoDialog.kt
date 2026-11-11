@@ -184,7 +184,7 @@ internal fun TripTimelineVideoDialog(
                 notifier.requestPermissionIfNeeded()
                 val requestStartedAt = Clock.System.now().toEpochMilliseconds()
                 val job = repository.createTravelTimeline(selectedStyle).getOrThrow()
-                jobStore.saveJobId(job.jobId, requestStartedAt)
+                jobStore.saveJobId(job.jobId, requestStartedAt, job.serverPushRequested)
                 jobStore.updateStatus(job.status)
                 if (job.status == ShareVideoStatus.FAILED) {
                     message = if (video != null) {

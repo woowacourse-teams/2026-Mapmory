@@ -501,7 +501,7 @@ internal fun MapmoryNavHost(
             val route = backStackEntry.toRoute<TripTimelineVideoNotificationRoute>()
             val jobStore = remember(route.notificationRequestId) {
                 MemoryShareVideoJobStore().also {
-                    it.saveJobId(route.jobId, Clock.System.now().toEpochMilliseconds())
+                    it.saveJobId(route.jobId, Clock.System.now().toEpochMilliseconds(), serverPushRequested = true)
                 }
             }
             val repository = container.shareVideoRepository
