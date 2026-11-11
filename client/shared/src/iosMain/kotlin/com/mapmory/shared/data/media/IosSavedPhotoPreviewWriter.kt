@@ -22,12 +22,14 @@ class IosSavedPhotoPreviewWriter(
         val written = withContext(Dispatchers.Default) {
             val preview = originalBytes.iosPhotoData().photoDisplayJpeg(SavedPreviewSizePx)
                 ?: return@withContext null
-            cache.write(objectKey, preview)
-            // IosPhotoPreviewCache.write fails silently; report a replacement only if the file landed,
-            // otherwise the caller keeps its own preview.
-            if (cache.read(objectKey)?.size != preview.size) return@withContext null
-            cache.write(localId, preview)
-            preview.size
+            // IosPhotoPreviewCache.write fails silently, so both keys are read back. The save later copies
+            // the local key onto the objectKey; reporting a replacement while the local key still holds the
+            // small preview would let that copy bring it back. Otherwise the caller keeps its own preview.
+            val landed = listOf(objectKey, localId).all { key ->
+                cache.write(key, preview)
+                cache.read(key)?.size == preview.size
+            }
+            if (landed) preview.size else null
         } ?: return false
         if (Platform.isDebugBinary) {
             val elapsed = ((NSDate().timeIntervalSinceReferenceDate - startedAt) * 1000).toLong()

@@ -52,4 +52,19 @@ class IosSavedPhotoPreviewWriterTest {
 
         assertFalse(IosSavedPhotoPreviewWriter(cache).write("local-id", "travel-records/1/a.jpg", IosPhotoFixtures.rotatedHeic))
     }
+
+    @Test
+    fun aLocalKeyWriteThatDidNotLandIsNotReportedAsReplaced() = runBlocking {
+        // The save later copies the local key onto the objectKey; if only the objectKey holds 1080px,
+        // that copy would bring the small preview back, so this must not count as a replacement.
+        val cache = object : PhotoPreviewCache {
+            val entries = mutableMapOf<String, ByteArray>()
+            override suspend fun read(objectKey: String): ByteArray? = entries[objectKey]
+            override suspend fun write(objectKey: String, bytes: ByteArray) {
+                if (objectKey != "local-id") entries[objectKey] = bytes
+            }
+        }
+
+        assertFalse(IosSavedPhotoPreviewWriter(cache).write("local-id", "travel-records/1/a.jpg", IosPhotoFixtures.rotatedHeic))
+    }
 }
