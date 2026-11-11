@@ -34,7 +34,10 @@ class OriginalPrefetchQueueTest {
             }
         }
 
+        val failingDeletes = mutableSetOf<String>()
+
         suspend fun delete(id: String) {
+            if (id in failingDeletes) throw IllegalStateException("file removal failed")
             deleted += id
         }
 
@@ -216,5 +219,16 @@ class OriginalPrefetchQueueTest {
         settle()
         assertEquals(listOf("a", "b", "c"), store.started)
         assertTrue(store.deleted.isEmpty())
+    }
+
+    @Test
+    fun `한_사진을_지우다_실패해도_나머지를_지우고_다음_요청도_처리한다`() = queueTest { queue, store ->
+        store.failingDeletes += "a"
+        queue.release(setOf("a", "b"))
+        queue.prefetch(listOf("c"))
+        settle()
+
+        assertEquals(listOf("b"), store.deleted)
+        assertEquals(listOf("c"), store.started)
     }
 }

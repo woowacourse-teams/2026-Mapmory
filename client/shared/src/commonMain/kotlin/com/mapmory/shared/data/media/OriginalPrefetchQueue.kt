@@ -57,9 +57,15 @@ internal class OriginalPrefetchQueue(
     init {
         scope.launch {
             for (command in commands) {
-                when (command) {
-                    is Command.Prefetch -> enqueue(command.localIds)
-                    is Command.Release -> startRelease(command.localIds, command.done)
+                try {
+                    when (command) {
+                        is Command.Prefetch -> enqueue(command.localIds)
+                        is Command.Release -> startRelease(command.localIds, command.done)
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // One failed command must not stop handling the ones after it.
                 }
             }
         }
@@ -128,12 +134,22 @@ internal class OriginalPrefetchQueue(
                     // Deleting under the lock keeps a new prefetch from reusing a file being removed.
                     localIds.forEach { id ->
                         val selectedAgain = entries[id] != null || running[id]?.releaseRequested == false
-                        if (!selectedAgain) delete(id)
+                        if (!selectedAgain) deleteQuietly(id)
                     }
                 }
             } finally {
                 done?.complete(Unit)
             }
+        }
+    }
+
+    /** A file that could not be removed stays until the next startup prune; the rest still go. */
+    private suspend fun deleteQuietly(id: String) {
+        try {
+            delete(id)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
         }
     }
 

@@ -16,6 +16,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSDate
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.timeIntervalSinceNow
 import platform.Foundation.NSLog
 import platform.Network.nw_path_is_constrained
 import platform.Network.nw_path_monitor_create
@@ -192,19 +194,32 @@ private fun iosOriginalCacheLocalId(fileName: String): String? {
 
 /**
  * Removes originals left by flows that ended without onCleared (app killed) and interrupted downloads.
- * Runs once at startup before any prefetch, keeping originals that restored background saves will read.
+ * Runs once at startup, keeping originals that restored background saves will read.
  * A save whose original is missing downloads it again, so removing too much costs time, not data.
  */
 internal suspend fun pruneIosOriginalCache(keep: Set<String>) = withContext(Dispatchers.Default) {
     val directory = iosOriginalCacheDirectory() ?: return@withContext
     val manager = NSFileManager.defaultManager
     manager.contentsOfDirectoryAtPath(directory, null)?.filterIsInstance<String>()?.forEach { fileName ->
-        val localId = iosOriginalCacheLocalId(fileName)
-        if (fileName.endsWith(".part") || localId == null || localId !in keep) {
-            manager.removeItemAtPath("$directory/$fileName", null)
+        val path = "$directory/$fileName"
+        val remove = if (fileName.endsWith(".part")) {
+            // Restored saves start downloading right away; only leftovers from earlier runs are stale.
+            isOlderThan(path, StalePartialDownloadSeconds)
+        } else {
+            iosOriginalCacheLocalId(fileName)?.let { it !in keep } ?: true
         }
+        if (remove) manager.removeItemAtPath(path, null)
     }
 }
+
+private fun isOlderThan(path: String, seconds: Double): Boolean {
+    val modified = NSFileManager.defaultManager.attributesOfItemAtPath(path, null)
+        ?.get(NSFileModificationDate) as? NSDate
+        ?: return false
+    return -modified.timeIntervalSinceNow > seconds
+}
+
+private const val StalePartialDownloadSeconds = 10.0 * 60.0
 
 private val iosOriginalPrefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
