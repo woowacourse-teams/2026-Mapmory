@@ -136,7 +136,7 @@ class AppContainerTest {
 
                         4 -> {
                             assertEquals("POST", request.method.value)
-                            assertEquals("/api/v1/travel-records", request.url.encodedPath)
+                            assertEquals("/api/v2/travel-records", request.url.encodedPath)
                             assertEquals("Bearer guest-access", request.headers[HttpHeaders.Authorization])
                             respondJson("""{"data":{"id":101}}""", HttpStatusCode.Created)
                         }

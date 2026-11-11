@@ -23,6 +23,7 @@ import com.mapmory.shared.domain.model.TopRegionStatistics
 import com.mapmory.shared.domain.model.isSelectableKoreanProvince
 import com.mapmory.shared.domain.model.dateValidationError
 import com.mapmory.shared.domain.region.RegionCatalog
+import kotlinx.datetime.LocalDate
 
 fun TripRecordListItemDto.toDomain(regionCatalog: RegionCatalog? = null): TripRecordSummary = TripRecordSummary(
     id = id,
@@ -62,6 +63,7 @@ fun TripRecordDetailDto.toDomain(regionCatalog: RegionCatalog): TripRecordData {
                     sortOrder = item.sortOrder,
                     url = item.viewUrl,
                     thumbnailUrl = item.thumbnailUrl,
+                    capturedAt = item.capturedDate.toLocalCapturedDate(),
                 )
             }
             .ifEmpty {
@@ -148,12 +150,36 @@ internal fun TripRecordDraft.toRequestDto(regionCatalog: RegionCatalog, pushToke
         content = content.orEmpty(),
         startDate = startDate,
         endDate = endDate,
-        objectKeys = mediaObjectKeys,
+        photos = photoRequests(),
         tagIds = tagIds,
         placeId = place?.placeId,
         pushTokenId = pushTokenId,
     )
 }
+
+private fun TripRecordDraft.photoRequests(): List<TripRecordPhotoRequestDto> {
+    val capturedDateByObjectKey = localMedia.associate { media -> media.objectKey to media.capturedAt }
+    return mediaObjectKeys.map { objectKey ->
+        TripRecordPhotoRequestDto(
+            objectKey = objectKey,
+            capturedDate = capturedDateByObjectKey[objectKey].toIsoCapturedDate(),
+        )
+    }
+}
+
+/** 사진첩마다 다른 촬영일 표기(yyyy.MM.dd, yyyy-MM-ddTHH:mm 등)를 서버가 받는 yyyy-MM-dd로 맞춘다. */
+internal fun String?.toIsoCapturedDate(): String? {
+    val match = CapturedDatePattern.find(this?.trim().orEmpty()) ?: return null
+    val (year, month, day) = match.destructured
+    val iso = "$year-${month.padStart(2, '0')}-${day.padStart(2, '0')}"
+    return iso.takeIf { runCatching { LocalDate.parse(it) }.isSuccess }
+}
+
+/** 서버 촬영일(yyyy-MM-dd)을 기기 사진첩과 같은 yyyy.MM.dd로 바꿔 한 기록 안에서 표기와 정렬이 섞이지 않게 한다. */
+internal fun String?.toLocalCapturedDate(): String? = toIsoCapturedDate()?.replace('-', '.')
+
+// 앞뒤에 숫자가 더 붙은 값(12026.09.11, 2026.09.111)은 날짜로 보지 않는다. EXIF 원문(yyyy:MM:dd)도 받는다.
+private val CapturedDatePattern = Regex("(?<!\\d)(\\d{4})[.\\-/:](\\d{1,2})[.\\-/:](\\d{1,2})(?!\\d)")
 
 private fun Location.toRegionQuery(
     regionCatalog: RegionCatalog,

@@ -86,9 +86,11 @@ class TripRecordRemoteRepositoryTest {
             when (requestCount) {
                 1 -> {
                     assertEquals("POST", request.method.value)
+                    assertEquals("/api/v2/travel-records", request.url.encodedPath)
                     assertEquals(ContentType.Application.Json, request.body.contentType)
                     val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
                     assertTrue("\"tagIds\":[7]" in body)
+                    assertTrue("\"photos\":[{\"objectKey\":\"travel-records/guest/a.jpg\"}]" in body)
                     jsonResponse("""{"data":{"id":101}}""", HttpStatusCode.Created)
                 }
 
@@ -135,13 +137,13 @@ class TripRecordRemoteRepositoryTest {
                     jsonResponse("""{"data":{"pushTokenId":${if (registrationCount == 1) 41 else 42}}}""")
                 }
 
-                "/api/v1/travel-records" -> {
+                "/api/v2/travel-records" -> {
                     createCount++
                     val body = assertIs<io.ktor.http.content.TextContent>(request.body).text
                     if (createCount == 1) {
                         assertTrue("\"pushTokenId\":41" in body)
                         jsonResponse(
-                            """{"title":"푸시 등록을 찾을 수 없습니다.","status":404,"detail":"다시 등록해 주세요.","instance":"/api/v1/travel-records","code":"TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND"}""",
+                            """{"title":"푸시 등록을 찾을 수 없습니다.","status":404,"detail":"다시 등록해 주세요.","instance":"/api/v2/travel-records","code":"TRAVEL_RECORD_PUSH_TARGET_NOT_FOUND"}""",
                             HttpStatusCode.NotFound,
                             ContentType.parse("application/problem+json"),
                         )
@@ -231,6 +233,7 @@ class TripRecordRemoteRepositoryTest {
         val client = client { request ->
             requestCount += 1
             assertEquals("PUT", request.method.value)
+            assertEquals("/api/v2/travel-records/101", request.url.encodedPath)
             jsonResponse(detailResponse(title = "수정된 제주 여행"))
         }
 
