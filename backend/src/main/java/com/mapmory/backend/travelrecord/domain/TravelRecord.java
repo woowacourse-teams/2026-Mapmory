@@ -205,6 +205,14 @@ public class TravelRecord extends BaseEntity {
      * orphanRemoval로 삭제된다. 키의 형식과 중복은 {@link ObjectKeys}가 이미 보장한다.
      */
     public void synchronizeMedia(ObjectKeys requested) {
+        synchronizeMedia(requested, PhotoCaptureDates.empty());
+    }
+
+    /**
+     * {@link #synchronizeMedia(ObjectKeys)}와 같고, 촬영일을 받은 사진에는 촬영일도 적는다.
+     * 받지 못한 사진의 촬영일은 그대로 둔다.
+     */
+    public void synchronizeMedia(ObjectKeys requested, PhotoCaptureDates captureDates) {
         Map<ObjectKey, RecordMedia> unusedMedia = new LinkedHashMap<>();
         for (RecordMedia recordMedia : media) {
             unusedMedia.put(recordMedia.objectKey(), recordMedia);
@@ -216,10 +224,12 @@ public class TravelRecord extends BaseEntity {
             ObjectKey objectKey = objectKeys.get(sortOrder);
             RecordMedia recordMedia = unusedMedia.remove(objectKey);
             if (recordMedia == null) {
-                addedMedia.add(RecordMedia.of(this, objectKey, sortOrder));
+                recordMedia = RecordMedia.of(this, objectKey, sortOrder);
+                addedMedia.add(recordMedia);
             } else {
                 recordMedia.updateSortOrder(sortOrder);
             }
+            recordMedia.recordCapturedDate(captureDates.of(objectKey));
         }
 
         media.removeAll(unusedMedia.values());

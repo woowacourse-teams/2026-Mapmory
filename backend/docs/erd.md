@@ -90,6 +90,7 @@ erDiagram
         varchar object_key UK
         varchar thumb_key
         int sort_order
+        date captured_date
         datetime created_at
     }
 
@@ -199,7 +200,7 @@ erDiagram
 | 구현됨 | `refresh_token` | 회전 가능한 Refresh Token의 SHA-256 해시와 만료·폐기 시각을 저장한다. |
 | 구현됨 | `region` | 국가와 행정구역을 하나의 계층으로 관리한다. |
 | 구현됨 | `travel_record` | 회원이 선택한 국가 또는 최종 행정구역에 남기는 기록이다. |
-| 구현됨 | `record_media` | S3 객체 키, 썸네일 키, 노출 순서를 보관한다. |
+| 구현됨 | `record_media` | S3 객체 키, 썸네일 키, 노출 순서, 촬영일을 보관한다. |
 | 구현 전 설계 | `tag` | 회원이 만든 개인 태그를 저장한다. |
 | 구현 전 설계 | `travel_record_tag` | 여행 기록과 태그의 다대다 관계를 저장한다. |
 | 구현 전 설계 | `travel_group` | 그룹 이름과 방장을 저장한다. |
@@ -316,7 +317,8 @@ erDiagram
 | `object_key` | `VARCHAR(500)` | NOT NULL, UNIQUE | 원본 S3 객체 키 |
 | `thumb_key` | `VARCHAR(500)` | NULL | 썸네일 S3 객체 키 |
 | `sort_order` | `INT` | NOT NULL, DEFAULT 0 | 노출 순서 |
-| `created_at` | `DATETIME` | NOT NULL | 생성 시각 |
+| `captured_date` | `DATE` | NULL | 사진 촬영일. 앱이 사진첩에서 읽어 보낸다. 모르면 NULL |
+| `created_at` | `DATETIME` | NOT NULL | 생성 시각(업로드 시각) |
 
 여행 기록 삭제 시 `ON DELETE CASCADE`로 메타데이터를 함께 삭제한다. S3 실제 객체는 데이터베이스 CASCADE로 삭제되지 않는다.
 
