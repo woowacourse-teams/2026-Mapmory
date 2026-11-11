@@ -30,7 +30,11 @@ public class RecordMedia {
     @Embedded
     private ObjectKey objectKey;
 
-    @Column(name = "thumb_key", length = 500)
+    /**
+     * 썸네일 워커가 자기 UPDATE로만 채운다({@code TravelRecordRepository#attachThumbnail}). 엔티티 변경(순서, 촬영일)이
+     * 트랜잭션 시작 때 읽은 빈 값으로 워커가 막 채운 키를 덮지 않도록 엔티티 UPDATE에서는 빼 둔다.
+     */
+    @Column(name = "thumb_key", length = 500, updatable = false)
     private String thumbKey;
 
     @Column(name = "sort_order", nullable = false)

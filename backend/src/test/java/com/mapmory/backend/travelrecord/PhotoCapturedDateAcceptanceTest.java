@@ -31,6 +31,9 @@ class PhotoCapturedDateAcceptanceTest extends IntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private String accessToken;
     private String firstPhotoKey;
     private String secondPhotoKey;
@@ -83,6 +86,32 @@ class PhotoCapturedDateAcceptanceTest extends IntegrationTest {
         long recordId = createV2(photo(firstPhotoKey, "2999-01-01"), photo(secondPhotoKey, "2026:08:02"));
 
         expectCapturedDates(recordId, null, null);
+    }
+
+    @Test
+    void 촬영일이_문자열이_아니어도_기록은_저장한다() throws Exception {
+        long recordId = createV2(
+                "{ \"objectKey\": \"%s\", \"capturedDate\": [2026, 8, 1] }".formatted(firstPhotoKey),
+                "{ \"objectKey\": \"%s\", \"capturedDate\": { \"year\": 2026 } }".formatted(secondPhotoKey));
+
+        expectCapturedDates(recordId, null, null);
+    }
+
+    @Test
+    void 촬영일을_채우는_수정이_워커가_붙인_썸네일을_지우지_않는다() throws Exception {
+        long recordId = createV2(photo(firstPhotoKey, null), photo(secondPhotoKey, null));
+        jdbcTemplate.update("UPDATE record_media SET thumb_key = 'derived/thumb/x.webp' WHERE object_key = ?",
+                firstPhotoKey);
+
+        mockMvc.perform(put("/api/v2/travel-records/" + recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(v2Body(photo(secondPhotoKey, "2026-08-02"), photo(firstPhotoKey, "2026-08-01"))))
+                .andExpect(status().isOk());
+
+        String thumbKey = jdbcTemplate.queryForObject(
+                "SELECT thumb_key FROM record_media WHERE object_key = ?", String.class, firstPhotoKey);
+        org.assertj.core.api.Assertions.assertThat(thumbKey).isEqualTo("derived/thumb/x.webp");
     }
 
     @Test

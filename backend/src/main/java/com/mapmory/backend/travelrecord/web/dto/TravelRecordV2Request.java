@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.web.dto;
 
+import tools.jackson.databind.JsonNode;
 import com.mapmory.backend.travelrecord.application.TravelRecordCommand;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -36,10 +37,14 @@ public record TravelRecordV2Request(
 
     /**
      * @param objectKey    업로드를 마친 사진의 Object Key
-     * @param capturedDate 촬영일(yyyy-MM-dd). 모르면 null이다. 형식이나 범위가 틀려도 저장을 실패시키지 않고
-     *                     모르는 날짜로 본다. 카메라 시계가 틀린 사진이 흔해서 문자열로 받는다
+     * @param capturedDate 촬영일(yyyy-MM-dd). 모르면 null이다. 형식이나 범위가 틀려도, 문자열이 아니어도 저장을
+     *                     실패시키지 않고 모르는 날짜로 본다. 카메라 시계가 틀린 사진이 흔해서 JSON 값 그대로 받는다
      */
-    public record PhotoRequest(String objectKey, String capturedDate) {
+    public record PhotoRequest(String objectKey, JsonNode capturedDate) {
+
+        String capturedDateText() {
+            return capturedDate != null && capturedDate.isString() ? capturedDate.stringValue() : null;
+        }
     }
 
     public TravelRecordCommand toCommand() {
@@ -49,8 +54,9 @@ public record TravelRecordV2Request(
                 .toList();
         Map<String, String> capturedDates = new HashMap<>();
         for (PhotoRequest photo : requestedPhotos) {
-            if (photo.objectKey() != null && photo.capturedDate() != null) {
-                capturedDates.putIfAbsent(photo.objectKey(), photo.capturedDate());
+            String capturedDate = photo.capturedDateText();
+            if (photo.objectKey() != null && capturedDate != null) {
+                capturedDates.putIfAbsent(photo.objectKey(), capturedDate);
             }
         }
         return new TravelRecordCommand(

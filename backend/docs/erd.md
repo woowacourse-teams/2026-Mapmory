@@ -90,6 +90,7 @@ erDiagram
         varchar object_key UK
         varchar thumb_key
         int sort_order
+        date captured_date
         datetime created_at
     }
 
