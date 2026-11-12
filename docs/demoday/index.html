@@ -213,6 +213,13 @@ section { padding-block: clamp(88px, 12vw, 160px); }
 .facts { margin-top: 48px; display: flex; justify-content: center; flex-wrap: wrap; gap: 12px 36px; font-size: 15px; color: var(--sub); }
 .facts b { color: var(--text); font-weight: 700; }
 
+/* story */
+.story { padding-block: clamp(72px, 9vw, 120px); border-top: 1px solid var(--line); }
+.story .wrap { display: grid; gap: 16px; justify-items: start; }
+.story h2 { font-size: clamp(32px, 4vw, 48px); }
+.story p { color: var(--sub); font-size: 18px; max-width: 30em; }
+.story .btn { margin-top: 12px; cursor: default; }
+.story .btn:hover { transform: none; }
 footer { border-top: 1px solid var(--line); padding-block: 28px 40px; font-size: 13px; color: var(--faint); }
 footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
 footer nav { display: flex; gap: 20px; }
@@ -417,6 +424,13 @@ footer a:hover { color: var(--sub); }
         <span>App Store 평점 <b>5.0</b></span>
         <span>9월 출시 후 <b>10번</b> 업데이트</span>
       </div>
+    </div>
+  </section>
+  <section class="story" aria-labelledby="story-title">
+    <div class="wrap">
+      <h2 id="story-title">완벽하지 않아도 된다.</h2>
+      <p>많이 만들고도 쓰이지 않던 앱이 여기까지 온 이야기. 어떤 상황에서, 어떤 판단을 했는지 적었어요.</p>
+      <span class="btn alt" id="story-link" aria-disabled="true">우리가 걸어온 이야기 읽기</span>
     </div>
   </section>
 </main>
