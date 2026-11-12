@@ -4,16 +4,20 @@ import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.domain.SearchQuery;
+import com.mapmory.backend.dropoff.DropOffContext;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,18 +42,22 @@ public class PlaceController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PlaceCandidateResponse>>> search(
             @RequestParam @NotBlank @Size(max = SearchQuery.MAX_LENGTH) String query,
-            @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken
+            @RequestParam @Pattern(regexp = SESSION_TOKEN) String sessionToken,
+            @AuthenticationPrincipal Long memberId,
+            @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent
     ) {
         return ResponseEntity.ok(ApiResponse.from(
-                placeSearchService.search(query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
+                placeSearchService.search(new DropOffContext(memberId, userAgent), query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
     }
 
     @GetMapping("/{placeId}")
     public ResponseEntity<ApiResponse<PlaceSelectionResponse>> select(
             @PathVariable String placeId,
-            @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken
+            @RequestParam(required = false) @Pattern(regexp = SESSION_TOKEN) String sessionToken,
+            @AuthenticationPrincipal Long memberId,
+            @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent
     ) {
-        return ResponseEntity.ok(ApiResponse.from(
-                PlaceSelectionResponse.from(placeSelectionService.select(placeId, sessionToken))));
+        return ResponseEntity.ok(ApiResponse.from(PlaceSelectionResponse.from(
+                placeSelectionService.select(new DropOffContext(memberId, userAgent), placeId, sessionToken))));
     }
 }
