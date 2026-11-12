@@ -1,7 +1,8 @@
-package com.mapmory.backend.place.lookuplog;
+package com.mapmory.backend.dropoff;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.willThrow;
@@ -17,19 +18,23 @@ import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
 import com.mapmory.backend.place.exception.PlaceErrorCode;
-import com.mapmory.backend.place.lookuplog.PlaceLookupLog.Kind;
-import com.mapmory.backend.place.lookuplog.PlaceLookupLog.Outcome;
+import com.mapmory.backend.dropoff.DropOffLog.Kind;
+import com.mapmory.backend.dropoff.DropOffLog.Outcome;
 import com.mapmory.backend.region.domain.RegionAddress;
+import com.mapmory.backend.upload.service.port.PresignedRequest;
+import java.net.URI;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
-class PlaceLookupLogIntegrationTest extends IntegrationTest {
+class DropOffLogIntegrationTest extends IntegrationTest {
 
     private static final PlaceProvider GOOGLE =
             new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps");
@@ -40,7 +45,7 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private PlaceLookupLogRepository repository;
+    private DropOffLogRepository repository;
 
     @Test
     void 결과가_0개인_검색은_검색어와_앱과_함께_남긴다() throws Exception {
@@ -48,7 +53,7 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
 
         search(guestAccessToken(), " 대천해수욕장 ").andExpect(status().isOk());
 
-        PlaceLookupLog log = onlyLog();
+        DropOffLog log = onlyLog();
         assertThat(log.getMemberId()).isNotNull();
         assertThat(log.getKind()).isEqualTo(Kind.SEARCH);
         assertThat(log.getOutcome()).isEqualTo(Outcome.NO_RESULTS);
@@ -76,7 +81,7 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
 
         select(guestAccessToken()).andExpect(status().isOk());
 
-        PlaceLookupLog log = onlyLog();
+        DropOffLog log = onlyLog();
         assertThat(log.getKind()).isEqualTo(Kind.SELECT);
         assertThat(log.getOutcome()).isEqualTo(Outcome.REGION_FOUND);
         assertThat(log.getPlaceId()).isEqualTo("ChIJ-place");
@@ -90,7 +95,7 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
 
         select(guestAccessToken()).andExpect(status().isOk());
 
-        PlaceLookupLog log = onlyLog();
+        DropOffLog log = onlyLog();
         assertThat(log.getOutcome()).isEqualTo(Outcome.REGION_NOT_FOUND);
         assertThat(log.getCountryCode()).isEqualTo("KR");
         assertThat(log.getRegionCode()).isNull();
@@ -113,7 +118,7 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
 
         select(guestAccessToken()).andExpect(status().isServiceUnavailable());
 
-        PlaceLookupLog log = onlyLog();
+        DropOffLog log = onlyLog();
         assertThat(log.getOutcome()).isEqualTo(Outcome.FAILED);
         assertThat(log.getErrorCode()).isEqualTo("PLACE_PROVIDER_UNAVAILABLE");
         assertThat(log.getPlaceId()).isEqualTo("ChIJ-place");
@@ -131,14 +136,47 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 용량을_넘은_사진_업로드는_그_파일의_크기와_형식을_남긴다() throws Exception {
+        String accessToken = guestAccessToken();
+
+        upload(accessToken, """
+                { "files": [
+                  { "fileName": "a.jpg", "contentType": "image/jpeg", "fileSize": 1024 },
+                  { "fileName": "b.heic", "contentType": "image/heic", "fileSize": 12582912 }
+                ] }""")
+                .andExpect(status().isBadRequest());
+
+        DropOffLog log = onlyLog();
+        assertThat(log.getKind()).isEqualTo(Kind.UPLOAD);
+        assertThat(log.getOutcome()).isEqualTo(Outcome.FAILED);
+        assertThat(log.getErrorCode()).isEqualTo("FILE_SIZE_EXCEEDED");
+        assertThat(log.getFileCount()).isEqualTo(2);
+        assertThat(log.getFileSize()).isEqualTo(12_582_912L);
+        assertThat(log.getContentType()).isEqualTo("image/heic");
+        assertThat(log.getUserAgent()).isEqualTo(IOS);
+    }
+
+    @Test
+    void 받아들인_사진_업로드는_남기지_않는다() throws Exception {
+        willReturn(new PresignedRequest(URI.create("https://upload.example/signed"), "PUT", Duration.ofMinutes(5)))
+                .given(presignedUrlProvider).createPresignedPutUrl(anyString(), anyString(), anyLong());
+
+        upload(guestAccessToken(), """
+                { "files": [ { "fileName": "a.jpg", "contentType": "image/jpeg", "fileSize": 1024 } ] }""")
+                .andExpect(status().isOk());
+
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
     void 기록이_30일이_지나면_지운다() {
         LocalDateTime now = LocalDateTime.now(clock);
-        PlaceLookupContext context = new PlaceLookupContext(1L, null);
-        repository.save(new PlaceLookupLog(context, Kind.SEARCH, Outcome.NO_RESULTS, now.minusDays(31)));
-        repository.save(new PlaceLookupLog(context, Kind.SEARCH, Outcome.NO_RESULTS, now.minusDays(29)));
+        DropOffContext context = new DropOffContext(1L, null);
+        repository.save(new DropOffLog(context, Kind.SEARCH, Outcome.NO_RESULTS, now.minusDays(31)));
+        repository.save(new DropOffLog(context, Kind.SEARCH, Outcome.NO_RESULTS, now.minusDays(29)));
 
         // 테스트 설정은 정리 스케줄러를 띄우지 않아 직접 만든다.
-        int removed = new PlaceLookupLogCleanup(repository, clock).run();
+        int removed = new DropOffLogCleanup(repository, clock).run();
 
         assertThat(removed).isEqualTo(1);
         assertThat(repository.findAll()).singleElement()
@@ -150,8 +188,8 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
                 .given(googlePlacesClient).findDetails(any(), any());
     }
 
-    private PlaceLookupLog onlyLog() {
-        List<PlaceLookupLog> logs = repository.findAll();
+    private DropOffLog onlyLog() {
+        List<DropOffLog> logs = repository.findAll();
         assertThat(logs).hasSize(1);
         return logs.getFirst();
     }
@@ -162,6 +200,14 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
                 .header(HttpHeaders.USER_AGENT, IOS)
                 .param("query", query)
                 .param("sessionToken", TOKEN));
+    }
+
+    private ResultActions upload(String accessToken, String body) throws Exception {
+        return mockMvc.perform(post("/api/v1/uploads/presigned-urls")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .header(HttpHeaders.USER_AGENT, IOS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
     }
 
     private ResultActions select(String accessToken) throws Exception {

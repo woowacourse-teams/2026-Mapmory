@@ -1,8 +1,8 @@
 package com.mapmory.backend.place.ratelimit;
 
 import com.mapmory.backend.common.exception.BusinessException;
-import com.mapmory.backend.place.lookuplog.PlaceLookupContext;
-import com.mapmory.backend.place.lookuplog.PlaceLookupRecorder;
+import com.mapmory.backend.dropoff.DropOffContext;
+import com.mapmory.backend.dropoff.DropOffRecorder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -23,9 +23,9 @@ class PlaceRateLimitWebConfig implements WebMvcConfigurer {
     private static final String PLACES = "/api/v1/places/";
 
     private final MemberPlaceRateLimiter rateLimiter;
-    private final PlaceLookupRecorder recorder;
+    private final DropOffRecorder recorder;
 
-    PlaceRateLimitWebConfig(@Lazy MemberPlaceRateLimiter rateLimiter, @Lazy PlaceLookupRecorder recorder) {
+    PlaceRateLimitWebConfig(@Lazy MemberPlaceRateLimiter rateLimiter, @Lazy DropOffRecorder recorder) {
         this.rateLimiter = rateLimiter;
         this.recorder = recorder;
     }
@@ -56,7 +56,7 @@ class PlaceRateLimitWebConfig implements WebMvcConfigurer {
                 exception.getErrorCode().code());
     }
 
-    private static PlaceLookupContext context(Long memberId, HttpServletRequest request) {
-        return new PlaceLookupContext(memberId, request.getHeader(HttpHeaders.USER_AGENT));
+    private static DropOffContext context(Long memberId, HttpServletRequest request) {
+        return new DropOffContext(memberId, request.getHeader(HttpHeaders.USER_AGENT));
     }
 }

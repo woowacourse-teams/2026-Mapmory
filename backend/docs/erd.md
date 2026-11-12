@@ -201,7 +201,7 @@ erDiagram
 | 구현됨 | `region` | 국가와 행정구역을 하나의 계층으로 관리한다. |
 | 구현됨 | `travel_record` | 회원이 선택한 국가 또는 최종 행정구역에 남기는 기록이다. |
 | 구현됨 | `record_media` | S3 객체 키, 썸네일 키, 노출 순서, 촬영일을 보관한다. |
-| 구현됨 | `place_lookup_log` | 장소 검색·선택 한 번의 상황·문제·결과. 막혀서 나가는 곳을 보려고 30일만 둔다. |
+| 구현됨 | `drop_off_log` | 장소 검색·선택과 거절된 사진 업로드 요청의 상황·문제·결과. 막혀서 나가는 곳을 보려고 30일만 둔다. |
 | 구현 전 설계 | `tag` | 회원이 만든 개인 태그를 저장한다. |
 | 구현 전 설계 | `travel_record_tag` | 여행 기록과 태그의 다대다 관계를 저장한다. |
 | 구현 전 설계 | `travel_group` | 그룹 이름과 방장을 저장한다. |
@@ -323,13 +323,13 @@ erDiagram
 
 여행 기록 삭제 시 `ON DELETE CASCADE`로 메타데이터를 함께 삭제한다. S3 실제 객체는 데이터베이스 CASCADE로 삭제되지 않는다.
 
-### `place_lookup_log`
+### `drop_off_log`
 
 | 컬럼 | 타입 | 제약조건 | 설명 |
 | --- | --- | --- | --- |
 | `id` | `BIGINT` | PK, AUTO_INCREMENT | 식별자 |
 | `member_id` | `BIGINT` | NOT NULL | 부른 회원. FK 없음(회원 파기 배치가 지운다) |
-| `kind` | `VARCHAR(10)` | NOT NULL | `SEARCH` 또는 `SELECT` |
+| `kind` | `VARCHAR(10)` | NOT NULL | `SEARCH`, `SELECT`, `UPLOAD` |
 | `outcome` | `VARCHAR(30)` | NOT NULL | `RESULTS`, `NO_RESULTS`, `REGION_FOUND`, `REGION_NOT_FOUND`, `COUNTRY_UNKNOWN`, `FAILED` |
 | `session_token` | `VARCHAR(36)` | NULL | 앱이 만든 검색 세션 토큰. 검색과 선택을 잇는다 |
 | `query` | `VARCHAR(100)` | NULL | 검색어 |
@@ -337,6 +337,9 @@ erDiagram
 | `place_id` | `VARCHAR(255)` | NULL | 고른 장소 ID |
 | `country_code` | `VARCHAR(10)` | NULL | 찾은 국가 코드 |
 | `region_code` | `VARCHAR(20)` | NULL | 찾은 지역 코드. 못 찾으면 NULL |
+| `file_count` | `INT` | NULL | 업로드: 한 번에 요청한 장 수 |
+| `file_size` | `BIGINT` | NULL | 업로드: 거절된 파일 크기(바이트). 파일 하나 때문이 아니면 가장 큰 파일 |
+| `content_type` | `VARCHAR(100)` | NULL | 업로드: 그 파일의 형식 |
 | `error_code` | `VARCHAR(50)` | NULL | 실패했을 때 오류 코드 |
 | `user_agent` | `VARCHAR(255)` | NULL | 앱 User-Agent |
 | `created_at` | `DATETIME(6)` | NOT NULL, INDEX | 시각. 30일 지나면 지운다 |

@@ -1,4 +1,4 @@
-package com.mapmory.backend.place.lookuplog;
+package com.mapmory.backend.dropoff;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,19 +11,21 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 /**
- * 장소 검색·선택 한 번. 사용자가 어디서 막혀 기록을 남기지 못하고 나가는지 보고 재현하려고 30일만 둔다.
+ * 장소 검색·선택 한 번, 또는 거절된 사진 업로드 주소 요청 한 번. 사용자가 어디서 막혀 기록을 남기지 못하고 나가는지 보고 재현하려고 30일만 둔다.
  *
  * <p>상황은 검색어·고른 장소 ID·앱 User-Agent, 문제는 outcome과 error_code, 결과는 후보 수와 찾은 국가·지역 코드다.
+ * 업로드는 거절됐을 때만 남기고, 한 번에 요청한 장 수와 거절된 파일(모르면 가장 큰 파일)의 크기·형식을 남긴다.
  * Google 약관상 장소는 ID만 남긴다. 같은 검색 세션은 session_token으로 잇는다.
  */
 @Entity
-@Table(name = "place_lookup_log")
-public class PlaceLookupLog {
+@Table(name = "drop_off_log")
+public class DropOffLog {
 
     static final int QUERY_LENGTH = 100;
     static final int USER_AGENT_LENGTH = 255;
+    static final int CONTENT_TYPE_LENGTH = 100;
 
-    public enum Kind { SEARCH, SELECT }
+    public enum Kind { SEARCH, SELECT, UPLOAD }
 
     public enum Outcome {
         /** 검색 후보가 하나 이상 나왔다. */
@@ -73,6 +75,15 @@ public class PlaceLookupLog {
     @Column(name = "region_code", length = 20)
     private String regionCode;
 
+    @Column(name = "file_count")
+    private Integer fileCount;
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "content_type", length = CONTENT_TYPE_LENGTH)
+    private String contentType;
+
     @Column(name = "error_code", length = 50)
     private String errorCode;
 
@@ -82,10 +93,10 @@ public class PlaceLookupLog {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    protected PlaceLookupLog() {
+    protected DropOffLog() {
     }
 
-    PlaceLookupLog(PlaceLookupContext context, Kind kind, Outcome outcome, LocalDateTime createdAt) {
+    DropOffLog(DropOffContext context, Kind kind, Outcome outcome, LocalDateTime createdAt) {
         this.memberId = context.memberId();
         this.userAgent = cut(context.userAgent(), USER_AGENT_LENGTH);
         this.kind = kind;
@@ -93,29 +104,36 @@ public class PlaceLookupLog {
         this.createdAt = createdAt;
     }
 
-    PlaceLookupLog sessionToken(String sessionToken) {
+    DropOffLog sessionToken(String sessionToken) {
         this.sessionToken = sessionToken;
         return this;
     }
 
-    PlaceLookupLog query(String query) {
+    DropOffLog query(String query) {
         this.query = cut(query == null ? null : query.strip(), QUERY_LENGTH);
         return this;
     }
 
-    PlaceLookupLog resultCount(Integer resultCount) {
+    DropOffLog resultCount(Integer resultCount) {
         this.resultCount = resultCount;
         return this;
     }
 
-    PlaceLookupLog place(String placeId, String countryCode, String regionCode) {
+    DropOffLog place(String placeId, String countryCode, String regionCode) {
         this.placeId = cut(placeId, 255);
         this.countryCode = countryCode;
         this.regionCode = regionCode;
         return this;
     }
 
-    PlaceLookupLog errorCode(String errorCode) {
+    DropOffLog upload(int fileCount, Long fileSize, String contentType) {
+        this.fileCount = fileCount;
+        this.fileSize = fileSize;
+        this.contentType = cut(contentType, CONTENT_TYPE_LENGTH);
+        return this;
+    }
+
+    DropOffLog errorCode(String errorCode) {
         this.errorCode = errorCode;
         return this;
     }
@@ -136,6 +154,9 @@ public class PlaceLookupLog {
     public String getPlaceId() { return placeId; }
     public String getCountryCode() { return countryCode; }
     public String getRegionCode() { return regionCode; }
+    public Integer getFileCount() { return fileCount; }
+    public Long getFileSize() { return fileSize; }
+    public String getContentType() { return contentType; }
     public String getErrorCode() { return errorCode; }
     public String getUserAgent() { return userAgent; }
     public LocalDateTime getCreatedAt() { return createdAt; }

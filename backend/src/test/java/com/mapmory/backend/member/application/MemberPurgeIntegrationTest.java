@@ -72,7 +72,7 @@ class MemberPurgeIntegrationTest extends IntegrationTest {
     @Test
     void 공유_영상_기록_태그_의견_알림_장소기록_순서로_지운다() {
         assertThat(purgers).extracting(purger -> purger.getClass().getSimpleName()).containsExactly(
-                "ShareVideoPurger", "TravelRecordPurger", "TagPurger", "ServiceFeedbackPurger", "NotificationPurger", "PlaceLookupLogPurger");
+                "ShareVideoPurger", "TravelRecordPurger", "TagPurger", "ServiceFeedbackPurger", "NotificationPurger", "DropOffLogPurger");
     }
 
     @Test

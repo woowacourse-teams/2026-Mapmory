@@ -10,8 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
-import com.mapmory.backend.place.lookuplog.PlaceLookupLog.Outcome;
-import com.mapmory.backend.place.lookuplog.PlaceLookupLogRepository;
+import com.mapmory.backend.dropoff.DropOffLog.Outcome;
+import com.mapmory.backend.dropoff.DropOffLogRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +29,7 @@ class PlaceRateLimitLookupLogIntegrationTest extends IntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private PlaceLookupLogRepository repository;
+    private DropOffLogRepository repository;
 
     @Autowired
     private PlaceRateLimitProperties rateLimitProperties;

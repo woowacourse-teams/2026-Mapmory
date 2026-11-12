@@ -4,7 +4,7 @@ import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.place.application.PlaceSearchService;
 import com.mapmory.backend.place.application.PlaceSelectionService;
 import com.mapmory.backend.place.domain.SearchQuery;
-import com.mapmory.backend.place.lookuplog.PlaceLookupContext;
+import com.mapmory.backend.dropoff.DropOffContext;
 import com.mapmory.backend.place.web.dto.PlaceCandidateResponse;
 import com.mapmory.backend.place.web.dto.PlaceSelectionResponse;
 import jakarta.validation.constraints.NotBlank;
@@ -47,7 +47,7 @@ public class PlaceController {
             @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent
     ) {
         return ResponseEntity.ok(ApiResponse.from(
-                placeSearchService.search(new PlaceLookupContext(memberId, userAgent), query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
+                placeSearchService.search(new DropOffContext(memberId, userAgent), query, sessionToken).stream().map(PlaceCandidateResponse::from).toList()));
     }
 
     @GetMapping("/{placeId}")
@@ -58,6 +58,6 @@ public class PlaceController {
             @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent
     ) {
         return ResponseEntity.ok(ApiResponse.from(PlaceSelectionResponse.from(
-                placeSelectionService.select(new PlaceLookupContext(memberId, userAgent), placeId, sessionToken))));
+                placeSelectionService.select(new DropOffContext(memberId, userAgent), placeId, sessionToken))));
     }
 }

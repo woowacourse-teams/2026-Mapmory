@@ -15,7 +15,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  */
 class PlaceRateLimitInterceptor implements HandlerInterceptor {
 
-    /** 한도에 막힌 요청. 막힌 지점 기록(place_lookup_log)에 남긴다. */
+    /** 한도에 막힌 요청. 막힌 지점 기록(drop_off_log)에 남긴다. */
     interface RejectionListener {
         void rejected(Long memberId, HttpServletRequest request, BusinessException exception);
     }

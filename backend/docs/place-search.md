@@ -59,14 +59,14 @@
 
 ## 막힌 지점 기록
 
-사용자가 장소를 찾다 막혀 기록을 남기지 못하고 나가는 곳을 찾고 재현하려고, 장소 검색·선택 한 번마다 `place_lookup_log`에 한 줄을 남긴다(`place/lookuplog`). 앱은 이 실패들을 GA4에 남기지 않아 서버에서 본다. 응답 형식은 바뀌지 않아 앱 출시가 필요 없다.
+사용자가 장소를 찾다 막혀 기록을 남기지 못하고 나가는 곳을 찾고 재현하려고, 장소 검색·선택 한 번마다 `drop_off_log`에 한 줄을 남긴다(`dropoff` 패키지). 사진 업로드 주소 요청(`POST /api/v1/uploads/presigned-urls`)이 거절될 때도 `kind=UPLOAD`로 한 줄을 남긴다: 한 번에 요청한 장 수(`file_count`), 거절된 파일의 크기·형식(`file_size`, `content_type`, 장 수·한도처럼 파일 하나 때문이 아니면 가장 큰 파일), 오류 코드(`FILE_SIZE_EXCEEDED`, `INVALID_FILE_TYPE`, `TOO_MANY_FILES`, `UPLOAD_RATE_LIMITED` 등). 받아들인 업로드는 남기지 않는다. 4xx는 운영 로그(DEBUG)에 남지 않으므로 업로드 거절은 여기서만 보인다. 요청 본문 검증(`@Valid`)에서 걸린 400은 남지 않는다. 앱은 이 실패들을 GA4에 남기지 않아 서버에서 본다. 응답 형식은 바뀌지 않아 앱 출시가 필요 없다.
 
 - **상황**: 회원 ID, 검색어(사용자가 친 글자, 앞뒤 공백을 떼고 100자까지), 고른 장소 ID, 앱 `User-Agent`(255자까지, iOS는 앱 버전이 들어 있다), 같은 검색을 묶는 `session_token`.
 - **문제**: `outcome` — 검색은 `RESULTS`·`NO_RESULTS`, 선택은 `REGION_FOUND`·`REGION_NOT_FOUND`(국가는 앎)·`COUNTRY_UNKNOWN`, 둘 다 실패면 `FAILED`와 `error_code`(예: `PLACE_PROVIDER_UNAVAILABLE`).
 - **결과**: 검색 후보 수, 찾은 국가 코드와 지역 코드(`region.region_code`).
 - Google 약관상 장소는 `place_id`만 남기고 이름·주소·좌표는 남기지 않는다. 주소가 필요하면 아래처럼 장소 ID로 다시 조회한다.
 - 회원 한도(429)나 한도 저장소 장애(503)로 컨트롤러에 들어가기 전에 막힌 검색·선택도 `FAILED`로 남긴다. 예상하지 못한 예외(500)는 `error_code=UNEXPECTED`다.
-- Google을 부른 뒤 짧게 한 줄만 넣고, 넣지 못해도 WARN(`event=PLACE_LOOKUP_LOG_FAILED`)만 남기고 응답은 그대로 나간다.
+- Google을 부른 뒤 짧게 한 줄만 넣고, 넣지 못해도 WARN(`event=DROP_OFF_LOG_FAILED`)만 남기고 응답은 그대로 나간다.
 - 30일이 지난 줄은 매일 UTC 19:45에 지우고, 파기하는 회원의 줄은 회원 파기 배치가 지운다.
 - 앱에서만 거르는 실패(앱 지역 목록에 없는 나라: HK·GU·MO·MP 등)는 서버가 모른다. 대신 그 나라 코드로 `REGION_FOUND`가 남았는데 저장이 없으면 그 경우로 본다.
 
@@ -76,10 +76,10 @@
 
 ```sql
 SELECT l.created_at, l.member_id, l.outcome, l.error_code, l.place_id, l.country_code, l.user_agent,
-       (SELECT s.query FROM place_lookup_log s
+       (SELECT s.query FROM drop_off_log s
          WHERE s.member_id = l.member_id AND s.session_token = l.session_token AND s.kind = 'SEARCH'
          ORDER BY s.created_at DESC LIMIT 1) AS last_query
-FROM place_lookup_log l
+FROM drop_off_log l
 WHERE l.kind = 'SELECT' AND l.outcome <> 'REGION_FOUND'
   AND NOT EXISTS (SELECT 1 FROM travel_record r
                    WHERE r.member_id = l.member_id
@@ -91,7 +91,7 @@ ORDER BY l.created_at DESC;
 
 ```sql
 SELECT l.created_at, l.member_id, l.outcome, l.place_id, l.country_code, l.region_code, l.user_agent
-FROM place_lookup_log l
+FROM drop_off_log l
 WHERE l.kind = 'SELECT'
   AND NOT EXISTS (SELECT 1 FROM travel_record r
                    WHERE r.member_id = l.member_id
@@ -105,9 +105,9 @@ ORDER BY l.created_at DESC;
 SELECT s.member_id, s.session_token, MAX(s.created_at) AS last_at, COUNT(*) AS searches,
        SUM(s.outcome = 'NO_RESULTS') AS empty_results, SUM(s.outcome = 'FAILED') AS failures,
        SUBSTRING_INDEX(GROUP_CONCAT(s.query ORDER BY s.created_at DESC SEPARATOR ' | '), ' | ', 3) AS last_queries
-FROM place_lookup_log s
+FROM drop_off_log s
 WHERE s.kind = 'SEARCH'
-  AND NOT EXISTS (SELECT 1 FROM place_lookup_log x
+  AND NOT EXISTS (SELECT 1 FROM drop_off_log x
                    WHERE x.kind = 'SELECT' AND x.member_id = s.member_id AND x.session_token = s.session_token)
 GROUP BY s.member_id, s.session_token
 ORDER BY last_at DESC;
@@ -115,6 +115,18 @@ ORDER BY last_at DESC;
 
 주의: 지도 화면의 장소 검색도 같은 API를 쓴다. 지도에서 그 지역으로 이동만 한 경우도 "고르고 저장 안 함"과 "검색만 하고 나감"에 섞여 나온다. 서버는 어느 화면인지 모른다.
 게스트로 쓰다 이미 가입한 소셜 계정으로 들어가면(게스트 버림) 저장은 다른 회원 ID로 남아 막힌 것처럼 보인다.
+
+업로드가 거절된 사람과 그 뒤 저장 여부.
+
+```sql
+SELECT u.created_at, u.member_id, u.error_code, u.file_count, u.file_size, u.content_type, u.user_agent,
+       EXISTS (SELECT 1 FROM travel_record r
+                WHERE r.member_id = u.member_id
+                  AND r.created_at BETWEEN u.created_at AND u.created_at + INTERVAL 1 HOUR) AS saved_within_hour
+FROM drop_off_log u
+WHERE u.kind = 'UPLOAD'
+ORDER BY u.created_at DESC;
+```
 
 ### 재현
 
