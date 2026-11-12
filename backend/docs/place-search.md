@@ -59,7 +59,7 @@
 
 ## 막힌 지점 기록
 
-사용자가 장소를 찾다 막혀 기록을 남기지 못하고 나가는 곳을 찾고 재현하려고, 장소 검색·선택 한 번마다 `drop_off_log`에 한 줄을 남긴다(`dropoff` 패키지). 사진 업로드 주소 요청(`POST /api/v1/uploads/presigned-urls`)이 거절될 때도 `kind=UPLOAD`로 한 줄을 남긴다: 한 번에 요청한 장 수(`file_count`), 거절된 파일의 크기·형식(`file_size`, `content_type`, 장 수·한도처럼 파일 하나 때문이 아니면 가장 큰 파일), 오류 코드(`FILE_SIZE_EXCEEDED`, `INVALID_FILE_TYPE`, `TOO_MANY_FILES`, `UPLOAD_RATE_LIMITED` 등). 받아들인 업로드는 남기지 않는다. 4xx는 운영 로그(DEBUG)에 남지 않으므로 업로드 거절은 여기서만 보인다. 요청 본문 검증(`@Valid`)에서 걸린 400은 남지 않는다. 앱은 이 실패들을 GA4에 남기지 않아 서버에서 본다. 응답 형식은 바뀌지 않아 앱 출시가 필요 없다.
+사용자가 장소를 찾다 막혀 기록을 남기지 못하고 나가는 곳을 찾고 재현하려고, 장소 검색·선택 한 번마다 `drop_off_log`에 한 줄을 남긴다(`dropoff` 패키지). 사진 업로드 주소 요청(`POST /api/v1/uploads/presigned-urls`)이 거절될 때도 `kind=UPLOAD`로 한 줄을 남긴다: 한 번에 요청한 장 수(`file_count`), 거절된 파일의 크기·형식(`file_size`, `content_type`, 장 수·한도처럼 파일 하나 때문이 아니면 가장 큰 파일), 오류 코드(`FILE_SIZE_EXCEEDED`, `INVALID_FILE_TYPE`, `TOO_MANY_FILES`, `UPLOAD_RATE_LIMITED` 등). 받아들인 업로드와 회원 확인·S3 서명 실패(거절이 아니라 장애)는 남기지 않는다. 같은 회원이 같은 오류로 거듭 막히면(한도를 넘긴 뒤 재시도하는 앱 등) 서버마다 1분에 한 줄만 남긴다. 한도 거절은 DB를 쓰지 않으려는 길이라 거절마다 INSERT하지 않으려는 것이다. 4xx는 운영 로그(DEBUG)에 남지 않으므로 업로드 거절은 여기서만 보인다. 요청 본문 검증(`@Valid`)에서 걸린 400은 남지 않는다. 앱은 이 실패들을 GA4에 남기지 않아 서버에서 본다. 응답 형식은 바뀌지 않아 앱 출시가 필요 없다.
 
 - **상황**: 회원 ID, 검색어(사용자가 친 글자, 앞뒤 공백을 떼고 100자까지), 고른 장소 ID, 앱 `User-Agent`(255자까지, iOS는 앱 버전이 들어 있다), 같은 검색을 묶는 `session_token`.
 - **문제**: `outcome` — 검색은 `RESULTS`·`NO_RESULTS`, 선택은 `REGION_FOUND`·`REGION_NOT_FOUND`(국가는 앎)·`COUNTRY_UNKNOWN`, 둘 다 실패면 `FAILED`와 `error_code`(예: `PLACE_PROVIDER_UNAVAILABLE`).
