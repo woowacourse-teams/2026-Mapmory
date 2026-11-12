@@ -13,7 +13,7 @@ EnvironmentFile=-/etc/mapmory-deployment-cache.env
 LogsDirectory=mapmory-green
 LogsDirectoryMode=0755
 ExecStartPre=/opt/mapmory/bin/validate-spring-profile.sh
-ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /opt/mapmory/slots/green/current/mapmory-backend.jar --server.address=127.0.0.1 --server.port=8090 --management.server.address=127.0.0.1 --management.server.port=8091 --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=30s --spring.flyway.enabled=true --share-video.worker.enabled=false --notification.outbox.enabled=true --notification.fcm.enabled=true --logging.file.name=/var/log/mapmory-green/application.log
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /opt/mapmory/slots/green/current/mapmory-backend.jar --server.address=127.0.0.1 --server.port=8090 --management.server.address=127.0.0.1 --management.server.port=8091 --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=30s --spring.flyway.enabled=true --share-video.worker.enabled=false --notification.outbox.enabled=true --logging.file.name=/var/log/mapmory-green/application.log
 Restart=on-failure
 RestartSec=5
 KillSignal=SIGTERM
