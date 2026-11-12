@@ -417,6 +417,74 @@ footer a:hover { color: var(--sub); }
   .embed .step .shot .device { --w: 240px; margin: 0; }
 }
 .booth { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20; font-size: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .1); color: var(--sub); }
+/* additions */
+.rooms-label { grid-column: 1 / -1; margin: 0 0 2px; font-size: 14px; color: var(--sub); }
+.team .role { font-size: 14px; color: var(--blue); margin-top: -2px; }
+.tl-switch { display: none; }
+.mode-seg { margin-bottom: -4px; }
+
+@media (max-width: 900px) {
+  /* timeline: one phone at a time with a switch instead of a sideways scroller */
+  .tl-switch { display: inline-flex; margin: 8px 0 20px; }
+  .split { gap: 8px; }
+  .tl-devices { justify-content: center; overflow: visible; margin-inline: 0; padding-inline: 0; }
+  .tl-devices figure:nth-child(2) { margin-top: 0; }
+  .tl-devices[data-show="0"] figure:nth-child(2), .tl-devices[data-show="1"] figure:nth-child(1) { display: none; }
+  .tl-devices .device { --w: 250px; }
+  .tl-devices figcaption { display: none; }
+
+  /* how: tappable steps above a single phone */
+  .how { display: flex; flex-direction: column; gap: 24px; }
+  .steps { padding-block: 0; display: grid; gap: 8px; }
+  .step { min-height: 0; padding: 16px 18px; border-radius: 18px; opacity: .45; cursor: pointer; gap: 6px; background: transparent; transition: opacity .3s ease, background .3s ease; }
+  .step.on { opacity: 1; background: rgba(255, 255, 255, .05); }
+  .step h3 { font-size: 22px; }
+  .step p { font-size: 15px; }
+  .step .shot { display: none !important; }
+  .how-device-col { display: block; }
+  .how-device-col .device { position: static; --w: 250px; margin: 0 auto; }
+
+  /* try: heading, switch, map, numbers, chips */
+  .try { display: flex; flex-direction: column; align-items: stretch; gap: 22px; }
+  .mode-seg { align-self: flex-start; }
+  .try-globe { align-self: center; width: 100%; }
+  .try-side { display: contents; }
+  .try-side .head { order: 1; }
+  .mode-seg { order: 2; margin: 0; }
+  .try-globe { order: 3; max-width: 420px; }
+  .count-block { order: 4; }
+  #chips { order: 5; }
+  #badges { order: 6; }
+  .next-goal { order: 7; }
+  .try-foot { order: 8; }
+  .mascot-say img { width: 72px; }
+  .bubble { font-size: 14px; margin-bottom: 52px; }
+}
+@media (max-width: 720px) {
+  section { padding-block: 72px; }
+  .head { margin-bottom: 28px; }
+  .head p, .tl-copy p, .ps-copy > p, .grp-copy > p { font-size: 17px; }
+  h2 { font-size: 34px; }
+  .hero { padding-top: 104px; }
+  .hero h1 { font-size: 42px; }
+  .hero-stage { margin-top: 36px; height: 600px; }
+  .hero-device { --w: 250px; }
+  .ps-stage .device { --w: 250px; }
+  .ps-note { font-size: 14px; text-align: left; }
+  .safe { gap: 14px; }
+  .count b { font-size: 64px; }
+  .chip { height: 36px; padding: 0 13px; font-size: 14px; }
+  .room { padding: 16px; }
+  .room.big { padding: 18px; }
+  .big-stat b { font-size: 42px; }
+  .invite { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .more { gap: 26px; }
+  .team { gap: 22px 14px; }
+  .team img { width: 72px; height: 72px; }
+  .dl img.mascot { width: 104px; }
+  .dl h2 { font-size: 40px; }
+  .facts { flex-direction: column; align-items: center; gap: 6px; margin-top: 32px; }
+}
 </style>
 </head>
 <body>
@@ -439,8 +507,8 @@ footer a:hover { color: var(--sub); }
 <main id="top">
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap">
-      <h1 id="hero-title">다녀온 여행이<br>지도 위에 쌓여요</h1>
-      <p class="lead">다녀온 지역을 고르고 사진과 이야기를 남기면,<br>나만의 세계 지도가 채워져요.</p>
+      <h1 id="hero-title">다녀온 여행이 <br>지도 위에 쌓여요</h1>
+      <p class="lead">사진만 고르면 지역과 날짜가 알아서 기록되고, <br>나만의 세계 지도가 채워져요.</p>
       <div class="hero-ctas">
         <a class="btn" href="https://apps.apple.com/kr/app/id6807056166" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.8zM14.1 5.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.7-1 2.7 1 .1 2-.5 2.7-1.3z"/></svg>
@@ -453,7 +521,7 @@ footer a:hover { color: var(--sub); }
       </div>
       <div class="hero-qr">
         <div class="qr" id="qr-hero" role="img" aria-label="앱 설치 QR 코드"></div>
-        <span>휴대폰 카메라로 찍으면 바로 설치할 수 있어요<br>
+        <span>휴대폰 카메라로 찍으면 바로 설치할 수 있어요 <br>
           <button type="button" id="qr-switch">Android용 QR 보기</button></span>
       </div>
     </div>
@@ -472,8 +540,8 @@ footer a:hover { color: var(--sub); }
   <section id="photos" aria-labelledby="ps-title">
     <div class="wrap ps">
       <div class="ps-copy">
-        <h2 id="ps-title">사진이 수만 장이어도<br>여행 사진만 쏙 찾아요</h2>
-        <p class="sub">다녀온 지역을 고르면 사진에 남은 위치를 읽어서,<br>그곳에서 찍은 사진만 모아 보여줘요.</p>
+        <h2 id="ps-title">사진이 수만 장이어도 <br>여행 사진만 쏙 찾아요</h2>
+        <p class="sub">다녀온 지역을 고르면 사진에 남은 위치를 읽어서, <br>그곳에서 찍은 사진만 모아 보여줘요.</p>
         <ul class="safe">
           <li>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
@@ -504,15 +572,15 @@ footer a:hover { color: var(--sub); }
             <div class="pk-save" id="pk-save"><i class="sp"></i><span id="pk-save-t">6장 골라 기록하기</span></div>
             <div class="pk-done" aria-hidden="true">
               <div class="nav-b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 5-7 7 7 7"/></svg>대만</div>
-              <div class="pk-cover"><img src="assets/roll/tw-30.jpg" alt=""><div><small>TAIWAN</small><b>타이베이의 첫 밤</b></div></div>
-              <div class="pk-meta"><span>2026. 03. 14</span><b>사진 6장</b></div>
+              <div class="pk-cover"><img src="assets/roll/tw-30.jpg" alt=""><div><small>TAIWAN</small><b>타이베이</b></div></div>
+              <div class="pk-meta"><span>2026. 03. 14 – 03. 17</span><b>사진 6장</b></div>
               <div class="pk-strip"><img src="assets/roll/tw-26.jpg" alt=""><img src="assets/roll/tw-27.jpg" alt=""><img src="assets/roll/tw-28.jpg" alt=""><img src="assets/roll/tw-30.jpg" alt=""><img src="assets/roll/tw-31.jpg" alt=""><img src="assets/roll/tw-32.jpg" alt=""></div>
-              <div class="pk-toast"><i></i><p>기록을 저장했어요<span>지도에 대만이 칠해졌어요</span></p></div>
+              <div class="pk-toast"><i></i><p>지역과 날짜가 알아서 기록됐어요<span>지도에 대만이 칠해졌어요</span></p></div>
             </div>
           </div>
           <span class="glare"></span>
         </div></div></div>
-        <p class="ps-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z"/><path d="M12 15.5v-5M9.8 12.5 12 10.3l2.2 2.2"/></svg>찾기는 폰 안에서 하고, 기록을 저장할 때 고른 6장만 올라가요</p>
+        <p class="ps-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z"/><path d="M12 15.5v-5M9.8 12.5 12 10.3l2.2 2.2"/></svg>찾기는 폰 안에서 하고, 기록을 저장할 때 고른 사진만 올라가요</p>
       </div>
     </div>
   </section>
@@ -521,14 +589,15 @@ footer a:hover { color: var(--sub); }
     <div class="wrap split">
       <div class="tl-copy">
         <h2 id="tl-title">내 여행이<br>순서대로 재생돼요</h2>
-        <p class="sub">여행 타임라인을 켜면<br>다녀온 순서대로 지구본 위를 날아가요.</p>
+        <p class="sub">여행 타임라인을 켜면 <br>다녀온 순서대로 지구본 위를 날아가요.</p>
         <ul class="tl-points">
           <li>연도별로 어디를 다녀왔는지 한눈에</li>
           <li>지구본으로 보거나, 지도로 가까이 보거나</li>
           <li>올해 여행만, 친구와 간 여행만, 여러 버전으로 만들어 공유해 보세요</li>
         </ul>
       </div>
-      <div class="tl-devices">
+      <div class="tl-switch seg2" role="group" aria-label="타임라인 보기 선택"><button type="button" data-tl="0" aria-pressed="true">지구본으로</button><button type="button" data-tl="1" aria-pressed="false">지도로</button></div>
+      <div class="tl-devices" id="tl-devices" data-show="0">
         <figure>
           <div class="device"><div class="bezel"><div class="screen">
             <span class="island"></span>
@@ -558,17 +627,17 @@ footer a:hover { color: var(--sub); }
         <div class="steps">
           <article class="step on" data-i="0">
             <h3>다녀온 지역을 고르고</h3>
-            <p>전세계 지구본과 국내 지도에서 지역을 누르면<br>기록이 시작돼요.</p>
+            <p>전세계 지구본과 국내 지도에서 <br>다녀온 곳을 찾아요.</p>
             <div class="shot"></div>
           </article>
           <article class="step" data-i="1">
-            <h3>사진과 이야기를 남기면</h3>
-            <p>날짜와 한 줄 이야기, 그날의 사진을 붙여요.<br>같은 곳을 또 가도 한곳에 모여요.</p>
+            <h3>사진만 고르면</h3>
+            <p>제목도 날짜도 묻지 않아요. <br>사진에 남은 위치와 시간으로 알아서 기록돼요.</p>
             <div class="shot"></div>
           </article>
           <article class="step" data-i="2">
             <h3>지역별로 꺼내 볼 수 있어요</h3>
-            <p>몇 년 전 여행도<br>지역만 누르면 바로 찾아져요.</p>
+            <p>몇 년 전 여행도 <br>지역만 누르면 바로 찾아져요.</p>
             <div class="shot"></div>
           </article>
         </div>
@@ -588,7 +657,7 @@ footer a:hover { color: var(--sub); }
     <div class="wrap grp">
       <div class="grp-copy">
         <h2 id="grp-title">같이 채우면<br>더 재밌어요</h2>
-        <p class="sub">그룹을 만들고 친구를 부르면,<br>각자 남긴 기록이 한 앨범과 한 지도에 모여요.</p>
+        <p class="sub">그룹을 만들고 친구를 부르면, <br>각자 남긴 기록이 한 앨범과 한 지도에 모여요.</p>
         <ol class="grp-steps">
           <li>그룹을 만들어요</li>
           <li>초대 링크나 6자리 코드로 불러요</li>
@@ -597,6 +666,7 @@ footer a:hover { color: var(--sub); }
         <div class="invite"><span>친구 초대 코드<b>482 913</b></span><span>링크로도 초대할 수 있어요</span></div>
       </div>
       <div class="rooms" id="rooms">
+        <p class="rooms-label">이렇게도 써요</p>
         <article class="room big">
           <div>
             <div class="room-top"><span class="meta">연인과 함께</span><div class="faces"><span style="background:#F8B5C8">지</span><span style="background:#9CC3F0">민</span></div></div>
@@ -640,10 +710,10 @@ footer a:hover { color: var(--sub); }
       <div class="try-side">
         <div class="head" style="margin: 0">
           <h2 id="try-title">칠할수록<br>더 채우고 싶어져요</h2>
-          <p class="sub">다녀온 지역을 눌러 보세요.<br>한 곳씩 색이 차오르고, 모을수록 업적이 열려요.</p>
+          <p class="sub">다녀온 지역을 눌러 보세요. <br>한 곳씩 색이 차오르고, 모을수록 업적이 열려요.</p>
         </div>
-        <div>
-          <div class="seg2" role="group" aria-label="지도 선택"><button type="button" id="mode-world" aria-pressed="true">전세계</button><button type="button" id="mode-kr" aria-pressed="false">국내</button></div>
+        <div class="seg2 mode-seg" role="group" aria-label="지도 선택"><button type="button" id="mode-world" aria-pressed="true">전세계</button><button type="button" id="mode-kr" aria-pressed="false">국내</button></div>
+        <div class="count-block">
           <div class="count"><b id="try-count">0</b><span>곳</span></div>
           <div class="meter" style="margin-top: 16px"><i id="try-meter"></i></div>
           <p class="meter-note" id="try-note">세계 지도의 0%를 칠했어요</p>
@@ -696,11 +766,11 @@ footer a:hover { color: var(--sub); }
     <div class="wrap">
       <div class="head"><h2 id="team-title">만든 사람들</h2><p class="sub">우아한테크코스 8기 맵모리 팀이에요.</p></div>
       <ul class="team">
-        <li><img src="assets/team/Redish03.png" alt=""><b>사무엘(홍성우)</b><a href="https://github.com/Redish03" target="_blank" rel="noopener">@Redish03</a></li>
-        <li><img src="assets/team/bee9827.png" alt=""><b>티온(김용성)</b><a href="https://github.com/bee9827" target="_blank" rel="noopener">@bee9827</a></li>
-        <li><img src="assets/team/soohyun1904.png" alt=""><b>달수(이수현)</b><a href="https://github.com/soohyun1904" target="_blank" rel="noopener">@soohyun1904</a></li>
-        <li><img src="assets/team/chohs4164.png" alt=""><b>조디악(조현승)</b><a href="https://github.com/chohs4164" target="_blank" rel="noopener">@chohs4164</a></li>
-        <li><img src="assets/team/Soojin6943.png" alt=""><b>도우너(한수진)</b><a href="https://github.com/Soojin6943" target="_blank" rel="noopener">@Soojin6943</a></li>
+        <li><img src="assets/team/Redish03.png" alt=""><b>사무엘(홍성우)</b><span class="role">앱 개발 (Android·iOS)</span><a href="https://github.com/Redish03" target="_blank" rel="noopener">@Redish03</a></li>
+        <li><img src="assets/team/bee9827.png" alt=""><b>티온(김용성)</b><span class="role">백엔드</span><a href="https://github.com/bee9827" target="_blank" rel="noopener">@bee9827</a></li>
+        <li><img src="assets/team/soohyun1904.png" alt=""><b>달수(이수현)</b><span class="role">백엔드</span><a href="https://github.com/soohyun1904" target="_blank" rel="noopener">@soohyun1904</a></li>
+        <li><img src="assets/team/chohs4164.png" alt=""><b>조디악(조현승)</b><span class="role">앱 개발 (Android·iOS)</span><a href="https://github.com/chohs4164" target="_blank" rel="noopener">@chohs4164</a></li>
+        <li><img src="assets/team/Soojin6943.png" alt=""><b>도우너(한수진)</b><span class="role">백엔드</span><a href="https://github.com/Soojin6943" target="_blank" rel="noopener">@Soojin6943</a></li>
       </ul>
     </div>
   </section>
@@ -1127,6 +1197,30 @@ footer a:hover { color: var(--sub); }
     v.addEventListener("loadeddata", () => matchEdges(v));
     v.addEventListener("timeupdate", () => { if (!v._t || performance.now() - v._t > 900) { v._t = performance.now(); matchEdges(v); } });
   });
+
+  /* ---------- mobile: timeline switch ---------- */
+  (() => {
+    const box = $("tl-devices"); if (!box) return;
+    document.querySelectorAll(".tl-switch button").forEach((b) => b.addEventListener("click", () => {
+      box.dataset.show = b.dataset.tl;
+      document.querySelectorAll(".tl-switch button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      const v = box.querySelectorAll("video")[+b.dataset.tl]; if (v && !reduceMotion) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+    }));
+  })();
+
+  /* ---------- mobile: tap a step (or let it advance) to change the phone ---------- */
+  (() => {
+    const mq = matchMedia("(max-width: 900px)");
+    let auto = 0, idx = 0;
+    const show = (i) => { idx = i; steps.forEach((s, j) => s.classList.toggle("on", j === i)); shots.forEach((im, j) => im.classList.toggle("on", j === i)); };
+    steps.forEach((st, i) => st.addEventListener("click", () => { if (mq.matches) { show(i); clearInterval(auto); auto = 0; } }));
+    const how = $("how");
+    new IntersectionObserver((es) => {
+      if (!mq.matches || reduceMotion) return;
+      if (es[0].isIntersecting) { if (!auto) auto = setInterval(() => show((idx + 1) % steps.length), 3200); }
+      else { clearInterval(auto); auto = 0; }
+    }, { threshold: .3 }).observe(how);
+  })();
 
   /* ---------- section rail + back to top ---------- */
   (() => {
