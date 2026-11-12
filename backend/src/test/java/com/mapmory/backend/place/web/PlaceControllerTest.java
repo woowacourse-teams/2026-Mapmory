@@ -26,6 +26,9 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 
 class PlaceControllerTest {
 
@@ -38,7 +41,7 @@ class PlaceControllerTest {
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         String token = "0b6f8f4e-5d0a-4c9a-9f43-0c1c2f5f2b11";
-        when(searchService.search("한강공원", token))
+        when(searchService.search(any(), eq("한강공원"), eq(token)))
                 .thenReturn(List.of(new PlaceCandidate(PlaceId.from("park-1"), "여의도한강공원", "서울 영등포구", GOOGLE)));
 
         mockMvc.perform(get("/api/v1/places/search").param("query", "한강공원").param("sessionToken", token))
@@ -66,8 +69,8 @@ class PlaceControllerTest {
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
         String token = "0b6f8f4e-5d0a-4c9a-9f43-0c1c2f5f2b11";
-        when(searchService.search("경복", token)).thenReturn(List.of());
-        when(selectionService.select("ChIJ-gyeong", token))
+        when(searchService.search(any(), eq("경복"), eq(token))).thenReturn(List.of());
+        when(selectionService.select(any(), eq("ChIJ-gyeong"), eq(token)))
                 .thenReturn(new SelectedPlace(
                         new PlaceDetails(PlaceId.from("ChIJ-gyeong"), null, new RegionAddress("KR", null, List.of()), GOOGLE), null));
 
@@ -77,8 +80,8 @@ class PlaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").doesNotExist());
 
-        verify(searchService).search("경복", token);
-        verify(selectionService).select("ChIJ-gyeong", token);
+        verify(searchService).search(any(), eq("경복"), eq(token));
+        verify(selectionService).select(any(), eq("ChIJ-gyeong"), eq(token));
     }
 
     @Test
@@ -91,9 +94,9 @@ class PlaceControllerTest {
         proxyFactory.addAdvice(new MethodValidationInterceptor((jakarta.validation.Validator) validator));
         PlaceController controller = (PlaceController) proxyFactory.getProxy();
 
-        assertThatThrownBy(() -> controller.search("경복", "a".repeat(37)))
+        assertThatThrownBy(() -> controller.search("경복", "a".repeat(37), null, null))
                 .isInstanceOf(ConstraintViolationException.class);
-        controller.search("경복", "a".repeat(36));
+        controller.search("경복", "a".repeat(36), null, null);
     }
 
     @Test
@@ -101,7 +104,7 @@ class PlaceControllerTest {
         PlaceSearchService searchService = mock(PlaceSearchService.class);
         PlaceSelectionService selectionService = mock(PlaceSelectionService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PlaceController(searchService, selectionService)).build();
-        when(selectionService.select("ChIJ-park", null))
+        when(selectionService.select(any(), eq("ChIJ-park"), isNull()))
                 .thenReturn(new SelectedPlace(
                         new PlaceDetails(PlaceId.from("ChIJ-park"), null, new RegionAddress("KR", null, List.of()), GOOGLE), null));
 
