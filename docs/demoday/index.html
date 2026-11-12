@@ -394,12 +394,29 @@ section { padding-block: clamp(88px, 12vw, 160px); }
 @media (max-width: 480px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* story */
-.story { padding-block: clamp(72px, 9vw, 120px); border-top: 1px solid var(--line); }
-.story .wrap { display: grid; gap: 16px; justify-items: start; }
-.story h2 { font-size: clamp(32px, 4vw, 48px); }
-.story p { color: var(--sub); font-size: 18px; max-width: 30em; }
-.story .btn { margin-top: 12px; cursor: default; }
-.story .btn:hover { transform: none; }
+.story { padding-block: clamp(80px, 11vw, 140px); border-top: 1px solid var(--line); }
+.story .head { margin-bottom: clamp(36px, 5vw, 56px); }
+.story h2 { font-size: clamp(38px, 5vw, 60px); }
+.path { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative; }
+.path::before { content: ""; position: absolute; left: 12px; right: 12px; top: 7px; height: 2px; background: linear-gradient(90deg, rgba(233, 214, 161, .25), var(--gold)); }
+.path li { position: relative; padding-top: 34px; display: grid; gap: 6px; align-content: start; }
+.path li::before { content: ""; position: absolute; left: 0; top: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--sky); box-shadow: inset 0 0 0 3px var(--gold); }
+.path .when { font-size: 14px; color: var(--sub); }
+.path .tried { font-size: 17px; color: var(--sub); text-decoration: line-through; text-decoration-color: rgba(233, 214, 161, .55); text-decoration-thickness: 1.5px; }
+.path b { font-family: var(--f-head); font-weight: 400; font-size: clamp(22px, 2.1vw, 28px); line-height: 1.3; }
+.path li.now::before { background: var(--gold); box-shadow: 0 0 0 6px rgba(233, 214, 161, .18); }
+.path li.now b { color: var(--gold); }
+.promise { margin-top: clamp(48px, 6vw, 72px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-top: 28px; border-top: 1px solid var(--line); }
+.promise strong { font-family: var(--f-head); font-weight: 400; font-size: 22px; color: var(--text); margin-right: 8px; }
+.promise span { font-size: 15px; padding: 7px 14px; border-radius: 999px; background: rgba(255, 255, 255, .06); color: var(--sub); }
+@media (max-width: 900px) {
+  .path { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-left: 34px; }
+  .path::before { left: 7px; right: auto; top: 8px; bottom: 8px; width: 2px; height: auto; background: linear-gradient(rgba(233, 214, 161, .25), var(--gold)); }
+  .path li { padding-top: 0; }
+  .path li::before { left: -34px; top: 4px; }
+  .promise strong { width: 100%; }
+}
+
 footer { border-top: 1px solid var(--line); padding-block: 28px 40px; font-size: 13px; color: var(--faint); }
 footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
 footer nav { display: flex; gap: 20px; }
@@ -424,15 +441,6 @@ footer a:hover { color: var(--sub); }
 .mode-seg { margin-bottom: -4px; }
 
 @media (max-width: 900px) {
-  /* timeline: one phone at a time with a switch instead of a sideways scroller */
-  .tl-switch { display: inline-flex; margin: 8px 0 20px; }
-  .split { gap: 8px; }
-  .tl-devices { justify-content: center; overflow: visible; margin-inline: 0; padding-inline: 0; }
-  .tl-devices figure:nth-child(2) { margin-top: 0; }
-  .tl-devices[data-show="0"] figure:nth-child(2), .tl-devices[data-show="1"] figure:nth-child(1) { display: none; }
-  .tl-devices .device { --w: 250px; }
-  .tl-devices figcaption { display: none; }
-
   /* how: tappable steps above a single phone */
   .how { display: flex; flex-direction: column; gap: 24px; }
   .steps { padding-block: 0; display: grid; gap: 8px; }
@@ -756,9 +764,17 @@ footer a:hover { color: var(--sub); }
 
   <section class="story" id="story" aria-labelledby="story-title">
     <div class="wrap">
-      <h2 id="story-title">완벽하지 않아도 된다.</h2>
-      <p>많이 만들고도 쓰이지 않던 앱이 여기까지 온 이야기. 어떤 상황에서, 어떤 판단을 했는지 적었어요.</p>
-      <span class="btn alt" id="story-link" aria-disabled="true">우리가 걸어온 이야기 읽기</span>
+      <div class="head">
+        <h2 id="story-title">완벽하지 않아도 된다.</h2>
+        <p class="sub">틀릴 때마다 사용자에게 다시 물었어요.</p>
+      </div>
+      <ol class="path">
+        <li><span class="when">스프린트 1</span><span class="tried">입력 단계를 줄였는데</span><b>저장은 늘지 않았어요</b></li>
+        <li><span class="when">스프린트 2</span><span class="tried">검색을 고쳤는데</span><b>막힌 곳은 사진 고르기였어요</b></li>
+        <li><span class="when">Wow Point</span><span class="tried">기능을 늘렸는데</span><b>사람들은 사진 앞에서 멈춰 있었어요</b></li>
+        <li class="now"><span class="when">지금</span><span class="tried" style="text-decoration:none">그래서</span><b>사진만 고르면 기록되는 앱</b></li>
+      </ol>
+      <div class="promise"><strong>함께. 오래. 재밌게. 사용자 우선.</strong><span>혼자 고민하지 않기</span><span>따뜻하고 솔직한 피드백</span><span>답답하면 같이 산책</span></div>
     </div>
   </section>
 
