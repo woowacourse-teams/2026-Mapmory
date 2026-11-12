@@ -644,16 +644,16 @@ footer a:hover { color: var(--sub); }
             <div class="shot"></div>
           </article>
           <article class="step" data-i="2">
-            <h3>지역별로 꺼내 볼 수 있어요</h3>
-            <p>몇 년 전 여행도 <br>지역만 누르면 바로 찾아져요.</p>
+            <h3>다닌 곳이 지도에 칠해져요</h3>
+            <p>전세계 195개 나라, <br>대한민국 230개 시·군·구를 하나씩 채워요.</p>
             <div class="shot"></div>
           </article>
         </div>
         <div class="how-device-col" aria-hidden="true">
           <div class="device" id="how-device"><div class="bezel"><div class="screen">
-            <img class="on" src="assets/s-map-dark.jpg" alt="">
-            <img src="assets/s-trip-dark.jpg" alt="">
-            <img src="assets/s-list-dark.jpg" alt="">
+            <img class="on" src="assets/v2-world.jpg" alt="">
+            <img src="assets/v2-journal.jpg" alt="">
+            <img src="assets/v2-korea.jpg" alt="">
             <span class="glare"></span>
           </div></div></div>
         </div>
@@ -1072,8 +1072,8 @@ footer a:hover { color: var(--sub); }
       $("try-meter").style.width = `${n ? Math.max(1.5, n / 195 * 100) : 0}%`;
       $("try-note").textContent = `세계 지도의 ${Math.round(n / 195 * 100)}%를 칠했어요`;
     } else {
-      $("try-meter").style.width = `${n ? Math.max(1.5, n / KR.length * 100) : 0}%`;
-      $("try-note").textContent = `시·군·구 ${KR.length}곳 중 ${n}곳을 칠했어요`;
+      $("try-meter").style.width = `${n ? Math.max(1.5, Math.min(100, n / 230 * 100)) : 0}%`;
+      $("try-note").textContent = `시·군·구 230곳 중 ${n}곳을 칠했어요`;
     }
     const name = (k) => mode === "world" ? featOf(k).properties.n : krName(k);
     const s = total === 0 ? ["worry", "아직 텅 비었어요"]
