@@ -7,11 +7,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "upload.rate-limit")
 record UploadRateLimitProperties(
-        int filesPerMemberPerHour,
         int filesPerMemberPerDay
 ) {
     UploadRateLimitProperties {
-        if (filesPerMemberPerHour < 1 || filesPerMemberPerDay < filesPerMemberPerHour) {
+        if (filesPerMemberPerDay < 1) {
             throw new IllegalArgumentException("업로드 회원 한도 설정이 올바르지 않습니다.");
         }
     }
