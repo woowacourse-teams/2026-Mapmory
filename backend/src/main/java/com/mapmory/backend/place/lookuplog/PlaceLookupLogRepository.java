@@ -12,7 +12,7 @@ public interface PlaceLookupLogRepository extends JpaRepository<PlaceLookupLog, 
     // 오래된 행을 작은 묶음으로 지운다. 한 번에 지우면 잠금이 길어진다.
     @Modifying
     @Transactional
-    @Query(value = "DELETE FROM place_lookup_log WHERE created_at < :before LIMIT :limit", nativeQuery = true)
+    @Query(value = "DELETE FROM place_lookup_log WHERE created_at < :before ORDER BY created_at LIMIT :limit", nativeQuery = true)
     int deleteOlderThan(@Param("before") LocalDateTime before, @Param("limit") int limit);
 
     @Modifying

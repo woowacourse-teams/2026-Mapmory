@@ -1,5 +1,6 @@
 package com.mapmory.backend.place.lookuplog;
 
+import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.lookuplog.PlaceLookupLog.Kind;
 import com.mapmory.backend.place.lookuplog.PlaceLookupLog.Outcome;
 import java.time.Clock;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PlaceLookupRecorder {
+
+    static final String UNEXPECTED = "UNEXPECTED";
 
     private static final Logger log = LoggerFactory.getLogger(PlaceLookupRecorder.class);
 
@@ -51,6 +54,11 @@ public class PlaceLookupRecorder {
     public void selectFailed(PlaceLookupContext context, String sessionToken, String placeId, String errorCode) {
         save(context, Kind.SELECT, Outcome.FAILED,
                 entry -> entry.sessionToken(sessionToken).place(placeId, null, null).errorCode(errorCode));
+    }
+
+    /** 우리 오류면 그 코드, 예상하지 못한 예외(500)면 UNEXPECTED. */
+    public static String errorCodeOf(RuntimeException exception) {
+        return exception instanceof BusinessException business ? business.getErrorCode().code() : UNEXPECTED;
     }
 
     private void save(PlaceLookupContext context, Kind kind, Outcome outcome,

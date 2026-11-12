@@ -1,6 +1,5 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceCandidate;
 import com.mapmory.backend.place.domain.SearchQuery;
@@ -25,8 +24,8 @@ public class PlaceSearchService {
         List<PlaceCandidate> candidates;
         try {
             candidates = placeLookupPort.search(SearchQuery.from(query), sessionToken);
-        } catch (BusinessException exception) {
-            recorder.searchFailed(context, sessionToken, query, exception.getErrorCode().code());
+        } catch (RuntimeException exception) {
+            recorder.searchFailed(context, sessionToken, query, PlaceLookupRecorder.errorCodeOf(exception));
             throw exception;
         }
         recorder.searched(context, sessionToken, query, candidates.size());

@@ -1,6 +1,5 @@
 package com.mapmory.backend.place.application;
 
-import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
@@ -29,8 +28,8 @@ public class PlaceSelectionService {
         try {
             PlaceDetails place = placeLookupPort.findDetails(PlaceId.from(placeId), sessionToken);
             selected = new SelectedPlace(place, regionSuggester.suggest(place.address()).orElse(null));
-        } catch (BusinessException exception) {
-            recorder.selectFailed(context, sessionToken, placeId, exception.getErrorCode().code());
+        } catch (RuntimeException exception) {
+            recorder.selectFailed(context, sessionToken, placeId, PlaceLookupRecorder.errorCodeOf(exception));
             throw exception;
         }
         recorder.selected(context, sessionToken, placeId, selected.countryCode(),

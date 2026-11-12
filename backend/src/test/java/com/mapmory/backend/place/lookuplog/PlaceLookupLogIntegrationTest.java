@@ -120,6 +120,17 @@ class PlaceLookupLogIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 예상하지_못한_예외도_실패로_남긴다() throws Exception {
+        willThrow(new IllegalStateException("주소 해석 실패"))
+                .given(googlePlacesClient).findDetails(any(), any());
+
+        select(guestAccessToken()).andExpect(status().isInternalServerError());
+
+        assertThat(onlyLog().getOutcome()).isEqualTo(Outcome.FAILED);
+        assertThat(onlyLog().getErrorCode()).isEqualTo("UNEXPECTED");
+    }
+
+    @Test
     void 기록이_30일이_지나면_지운다() {
         LocalDateTime now = LocalDateTime.now(clock);
         PlaceLookupContext context = new PlaceLookupContext(1L, null);

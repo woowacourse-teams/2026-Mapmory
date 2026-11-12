@@ -65,6 +65,7 @@
 - **문제**: `outcome` — 검색은 `RESULTS`·`NO_RESULTS`, 선택은 `REGION_FOUND`·`REGION_NOT_FOUND`(국가는 앎)·`COUNTRY_UNKNOWN`, 둘 다 실패면 `FAILED`와 `error_code`(예: `PLACE_PROVIDER_UNAVAILABLE`).
 - **결과**: 검색 후보 수, 찾은 국가 코드와 지역 코드(`region.region_code`).
 - Google 약관상 장소는 `place_id`만 남기고 이름·주소·좌표는 남기지 않는다. 주소가 필요하면 아래처럼 장소 ID로 다시 조회한다.
+- 회원 한도(429)나 한도 저장소 장애(503)로 컨트롤러에 들어가기 전에 막힌 검색·선택도 `FAILED`로 남긴다. 예상하지 못한 예외(500)는 `error_code=UNEXPECTED`다.
 - Google을 부른 뒤 짧게 한 줄만 넣고, 넣지 못해도 WARN(`event=PLACE_LOOKUP_LOG_FAILED`)만 남기고 응답은 그대로 나간다.
 - 30일이 지난 줄은 매일 UTC 19:45에 지우고, 파기하는 회원의 줄은 회원 파기 배치가 지운다.
 - 앱에서만 거르는 실패(앱 지역 목록에 없는 나라: HK·GU·MO·MP 등)는 서버가 모른다. 대신 그 나라 코드로 `REGION_FOUND`가 남았는데 저장이 없으면 그 경우로 본다.
@@ -86,7 +87,7 @@ WHERE l.kind = 'SELECT' AND l.outcome <> 'REGION_FOUND'
 ORDER BY l.created_at DESC;
 ```
 
-검색만 하고 장소를 고르지 않은 검색 세션(후보가 없거나 원하는 장소가 없었음).
+검색만 하고 장소를 고르지 않은 검색 세션(후보가 없거나 원하는 장소가 없었음). 검색과 선택은 `session_token`으로 잇는다. 선택에 토큰이 없으면(검색 없이 장소 ID로 다시 고른 경우) 잇지 못해 그 세션이 여기에 잘못 나올 수 있다.
 
 ```sql
 SELECT s.member_id, s.session_token, MAX(s.created_at) AS last_at, COUNT(*) AS searches,

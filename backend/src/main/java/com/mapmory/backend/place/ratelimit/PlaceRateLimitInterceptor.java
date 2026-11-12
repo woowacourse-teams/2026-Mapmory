@@ -15,10 +15,17 @@ import org.springframework.web.servlet.HandlerInterceptor;
  */
 class PlaceRateLimitInterceptor implements HandlerInterceptor {
 
-    private final Consumer<Long> check;
+    /** 한도에 막힌 요청. 막힌 지점 기록(place_lookup_log)에 남긴다. */
+    interface RejectionListener {
+        void rejected(Long memberId, HttpServletRequest request, BusinessException exception);
+    }
 
-    PlaceRateLimitInterceptor(Consumer<Long> check) {
+    private final Consumer<Long> check;
+    private final RejectionListener rejectionListener;
+
+    PlaceRateLimitInterceptor(Consumer<Long> check, RejectionListener rejectionListener) {
         this.check = check;
+        this.rejectionListener = rejectionListener;
     }
 
     @Override
@@ -28,7 +35,12 @@ class PlaceRateLimitInterceptor implements HandlerInterceptor {
         if (authentication == null || !(authentication.getPrincipal() instanceof Long memberId)) {
             throw new BusinessException(AuthErrorCode.INVALID_ACCESS_TOKEN);
         }
-        check.accept(memberId);
+        try {
+            check.accept(memberId);
+        } catch (BusinessException exception) {
+            rejectionListener.rejected(memberId, request, exception);
+            throw exception;
+        }
         return true;
     }
 }
