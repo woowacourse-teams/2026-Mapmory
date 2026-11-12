@@ -339,6 +339,22 @@ section { padding-block: clamp(88px, 12vw, 160px); }
 
 @media (max-width: 720px) { p br { display: none; } }
 
+/* section rail + back to top */
+.rail { position: fixed; z-index: 30; right: max(20px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 8px 0 8px 40px; }
+.rail a { display: flex; align-items: center; justify-content: flex-end; gap: 12px; height: 22px; }
+.rail i { display: block; width: 14px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .25); transition: width .25s ease, background .25s ease; }
+.rail a.on i { width: 28px; background: var(--text); }
+.rail span { font-size: 13px; color: var(--sub); white-space: nowrap; padding: 3px 9px; border-radius: 8px; background: rgba(6, 11, 20, .82); opacity: 0; transform: translateX(6px); transition: opacity .2s ease, transform .2s ease, color .2s ease; pointer-events: none; }
+.rail:hover span, .rail:focus-within span { opacity: 1; transform: none; pointer-events: auto; }
+.rail a:hover span, .rail a.on span { color: var(--text); }
+.rail a:hover i { background: var(--text); }
+.to-top { position: fixed; z-index: 30; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--text); background: rgba(21, 33, 54, .78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), 0 10px 24px -10px rgba(0, 0, 0, .7); opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .25s ease, transform .25s ease, background .2s ease; }
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { background: rgba(47, 123, 208, .9); }
+.to-top svg { width: 20px; height: 20px; }
+@media (max-width: 1100px) { .rail { display: none; } }
+.embed .rail, .embed .to-top { display: none; }
+
 /* world / korea toggle */
 .seg2 { margin-bottom: 22px; display: inline-flex; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, .06); width: fit-content; }
 .seg2 button { font: inherit; font-size: 15px; font-weight: 700; border: 0; padding: 8px 18px; border-radius: 10px; background: transparent; color: var(--sub); cursor: pointer; }
@@ -400,7 +416,7 @@ footer a:hover { color: var(--sub); }
   .embed .step { align-content: start; padding-bottom: 0; }
   .embed .step .shot .device { --w: 240px; margin: 0; }
 }
-.booth { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20; font-size: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .1); color: var(--sub); }
+.booth { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20; font-size: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .1); color: var(--sub); }
 </style>
 </head>
 <body>
@@ -640,7 +656,7 @@ footer a:hover { color: var(--sub); }
     </div>
   </section>
 
-  <section aria-labelledby="more-title" style="padding-top: 0">
+  <section id="more" aria-labelledby="more-title" style="padding-top: 0">
     <div class="wrap">
       <div class="head"><h2 id="more-title">이런 것도 돼요</h2></div>
       <div class="more">
@@ -668,7 +684,7 @@ footer a:hover { color: var(--sub); }
     </div>
   </section>
 
-  <section class="story" aria-labelledby="story-title">
+  <section class="story" id="story" aria-labelledby="story-title">
     <div class="wrap">
       <h2 id="story-title">완벽하지 않아도 된다.</h2>
       <p>많이 만들고도 쓰이지 않던 앱이 여기까지 온 이야기. 어떤 상황에서, 어떤 판단을 했는지 적었어요.</p>
@@ -718,6 +734,20 @@ footer a:hover { color: var(--sub); }
     </nav>
   </div>
 </footer>
+
+<nav class="rail" id="rail" aria-label="섹션 바로가기">
+  <a href="#top" data-s="top"><span>처음으로</span><i></i></a>
+  <a href="#photos" data-s="photos"><span>사진 찾기</span><i></i></a>
+  <a href="#timeline" data-s="timeline"><span>타임라인</span><i></i></a>
+  <a href="#how" data-s="how"><span>기록하기</span><i></i></a>
+  <a href="#group" data-s="group"><span>그룹</span><i></i></a>
+  <a href="#try" data-s="try"><span>지도 칠하기</span><i></i></a>
+  <a href="#more" data-s="more"><span>더 많은 기능</span><i></i></a>
+  <a href="#story" data-s="story"><span>우리 이야기</span><i></i></a>
+  <a href="#team" data-s="team"><span>만든 사람들</span><i></i></a>
+  <a href="#download" data-s="download"><span>앱 받기</span><i></i></a>
+</nav>
+<a class="to-top" id="to-top" href="#top" aria-label="맨 위로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></a>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -1097,6 +1127,25 @@ footer a:hover { color: var(--sub); }
     v.addEventListener("loadeddata", () => matchEdges(v));
     v.addEventListener("timeupdate", () => { if (!v._t || performance.now() - v._t > 900) { v._t = performance.now(); matchEdges(v); } });
   });
+
+  /* ---------- section rail + back to top ---------- */
+  (() => {
+    const links = [...document.querySelectorAll("#rail a")];
+    const secs = links.map((a) => document.getElementById(a.dataset.s));
+    const top = $("to-top");
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const line = innerHeight * .4;
+      let cur = 0;
+      secs.forEach((el, i) => { if (el && el.getBoundingClientRect().top <= line) cur = i; });
+      links.forEach((a, i) => { a.classList.toggle("on", i === cur); if (i === cur) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+      top.classList.toggle("show", scrollY > innerHeight * .8);
+    };
+    addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(update); }, { passive: true });
+    addEventListener("resize", update);
+    update();
+  })();
 
   /* ---------- QR codes ---------- */
   function qr(el, text) {
