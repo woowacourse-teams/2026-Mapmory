@@ -95,6 +95,16 @@ class UploadRateLimiterTest {
     }
 
     @Test
+    void 남은_양보다_많이_요청해_막히면_남은_장수를_알려_준다() {
+        rateLimiter.check(1L, 3);
+        time.advance(Duration.ofHours(23));
+
+        assertThatThrownBy(() -> rateLimiter.check(1L, 3))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getDetail())
+                        .isEqualTo("하루에 올릴 수 있는 사진(5장) 중 2장이 남았습니다. 2장 이하로 줄이거나 1시간 뒤에 다시 저장해 주세요."));
+    }
+
+    @Test
     void 남은_시간은_분_단위로_올려_말한다() {
         assertThat(UploadRateLimiter.waitText(1)).isEqualTo("1분");
         assertThat(UploadRateLimiter.waitText(60)).isEqualTo("1분");

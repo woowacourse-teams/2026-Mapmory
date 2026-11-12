@@ -33,6 +33,7 @@ public class UploadRateLimiter {
             .build();
     private final UploadRateLimitProperties properties;
     private final TimeMeter timeMeter;
+    private final String dailyLimitText;
 
     UploadRateLimiter(UploadRateLimitProperties properties) {
         this(properties, TimeMeter.SYSTEM_MILLISECONDS);
@@ -41,6 +42,7 @@ public class UploadRateLimiter {
     UploadRateLimiter(UploadRateLimitProperties properties, TimeMeter timeMeter) {
         this.properties = properties;
         this.timeMeter = timeMeter;
+        this.dailyLimitText = NumberFormat.getIntegerInstance(Locale.KOREA).format(properties.filesPerMemberPerDay());
     }
 
     public void check(Long memberId, int fileCount) {
@@ -49,16 +51,21 @@ public class UploadRateLimiter {
             long retryAfterSeconds = retryAfterSeconds(probe);
             throw new RateLimitedException(
                     UploadErrorCode.UPLOAD_RATE_LIMITED,
-                    detail(retryAfterSeconds),
+                    detail(probe.getRemainingTokens(), retryAfterSeconds),
                     retryAfterSeconds
             );
         }
     }
 
-    private String detail(long retryAfterSeconds) {
-        String limit = NumberFormat.getIntegerInstance(Locale.KOREA).format(properties.filesPerMemberPerDay());
+    // 남은 양보다 많이 요청해 막힌 경우엔 아직 올릴 수 있는 장수도 알린다. 다 썼다고 하면 틀린 안내가 된다.
+    private String detail(long remaining, long retryAfterSeconds) {
+        String wait = waitText(retryAfterSeconds);
+        if (remaining > 0) {
+            return "하루에 올릴 수 있는 사진(%s장) 중 %d장이 남았습니다. %d장 이하로 줄이거나 %s 뒤에 다시 저장해 주세요."
+                    .formatted(dailyLimitText, remaining, remaining, wait);
+        }
         return "하루에 올릴 수 있는 사진 수(%s장)를 넘었습니다. %s 뒤에 다시 저장해 주세요."
-                .formatted(limit, waitText(retryAfterSeconds));
+                .formatted(dailyLimitText, wait);
     }
 
     // 분 단위로 올려 말한다. 알려 준 시간보다 일찍 다시 눌러 또 막히지 않게 한다.
