@@ -11,6 +11,7 @@ import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordTag;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @DataJpaTest
 @DisplayName("지역 지도 요약 Repository")
@@ -31,6 +34,9 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private RegionMapSummaryRepository regionMapSummaryRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("선택한 태그가 연결된 기록만 지역별로 합산한다")
@@ -121,6 +127,129 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
                     findSummaries(scenario.member(), scenario.firstDistrict());
 
             assertThat(results).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("모든 단계의 지역별 지도 요약을 한 번에 조회할 때")
+    class FindAllRegionMapSummaries {
+
+        @Test
+        @DisplayName("국가·시도·시군구 요약을 부모 ID와 함께 단계 순서, 코드 순서로 반환한다")
+        void returnsEveryLevelWithParentInOrder() {
+            Member member = member("전체 조회 회원");
+            Member otherMember = member("다른 회원");
+            SavedRegion country = country("Z1", "전체 조회 국가");
+            SavedRegion otherCountry = country("Z0", "다른 방문 국가");
+            SavedRegion directProvince = province(country, "Z1-P2", "직접 기록 시도");
+            SavedRegion province = province(country, "Z1-P1", "시군구 기록 시도");
+            SavedRegion district = district(province, "Z1-P1-D2", "두 번 방문 시군구");
+            SavedRegion otherDistrict = district(province, "Z1-P1-D1", "한 번 방문 시군구");
+            SavedRegion emptyDistrict = district(province, "Z1-P1-D3", "미방문 시군구");
+            saveRecords(member, country, 1);
+            saveRecords(member, directProvince, 1);
+            saveRecords(member, district, 2);
+            saveRecords(member, otherDistrict, 1);
+            saveRecords(member, otherCountry, 1);
+            saveRecords(otherMember, emptyDistrict, 1);
+            flushAndClear();
+
+            List<RegionMapSummaryQueryResult> results =
+                    regionMapSummaryRepository.findAllRegionMapSummaries(member.getId(), null);
+
+            assertThat(results)
+                    .extracting(ExpectedAllSummary::from)
+                    .containsExactly(
+                            ExpectedAllSummary.of(otherCountry, null, 1),
+                            ExpectedAllSummary.of(country, null, 5),
+                            ExpectedAllSummary.of(province, country, 3),
+                            ExpectedAllSummary.of(directProvince, country, 1),
+                            ExpectedAllSummary.of(otherDistrict, province, 1),
+                            ExpectedAllSummary.of(district, province, 2)
+                    );
+        }
+
+        @Test
+        @DisplayName("루트 조회와 하위 조회를 이어 부른 결과와 같은 지역·수를 반환한다")
+        void matchesRootAndChildQueries() {
+            ChildSummaryScenario scenario = createChildSummaryScenario();
+            Long memberId = scenario.member().getId();
+            List<RegionMapSummaryQueryResult> stepByStep = new ArrayList<>(
+                    regionMapSummaryRepository.findRegionMapSummaries(memberId, null, null));
+            // 앱이 하던 대로 루트부터 하위를 차례로 부른다. 목록에 붙인 하위도 이어서 펼친다(너비 우선).
+            for (int index = 0; index < stepByStep.size(); index++) {
+                stepByStep.addAll(regionMapSummaryRepository.findRegionMapSummaries(
+                        memberId, stepByStep.get(index).getRegionId(), null));
+            }
+
+            List<RegionMapSummaryQueryResult> all =
+                    regionMapSummaryRepository.findAllRegionMapSummaries(memberId, null);
+
+            assertThat(all)
+                    .extracting(ExpectedAllSummary::from)
+                    .containsExactlyInAnyOrderElementsOf(
+                            stepByStep.stream().map(ExpectedAllSummary::from).toList());
+        }
+
+        @Test
+        @DisplayName("선택한 태그가 연결된 기록만 시군구·시도·국가로 올려 센다")
+        void filtersRecordsByTag() {
+            Member member = member("태그 전체 조회 회원");
+            SavedRegion country = country("Z2", "태그 전체 조회 국가");
+            SavedRegion province = province(country, "Z2-P1", "태그 전체 조회 시도");
+            SavedRegion district = district(province, "Z2-P1-D1", "태그 전체 조회 시군구");
+            Tag selectedTag = persist(Tag.of(member, "가족"));
+            TravelRecord selectedRecord = persist(record(member, province, "선택 기록"));
+            TravelRecord selectedDistrictRecord = persist(record(member, district, "선택 시군구 기록"));
+            persist(record(member, province, "태그 없는 기록"));
+            persist(record(member, district, "태그 없는 시군구 기록"));
+            persist(TravelRecordTag.of(selectedRecord, selectedTag));
+            persist(TravelRecordTag.of(selectedDistrictRecord, selectedTag));
+            flushAndClear();
+
+            List<RegionMapSummaryQueryResult> results =
+                    regionMapSummaryRepository.findAllRegionMapSummaries(member.getId(), selectedTag.getId());
+
+            assertThat(results)
+                    .extracting(ExpectedAllSummary::from)
+                    .containsExactly(
+                            ExpectedAllSummary.of(country, null, 2),
+                            ExpectedAllSummary.of(province, country, 2),
+                            ExpectedAllSummary.of(district, province, 1)
+                    );
+        }
+
+        @Test
+        @DisplayName("기록 수 × 지역 수로 조인하지 않고 회원 인덱스와 지역 PK로만 찾는다")
+        void doesNotJoinEveryRecordWithEveryRegion() throws NoSuchMethodException {
+            // region과 OR로 조인하던 첫 구현은 MySQL이 조건 없는 해시 조인을 골라
+            // 기록 5,000건에서 248만 줄을 만들었다(261ms → 고친 뒤 10ms, 로컬 Testcontainers 8.4).
+            Member member = member("실행 계획 회원");
+            saveRecords(member, country("Z3", "실행 계획 국가"), 3);
+            flushAndClear();
+            String sql = RegionMapSummaryRepository.class
+                    .getMethod("findAllRegionMapSummaries", Long.class, Long.class)
+                    .getAnnotation(Query.class)
+                    .value()
+                    .replace(":memberId", String.valueOf(member.getId()))
+                    .replace(":tagId", "NULL");
+
+            String plan = jdbcTemplate.queryForObject("EXPLAIN FORMAT=TREE " + sql, String.class);
+
+            assertThat(plan)
+                    .contains("idx_record_member_region")
+                    .doesNotContainIgnoringCase("hash join")
+                    .doesNotContainIgnoringCase("table scan on summary_region")
+                    .doesNotContainIgnoringCase("index scan on summary_region");
+        }
+
+        @Test
+        @DisplayName("여행 기록이 없는 회원은 빈 결과를 반환한다")
+        void returnsEmptyResultForMemberWithoutRecords() {
+            Member member = member("기록 없는 전체 조회 회원");
+            flushAndClear();
+
+            assertThat(regionMapSummaryRepository.findAllRegionMapSummaries(member.getId(), null)).isEmpty();
         }
     }
 
@@ -330,6 +459,35 @@ class RegionMapSummaryRepositoryTest extends MySqlTestContainerSupport {
                     result.getRegionId(),
                     result.getRegionCode(),
                     result.getName(),
+                    result.getRegionType(),
+                    result.getRecordCount()
+            );
+        }
+    }
+
+    private record ExpectedAllSummary(
+            Long regionId,
+            Long parentRegionId,
+            String code,
+            String type,
+            long recordCount
+    ) {
+
+        private static ExpectedAllSummary of(SavedRegion region, SavedRegion parent, long recordCount) {
+            return new ExpectedAllSummary(
+                    region.id(),
+                    parent == null ? null : parent.id(),
+                    region.code(),
+                    region.type().name(),
+                    recordCount
+            );
+        }
+
+        private static ExpectedAllSummary from(RegionMapSummaryQueryResult result) {
+            return new ExpectedAllSummary(
+                    result.getRegionId(),
+                    result.getParentRegionId(),
+                    result.getRegionCode(),
                     result.getRegionType(),
                     result.getRecordCount()
             );

@@ -98,6 +98,30 @@ class TravelRecordControllerTest {
                 .build();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", ",\"pushTokenId\":null", ",\"pushTokenId\":42"})
+    void 생성_요청의_선택적_푸시_등록을_전달한다(String pushField) throws Exception {
+        when(travelRecordService.create(eq(MEMBER), any(TravelRecordCommand.class)))
+                .thenReturn(travelRecord("여행", "본문"));
+        mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"countryCode\":\"JP\",\"startDate\":\"2026-08-11\"" + pushField + "}"))
+                .andExpect(status().isCreated());
+        Long expected = pushField.contains("42") ? 42L : null;
+        verify(travelRecordService).create(eq(MEMBER), ArgumentMatchers.argThat(command ->
+                java.util.Objects.equals(command.pushTokenId(), expected)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    void 푸시_등록_ID는_양수여야_한다(long pushTokenId) throws Exception {
+        mockMvcWithLoginMember().perform(post("/api/v1/travel-records")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"countryCode\":\"JP\",\"startDate\":\"2026-08-11\",\"pushTokenId\":" + pushTokenId + "}"))
+                .andExpect(status().isBadRequest());
+        verify(travelRecordService, never()).create(any(), any());
+    }
+
     @Test
     void 여행_일지를_생성한다() {
         TravelRecordRequest request = new TravelRecordRequest(
@@ -315,7 +339,11 @@ class TravelRecordControllerTest {
                         .value("mapmory/travel-records/a.jpg"))
                 .andExpect(jsonPath("$.data.media[0].viewUrl")
                         .value("https://download.example/mapmory/travel-records/a.jpg"))
-                .andExpect(jsonPath("$.data.media[0].viewUrlExpiresIn").value(300L));
+                .andExpect(jsonPath("$.data.media[0].viewUrlExpiresIn").value(300L))
+                .andExpect(jsonPath("$.data.media[0].thumbnailUrl")
+                        .value("https://download.example/thumb/mapmory/travel-records/a.jpg"))
+                .andExpect(jsonPath("$.data.media[0].thumbnailUrlExpiresIn").value(200L))
+                .andExpect(jsonPath("$.data.media[0].sortOrder").value(0));
     }
 
     @Test
@@ -388,10 +416,12 @@ class TravelRecordControllerTest {
         TravelRecord travelRecord = travelRecord(title, content);
         travelRecord.synchronizeMedia(ObjectKeys.from(objectKeys));
         List<MediaView> mediaViews = travelRecord.getMedia().stream()
-                .map(recordMedia -> new MediaView(recordMedia, new ExpiringUrl(
-                        "https://download.example/" + recordMedia.getObjectKey(),
-                        300L
-                )))
+                .map(recordMedia -> new MediaView(
+                        recordMedia,
+                        new ExpiringUrl("https://download.example/" + recordMedia.getObjectKey(), 300L),
+                        // 원본과 다른 주소·만료 시간을 줘 두 값이 섞이지 않고 각자 자리로 가는지 본다
+                        new ExpiringUrl("https://download.example/thumb/" + recordMedia.getObjectKey(), 200L)
+                ))
                 .toList();
 
         return new TravelRecordDetail(travelRecord, List.of(), mediaViews);

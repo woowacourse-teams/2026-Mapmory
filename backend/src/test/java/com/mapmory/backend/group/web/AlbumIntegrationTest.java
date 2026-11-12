@@ -3,6 +3,7 @@ package com.mapmory.backend.group.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -143,6 +144,8 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[0].photos[0].id").isNumber())
                 .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.entries[0].photos[0].sortOrder").value(0))
                 .andExpect(jsonPath("$.data.entries[0].photos[0].objectKey").doesNotExist());
     }
@@ -262,6 +265,8 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[0].owner.nickname").value("민호"))
                 .andExpect(jsonPath("$.data.entries[0].owner.me").value(true))
                 .andExpect(jsonPath("$.data.entries[0].addedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("c.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("지수"));
         addEntry(minho, group.getId(), albumId, minhoRecord.getId())
                 .andExpect(status().isOk())
@@ -293,11 +298,13 @@ class AlbumIntegrationTest extends IntegrationTest {
 
     @Test
     void 멤버는_누구나_보낸_값만_바꾼다() throws Exception {
-        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null));
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
 
         update(minho, group.getId(), albumId, "{\"name\": \" 도쿄 봄 \"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("도쿄 봄"))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("a.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.region.id").value(seoul.getId()));
         update(minho, group.getId(), albumId, "{\"regionId\": " + busan.getId() + "}")
                 .andExpect(status().isOk())
@@ -337,6 +344,22 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[1].travelRecordId").value(minhoRecord.getId()))
                 .andExpect(jsonPath("$.data.entries[1].endDate").doesNotExist())
                 .andExpect(jsonPath("$.data.entries[1].photos.length()").value(2));
+    }
+
+    @Test
+    void 앨범_사진은_그리드용_썸네일_주소와_뷰어용_원본_주소를_함께_준다() throws Exception {
+        TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg", "b.jpg");
+        Long albumId = openedAlbumId(jisu, record);
+        jdbcTemplate.update(
+                "UPDATE record_media SET thumb_key = 'derived/thumb/a.webp' WHERE travel_record_id = ? AND sort_order = 0",
+                record.getId());
+
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrl").value(containsString("a.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("derived/thumb/a.webp")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data.entries[0].photos[1].thumbnailUrl").value(containsString("b.jpg")));
     }
 
     @Test

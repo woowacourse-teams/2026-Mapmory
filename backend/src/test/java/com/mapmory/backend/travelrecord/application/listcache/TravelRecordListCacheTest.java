@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.application.listcache;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -18,7 +19,8 @@ class TravelRecordListCacheTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final TravelRecordListCache cache = new TravelRecordListCache(
             new TravelRecordListCacheProperties(100, Duration.ofMinutes(30)),
-            meterRegistry
+            meterRegistry,
+            new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
     );
 
     @Test
@@ -58,7 +60,8 @@ class TravelRecordListCacheTest {
     void evictsByEntryCount() {
         TravelRecordListCache small = new TravelRecordListCache(
                 new TravelRecordListCacheProperties(30, Duration.ofMinutes(30)),
-                new SimpleMeterRegistry()
+                new SimpleMeterRegistry(),
+                new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL)
         );
 
         for (long memberId = 1; memberId <= 5; memberId++) {
