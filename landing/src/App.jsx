@@ -24,6 +24,7 @@ import { classifyGlobeGesture } from "./globe-gesture.js";
 import { useWorldCountries } from "./worldCountries.js";
 import { PhotoWallHero } from "./PhotoWallHero.jsx";
 import { TechStory } from "./TechStory.jsx";
+import { GroupAlbum } from "./GroupAlbum.jsx";
 import { FAQ_ITEMS, FREE_LINE, TRUST_LINE } from "./photoStory.js";
 import { PhotoCredits } from "./PhotoCredits.jsx";
 import {
@@ -195,6 +196,32 @@ function ThemeToggle({ theme, onChange }) {
     <div className="theme-toggle" role="group" aria-label="색상 테마 선택">
       <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => onChange("light")} aria-pressed={theme === "light"} aria-label="라이트 테마"><Sun size={17} weight="bold" /></button>
       <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => onChange("dark")} aria-pressed={theme === "dark"} aria-label="다크 테마"><Moon size={17} weight="fill" /></button>
+    </div>
+  );
+}
+
+// 2026-11-10 (GA4 10/14–11/10): on phones every store click matched the phone's own store, so a phone shows one big
+// button for its store (the header's 앱 받기 menu still offers both). On computers (55% of visitors, 14 of 23 clicks) a
+// store page cannot install anything, so a QR code to this page sits beside the two buttons; its address carries
+// `?qr=desktop_hero` (no UTM, so a visitor's campaign attribution is never replaced by an internal one).
+// The page is client-rendered (createRoot), so the phone's store is known on the first paint.
+const ownStore = () => {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPod/i.test(ua)) return "ios";
+  return null;
+};
+
+function HeroStoreActions() {
+  const [own] = useState(ownStore);
+  return (
+    <div className="hero-store">
+      <div className={`store-buttons${own ? " is-own" : ""}`} role="group" aria-label="Mapmory 앱 다운로드">
+        {own
+          ? <StoreButton placement="hero" platform={own} label="앱 받기" />
+          : <><StoreButton placement="hero" platform="ios" label="iOS 앱 받기" /><StoreButton placement="hero" platform="android" label="Android 앱 받기" /></>}
+      </div>
+      <p className="hero-qr"><img src="/assets/qr-desktop-hero.svg" alt="Mapmory 랜딩 주소가 담긴 QR 코드" width="112" height="112" /><span>폰 카메라로 찍으면<br />폰에서 바로 받아요</span></p>
     </div>
   );
 }
@@ -931,6 +958,7 @@ function App() {
 
   return (
     <main id="top">
+      <a className="skip-link" href="#how">본문으로 건너뛰기</a>
       <header className="site-header">
         <Brand />
         <nav aria-label="주요 메뉴">
@@ -943,10 +971,7 @@ function App() {
 
       <PhotoWallHero
         storeActions={(
-          <div className="store-buttons" role="group" aria-label="Mapmory 앱 다운로드">
-            <StoreButton placement="hero" platform="ios" label="iOS 앱 받기" />
-            <StoreButton placement="hero" platform="android" label="Android 앱 받기" />
-          </div>
+          <HeroStoreActions />
         )}
       />
 
@@ -956,10 +981,12 @@ function App() {
         <a className="how-experience-link" href="#experience" onClick={() => globeAnalytics.trackEntryClick("how_section")}><GlobeHemisphereEast size={18} weight="duotone" />기록이 쌓인 지도 미리 보기</a>
       </section>
 
+      <GroupAlbum />
+
       <section className={`experience-section ${isGlobeFocused ? "is-focused" : ""}`} id="experience" ref={setExperienceSectionRef}>
         <div className="experience-pin">
           <div className="section-heading section-heading-flow">
-            <div><h2>지구본에서 기억을 꺼내봐요.</h2></div>
+            <div><h2>지구본에서 기억을 꺼내봐요</h2></div>
             <p>지구본을 움직이고 초록색 나라를 눌러보세요. 지도는 그대로, 그곳의 사진만 열려요.</p>
           </div>
           <div className={`experience-stage ${isWorldMemoryOpen ? "is-memory-open" : ""}`} ref={experienceStageRef}>
@@ -999,7 +1026,7 @@ function App() {
 
       <section className="trust-section" id="privacy" aria-labelledby="privacy-title">
         <div className="section-heading">
-          <h2 id="privacy-title">사진첩은 폰 안에서만 살펴봐요.</h2>
+          <h2 id="privacy-title">사진첩은 폰{"\u00a0"}안에서만 살펴봐요</h2>
         </div>
         <div className="trust-flow">
           <div className="trust-zone is-device">
@@ -1026,7 +1053,7 @@ function App() {
       </section>
 
       <section className="download-section" id="download">
-        <h2>사진첩 속 여행,<br />지금 지도로 꺼내 보세요.</h2>
+        <h2>사진첩 속 여행,<br /><span className="title-soft">지금 지도로 꺼내 보세요</span></h2>
         <div className="download-actions" role="group" aria-label="Mapmory 앱 다운로드">
           <StoreButton placement="final" platform="ios" label={<>iOS <small>App Store</small></>} />
           <StoreButton placement="final" platform="android" label={<>Android <small>Google Play</small></>} />
@@ -1035,7 +1062,7 @@ function App() {
         <p className="trust-line download-trust"><ShieldCheck size={18} weight="fill" />{TRUST_LINE}</p>
       </section>
 
-      <footer><div><Brand /><p>기억은 흩어져도, 지도는 남아요.</p></div><div className="footer-meta"><PhotoCredits /><p>© 2026 Mapmory. All rights reserved.</p></div></footer>
+      <footer><div><Brand /><p>기억은 흩어져도, 지도는 남아요.</p></div><div className="footer-meta"><div className="footer-links"><a className="footer-link" href="https://woowacourse-teams.github.io/2026-Mapmory/privacy-policy.html" target="_blank" rel="noopener noreferrer">개인정보 처리방침</a><PhotoCredits /></div><p>© 2026 Mapmory. All rights reserved.</p></div></footer>
     </main>
   );
 }
