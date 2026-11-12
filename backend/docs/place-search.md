@@ -87,6 +87,18 @@ WHERE l.kind = 'SELECT' AND l.outcome <> 'REGION_FOUND'
 ORDER BY l.created_at DESC;
 ```
 
+장소는 골랐지만(지역을 찾았어도) 1시간 안에 저장이 없는 경우. 서버는 지역을 찾았는데 앱이 거른 나라(HK 등), 고른 뒤 앱 화면이 멈춘 경우, 사진 업로드 한도에 막힌 경우가 여기에 함께 나온다. 이유는 `outcome`·`country_code`와 서버 로그로 나눠 본다.
+
+```sql
+SELECT l.created_at, l.member_id, l.outcome, l.place_id, l.country_code, l.region_code, l.user_agent
+FROM place_lookup_log l
+WHERE l.kind = 'SELECT'
+  AND NOT EXISTS (SELECT 1 FROM travel_record r
+                   WHERE r.member_id = l.member_id
+                     AND r.created_at BETWEEN l.created_at AND l.created_at + INTERVAL 1 HOUR)
+ORDER BY l.created_at DESC;
+```
+
 검색만 하고 장소를 고르지 않은 검색 세션(후보가 없거나 원하는 장소가 없었음). 검색과 선택은 `session_token`으로 잇는다. 선택에 토큰이 없으면(검색 없이 장소 ID로 다시 고른 경우) 잇지 못해 그 세션이 여기에 잘못 나올 수 있다.
 
 ```sql
@@ -100,6 +112,9 @@ WHERE s.kind = 'SEARCH'
 GROUP BY s.member_id, s.session_token
 ORDER BY last_at DESC;
 ```
+
+주의: 지도 화면의 장소 검색도 같은 API를 쓴다. 지도에서 그 지역으로 이동만 한 경우도 "고르고 저장 안 함"과 "검색만 하고 나감"에 섞여 나온다. 서버는 어느 화면인지 모른다.
+게스트로 쓰다 이미 가입한 소셜 계정으로 들어가면(게스트 버림) 저장은 다른 회원 ID로 남아 막힌 것처럼 보인다.
 
 ### 재현
 
