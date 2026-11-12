@@ -3,6 +3,7 @@ package com.mapmory.backend.group.web;
 import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.dto.ApiResponse;
 import com.mapmory.backend.group.application.GroupInvitationService;
+import com.mapmory.backend.group.domain.GroupInvitation;
 import com.mapmory.backend.group.web.dto.GroupResponse;
 import com.mapmory.backend.group.web.dto.InvitationPreviewResponse;
 import com.mapmory.backend.group.web.dto.InvitationResponse;
@@ -23,9 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class GroupInvitationController {
 
     private final GroupInvitationService groupInvitationService;
+    private final InvitationLinkProperties invitationLinkProperties;
 
-    public GroupInvitationController(GroupInvitationService groupInvitationService) {
+    public GroupInvitationController(GroupInvitationService groupInvitationService,
+                                     InvitationLinkProperties invitationLinkProperties) {
         this.groupInvitationService = groupInvitationService;
+        this.invitationLinkProperties = invitationLinkProperties;
     }
 
     @PostMapping("/groups/{groupId}/invitations")
@@ -33,7 +37,9 @@ public class GroupInvitationController {
             @LoginMember Member member,
             @PathVariable @Positive Long groupId
     ) {
-        InvitationResponse response = InvitationResponse.from(groupInvitationService.create(member.getId(), groupId));
+        GroupInvitation invitation = groupInvitationService.create(member.getId(), groupId);
+        InvitationResponse response =
+                InvitationResponse.of(invitation, invitationLinkProperties.linkOf(invitation.getToken()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.from(response));
     }
 

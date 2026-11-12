@@ -127,7 +127,7 @@ class DeploymentCacheTest {
         return switch (type) {
             case LIST -> listCache.get(listKey(), () -> page(loader.getAsLong())).totalElements();
             case MAP -> mapCache.get(1L, null, null, () -> List.of(new RegionMapSummary(
-                    1L, "KR", RegionType.COUNTRY, "대한민국", loader.getAsLong(), MapColorLevel.LOW)))
+                    1L, null, "KR", RegionType.COUNTRY, "대한민국", loader.getAsLong(), MapColorLevel.LOW)))
                     .getFirst().recordCount();
         };
     }

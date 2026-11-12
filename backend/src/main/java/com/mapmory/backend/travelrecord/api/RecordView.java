@@ -22,6 +22,12 @@ public record RecordView(
         List<PhotoView> photos
 ) {
 
-    public record PhotoView(Long id, ExpiringUrl viewUrl, int sortOrder) {
+    /**
+     * @param viewUrl      원본. 전체 화면 뷰어용이다
+     * @param thumbnailUrl 썸네일. 그리드처럼 작게 보여 줄 때 쓴다. 썸네일이 아직 없으면 원본이다
+     * @param capturedDate 촬영일. 모르면 null이다
+     */
+    public record PhotoView(Long id, ExpiringUrl viewUrl, ExpiringUrl thumbnailUrl, int sortOrder,
+                            LocalDate capturedDate) {
     }
 }

@@ -48,6 +48,8 @@ Windows에서는 `./gradlew` 대신 `./gradlew.bat`을 사용합니다.
 
 **운영 서버**는 `/etc/mapmory.env` 에서 읽는다 (systemd EnvironmentFile).
 새 환경변수가 추가되면 배포 전에 이 파일도 갱신해야 한다.
+Blue-Green 배포 서버는 이 파일에 `SPRING_PROFILES_ACTIVE=dev`(개발) 또는
+`SPRING_PROFILES_ACTIVE=prod`(운영)가 있어야 한다. 값이 없거나 `local`이면 서비스 기동을 거부한다.
 
 ```bash
 sudo nano /etc/mapmory.env
