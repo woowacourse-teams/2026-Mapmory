@@ -17,6 +17,11 @@ public class RateLimitedException extends BusinessException {
         this.retryAfterSeconds = retryAfterSeconds;
     }
 
+    public RateLimitedException(ErrorCode errorCode, String detail, long retryAfterSeconds) {
+        super(errorCode, detail);
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
     public long getRetryAfterSeconds() {
         return retryAfterSeconds;
     }
