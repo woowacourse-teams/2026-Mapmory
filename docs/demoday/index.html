@@ -137,10 +137,11 @@ section { padding-block: clamp(72px, 8vw, 112px); }
 .hero { position: relative; padding: 116px 0 0; text-align: center; overflow: hidden; isolation: isolate; }
 .hero h1 { font-size: clamp(46px, 7vw, 92px); line-height: 1.06; }
 .hero .lead { margin: 22px auto 0; font-size: clamp(17px, 1.6vw, 20px); color: var(--sub); max-width: 26em; }
-.hero-invite { margin: 26px 20px 0 0; padding: 16px 24px 20px; max-width: 520px; display: grid; gap: 2px; border: 1px solid rgba(233, 214, 161, .45); border-radius: 20px; background: rgba(233, 214, 161, .06); }
-.hero-invite strong { color: var(--gold); font-size: 16px; }
-.hero-invite code { font: 700 clamp(42px, 8vw, 76px) / 1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; padding-left: .1em; color: var(--gold); user-select: all; }
-.hero-invite p { color: var(--sub); font-size: 14px; }
+.hero-invite { margin: 26px 20px 0 0; padding: 16px 16px 20px; max-width: 520px; display: grid; gap: 2px; border: 2px solid #FFDF5D; border-radius: 20px; background: #101D32; box-shadow: 0 0 0 5px rgba(255, 223, 93, .08), 0 12px 36px rgba(255, 223, 93, .18); text-align: center; }
+.hero-invite strong { position: relative; margin-bottom: 12px; padding: 14px 20px; border-radius: 12px; background: #FFDF5D; color: var(--sky-2); font-size: clamp(18px, 2vw, 22px); line-height: 1.5; text-align: center; }
+.hero-invite strong::after { content: ""; position: absolute; left: calc(50% - 6px); bottom: -6px; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); }
+.hero-invite code { font: 700 clamp(42px, 8vw, 76px) / 1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; padding-left: .1em; color: #FFDF5D; user-select: all; }
+.hero-invite p { color: var(--text); font-size: 14px; }
 .hero-ctas { margin-top: 34px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .hero-qr { margin-top: 18px; display: flex; gap: 24px; }
 .hero-qr a { display: grid; justify-items: center; gap: 8px; font-size: 14px; color: var(--sub); }
@@ -566,7 +567,7 @@ html.motion-paused { scroll-behavior: auto; }
         </a>
       </div>
       <aside class="hero-invite" aria-label="맵모리 그룹 초대 코드">
-        <strong>우리 그룹에 함께해요</strong>
+        <strong>저희 그룹에 들어와서<br>나만의 여행 사진을 남겨주세요!</strong>
         <code>VPHB5V</code>
         <p>앱에서 그룹 참여할 때 이 코드를 입력해 주세요.</p>
       </aside>
