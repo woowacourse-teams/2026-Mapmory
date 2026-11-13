@@ -137,6 +137,10 @@ section { padding-block: clamp(72px, 8vw, 112px); }
 .hero { position: relative; padding: 116px 0 0; text-align: center; overflow: hidden; isolation: isolate; }
 .hero h1 { font-size: clamp(46px, 7vw, 92px); line-height: 1.06; }
 .hero .lead { margin: 22px auto 0; font-size: clamp(17px, 1.6vw, 20px); color: var(--sub); max-width: 26em; }
+.hero-invite { margin: 26px 20px 0 0; padding: 16px 24px 20px; max-width: 520px; display: grid; gap: 2px; border: 1px solid rgba(233, 214, 161, .45); border-radius: 20px; background: rgba(233, 214, 161, .06); }
+.hero-invite strong { color: var(--gold); font-size: 16px; }
+.hero-invite code { font: 700 clamp(42px, 8vw, 76px) / 1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; padding-left: .1em; color: var(--gold); user-select: all; }
+.hero-invite p { color: var(--sub); font-size: 14px; }
 .hero-ctas { margin-top: 34px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .hero-qr { margin-top: 18px; display: flex; gap: 24px; }
 .hero-qr a { display: grid; justify-items: center; gap: 8px; font-size: 14px; color: var(--sub); }
@@ -247,23 +251,52 @@ section { padding-block: clamp(72px, 8vw, 112px); }
 .pk-bar { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.15em; }
 .pk-bar span { font-weight: 500; font-size: .8em; color: #4C98EA; }
 .pk-search { margin-top: .9em; display: flex; align-items: center; gap: .45em; padding: .6em .8em; border-radius: .8em; background: rgba(255, 255, 255, .07); font-weight: 600; min-height: 2.5em; box-shadow: inset 0 0 0 1.5px transparent; transition: box-shadow .2s ease; }
+.picker[data-phase="type"] .pk-search { box-shadow: inset 0 0 0 1.5px #4C98EA; }
 .pk-search svg { width: 1.1em; height: 1.1em; color: #95A1B6; flex: none; }
 .pk-search em { font-style: normal; font-weight: 400; color: #95A1B6; }
+.pk-q:empty + .caret + em { display: inline; }
+.pk-search .caret { width: 1.5px; height: 1.1em; background: #4C98EA; display: none; animation: blink 1s steps(1) infinite; }
+.picker[data-phase="type"] .caret { display: block; }
+.picker[data-phase="type"] .pk-q:not(:empty) ~ em, .picker:not([data-phase="type"]) .pk-search em { display: none; }
+@keyframes blink { 50% { opacity: 0; } }
 .pk-body { position: relative; flex: 1; }
-.picker[data-phase="found"] .pk-result, .picker[data-phase="picked"] .pk-result { opacity: 1; visibility: visible; }
 .pk-body > div { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }
+.picker[data-phase="type"] .pk-hint, .picker[data-phase="load"] .pk-load, .picker[data-phase="found"] .pk-result, .picker[data-phase="picked"] .pk-result, .picker[data-phase="save"] .pk-result { opacity: 1; visibility: visible; }
+.pk-hint { padding-top: 1.4em; }
+.pk-hint p { color: #95A1B6; font-size: .9em; margin-bottom: .7em; }
+.pk-hint span { display: inline-block; margin: 0 .35em .4em 0; padding: .35em .75em; border-radius: 999px; background: rgba(255, 255, 255, .06); font-size: .85em; color: #CFD7E3; }
+.pk-load { display: grid; place-content: center; justify-items: center; text-align: center; gap: .9em; padding-bottom: 2em; }
+.pk-spin { width: 3.2em; height: 3.2em; border-radius: 50%; border: .3em solid rgba(76, 152, 234, .18); border-top-color: #4C98EA; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pk-load b { font-size: 1.15em; line-height: 1.4; }
+.pk-load small { color: #95A1B6; font-size: .8em; }
+.pk-prog { width: 9em; height: .3em; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pk-prog i { display: block; height: 100%; width: 0; background: #4C98EA; border-radius: inherit; }
 .pk-result { display: flex; flex-direction: column; }
 .pk-count { margin: .9em 0 .6em; color: #95A1B6; font-size: .85em; font-variant-numeric: tabular-nums; }
 .pk-count b { color: #EEF2F8; }
 .pk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
 .pk-grid figure { position: relative; margin: 0; opacity: 0; transform: translateY(8px); transition: opacity .35s ease, transform .4s cubic-bezier(.2, .8, .2, 1); }
-.picker[data-phase="found"] .pk-grid figure, .picker[data-phase="picked"] .pk-grid figure { opacity: 1; transform: none; }
+.picker[data-phase="found"] .pk-grid figure, .picker[data-phase="picked"] .pk-grid figure, .picker[data-phase="save"] .pk-grid figure { opacity: 1; transform: none; }
 .pk-grid img { position: static; inset: auto; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 3px; display: block; }
 .pk-grid figure.sel::after { content: ""; position: absolute; right: 5px; top: 5px; width: 1.2em; height: 1.2em; border-radius: 50%; background: #4C98EA url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 12.5l4 4 8-9'/></svg>") center / 70% no-repeat; box-shadow: 0 0 0 2px #0B111C; opacity: 0; transform: scale(.4); transition: opacity .25s ease, transform .3s cubic-bezier(.2, .8, .2, 1.4); }
 .picker[data-phase="picked"] .pk-grid figure.sel::after { opacity: 1; transform: none; }
 .picker[data-phase="picked"] .pk-grid figure:not(.sel) img { opacity: .55; }
+.pk-kbd { margin: 0 calc(var(--w) * -.045); padding: .6em .3em calc(var(--w) * .08); background: #1A2130; display: grid; gap: .45em; transform: translateY(105%); transition: transform .4s cubic-bezier(.3, .1, .2, 1); }
+.picker[data-phase="type"] .pk-kbd { transform: none; }
+.pk-kbd div { display: flex; justify-content: center; gap: .3em; }
+.pk-kbd kbd { flex: 1; max-width: 2.05em; height: 2.4em; display: grid; place-items: center; border-radius: .35em; background: #3A4458; color: #EEF2F8; font: 500 .82em var(--f-body); box-shadow: 0 1px 0 rgba(0, 0, 0, .4); transition: background .08s ease, transform .08s ease; }
+.pk-kbd kbd.w { max-width: none; flex: 1.6; background: #2A3242; }
+.pk-kbd kbd.sp { flex: 5; max-width: none; }
+.pk-kbd kbd.go { flex: 1.8; max-width: none; background: #2F7BD0; }
+.pk-kbd kbd.hit { background: #8A97AE; transform: translateY(-2px) scale(1.08); }
 .pk-save { position: absolute; left: calc(var(--w) * .045); right: calc(var(--w) * .045); bottom: calc(var(--w) * .07); text-align: center; padding: .9em; border-radius: .9em; background: #2F7BD0; color: #fff; font-weight: 700; opacity: 0; transform: translateY(10px); transition: opacity .35s ease, transform .35s ease; }
-.picker[data-phase="picked"] .pk-save { opacity: 1; transform: none; }
+.picker[data-phase="picked"] .pk-save, .picker[data-phase="save"] .pk-save { opacity: 1; transform: none; }
+.pk-save.pressed { transform: scale(.96) !important; filter: brightness(1.15); }
+.pk-save .sp { display: none; width: 1em; height: 1em; border-radius: 50%; border: .18em solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: spin .7s linear infinite; vertical-align: -.15em; margin-right: .5em; }
+.picker[data-phase="save"] .pk-save .sp { display: inline-block; }
+.picker[data-phase="save"] .pk-grid figure:not(.sel) img { opacity: .3; }
+.picker[data-phase="save"] .pk-grid figure.sel::after { opacity: 1; transform: none; }
 .pk-done { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; gap: .8em; padding: calc(var(--w) * .16) calc(var(--w) * .045) 0; background: #0B111C; transform: translateX(102%); transition: transform .45s cubic-bezier(.3, .1, .2, 1); }
 .picker[data-phase="done"] .pk-done { transform: none; }
 .pk-done .nav-b { display: flex; align-items: center; gap: .5em; font-weight: 700; font-size: 1.05em; }
@@ -532,6 +565,11 @@ html.motion-paused { scroll-behavior: auto; }
           Google Play
         </a>
       </div>
+      <aside class="hero-invite" aria-label="맵모리 그룹 초대 코드">
+        <strong>우리 그룹에 함께해요</strong>
+        <code>VPHB5V</code>
+        <p>앱에서 그룹 참여할 때 이 코드를 입력해 주세요.</p>
+      </aside>
       <a class="text-link" href="#try">지도 먼저 체험하기 →</a>
       <div class="hero-qr">
         <a href="https://apps.apple.com/kr/app/id6807056166" target="_blank" rel="noopener" aria-label="iPhone 앱 설치, App Store 새 창">
@@ -581,11 +619,14 @@ html.motion-paused { scroll-behavior: auto; }
           <span class="island"></span>
           <div class="picker" id="picker" data-phase="done">
             <div class="pk-bar">사진 고르기<span>다음</span></div>
-            <div class="pk-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="pk-q" id="pk-q"></span></div>
+            <div class="pk-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="pk-q" id="pk-q"></span><i class="caret"></i><em>어디에서 찍은 사진을 찾을까요?</em></div>
             <div class="pk-body">
+              <div class="pk-hint"><p>최근 검색</p><span>제주</span><span>오사카</span><span>다낭</span></div>
+              <div class="pk-load"><div class="pk-spin"></div><b>26,389장에서<br>사진을 찾고 있어요</b><div class="pk-prog"><i id="pk-prog"></i></div><small>사진은 폰 밖으로 나가지 않아요</small></div>
               <div class="pk-result"><p class="pk-count" id="pk-count">타이베이에서 찍은 사진 <b>328장</b></p><div class="pk-grid" id="pk-grid"></div></div>
             </div>
-            <div class="pk-save" id="pk-save">6장 골라 기록하기</div>
+            <div class="pk-kbd" id="pk-kbd"></div>
+            <div class="pk-save" id="pk-save"><i class="sp"></i><span id="pk-save-t">6장 골라 기록하기</span></div>
             <div class="pk-done" aria-hidden="true">
               <div class="nav-b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 5-7 7 7 7"/></svg>대만</div>
               <div class="pk-cover"><img src="assets/roll/tw-30.jpg" alt=""><div><small>TAIWAN</small><b>타이베이</b></div></div>
@@ -1132,20 +1173,36 @@ html.motion-paused { scroll-behavior: auto; }
     const SEL = new Set([0, 4, 5, 6, 9, 10]);
     $("pk-grid").innerHTML = [0, 1, 2, 3, 4, 5, 2, 0, 5, 3, 1, 4, 0, 2, 4].map((i, k) =>
       `<figure class="${SEL.has(k) ? "sel" : ""}" style="transition-delay:${Math.min(k, 9) * 40}ms"><img src="assets/roll/${TW[i]}.jpg" alt="" style="object-position:${(k * 37) % 100}% 50%"></figure>`).join("");
-    $("pk-q").textContent = "타이베이";
-    const phases = ["found", "picked", "done"];
+    const ROWS = [["ㅂ", "ㅈ", "ㄷ", "ㄱ", "ㅅ", "ㅛ", "ㅕ", "ㅑ", "ㅐ", "ㅔ"], ["ㅁ", "ㄴ", "ㅇ", "ㄹ", "ㅎ", "ㅗ", "ㅓ", "ㅏ", "ㅣ"], ["⇧", "ㅋ", "ㅌ", "ㅊ", "ㅍ", "ㅠ", "ㅜ", "ㅡ", "⌫"], ["123", "space", "검색"]];
+    const cls = (k) => k === "space" ? "sp" : k === "검색" ? "go" : ["⇧", "⌫", "123"].includes(k) ? "w" : "";
+    const kbd = $("pk-kbd"), q = $("pk-q");
+    kbd.innerHTML = ROWS.map((r) => `<div>${r.map((k) => `<kbd class="${cls(k)}" data-k="${k}">${k === "space" ? "스페이스" : k}</kbd>`).join("")}</div>`).join("");
+    const keys = [...kbd.querySelectorAll("kbd")];
+    const KEYS = ["ㅌ", "ㅏ", "ㅇ", "ㅣ", "ㅂ", "ㅔ", "ㅇ", "ㅣ"];
+    const TEXT = ["", "ㅌ", "타", "탕", "타이", "타입", "타이베", "타이벵", "타이베이"];
     let elapsed = 0, previous = performance.now(), visible = false;
-    picker.dataset.phase = "done";
+    function show(time) {
+      const phase = time < 3200 ? "type" : time < 5200 ? "load" : time < 6800 ? "found" : time < 8800 ? "picked" : time < 10200 ? "save" : "done";
+      picker.dataset.phase = phase;
+      const typed = Math.floor((time - 900) / 210);
+      q.textContent = phase === "type" ? TEXT[Math.max(0, Math.min(8, typed + 1))] : "타이베이";
+      const hit = phase === "type" && time >= 900 && time < 2580 && (time - 900) % 210 < 160 ? KEYS[typed] : phase === "type" && time >= 2950 ? "검색" : "";
+      keys.forEach((key) => key.classList.toggle("hit", key.dataset.k === hit));
+      $("pk-prog").style.width = phase === "load" ? `${(time - 3200) / 20}%` : "0%";
+      $("pk-save").classList.toggle("pressed", time >= 8600 && time < 8800);
+      $("pk-save-t").textContent = phase === "save" ? "6장 올리는 중" : "6장 골라 기록하기";
+    }
+    show(10200);
     new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: .3 }).observe(picker);
     const replay = document.createElement("button");
     replay.type = "button"; replay.className = "reset"; replay.textContent = "사진 찾기 예시 다시 보기";
     $("photos").querySelector(".ps-copy").appendChild(replay);
-    replay.addEventListener("click", () => { elapsed = 0; picker.dataset.phase = motionPaused ? "done" : "found"; });
+    replay.addEventListener("click", () => { elapsed = 0; show(motionPaused ? 10200 : 0); });
     function animate(now) {
       const dt = Math.min(now - previous, 100); previous = now;
-      if (visible && !motionPaused && !document.hidden && elapsed < 6000) {
+      if (visible && !motionPaused && !document.hidden && elapsed < 10200) {
         elapsed += dt;
-        picker.dataset.phase = phases[Math.min(2, Math.floor(elapsed / 2000))];
+        show(elapsed);
       }
       requestAnimationFrame(animate);
     }
