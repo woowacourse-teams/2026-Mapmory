@@ -165,8 +165,124 @@ assert.equal(videos[0].paused, false, 'A timeline selected while paused must res
 motionContext.document.hidden = true; updateMotion();
 assert.ok(videos.every((video) => video.paused), 'Background pages must not play timeline videos');
 
+// Advance the actual photo search animation with a small DOM and animation clock.
+const photoSearch = code.match(/\/\* ---------- photo search example: find, choose, record ---------- \*\/([\s\S]*?)\/\* ---------- group example/)?.[1];
+assert.ok(photoSearch, 'Photo search example must remain available');
+for (const id of ['picker', 'pk-q', 'pk-kbd', 'pk-save-t']) {
+  assert.ok(ids.includes(id), `Photo search must retain #${id}`);
+}
+function searchExample(paused = false) {
+  let now = 0, nextFrame, intersect;
+  const elements = new Map(['picker', 'pk-q', 'pk-kbd', 'pk-save', 'pk-save-t', 'pk-prog', 'pk-grid'].map((id) => [id, {
+    dataset: {}, textContent: '', innerHTML: '', style: {}, classList: { toggle() {} },
+  }]));
+  const keys = [];
+  Object.defineProperty(elements.get('pk-kbd'), 'innerHTML', {
+    set(value) {
+      keys.splice(0, keys.length, ...[...value.matchAll(/data-k="([^"]+)"/g)].map(([, key]) => ({
+        dataset: { k: key }, hit: false,
+        classList: { toggle(name, on) { assert.equal(name, 'hit'); this.key.hit = on; } },
+      })));
+      keys.forEach((key) => { key.classList.key = key; });
+    },
+  });
+  elements.get('pk-kbd').querySelectorAll = () => keys;
+  let replay;
+  const context = {
+    $: (id) => elements.get(id), motionPaused: paused, reduceMotion: paused,
+    performance: { now: () => now },
+    requestAnimationFrame(callback) { nextFrame = callback; },
+    IntersectionObserver: class {
+      constructor(callback) { intersect = callback; }
+      observe() {}
+    },
+    document: {
+      hidden: false,
+      createElement() { return { addEventListener(event, handler) { assert.equal(event, 'click'); this.click = handler; } }; },
+    },
+  };
+  elements.set('photos', { querySelector: () => ({ appendChild(button) { replay = button; } }) });
+  new Script(photoSearch).runInNewContext(context);
+  return {
+    context, elements, keys,
+    visible(value) { intersect([{ isIntersecting: value }]); },
+    replay() { replay.click(); },
+    advance(milliseconds) {
+      for (let elapsed = 0; elapsed < milliseconds; elapsed += 10) {
+        now += Math.min(10, milliseconds - elapsed);
+        const callback = nextFrame;
+        callback?.(now);
+      }
+    },
+    phase() { return elements.get('picker').dataset.phase; },
+    query() { return elements.get('pk-q').textContent; },
+  };
+}
+const search = searchExample();
+search.visible(true);
+search.advance(890);
+assert.equal(search.phase(), 'type');
+assert.equal(search.query(), '');
+search.advance(10);
+assert.equal(search.query(), 'ㅌ', 'Search must visibly type the place before finding photos');
+assert.equal(search.keys.find((key) => key.dataset.k === 'ㅌ')?.hit, true, 'Typing must highlight its keyboard key');
+for (const text of ['타', '탕', '타이', '타입', '타이베', '타이벵', '타이베이']) {
+  search.advance(210);
+  assert.equal(search.query(), text);
+}
+search.advance(830);
+assert.equal(search.phase(), 'load', 'Search must explain that it is finding photos on the phone');
+search.advance(2000);
+assert.equal(search.phase(), 'found');
+search.advance(1600);
+assert.equal(search.phase(), 'picked');
+search.advance(2000);
+assert.equal(search.phase(), 'save');
+assert.equal(search.elements.get('pk-save-t').textContent, '6장 올리는 중');
+search.advance(1400);
+assert.equal(search.phase(), 'done');
+search.advance(4000);
+assert.equal(search.phase(), 'done', 'Search must finish after one example');
+search.replay();
+search.advance(10);
+assert.equal(search.phase(), 'type');
+assert.equal(search.query(), '', 'Replay must restart with an empty search');
+for (const reason of ['paused', 'hidden', 'offscreen']) {
+  const example = searchExample();
+  const stop = (value) => {
+    example.context.motionPaused = value && reason === 'paused';
+    example.context.document.hidden = value && reason === 'hidden';
+    example.visible(!value || reason !== 'offscreen');
+  };
+  example.visible(true);
+  example.advance(900);
+  stop(true);
+  example.advance(4000);
+  assert.equal(example.phase(), 'type', `${reason}: search progress must stop`);
+  assert.equal(example.query(), 'ㅌ', `${reason}: typing must stop`);
+  stop(false);
+  example.advance(210);
+  assert.equal(example.query(), '타', `${reason}: search must resume at its previous position`);
+  example.advance(3090);
+  assert.equal(example.phase(), 'load');
+  const progress = example.elements.get('pk-prog').style;
+  assert.equal(progress.width, '50%');
+  stop(true);
+  example.advance(4000);
+  assert.equal(progress.width, '50%', `${reason}: finding progress must stop`);
+  stop(false);
+  example.advance(100);
+  assert.equal(progress.width, '55%', `${reason}: finding progress must resume`);
+}
+const reducedSearch = searchExample(true);
+assert.equal(reducedSearch.phase(), 'done', 'Reduced motion must start on the completed record');
+reducedSearch.visible(true);
+reducedSearch.replay();
+reducedSearch.advance(5000);
+assert.equal(reducedSearch.phase(), 'done', 'Replay must respect global motion pause');
+
 const steps = [...markup.matchAll(/<article\b[^>]*class="step[^>]*>([\s\S]*?)<\/article>/g)];
 assert.equal(steps.length, 3, 'Retain all three recording steps');
 assert.ok(steps.every(([, body]) => /<button\b[^>]*type="button"/.test(body)), 'Every recording step needs keyboard activation');
 assert.ok(/<button\b[^>]*(?:id|class)="[^"]*(?:motion|pause)[^"]*"/.test(markup), 'Provide a visible animation pause control');
-console.log(`PASS: anchors, assets, schema, store QR pairs, ${executable.length} scripts, map totals, recording controls and timeline pause/resume (${fileURLToPath(page)})`);
+console.log(`PASS: anchors, assets, schema, store QR pairs, ${executable.length} scripts, map totals, recording controls, timeline pause/resume and photo search replay (${fileURLToPath(page)})`);
