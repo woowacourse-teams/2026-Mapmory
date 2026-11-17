@@ -1,8 +1,8 @@
 name: Claude Code Review
 
 # 백엔드 PR이 열리거나 커밋이 추가될 때 Claude가 자동으로 리뷰한다.
-# 필요한 것: Claude GitHub App 설치(https://github.com/apps/claude),
-# 저장소 시크릿 CLAUDE_CODE_OAUTH_TOKEN(`claude setup-token`으로 발급) 또는 ANTHROPIC_API_KEY.
+# 필요한 것: 저장소 시크릿 CLAUDE_CODE_OAUTH_TOKEN(`claude setup-token`으로 발급) 또는 ANTHROPIC_API_KEY.
+# Claude GitHub App은 조직 owner만 저장소를 추가할 수 있어, 앱 대신 Actions 기본 토큰으로 코멘트를 단다(github-actions[bot]).
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
@@ -27,7 +27,6 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-      id-token: write
 
     steps:
       - name: Check out repository
@@ -41,6 +40,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # API 키를 쓸 때는 위 줄 대신 아래 줄을 쓴다.
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           use_sticky_comment: true
           prompt: |
             REPO: ${{ github.repository }}
