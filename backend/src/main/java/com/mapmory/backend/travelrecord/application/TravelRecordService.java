@@ -337,12 +337,13 @@ public class TravelRecordService {
 
     /**
      * 회원의 태그만 조회한다. 애그리거트도 소유를 확인하지만, 남의 태그가 있는지 드러내지 않도록 조회부터 회원으로 거른다.
+     * 붙이는 동안 태그가 지워지지 않도록 공유 잠금으로 읽는다({@link TagRepository#findAllForShareByMemberIdAndIdIn}).
      */
     private List<Tag> findTags(Member member, RecordTagIds tagIds) {
         if (tagIds.isEmpty()) {
             return List.of();
         }
-        return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
+        return tagRepository.findAllForShareByMemberIdAndIdIn(member.getId(), tagIds.values());
     }
 
     /**

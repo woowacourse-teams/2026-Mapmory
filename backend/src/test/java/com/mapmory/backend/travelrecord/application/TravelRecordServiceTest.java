@@ -165,7 +165,7 @@ class TravelRecordServiceTest {
         );
 
         when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
-        when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L)))
+        when(tagRepository.findAllForShareByMemberIdAndIdIn(10L, List.of(1L)))
                 .thenReturn(List.of(tag(1L)));
         when(travelRecordRepository.save(any(TravelRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -175,7 +175,7 @@ class TravelRecordServiceTest {
         assertThat(result).isNotNull();
         verify(regionResolver).resolve("JP", null, null);
         verify(travelRecordRepository).save(any(TravelRecord.class));
-        verify(tagRepository).findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L));
+        verify(tagRepository).findAllForShareByMemberIdAndIdIn(10L, List.of(1L));
     }
 
     @Test
@@ -224,7 +224,7 @@ class TravelRecordServiceTest {
                 "JP", null, null, "일본 여행", "", LocalDate.of(2026, 8, 11), null, PHOTOS, List.of(1L), null
         );
         when(regionResolver.resolve("JP", null, null)).thenReturn(mock(Region.class));
-        when(tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(10L, List.of(1L)))
+        when(tagRepository.findAllForShareByMemberIdAndIdIn(10L, List.of(1L)))
                 .thenReturn(List.of());
 
         assertThatThrownBy(() -> travelRecordService.create(member, command))
