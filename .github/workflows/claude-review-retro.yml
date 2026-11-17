@@ -155,7 +155,11 @@ jobs:
               echo "이 수정안을 적용하면 기존 검증 케이스 중 일부를 놓친다. 원인을 보고 고치거나 닫는다."
             fi
             echo
-            cat /tmp/eval/summary.md 2>/dev/null | sed '1d' || echo "검증 결과를 가져오지 못했다. Actions 실행 기록을 본다."
+            if [ -f /tmp/eval/summary.md ]; then
+              sed '1d' /tmp/eval/summary.md
+            else
+              echo "검증 결과를 가져오지 못했다. Actions 실행 기록을 본다."
+            fi
             echo
             echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } > body.md
