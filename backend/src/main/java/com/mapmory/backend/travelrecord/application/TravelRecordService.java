@@ -159,6 +159,10 @@ public class TravelRecordService {
      * 그사이 사진 목록이 바뀌어 확인하지 않은 키가 새 사진으로 보이더라도, 그 키는 읽을 때 기록에 붙어 있던 사진이라
      * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키의 객체는 정리 배치가 하루 한 번 지우므로(#162),
      * 읽기와 쓰기 사이의 몇 초에 배치가 지운 드문 경우에만 객체가 없는 키가 붙을 수 있다.
+     *
+     * <p>쓰기는 기록 행을 먼저 잠근다({@link #lockOwnedTravelRecord}). 같은 기록을 동시에 고치면 늦은 요청이
+     * 앞 요청이 커밋한 사진·태그와 비교하므로, 두 요청의 몫이 합쳐지거나(상한 초과) 같은 행을 두 번 넣고 지우다 실패하지 않는다.
+     * 결과는 나중에 끝난 요청 그대로다.
      */
     public TravelRecordDetail update(
             Member member,
@@ -181,7 +185,7 @@ public class TravelRecordService {
         uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys);
 
         return transactionTemplate.execute(status -> {
-            TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
+            TravelRecord travelRecord = lockOwnedTravelRecord(member, travelRecordId);
             validateObjectKeysAreAvailable(travelRecord.newObjectKeys(objectKeys));
             Region region = resolveRegion(command, place);
 
@@ -213,9 +217,13 @@ public class TravelRecordService {
         });
     }
 
+    /**
+     * 수정과 같이 기록 행을 먼저 잠근다. 잠그지 않으면 겹친 수정이 붙인 사진을 읽지 못해 정리 큐에 넣지 않고,
+     * 사진 행은 DB의 ON DELETE CASCADE로 사라져 그 S3 객체를 아무도 지우지 않는다.
+     */
     @Transactional
     public void delete(Member member, Long travelRecordId) {
-        TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
+        TravelRecord travelRecord = lockOwnedTravelRecord(member, travelRecordId);
 
         enqueueOrphaned(travelRecord.allMediaKeys());
         travelRecordRepository.delete(travelRecord);
@@ -265,6 +273,13 @@ public class TravelRecordService {
                 .orElseGet(() -> travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable));
 
         return travelRecordAssembler.assembleListPage(travelRecords);
+    }
+
+    // 트랜잭션의 첫 조회로 불러야 한다. 그래야 잠금을 기다린 뒤 앞 요청이 커밋한 상태를 읽는다.
+    private TravelRecord lockOwnedTravelRecord(Member member, Long travelRecordId) {
+        travelRecordRepository.lockByIdAndMemberId(travelRecordId, member.getId())
+                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        return findOwnedTravelRecord(member, travelRecordId);
     }
 
     private TravelRecord findOwnedTravelRecord(Member member, Long travelRecordId) {

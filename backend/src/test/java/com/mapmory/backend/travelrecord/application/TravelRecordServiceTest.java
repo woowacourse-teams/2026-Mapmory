@@ -125,6 +125,9 @@ class TravelRecordServiceTest {
     void setUp() {
         member = mock(Member.class);
         lenient().when(member.getId()).thenReturn(10L);
+        // 수정·삭제는 기록 행을 잠근 뒤 읽는다. 잠금은 행이 있으면 id를 돌려주고, 없는 기록은 뒤의 조회에서 걸러진다.
+        lenient().when(travelRecordRepository.lockByIdAndMemberId(anyLong(), anyLong()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));
         lenient().when(recordMediaUrlService.createViewUrl(anyString()))
                 .thenAnswer(invocation -> new ExpiringUrl(
                         "https://download.example/" + invocation.getArgument(0),
