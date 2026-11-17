@@ -1,0 +1,48 @@
+{
+  "base": "d17f4a3c062babec1e26d3490176fb3be7f7f332",
+  "cases": [
+    {
+      "id": "a-tag-limit-lock",
+      "title": "fix: 태그를 동시에 만들어도 회원당 10개를 넘지 않게 한다",
+      "patch": "a-tag-limit-lock.patch",
+      "source": "#713 원본(43361aa). 프로덕션 코드는 맞고, 동시성 테스트만 실패 경로에서 스레드 풀을 정리하지 않는다.",
+      "expect": [
+        {
+          "name": "동시성 테스트가 실패 경로에서 executor를 정리하지 않음",
+          "file": "backend/src/test/java/com/mapmory/backend/tag/TagLimitConcurrencyIntegrationTest.java",
+          "lines": [69, 93]
+        }
+      ]
+    },
+    {
+      "id": "b-tag-seeded-bugs",
+      "title": "refactor: 태그 조회와 개수 검증을 단순화한다",
+      "patch": "b-tag-seeded-bugs.patch",
+      "source": "버그 3개를 일부러 심은 변경",
+      "expect": [
+        {
+          "name": "update의 @Transactional 제거",
+          "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
+          "lines": [38, 42]
+        },
+        {
+          "name": "findOwnedTag의 소유권 검증 누락",
+          "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
+          "lines": [62, 66]
+        },
+        {
+          "name": "태그 개수 상한 off-by-one",
+          "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
+          "lines": [67, 71]
+        }
+      ]
+    },
+    {
+      "id": "c-tag-rename",
+      "title": "refactor: 태그 이름 중복 검사 메서드 이름을 의도에 맞게 바꾼다",
+      "patch": "c-tag-rename.patch",
+      "source": "동작이 같은 private 메서드 이름 변경",
+      "expect": []
+    }
+  ]
+}

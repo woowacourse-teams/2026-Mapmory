@@ -1,0 +1,172 @@
+name: Claude Review Retro
+
+# 매주 지난 리뷰를 돌아보고 배운 규칙(.github/claude-review/guide.md)의 수정안을 만든다.
+# 수정안은 회귀 검증(claude-review-eval.yml)을 거친 뒤 BASE_BRANCH(backend-develop) 대상 PR로 올라가고, 사람이 보고 머지한다.
+# schedule과 수동 실행(workflow_dispatch)은 기본 브랜치(main)에 이 파일이 있어야 동작한다.
+on:
+  schedule:
+    - cron: "17 0 * * 1" # 매주 월요일 09:17 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # 규칙 수정안을 올릴 브랜치. guide.md도 이 브랜치의 것을 고친다.
+  BASE_BRANCH: backend-develop
+
+concurrency:
+  group: claude-review-retro
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    # Claude는 읽기 권한 토큰만 받는다. 코멘트에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 1
+
+      - name: Collect review data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/claude-review/collect.sh "${{ github.repository }}" .retro
+
+      # 얕은 클론이라 머지된 PR의 커밋을 열 수 없다. 고치기 전과 뒤를 비교할 수 있게 PR별로 가져온다.
+      - name: Fetch merged PR commits
+        run: |
+          for n in $(jq -r '.[].number' .retro/prs.json); do
+            git fetch -q --depth=30 origin "pull/$n/head:refs/pr/$n" || echo "PR #$n 커밋을 가져오지 못했다"
+          done
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose guide changes
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.github/claude-review/retro.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.retro/\`에 있다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .retro/claude-output.json
+          test -f .retro/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result' .retro/claude-output.json)" > .retro/summary.md
+
+      - id: diff
+        run: |
+          if git diff --quiet -- .github/claude-review/guide.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          { echo "## 회고 요약"; echo; cat .retro/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-retro
+          include-hidden-files: true
+          path: |
+            .github/claude-review/guide.md
+            .retro/summary.md
+
+  push:
+    needs: propose
+    if: needs.propose.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      branch: ${{ steps.push.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-retro
+          path: /tmp/retro
+      - id: push
+        run: |
+          branch="claude-review/retro-$(date -u +%Y%m%d)-${{ github.run_id }}"
+          cp /tmp/retro/.github/claude-review/guide.md .github/claude-review/guide.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -qam "chore: Claude 리뷰 회고로 배운 규칙을 고친다"
+          git push -q origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+  eval:
+    needs: push
+    uses: ./.github/workflows/claude-review-eval.yml
+    with:
+      ref: ${{ needs.push.outputs.branch }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  open-pr:
+    # 검증이 실패해도 PR은 올린다. 실패 내용을 PR에 적어 사람이 판단한다.
+    needs: [push, eval]
+    if: always() && needs.push.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-retro
+          path: /tmp/retro
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: claude-review-eval-summary
+          path: /tmp/eval
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.push.outputs.branch }}
+          EVAL_RESULT: ${{ needs.eval.result }}
+        run: |
+          {
+            echo "## 요약"
+            echo
+            echo "지난 7일의 리뷰를 돌아보고 Claude가 만든 \`.github/claude-review/guide.md\` 수정안이다. 사람이 보고 판단해 머지한다."
+            echo
+            sed 's/^## /### /' /tmp/retro/.retro/summary.md
+            echo
+            if [ "$EVAL_RESULT" = "success" ]; then
+              echo "## 회귀 검증: 통과"
+            else
+              echo "## 회귀 검증: 실패 ($EVAL_RESULT)"
+              echo
+              echo "이 수정안을 적용하면 기존 검증 케이스 중 일부를 놓친다. 원인을 보고 고치거나 닫는다."
+            fi
+            echo
+            if [ -f /tmp/eval/summary.md ]; then
+              sed '1d' /tmp/eval/summary.md
+            else
+              echo "검증 결과를 가져오지 못했다. Actions 실행 기록을 본다."
+            fi
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          title="chore: Claude 리뷰 회고로 배운 규칙을 고친다 ($(date -u +%Y-%m-%d))"
+          # 저장소 설정에서 Actions의 PR 생성을 막아 두었으면 이슈로 남긴다.
+          if ! gh pr create -R "${{ github.repository }}" --base "$BASE_BRANCH" --head "$BRANCH" --title "$title" --body-file body.md; then
+            echo >> body.md
+            echo "PR을 만들 수 없어 이슈로 남긴다. 브랜치 \`$BRANCH\`로 직접 PR을 연다." >> body.md
+            gh issue create -R "${{ github.repository }}" --title "$title" --body-file body.md
+          fi
