@@ -1,0 +1,136 @@
+name: Claude Review Eval
+
+# 리뷰 기준(review.md)과 배운 규칙(guide.md)을 바꿨을 때, 답이 정해진 케이스에서 리뷰가 여전히 맞게 지적하는지 확인한다.
+# 케이스는 .github/claude-review/evals/cases.json에 있다. 각 케이스는 기준 커밋에 패치를 얹어 PR처럼 만든 뒤 리뷰한다.
+# 회고 워크플로(claude-review-retro.yml)도 규칙 수정안을 PR로 올리기 전에 이 워크플로를 부른다.
+on:
+  pull_request:
+    paths:
+      - ".github/claude-review/**"
+      - ".github/workflows/claude-code-review.yml"
+      - ".github/workflows/claude-review-eval.yml"
+  workflow_call:
+    inputs:
+      ref:
+        description: 검증할 리뷰 기준이 들어 있는 브랜치나 커밋
+        type: string
+        required: true
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-eval-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cases:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 1
+      - id: ids
+        run: echo "ids=$(jq -c '[.cases[].id]' .github/claude-review/evals/cases.json)" >> "$GITHUB_OUTPUT"
+
+  eval:
+    needs: cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        id: ${{ fromJSON(needs.cases.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 1
+
+      - name: Prepare case
+        env:
+          CASE_ID: ${{ matrix.id }}
+        run: |
+          EVALS=.github/claude-review/evals
+          BASE=$(jq -r '.base' $EVALS/cases.json)
+          PATCH=$(jq -r --arg id "$CASE_ID" '.cases[] | select(.id == $id) | .patch' $EVALS/cases.json)
+          TITLE=$(jq -r --arg id "$CASE_ID" '.cases[] | select(.id == $id) | .title' $EVALS/cases.json)
+          git fetch --depth=1 origin "$BASE"
+          git worktree add --detach /tmp/case "$BASE"
+          git -C /tmp/case apply "$GITHUB_WORKSPACE/$EVALS/$PATCH"
+          git -C /tmp/case -c user.name=eval -c user.email=eval@localhost commit -qam "$TITLE"
+          # 리뷰 기준은 검증 대상(이 브랜치)의 것을 쓴다. 커밋하지 않으므로 diff에는 나오지 않는다.
+          mkdir -p /tmp/case/.github/claude-review
+          cp .github/claude-review/review.md .github/claude-review/guide.md /tmp/case/.github/claude-review/
+          echo "TITLE=$TITLE" >> "$GITHUB_ENV"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Review
+        working-directory: /tmp/case
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          SCHEMA='{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"file":{"type":"string"},"line":{"type":"integer"},"severity":{"type":"string","enum":["Critical","Major","Minor","Nit"]},"title":{"type":"string"}},"required":["file","line","severity","title"]}}},"required":["findings"]}'
+          PROMPT="PR 제목: ${TITLE}
+
+          이 PR을 리뷰한다. 변경점은 \`git diff HEAD~1\`로 본다. 필요하면 저장소의 다른 파일도 연다.
+          \`.github/claude-review/review.md\`의 기준과 \`.github/claude-review/guide.md\`의 규칙을 먼저 읽고 그대로 따른다.
+          코멘트를 달지 말고, 지적할 문제를 findings로만 답한다.
+          file은 저장소 기준 경로, line은 변경 후 파일의 줄 번호, severity는 Critical/Major/Minor/Nit, title은 한 줄 요약이다.
+          지적할 문제가 없으면 findings를 빈 배열로 둔다."
+          claude -p "$PROMPT" \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)" \
+            --output-format json \
+            --json-schema "$SCHEMA" > /tmp/output.json || true
+
+      - name: Grade
+        env:
+          CASE_ID: ${{ matrix.id }}
+        run: |
+          mkdir -p /tmp/result
+          python3 -I .github/claude-review/evals/grade.py .github/claude-review/evals/cases.json \
+            "$CASE_ID" /tmp/output.json "/tmp/result/$CASE_ID.json"
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-eval-${{ matrix.id }}
+          path: /tmp/result/
+
+  summary:
+    needs: eval
+    if: always() && needs.eval.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: claude-review-eval-*
+          merge-multiple: true
+          path: results
+      - name: Summarize
+        run: |
+          {
+            echo "## Claude 리뷰 회귀 검증"
+            echo
+            echo "| 케이스 | 결과 | 찾음 | 놓침 | 기대 밖 지적 |"
+            echo "|---|---|---|---|---|"
+            for f in results/*.json; do
+              jq -r '"| \(.id) | \(if .passed then "통과" else "실패" end) | \(.found | join(", ")) | \(.missed | join(", ")) | \(.extra | join("<br>")) |"' "$f"
+            done
+          } > summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-eval-summary
+          path: summary.md

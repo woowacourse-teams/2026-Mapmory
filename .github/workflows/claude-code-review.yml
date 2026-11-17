@@ -10,6 +10,8 @@ on:
       - "backend/**"
       - "api.md"
       - ".github/workflows/claude-code-review.yml"
+      - ".github/claude-review/review.md"
+      - ".github/claude-review/guide.md"
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -48,20 +50,12 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             이 PR을 리뷰하고 결과를 한국어로 남겨라.
-            backend/docs/adr의 결정과 기존 코드 관례를 기준으로 본다.
+            `.github/claude-review/review.md`의 기준과 `.github/claude-review/guide.md`의 배운 규칙을 먼저 읽고 그대로 따른다.
 
-            중점:
-            - 버그와 엣지 케이스, 동시성(트랜잭션 경계, 잠금 순서, 경쟁 조건)
-            - 보안과 권한 확인 누락
-            - 성능(N+1, 불필요한 조회)
-            - 테스트가 바뀐 동작을 실제로 검증하는지
-            - 테스트 코드 자체의 안정성: 예외나 타임아웃 때 스레드 풀·커넥션 같은 자원이 정리되는지(finally),
-              다른 테스트에 영향을 주거나 실행할 때마다 결과가 달라질 수 있는지
-
-            규칙:
-            - 확실한 문제만 지적하고, 취향 차이나 사소한 스타일은 적지 않는다.
+            결과를 남기는 방법:
             - 특정 줄의 문제는 mcp__github_inline_comment__create_inline_comment로 인라인 코멘트를 단다.
               각 코멘트에 심각도(Critical/Major/Minor/Nit), 이유, 가능하면 수정 제안을 쓴다.
+              guide.md의 규칙 덕분에 찾은 문제면 제목 앞에 규칙 ID를 붙인다(예: `[R-001] [Major] ...`).
             - 전체 요약은 `gh pr comment --edit-last --create-if-none`으로 남겨, 커밋마다 새 코멘트가 쌓이지 않고 이전 요약을 고친다.
               문제가 없으면 짧게 그렇게 쓴다.
           claude_args: |
