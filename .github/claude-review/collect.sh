@@ -39,7 +39,7 @@ done | jq -s '.' > "$OUT/prs.json"
     --jq ".[] | select(.user.login == \"$BOT\") | .body"
   gh api "repos/$REPO/issues/comments?since=$hit_since&per_page=100" --paginate \
     --jq ".[] | select(.user.login == \"$BOT\") | .body"
-} | grep -oE 'R-[0-9]{3}' | sort | uniq -c \
+} | { grep -oE 'R-[0-9]{3}' || true; } | sort | uniq -c \
   | awk 'BEGIN { printf "{" } { printf "%s\"%s\": %d", (NR > 1 ? ", " : ""), $2, $1 } END { print "}" }' \
   > "$OUT/rule-hits.json"
 

@@ -65,7 +65,8 @@ jobs:
           git fetch --depth=1 origin "$BASE"
           git worktree add --detach /tmp/case "$BASE"
           git -C /tmp/case apply "$GITHUB_WORKSPACE/$EVALS/$PATCH"
-          git -C /tmp/case -c user.name=eval -c user.email=eval@localhost commit -qam "$TITLE"
+          git -C /tmp/case add -A
+          git -C /tmp/case -c user.name=eval -c user.email=eval@localhost commit -qm "$TITLE"
           # 리뷰 기준은 검증 대상(이 브랜치)의 것을 쓴다. 커밋하지 않으므로 diff에는 나오지 않는다.
           mkdir -p /tmp/case/.github/claude-review
           cp .github/claude-review/review.md .github/claude-review/guide.md /tmp/case/.github/claude-review/
