@@ -8,8 +8,9 @@ Mapmory 클라이언트의 `develop` 또는 `main`을 대상으로 하는 Pull R
 
 1. `:shared:jvmTest` — 공통 JVM 테스트
 2. `:shared:testAndroidHostTest` — Android 호스트 테스트
-3. `:androidApp:lint` — Android 정적 분석
-4. `:androidApp:assembleDebug` — Android Debug APK 빌드
+3. `:androidApp:testDebugUnitTest` — Android 앱 로컬 테스트(Crashlytics 컨텍스트 포함)
+4. `:androidApp:lint` — Android 정적 분석
+5. `:androidApp:assembleDebug` — Android Debug APK 빌드
 
 실패한 Gradle 작업은 해당 Step 로그에서 확인할 수 있습니다.
 
@@ -35,14 +36,14 @@ Android 빌드는 다음 경로 중 하나가 변경된 경우에만 실행합�
 
 ```bash
 cd client
-./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon
+./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:testDebugUnitTest :androidApp:lint :androidApp:assembleDebug --no-daemon
 ```
 
 Windows에서는 `./gradlew` 대신 `gradlew.bat`을 사용합니다.
 
 ```bat
 cd client
-gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon
+gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:testDebugUnitTest :androidApp:lint :androidApp:assembleDebug --no-daemon
 ```
 
 ## 실패 시 대응
@@ -72,10 +73,11 @@ gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androi
 
 ## iOS 검증 CI
 
-`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 추적 중인 Swift 파일을 `swiftc -frontend -parse`로 구문 검사합니다. 필수 체크 이름은 호환성을 위해 `Build iOS Simulator`로 남아 있지만, 실제 Simulator 빌드나 Swift 타입 검사, Compose framework 연결 검증을 수행하지는 않습니다. 병합 후 push에서는 다시 실행하지 않습니다.
+`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 추적 중인 Swift 파일을 `swiftc -frontend -parse`로 구문 검사하고, Firebase SDK 없이 실행 가능한 Crashlytics 이벤트 컨텍스트 변환 테스트를 컴파일·실행합니다. 필수 체크 이름은 호환성을 위해 `Build iOS Simulator`로 남아 있지만, 실제 Simulator 빌드나 전체 앱의 Swift 타입 검사, Compose framework 연결 검증을 수행하지는 않습니다. 병합 후 push에서는 다시 실행하지 않습니다.
 
 - Runner: `macos-26`
-- PR 검증: Swift 구문 검사만 실행
+- 수동 전체 앱 빌드 Runner: `macos-26-intel` (2026-11-18 ARM 실행기 배정 실패 후 별도 풀로 검증)
+- PR 검증: Swift 구문 검사와 Crashlytics 이벤트 컨텍스트 테스트 실행
 - 수동 실행: `Mapmory` scheme, `client/iosApp/Mapmory.xcodeproj`, Debug, `iphoneos`, `generic/platform=iOS` 대상으로 서명 없는 앱 빌드
 - 수동 빌드 서명 설정: `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`
 - 기기 동작, 알림 전달, 안전 영역과 테마는 별도 실행 검증 필요
