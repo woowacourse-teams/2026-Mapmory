@@ -343,11 +343,17 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
         }
         start.countDown();
         List<String> outcomes = new ArrayList<>();
-        for (Future<String> result : results) {
-            outcomes.add(result.get(30, TimeUnit.SECONDS));
+        try {
+            for (Future<String> result : results) {
+                outcomes.add(result.get(30, TimeUnit.SECONDS));
+            }
+            return outcomes;
+        } finally {
+            // 잠금 대기로 시간이 넘어 빠져나가도 남은 스레드가 커넥션과 행 잠금을 쥔 채 다른 테스트로 넘어가지 않게 한다.
+            results.forEach(result -> result.cancel(true));
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
         }
-        executor.shutdown();
-        return outcomes;
     }
 
     private Member socialMember() {
