@@ -122,11 +122,17 @@ class GroupLimitConcurrencyIntegrationTest extends IntegrationTest {
         }
         start.countDown();
         List<String> outcomes = new ArrayList<>();
-        for (Future<String> result : results) {
-            outcomes.add(result.get(30, TimeUnit.SECONDS));
+        try {
+            for (Future<String> result : results) {
+                outcomes.add(result.get(30, TimeUnit.SECONDS));
+            }
+            return outcomes;
+        } finally {
+            // 시간 초과나 데드락으로 중간에 빠져나가도 남은 스레드가 커넥션을 쥔 채 다음 라운드로 넘어가지 않게 한다.
+            results.forEach(result -> result.cancel(true));
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
         }
-        executor.shutdown();
-        return outcomes;
     }
 
     // 그룹을 만든 사람은 그 그룹의 멤버다.
