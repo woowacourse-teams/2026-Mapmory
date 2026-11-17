@@ -35,7 +35,7 @@ public class GroupMembership {
     /**
      * 그룹을 하나 더 만들거나 들어갈 수 있는지 확인한다.
      *
-     * <p>같은 사람이 동시에 만들거나 수락하면 한두 개 넘을 수 있다. 자기 요청끼리의 경쟁이라 잠금을 더 걸지 않는다.
+     * <p>센 다음 넣으므로 같은 회원의 요청이 겹치면 넘는다. 부르는 쪽이 회원 행을 먼저 잠가야 한다({@link SocialMemberGuard#lock}).
      */
     @Transactional(readOnly = true)
     public void validateCanJoinAnother(Long memberId) {
