@@ -157,8 +157,9 @@ public class TravelRecordService {
      * 외부 호출을 트랜잭션 밖에 두려고 읽기와 쓰기를 두 트랜잭션으로 나눈다.
      * 읽기에서 새로 추가된 사진을 구해 S3로 확인하고, 쓰기에서 기록을 다시 읽어 그사이 삭제됐으면 TRAVEL_RECORD_NOT_FOUND로 끝낸다.
      * 그사이 사진 목록이 바뀌어 확인하지 않은 키가 새 사진으로 보이더라도, 그 키는 읽을 때 기록에 붙어 있던 사진이라
-     * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키의 객체는 정리 배치가 하루 한 번 지우므로(#162),
-     * 읽기와 쓰기 사이의 몇 초에 배치가 지운 드문 경우에만 객체가 없는 키가 붙을 수 있다.
+     * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키는 정리 큐에 있는 동안 다시 붙이지 못하므로
+     * ({@link #validateObjectKeysAreAvailable}), 읽기와 쓰기 사이의 몇 초에 배치가 지우고 큐에서도 없앤 드문 경우에만
+     * 객체가 없는 키가 붙을 수 있다.
      */
     public TravelRecordDetail update(
             Member member,
@@ -329,10 +330,25 @@ public class TravelRecordService {
         return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
     }
 
+    /**
+     * 다른 기록이 쓰는 키와 정리 큐에 있는 키는 붙이지 않는다.
+     *
+     * <p>정리 큐의 키는 기록에서 뺀 사진이다. 예전 화면이 남은 다른 기기가 저장하면 이 키가 다시 온다.
+     * 정리 배치는 "붙어 있지 않음"을 확인한 뒤 S3에서 지우므로, 그 사이에 다시 붙으면 기록에 붙은 사진의 파일이 지워진다.
+     * 배치는 S3에서 지운 뒤에야 큐에서 행을 없애므로, 큐에 있는 동안 거절하면 그 틈에 붙지 않는다.
+     * 배치가 끝난 뒤에는 S3 확인에서 거절되므로({@code MEDIA_NOT_UPLOADED}) 뺀 사진은 언제 와도 다시 붙지 않는다.
+     * 같은 사진을 사진첩에서 다시 고르면 새 키로 올라가므로 막히지 않는다.
+     */
     private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
-        if (!newObjectKeys.isEmpty()
-                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
+        if (newObjectKeys.isEmpty()) {
+            return;
+        }
+        if (travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
+        }
+        if (orphanedMediaRepository.existsByObjectKeyIn(newObjectKeys)) {
+            throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY,
+                    "기록에서 뺀 사진은 다시 붙일 수 없습니다. 사진을 다시 골라 주세요.");
         }
     }
 
