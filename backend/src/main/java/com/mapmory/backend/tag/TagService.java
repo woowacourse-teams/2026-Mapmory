@@ -74,15 +74,15 @@ public class TagService {
 
     private void validateUniqueNameForCreate(Long memberId, String nameKey) {
         boolean exists = tagRepository.existsByMemberIdAndNameKey(memberId, nameKey);
-        throwIfNameExists(exists);
+        throwIfNameTaken(exists);
     }
 
     private void validateUniqueNameForUpdate(Long memberId, String nameKey, Long tagId) {
         boolean exists = tagRepository.existsByMemberIdAndNameKeyAndIdNot(memberId, nameKey, tagId);
-        throwIfNameExists(exists);
+        throwIfNameTaken(exists);
     }
 
-    private void throwIfNameExists(boolean exists) {
+    private void throwIfNameTaken(boolean exists) {
         if (exists) {
             throw new BusinessException(TagErrorCode.TAG_NAME_CONFLICT);
         }
