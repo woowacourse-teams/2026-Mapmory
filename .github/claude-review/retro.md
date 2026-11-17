@@ -8,6 +8,7 @@
   코멘트마다 작성자, 파일과 줄, 본문, 👍/👎 수, 답글 대상이 있다. Claude 리뷰는 작성자가 `github-actions[bot]`이다.
 - `.retro/rule-hits.json`: 지난 8주 동안 Claude 리뷰 코멘트에 붙은 규칙 ID별 적중 횟수.
 - `.retro/today`: 오늘 날짜.
+- `refs/pr/<번호>`: 머지된 PR마다 가져온 커밋. `git log refs/pr/713`, `git show <sha>`로 고치기 전과 뒤를 비교한다.
 - `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상), 저장소 코드.
 
 ## 할 일
