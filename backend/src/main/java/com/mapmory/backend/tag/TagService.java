@@ -2,6 +2,8 @@ package com.mapmory.backend.tag;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.exception.MemberErrorCode;
 import java.util.List;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -14,17 +16,31 @@ public class TagService {
     private static final int MAX_TAGS_PER_MEMBER = 10;
     private static final String TAG_NAME_UNIQUE_CONSTRAINT = "uk_tag_member_name_key";
     private final TagRepository tagRepository;
+    private final MemberRepository memberRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    public TagService(TagRepository tagRepository, ApplicationEventPublisher eventPublisher) {
+    public TagService(TagRepository tagRepository, MemberRepository memberRepository,
+                      ApplicationEventPublisher eventPublisher) {
         this.tagRepository = tagRepository;
+        this.memberRepository = memberRepository;
         this.eventPublisher = eventPublisher;
     }
 
+    /**
+     * 회원당 {@value #MAX_TAGS_PER_MEMBER}개는 도메인 규칙이라 동시에 만들어도 넘지 않게 한다.
+     *
+     * <p>개수를 센 뒤 넣으므로, 잠그지 않으면 두 요청이 모두 9개를 보고 넣어 11개가 된다(읽은 다음 쓰기).
+     * 세기 전에 회원 행을 FOR UPDATE로 잠가 같은 회원의 생성을 차례로 처리한다. 늦은 요청은 앞 요청이 커밋된 뒤 세므로 10개를 본다.
+     * 잠금이 트랜잭션의 첫 DB 조회여야 한다. REPEATABLE READ의 스냅샷은 첫 일반 조회 때 생기므로, 그 전에 다른 조회가 있으면
+     * 잠근 뒤에도 앞 요청이 넣은 태그를 보지 못한다. 이름 검증({@link Tag#of})은 DB를 쓰지 않아 앞에 둔다.
+     *
+     * <p>태그 INSERT는 FK 확인으로 어차피 회원 행을 공유 잠금하므로, 순서는 회원 → 태그로 ADR 0028의 "회원 먼저"와 같다.
+     */
     @Transactional
     public Tag create(Member member, String name) {
         Tag tag = Tag.of(member, name);
 
+        lockMember(member.getId());
         validateTagLimit(member.getId());
         validateUniqueNameForCreate(member.getId(), tag.getNameKey());
 
@@ -64,6 +80,12 @@ public class TagService {
     private Tag findOwnedTag(Member member, Long tagId) {
         return tagRepository.findByIdAndMemberId(tagId, member.getId())
                 .orElseThrow(() -> new BusinessException(TagErrorCode.TAG_NOT_FOUND));
+    }
+
+    // 회원 행이 없으면 ActiveMemberGuard와 같이 INACTIVE_MEMBER다. 활동 중인지는 여기서 보지 않는다(잠금만 담당).
+    private void lockMember(Long memberId) {
+        memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
     }
 
     private void validateTagLimit(Long memberId) {
