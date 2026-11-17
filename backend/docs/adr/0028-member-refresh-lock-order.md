@@ -38,6 +38,7 @@
 | 소셜 로그인의 기존 회원 확인 (`MemberJoinService#findRegistered`) | 기존 회원 `FOR SHARE` (게스트 다음) | 기존 회원에게 새 토큰 INSERT |
 | 탈퇴 (`MemberService#withdraw`, `#withdrawUnlinked`) | `FOR UPDATE` | 일괄 폐기 |
 | 닉네임 변경 (`MemberService#changeNickname`) | `FOR UPDATE` | 다루지 않음 |
+| 태그 생성 (`TagService#create`) | `FOR UPDATE` | 다루지 않음(태그 INSERT) |
 | refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 `FOR UPDATE` → 새 토큰 INSERT |
 | 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 → 후속 토큰 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
 | 로그아웃 (`RefreshTokenService#revoke`) | `FOR SHARE` | 세션 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
@@ -145,6 +146,12 @@
 - 이 ADR은 `member`와 `refresh_token`만 다룬다. 하지만 `member`를 FK로 참조하는 테이블에 INSERT하면 회원 행에 공유 잠금이 걸린다(MySQL 외래 키 검사).
   회원과 그런 테이블을 함께 잠그는 새 흐름도 회원을 먼저 잠근다. 그런 흐름이 생기면 이 ADR을 넓힌다.
 
+  > 2026-11-16 구현 업데이트: 태그 생성이 첫 사례다. 회원당 10개 상한(ADR 0013)을 개수를 센 뒤 넣는 방식으로 지켜,
+  > 동시에 만들면 두 요청이 모두 9개를 보고 넣어 11개가 됐다(동시 출발 60회 중 60회). 세기 전에 회원을 `FOR UPDATE`로 잠가
+  > 같은 회원의 생성을 차례로 처리한다. 태그 INSERT의 FK 확인이 원래 회원을 공유 잠금하므로 순서는 회원 → 태그로 이 규칙과 같다.
+  > 태그를 먼저 잠그고 회원을 잠그는 흐름은 회원 파기(`TagPurger` 다음 `markPurged`)뿐인데, 파기 대상은 탈퇴 30일 뒤라 태그 생성과 겹치지 않는다.
+  > 태그 행에 `SELECT COUNT(*) … FOR UPDATE`를 거는 방법은 두 트랜잭션이 같은 갭을 잠근 뒤 서로의 INSERT를 기다려 데드락이 나므로 택하지 않았다.
+
 ## 검증
 
 - `GuestPromotionRefreshIntegrationTest`: 게스트의 refresh 갱신과 승격, 갱신과 버림을 각각 20회 동시에 보내도 데드락이 없다. 버림은 게스트와 기존 회원 두 행을 잠그는 유일한 흐름이라 따로 본다.
@@ -155,4 +162,5 @@
 - `GroupLimitConcurrencyIntegrationTest`: 그룹 9개인 회원이 동시에 두 번 만들거나 서로 다른 그룹에 동시에 수락해도(각 20회) 10개에서 멈추고 한 요청만 `TOO_MANY_GROUPS`다.
 - `GroupLockOrderConcurrencyIntegrationTest`: 같은 회원이 같은 그룹에 수락과 앨범 열기, 수락과 앨범 담기, 수락과 나가기를 각각 20회 동시에 보내도 데드락이 없다.
   앨범 쪽을 그룹 → 회원 순서로 두면 앞의 두 경우가 실패한다.
+- `TagLimitConcurrencyIntegrationTest`: 태그가 9개인 회원이 서로 다른 이름으로 동시에 두 번 만드는 것을 20회 반복해도 매번 10개에서 멈추고, 늦은 쪽은 `TAG_LIMIT_EXCEEDED`다.
 - SQL 로그에서 회전은 `select member_id …` → `… from member … for share of m1_0` → `… from refresh_token … for update of rt1_0` 순서로 나간다.

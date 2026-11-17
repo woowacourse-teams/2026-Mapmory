@@ -3,6 +3,7 @@ package com.mapmory.backend.tag;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -11,11 +12,13 @@ import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
+import com.mapmory.backend.member.MemberRepository;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,18 +35,22 @@ class TagServiceTest {
     private Member member;
 
     @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private TagService tagService;
 
     @BeforeEach
     void setUp() {
-        tagService = new TagService(tagRepository, eventPublisher);
+        tagService = new TagService(tagRepository, memberRepository, eventPublisher);
     }
 
     @Test
     void 이름을_정규화해_태그를_생성한다() {
         when(member.getId()).thenReturn(10L);
+        memberIsLocked();
         when(tagRepository.countByMemberId(10L)).thenReturn(0L);
         when(tagRepository.existsByMemberIdAndNameKey(10L, "date course"))
                 .thenReturn(false);
@@ -63,6 +70,7 @@ class TagServiceTest {
     @Test
     void 회원당_태그가_10개면_생성을_거부한다() {
         when(member.getId()).thenReturn(10L);
+        memberIsLocked();
         when(tagRepository.countByMemberId(10L)).thenReturn(10L);
 
         assertError(() -> tagService.create(member, "연인"), "TAG_LIMIT_EXCEEDED");
@@ -74,7 +82,7 @@ class TagServiceTest {
     void 샵이_포함된_태그_이름을_거부한다() {
         assertError(() -> tagService.create(member, "#연인"), "VALIDATION_ERROR");
 
-        verifyNoInteractions(tagRepository);
+        verifyNoInteractions(tagRepository, memberRepository);
     }
 
     @Test
@@ -98,6 +106,7 @@ class TagServiceTest {
     @Test
     void 이름_유니크_제약조건_위반을_비즈니스_예외로_변환한다() {
         when(member.getId()).thenReturn(10L);
+        memberIsLocked();
         when(tagRepository.countByMemberId(10L)).thenReturn(0L);
         when(tagRepository.existsByMemberIdAndNameKey(10L, "친구")).thenReturn(false);
         ConstraintViolationException constraintViolation = mock(ConstraintViolationException.class);
@@ -112,6 +121,7 @@ class TagServiceTest {
     @Test
     void 다른_무결성_예외를_이름_중복으로_변환하지_않는다() {
         when(member.getId()).thenReturn(10L);
+        memberIsLocked();
         when(tagRepository.countByMemberId(10L)).thenReturn(0L);
         when(tagRepository.existsByMemberIdAndNameKey(10L, "친구")).thenReturn(false);
         DataIntegrityViolationException integrityViolation = new DataIntegrityViolationException("FK 위반");
@@ -119,6 +129,33 @@ class TagServiceTest {
 
         assertThatThrownBy(() -> tagService.create(member, "친구"))
                 .isSameAs(integrityViolation);
+    }
+
+    @Test
+    void 개수를_세기_전에_회원을_잠근다() {
+        when(member.getId()).thenReturn(10L);
+        memberIsLocked();
+        when(tagRepository.countByMemberId(10L)).thenReturn(10L);
+
+        assertError(() -> tagService.create(member, "연인"), "TAG_LIMIT_EXCEEDED");
+
+        InOrder order = inOrder(memberRepository, tagRepository);
+        order.verify(memberRepository).findByIdForUpdate(10L);
+        order.verify(tagRepository).countByMemberId(10L);
+    }
+
+    @Test
+    void 회원_행이_없으면_만들지_않는다() {
+        when(member.getId()).thenReturn(10L);
+        when(memberRepository.findByIdForUpdate(10L)).thenReturn(Optional.empty());
+
+        assertError(() -> tagService.create(member, "연인"), "INACTIVE_MEMBER");
+
+        verifyNoInteractions(tagRepository);
+    }
+
+    private void memberIsLocked() {
+        when(memberRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(member));
     }
 
     private void assertError(Runnable action, String code) {
