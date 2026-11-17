@@ -3,6 +3,8 @@ package com.mapmory.backend.group.application;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.exception.BusinessException;
@@ -59,6 +61,26 @@ class SocialMemberGuardTest {
         when(memberRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertError(1L, MemberErrorCode.INACTIVE_MEMBER);
+    }
+
+    @Test
+    void 잠그며_확인하면_회원_행을_잠가_읽는다() {
+        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(
+                Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID())));
+
+        assertThatCode(() -> guard.lock(1L)).doesNotThrowAnyException();
+        verify(memberRepository, never()).findById(1L);
+    }
+
+    @Test
+    void 잠그며_확인할_때도_게스트는_소셜_로그인이_필요하다() {
+        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(
+                Member.ofGuest("guest-1", "게스트", UUID.randomUUID())));
+
+        assertThatThrownBy(() -> guard.lock(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(GroupErrorCode.SOCIAL_LOGIN_REQUIRED);
     }
 
     private void assertError(Long memberId, Object errorCode) {
