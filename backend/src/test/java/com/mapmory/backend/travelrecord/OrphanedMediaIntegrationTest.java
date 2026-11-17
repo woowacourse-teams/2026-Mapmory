@@ -139,10 +139,7 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
         long recordId = createRecord(kept, removed);
         updateRecord(recordId, kept);
         willAnswer(invocation -> {
-            mockMvc.perform(put("/api/v1/travel-records/" + recordId)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(recordBody(kept, removed)));
+            rejectUpdate(recordId, kept, removed);
             deletedKeys.addAll(invocation.<Collection<String>>getArgument(0));
             return List.of();
         }).given(objectDeleter).delete(anyCollection());
