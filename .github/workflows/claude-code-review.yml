@@ -1,0 +1,64 @@
+name: Claude Code Review
+
+# 백엔드 PR이 열리거나 커밋이 추가될 때 Claude가 자동으로 리뷰한다.
+# 필요한 것: Claude GitHub App 설치(https://github.com/apps/claude),
+# 저장소 시크릿 CLAUDE_CODE_OAUTH_TOKEN(`claude setup-token`으로 발급) 또는 ANTHROPIC_API_KEY.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    paths:
+      - "backend/**"
+      - "api.md"
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # 포크 PR은 시크릿을 받지 못하고, 봇 PR과 드래프트는 리뷰하지 않는다.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # API 키를 쓸 때는 위 줄 대신 아래 줄을 쓴다.
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            이 PR을 리뷰하고 결과를 한국어로 남겨라.
+            backend/docs/adr의 결정과 기존 코드 관례를 기준으로 본다.
+
+            중점:
+            - 버그와 엣지 케이스, 동시성(트랜잭션 경계, 잠금 순서, 경쟁 조건)
+            - 보안과 권한 확인 누락
+            - 성능(N+1, 불필요한 조회)
+            - 테스트가 바뀐 동작을 실제로 검증하는지
+
+            규칙:
+            - 확실한 문제만 지적하고, 취향 차이나 사소한 스타일은 적지 않는다.
+            - 특정 줄의 문제는 mcp__github_inline_comment__create_inline_comment로 인라인 코멘트를 단다.
+              각 코멘트에 심각도(Critical/Major/Minor/Nit), 이유, 가능하면 수정 제안을 쓴다.
+            - 전체 요약은 `gh pr comment`로 한 번만 남긴다. 문제가 없으면 짧게 그렇게 쓴다.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
