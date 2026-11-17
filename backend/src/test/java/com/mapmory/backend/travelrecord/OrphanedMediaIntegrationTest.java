@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
@@ -114,26 +115,52 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void 뺐다가_다시_붙인_사진은_지우지_않는다() throws Exception {
+    void 뺀_사진은_정리_전에도_다시_붙이지_못한다() throws Exception {
         String kept = photo("kept.jpg");
-        String returned = photo("returned.jpg");
-        long recordId = createRecord(kept, returned);
+        String removed = photo("removed.jpg");
+        long recordId = createRecord(kept, removed);
         updateRecord(recordId, kept);
-        updateRecord(recordId, kept, returned);
 
-        assertThat(cleanup.run()).isZero();
+        rejectUpdate(recordId, kept, removed);
+        cleanup.run();
 
-        assertThat(deletedKeys).isEmpty();
-        assertThat(queued()).isZero();
+        assertThat(attachedKeys(recordId)).containsExactly(kept);
+        assertThat(deletedKeys).containsExactlyInAnyOrder(removed, derivedThumbnail("removed"));
+    }
+
+    /**
+     * 폰에서 뺀 사진이 예전 화면이 남은 태블릿의 저장으로 다시 오는 경우다. 정리 배치가 "붙어 있지 않음"을 확인한 뒤
+     * S3에서 지우기 전에 그 저장이 끝나면, 기록에 붙은 사진의 파일이 지워진다. 그 틈을 만들려고 S3 삭제가 불리는 순간에 저장한다.
+     */
+    @Test
+    void 정리_배치가_확인한_뒤_다시_붙이려_해도_기록에_붙은_사진을_지우지_않는다() throws Exception {
+        String kept = photo("kept.jpg");
+        String removed = photo("removed.jpg");
+        long recordId = createRecord(kept, removed);
+        updateRecord(recordId, kept);
+        willAnswer(invocation -> {
+            mockMvc.perform(put("/api/v1/travel-records/" + recordId)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(recordBody(kept, removed)));
+            deletedKeys.addAll(invocation.<Collection<String>>getArgument(0));
+            return List.of();
+        }).given(objectDeleter).delete(anyCollection());
+
+        cleanup.run();
+
+        assertThat(deletedKeys).contains(removed);
+        assertThat(attachedKeys(recordId)).as("S3에서 지운 사진이 기록에 붙어 있으면 안 된다").containsExactly(kept);
     }
 
     @Test
-    void 같은_사진을_두_번_빼도_수정이_실패하지_않는다() throws Exception {
+    void 이미_정리_큐에_있는_사진을_빼도_수정이_실패하지_않는다() throws Exception {
+        // 큐 확인을 지나 다시 붙은 드문 경우다. 그 사진을 또 빼면 같은 키가 또 큐에 온다.
         String kept = photo("kept.jpg");
-        String twice = photo("twice.jpg");
-        long recordId = createRecord(kept, twice);
-        updateRecord(recordId, kept);
-        updateRecord(recordId, kept, twice);
+        String queuedAgain = photo("queued-again.jpg");
+        long recordId = createRecord(kept, queuedAgain);
+        enqueue(List.of(queuedAgain));
+
         updateRecord(recordId, kept);
 
         assertThat(queued()).isEqualTo(2);
@@ -255,6 +282,20 @@ class OrphanedMediaIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(recordBody(objectKeys)))
                 .andExpect(status().isOk());
+    }
+
+    private void rejectUpdate(long recordId, String... objectKeys) throws Exception {
+        mockMvc.perform(put("/api/v1/travel-records/" + recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(recordBody(objectKeys)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_OBJECT_KEY"));
+    }
+
+    private List<String> attachedKeys(long recordId) {
+        return jdbcTemplate.queryForList(
+                "SELECT object_key FROM record_media WHERE travel_record_id = ?", String.class, recordId);
     }
 
     private void deleteRecord(long recordId) throws Exception {
