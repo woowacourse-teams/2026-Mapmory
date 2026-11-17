@@ -7,13 +7,16 @@ on:
   schedule:
     - cron: "17 0 * * 1" # 매주 월요일 09:17 KST
   workflow_dispatch:
+  pull_request: # 임시: 회고 시험용. 시험 뒤 되돌린다
+    paths:
+      - ".github/workflows/claude-review-retro.yml"
 
 permissions:
   contents: read
 
 env:
   # 규칙 수정안을 올릴 브랜치. guide.md도 이 브랜치의 것을 고친다.
-  BASE_BRANCH: backend-develop
+  BASE_BRANCH: chore/claude-code-review # 임시: 시험용
 
 concurrency:
   group: claude-review-retro

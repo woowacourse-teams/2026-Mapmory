@@ -17,11 +17,4 @@
 
 ## 규칙
 
-### R-001 테스트 코드도 실패 경로에서 자원을 정리하는지 본다
-
-- 내용: 테스트가 만든 스레드 풀, 커넥션, 잠금이 예외나 타임아웃 때도 정리되는지(`try/finally`, `shutdownNow()`) 본다.
-  정리되지 않으면 같은 MySQL 컨테이너와 Spring 컨텍스트를 쓰는 다른 통합 테스트가 연쇄로 실패해, 원인과 다른 곳에서 결과가 흔들린다.
-  저장소의 다른 동시성 테스트(`GuestConcurrentSocialLoginIntegrationTest` 등)는 `try/finally`로 정리한다.
-- 근거: #713. CodeRabbit은 `createAtOnce`의 `executor.shutdown()`이 `finally`에 없다고 지적했는데, Claude 리뷰는 놓쳤다(검증 케이스 A).
-- 추가: 2026-11-17
-- 고정: 아니오
+(임시: 회고 시험을 위해 R-001을 지웠다)
