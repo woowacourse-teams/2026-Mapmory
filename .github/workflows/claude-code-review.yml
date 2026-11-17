@@ -60,7 +60,8 @@ jobs:
             - 확실한 문제만 지적하고, 취향 차이나 사소한 스타일은 적지 않는다.
             - 특정 줄의 문제는 mcp__github_inline_comment__create_inline_comment로 인라인 코멘트를 단다.
               각 코멘트에 심각도(Critical/Major/Minor/Nit), 이유, 가능하면 수정 제안을 쓴다.
-            - 전체 요약은 `gh pr comment`로 한 번만 남긴다. 문제가 없으면 짧게 그렇게 쓴다.
+            - 전체 요약은 `gh pr comment --edit-last --create-if-none`으로 남겨, 커밋마다 새 코멘트가 쌓이지 않고 이전 요약을 고친다.
+              문제가 없으면 짧게 그렇게 쓴다.
           claude_args: |
             --model claude-opus-5-5
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
