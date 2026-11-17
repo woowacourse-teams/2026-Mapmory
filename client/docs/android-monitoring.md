@@ -18,6 +18,7 @@ CI·Android Vitals·Logcat·Xcode Console·System Trace를 기본으로 사용�
 - Android 앱 시작 시간을 cold start와 hot start로 반복 측정하는 로컬 스크립트를 추가했다.
 - Android·iOS 핵심 사용자 행동을 Firebase Analytics 이벤트로 기록하는 공통 인터페이스와 플랫폼별 구현을 연결했다.
 - Android Firebase Crashlytics SDK와 Gradle 플러그인을 연결하고, Debug 빌드에서는 수집하지 않도록 했다.
+- Android·iOS의 기존 행동 로거를 Crashlytics 커스텀 로그·키에 연결했다. 상태·수집 정책과 검증 절차는 [크래시 컨텍스트](crashlytics-context.md)를 따른다.
 - 지도 선택 정확성, 사진 추천, 기록 저장을 우선 모니터링 대상으로 정했다.
 - 개인정보를 포함하지 않는 로그 규칙을 정했다.
 - Android는 Firebase 설정 파일이 없는 개발·CI 환경에서 Analytics 어댑터가 no-op으로 동작한다. iOS는

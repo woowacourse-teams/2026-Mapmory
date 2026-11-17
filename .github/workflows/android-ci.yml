@@ -80,4 +80,4 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Test, lint, and build Android
-        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androidApp:assembleDebug --no-daemon
+        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest :androidApp:testDebugUnitTest :androidApp:lint :androidApp:assembleDebug --no-daemon
