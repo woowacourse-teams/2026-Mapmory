@@ -14,14 +14,22 @@ BLOCKING = {"critical", "major", "minor"}
 
 
 def load_findings(path):
+    """리뷰 결과를 읽는다. 리뷰가 돌지 않았거나 결과를 읽을 수 없으면 ValueError를 던진다."""
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
-    data = raw.get("structured_output") if isinstance(raw, dict) else None
+    if not isinstance(raw, dict):
+        raise ValueError("Claude 출력 형식이 아니다")
+    if raw.get("is_error"):
+        raise ValueError(f"Claude 실행 오류: {str(raw.get('result', ''))[:200]}")
+    data = raw.get("structured_output")
     if data is None:
-        text = raw.get("result", "") if isinstance(raw, dict) else ""
-        match = re.search(r"\{.*\}", text, re.S)
-        data = json.loads(match.group(0)) if match else {"findings": []}
-    return data.get("findings", [])
+        match = re.search(r"\{.*\}", str(raw.get("result", "")), re.S)
+        if not match:
+            raise ValueError("findings를 찾지 못했다")
+        data = json.loads(match.group(0))
+    if not isinstance(data, dict) or not isinstance(data.get("findings"), list):
+        raise ValueError("findings 형식이 아니다")
+    return data["findings"]
 
 
 def matches(finding, expected):
@@ -65,11 +73,10 @@ def main():
     with open(cases_path, encoding="utf-8") as f:
         case = next(c for c in json.load(f)["cases"] if c["id"] == case_id)
     try:
-        findings = load_findings(output_path)
+        result = grade(case, load_findings(output_path))
     except (OSError, ValueError) as error:
-        findings = []
-        print(f"리뷰 결과를 읽지 못했다: {error}", file=sys.stderr)
-    result = grade(case, findings)
+        # 리뷰가 돌지 않은 것을 "지적 없음"으로 보면 오탐 케이스가 통과로 보인다. 따로 실패로 남긴다.
+        result = {"id": case_id, "passed": False, "found": [], "missed": [f"리뷰 결과 없음: {error}"], "extra": []}
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False, indent=2))
