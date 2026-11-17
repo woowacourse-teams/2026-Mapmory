@@ -24,6 +24,13 @@ Firebase Console에 `com.mapmory.ios` Apple 앱을 등록한 뒤 해당 앱에�
 앱은 기능 이용 흐름을 분석하기 위해 Firebase Analytics를 사용하며 광고는 제공하지 않는다. 이벤트 목록과 DebugView 확인 방법은
 [`../docs/android-monitoring.md`](../docs/android-monitoring.md)를 참고한다.
 
+## Firebase Crashlytics
+
+Release 빌드에는 Crashlytics SDK와 dSYM 업로드가 연결되어 있다. Debug/Internal은 수집하지 않는다.
+기존 Analytics 로거에서 허용된 행동 파라미터를 커스텀 로그·키에 연결하고, `is_team`도 함께 기록한다.
+설정 이력, 자동 테스트, 실제 크래시 수신 및 BigQuery 확인 방법은
+[iOS Crashlytics 연결](../docs/ios-crashlytics.md)을 참고한다.
+
 ## 미디어 권한
 
 - 카메라: `NSCameraUsageDescription`

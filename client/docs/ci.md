@@ -72,10 +72,10 @@ gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:lint :androi
 
 ## iOS 검증 CI
 
-`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 추적 중인 Swift 파일을 `swiftc -frontend -parse`로 구문 검사합니다. 필수 체크 이름은 호환성을 위해 `Build iOS Simulator`로 남아 있지만, 실제 Simulator 빌드나 Swift 타입 검사, Compose framework 연결 검증을 수행하지는 않습니다. 병합 후 push에서는 다시 실행하지 않습니다.
+`.github/workflows/ios-ci.yml`은 `develop`, `main` 대상 PR에서 추적 중인 Swift 파일을 `swiftc -frontend -parse`로 구문 검사하고, Firebase SDK 없이 실행 가능한 Crashlytics 이벤트 컨텍스트 변환 테스트를 컴파일·실행합니다. 필수 체크 이름은 호환성을 위해 `Build iOS Simulator`로 남아 있지만, 실제 Simulator 빌드나 전체 앱의 Swift 타입 검사, Compose framework 연결 검증을 수행하지는 않습니다. 병합 후 push에서는 다시 실행하지 않습니다.
 
 - Runner: `macos-26`
-- PR 검증: Swift 구문 검사만 실행
+- PR 검증: Swift 구문 검사와 Crashlytics 이벤트 컨텍스트 테스트 실행
 - 수동 실행: `Mapmory` scheme, `client/iosApp/Mapmory.xcodeproj`, Debug, `iphoneos`, `generic/platform=iOS` 대상으로 서명 없는 앱 빌드
 - 수동 빌드 서명 설정: `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`
 - 기기 동작, 알림 전달, 안전 영역과 테마는 별도 실행 검증 필요
