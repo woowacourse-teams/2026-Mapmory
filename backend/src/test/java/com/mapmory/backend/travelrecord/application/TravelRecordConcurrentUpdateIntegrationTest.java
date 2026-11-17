@@ -138,8 +138,12 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
         assertThat(problems).isEmpty();
     }
 
+    /**
+     * 빼는 쪽이 먼저 끝나면 뺀 사진은 정리 큐에 있어, 늦은 쪽이 그 사진을 다시 붙이려다 INVALID_OBJECT_KEY로 거절된다(ADR 0018).
+     * 늦은 쪽이 빼는 쪽이면 둘 다 성공한다. 어느 순서든 500 없이 뺀 결과만 남는다.
+     */
     @Test
-    void 한쪽이_뺀_사진의_순서를_다른_쪽이_바꿔도_둘_다_성공한다() throws Exception {
+    void 한쪽이_뺀_사진의_순서를_다른_쪽이_바꿔도_500_없이_뺀_결과만_남는다() throws Exception {
         List<String> problems = new ArrayList<>();
         for (int round = 0; round < ROUNDS; round++) {
             Member member = socialMember();
@@ -153,8 +157,9 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                             command("여행", List.of(second, first), List.of()))));
 
             List<String> media = mediaOf(recordId);
-            if (!outcomes.equals(List.of(OK, OK))
-                    || !(sameSet(media, List.of(first)) || sameSet(media, List.of(first, second)))) {
+            boolean expectedOutcomes = OK.equals(outcomes.get(0))
+                    && (OK.equals(outcomes.get(1)) || "INVALID_OBJECT_KEY".equals(outcomes.get(1)));
+            if (!expectedOutcomes || !media.equals(List.of(first))) {
                 problems.add("round " + round + ": " + outcomes + " 사진 " + media.size() + "장");
             }
         }
