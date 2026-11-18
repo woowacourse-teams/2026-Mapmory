@@ -78,8 +78,8 @@ public class GroupInvitationService {
     /**
      * 이미 멤버면 아무것도 바꾸지 않고 그룹을 돌려준다. 새로 들어가는 거면 내가 속한 그룹이 10개를 넘지 않는지 먼저 본다.
      *
-     * <p>그룹 행을 잠그고 그 행의 인원 수로 30명 제한을 판단한다(TravelGroup.join). 같은 사람의 수락은 회원 행 잠금으로
-     * 차례로 처리되고, 늦은 쪽은 이미 멤버인 것을 보고 그대로 돌려준다. 그래도 유니크 제약에 걸리면 그 트랜잭션은 롤백하고,
+     * <p>그룹 행을 잠그고 그 행의 인원 수로 30명 제한을 판단한다(TravelGroup.join). 같은 사람이 동시에 수락하면
+     * 늦은 쪽은 멤버 목록(옛 스냅샷)에서 자기를 못 보고 넣으려다 유니크 제약에 걸린다. 그 트랜잭션은 롤백하고,
      * 이미 멤버가 됐으면 성공으로 그룹을 돌려준다. 그래서 이 메서드는 트랜잭션을 직접 연다.
      */
     public GroupDetail accept(Long memberId, String tokenOrCode) {
@@ -94,10 +94,8 @@ public class GroupInvitationService {
         }
     }
 
-    // 회원 → 그룹 순서로 잠근다. 그룹 행 잠금은 그룹마다 따로라 한 사람이 서로 다른 그룹에 동시에 수락하면 겹치지 않는다.
-    // 회원당 그룹 수를 지키려면 회원 행을 잠가야 하고, 스냅샷이 생기기 전에 잡아야 해서 맨 처음에 잠근다.
     private GroupDetail join(Long memberId, String tokenOrCode) {
-        socialMemberGuard.lock(memberId);
+        socialMemberGuard.require(memberId);
         GroupInvitation invitation = findValid(tokenOrCode);
         TravelGroup group = travelGroupRepository.findByIdForUpdate(invitation.getGroupId())
                 .orElseThrow(() -> new BusinessException(GroupErrorCode.INVITATION_NOT_FOUND));

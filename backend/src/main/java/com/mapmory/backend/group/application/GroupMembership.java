@@ -35,7 +35,9 @@ public class GroupMembership {
     /**
      * 그룹을 하나 더 만들거나 들어갈 수 있는지 확인한다.
      *
-     * <p>센 다음 넣으므로 같은 회원의 요청이 겹치면 넘는다. 부르는 쪽이 회원 행을 먼저 잠가야 한다({@link SocialMemberGuard#lock}).
+     * <p>잠그지 않고 센 다음 넣으므로, 같은 회원이 동시에 만들거나 서로 다른 그룹에 수락하면 동시에 처리된 요청 수만큼 넘을 수 있다.
+     * 자기 요청끼리의 경쟁이고 넘어도 그다음 요청부터 막힌다. 막으려고 회원 행을 잠그면 그룹 흐름의 잠금 순서가 뒤집혀
+     * 나가기와 데드락이 나므로 잠그지 않는다(ADR 0022 결정 6, ADR 0028).
      */
     @Transactional(readOnly = true)
     public void validateCanJoinAnother(Long memberId) {

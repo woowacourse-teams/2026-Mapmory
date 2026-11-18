@@ -40,12 +40,9 @@ public class GroupService {
         this.clock = clock;
     }
 
-    /**
-     * 회원당 그룹 수는 센 다음 넣으므로 같은 회원의 요청이 겹치면 상한을 넘는다. 회원 행을 먼저 잠가 차례로 처리한다.
-     */
     @Transactional
     public GroupDetail create(Long memberId, String name) {
-        socialMemberGuard.lock(memberId);
+        socialMemberGuard.require(memberId);
         groupMembership.validateCanJoinAnother(memberId);
         TravelGroup group = TravelGroup.create(name, memberId, LocalDateTime.now(clock));
         return toDetail(travelGroupRepository.save(group), memberId);

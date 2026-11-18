@@ -27,9 +27,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 잠금 순서를 맞추고, 나중에 나가기(T3)와 겨뤄도 나간 뒤에 담기는 일이 없게 한다. 그래서 멤버 확인도 GroupMembership 대신
  * 잠근 그룹으로 한다. 트랜잭션에서 그룹을 처음 읽는 게 잠금 조회여야 한다.
  *
- * <p>앨범을 열거나 담으면 회원을 가리키는 행(album.opener_member_id, album_entry.member_id)을 넣어 FK 확인이 회원 행을 공유 잠금한다.
- * 초대 수락은 회원 → 그룹 순서로 잠그므로(GroupInvitationService), 열기·담기도 회원 행을 먼저 잠가 순서를 맞춘다.
- * 그룹 → 회원 순서로 두면 같은 회원이 같은 그룹에 수락과 담기를 동시에 보낼 때 데드락이 난다.
+ * <p>앨범을 열거나 담으면 회원을 가리키는 행(album.opener_member_id, album_entry.member_id)을 넣어 FK 확인이 회원 행을
+ * 공유 잠금한다. 그룹 흐름은 모두 그룹 → 회원 순서다(초대 수락의 멤버 INSERT, 나가기의 방장·앨범 연 사람 넘기기도 같다).
+ * 회원 행을 먼저 잠그면 이 순서와 반대가 되어 나가기와 데드락이 나므로 회원은 잠그지 않는다(ADR 0028).
  *
  * <p>남의 기록이거나 없는 기록이면 여행 기록과 같은 TRAVEL_RECORD_NOT_FOUND다. 남의 기록이 있다는 것도 알려 주지 않는다.
  */
@@ -68,7 +68,7 @@ public class AlbumService {
      */
     @Transactional
     public AlbumDetail open(Long memberId, Long groupId, Long travelRecordId, String name, Long regionId) {
-        socialMemberGuard.lock(memberId);
+        socialMemberGuard.require(memberId);
         TravelGroup group = lockGroupOf(groupId, memberId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         Region region = findRegion(regionId == null ? record.regionId() : regionId);
@@ -113,7 +113,7 @@ public class AlbumService {
     }
 
     private AlbumEntryResult add(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
-        socialMemberGuard.lock(memberId);
+        socialMemberGuard.require(memberId);
         TravelGroup group = lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
