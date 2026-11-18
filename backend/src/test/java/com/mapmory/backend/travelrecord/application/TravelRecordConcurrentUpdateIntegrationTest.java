@@ -30,6 +30,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 같은 기록을 두 곳(두 기기, 같은 요청의 재전송)에서 동시에 고쳐도 한 요청의 결과만 남는지 실제 DB로 확인한다.
@@ -62,6 +64,9 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUp() {
@@ -275,15 +280,82 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                         return null;
                     }));
 
-            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 수정이 태그를 읽은 뒤 삭제가 커밋되면 연결 INSERT가
-            // FK에 걸려 실패할 수 있는데, 이는 잠금 순서와 관계없이 이 PR 전에도 있던 경합이라 여기서는 데드락만 본다.
-            boolean deadlocked = outcomes.contains("CannotAcquireLockException");
-            if (deadlocked || !OK.equals(outcomes.get(1)) || !OK.equals(outcomes.get(2))) {
+            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 그 밖의 실패(데드락, FK 위반)는 없어야 한다.
+            boolean updateEnded = OK.equals(outcomes.get(0)) || "TAG_NOT_FOUND".equals(outcomes.get(0));
+            if (!updateEnded || !OK.equals(outcomes.get(1)) || !OK.equals(outcomes.get(2))) {
                 problems.add("round " + round + ": " + outcomes);
             }
         }
 
         assertThat(problems).isEmpty();
+    }
+
+    /**
+     * 태그 삭제가 커밋되기 직전에 그 태그로 저장하는 경우다. 저장이 태그를 잠그지 않고 읽으면 스냅샷에는 태그가 있어 연결을 넣고,
+     * 그 INSERT의 FK 확인이 삭제의 커밋을 기다렸다가 FK 위반(500)으로 끝난다. 동시에 출발시키면 드물게만 겹쳐,
+     * 삭제를 커밋하지 않은 채 저장을 출발시키고 저장이 그 삭제를 기다릴 때까지 둔 뒤 커밋해 순서를 고정한다.
+     */
+    @Test
+    void 태그를_지우는_중에_그_태그로_저장하면_TAG_NOT_FOUND로_끝난다() throws Exception {
+        Member member = socialMember();
+        Long tagId = tagRepository.save(Tag.of(member, "지울 태그")).getId();
+        List<String> photos = List.of(photoKey(member));
+        Long recordId = create(member, photos);
+        TransactionTemplate deletion = new TransactionTemplate(transactionManager);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<String> outcome = deletion.execute(status -> {
+                tagService.delete(member, tagId);
+                // JPA는 DELETE를 커밋 때 내보낸다. 지금 DB에 보내야 커밋 전까지 태그 행의 잠금을 쥔다.
+                tagRepository.flush();
+                Future<String> update = executor.submit(() -> outcomeOf(
+                        () -> travelRecordService.update(member, recordId, command("여행", photos, List.of(tagId)))));
+                try {
+                    waitUntilBlocked(update);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(exception);
+                }
+                return update;
+            });
+
+            assertThat(outcome.get(30, TimeUnit.SECONDS)).isEqualTo("TAG_NOT_FOUND");
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    // 저장의 태그 FOR SHARE 조회가 삭제의 잠금에 걸려 멈출 때까지 둔다. 시간만 재면 느린 실행에서 저장이 그 조회에 닿기 전에 커밋해,
+    // 지워진 뒤를 읽고도 통과할 수 있다. 테스트 DB 사용자는 PROCESS 권한이 없어 innodb_trx를 못 읽지만, 같은 사용자의 연결은 PROCESSLIST로 보인다.
+    private void waitUntilBlocked(Future<String> update) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (update.isDone()) {
+                throw new AssertionError("저장이 태그 삭제의 커밋을 기다리지 않고 끝났다");
+            }
+            Integer waiting = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM information_schema.PROCESSLIST
+                    WHERE ID <> CONNECTION_ID() AND COMMAND = 'Query' AND INFO LIKE '%from tag%for share%'
+                    """, Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("저장이 10초 안에 태그 삭제의 잠금을 기다리지 않았다");
+    }
+
+    private static String outcomeOf(Callable<?> action) throws Exception {
+        try {
+            action.call();
+            return OK;
+        } catch (BusinessException exception) {
+            return exception.getErrorCode().toString();
+        } catch (RuntimeException exception) {
+            return exception.getClass().getSimpleName();
+        }
     }
 
     // 원래 사진 한 장에 새 사진 59장을 더한 60장. 요청마다 새 사진이 달라 둘이 합쳐지면 119장이다.
