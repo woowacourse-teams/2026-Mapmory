@@ -162,6 +162,8 @@ class MainActivity : ComponentActivity(), com.mapmory.shared.presentation.tripre
                             updateState = appViewModel.forceUpdate.state,
                             onRetryUpdateCheck = appViewModel.forceUpdate::refresh,
                         )
+                        AuthReproduction.Overlay(appViewModel.container)
+                        NotificationReproduction.Overlay(appViewModel.container)
                     }
 
                     // Dispatch to the active screen before NavHost can pop the entire destination.

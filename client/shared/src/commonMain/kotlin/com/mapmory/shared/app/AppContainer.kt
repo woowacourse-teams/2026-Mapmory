@@ -459,6 +459,7 @@ fun createGuestRemoteAppContainer(
     albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
     pushTokenRegistrationStore: PushTokenRegistrationStore? = null,
     pushTokenPlatform: String? = null,
+    configureHttpClient: (HttpClient) -> Unit = {},
 ): AppContainer {
     val client = createHttpClient()
     return createGuestRemoteAppContainer(
@@ -484,6 +485,7 @@ fun createGuestRemoteAppContainer(
         analytics = analytics,
         pushTokenRegistrationStore = pushTokenRegistrationStore,
         pushTokenPlatform = pushTokenPlatform,
+        configureHttpClient = configureHttpClient,
     )
 }
 
@@ -512,6 +514,7 @@ internal fun createGuestRemoteAppContainer(
     albumShareStore: AlbumShareStore = MemoryAlbumShareStore(),
     pushTokenRegistrationStore: PushTokenRegistrationStore? = null,
     pushTokenPlatform: String? = null,
+    configureHttpClient: (HttpClient) -> Unit = {},
 ): AppContainer {
     require((pushTokenRegistrationStore == null) == (pushTokenPlatform == null))
     val discardRecordCache = runCatching { tokenStore.read().tokens == null || tokenStore.pendingProvider().provider != null }.getOrDefault(false)
@@ -529,6 +532,7 @@ internal fun createGuestRemoteAppContainer(
         session = session,
         apiBaseUrl = apiBaseUrl,
     )
+    configureHttpClient(client)
     val pushTokenRegistrationManager = pushTokenRegistrationStore?.let { store ->
         PushTokenRegistrationManager(
             client = client,
