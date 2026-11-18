@@ -25,7 +25,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -312,7 +311,12 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                 tagRepository.flush();
                 Future<String> update = executor.submit(() -> outcomeOf(
                         () -> travelRecordService.update(member, recordId, command("여행", photos, List.of(tagId)))));
-                waitUntilBlocked(update);
+                try {
+                    waitUntilBlocked(update);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(exception);
+                }
                 return update;
             });
 
@@ -323,16 +327,24 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
         }
     }
 
-    // 저장이 삭제의 잠금을 기다리는 지점까지 갈 시간을 준다. 그 전에 커밋하면 저장은 지워진 뒤를 읽어 이 테스트가 보려는 겹침이 아니다.
-    private static void waitUntilBlocked(Future<String> update) {
-        try {
-            update.get(1, TimeUnit.SECONDS);
-            throw new AssertionError("저장이 태그 삭제의 커밋을 기다리지 않고 끝났다");
-        } catch (TimeoutException expected) {
-            // 기다리는 중이다.
-        } catch (Exception exception) {
-            throw new AssertionError(exception);
+    // 저장의 태그 FOR SHARE 조회가 삭제의 잠금에 걸려 멈출 때까지 둔다. 시간만 재면 느린 실행에서 저장이 그 조회에 닿기 전에 커밋해,
+    // 지워진 뒤를 읽고도 통과할 수 있다. 테스트 DB 사용자는 PROCESS 권한이 없어 innodb_trx를 못 읽지만, 같은 사용자의 연결은 PROCESSLIST로 보인다.
+    private void waitUntilBlocked(Future<String> update) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (update.isDone()) {
+                throw new AssertionError("저장이 태그 삭제의 커밋을 기다리지 않고 끝났다");
+            }
+            Integer waiting = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM information_schema.PROCESSLIST
+                    WHERE ID <> CONNECTION_ID() AND COMMAND = 'Query' AND INFO LIKE '%from tag%for share%'
+                    """, Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(20);
         }
+        throw new AssertionError("저장이 10초 안에 태그 삭제의 잠금을 기다리지 않았다");
     }
 
     private static String outcomeOf(Callable<?> action) throws Exception {
