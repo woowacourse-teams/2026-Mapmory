@@ -108,7 +108,7 @@ class MapSummaryCacheTest {
         try {
             Future<List<RegionMapSummary>> staleLoad = executor.submit(() -> cache.get(1L, null, null, () -> {
                 loading.countDown();
-                awaitQuietly(evicted);
+                awaitEviction(evicted);
                 return rows(1);
             }));
             assertThat(loading.await(5, TimeUnit.SECONDS)).isTrue();
@@ -123,11 +123,16 @@ class MapSummaryCacheTest {
         }
     }
 
-    private static void awaitQuietly(CountDownLatch latch) {
+    // 무효화 신호를 받기 전에는 loader가 끝나면 안 된다. 그냥 지나가면 무효화보다 먼저 끝난 조회를 보게 되어 고치기 전 코드도 통과한다.
+    // 실패는 cache.get을 거쳐 staleLoad.get으로 드러난다.
+    private static void awaitEviction(CountDownLatch evicted) {
         try {
-            latch.await(5, TimeUnit.SECONDS);
+            if (!evicted.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("loader가 무효화 신호를 받지 못했다");
+            }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+            throw new AssertionError("loader가 무효화 신호를 기다리다 중단됐다", exception);
         }
     }
 
