@@ -82,7 +82,7 @@ internal fun MapmoryNavHost(
     onMascotPreviewEnabledChange: (Boolean) -> Unit,
 ) {
     val accountState = container.accountSession?.state?.collectAsState()?.value
-    val notificationRequest = navigation?.notificationRequest?.collectAsState(initial = null)?.value
+    val notificationRequest = navigation?.notificationRequest?.collectAsState()?.value
     val tripRecordRevision by container.tripRecordRevision.collectAsState()
     val backgroundSaves by container.backgroundTripRecordSaver.saves.collectAsState()
     var newlyEarnedBadges by remember(navController) { mutableStateOf<List<TripAchievementBadge>?>(null) }
@@ -116,7 +116,7 @@ internal fun MapmoryNavHost(
             accountState?.transitioning != true && accountState?.pendingLogin != true &&
             accountState?.pendingLogout != true && accountState?.pendingWithdrawal != true &&
             accountState?.recoveryRequired != true)
-    LaunchedEffect(navigation, notificationRequest?.id, notificationRequest?.awaitingLogin, accountState?.generation, currentEntry?.id) {
+    LaunchedEffect(navigation, notificationRequest?.id, notificationRequest?.awaitingLogin, hasAuthenticatedAccount, accountState?.generation, currentEntry?.id) {
         val request = notificationRequest ?: return@LaunchedEffect
         val currentRoute = navigator.currentRoute()
         if (request.awaitingLogin) {
