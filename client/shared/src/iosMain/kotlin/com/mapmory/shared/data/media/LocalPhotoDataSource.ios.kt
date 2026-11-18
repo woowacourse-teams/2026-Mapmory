@@ -109,7 +109,7 @@ class IosLocalPhotoDataSource : LocalPhotoDataSource, OriginalPhotoPrefetcher {
             platform.Foundation.NSDateFormatter().run {
                 // 기기 달력이 불기·일본력이어도 서버와 같은 서기 연도로 적는다.
                 locale = platform.Foundation.NSLocale(localeIdentifier = "en_US_POSIX")
-                calendar = platform.Foundation.NSCalendar.calendarWithIdentifier(platform.Foundation.NSCalendarIdentifierGregorian)
+                calendar = platform.Foundation.NSCalendar(calendarIdentifier = platform.Foundation.NSCalendarIdentifierGregorian)
                 dateFormat = "yyyy.MM.dd"
                 stringFromDate(date)
             }

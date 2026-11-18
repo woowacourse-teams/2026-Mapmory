@@ -46,6 +46,44 @@ class IosPushNotificationTest {
     }
 
     @Test
+    fun coldVideoTapIsDeliveredOnceWhenNavigationBinds() {
+        bindIosNotificationNavigation(null)
+        receiveIosPushNotification("VIDEO_COMPLETED", null, "17", true)
+        receiveIosPushNotification("VIDEO_COMPLETED", null, "0", true)
+
+        val navigation = MapmoryNavigation()
+        bindIosNotificationNavigation(navigation)
+        val request = navigation.notificationRequest.value!!
+        assertEquals(17L, assertIs<NotificationNavigationTarget.Video>(request.target).jobId)
+        assertFalse(request.preserveBackStack)
+
+        navigation.consumeNotification(request.id)
+        bindIosNotificationNavigation(null)
+        val replacement = MapmoryNavigation()
+        bindIosNotificationNavigation(replacement)
+        assertFalse(replacement.hasPendingNotification())
+    }
+
+    @Test
+    fun warmPhotoTapIsDeliveredImmediatelyAndPreservesBackStack() {
+        val navigation = MapmoryNavigation()
+        bindIosNotificationNavigation(navigation)
+        receiveIosPushNotification("PHOTO_RECORD_COMPLETED", "51", null, true)
+
+        val request = navigation.notificationRequest.value!!
+        assertEquals(51L, assertIs<NotificationNavigationTarget.Record>(request.target).id)
+        assertTrue(request.preserveBackStack)
+
+        receiveIosPushNotification("PHOTO_RECORD_COMPLETED", null, "7", true)
+        assertEquals(request, navigation.notificationRequest.value)
+
+        bindIosNotificationNavigation(null)
+        val replacement = MapmoryNavigation()
+        bindIosNotificationNavigation(replacement)
+        assertFalse(replacement.hasPendingNotification())
+    }
+
+    @Test
     fun warmVideoTapUsesExistingNavigationAndRejectsMalformedTargets() {
         val navigation = MapmoryNavigation()
         bindIosNotificationNavigation(navigation)
