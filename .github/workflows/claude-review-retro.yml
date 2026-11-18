@@ -71,6 +71,7 @@ jobs:
         run: |
           mkdir -p /tmp/proposal
           cp .github/claude-review/guide.md .retro/summary.md /tmp/proposal/
+          git show HEAD:.github/claude-review/guide.md > /tmp/proposal/guide.orig.md
       - uses: actions/upload-artifact@v4
         with:
           name: claude-review-retro

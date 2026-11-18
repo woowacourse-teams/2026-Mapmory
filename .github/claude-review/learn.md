@@ -10,7 +10,7 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
 - `.learn/coderabbit-review.json`: CodeRabbit 리뷰 본문. "Outside diff range" 같은 줄 밖 지적이 여기 있을 수 있다.
 - `.learn/coderabbit-comments.json`: CodeRabbit 인라인 지적. `commit`이 지적한 시점의 커밋이다.
 - `.learn/claude-comments.json`, `.learn/claude-summary.json`: 같은 PR에 Claude 리뷰가 남긴 인라인 지적과 요약.
-- `.learn/replies.json`: 지적에 달린 답글. 작성자가 동의했는지 판단하는 근거다.
+- `.learn/replies.json`: 지적에 달린 답글(저장소 구성원 것만). 작성자가 동의했는지 판단하는 근거다.
 - `refs/pr/<번호>`: PR 커밋. `git show <커밋>:<경로>`로 지적 시점의 코드를, `git log refs/pr/<번호>`로 이후 수정을 본다.
 - `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상).
 
@@ -19,7 +19,8 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
 1. **지적마다 판단하기:** CodeRabbit 지적(인라인과 리뷰 본문의 줄 밖 지적)마다 아래를 정한다.
    - **실제 문제인가:** 지적 시점의 코드를 열어 직접 확인한다. 라이브러리 동작에 관한 지적이면 WebFetch로 소스나 공식 문서를 연다.
      작성자가 답글에서 동의했거나 뒤 커밋에서 고쳤으면 실제 문제로 본다. 반박했으면 그 근거도 확인한다.
-   - **Claude가 잡았나:** Claude 인라인 지적이나 요약에 같은 원인의 문제가 있으면 잡은 것이다. 파일이 같아도 원인이 다르면 놓친 것이다.
+   - **Claude가 잡았나:** 지적 시점의 커밋이나 그 전 커밋을 본 Claude 리뷰(인라인 지적의 `commit`, 요약의 커밋별 기록)에
+     같은 원인의 문제가 있으면 잡은 것이다. 뒤 커밋에서야 잡았거나, 파일이 같아도 원인이 다르면 놓친 것이다.
    - **왜 놓쳤나:** 규칙이 없어서인지, 규칙은 있는데 문장이 모호해서인지, 리뷰 방법(라이브러리를 확인하지 않음 등) 때문인지 적는다.
 2. **규칙 고치기:** 실제 문제인데 놓친 것만 `guide.md`에 반영한다.
    - 기존 규칙으로 막을 수 있었으면 새로 만들지 말고 그 규칙의 문장을 더 분명하게 고친다.

@@ -55,7 +55,12 @@ jobs:
           TITLE: ${{ inputs.title }}
         run: |
           branch="claude-review/${KIND}-$(date -u +%Y%m%d)-${{ github.run_id }}"
-          cp /tmp/proposal/guide.md .github/claude-review/guide.md
+          # 수정안을 만든 뒤 base에 다른 규칙이 머지됐을 수 있다. 통째로 덮지 않고 3-way로 합친다.
+          if ! git merge-file -L 현재 -L 수정안을_만든_때 -L 수정안 \
+              .github/claude-review/guide.md /tmp/proposal/guide.orig.md /tmp/proposal/guide.md; then
+            echo "::error::수정안을 만든 뒤 바뀐 guide.md와 충돌한다. 다음 회고·학습에서 다시 만든다."
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"

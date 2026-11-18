@@ -35,8 +35,9 @@ gh api "repos/$REPO/issues/$PR/comments?per_page=100" --paginate \
   | jq -s 'add // [] | last // {}' > "$OUT/claude-summary.json"
 
 # 작성자가 CodeRabbit 지적에 단 답글. 실제 문제였는지 판단하는 근거로 쓴다.
+# 공개 저장소라 누구나 답글을 달 수 있다. 저장소 구성원이 단 답글만 넣어 지시가 섞인 외부 글을 Claude가 읽지 않게 한다.
 gh api "repos/$REPO/pulls/$PR/comments?per_page=100" --paginate \
-  --jq "$clean"' [.[] | select(.in_reply_to_id != null) | {in_reply_to_id, author: .user.login, body: (.body | clean(1500))}]' \
+  --jq "$clean"' [.[] | select(.in_reply_to_id != null and (.author_association | IN("OWNER", "MEMBER", "COLLABORATOR"))) | {in_reply_to_id, author: .user.login, body: (.body | clean(1500))}]' \
   | jq -s 'add // []' > "$OUT/replies.json"
 
 echo "CodeRabbit 지적 $(jq length "$OUT/coderabbit-comments.json")개, Claude 지적 $(jq length "$OUT/claude-comments.json")개"

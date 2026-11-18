@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: claude-review-learn-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
-
 jobs:
   learn:
     if: |
@@ -21,6 +17,11 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'backend-develop'
     # Claude는 읽기 권한 토큰만 받는다. 리뷰 본문에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    # 워크플로 수준 동시성은 대기 중인 run을 새 run이 취소하고, 사람 리뷰 이벤트도 그룹에 들어간다.
+    # CodeRabbit 리뷰마다 따로 돌게 job 수준에서 리뷰 ID로 묶는다.
+    concurrency:
+      group: claude-review-learn-${{ github.event.review.id }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -100,7 +101,7 @@ jobs:
         run: |
           claude -p "\`.learn-tools/learn.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.learn/\`에 있고, PR 커밋은 \`refs/pr/${PR_NUMBER}\`에 있다. 지적 시점의 커밋은 ${REVIEW_COMMIT}이다." \
             --model claude-opus-5-5 \
-            --allowedTools "Read,Grep,Glob,Edit,Write,WebFetch,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --allowedTools "Read,Grep,Glob,Edit,Write,WebFetch(domain:docs.github.com),WebFetch(domain:github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:docs.spring.io),WebFetch(domain:docs.oracle.com),WebFetch(domain:javadoc.io),WebFetch(domain:www.javadoc.io),WebFetch(domain:dev.mysql.com),WebFetch(domain:docs.aws.amazon.com),WebFetch(domain:hibernate.org),WebFetch(domain:docs.jboss.org),WebFetch(domain:junit.org),WebFetch(domain:site.mockito.org),WebFetch(domain:assertj.github.io),Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
             --output-format json > .learn/claude-output.json || true
           test -f .learn/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result // "없음"' .learn/claude-output.json 2>/dev/null)" > .learn/summary.md
 
@@ -120,6 +121,7 @@ jobs:
         run: |
           mkdir -p /tmp/proposal
           cp .github/claude-review/guide.md .learn/summary.md /tmp/proposal/
+          git show HEAD:.github/claude-review/guide.md > /tmp/proposal/guide.orig.md
       - uses: actions/upload-artifact@v4
         if: steps.diff.outputs.changed == 'true'
         with:
