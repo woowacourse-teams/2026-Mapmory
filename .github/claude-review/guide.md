@@ -1,7 +1,8 @@
 # Claude 리뷰 배운 규칙
 
 리뷰에서 놓친 문제나 잘못 지적한 문제를 바탕으로 쌓는 규칙이다. 기본 기준은 `review.md`에 있다.
-매주 회고 워크플로(`claude-review-retro.yml`)가 이 파일의 수정안을 PR로 올리고, 사람이 보고 머지한다.
+CodeRabbit 리뷰가 달릴 때마다 학습 워크플로(`claude-review-learn.yml`)가, 매주 회고 워크플로(`claude-review-retro.yml`)가
+이 파일의 수정안을 만들어 PR(막혀 있으면 이슈)로 올린다. 사람이 보고 머지한다. 적중 횟수에 따른 폐기는 주간 회고만 한다.
 
 ## 관리 규칙
 

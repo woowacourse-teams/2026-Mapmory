@@ -51,6 +51,7 @@ jobs:
 
             이 PR을 리뷰하고 결과를 한국어로 남겨라.
             `.github/claude-review/review.md`의 기준과 `.github/claude-review/guide.md`의 배운 규칙을 먼저 읽고 그대로 따른다.
+            특히 review.md의 "의심하고, 확인한다" 두 단계를 건너뛰지 않는다. 라이브러리 동작은 WebFetch로 소스나 공식 문서를 열어 확인한다.
 
             결과를 남기는 방법:
             - 특정 줄의 문제는 mcp__github_inline_comment__create_inline_comment로 인라인 코멘트를 단다.
@@ -60,4 +61,4 @@ jobs:
               문제가 없으면 짧게 그렇게 쓴다.
           claude_args: |
             --model claude-opus-5-5
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,WebFetch"

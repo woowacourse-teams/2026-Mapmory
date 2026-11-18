@@ -5,6 +5,7 @@
 기대한 지적은 같은 파일의 지정한 줄 범위 안에 Nit보다 높은 심각도로 있어야 찾은 것으로 본다.
 기대가 비어 있는 케이스는 Nit보다 높은 지적이 하나라도 있으면 실패다(오탐).
 기대 밖의 지적은 실패로 치지 않고 결과에 따로 남긴다. 맞는 지적일 수도 있어서 사람이 본다.
+gate가 false인 케이스는 놓쳐도 실패시키지 않고 찾은 개수만 기록한다.
 """
 import json
 import re
@@ -59,6 +60,7 @@ def grade(case, findings):
     passed = not missed and (case["expect"] or not blocking_extra)
     return {
         "id": case["id"],
+        "gate": case.get("gate", True),
         "passed": bool(passed),
         "found": found,
         "missed": missed,
@@ -76,11 +78,13 @@ def main():
         result = grade(case, load_findings(output_path))
     except (OSError, ValueError) as error:
         # 리뷰가 돌지 않은 것을 "지적 없음"으로 보면 오탐 케이스가 통과로 보인다. 따로 실패로 남긴다.
-        result = {"id": case_id, "passed": False, "found": [], "missed": [f"리뷰 결과 없음: {error}"], "extra": []}
+        result = {"id": case_id, "gate": True, "passed": False, "found": [], "missed": [f"리뷰 결과 없음: {error}"], "extra": []}
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    sys.exit(0 if result["passed"] else 1)
+    # 참고 케이스(gate: false)는 아직 못 잡는 문제를 기록하려고 둔다. 놓쳐도 검증을 실패시키지 않는다.
+    # 리뷰가 아예 돌지 않은 경우(gate가 True로 덮인 결과)는 참고 케이스라도 실패다.
+    sys.exit(0 if result["passed"] or result["gate"] is False else 1)
 
 
 if __name__ == "__main__":

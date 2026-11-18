@@ -59,7 +59,7 @@ jobs:
           CASE_ID: ${{ matrix.id }}
         run: |
           EVALS=.github/claude-review/evals
-          BASE=$(jq -r '.base' $EVALS/cases.json)
+          BASE=$(jq -r --arg id "$CASE_ID" '(.cases[] | select(.id == $id) | .base) // .base' $EVALS/cases.json)
           PATCH=$(jq -r --arg id "$CASE_ID" '.cases[] | select(.id == $id) | .patch' $EVALS/cases.json)
           TITLE=$(jq -r --arg id "$CASE_ID" '.cases[] | select(.id == $id) | .title' $EVALS/cases.json)
           git fetch --depth=1 origin "$BASE"
@@ -90,7 +90,7 @@ jobs:
           지적할 문제가 없으면 findings를 빈 배열로 둔다."
           claude -p "$PROMPT" \
             --model claude-opus-5-5 \
-            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)" \
+            --allowedTools "Read,Grep,Glob,WebFetch,Bash(git diff:*),Bash(git log:*),Bash(git show:*)" \
             --output-format json \
             --json-schema "$SCHEMA" > /tmp/output.json || true
 
@@ -124,10 +124,12 @@ jobs:
           {
             echo "## Claude 리뷰 회귀 검증"
             echo
+            echo "\"참고\" 케이스는 아직 못 잡아도 실패로 치지 않고, 찾은 개수만 기록한다."
+            echo
             echo "| 케이스 | 결과 | 찾음 | 놓침 | 기대 밖 지적 |"
             echo "|---|---|---|---|---|"
             for f in results/*.json; do
-              jq -r '"| \(.id) | \(if .passed then "통과" else "실패" end) | \(.found | join(", ")) | \(.missed | join(", ")) | \(.extra | join("<br>")) |"' "$f"
+              jq -r '"| \(.id) | \(if .gate == false then "참고 \(.found | length)/\((.found + .missed) | length)" elif .passed then "통과" else "실패" end) | \(.found | join(", ")) | \(.missed | join(", ")) | \(.extra | join("<br>")) |"' "$f"
             done
           } > summary.md
           cat summary.md >> "$GITHUB_STEP_SUMMARY"

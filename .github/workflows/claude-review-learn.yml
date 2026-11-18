@@ -1,0 +1,130 @@
+name: Claude Review Learn
+
+# CodeRabbit이 backend-develop 대상 PR에 리뷰를 남기면, Claude 리뷰가 놓친 지적을 찾아 배운 규칙(guide.md) 수정안을 만든다.
+# 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+# pull_request_review는 PR의 merge 커밋에 있는 워크플로로 돌기 때문에, main을 기다리지 않고 backend-develop에서 동작한다.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-learn-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  learn:
+    if: |
+      github.event.review.user.login == 'coderabbitai[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'backend-develop'
+    # Claude는 읽기 권한 토큰만 받는다. 리뷰 본문에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      checks: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REVIEW_ID: ${{ github.event.review.id }}
+      REVIEW_COMMIT: ${{ github.event.review.commit_id }}
+      BASE_BRANCH: backend-develop
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      base_branch: ${{ env.BASE_BRANCH }}
+      pr_number: ${{ env.PR_NUMBER }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 1
+
+      - name: Count CodeRabbit findings
+        id: count
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID/comments?per_page=100" --jq 'length')
+          outside=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID" --jq '.body | test("Outside diff range")')
+          echo "CodeRabbit 인라인 지적 ${count}개, 줄 밖 지적 ${outside}"
+          if [ "$count" -gt 0 ] || [ "$outside" = "true" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+
+      # 비교가 공정하도록 같은 커밋에 대한 Claude 리뷰가 끝날 때까지 기다린다. 리뷰 대상이 아니라 돌지 않았으면 그냥 넘어간다.
+      - name: Wait for Claude review of the same commit
+        if: steps.count.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 40); do
+            status=$(gh api "repos/${{ github.repository }}/commits/$REVIEW_COMMIT/check-runs?check_name=review" --jq '[.check_runs[].status] | if length == 0 then "none" elif all(. == "completed") then "completed" else "running" end')
+            echo "Claude 리뷰 상태: $status"
+            [ "$status" = "running" ] || break
+            sleep 30
+          done
+
+      - name: Collect reviews
+        if: steps.count.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/claude-review/learn-collect.sh "${{ github.repository }}" "$PR_NUMBER" "$REVIEW_ID" .learn
+          git fetch -q --depth=50 origin "pull/$PR_NUMBER/head:refs/pr/$PR_NUMBER"
+          git fetch -q --depth=1 origin "$REVIEW_COMMIT" || true
+
+      - name: Install Claude Code
+        if: steps.count.outputs.found == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose guide changes
+        if: steps.count.outputs.found == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.github/claude-review/learn.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.learn/\`에 있고, PR 커밋은 \`refs/pr/${PR_NUMBER}\`에 있다. 지적 시점의 커밋은 ${REVIEW_COMMIT}이다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,WebFetch,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .learn/claude-output.json || true
+          test -f .learn/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result // "없음"' .learn/claude-output.json 2>/dev/null)" > .learn/summary.md
+
+      - id: diff
+        if: steps.count.outputs.found == 'true'
+        run: |
+          if git diff --quiet -- .github/claude-review/guide.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          { echo "## #$PR_NUMBER CodeRabbit 리뷰에서 배우기"; echo; cat .learn/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
+      - name: Collect proposal
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          mkdir -p /tmp/proposal
+          cp .github/claude-review/guide.md .learn/summary.md /tmp/proposal/
+      - uses: actions/upload-artifact@v4
+        if: steps.diff.outputs.changed == 'true'
+        with:
+          name: claude-review-learn
+          path: /tmp/proposal/
+
+  propose-pr:
+    needs: learn
+    if: needs.learn.outputs.changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/claude-review-propose.yml
+    with:
+      base_branch: ${{ needs.learn.outputs.base_branch }}
+      kind: learn
+      title: "chore: #${{ needs.learn.outputs.pr_number }} CodeRabbit 리뷰에서 배운 규칙을 고친다"
+      intro: "#${{ needs.learn.outputs.pr_number }}에서 CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를 바탕으로 만든 `.github/claude-review/guide.md` 수정안이다. 사람이 보고 판단해 머지한다."
+      artifact: claude-review-learn
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
