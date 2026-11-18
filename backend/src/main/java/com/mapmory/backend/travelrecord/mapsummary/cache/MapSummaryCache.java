@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.cache.MemberCacheGenerations;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
@@ -15,8 +16,8 @@ import org.springframework.stereotype.Component;
  * 회원별 지도 요약을 서버 메모리에 둔다.
  *
  * <p>지도 화면은 앱을 열 때마다 부르지만 요약이 바뀌는 건 그 회원이 일지나 태그를 바꿀 때뿐이다.
- * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원 것을 모두 지운다. 서버가 한 대라 메모리로 충분하고,
- * 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
+ * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원의 세대를 올려 그전 항목을 읽지 않게 한다({@link MemberCacheGenerations}).
+ * 서버가 한 대라 메모리로 충분하고, 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
  */
 @Component
 @EnableConfigurationProperties(MapSummaryCacheProperties.class)
@@ -26,10 +27,12 @@ public class MapSummaryCache {
 
     private final Cache<GenerationKey, List<RegionMapSummary>> cache;
     private final DeploymentCacheControl control;
+    private final MemberCacheGenerations memberGenerations;
 
     public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry,
                            DeploymentCacheControl control) {
         this.control = control;
+        this.memberGenerations = new MemberCacheGenerations(properties.timeToLive());
         this.cache = Caffeine.newBuilder()
                 // 항목마다 지역 수가 1개(루트)부터 수백 개(하위)까지 달라, 개수 대신 지역 줄 수 합으로 메모리를 묶는다.
                 // 꽉 차면 덜 쓰인 항목부터 버린다(축출). 무게는 버릴 순서가 아니라 버릴 양만 정한다.
@@ -58,7 +61,9 @@ public class MapSummaryCache {
         if (snapshot.bypass()) {
             return List.copyOf(loader.get());
         }
-        GenerationKey key = new GenerationKey(snapshot.generation(), cacheKey);
+        // 회원 세대는 DB를 읽기 전에 정한다. 그 뒤에 무효화되면 이 조회는 옛 세대 키에 들어가 다음 조회가 읽지 않는다.
+        GenerationKey key = new GenerationKey(
+                snapshot.generation(), memberGenerations.current(cacheKey.memberId()), cacheKey);
         List<RegionMapSummary> result = cache.get(key, ignored -> List.copyOf(loader.get()));
         if (control.snapshot().generation() != snapshot.generation()) {
             cache.invalidate(key);
@@ -66,7 +71,12 @@ public class MapSummaryCache {
         return result;
     }
 
+    /**
+     * 세대를 먼저 올려 이후 조회가 그전 항목을 읽지 않게 한다. 남은 항목은 메모리를 비우려고 지운다.
+     * 계산 중인 항목은 순회에 보이지 않아 지우지 못하지만, 옛 세대 키라 읽히지 않고 TTL이나 축출로 사라진다.
+     */
     public void evictMember(Long memberId) {
+        memberGenerations.advance(memberId);
         cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
     }
 
@@ -75,7 +85,7 @@ public class MapSummaryCache {
         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
     }
 
-    private record GenerationKey(long generation, Key key) {
+    private record GenerationKey(long generation, long memberGeneration, Key key) {
     }
 
     private enum Scope {
