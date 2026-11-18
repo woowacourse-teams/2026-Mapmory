@@ -5,13 +5,15 @@ import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 그룹 경로에 들어온 회원이 그 그룹 멤버인지 확인한다. 그룹·초대·앨범 서비스가 맨 먼저 부른다.
  *
  * <p>그룹이 없을 때와 멤버가 아닐 때를 구분하지 않고 같은 404를 준다. 남의 그룹이 있는지 알려 주지 않기 위해서다.
- * 그룹 객체가 필요 없으면 {@link #validateMember}, 필요하면 {@link #findGroupOf}를 쓴다. 멤버 확인은 이 클래스에서만 한다.
+ * 그룹 객체가 필요 없으면 {@link #validateMember}, 읽기만 하면 {@link #findGroupOf}, 그룹을 바꾸면 {@link #lockGroupOf}를 쓴다.
+ * 멤버 확인은 이 클래스에서만 한다.
  */
 @Component
 public class GroupMembership {
@@ -45,7 +47,21 @@ public class GroupMembership {
     }
 
     /**
-     * 멤버인 그룹을 불러온다. 부르는 쪽 트랜잭션 안에서 돌려준 그룹을 바꿀 수 있다.
+     * 멤버인 그룹을 잠그고(FOR UPDATE) 불러온다. 그룹을 바꾸는 흐름은 이것으로 읽는다.
+     *
+     * <p>Hibernate는 그룹 행의 모든 컬럼(이름, 방장, 인원 수)을 UPDATE한다. 잠그지 않고 읽으면 읽은 뒤 커밋된 수락·나가기의
+     * 인원 수와 방장을 처음 읽은 값으로 되돌린다. 잠근 행은 REPEATABLE READ에서도 최신이다.
+     * 같은 트랜잭션에서 그룹을 먼저 일반 조회하면 1차 캐시의 옛 값을 돌려주므로, 트랜잭션에서 그룹을 처음 읽는 게 이 메서드여야 한다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TravelGroup lockGroupOf(Long groupId, Long memberId) {
+        return travelGroupRepository.findByIdForUpdate(groupId)
+                .filter(group -> group.hasMember(memberId))
+                .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
+    }
+
+    /**
+     * 멤버인 그룹을 읽기 위해 불러온다. 잠그지 않으므로 그룹을 바꾸는 데 쓰지 않는다({@link #lockGroupOf}).
      */
     @Transactional(readOnly = true)
     public TravelGroup findGroupOf(Long groupId, Long memberId) {

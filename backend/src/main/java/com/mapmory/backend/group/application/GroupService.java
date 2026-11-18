@@ -68,10 +68,13 @@ public class GroupService {
         return toDetail(groupMembership.findGroupOf(groupId, memberId), memberId);
     }
 
+    /**
+     * 그룹 행을 잠그고 바꾼다. 그룹을 바꾸는 다른 흐름(수락·나가기·앨범)과 같이 그룹 행을 먼저 잠근다.
+     */
     @Transactional
     public GroupDetail rename(Long memberId, Long groupId, String name) {
+        TravelGroup group = groupMembership.lockGroupOf(groupId, memberId);
         socialMemberGuard.require(memberId);
-        TravelGroup group = groupMembership.findGroupOf(groupId, memberId);
         group.rename(name);
         return toDetail(group, memberId);
     }
