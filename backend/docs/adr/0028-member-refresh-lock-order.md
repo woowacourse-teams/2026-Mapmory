@@ -42,9 +42,6 @@
 | refresh 회전 (`RefreshTokenService#rotate`) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 `FOR UPDATE` → 새 토큰 INSERT |
 | 재사용 판정 (`RefreshTokenService#handleReuse`, 회전 안에서) | `FOR SHARE` | 세션 `FOR UPDATE` → 제시 토큰 → 후속 토큰 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
 | 로그아웃 (`RefreshTokenService#revoke`) | `FOR SHARE` | 세션 `FOR UPDATE` → **세션의 refresh 일괄 UPDATE** |
-| 그룹 만들기 (`GroupService#create`) | `FOR UPDATE` | 다루지 않음(그룹·멤버 INSERT) |
-| 초대 수락 (`GroupInvitationService#accept`) | `FOR UPDATE` | 다루지 않음(그룹 `FOR UPDATE` → 멤버 INSERT) |
-| 앨범 열기·담기 (`AlbumService#open`, `#addEntry`) | `FOR UPDATE` | 다루지 않음(그룹 `FOR UPDATE` → 앨범·항목 INSERT) |
 
 닉네임 변경은 refresh를 다루지 않아 데드락과는 관계없지만 같은 이유로 잠근다(#591). `Member`는 UPDATE할 때 모든 컬럼을 쓰므로,
 잠그지 않고 읽은 뒤 커밋하면 그사이 커밋된 탈퇴·승격을 처음 읽은 값으로 덮어써 되돌린다.
@@ -54,6 +51,15 @@
 > FK 확인으로 회원을 공유 잠금했다(그룹 → 회원). 이대로 두면 같은 회원이 같은 그룹에 수락과 앨범 담기를 동시에 보낼 때 데드락이 났다(각 20회 중 거의 매번, 수락이 `CannotAcquireLockException`).
 > 그래서 앨범 열기·담기도 회원을 먼저 잠근다. 앨범 이름·지역 바꾸기, 나가기, 기록 삭제의 항목 떼기, 탈퇴 회원 정리는 회원을 참조하는 행을 넣지 않아(DELETE·UPDATE만) 그룹만 잠근다.
 > 그룹 흐름에서 회원을 참조하는 행을 넣는 새 흐름을 만들면 회원을 먼저 잠근다.
+
+> 2026-11-18 구현 업데이트: 위 변경을 되돌려 그룹 흐름은 회원 행을 잠그지 않는다. 순서는 모두 **그룹 → 회원(FK 공유 잠금)**이다.
+> 위에서 "DELETE·UPDATE만 하니 그룹만 잠근다"고 본 나가기가 틀렸다. FK 컬럼을 **다른 회원으로 바꾸는** UPDATE도 바뀐 회원 행을 공유 잠금한다.
+> 방장이 나가면 `travel_group.owner_member_id`가, 앨범을 연 멤버가 나가면 `album.opener_member_id`가 다음 멤버로 바뀌어 나가기는 그룹 → 다음 멤버 순서가 된다.
+> 회원 → 그룹 순서인 앨범 담기와 반대라, 다음 방장(또는 다음에 연 사람)이 같은 그룹에 담는 순간 데드락이 났다(각 20회 중 거의 매번, 담기가 `CannotAcquireLockException`).
+> 나가기가 다음 멤버를 먼저 잠그려면 그룹을 읽기 전에 다음 멤버를 알아야 해서 순서를 맞출 수 없다. 회원 잠금이 지키던 회원당 그룹 10개는
+> 같은 회원이 자기 요청을 동시에 보내야만 넘고 넘어도 다음 요청부터 막히므로, 상한을 넘을 수 있게 두고 회원 잠금을 뺀다(ADR 0022 결정 6).
+> FK 값이 그대로인 UPDATE(그룹 이름 바꾸기처럼 모든 컬럼을 다시 쓰는 경우)는 회원을 잠그지 않는다.
+> 그룹 흐름에서 회원을 먼저 잠그는 새 흐름을 만들지 않는다. 회원 한 명에 매인 상한이 필요하면 이 순서와 부딪히지 않는지 먼저 본다.
 
 ### 예외: 재사용 판정의 일괄 폐기는 refresh끼리의 순서를 따르지 않는다
 
@@ -159,8 +165,8 @@
   수정 전에도 데드락은 드물어(동시 출발 300회 중 1~4회) 이 테스트가 매번 실패하지는 않는다. 회귀를 막는 안전망이다.
 - `SocialLoginDuringWithdrawalIntegrationTest`: 기존 회원의 탈퇴와 같은 소셜 계정의 로그인(게스트 있음·없음)을 각각 30회 겹쳐도 탈퇴한 회원에게 쓸 수 있는 refresh가 남지 않고, 버려지지 않은 게스트는 승격된다(#584).
 - `WithdrawalRefreshRotationIntegrationTest`: 탈퇴와 refresh 갱신을 20회 동시에 보내도 데드락이 없고, 쓸 수 있는 refresh가 남지 않는다.
-- `GroupLimitConcurrencyIntegrationTest`: 그룹 9개인 회원이 동시에 두 번 만들거나 서로 다른 그룹에 동시에 수락해도(각 20회) 10개에서 멈추고 한 요청만 `TOO_MANY_GROUPS`다.
 - `GroupLockOrderConcurrencyIntegrationTest`: 같은 회원이 같은 그룹에 수락과 앨범 열기, 수락과 앨범 담기, 수락과 나가기를 각각 20회 동시에 보내도 데드락이 없다.
-  앨범 쪽을 그룹 → 회원 순서로 두면 앞의 두 경우가 실패한다.
+  방장이 나가면서 다음 방장이 앨범에 담는 경우, 앨범을 연 멤버가 나가면서 다음에 연 사람이 될 멤버가 담는 경우도 각 20회 데드락이 없다.
+  앨범 열기·담기가 회원을 먼저 잠그던 때(2026-11-17)는 뒤의 두 경우가 거의 매번 실패했다.
 - `TagLimitConcurrencyIntegrationTest`: 태그가 9개인 회원이 서로 다른 이름으로 동시에 두 번 만드는 것을 20회 반복해도 매번 10개에서 멈추고, 늦은 쪽은 `TAG_LIMIT_EXCEEDED`다.
 - SQL 로그에서 회전은 `select member_id …` → `… from member … for share of m1_0` → `… from refresh_token … for update of rt1_0` 순서로 나간다.
