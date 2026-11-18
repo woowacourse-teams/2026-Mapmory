@@ -99,8 +99,12 @@ jobs:
           CASE_ID: ${{ matrix.id }}
         run: |
           mkdir -p /tmp/result
+          code=0
           python3 -I .github/claude-review/evals/grade.py .github/claude-review/evals/cases.json \
-            "$CASE_ID" /tmp/output.json "/tmp/result/$CASE_ID.json"
+            "$CASE_ID" /tmp/output.json "/tmp/result/$CASE_ID.json" || code=$?
+          # PR 체크 화면에서 바로 보이도록 결과를 주석으로 남긴다.
+          jq -r '"::notice title=리뷰 검증 \(.id)::\(if .gate == false then "참고" elif .passed then "통과" else "실패" end) 찾음 \(.found | length)/\((.found + .missed) | length). 놓침: \(.missed | join(", ") | if . == "" then "없음" else . end)"' "/tmp/result/$CASE_ID.json"
+          exit $code
 
       - name: Upload result
         if: always()
