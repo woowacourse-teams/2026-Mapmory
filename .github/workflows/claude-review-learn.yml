@@ -6,6 +6,9 @@ name: Claude Review Learn
 on:
   pull_request_review:
     types: [submitted]
+  pull_request: # 임시: #726의 CodeRabbit 리뷰로 시험. 시험 뒤 되돌린다
+    paths:
+      - ".github/workflows/claude-review-learn.yml"
 
 permissions:
   contents: read
@@ -17,6 +20,7 @@ concurrency:
 jobs:
   learn:
     if: |
+      github.event_name == 'pull_request' ||
       github.event.review.user.login == 'coderabbitai[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'backend-develop'
@@ -29,10 +33,10 @@ jobs:
       issues: read
       checks: read
     env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      REVIEW_ID: ${{ github.event.review.id }}
-      REVIEW_COMMIT: ${{ github.event.review.commit_id }}
-      BASE_BRANCH: backend-develop
+      PR_NUMBER: "726" # 임시
+      REVIEW_ID: "5952580039" # 임시
+      REVIEW_COMMIT: 70be4e64c494195d76ca172a864df74d1abc5775 # 임시
+      BASE_BRANCH: chore/review-learn-coderabbit # 임시
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
       base_branch: ${{ env.BASE_BRANCH }}
