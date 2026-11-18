@@ -78,6 +78,7 @@ internal object UploadContainer {
                 }
             },
             analytics = FirebaseAnalyticsLogger(application),
+            configureHttpClient = { AuthReproduction.attach(application, it) },
         ).also { instance = it }
     }
 }

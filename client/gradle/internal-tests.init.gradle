@@ -1,0 +1,6 @@
+// Opt in without changing the normal debug instrumentation target.
+allprojects { project ->
+    project.plugins.withId('com.android.application') {
+        project.android.testBuildType = 'internal'
+    }
+}
