@@ -10,7 +10,7 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
 - `.learn/coderabbit-review.json`: CodeRabbit 리뷰 본문. "Outside diff range" 같은 줄 밖 지적이 여기 있을 수 있다.
 - `.learn/coderabbit-comments.json`: CodeRabbit 인라인 지적. `commit`이 지적한 시점의 커밋이다.
 - `.learn/claude-comments.json`, `.learn/claude-summary.json`: 같은 PR에 Claude 리뷰가 남긴 인라인 지적과 요약.
-- `.learn/replies.json`: 지적에 달린 답글(저장소 구성원 것만). 작성자가 동의했는지 판단하는 근거다.
+- `.learn/replies.json`: 지적에 달린 답글(PR 작성자와 저장소 구성원 것만). 작성자가 동의했는지 판단하는 근거다.
 - `refs/pr/<번호>`: PR 커밋. `git show <커밋>:<경로>`로 지적 시점의 코드를, `git log refs/pr/<번호>`로 이후 수정을 본다.
 - `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상).
 
