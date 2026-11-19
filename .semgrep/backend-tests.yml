@@ -1,0 +1,60 @@
+# 리뷰에서 배운 규칙(.github/claude-review/guide.md) 중 코드 모양만으로 판별할 수 있는 것을 옮긴 Semgrep 규칙.
+# 사람이나 Claude가 기억해야 지켜지는 규칙과 달리, 같은 코드에 늘 같은 결과를 낸다.
+# 규칙을 추가할 때는 고치기 전 코드에서 걸리고, 고친 뒤 코드와 지금 저장소 전체에서는 걸리지 않는지 확인한다(오탐 0).
+# 꼭 필요한 예외는 그 줄에 `// nosemgrep: <규칙 id>`와 이유를 단다.
+rules:
+  - id: wait-result-ignored
+    languages: [java]
+    severity: WARNING
+    message: >-
+      [R-003] 대기 결과를 버린다. 시간 초과면 false를 돌려주고 그대로 진행해,
+      의도한 순서를 거치지 않고도 테스트가 통과할 수 있다.
+      assertThat($X.await(...)).isTrue()로 확인하거나 시간 초과 때 실패시킨다.
+    metadata:
+      guide-rule: R-003
+      source: "#726 MapSummaryCacheTest, TravelRecordListCacheTest의 awaitQuietly"
+    paths:
+      include: ["backend/src/test/**/*.java"]
+    # 결과를 받지 않고 문장으로만 부른 호출만 잡는다. assertThat(...), if, 대입, return 안에서 쓰면 결과를 확인한 것이다.
+    # 문장 패턴(끝에 ;)은 식 안쪽까지 맞춰 버려서, 식으로 맞춘 뒤 그 식 하나가 문장 전체인지 확인한다.
+    patterns:
+      - pattern-either:
+          - pattern: (java.util.concurrent.CountDownLatch $X).await($T, $U)
+          - pattern: (java.util.concurrent.locks.Condition $X).await($T, $U)
+          - pattern: (java.util.concurrent.Semaphore $X).tryAcquire(...)
+      - pattern-either:
+          - pattern-inside: $X.await($T, $U);
+          - pattern-inside: $X.tryAcquire(...);
+      - pattern-not-inside: $F(..., $X.$M(...), ...)
+      - pattern-not-inside: $O.$F(..., $X.$M(...), ...)
+      - pattern-not-inside: $TYPE $V = $X.$M(...);
+      - pattern-not-inside: $V = $X.$M(...);
+      - pattern-not-inside: return $X.$M(...);
+      - pattern-not-inside: if (<... $X.$M(...) ...>) $BODY;
+      - pattern-not-inside: while (<... $X.$M(...) ...>) $BODY;
+
+  - id: executor-not-cleaned-up-on-failure
+    languages: [java]
+    severity: WARNING
+    message: >-
+      [R-001] 테스트가 만든 스레드 풀을 실패 경로에서 정리하지 않는다. 예외나 시간 초과가 나면 스레드와 커넥션이 남아
+      같은 컨테이너를 쓰는 다른 통합 테스트가 흔들린다. try-with-resources를 쓰거나 finally에서 shutdownNow()한다.
+    metadata:
+      guide-rule: R-001
+      source: "#713 TagLimitConcurrencyIntegrationTest.createAtOnce"
+    paths:
+      include: ["backend/src/test/**/*.java"]
+    # Executors로 만든 풀을 finally 밖에서 닫으면, 그 앞에서 예외가 나면 닫히지 않는다(#713의 모양).
+    # try-with-resources나 finally 안에서 닫으면 걸리지 않는다.
+    patterns:
+      - pattern-inside: |
+          $T $E = Executors.$NEW(...);
+          ...
+      - pattern-either:
+          - pattern: $E.shutdown();
+          - pattern: $E.shutdownNow();
+          - pattern: $E.close();
+      - pattern-not-inside: |
+          try { ... } finally { ... }
+      - pattern-not-inside: |
+          try { ... } catch ($EX $V) { ... } finally { ... }
