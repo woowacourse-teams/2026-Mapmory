@@ -97,6 +97,24 @@
           ]
         }
       ]
+    },
+    {
+      "id": "e-group-rename-without-lock",
+      "title": "refactor: 그룹 이름 바꾸기가 조회 경로를 다시 쓴다",
+      "base": "59fcd411bbe180f393c543772569b926899f46f9",
+      "patch": "e-group-rename-without-lock.patch",
+      "gate": false,
+      "source": "#729를 거꾸로 되돌린 도메인 케이스. 이름 바꾸기가 그룹 행을 잠그지 않고 읽고(@DynamicUpdate도 뺌), Hibernate가 모든 컬럼을 UPDATE해 그사이 커밋된 수락·나가기의 인원 수와 방장을 옛 값으로 되돌린다(domain.md 9절). 기준 커밋은 #729 head다.",
+      "expect": [
+        {
+          "name": "잠그지 않고 읽은 그룹을 바꿔 인원 수·방장을 옛 값으로 덮음",
+          "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupService.java",
+          "lines": [
+            69,
+            78
+          ]
+        }
+      ]
     }
   ]
 }

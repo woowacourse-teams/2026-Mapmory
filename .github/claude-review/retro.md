@@ -1,6 +1,6 @@
 # Claude 리뷰 회고 지침
 
-매주 회고 워크플로(`claude-review-retro.yml`)가 이 지침으로 `guide.md` 수정안을 만든다. 수정안은 회귀 검증을 거쳐 PR로 올라가고, 사람이 보고 머지한다.
+매주 회고 워크플로(`claude-review-retro.yml`)가 이 지침으로 `guide.md` 수정안을 만든다. 수정안은 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올라가고, 사람이 보고 머지한다.
 
 ## 입력
 
@@ -9,7 +9,7 @@
 - `.retro/rule-hits.json`: 지난 8주 동안 Claude 리뷰 코멘트에 붙은 규칙 ID별 적중 횟수.
 - `.retro/today`: 오늘 날짜.
 - `refs/pr/<번호>`: 머지된 PR마다 가져온 커밋. `git log refs/pr/713`, `git show <sha>`로 고치기 전과 뒤를 비교한다.
-- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상), 저장소 코드.
+- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/domain.md`(도메인 규칙, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상), 저장소 코드.
 
 ## 할 일
 
@@ -21,6 +21,7 @@
    - 기존 규칙으로 막을 수 있었는데 놓쳤다면, 새로 추가하지 말고 그 규칙의 문장을 더 분명하게 고친다.
    - 새로 만들거나 고친 규칙이 코드 모양만으로 판별되면(특정 API 호출, 특정 구조) 요약의 "Semgrep 규칙 제안"에 `.semgrep/` 규칙 YAML 초안을 쓴다.
      `.semgrep/backend-tests.yml`의 규칙을 참고한다. 고치기 전 코드에서 걸리고 고친 코드에서는 안 걸려야 한다는 확인은 사람이 한다.
+   - 원인이 리뷰 방법이나 도메인 규칙 누락이면 `guide.md`를 고치지 말고 요약의 "review.md 제안"·"domain.md 제안"에 적는다.
    - 잘못된 지적은 해당 규칙을 고치거나, "이런 경우는 지적하지 않는다"는 예외를 규칙에 넣는다.
 4. **규칙 정리:** `guide.md`의 관리 규칙(최대 20개, 폐기 조건)에 따라 겹치는 규칙은 합치고, 폐기 조건에 맞는 규칙은 뺀다.
    적중 횟수는 `.retro/rule-hits.json`으로 판단한다. 고정 규칙과 "기계 검사"가 있는 규칙(Semgrep이 먼저 잡음)은 적중이 없다는 이유로 빼지 않는다.
@@ -42,6 +43,10 @@
 - R-xxx: 어떤 폐기 조건에 해당하는지
 ## 같은 패턴이 남은 곳
 - `variants.md`와 같은 내용. 없으면 "없음"과 어떤 패턴으로 찾았는지
+## review.md 제안
+- 원인이 리뷰 방법(review.md가 다룰 문제)에 있으면 고칠 점. 없으면 생략
+## domain.md 제안
+- 놓친 문제가 ADR·코드에 있는 도메인 규칙인데 domain.md에 없거나 틀렸으면, 고칠 문장과 근거 ADR. 없으면 생략
 ## Semgrep 규칙 제안
 - 코드 모양으로 판별되는 규칙이면 YAML 초안. 없으면 생략
 ## 검증 케이스 제안
