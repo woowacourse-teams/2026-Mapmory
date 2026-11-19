@@ -1,6 +1,7 @@
 package com.mapmory.backend.common.handler;
 
 import com.mapmory.backend.common.ProblemDetailFactory;
+import com.mapmory.backend.common.http.RequestPaths;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,14 +29,15 @@ public class UnexpectedExceptionHandler {
             Exception exception,
             HttpServletRequest request
     ) {
+        String uri = RequestPaths.patternOf(request);
         log.atError()
                 .addKeyValue("event", "UNHANDLED_EXCEPTION")
                 .addKeyValue("status", 500)
                 .addKeyValue("httpMethod", request.getMethod())
-                .addKeyValue("uri", request.getRequestURI())
+                .addKeyValue("uri", uri)
                 .setCause(exception)
                 .log("Unhandled exception while processing {} {}",
-                        request.getMethod(), request.getRequestURI());
+                        request.getMethod(), uri);
         return problemDetailFactory.internalServerError(request);
     }
 }

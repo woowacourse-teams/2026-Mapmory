@@ -2,8 +2,8 @@ package com.mapmory.backend.common;
 
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.FieldErrorDetail;
+import com.mapmory.backend.common.http.RequestPaths;
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -64,7 +64,8 @@ public class ProblemDetailFactory {
     ) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(title);
-        problem.setInstance(URI.create(request.getRequestURI()));
+        // 원본 URI에는 초대 토큰 같은 경로 변수가 들어가므로 경로 패턴을 쓴다.
+        problem.setInstance(RequestPaths.instanceOf(request));
         return problem;
     }
 
