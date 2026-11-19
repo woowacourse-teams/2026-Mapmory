@@ -1,0 +1,30 @@
+# CloudWatch Agent가 읽는 Prometheus 수집 설정이다.
+# scripts/apply-cloudwatch-agent.sh가 ${ENV}를 dev 또는 prod로 바꿔
+# /opt/aws/amazon-cloudwatch-agent/var/prometheus.yaml에 둔다.
+# Blue(8081)와 Green(8091) 관리 포트를 모두 수집해 어느 슬롯이 서비스 중이어도 지표가 끊기지 않는다.
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: mapmory
+    metrics_path: /actuator/prometheus
+    sample_limit: 5000
+    static_configs:
+      - targets:
+          - 127.0.0.1:8081
+        labels:
+          service: mapmory-backend
+          environment: ${ENV}
+          slot: blue
+      - targets:
+          - 127.0.0.1:8091
+        labels:
+          service: mapmory-backend
+          environment: ${ENV}
+          slot: green
+    metric_relabel_configs:
+      - source_labels:
+          - __name__
+        regex: "jvm_info|http_server_requests_active_seconds_(gcount|gsum)"
+        action: drop

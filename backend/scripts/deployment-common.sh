@@ -5,6 +5,7 @@ readonly MAPMORY_ROOT=/opt/mapmory
 readonly MAPMORY_RELEASES="$MAPMORY_ROOT/releases"
 readonly MAPMORY_SLOTS="$MAPMORY_ROOT/slots"
 readonly MAPMORY_DEPLOYMENT_STATE=/var/lib/mapmory-deployments
+# shellcheck disable=SC2034 # switch-traffic.sh에서 쓴다.
 readonly MAPMORY_NGINX_BACKUP_ROOT=/var/lib/mapmory-deployments/nginx-backups
 readonly MAPMORY_NGINX_CONF_OVERRIDE=${MAPMORY_NGINX_CONF:-}
 
@@ -173,7 +174,8 @@ ensure_slot_link() {
     return 1
   }
 
-  local release="$MAPMORY_RELEASES/bootstrap-$slot-$(date -u +%Y%m%dT%H%M%SZ)-${DEPLOYMENT_ID}"
+  local release
+  release="$MAPMORY_RELEASES/bootstrap-$slot-$(date -u +%Y%m%dT%H%M%SZ)-${DEPLOYMENT_ID}"
   install -d -o root -g root -m 755 "$release"
   install -o ubuntu -g ubuntu -m 644 "$source_jar" "$release/mapmory-backend.jar"
   printf 'bootstrap\n' > "$release/.mapmory-release"
