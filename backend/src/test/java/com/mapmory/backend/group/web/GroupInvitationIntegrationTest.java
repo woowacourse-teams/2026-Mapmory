@@ -22,6 +22,8 @@ import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -245,6 +247,26 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
 
         assertThat(unauthorized).doesNotContain(token);
         assertThat(methodNotAllowed).doesNotContain(token);
+    }
+
+    @Test
+    void ERROR_디스패치_응답에도_원본_경로가_없다() throws Exception {
+        String token = JsonPath.read(invitationBody(jisu), "$.data.token");
+        String originalUri = "/api/v1/invitations/" + token + "/accept";
+
+        // 필터에서 처리되지 않은 예외나 sendError는 /error로 다시 디스패치되고, Boot의 BasicErrorController가 응답한다.
+        String body = mockMvc.perform(get("/error")
+                        .with(request -> {
+                            request.setDispatcherType(DispatcherType.ERROR);
+                            return request;
+                        })
+                        .requestAttr(RequestDispatcher.ERROR_STATUS_CODE, 500)
+                        .requestAttr(RequestDispatcher.ERROR_REQUEST_URI, originalUri))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.path").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain(token);
     }
 
     @Test

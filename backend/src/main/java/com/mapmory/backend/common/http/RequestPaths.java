@@ -14,6 +14,9 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>패턴이 없으면(시큐리티 필터에서 끝난 요청, 매핑되는 핸들러가 없는 요청) 원본 대신 {@link #UNKNOWN}을 쓴다.
  * 앞 몇 칸만 남기는 방식은 경로마다 어디까지 안전한지 따로 따져야 해서 쓰지 않는다.
+ *
+ * <p>{@code /error}(ERROR 디스패치)로 넘어간 응답은 Boot의 BasicErrorController가 만든다. 그 응답의 {@code path}는
+ * {@code spring.web.error.include-path: never}로 끈다.
  */
 public final class RequestPaths {
 
