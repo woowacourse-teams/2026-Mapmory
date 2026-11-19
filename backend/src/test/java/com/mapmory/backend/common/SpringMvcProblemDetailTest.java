@@ -43,7 +43,8 @@ class SpringMvcProblemDetailTest {
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(405))
-                .andExpect(jsonPath("$.instance").value("/test/method-restricted"));
+                // 매칭된 핸들러가 없어 경로 패턴이 없다. Spring이 채운 원본 경로 대신 UNKNOWN이 나간다(ProblemDetailInstanceAdvice).
+                .andExpect(jsonPath("$.instance").value("UNKNOWN"));
     }
 
     @RestController

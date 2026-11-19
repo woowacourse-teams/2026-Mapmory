@@ -4,12 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
+import com.mapmory.backend.common.handler.BusinessExceptionHandler;
 import com.mapmory.backend.group.domain.GroupInvitationRepository;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
@@ -22,7 +28,11 @@ import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +41,7 @@ import org.springframework.test.web.servlet.ResultActions;
 /**
  * 초대 만들기·미리보기·수락(T2)을 HTTP부터 DB까지 확인한다.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class GroupInvitationIntegrationTest extends IntegrationTest {
 
     @Autowired
@@ -174,6 +185,66 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("INVITATION_NOT_FOUND"));
         assertThat(travelGroupRepository.existsMember(group.getId(), minho.getId())).isFalse();
+    }
+
+    @Test
+    void 만료된_초대의_수락_실패는_로그와_응답에_토큰_대신_경로_패턴을_남긴다(CapturedOutput output) throws Exception {
+        String token = JsonPath.read(invitationBody(jisu), "$.data.token");
+        jdbcTemplate.update("UPDATE group_invitation SET expires_at = ?", LocalDateTime.now().minusMinutes(1));
+
+        // 초대 오류는 DEBUG로 남는다. 운영에서 레벨을 낮춰도 토큰이 없어야 하므로 DEBUG까지 켜서 본다.
+        Logger logger = (Logger) LoggerFactory.getLogger(BusinessExceptionHandler.class);
+        Level previousLevel = logger.getLevel();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
+
+        String body;
+        try {
+            body = accept(minho, token)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("INVITATION_NOT_FOUND"))
+                    .andExpect(jsonPath("$.instance").value("/api/v1/invitations/%7BtokenOrCode%7D/accept"))
+                    .andReturn().getResponse().getContentAsString();
+        } finally {
+            logger.setLevel(previousLevel);
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        ILoggingEvent event = appender.list.getFirst();
+        assertThat(event.getKeyValuePairs())
+                .anySatisfy(pair -> {
+                    assertThat(pair.key).isEqualTo("uri");
+                    assertThat(pair.value).isEqualTo("/api/v1/invitations/{tokenOrCode}/accept");
+                })
+                .allSatisfy(pair -> assertThat(String.valueOf(pair.value)).doesNotContain(token));
+        assertThat(event.getFormattedMessage())
+                .contains("/api/v1/invitations/{tokenOrCode}/accept")
+                .doesNotContain(token);
+        assertThat(output.getAll()).doesNotContain(token);
+        assertThat(body).doesNotContain(token);
+    }
+
+    @Test
+    void 시큐리티나_Spring이_만든_오류_응답에도_토큰이_없다() throws Exception {
+        String token = JsonPath.read(invitationBody(jisu), "$.data.token");
+
+        // 인증 없이: 시큐리티 필터에서 끝나 경로 패턴이 없다.
+        String unauthorized = mockMvc.perform(post("/api/v1/invitations/{tokenOrCode}/accept", token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.instance").value("UNKNOWN"))
+                .andReturn().getResponse().getContentAsString();
+        // 지원하지 않는 메서드: Spring이 ProblemDetail을 만들고, 그대로 두면 원본 경로를 instance에 넣는다.
+        String methodNotAllowed = mockMvc.perform(put("/api/v1/invitations/{tokenOrCode}/accept", token)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(minho)))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.instance").value("UNKNOWN"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(unauthorized).doesNotContain(token);
+        assertThat(methodNotAllowed).doesNotContain(token);
     }
 
     @Test
