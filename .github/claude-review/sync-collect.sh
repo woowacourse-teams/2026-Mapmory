@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # backend-develop에 들어온 변경에서 도메인 동기화 입력을 만든다.
 # 사용: sync-collect.sh <저장소> <이전 커밋> <이후 커밋> <출력 디렉터리>
-# 출력: adr.diff, signals.md, commits.md. 신호가 하나도 없으면 아무것도 만들지 않는다.
+# 출력: adr.diff, signals.md, commits.md, prs.txt(이 범위에서 머지된 PR 번호). 신호가 하나도 없으면 아무것도 만들지 않는다.
 set -uo pipefail
 
 repo="$1"; before="$2"; after="$3"; out="$4"
@@ -71,10 +71,13 @@ fi
   git log --format='- %h %s' "$range" | head -100
   echo
   # 머지 커밋에 연결된 PR의 설명. 팀 결정이 적혀 있을 수 있다.
+  # 이 커밋을 포함한 열린 PR도 함께 나온다. 이 커밋으로 머지된 PR만 남긴다.
+  : > "$out/prs.txt"
   for sha in $(git log --merges --format='%H' "$range" | head -20); do
-    # 이 커밋을 포함한 열린 PR도 함께 나온다. 이 커밋으로 머지된 PR만 남긴다.
-    gh api "repos/$repo/commits/$sha/pulls" \
-      --jq ".[] | select(.merge_commit_sha == \"$sha\") | \"## #\\(.number) \\(.title)\\n\\n\\((.body // \"\") | .[0:4000])\\n\"" 2>/dev/null || true
+    pr=$(gh api "repos/$repo/commits/$sha/pulls" --jq ".[] | select(.merge_commit_sha == \"$sha\")" 2>/dev/null || true)
+    [ -z "$pr" ] && continue
+    jq -r '.number' <<<"$pr" >> "$out/prs.txt"
+    jq -r '"## #\(.number) \(.title)\n\n\((.body // "") | .[0:4000])\n"' <<<"$pr"
   done
 } > "$out/commits.md"
 
