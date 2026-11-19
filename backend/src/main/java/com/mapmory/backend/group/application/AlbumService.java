@@ -5,7 +5,6 @@ import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.group.domain.Album;
 import com.mapmory.backend.group.domain.AlbumRepository;
 import com.mapmory.backend.group.domain.TravelGroup;
-import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionRepository;
@@ -13,7 +12,6 @@ import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.travelrecord.api.RecordBrief;
 import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
-import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,9 +22,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 앨범 열기(따로 올리기), 기록 담기(사진 붙이기), 이름·지역 바꾸기(T4).
  *
- * <p>앨범을 바꾸는 요청은 모두 그룹 행을 먼저 잠근다(TravelGroupRepository.findByIdForUpdate). 그룹을 바꾸는 쿼리끼리
- * 잠금 순서를 맞추고, 나중에 나가기(T3)와 겨뤄도 나간 뒤에 열거나 담는 일이 없게 한다. 그래서 멤버 확인도 GroupMembership 대신
- * 잠근 그룹으로 한다({@link #lockGroupOf}).
+ * <p>앨범을 바꾸는 요청은 모두 그룹 행을 먼저 잠그고, 잠근 그룹으로 소셜 회원인지와 멤버인지 확인한다({@link GroupMembership#lockGroupOf}).
+ * 그룹을 바꾸는 쿼리끼리 잠금 순서를 맞추고, 나중에 나가기(T3)와 겨뤄도 나간 뒤에 열거나 담는 일이 없게 한다.
  *
  * <p>그룹 잠금이 트랜잭션의 첫 조회여야 한다. REPEATABLE READ의 스냅샷은 첫 일반 조회 때 DB 전체를 기준으로 생긴다.
  * 회원 확인 같은 일반 조회를 먼저 하면 스냅샷이 잠금을 기다리기 전에 생겨, 잠금 뒤에 일반 조회로 읽는 멤버 목록과 앨범이 기다리기 전
@@ -42,26 +39,23 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class AlbumService {
 
     private final AlbumRepository albumRepository;
-    private final TravelGroupRepository travelGroupRepository;
+    private final GroupMembership groupMembership;
     private final RegionRepository regionRepository;
-    private final SocialMemberGuard socialMemberGuard;
     private final TravelRecordQuery travelRecordQuery;
     private final AlbumQueryService albumQueryService;
     private final TransactionTemplate transactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
 
     public AlbumService(AlbumRepository albumRepository,
-                        TravelGroupRepository travelGroupRepository,
+                        GroupMembership groupMembership,
                         RegionRepository regionRepository,
-                        SocialMemberGuard socialMemberGuard,
                         TravelRecordQuery travelRecordQuery,
                         AlbumQueryService albumQueryService,
                         PlatformTransactionManager transactionManager,
                         ApplicationEventPublisher eventPublisher) {
         this.albumRepository = albumRepository;
-        this.travelGroupRepository = travelGroupRepository;
+        this.groupMembership = groupMembership;
         this.regionRepository = regionRepository;
-        this.socialMemberGuard = socialMemberGuard;
         this.travelRecordQuery = travelRecordQuery;
         this.albumQueryService = albumQueryService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -73,7 +67,7 @@ public class AlbumService {
      */
     @Transactional
     public AlbumDetail open(Long memberId, Long groupId, Long travelRecordId, String name, Long regionId) {
-        TravelGroup group = lockGroupOf(groupId, memberId);
+        TravelGroup group = groupMembership.lockGroupOf(groupId, memberId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         Region region = findRegion(regionId == null ? record.regionId() : regionId);
         String albumName = Album.nameFor(name, record.title(), region);
@@ -103,7 +97,7 @@ public class AlbumService {
         if (name == null && regionId == null) {
             throw new BusinessException(GroupErrorCode.EMPTY_ALBUM_UPDATE);
         }
-        lockGroupOf(groupId, memberId);
+        groupMembership.lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         if (name != null) {
             album.rename(name);
@@ -115,7 +109,7 @@ public class AlbumService {
     }
 
     private AlbumEntryResult add(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
-        TravelGroup group = lockGroupOf(groupId, memberId);
+        TravelGroup group = groupMembership.lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         boolean created = album.addEntry(memberId, record.id());
@@ -126,15 +120,6 @@ public class AlbumService {
         // 새 항목의 담은 시각(created_at)은 저장할 때 정해진다. 응답에 넣으려고 여기서 저장한다.
         albumRepository.flush();
         return new AlbumEntryResult(albumQueryService.detailOf(album, memberId), created);
-    }
-
-    // 그룹을 잠근 뒤에 소셜 회원인지 확인한다. 회원 확인은 일반 조회라 잠금보다 먼저 하면 스냅샷이 잠금 전에 생긴다.
-    // 오류는 회원 쪽이 먼저다(게스트 403, 없거나 탈퇴한 회원 401). 그다음에 그룹이 없거나 멤버가 아니면 404다.
-    private TravelGroup lockGroupOf(Long groupId, Long memberId) {
-        Optional<TravelGroup> group = travelGroupRepository.findByIdForUpdate(groupId)
-                .filter(found -> found.hasMember(memberId));
-        socialMemberGuard.require(memberId);
-        return group.orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
     }
 
     // 알림은 커밋된 뒤 따로 보낸다(ADR 0022 결정 7). 받을 멤버는 그룹 잠금 아래에서 정한다.
