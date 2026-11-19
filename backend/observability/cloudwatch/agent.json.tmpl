@@ -1,0 +1,169 @@
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/mapmory-blue/application.log",
+            "log_group_name": "/mapmory/${ENV}/application",
+            "log_stream_name": "{instance_id}-blue"
+          },
+          {
+            "file_path": "/var/log/mapmory-green/application.log",
+            "log_group_name": "/mapmory/${ENV}/application",
+            "log_stream_name": "{instance_id}-green"
+          }
+        ]
+      }
+    },
+    "metrics_collected": {
+      "prometheus": {
+        "cluster_name": "mapmory-${ENV}",
+        "log_group_name": "/mapmory/${ENV}/prometheus-emf",
+        "prometheus_config_path": "/opt/aws/amazon-cloudwatch-agent/var/prometheus.yaml",
+        "emf_processor": {
+          "metric_declaration_dedup": true,
+          "metric_namespace": "Mapmory/Backend",
+          "metric_unit": {
+            "http_server_requests_seconds": "Seconds",
+            "http_server_requests_seconds_count": "Count",
+            "http_server_requests_seconds_sum": "Seconds",
+            "http_server_requests_seconds_max": "Seconds",
+            "http_client_requests_seconds_count": "Count",
+            "http_client_requests_seconds_sum": "Seconds",
+            "mapmory_operation_duration_seconds": "Seconds",
+            "mapmory_operation_duration_seconds_count": "Count",
+            "mapmory_operation_duration_seconds_sum": "Seconds",
+            "mapmory_operation_duration_seconds_max": "Seconds",
+            "jvm_memory_used_bytes": "Bytes",
+            "jvm_memory_max_bytes": "Bytes",
+            "hikaricp_connections_active": "Count",
+            "hikaricp_connections_pending": "Count",
+            "hikaricp_connections_max": "Count",
+            "hikaricp_connections_timeout_total": "Count",
+            "tomcat_threads_busy_threads": "Count",
+            "tomcat_threads_current_threads": "Count",
+            "tomcat_threads_config_max_threads": "Count",
+            "process_cpu_usage": "None",
+            "jvm_gc_pause_seconds_sum": "Seconds",
+            "jvm_gc_pause_seconds_count": "Count",
+            "cache_gets_total": "Count"
+          },
+          "metric_declaration": [
+            {
+              "source_labels": ["job", "uri"],
+              "label_matcher": "^mapmory;/api/v1/.*$",
+              "dimensions": [
+                ["service", "environment", "method", "uri", "quantile"]
+              ],
+              "metric_selectors": ["^http_server_requests_seconds$"]
+            },
+            {
+              "source_labels": ["job", "uri"],
+              "label_matcher": "^mapmory;/api/v1/.*$",
+              "dimensions": [
+                ["service", "environment", "method", "uri"],
+                ["service", "environment", "outcome"]
+              ],
+              "metric_selectors": ["^http_server_requests_seconds_(count|sum|max)$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "client_name", "outcome"]
+              ],
+              "metric_selectors": ["^http_client_requests_seconds_count$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "client_name"]
+              ],
+              "metric_selectors": ["^http_client_requests_seconds_sum$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "operation", "outcome", "quantile"]
+              ],
+              "metric_selectors": ["^mapmory_operation_duration_seconds$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "operation", "outcome"]
+              ],
+              "metric_selectors": ["^mapmory_operation_duration_seconds_(count|sum|max)$"]
+            },
+            {
+              "source_labels": ["job", "area"],
+              "label_matcher": "^mapmory;heap$",
+              "dimensions": [
+                ["service", "environment", "area", "id"]
+              ],
+              "metric_selectors": ["^jvm_memory_(used|max)_bytes$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "pool"]
+              ],
+              "metric_selectors": [
+                "^hikaricp_connections_(active|pending|max)$",
+                "^hikaricp_connections_timeout_total$"
+              ]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment"]
+              ],
+              "metric_selectors": [
+                "^tomcat_threads_(busy|current)_threads$",
+                "^tomcat_threads_config_max_threads$",
+                "^process_cpu_usage$"
+              ]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "gc"]
+              ],
+              "metric_selectors": ["^jvm_gc_pause_seconds_(sum|count)$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment", "cache", "result"]
+              ],
+              "metric_selectors": ["^cache_gets_total$"]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "Mapmory/EC2",
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}"
+    },
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["used_percent"]
+      },
+      "disk": {
+        "resources": ["/"],
+        "measurement": ["used_percent"]
+      }
+    }
+  }
+}
