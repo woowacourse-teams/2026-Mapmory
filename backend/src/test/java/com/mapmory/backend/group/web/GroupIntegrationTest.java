@@ -183,6 +183,20 @@ class GroupIntegrationTest extends IntegrationTest {
         assertThat(travelGroupRepository.count()).isZero();
     }
 
+    // 이름 바꾸기는 그룹을 먼저 잠그고 회원을 확인한다. 순서가 바뀌어도 오류는 회원 쪽(게스트 403)이 그룹 없음(404)보다 먼저다.
+    @Test
+    void 게스트는_멤버가_아니어도_이름을_바꾸려_하면_403이다() throws Exception {
+        Member guest = memberRepository.save(Member.ofGuest(UUID.randomUUID().toString(), "게스트", UUID.randomUUID()));
+        TravelGroup group = groupWith(jisu);
+
+        rename(guest, group.getId(), "게스트 이름")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
+        rename(guest, Long.MAX_VALUE, "게스트 이름")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_REQUIRED"));
+    }
+
     // 지금은 게스트가 멤버가 될 길이 없지만, 생기더라도 그룹 화면과 이름 바꾸기가 막히는지 본다.
     @Test
     void 게스트는_멤버로_들어가_있어도_그룹을_보거나_바꿀_수_없다() throws Exception {
