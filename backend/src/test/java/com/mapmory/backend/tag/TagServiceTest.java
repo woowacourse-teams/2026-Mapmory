@@ -3,6 +3,7 @@ package com.mapmory.backend.tag;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -152,6 +154,79 @@ class TagServiceTest {
         assertError(() -> tagService.create(member, "연인"), "INACTIVE_MEMBER");
 
         verifyNoInteractions(tagRepository);
+    }
+
+    @Test
+    void 같은_이름이_이미_있으면_만들지_않고_이름_중복으로_거절한다() {
+        when(member.getId()).thenReturn(10L);
+        memberIsLocked();
+        when(tagRepository.countByMemberId(10L)).thenReturn(0L);
+        when(tagRepository.existsByMemberIdAndNameKey(10L, "친구")).thenReturn(true);
+
+        assertError(() -> tagService.create(member, "친구"), "TAG_NAME_CONFLICT");
+
+        verify(tagRepository, never()).saveAndFlush(any(Tag.class));
+    }
+
+    @Test
+    void 수정이_이름_유니크_제약조건에_걸리면_이름_중복으로_바꾸고_캐시_무효화를_알리지_않는다() {
+        // 미리 확인한 뒤 다른 요청이 같은 이름을 먼저 커밋하면, flush에서 DB 유니크 제약이 막는다.
+        when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+        ReflectionTestUtils.setField(tag, "id", 1L);
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.of(tag));
+        when(tagRepository.existsByMemberIdAndNameKeyAndIdNot(10L, "연인", 1L)).thenReturn(false);
+        ConstraintViolationException constraintViolation = mock(ConstraintViolationException.class);
+        when(constraintViolation.getConstraintName()).thenReturn("uk_tag_member_name_key");
+        doThrow(new DataIntegrityViolationException("이름 중복", constraintViolation))
+                .when(tagRepository).flush();
+
+        assertError(() -> tagService.update(member, 1L, "연인"), "TAG_NAME_CONFLICT");
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void 이름을_바꾼_태그를_돌려준다() {
+        when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+        ReflectionTestUtils.setField(tag, "id", 1L);
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.of(tag));
+        when(tagRepository.existsByMemberIdAndNameKeyAndIdNot(10L, "연인", 1L)).thenReturn(false);
+
+        Tag updated = tagService.update(member, 1L, "연인");
+
+        assertThat(updated).isSameAs(tag);
+        assertThat(updated.getName()).isEqualTo("연인");
+        verify(tagRepository).flush();
+    }
+
+    @Test
+    void 회원의_태그를_저장소가_준_순서대로_돌려준다() {
+        when(member.getId()).thenReturn(10L);
+        Tag first = Tag.of(member, "친구");
+        Tag second = Tag.of(member, "연인");
+        when(tagRepository.findAllByMemberIdOrderByCreatedAtAscIdAsc(10L)).thenReturn(List.of(first, second));
+
+        assertThat(tagService.findAll(member)).containsExactly(first, second);
+    }
+
+    @Test
+    void 내_태그를_찾아_돌려준다() {
+        when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.of(tag));
+
+        assertThat(tagService.getOwnedTag(member, 1L)).isSameAs(tag);
+    }
+
+    @Test
+    void 없거나_남의_태그면_태그_없음으로_거절한다() {
+        // 남의 태그도 회원 id로 함께 찾으므로 없음과 같게 보인다. 존재를 드러내지 않는다.
+        when(member.getId()).thenReturn(10L);
+        when(tagRepository.findByIdAndMemberId(1L, 10L)).thenReturn(Optional.empty());
+
+        assertError(() -> tagService.getOwnedTag(member, 1L), "TAG_NOT_FOUND");
     }
 
     private void memberIsLocked() {

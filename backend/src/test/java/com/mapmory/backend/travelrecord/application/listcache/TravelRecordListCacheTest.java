@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
 import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.cache.DeploymentCacheEndpoint;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -117,6 +118,44 @@ class TravelRecordListCacheTest {
             Thread.currentThread().interrupt();
             throw new AssertionError("loader가 무효화 신호를 기다리다 중단됐다", exception);
         }
+    }
+
+    @Test
+    @DisplayName("한 회원을 비우면 그 회원 항목이 메모리에서도 빠진다")
+    void evictMemberFreesMemory() {
+        cache.get(key(1L, null, 0), () -> page(3));
+        cache.get(key(1L, "KR", 0), () -> page(2));
+        cache.get(key(2L, null, 0), () -> page(4));
+
+        cache.evictMember(1L);
+
+        assertThat(cache.weightedSize()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("일지 수로 무게를 매기고, 빈 페이지도 1로 센다")
+    void weighsByEntriesWithMinimumOne() {
+        cache.get(key(1L, null, 0), () -> page(0));
+        cache.get(key(1L, null, 1), () -> page(3));
+
+        assertThat(cache.weightedSize()).isEqualTo(1 + 3);
+    }
+
+    @Test
+    @DisplayName("조회 중에 배포 캐시 모드가 바뀌면 그 조회 결과를 남기지 않는다")
+    void dropsLoadWhoseDeploymentGenerationChanged() {
+        DeploymentCacheControl control = new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL);
+        DeploymentCacheEndpoint endpoint = new DeploymentCacheEndpoint(control);
+        TravelRecordListCache switching = new TravelRecordListCache(
+                new TravelRecordListCacheProperties(100, Duration.ofMinutes(30)), new SimpleMeterRegistry(), control);
+
+        TravelRecordListPage result = switching.get(key(1L, null, 0), () -> {
+            endpoint.changeMode(DeploymentCacheControl.Mode.BYPASS);
+            return page(5);
+        });
+
+        assertThat(result.entries()).hasSize(5);
+        assertThat(switching.weightedSize()).isZero();
     }
 
     private TravelRecordListCache.Key key(Long memberId, String countryCode, int page) {
