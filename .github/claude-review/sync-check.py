@@ -5,8 +5,8 @@
 - 수정안: Claude가 고친 domain.md, policies.md, summary.md
 
 하는 일:
-1. ADR 변경이 없으면 domain.md 수정을 버리고, policies.md에서 정책 문구(표의 첫 칸)가 바뀌거나 새로 생긴 행도 버린다.
-   상태·비고 칸만 바뀐 행은 남긴다.
+1. ADR 변경이 없으면 domain.md 수정을 버리고, policies.md는 표 행의 "상태"·"비고" 칸 변경만 남긴다.
+   정책 문구·보드·리뷰 판정 칸, 행 추가·삭제, 표 밖 문장 변경은 버린다.
 2. 남은 수정에서 근거(이번에 바뀐 ADR, 이번에 머지된 PR) 번호가 없는 새 줄과, 지운 줄을 요약에 붙인다.
 3. 결과 파일을 수정안 디렉터리에 다시 쓰고, 바뀐 파일 이름을 표준 출력 마지막 줄에 공백으로 구분해 낸다.
 """
@@ -23,16 +23,36 @@ source_re = re.compile(r"(^|[^0-9])(" + "|".join(map(re.escape, sources)) + r")(
 notes: list[str] = []
 
 
-def first_cell(line: str) -> str | None:
+def cells(line: str) -> list[str] | None:
     if not line.startswith("|"):
         return None
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-    return cells[0] if cells else None
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def headers(lines: list[str]) -> list[list[str] | None]:
+    """각 줄이 속한 표의 머리글. 표 밖이면 None."""
+    out: list[list[str] | None] = []
+    current = None
+    for i, line in enumerate(lines):
+        if not line.startswith("|"):
+            current = None
+        elif current is None and i + 1 < len(lines) and re.match(r"^\|[\s:|-]+\|\s*$", lines[i + 1]):
+            current = cells(line)
+        out.append(current)
+    return out
+
+
+def editable_columns(header: list[str] | None) -> set[int]:
+    """ADR 없이 코드 변경으로 바꿔도 되는 칸: 첫 칸이 아닌 "상태" 칸과 "비고" 칸. 리뷰 판정·리뷰 때·보드 칸은 안 된다."""
+    if not header:
+        return set()
+    return {i for i, h in enumerate(header) if (h == "상태" and i > 0) or "비고" in h}
 
 
 def filter_policies(orig: list[str], new: list[str]) -> list[str]:
-    """ADR 변경이 없을 때: 같은 정책 행의 상태·비고 변경만 남긴다.
-    정책 문구(표의 첫 칸)가 바뀐 행, 새로 생기거나 지운 행, 표 밖 문장 변경은 원본으로 되돌린다."""
+    """ADR 변경이 없을 때: 같은 표 행에서 상태·비고 칸 변경만 남긴다.
+    다른 칸(정책 문구, 보드, 리뷰 판정 등)이 바뀐 행, 새로 생기거나 지운 행, 표 밖 문장 변경은 원본으로 되돌린다."""
+    heads = headers(orig)
     sm = difflib.SequenceMatcher(a=orig, b=new, autojunk=False)
     out: list[str] = []
     dropped: list[str] = []
@@ -40,10 +60,12 @@ def filter_policies(orig: list[str], new: list[str]) -> list[str]:
         if tag == "equal":
             out += orig[i1:i2]
         elif tag == "replace" and i2 - i1 == j2 - j1:
-            for o, n in zip(orig[i1:i2], new[j1:j2]):
-                key = first_cell(o)
-                if key and first_cell(n) == key:
-                    out.append(n)  # 같은 정책 행에서 상태·비고만 바뀌었다
+            for k, (o, n) in enumerate(zip(orig[i1:i2], new[j1:j2])):
+                oc, nc = cells(o), cells(n)
+                allowed = editable_columns(heads[i1 + k])
+                same_shape = oc is not None and nc is not None and len(oc) == len(nc)
+                if same_shape and allowed and all(a == b for i, (a, b) in enumerate(zip(oc, nc)) if i not in allowed):
+                    out.append(n)  # 같은 행에서 상태·비고만 바뀌었다
                 else:
                     out.append(o)
                     dropped.append(n.strip())
@@ -51,7 +73,7 @@ def filter_policies(orig: list[str], new: list[str]) -> list[str]:
             out += orig[i1:i2]
             dropped += [l.strip() for l in (new[j1:j2] or orig[i1:i2])]
     for line in filter(None, dropped):
-        notes.append(f"- `policies.md`: ADR 변경 없이 정책 문구·행·문장을 바꾸려 해 버렸다: {line[:200]}")
+        notes.append(f"- `policies.md`: ADR 변경 없이 상태·비고 밖을 바꾸려 해 버렸다: {line[:200]}")
     return out
 
 
