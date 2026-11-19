@@ -61,23 +61,24 @@ Flyway 변경은 앱 배포 때 **새 Flyway migration 파일이 포함되어 �
 | --- | --- | --- |
 | 아티팩트 빌드 | `backend/buildspec.yml` | JAR, AppSpec, 스크립트, systemd 파일을 패키징 |
 | 파일 배치 | `backend/appspec.yml` | JAR는 `/opt/mapmory/deploy-staging`, 서비스 파일은 `/etc/systemd/system`에 복사 |
-| `BeforeInstall` | `bootstrap-blue-green.sh` | Nginx 포트로 활성 슬롯을 찾고 배포별 상태를 기록 |
+| `BeforeInstall` | `bootstrap-blue-green.sh` | Nginx 포트로 활성 슬롯을 찾고 배포별 상태를 기록. 끝에서 CloudWatch Agent 설정 적용 |
 | `AfterInstall` | `prepare-inactive-slot.sh` | 비활성 슬롯에 새 JAR를 보존·연결하고 시작해 health 확인 |
 | `ApplicationStart` | `switch-traffic.sh` | Nginx 설정을 검사하고 후보 슬롯으로 전환. 실패하면 복구 |
 | `ValidateService` | `validate-and-retain.sh` | 5분 관찰, 필요 시 복구, 통과 시 이전 프로세스 중지와 JAR 정리 |
 
 배포 후 `prepare-inactive-slot.sh`가 `mapmory-active-slot.service`만 부팅 자동 시작 대상으로 두고,
 개별 Blue·Green 서비스는 비활성화합니다. EC2 재부팅 시 부팅 서비스가 Nginx의 `proxy_pass`를 읽어
-활성 슬롯만 시작하고 health를 확인합니다. 배포 대상 EC2의 systemd에는 CloudWatch Agent가 다음 두 로그를
-모두 수집하도록 설정해야 합니다.
+활성 슬롯만 시작하고 health를 확인합니다.
 
-```text
-/var/log/mapmory-blue/application.log
-/var/log/mapmory-green/application.log
-```
+CloudWatch Agent 설정의 원본은 `backend/observability/cloudwatch/`입니다. 배포할 때마다 `BeforeInstall`에서
+`apply-cloudwatch-agent.sh`가 서버 환경(dev/prod)에 맞게 렌더링해 적용합니다. 이 설정은 Blue·Green 로그 파일과
+관리 포트 8081·8091을 모두 수집합니다.
 
-기존 수집 설정이 `/var/log/mapmory/application.log` 하나만 바라보면, 배포 전에 CloudWatch Agent 설정을
-두 경로로 갱신하고 Agent 설정 검증·재시작을 마쳐야 합니다. 이 저장소는 서버의 Agent 설정을 직접 변경하지 않습니다.
+- 서버와 내용이 같으면 아무것도 하지 않고, 다르면 기존 설정을 백업한 뒤 교체합니다.
+- **서버에서 손으로 고친 Agent 설정은 다음 배포에서 덮입니다.** 바꿀 내용은 저장소의 템플릿을 고칩니다.
+- 백업 위치: `/var/lib/mapmory-deployments/cloudwatch-backups/` (최근 10개)
+- 다시 적용: `sudo /opt/mapmory/bin/apply-cloudwatch-agent.sh`
+- 적용에 실패해도 배포는 계속됩니다. CodeDeploy 로그의 `[cloudwatch-agent] WARN`을 확인합니다.
 
 주요 코드는 [AppSpec](/Users/one/wooteco/mapmory/2026-Mapmory/backend/appspec.yml), [배포 스크립트](/Users/one/wooteco/mapmory/2026-Mapmory/backend/scripts), [systemd 서비스](/Users/one/wooteco/mapmory/2026-Mapmory/backend/systemd)에 있습니다.
 
@@ -132,7 +133,7 @@ sudo touch /var/lib/mapmory-deployments/<DEPLOYMENT_ID>/request-rollback
 - 프로필: `/etc/mapmory.env`의 `SPRING_PROFILES_ACTIVE=prod`.
 - 캐시: `/etc/mapmory-deployment-cache.env`의 `DEPLOYMENT_CACHE_INITIAL_MODE=BYPASS`. 두 슬롯이 공통으로 읽습니다.
 - Nginx: 현재 운영 API는 `/etc/nginx/conf.d/mapmory-api.conf`. 공통 코드는 `.conf` 파일 중 8080/8090 대상을 하나로 찾으며, 랜딩 파일은 수정하지 않습니다. 대상이 여러 개면 배포를 중단합니다.
-- 로그: CloudWatch Agent에 Blue·Green 파일 수집 설정을 등록·검증해야 합니다. 이 PR은 Agent 설정을 자동 변경하지 않습니다.
+- 로그·지표: 배포가 저장소의 CloudWatch Agent 설정(`backend/observability/cloudwatch/`)을 적용합니다. 적용 방식은 위 배포 단계 설명을 참고합니다.
 - DB·워커: DB 연결 여유와 렌더러 처리 상태, 두 알림 워커의 동시 실행 조건은 머지 전에 확인해야 합니다. 운영의 FCM은 현재 비활성화 상태이며 프로젝트 ID가 없으므로, 환경 설정을 유지합니다. FCM 프로젝트 ID나 인증 정보를 이번 배포 목적으로 새로 등록하지 않습니다.
 - 운영 이전 정상 버전 백업: `/opt/mapmory/prod-before-blue-green-20261110-175746`.
 

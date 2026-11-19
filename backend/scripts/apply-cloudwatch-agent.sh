@@ -20,6 +20,8 @@ readonly AGENT_CONFIG_DIR="$AGENT_ROOT/etc/amazon-cloudwatch-agent.d"
 readonly CONFIG_NAME=mapmory
 readonly APPLIED_AGENT_CONFIG="$AGENT_CONFIG_DIR/file_$CONFIG_NAME.json"
 readonly BACKUPS_TO_KEEP=10
+# fetch-config의 번역 단계가 etc/에 함께 만드는 파일이다. 실패하면 옛 설정과 섞이지 않게 같이 되돌린다.
+readonly GENERATED_FILES=(amazon-cloudwatch-agent.toml amazon-cloudwatch-agent.yaml env-config.json)
 
 log() {
   echo "[cloudwatch-agent] $*"
@@ -86,9 +88,12 @@ backup_current() {
   if [[ -d $AGENT_CONFIG_DIR ]]; then
     cp -pR "$AGENT_CONFIG_DIR" "$backup_dir/amazon-cloudwatch-agent.d" || return 1
   fi
-  if [[ -f $AGENT_ROOT/etc/amazon-cloudwatch-agent.toml ]]; then
-    cp -p "$AGENT_ROOT/etc/amazon-cloudwatch-agent.toml" "$backup_dir/" || return 1
-  fi
+  local generated
+  for generated in "${GENERATED_FILES[@]}"; do
+    if [[ -f $AGENT_ROOT/etc/$generated ]]; then
+      cp -p "$AGENT_ROOT/etc/$generated" "$backup_dir/" || return 1
+    fi
+  done
 }
 
 # 적용에 실패하면 백업한 파일을 되돌리고, Agent가 멈춰 있으면 이전 설정으로 다시 띄워 본다.
@@ -104,9 +109,15 @@ restore_backup() {
     shopt -u dotglob
     cp -pR "$backup_dir/amazon-cloudwatch-agent.d/." "$AGENT_CONFIG_DIR/"
   fi
-  if [[ -f $backup_dir/amazon-cloudwatch-agent.toml ]]; then
-    cp -p "$backup_dir/amazon-cloudwatch-agent.toml" "$AGENT_ROOT/etc/"
-  fi
+  # 백업 때 없던 생성 파일은 이번 적용에서 생긴 것이므로 지운다.
+  local generated
+  for generated in "${GENERATED_FILES[@]}"; do
+    if [[ -f $backup_dir/$generated ]]; then
+      cp -p "$backup_dir/$generated" "$AGENT_ROOT/etc/"
+    else
+      rm -f -- "${AGENT_ROOT:?}/etc/$generated"
+    fi
+  done
   if ! "$AGENT_CTL" -a status -m ec2 2>/dev/null | grep -q '"status": *"running"'; then
     "$AGENT_CTL" -a start -m ec2 >/dev/null 2>&1 || warn "이전 설정으로 Agent를 다시 시작하지 못했습니다."
   fi
@@ -152,6 +163,8 @@ main() {
   backup_dir="$BACKUP_ROOT/$(date -u +%Y%m%dT%H%M%SZ)-$$"
   backup_current "$backup_dir" || { warn "기존 설정을 백업하지 못해 적용을 중단합니다."; return 1; }
   log "기존 설정을 백업했습니다: $backup_dir"
+  # 적용이 계속 실패해도 백업이 쌓이지 않도록 결과와 관계없이 정리한다.
+  prune_backups
 
   install -d -m 755 "$(dirname "$PROMETHEUS_CONFIG")" || return 1
   if ! install -m 644 "$rendered_prometheus" "$PROMETHEUS_CONFIG"; then
@@ -166,7 +179,6 @@ main() {
     return 1
   fi
 
-  prune_backups
   log "CloudWatch Agent 설정을 적용했습니다 (ENV=$environment)."
 }
 
