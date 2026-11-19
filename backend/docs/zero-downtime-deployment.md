@@ -132,6 +132,7 @@ sudo touch /var/lib/mapmory-deployments/<DEPLOYMENT_ID>/request-rollback
 
 - 프로필: `/etc/mapmory.env`의 `SPRING_PROFILES_ACTIVE=prod`.
 - 캐시: `/etc/mapmory-deployment-cache.env`의 `DEPLOYMENT_CACHE_INITIAL_MODE=BYPASS`. 두 슬롯이 공통으로 읽습니다.
+- 버전: `/opt/mapmory/slots/<slot>/current/app-version.env`의 `APP_VERSION`(빌드한 커밋 앞 7자리). 슬롯 서비스가 마지막에 읽어 `/etc/mapmory.env`의 값을 덮어씁니다. 파일이 없으면 `/etc/mapmory.env`의 값을 씁니다.
 - Nginx: 현재 운영 API는 `/etc/nginx/conf.d/mapmory-api.conf`. 공통 코드는 `.conf` 파일 중 8080/8090 대상을 하나로 찾으며, 랜딩 파일은 수정하지 않습니다. 대상이 여러 개면 배포를 중단합니다.
 - 로그·지표: 배포가 저장소의 CloudWatch Agent 설정(`backend/observability/cloudwatch/`)을 적용합니다. 적용 방식은 위 배포 단계 설명을 참고합니다.
 - DB·워커: DB 연결 여유와 렌더러 처리 상태, 두 알림 워커의 동시 실행 조건은 머지 전에 확인해야 합니다. 운영의 FCM은 현재 비활성화 상태이며 프로젝트 ID가 없으므로, 환경 설정을 유지합니다. FCM 프로젝트 ID나 인증 정보를 이번 배포 목적으로 새로 등록하지 않습니다.
