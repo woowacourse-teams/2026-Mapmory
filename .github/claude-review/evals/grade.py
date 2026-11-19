@@ -34,6 +34,12 @@ def load_findings(path):
 
 
 def matches(finding, expected):
+    # 같은 문제를 여러 곳에서 지적할 수 있으면 alternatives로 다른 위치를 함께 받는다.
+    places = [expected] + expected.get("alternatives", [])
+    return any(matches_place(finding, place) for place in places)
+
+
+def matches_place(finding, expected):
     start, end = expected["lines"]
     line = finding.get("line") or 0
     file = re.sub(r"^(\./|a/|b/)", "", str(finding.get("file", "")))
