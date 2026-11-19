@@ -250,6 +250,20 @@ class GroupInvitationIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 없는_하위_경로의_404_응답에도_토큰이_없다() throws Exception {
+        String token = JsonPath.read(invitationBody(jisu), "$.data.token");
+
+        // 매핑되는 컨트롤러가 없어 정적 리소스 핸들러가 NoResourceFoundException을 던진다.
+        // Spring 기본 응답은 detail에 "No static resource <경로>."를 넣는다.
+        String body = mockMvc.perform(get("/api/v1/invitations/{tokenOrCode}/unknown", token)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(minho)))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain(token);
+    }
+
+    @Test
     void ERROR_디스패치_응답에도_원본_경로가_없다() throws Exception {
         String token = JsonPath.read(invitationBody(jisu), "$.data.token");
         String originalUri = "/api/v1/invitations/" + token + "/accept";

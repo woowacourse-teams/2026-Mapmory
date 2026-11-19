@@ -47,6 +47,15 @@ public class ProblemDetailFactory {
         return response(problem);
     }
 
+    public ResponseEntity<ProblemDetail> notFound(HttpServletRequest request) {
+        return response(create(
+                HttpStatus.NOT_FOUND,
+                "요청한 경로를 찾을 수 없습니다.",
+                "요청한 경로를 처리하는 API가 없습니다.",
+                request
+        ));
+    }
+
     public ResponseEntity<ProblemDetail> internalServerError(HttpServletRequest request) {
         return response(create(
                 HttpStatus.INTERNAL_SERVER_ERROR,
