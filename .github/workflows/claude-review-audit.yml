@@ -90,7 +90,11 @@ jobs:
             --model claude-opus-5-5 \
             --allowedTools "Read,Grep,Glob,Write,Bash(git log:*),Bash(git show:*)" \
             --output-format json > .audit/claude-output.json
-          test -f .audit/findings.md || echo "결과가 없다. Claude 출력: $(jq -r '.result' .audit/claude-output.json)" > .audit/findings.md
+          # 결과가 없으면 실패로 끝낸다. 성공으로 끝나면 문지기가 7일 동안 다시 돌리지 않는다.
+          if [ ! -f .audit/findings.md ]; then
+            echo "::error::점검 결과가 없다. Claude 출력: $(jq -r '.result' .audit/claude-output.json | head -c 500)"
+            exit 1
+          fi
 
       - id: result
         run: |

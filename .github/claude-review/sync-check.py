@@ -54,10 +54,11 @@ CODE_STATES = {"없음", "일부", "있음"}
 
 
 def state_change_ok(header: list[str] | None, old: list[str], new: list[str]) -> bool:
+    """결정이 필요한 상태의 행은 상태·비고 모두 ADR 없이 바꾸지 않는다. 비고에 결정 내용이나 리뷰 지시가 들어 있다."""
     if not header or "상태" not in header:
         return True
     i = header.index("상태")
-    return old[i] == new[i] or (old[i] in CODE_STATES and new[i] in CODE_STATES)
+    return old[i] in CODE_STATES and new[i] in CODE_STATES
 
 
 def filter_policies(orig: list[str], new: list[str]) -> list[str]:
