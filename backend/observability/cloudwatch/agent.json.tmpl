@@ -63,9 +63,19 @@
               "label_matcher": "^mapmory;/api/v1/.*$",
               "dimensions": [
                 ["service", "environment", "method", "uri"],
+                ["service", "environment", "outcome"],
+                ["service", "environment", "version", "outcome"]
+              ],
+              "metric_selectors": ["^http_server_requests_seconds_count$"]
+            },
+            {
+              "source_labels": ["job", "uri"],
+              "label_matcher": "^mapmory;/api/v1/.*$",
+              "dimensions": [
+                ["service", "environment", "method", "uri"],
                 ["service", "environment", "outcome"]
               ],
-              "metric_selectors": ["^http_server_requests_seconds_(count|sum|max)$"]
+              "metric_selectors": ["^http_server_requests_seconds_(sum|max)$"]
             },
             {
               "source_labels": ["job"],
