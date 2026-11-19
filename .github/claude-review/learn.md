@@ -13,7 +13,7 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
 - `.learn/replies.json`: 지적에 달린 답글(PR 작성자와 저장소 구성원 것만). 작성자가 동의했는지 판단하는 근거다.
 - 작업 폴더: `backend-develop`의 최신 코드. 형제 찾기는 여기서 한다.
 - `refs/pr/<번호>`: PR 커밋. `git show <커밋>:<경로>`로 지적 시점의 코드를, `git log refs/pr/<번호>`로 이후 수정을 본다.
-- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/domain.md`(도메인 규칙, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상).
+- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/domain.md`(도메인 규칙, 읽기만 한다), `.github/claude-review/policies.md`(보드에서 온 흐름별 정책, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상).
 
 ## 할 일
 
@@ -29,6 +29,7 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
      근거에 PR 번호, CodeRabbit이 지적한 내용, 작성자가 어떻게 고쳤는지 적는다. ID는 `guide.md`에 있는 가장 큰 번호 다음을 쓴다.
    - 원인이 리뷰 방법에 있으면(`review.md`가 다룰 문제) `guide.md`를 고치지 말고 요약의 "review.md 제안"에 적는다.
    - ADR·코드에 있는 도메인 규칙을 몰라서 놓쳤으면 `guide.md`가 아니라 요약의 "domain.md 제안"에 적는다.
+   - 이벤트 스토밍 보드의 흐름 정책을 몰라서 놓쳤으면 요약의 "policies.md 제안"에 적는다.
    - 새로 만들거나 고친 규칙이 코드 모양만으로 판별되면(특정 API 호출, 특정 구조) 요약의 "Semgrep 규칙 제안"에 `.semgrep/` 규칙 YAML 초안을 쓴다.
      `.semgrep/backend-tests.yml`의 규칙을 참고한다. 고치기 전 코드에서 걸리고 고친 코드에서는 안 걸려야 한다는 확인은 사람이 한다.
    - `guide.md`의 관리 규칙(최대 20개)을 지킨다. 넘으면 겹치는 규칙을 합친다. 적중 횟수에 따른 폐기는 주간 회고가 하므로 여기서는 하지 않는다.
@@ -54,6 +55,8 @@ CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를, 다음부터 �
 - `variants.md`와 같은 내용. 없으면 "없음"과 어떤 패턴으로 찾았는지
 ## domain.md 제안
 - 놓친 문제가 ADR·코드에 있는 도메인 규칙인데 domain.md에 없거나 틀렸으면, 고칠 문장과 근거 ADR. 없으면 생략
+## policies.md 제안
+- 놓친 문제가 보드의 흐름 정책인데 policies.md에 없거나, 코드가 바뀌어 상태(있음·없음 등)가 틀렸으면 고칠 줄. 없으면 생략
 ## Semgrep 규칙 제안
 - 코드 모양으로 판별되는 규칙이면 YAML 초안. 없으면 생략
 ## 검증 케이스 제안

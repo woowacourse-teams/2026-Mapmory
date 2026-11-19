@@ -13,6 +13,7 @@ on:
       - ".github/claude-review/review.md"
       - ".github/claude-review/guide.md"
       - ".github/claude-review/domain.md"
+      - ".github/claude-review/policies.md"
       - ".semgrep/**"
       - ".github/claude-review/signals.py"
 
@@ -101,8 +102,9 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             이 PR을 리뷰하고 결과를 한국어로 남겨라.
-            `.github/claude-review/review.md`의 기준, `.github/claude-review/guide.md`의 배운 규칙, `.github/claude-review/domain.md`의 도메인 규칙을 먼저 읽고 그대로 따른다.
-            domain.md는 PR이 건드린 패키지에 맞는 절만 읽는다.
+            `.github/claude-review/review.md`의 기준, `.github/claude-review/guide.md`의 배운 규칙, `.github/claude-review/domain.md`의 도메인 규칙,
+            `.github/claude-review/policies.md`의 흐름별 정책을 먼저 읽고 그대로 따른다.
+            domain.md는 PR이 건드린 패키지에 맞는 절만, policies.md는 PR이 건드린 흐름의 표와 데이터 분리 규칙만 읽는다.
             특히 review.md의 "의심하고, 확인한다" 두 단계를 건너뛰지 않는다. 라이브러리 동작은 WebFetch로 소스나 공식 문서를 열어 확인한다.
             `.claude-review-input/`에 기계 검사 결과가 있다(semgrep.md, 있으면 pit.md). review.md의 "기계 검사 결과" 절대로 판단한다.
 
@@ -113,7 +115,9 @@ jobs:
             - 전체 요약은 `gh pr comment --edit-last --create-if-none`으로 남겨, 커밋마다 새 코멘트가 쌓이지 않고 이전 요약을 고친다.
               제목에 검토한 커밋 SHA(7자리)를 적고, 맨 앞에 "이 PR의 불변식"을 한두 줄로 적는다.
               그 아래 "확인한 특이 케이스"에 질문표에서 실제로 따져 본 것과 결론을 짧게 남긴다(문제없음도 적는다).
-              domain.md와 코드·최신 ADR이 다른 것을 발견하면 "domain.md 제안"에 적는다. 이전 요약에 있던 지적은 지우지 말고 "이전 커밋에서 지적한 것"에 커밋 SHA와 함께
+              PR이 policies.md의 "결정 필요"·"보류" 항목을 코드로 정하면 "팀 결정 필요"에 흐름 번호와 함께 적는다.
+              domain.md·policies.md와 코드·최신 ADR이 다른 것을 발견하면 "domain.md 제안"·"policies.md 제안"에 적는다.
+              (예: PR이 정책을 새로 지키게 해서 상태를 "없음" → "있음"으로 바꿔야 할 때) 이전 요약에 있던 지적은 지우지 말고 "이전 커밋에서 지적한 것"에 커밋 SHA와 함께
               한 줄씩 남겨, 학습 워크플로가 커밋마다 무엇을 잡았는지 알 수 있게 한다. 문제가 없으면 짧게 그렇게 쓴다.
           claude_args: |
             --model claude-opus-5-5

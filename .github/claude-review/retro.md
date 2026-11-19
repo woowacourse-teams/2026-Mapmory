@@ -9,7 +9,7 @@
 - `.retro/rule-hits.json`: 지난 8주 동안 Claude 리뷰 코멘트에 붙은 규칙 ID별 적중 횟수.
 - `.retro/today`: 오늘 날짜.
 - `refs/pr/<번호>`: 머지된 PR마다 가져온 커밋. `git log refs/pr/713`, `git show <sha>`로 고치기 전과 뒤를 비교한다.
-- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/domain.md`(도메인 규칙, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상), 저장소 코드.
+- `.github/claude-review/review.md`(기본 기준, 읽기만 한다), `.github/claude-review/domain.md`(도메인 규칙, 읽기만 한다), `.github/claude-review/policies.md`(보드에서 온 흐름별 정책, 읽기만 한다), `.github/claude-review/guide.md`(고칠 대상), 저장소 코드.
 
 ## 할 일
 
@@ -47,6 +47,8 @@
 - 원인이 리뷰 방법(review.md가 다룰 문제)에 있으면 고칠 점. 없으면 생략
 ## domain.md 제안
 - 놓친 문제가 ADR·코드에 있는 도메인 규칙인데 domain.md에 없거나 틀렸으면, 고칠 문장과 근거 ADR. 없으면 생략
+## policies.md 제안
+- 놓친 문제가 보드의 흐름 정책인데 policies.md에 없거나, 코드가 바뀌어 상태(있음·없음 등)가 틀렸으면 고칠 줄. 없으면 생략
 ## Semgrep 규칙 제안
 - 코드 모양으로 판별되는 규칙이면 YAML 초안. 없으면 생략
 ## 검증 케이스 제안
