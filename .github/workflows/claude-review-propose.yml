@@ -44,6 +44,7 @@ jobs:
       contents: write
     outputs:
       branch: ${{ steps.push.outputs.branch }}
+      conflict: ${{ steps.push.outputs.conflict }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -65,8 +66,10 @@ jobs:
             [ -f "/tmp/proposal/$f" ] || continue
             if ! git merge-file -L 현재 -L 수정안을_만든_때 -L 수정안 \
                 ".github/claude-review/$f" "/tmp/proposal/${f%.md}.orig.md" "/tmp/proposal/$f"; then
-              echo "::error::수정안을 만든 뒤 바뀐 $f와 충돌한다. 다음 실행에서 다시 만든다."
-              exit 1
+              # 동기화는 같은 범위를 다시 보지 않는다. 버리지 않고 이슈로 남겨 사람이 반영하게 한다.
+              echo "::warning::수정안을 만든 뒤 바뀐 $f와 충돌한다. PR 대신 이슈로 남긴다."
+              echo "conflict=true" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
           done
           if git diff --quiet; then
@@ -82,6 +85,7 @@ jobs:
 
   eval:
     needs: push
+    if: needs.push.outputs.conflict != 'true'
     uses: ./.github/workflows/claude-review-eval.yml
     with:
       ref: ${{ needs.push.outputs.branch }}
@@ -91,7 +95,7 @@ jobs:
   open-pr:
     # 검증이 실패해도 올린다. 실패 내용을 본문에 적어 사람이 판단한다.
     needs: [push, eval]
-    if: always() && needs.push.result == 'success'
+    if: always() && needs.push.result == 'success' && needs.push.outputs.conflict != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -145,3 +149,44 @@ jobs:
             echo "PR을 만들 수 없어 이슈로 남긴다. 브랜치 \`$BRANCH\`로 직접 PR을 연다. 반영하지 않으면 이슈를 닫고 브랜치를 지운다." >> body.md
             gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md
           fi
+
+  # 수정안이 그사이 바뀐 파일과 충돌하면, 수정안과 요약을 이슈로 남긴다. 이 job에는 Claude가 없다.
+  report-conflict:
+    needs: push
+    if: needs.push.outputs.conflict == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ inputs.title }}
+          INTRO: ${{ inputs.intro }}
+          FILES: ${{ inputs.files }}
+        run: |
+          {
+            echo "$INTRO"
+            echo
+            echo "수정안을 만든 뒤 대상 파일이 바뀌어 자동으로 합치지 못했다. 아래 diff를 보고 사람이 반영한다."
+            echo
+            sed 's/^## /### /' /tmp/proposal/summary.md
+            for f in $FILES; do
+              [ -f "/tmp/proposal/$f" ] || continue
+              echo
+              echo "<details><summary>$f 수정안 diff (수정안을 만든 때 기준)</summary>"
+              echo
+              echo '```diff'
+              diff -u "/tmp/proposal/${f%.md}.orig.md" "/tmp/proposal/$f" | head -400 || true
+              echo '```'
+              echo
+              echo "</details>"
+            done
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "$TITLE (충돌, 수동 반영)" --body-file body.md

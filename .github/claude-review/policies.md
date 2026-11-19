@@ -46,7 +46,7 @@
 | 정책 | 보드 | 상태 | 코드 · 비고 |
 |---|---|---|---|
 | 소셜 회원만, 30명, 초대 1일, 멤버 아니면 404 | 신규 | 있음 | `SocialMemberGuard`, `TravelGroup.MAX_MEMBERS`, `GroupInvitation.VALID_FOR`, `GROUP_NOT_FOUND` |
-| 한 앨범에 멤버당 기록 하나 · 한 기록은 여러 앨범 | 신규 | 보드와 다름 | 10/28 V36: 한 사람이 기록 여럿을 담는다(ADR 0022 업데이트, `UNIQUE(album, record)`). 한 기록은 여러 앨범 그대로 |
+| 한 앨범에 멤버당 기록 하나 · 한 기록은 여러 앨범 | 신규 | 보드와 다름 | 10/28 V36: 한 사람이 기록 여럿을 담는다(ADR 0022 2026-10-28 보완, `UNIQUE(album, record)`). 한 기록은 여러 앨범 그대로 |
 | 앨범에 올리면 다른 멤버에게 푸시(T6) | 신규 | 있음 | `push_outbox`, `AlbumPushDelivery`. 실패해도 올리기는 성공 |
 | 기록이 지워지면 모든 앨범에서 뺀다 · 연 사람 넘김(T7) | 신규 | 있음 | `TravelRecordDeletedListener`, `AlbumEntryCleaner` |
 | 빈 앨범은 지운다(추천) | 결정 필요 | 보드와 다름 | 지우기로 정해 구현됨(ADR 0022 2026-10-29 보완, `AlbumEntryCleaner`) |

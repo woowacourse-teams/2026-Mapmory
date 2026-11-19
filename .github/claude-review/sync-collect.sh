@@ -14,7 +14,8 @@ fi
 range="$before..$after"
 echo "비교 범위: $range"
 
-git diff "$before" "$after" -- backend/docs/adr > "$out/adr.diff"
+# 결정 문서(번호가 붙은 ADR)만 본다. 목록(README) 같은 다른 파일은 결정이 아니다.
+git diff "$before" "$after" -- 'backend/docs/adr/[0-9][0-9][0-9][0-9]-*.md' > "$out/adr.diff"
 
 java_files=$(git diff --name-only "$before" "$after" -- backend/src/main/java || true)
 signals=""

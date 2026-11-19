@@ -49,6 +49,17 @@ def editable_columns(header: list[str] | None) -> set[int]:
     return {i for i, h in enumerate(header) if (h == "상태" and i > 0) or "비고" in h}
 
 
+# 코드 변경으로 갈 수 있는 상태. "결정 필요"·"보류"·"보드와 다름"·"앱"에서 나오거나 그리로 가는 것은 결정이 필요하다.
+CODE_STATES = {"없음", "일부", "있음"}
+
+
+def state_change_ok(header: list[str] | None, old: list[str], new: list[str]) -> bool:
+    if not header or "상태" not in header:
+        return True
+    i = header.index("상태")
+    return old[i] == new[i] or (old[i] in CODE_STATES and new[i] in CODE_STATES)
+
+
 def filter_policies(orig: list[str], new: list[str]) -> list[str]:
     """ADR 변경이 없을 때: 같은 표 행에서 상태·비고 칸 변경만 남긴다.
     다른 칸(정책 문구, 보드, 리뷰 판정 등)이 바뀐 행, 새로 생기거나 지운 행, 표 밖 문장 변경은 원본으로 되돌린다."""
@@ -56,6 +67,7 @@ def filter_policies(orig: list[str], new: list[str]) -> list[str]:
     sm = difflib.SequenceMatcher(a=orig, b=new, autojunk=False)
     out: list[str] = []
     dropped: list[str] = []
+    kept: list[str] = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             out += orig[i1:i2]
@@ -64,8 +76,10 @@ def filter_policies(orig: list[str], new: list[str]) -> list[str]:
                 oc, nc = cells(o), cells(n)
                 allowed = editable_columns(heads[i1 + k])
                 same_shape = oc is not None and nc is not None and len(oc) == len(nc)
-                if same_shape and allowed and all(a == b for i, (a, b) in enumerate(zip(oc, nc)) if i not in allowed):
-                    out.append(n)  # 같은 행에서 상태·비고만 바뀌었다
+                if same_shape and allowed and all(a == b for i, (a, b) in enumerate(zip(oc, nc)) if i not in allowed) \
+                        and state_change_ok(heads[i1 + k], oc, nc):
+                    out.append(n)  # 같은 행에서 상태(없음·일부·있음 사이)·비고만 바뀌었다
+                    kept.append(n.strip())
                 else:
                     out.append(o)
                     dropped.append(n.strip())
@@ -73,7 +87,9 @@ def filter_policies(orig: list[str], new: list[str]) -> list[str]:
             out += orig[i1:i2]
             dropped += [l.strip() for l in (new[j1:j2] or orig[i1:i2])]
     for line in filter(None, dropped):
-        notes.append(f"- `policies.md`: ADR 변경 없이 상태·비고 밖을 바꾸려 해 버렸다: {line[:200]}")
+        notes.append(f"- `policies.md`: ADR 변경 없이 상태·비고 밖을 바꾸거나 결정이 필요한 상태를 바꾸려 해 버렸다: {line[:200]}")
+    for line in kept:
+        notes.append(f"- `policies.md` 코드 변경으로 바꾼 행(비고에 결정처럼 적힌 말이 없는지 본다): {line[:200]}")
     return out
 
 
