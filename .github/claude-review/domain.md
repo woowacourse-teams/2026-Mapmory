@@ -167,9 +167,12 @@ PR 리뷰가 `review.md`와 함께 읽는 도메인 규칙이다. 도메인은 *
   - #730이 머지되기 전 `backend-develop`에는 #714의 회원 잠금이 남아 있다. 그 코드를 근거로 새 흐름에 회원 잠금을 더하지 않는다.
 - **FK 컬럼을 INSERT하거나 다른 행으로 UPDATE하면 InnoDB가 참조 행에 공유 잠금을 건다.** 명시적 `FOR UPDATE`가 없어도 잠금 순서에 들어간다.
   예: `album_entry.member_id` INSERT, `travel_group.owner_member_id` 변경은 회원 행을 잠근다(#730).
+  FK 값이 그대로인 UPDATE는 참조 행을 잠그지 않는다. 앨범 지역을 바꾸면 `region_id`로 `region` 행을 공유 잠금하지만, `region`을 잠그는 흐름은 없다(ADR 0028).
 - **바꾸는 쿼리는 그 애그리거트 행을 트랜잭션의 첫 쿼리로 잠근다.** 그룹은 `findByIdForUpdate`/`lockGroupOf`. 먼저 읽고 나중에 잠그면 옛 값으로 판단한다.
   REPEATABLE READ에서는 잠금 전에 한 일반 조회가 스냅샷을 만들어, 잠근 뒤의 일반 조회도 옛 값을 본다(#713).
+  그룹 이름 바꾸기와 앨범 열기·담기·바꾸기는 한 진입점 `GroupMembership#lockGroupOf`로 그룹을 첫 조회로 잠그고, 회원 확인(게스트 403, 없거나 탈퇴 401)은 잠금 뒤에 한다(ADR 0028).
 - **Hibernate는 기본으로 엔티티의 모든 컬럼을 UPDATE한다.** 잠그지 않고 읽은 엔티티의 한 필드만 바꿔도, 그사이 커밋된 다른 컬럼(인원 수·방장 등)을 옛 값으로 되돌린다(#729).
+  그룹(`TravelGroup`)과 앨범(`Album`)은 `@DynamicUpdate`로 바뀐 컬럼만 UPDATE해, 이름·지역만 바꾸면 회원 FK 컬럼(`owner_member_id`, `opener_member_id`)을 쓰지 않는다(ADR 0028).
   #729가 머지되기 전 `backend-develop`의 `GroupService.rename`은 그룹을 잠그지 않는다. 그룹을 바꾸는 새 흐름은 이것을 따라 하지 않는다.
 - **개수 상한은 "판단"과 "보장"을 나눠 본다.** 몇 개까지인지는 도메인 규칙이고, 동시에 와도 넘지 않는 것은 잠금이 맡는다. 엔티티에 넣는다고 보장되지 않는다.
   - 개수가 애그리거트 자신의 필드면 엔티티가 판단한다. 그룹 30명은 `TravelGroup`이 `memberCount`로 판단하고, 그룹 행을 잠근 채로 읽어 보장한다.
