@@ -10,7 +10,10 @@
         {
           "name": "동시성 테스트가 실패 경로에서 executor를 정리하지 않음",
           "file": "backend/src/test/java/com/mapmory/backend/tag/TagLimitConcurrencyIntegrationTest.java",
-          "lines": [69, 93]
+          "lines": [
+            69,
+            93
+          ]
         }
       ]
     },
@@ -23,17 +26,26 @@
         {
           "name": "update의 @Transactional 제거",
           "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
-          "lines": [38, 42]
+          "lines": [
+            38,
+            42
+          ]
         },
         {
           "name": "findOwnedTag의 소유권 검증 누락",
           "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
-          "lines": [62, 66]
+          "lines": [
+            62,
+            66
+          ]
         },
         {
           "name": "태그 개수 상한 off-by-one",
           "file": "backend/src/main/java/com/mapmory/backend/tag/TagService.java",
-          "lines": [67, 71]
+          "lines": [
+            67,
+            71
+          ]
         }
       ]
     },
@@ -43,6 +55,134 @@
       "patch": "c-tag-rename.patch",
       "source": "동작이 같은 private 메서드 이름 변경",
       "expect": []
+    },
+    {
+      "id": "d-cache-generation",
+      "title": "fix: 기록 저장과 겹친 지도·목록 조회가 옛 값을 30분 남기지 않게 한다",
+      "base": "2a974f070a70d43e994fb6ce532e05b32b03d683",
+      "patch": "d-cache-generation.patch",
+      "gate": false,
+      "source": "#726 첫 커밋(70be4e6). CodeRabbit이 Minor 4개를 찾았고 작성자가 모두 고쳤다. Claude 리뷰는 같은 커밋에서 0개였다. 아직 게이트로 쓰지 않고 찾은 개수를 기록한다.",
+      "expect": [
+        {
+          "name": "세대 메타데이터가 만료되면 0으로 돌아가 살아 있는 옛 항목과 키가 겹침",
+          "file": "backend/src/main/java/com/mapmory/backend/common/cache/MemberCacheGenerations.java",
+          "lines": [
+            23,
+            42
+          ]
+        },
+        {
+          "name": "목록 캐시 테스트가 무효화 신호 대기 타임아웃을 무시함",
+          "file": "backend/src/test/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCacheTest.java",
+          "lines": [
+            85,
+            115
+          ]
+        },
+        {
+          "name": "지도 캐시 테스트가 무효화 신호 대기 타임아웃을 무시함",
+          "file": "backend/src/test/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCacheTest.java",
+          "lines": [
+            104,
+            131
+          ]
+        },
+        {
+          "name": "런북이 expireAfterAccess를 마지막 쓰기 기준으로 설명함",
+          "file": "backend/docs/deployment-cache-control.md",
+          "lines": [
+            32,
+            38
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e-group-rename-without-lock",
+      "title": "refactor: 그룹 이름 바꾸기가 조회 경로를 다시 쓴다",
+      "base": "59fcd411bbe180f393c543772569b926899f46f9",
+      "patch": "e-group-rename-without-lock.patch",
+      "gate": false,
+      "source": "#729를 거꾸로 되돌린 도메인 케이스. 이름 바꾸기가 그룹 행을 잠그지 않고 읽고(@DynamicUpdate도 뺌), Hibernate가 모든 컬럼을 UPDATE해 그사이 커밋된 수락·나가기의 인원 수와 방장을 옛 값으로 되돌린다(domain.md 9절). 기준 커밋은 #729 head다.",
+      "expect": [
+        {
+          "name": "잠그지 않고 읽은 그룹을 바꿔 인원 수·방장을 옛 값으로 덮음",
+          "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupService.java",
+          "lines": [
+            69,
+            78
+          ],
+          "keywords": [
+            "잠금",
+            "잠그",
+            "lock",
+            "덮",
+            "되돌",
+            "인원",
+            "방장",
+            "member_count",
+            "owner",
+            "DynamicUpdate",
+            "옛 값",
+            "lost update"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-group-non-member-403",
+      "title": "feat: 그룹은 있지만 멤버가 아니면 403으로 알려 준다",
+      "base": "342e2f5f153a6f6260529bab9b8ed3906cf93e7d",
+      "patch": "f-group-non-member-403.patch",
+      "gate": false,
+      "source": "도메인 지식이 있어야 잡는 케이스. 멤버가 아닌 사람에게 404 대신 403을 주면 남의 그룹이 있는지 드러난다(ADR 0022, domain.md 5절). PR이 이유를 적은 주석까지 바꿔, 코드만 봐서는 개선처럼 보인다.",
+      "expect": [
+        {
+          "name": "멤버가 아니면 404로 그룹의 존재를 숨기는 규칙을 깸",
+          "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+          "lines": [
+            28,
+            36
+          ],
+          "keywords": [
+            "404",
+            "403",
+            "존재",
+            "숨기",
+            "노출",
+            "드러",
+            "NOT_FOUND",
+            "ACCESS_DENIED",
+            "NOT_GROUP_MEMBER",
+            "열거",
+            "enumeration"
+          ],
+          "alternatives": [
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+              "lines": [
+                12,
+                14
+              ]
+            },
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+              "lines": [
+                53,
+                60
+              ]
+            },
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java",
+              "lines": [
+                6,
+                12
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
