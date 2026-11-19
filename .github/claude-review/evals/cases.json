@@ -112,6 +112,20 @@
           "lines": [
             69,
             78
+          ],
+          "keywords": [
+            "잠금",
+            "잠그",
+            "lock",
+            "덮",
+            "되돌",
+            "인원",
+            "방장",
+            "member_count",
+            "owner",
+            "DynamicUpdate",
+            "옛 값",
+            "lost update"
           ]
         }
       ]
@@ -128,15 +142,42 @@
           "name": "멤버가 아니면 404로 그룹의 존재를 숨기는 규칙을 깸",
           "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
           "lines": [
-            10,
-            62
+            28,
+            36
+          ],
+          "keywords": [
+            "404",
+            "403",
+            "존재",
+            "숨기",
+            "노출",
+            "드러",
+            "NOT_FOUND",
+            "ACCESS_DENIED",
+            "NOT_GROUP_MEMBER",
+            "열거",
+            "enumeration"
           ],
           "alternatives": [
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+              "lines": [
+                12,
+                14
+              ]
+            },
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+              "lines": [
+                53,
+                60
+              ]
+            },
             {
               "file": "backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java",
               "lines": [
                 6,
-                13
+                12
               ]
             }
           ]

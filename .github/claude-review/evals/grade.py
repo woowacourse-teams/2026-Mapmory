@@ -39,7 +39,18 @@ def matches(finding, expected):
     return any(matches_place(finding, place) for place in places)
 
 
+def mentions(finding, expected):
+    # 위치만으로는 같은 범위의 다른 지적까지 "찾음"이 된다. keywords가 있으면 제목에 그중 하나가 있어야 한다.
+    keywords = expected.get("keywords")
+    if not keywords:
+        return True
+    title = str(finding.get("title", "")).lower()
+    return any(keyword.lower() in title for keyword in keywords)
+
+
 def matches_place(finding, expected):
+    if not mentions(finding, expected):
+        return False
     start, end = expected["lines"]
     line = finding.get("line") or 0
     file = re.sub(r"^(\./|a/|b/)", "", str(finding.get("file", "")))
