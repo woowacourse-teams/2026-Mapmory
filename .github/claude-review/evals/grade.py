@@ -35,6 +35,9 @@ def load_findings(path):
 
 def matches(finding, expected):
     # 같은 문제를 여러 곳에서 지적할 수 있으면 alternatives로 다른 위치를 함께 받는다.
+    # keywords는 위치가 아니라 기대(문제) 단위로 본다. 대체 위치에도 같은 조건이 걸린다.
+    if not mentions(finding, expected):
+        return False
     places = [expected] + expected.get("alternatives", [])
     return any(matches_place(finding, place) for place in places)
 
@@ -49,8 +52,6 @@ def mentions(finding, expected):
 
 
 def matches_place(finding, expected):
-    if not mentions(finding, expected):
-        return False
     start, end = expected["lines"]
     line = finding.get("line") or 0
     file = re.sub(r"^(\./|a/|b/)", "", str(finding.get("file", "")))
