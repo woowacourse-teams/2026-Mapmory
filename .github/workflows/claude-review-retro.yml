@@ -3,10 +3,15 @@ name: Claude Review Retro
 # 매주 지난 리뷰를 돌아보고 배운 규칙(.github/claude-review/guide.md)의 수정안을 만든다.
 # 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 backend-develop 대상 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
 # schedule과 수동 실행(workflow_dispatch)은 기본 브랜치(main)에 이 파일이 있어야 동작한다.
+# main에 없는 동안에는 backend-develop push마다 문지기(weekly-gate.sh)가 지난 7일 안에 회고가 성공했는지 보고, 없을 때만 돈다.
 on:
   schedule:
     - cron: "17 0 * * 1" # 매주 월요일 09:17 KST
   workflow_dispatch:
+  push:
+    branches: [backend-develop]
+    paths:
+      - "backend/**"
 
 permissions:
   contents: read
@@ -16,7 +21,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/claude-review
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            bash .github/claude-review/weekly-gate.sh "${{ github.repository }}" claude-review-retro.yml propose "${{ github.run_id }}"
+          fi
+
   propose:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     # Claude는 읽기 권한 토큰만 받는다. 코멘트에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
     runs-on: ubuntu-latest
     timeout-minutes: 30
