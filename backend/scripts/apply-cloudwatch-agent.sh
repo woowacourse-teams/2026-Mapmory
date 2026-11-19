@@ -78,6 +78,10 @@ is_up_to_date() {
   [[ ${#entries[@]} -eq 1 && ${entries[0]} == "$APPLIED_AGENT_CONFIG" ]]
 }
 
+is_running() {
+  "$AGENT_CTL" -a status -m ec2 2>/dev/null | grep -q '"status": *"running"'
+}
+
 backup_current() {
   local backup_dir=$1
 
@@ -118,7 +122,7 @@ restore_backup() {
       rm -f -- "${AGENT_ROOT:?}/etc/$generated"
     fi
   done
-  if ! "$AGENT_CTL" -a status -m ec2 2>/dev/null | grep -q '"status": *"running"'; then
+  if ! is_running; then
     "$AGENT_CTL" -a start -m ec2 >/dev/null 2>&1 || warn "이전 설정으로 Agent를 다시 시작하지 못했습니다."
   fi
 }
@@ -155,6 +159,11 @@ main() {
   python3 -m json.tool "$rendered_agent" >/dev/null || { warn "렌더링한 Agent 설정이 올바른 JSON이 아닙니다."; return 1; }
 
   if is_up_to_date "$rendered_prometheus" "$rendered_agent"; then
+    # 이전 적용이 fetch-config의 재시작 도중 끊기면 설정은 같아도 Agent가 멈춰 있을 수 있다.
+    if ! is_running; then
+      warn "설정은 같지만 Agent가 멈춰 있어 다시 시작합니다."
+      "$AGENT_CTL" -a start -m ec2 >/dev/null 2>&1 || { warn "Agent를 시작하지 못했습니다."; return 1; }
+    fi
     log "서버 설정이 저장소와 같아 변경하지 않습니다 (ENV=$environment)."
     return 0
   fi
