@@ -1,6 +1,6 @@
 name: Claude Review Eval
 
-# 리뷰 기준(review.md)과 배운 규칙(guide.md)을 바꿨을 때, 답이 정해진 케이스에서 리뷰가 여전히 맞게 지적하는지 확인한다.
+# 리뷰 기준(review.md), 배운 규칙(guide.md), 도메인 규칙(domain.md)을 바꿨을 때, 답이 정해진 케이스에서 리뷰가 여전히 맞게 지적하는지 확인한다.
 # 케이스는 .github/claude-review/evals/cases.json에 있다. 각 케이스는 기준 커밋에 패치를 얹어 PR처럼 만든 뒤 리뷰한다.
 # 회고 워크플로(claude-review-retro.yml)도 규칙 수정안을 PR로 올리기 전에 이 워크플로를 부른다.
 on:
@@ -69,7 +69,7 @@ jobs:
           git -C /tmp/case -c user.name=eval -c user.email=eval@localhost commit -qm "$TITLE"
           # 리뷰 기준은 검증 대상(이 브랜치)의 것을 쓴다. 커밋하지 않으므로 diff에는 나오지 않는다.
           mkdir -p /tmp/case/.github/claude-review
-          cp .github/claude-review/review.md .github/claude-review/guide.md /tmp/case/.github/claude-review/
+          cp .github/claude-review/review.md .github/claude-review/guide.md .github/claude-review/domain.md /tmp/case/.github/claude-review/
           echo "TITLE=$TITLE" >> "$GITHUB_ENV"
 
       - name: Install Claude Code
@@ -84,7 +84,7 @@ jobs:
           PROMPT="PR 제목: ${TITLE}
 
           이 PR을 리뷰한다. 변경점은 \`git diff HEAD~1\`로 본다. 필요하면 저장소의 다른 파일도 연다.
-          \`.github/claude-review/review.md\`의 기준과 \`.github/claude-review/guide.md\`의 규칙을 먼저 읽고 그대로 따른다.
+          \`.github/claude-review/review.md\`의 기준, \`.github/claude-review/guide.md\`의 규칙, \`.github/claude-review/domain.md\`의 도메인 규칙을 먼저 읽고 그대로 따른다.
           코멘트를 달지 말고, 지적할 문제를 findings로만 답한다.
           file은 저장소 기준 경로, line은 변경 후 파일(\`git show HEAD:<파일>\`)에서 문제가 있는 실제 줄 번호(diff의 줄 번호가 아니다), severity는 Critical/Major/Minor/Nit, title은 한 줄 요약이다.
           지적할 문제가 없으면 findings를 빈 배열로 둔다."
