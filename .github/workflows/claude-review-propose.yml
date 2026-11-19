@@ -1,6 +1,6 @@
 name: Claude Review Propose
 
-# 회고(claude-review-retro.yml)와 학습(claude-review-learn.yml)이 만든 guide.md 수정안을 올리는 공통 단계.
+# 회고·학습(guide.md)과 도메인 동기화(domain.md·policies.md)가 만든 수정안을 올리는 공통 단계.
 # 수정안을 브랜치로 push하고, 회귀 검증(claude-review-eval.yml)을 돌린 뒤, 결과를 붙여 PR로 올린다.
 # Actions의 PR 생성이 막혀 있으면 이슈로 남긴다. 이 워크플로에는 Claude가 없다.
 on:
@@ -11,7 +11,7 @@ on:
         type: string
         required: true
       kind:
-        description: 브랜치 이름에 붙일 종류(retro, learn)
+        description: 브랜치 이름에 붙일 종류(retro, learn, sync)
         type: string
         required: true
       title:
@@ -23,9 +23,13 @@ on:
         type: string
         required: true
       artifact:
-        description: guide.md와 summary.md가 든 아티팩트 이름
+        description: 수정안 파일, 각 파일의 <이름>.orig.md, summary.md가 든 아티팩트 이름
         type: string
         required: true
+      files:
+        description: .github/claude-review/ 아래에서 수정안으로 올릴 파일들(공백으로 구분)
+        type: string
+        default: guide.md
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -53,12 +57,20 @@ jobs:
         env:
           KIND: ${{ inputs.kind }}
           TITLE: ${{ inputs.title }}
+          FILES: ${{ inputs.files }}
         run: |
           branch="claude-review/${KIND}-$(date -u +%Y%m%d)-${{ github.run_id }}"
-          # 수정안을 만든 뒤 base에 다른 규칙이 머지됐을 수 있다. 통째로 덮지 않고 3-way로 합친다.
-          if ! git merge-file -L 현재 -L 수정안을_만든_때 -L 수정안 \
-              .github/claude-review/guide.md /tmp/proposal/guide.orig.md /tmp/proposal/guide.md; then
-            echo "::error::수정안을 만든 뒤 바뀐 guide.md와 충돌한다. 다음 회고·학습에서 다시 만든다."
+          # 수정안을 만든 뒤 base에 다른 규칙이 머지됐을 수 있다. 통째로 덮지 않고 파일마다 3-way로 합친다.
+          for f in $FILES; do
+            [ -f "/tmp/proposal/$f" ] || continue
+            if ! git merge-file -L 현재 -L 수정안을_만든_때 -L 수정안 \
+                ".github/claude-review/$f" "/tmp/proposal/${f%.md}.orig.md" "/tmp/proposal/$f"; then
+              echo "::error::수정안을 만든 뒤 바뀐 $f와 충돌한다. 다음 실행에서 다시 만든다."
+              exit 1
+            fi
+          done
+          if git diff --quiet; then
+            echo "::error::합친 결과가 base와 같다. 올릴 수정안이 없다."
             exit 1
           fi
           git config user.name "github-actions[bot]"

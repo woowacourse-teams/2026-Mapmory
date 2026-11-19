@@ -1,0 +1,152 @@
+name: Claude Review Sync
+
+# backend-develop에 ADR이나 도메인 신호(마이그레이션, 잠금, 이벤트, 오류 코드)가 들어오면 리뷰 기준(domain.md, policies.md) 수정안을 만든다.
+# 규칙은 결정(ADR)에서만 바뀐다. ADR 변경이 없으면 domain.md 수정은 버리고, policies.md의 상태 칸만 올린다.
+# 코드가 규칙과 다르면 문서를 코드에 맞추지 않고 "모순"으로 이슈에 올린다. 지침은 .github/claude-review/sync.md.
+# 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+on:
+  push:
+    branches: [backend-develop]
+    paths:
+      - "backend/docs/adr/**"
+      - "backend/src/main/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Claude는 읽기 권한 토큰만 받는다. PR 설명이나 ADR에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      files: ${{ steps.diff.outputs.files }}
+      report: ${{ steps.diff.outputs.report }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 100
+
+      - name: Collect signals
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/claude-review/sync-collect.sh "${{ github.repository }}" "${{ github.event.before }}" "$GITHUB_SHA" .sync
+          if [ -f .sync/signals.md ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Install Claude Code
+        if: steps.collect.outputs.found == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose rule changes
+        if: steps.collect.outputs.found == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.github/claude-review/sync.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.sync/\`에 있다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .sync/claude-output.json
+          test -f .sync/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result' .sync/claude-output.json)" > .sync/summary.md
+
+      - id: diff
+        if: steps.collect.outputs.found == 'true'
+        run: |
+          dir=.github/claude-review
+          # 규칙은 결정에서만 바뀐다. ADR 변경 없이 domain.md를 고쳤으면 버린다.
+          if [ ! -s .sync/adr.diff ] && ! git diff --quiet -- "$dir/domain.md"; then
+            git checkout -- "$dir/domain.md"
+            { echo; echo "> ADR 변경이 없어 \`domain.md\` 수정은 버렸다. 규칙을 바꿔야 한다면 ADR로 남긴다."; } >> .sync/summary.md
+          fi
+          # domain.md·policies.md 밖의 변경은 반영하지 않는다(아래에서 두 파일만 넘긴다).
+          files=""
+          for f in domain.md policies.md; do
+            git diff --quiet -- "$dir/$f" || files="$files $f"
+          done
+          files=$(echo $files)
+          if [ -n "$files" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            # 근거(ADR 번호나 PR 번호)가 없는 새 줄을 따로 보여 준다. 사람이 먼저 볼 곳이다.
+            unsourced=$(for f in $files; do git diff -U0 -- "$dir/$f" | grep -E '^\+[^+]' | grep -vE 'ADR|#[0-9]+' | grep -vE '^\+\s*$' | sed "s|^+|- \`$f\`: |"; done || true)
+            if [ -n "$unsourced" ]; then
+              { echo; echo "## 근거 없는 줄"; echo; echo "ADR이나 PR 번호가 없는 새 줄이다. 결정에서 온 것인지 확인한다."; echo; echo "$unsourced"; } >> .sync/summary.md
+            fi
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          # 문서는 그대로인데 모순이나 결정 확인이 있으면 이슈로만 알린다.
+          if awk '/^## (모순|결정 확인)/{s=1;next} /^## /{s=0} s && /^- /{found=1} END{exit !found}' .sync/summary.md; then
+            echo "report=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "report=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice title=리뷰 기준 동기화::수정 파일: ${files:-없음}, ADR 변경: $([ -s .sync/adr.diff ] && echo 있음 || echo 없음)"
+          { echo "## 리뷰 기준 동기화"; echo; cat .sync/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect proposal
+        if: steps.collect.outputs.found == 'true'
+        run: |
+          mkdir -p /tmp/proposal
+          cp .sync/summary.md /tmp/proposal/
+          for f in domain.md policies.md; do
+            cp ".github/claude-review/$f" /tmp/proposal/
+            git show "HEAD:.github/claude-review/$f" > "/tmp/proposal/${f%.md}.orig.md"
+          done
+      - uses: actions/upload-artifact@v4
+        if: steps.collect.outputs.found == 'true'
+        with:
+          name: claude-review-sync
+          path: /tmp/proposal/
+
+  propose-pr:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/claude-review-propose.yml
+    with:
+      base_branch: backend-develop
+      kind: sync
+      files: ${{ needs.sync.outputs.files }}
+      title: "chore: 머지된 결정과 코드 변경을 리뷰 기준에 반영한다"
+      intro: "`backend-develop`에 들어온 ADR·코드 변경을 보고 만든 `domain.md`·`policies.md` 수정안이다. 규칙은 ADR에서만 바꿨고, 코드 변경은 상태 칸만 바꿨다. 사람이 보고 판단해 머지한다."
+      artifact: claude-review-sync
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 문서는 그대로인데 코드가 규칙과 다르면 이슈로만 알린다. 이 job에는 Claude가 없다.
+  report:
+    needs: sync
+    if: needs.sync.outputs.changed != 'true' && needs.sync.outputs.report == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-sync
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "\`backend-develop\`에 들어온 변경이 리뷰 기준과 다르다. 규칙은 바꾸지 않았다. 코드를 고칠지, 결정을 ADR로 남길지 정한다."
+            echo
+            cat /tmp/proposal/summary.md
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "chore: 머지된 코드가 리뷰 기준과 다른 곳" --body-file body.md
