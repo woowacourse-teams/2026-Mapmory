@@ -31,6 +31,16 @@ class TagTest {
     }
 
     @Test
+    void 만든_회원만_주인이다() {
+        Mockito.when(member.getId()).thenReturn(10L);
+        Tag tag = Tag.of(member, "친구");
+
+        assertThat(tag.isOwnedBy(10L)).isTrue();
+        assertThat(tag.isOwnedBy(11L)).isFalse();
+        assertThat(tag.isOwnedBy(null)).isFalse();
+    }
+
+    @Test
     void 유효하지_않은_이름으로는_생성할_수_없다() {
         assertThatThrownBy(() -> Tag.of(member, "#연인"))
                 .isInstanceOf(BusinessException.class)

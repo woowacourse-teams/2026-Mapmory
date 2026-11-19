@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.cache.DeploymentCacheEndpoint;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -92,6 +93,35 @@ class MapSummaryCacheTest {
         cache.evictMember(1L);
 
         assertThat(cache.weightedSize()).isZero();
+    }
+
+    @Test
+    @DisplayName("전체 요약은 계층 요약과 키가 겹치지 않고 자기 결과를 돌려준다")
+    void getAllReturnsItsOwnResultSeparateFromRootLevel() {
+        List<RegionMapSummary> root = rows(1);
+        List<RegionMapSummary> all = rows(3);
+
+        assertThat(cache.get(1L, null, null, () -> root)).isEqualTo(root);
+        assertThat(cache.getAll(1L, null, () -> all)).isEqualTo(all);
+        assertThat(cache.getAll(1L, null, () -> rows(9))).isEqualTo(all);
+        assertThat(cache.get(1L, null, null, () -> rows(9))).isEqualTo(root);
+    }
+
+    @Test
+    @DisplayName("조회 중에 배포 캐시 모드가 바뀌면 그 조회 결과를 남기지 않는다")
+    void dropsLoadWhoseDeploymentGenerationChanged() {
+        DeploymentCacheControl control = new DeploymentCacheControl(DeploymentCacheControl.Mode.NORMAL);
+        DeploymentCacheEndpoint endpoint = new DeploymentCacheEndpoint(control);
+        MapSummaryCache switching = new MapSummaryCache(
+                new MapSummaryCacheProperties(100, Duration.ofMinutes(10)), new SimpleMeterRegistry(), control);
+
+        List<RegionMapSummary> result = switching.get(1L, null, null, () -> {
+            endpoint.changeMode(DeploymentCacheControl.Mode.BYPASS);
+            return rows(4);
+        });
+
+        assertThat(result).hasSize(4);
+        assertThat(switching.weightedSize()).isZero();
     }
 
     /**
