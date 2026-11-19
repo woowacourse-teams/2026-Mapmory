@@ -36,6 +36,7 @@ jobs:
       BASE_BRANCH: backend-develop
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
+      variants: ${{ steps.diff.outputs.variants }}
       base_branch: ${{ env.BASE_BRANCH }}
       pr_number: ${{ env.PR_NUMBER }}
     steps:
@@ -113,17 +114,19 @@ jobs:
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+          if [ -s .learn/variants.md ]; then echo "variants=true" >> "$GITHUB_OUTPUT"; else echo "variants=false" >> "$GITHUB_OUTPUT"; fi
           { echo "## #$PR_NUMBER CodeRabbit 리뷰에서 배우기"; echo; cat .learn/summary.md; } >> "$GITHUB_STEP_SUMMARY"
 
       # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
       - name: Collect proposal
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' || steps.diff.outputs.variants == 'true'
         run: |
           mkdir -p /tmp/proposal
           cp .github/claude-review/guide.md .learn/summary.md /tmp/proposal/
+          cp .learn/variants.md /tmp/proposal/ 2>/dev/null || true
           git show HEAD:.github/claude-review/guide.md > /tmp/proposal/guide.orig.md
       - uses: actions/upload-artifact@v4
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' || steps.diff.outputs.variants == 'true'
         with:
           name: claude-review-learn
           path: /tmp/proposal/
@@ -144,3 +147,37 @@ jobs:
       artifact: claude-review-learn
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 규칙은 그대로인데 같은 패턴이 남은 곳을 찾았으면 이슈로만 알린다. 이 job에는 Claude가 없다.
+  report-variants:
+    needs: learn
+    if: needs.learn.outputs.changed != 'true' && needs.learn.outputs.variants == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-learn
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "chore: #${{ needs.learn.outputs.pr_number }}에서 고친 문제와 같은 패턴이 다른 곳에도 남아 있다"
+        run: |
+          {
+            echo "#${{ needs.learn.outputs.pr_number }}의 CodeRabbit 리뷰에서 확인한 문제와 같은 모양의 코드를 저장소에서 찾았다. 규칙은 이미 있어 바꾸지 않았다. 각 위치를 보고 고칠지 판단한다."
+            echo
+            echo "## 같은 패턴이 남은 곳"
+            echo
+            cat /tmp/proposal/variants.md
+            echo
+            echo "<details><summary>판단 근거(요약 전체)</summary>"
+            echo
+            cat /tmp/proposal/summary.md
+            echo
+            echo "</details>"
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md
