@@ -34,7 +34,7 @@ warn() {
 # /etc/mapmory.env는 systemd EnvironmentFile 형식이고 비밀값이 섞여 있어 source하지 않는다.
 # SPRING_PROFILES_ACTIVE 줄만 읽고, 허용 값은 validate-spring-profile.sh와 같이 dev, prod로 제한한다.
 read_environment() {
-  [[ -r $ENV_FILE ]] || { warn "$ENV_FILE을 읽을 수 없습니다."; return 1; }
+  [[ -r $ENV_FILE ]] || { warn "${ENV_FILE}을 읽을 수 없습니다."; return 1; }
 
   local profile
   profile=$(sed -n -E 's/^[[:space:]]*(export[[:space:]]+)?SPRING_PROFILES_ACTIVE[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" | tail -n 1)
@@ -78,8 +78,12 @@ is_up_to_date() {
   [[ ${#entries[@]} -eq 1 && ${entries[0]} == "$APPLIED_AGENT_CONFIG" ]]
 }
 
+# 출력을 먼저 다 받은 뒤 검사한다. `ctl | grep -q`로 쓰면 grep이 먼저 끝나 ctl이 SIGPIPE(141)를 받고,
+# pipefail 때문에 실행 중인데도 멈춘 것으로 판단한다.
 is_running() {
-  "$AGENT_CTL" -a status -m ec2 2>/dev/null | grep -q '"status": *"running"'
+  local status
+  status=$("$AGENT_CTL" -a status -m ec2 2>/dev/null) || return 1
+  [[ $status =~ \"status\":[[:space:]]*\"running\" ]]
 }
 
 backup_current() {
@@ -191,8 +195,11 @@ main() {
   log "CloudWatch Agent 설정을 적용했습니다 (ENV=$environment)."
 }
 
+# 직접 실행했을 때만 적용한다. 테스트는 source해서 함수만 불러 쓴다.
 # set -u 오류까지 서브셸 안에서 끝나도록 해 배포 훅에는 항상 0을 돌려준다.
-if ! ( main ); then
-  warn "CloudWatch Agent 설정을 적용하지 못했습니다. 배포는 계속 진행합니다."
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  if ! ( main ); then
+    warn "CloudWatch Agent 설정을 적용하지 못했습니다. 배포는 계속 진행합니다."
+  fi
+  exit 0
 fi
-exit 0
