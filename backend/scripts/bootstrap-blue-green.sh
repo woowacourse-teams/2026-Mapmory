@@ -38,3 +38,6 @@ fi
 
 trap - ERR
 echo "활성 슬롯 확인 완료: $active_slot ($active_port), 배포 ID=$DEPLOYMENT_ID"
+
+# 지표 수집 설정은 실패해도 배포를 막지 않는다. 스크립트도 항상 0으로 끝나지만 한 번 더 막아 둔다.
+"$(dirname "$0")/apply-cloudwatch-agent.sh" || true

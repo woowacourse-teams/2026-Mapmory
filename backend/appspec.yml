@@ -16,6 +16,10 @@ files:
     destination: /opt/mapmory/bin
   - source: scripts/validate-spring-profile.sh
     destination: /opt/mapmory/bin
+  - source: scripts/apply-cloudwatch-agent.sh
+    destination: /opt/mapmory/bin
+  - source: observability
+    destination: /opt/mapmory/observability
 
 file_exists_behavior: OVERWRITE
 

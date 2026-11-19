@@ -23,6 +23,7 @@ phases:
       - cp appspec.yml deploy/
       - cp scripts/*.sh deploy/scripts/
       - cp systemd/*.service deploy/systemd/
+      - cp -R observability deploy/
 
 artifacts:
   base-directory: backend/deploy
