@@ -17,6 +17,10 @@ import com.mapmory.backend.region.domain.RegionRepository;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,7 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +77,9 @@ class AlbumLockSnapshotIntegrationTest extends IntegrationTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private DataSource dataSource;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private Region tokyo;
@@ -140,7 +147,7 @@ class AlbumLockSnapshotIntegrationTest extends IntegrationTest {
 
     /**
      * first를 커밋하지 않은 트랜잭션 안에서 부르고, 그사이 다른 스레드에서 second를 출발시킨다. second가 그룹 잠금을 기다리는 것을
-     * 확인한 뒤 first를 커밋하고 second의 결과를 OK 또는 에러 코드로 돌려준다.
+     * DB에서 확인한 뒤 first를 커밋하고 second의 결과를 OK 또는 에러 코드로 돌려준다.
      */
     private String whileCommitting(Runnable first, Callable<?> second) throws Exception {
         Future<String> future = new TransactionTemplate(transactionManager).execute(status -> {
@@ -153,21 +160,48 @@ class AlbumLockSnapshotIntegrationTest extends IntegrationTest {
                     return exception.getErrorCode().toString();
                 }
             });
-            waitUntilBlocked(started);
+            waitUntilWaitingForGroupLock(started);
             return started;
         });
         return future.get(10, TimeUnit.SECONDS);
     }
 
-    // second가 그룹 잠금을 기다리는 지점까지 갈 시간을 준다. 기다리지 않고 끝나면 이 테스트가 보려는 겹침이 아니다.
-    private static void waitUntilBlocked(Future<String> future) {
+    /**
+     * second의 그룹 잠금 조회(FOR UPDATE)가 DB에 도착해 first의 잠금을 기다리고 있는지 확인한다. 시간이 지났다는 것만으로는
+     * 아직 커넥션이나 잠금 앞의 조회에도 가지 못했는지 구분할 수 없다. 그 상태에서 first를 커밋하면 고치기 전 코드도 스냅샷이
+     * 커밋 뒤에 생겨 통과한다. 잠금 조회가 실행 중이면 그 앞의 조회는 이미 끝났다.
+     * innodb_trx는 PROCESS 권한이 필요해, 같은 DB 사용자의 연결이 보이는 PROCESSLIST로 본다. first의 트랜잭션 커넥션과 섞이지 않도록
+     * DataSource에서 새 커넥션을 쓴다.
+     */
+    private void waitUntilWaitingForGroupLock(Future<String> second) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         try {
-            String outcome = future.get(1, TimeUnit.SECONDS);
-            throw new AssertionError("뒤 요청이 그룹 잠금을 기다리지 않고 끝났다: " + outcome);
-        } catch (TimeoutException blocked) {
-            // 그룹 잠금을 기다리는 중이다.
+            while (System.nanoTime() < deadline) {
+                if (second.isDone()) {
+                    throw new AssertionError("뒤 요청이 그룹 잠금을 기다리지 않고 끝났다: " + second.get());
+                }
+                if (groupLockWaits() > 0) {
+                    return;
+                }
+                Thread.sleep(20);
+            }
+        } catch (AssertionError error) {
+            throw error;
         } catch (Exception exception) {
             throw new AssertionError(exception);
+        }
+        throw new AssertionError("뒤 요청이 5초 안에 그룹 잠금을 기다리지 않았다");
+    }
+
+    private int groupLockWaits() throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT COUNT(*) FROM information_schema.PROCESSLIST
+                     WHERE ID <> CONNECTION_ID() AND INFO LIKE '%from travel_group%for update%'
+                     """);
+             ResultSet result = statement.executeQuery()) {
+            result.next();
+            return result.getInt(1);
         }
     }
 
