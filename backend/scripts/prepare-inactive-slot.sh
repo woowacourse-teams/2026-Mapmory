@@ -32,6 +32,15 @@ sha256sum "$release/mapmory-backend.jar" > "$release/sha256"
 printf '%s\n' "$DEPLOYMENT_ID" > "$release/deployment-id"
 printf 'pending\n' > "$release/.mapmory-release"
 
+# 지표와 로그의 version에 이 릴리스의 커밋을 남긴다. 슬롯 서비스가 current/app-version.env를
+# /etc/mapmory.env보다 뒤에 읽어 APP_VERSION을 덮어쓴다. 버전을 못 읽으면 파일을 쓰지 않아 기존 값을 쓴다.
+app_version=$({ tr -d '[:space:]' < "$(dirname "$0")/../VERSION"; } 2>/dev/null || true)
+if [[ $app_version =~ ^[0-9a-f]{7}$ ]]; then
+  printf 'APP_VERSION=%s\n' "$app_version" > "$release/app-version.env"
+else
+  echo "WARN: 배포 버전을 읽지 못해 APP_VERSION을 기록하지 않습니다: '${app_version}'" >&2
+fi
+
 temporary="$MAPMORY_SLOTS/$target_slot/.current-$DEPLOYMENT_ID"
 ln -s "$release" "$temporary"
 mv -Tf "$temporary" "$MAPMORY_SLOTS/$target_slot/current"

@@ -10,6 +10,7 @@ Group=ubuntu
 WorkingDirectory=/opt/mapmory
 EnvironmentFile=/etc/mapmory.env
 EnvironmentFile=-/etc/mapmory-deployment-cache.env
+EnvironmentFile=-/opt/mapmory/slots/blue/current/app-version.env
 LogsDirectory=mapmory-blue
 LogsDirectoryMode=0755
 ExecStartPre=/opt/mapmory/bin/validate-spring-profile.sh
