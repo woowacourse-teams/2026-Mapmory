@@ -1,0 +1,59 @@
+diff --git a/backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java b/backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java
+index 0e4ae856..1a8aea46 100644
+--- a/backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java
++++ b/backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java
+@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
+ /**
+  * 그룹 경로에 들어온 회원이 그 그룹 멤버인지 확인한다. 그룹·초대·앨범 서비스가 맨 먼저 부른다.
+  *
+- * <p>그룹이 없을 때와 멤버가 아닐 때를 구분하지 않고 같은 404를 준다. 남의 그룹이 있는지 알려 주지 않기 위해서다.
++ * <p>그룹이 없으면 404, 그룹은 있지만 멤버가 아니면 403을 준다. 앱이 두 경우를 구분해 안내할 수 있게 한다.
+  * 그룹 객체가 필요 없으면 {@link #validateMember}, 필요하면 {@link #findGroupOf}를 쓴다. 멤버 확인은 이 클래스에서만 한다.
+  */
+ @Component
+@@ -27,9 +27,12 @@ public class GroupMembership {
+ 
+     @Transactional(readOnly = true)
+     public void validateMember(Long groupId, Long memberId) {
+-        if (!travelGroupRepository.existsMember(groupId, memberId)) {
++        if (!travelGroupRepository.existsById(groupId)) {
+             throw new BusinessException(GroupErrorCode.GROUP_NOT_FOUND);
+         }
++        if (!travelGroupRepository.existsMember(groupId, memberId)) {
++            throw new BusinessException(GroupErrorCode.NOT_GROUP_MEMBER);
++        }
+     }
+ 
+     /**
+@@ -49,8 +52,11 @@ public class GroupMembership {
+      */
+     @Transactional(readOnly = true)
+     public TravelGroup findGroupOf(Long groupId, Long memberId) {
+-        return travelGroupRepository.findById(groupId)
+-                .filter(group -> group.hasMember(memberId))
++        TravelGroup group = travelGroupRepository.findById(groupId)
+                 .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
++        if (!group.hasMember(memberId)) {
++            throw new BusinessException(GroupErrorCode.NOT_GROUP_MEMBER);
++        }
++        return group;
+     }
+ }
+diff --git a/backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java b/backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java
+index 8757c803..f4ab6f0b 100644
+--- a/backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java
++++ b/backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java
+@@ -4,9 +4,11 @@ import com.mapmory.backend.common.exception.ErrorCode;
+ import com.mapmory.backend.common.exception.ErrorKind;
+ 
+ public enum GroupErrorCode implements ErrorCode {
+-    // 멤버가 아닌 사람에게도 같은 응답을 준다. 그룹이 있는지 알려 주지 않기 위해서다.
+     GROUP_NOT_FOUND(ErrorKind.NOT_FOUND, "GROUP_NOT_FOUND", "그룹을 찾을 수 없습니다.",
+-            "요청한 그룹이 없거나 멤버가 아닙니다."),
++            "요청한 그룹이 없습니다."),
++    // 그룹은 있지만 멤버가 아니다. 앱이 "초대를 받아야 볼 수 있어요"처럼 없는 그룹과 다르게 안내한다.
++    NOT_GROUP_MEMBER(ErrorKind.ACCESS_DENIED, "NOT_GROUP_MEMBER", "그룹 멤버가 아닙니다.",
++            "이 그룹의 멤버만 볼 수 있습니다."),
+     // 게스트는 기기를 바꾸면 계정을 잃으므로 그룹을 쓰려면 소셜 로그인이 필요하다(ADR 0022 결정 6).
+     SOCIAL_LOGIN_REQUIRED(ErrorKind.ACCESS_DENIED, "SOCIAL_LOGIN_REQUIRED", "소셜 로그인이 필요합니다.",
+             "그룹은 소셜 로그인 회원만 쓸 수 있습니다."),

@@ -115,6 +115,33 @@
           ]
         }
       ]
+    },
+    {
+      "id": "f-group-non-member-403",
+      "title": "feat: 그룹은 있지만 멤버가 아니면 403으로 알려 준다",
+      "base": "342e2f5f153a6f6260529bab9b8ed3906cf93e7d",
+      "patch": "f-group-non-member-403.patch",
+      "gate": false,
+      "source": "도메인 지식이 있어야 잡는 케이스. 멤버가 아닌 사람에게 404 대신 403을 주면 남의 그룹이 있는지 드러난다(ADR 0022, domain.md 5절). PR이 이유를 적은 주석까지 바꿔, 코드만 봐서는 개선처럼 보인다.",
+      "expect": [
+        {
+          "name": "멤버가 아니면 404로 그룹의 존재를 숨기는 규칙을 깸",
+          "file": "backend/src/main/java/com/mapmory/backend/group/application/GroupMembership.java",
+          "lines": [
+            10,
+            62
+          ],
+          "alternatives": [
+            {
+              "file": "backend/src/main/java/com/mapmory/backend/group/exception/GroupErrorCode.java",
+              "lines": [
+                6,
+                13
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
