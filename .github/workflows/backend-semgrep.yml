@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install Semgrep
-        run: pip install --quiet semgrep
+        run: pip install --quiet semgrep==1.186.0
 
       - name: Scan
         run: |

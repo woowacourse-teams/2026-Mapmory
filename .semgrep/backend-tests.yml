@@ -54,7 +54,8 @@ rules:
           - pattern: $E.shutdown();
           - pattern: $E.shutdownNow();
           - pattern: $E.close();
+      # 같은 풀을 finally에서도 닫으면 통과한다. try 본문에서만 닫으면 앞에서 예외가 날 때 닫히지 않으므로 걸린다.
       - pattern-not-inside: |
-          try { ... } finally { ... }
+          try { ... } finally { ... $E.$CLEANUP(...); ... }
       - pattern-not-inside: |
-          try { ... } catch ($EX $V) { ... } finally { ... }
+          try { ... } catch ($EX $V) { ... } finally { ... $E.$CLEANUP(...); ... }

@@ -118,9 +118,9 @@ jobs:
           if [ -s .learn/variants.md ]; then echo "variants=true" >> "$GITHUB_OUTPUT"; else echo "variants=false" >> "$GITHUB_OUTPUT"; fi
           # PR 체크 화면에서 학습 결과를 바로 볼 수 있게 주석으로 남긴다.
           changed=$(git diff --quiet -- .github/claude-review/guide.md && echo 없음 || echo 있음)
-          variants=$( [ -s .learn/variants.md ] && grep -c '^- ' .learn/variants.md || echo 0)
+          variants=$(grep -c '^- ' .learn/variants.md 2>/dev/null || true)
           outcome=$(jq -r 'if .is_error then "실패" else "완료" end' .learn/claude-output.json 2>/dev/null || echo "출력 없음")
-          echo "::notice title=리뷰 학습 #$PR_NUMBER::Claude $outcome. 규칙 변경 $changed, 같은 패턴 ${variants}곳. 비교: $(grep -cE '^\| `' .learn/summary.md || echo 0)개 지적"
+          echo "::notice title=리뷰 학습 #$PR_NUMBER::Claude $outcome. 규칙 변경 $changed, 같은 패턴 ${variants:-0}곳. 비교: $(grep -cE '^\| `' .learn/summary.md 2>/dev/null || true)개 지적"
           { echo "## #$PR_NUMBER CodeRabbit 리뷰에서 배우기"; echo; cat .learn/summary.md; } >> "$GITHUB_STEP_SUMMARY"
 
       # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
