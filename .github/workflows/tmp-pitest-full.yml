@@ -38,4 +38,10 @@ jobs:
               c[k][0] += 1
               c[k][1] += m.get("status") not in ("SURVIVED", "NO_COVERAGE")
           print("::notice title=클래스별::" + ", ".join(f"{k} {v[1]}/{v[0]}" for k, v in sorted(c.items())))
+          by = collections.defaultdict(list)
+          for m in root.iter("mutation"):
+              if m.get("status") in ("SURVIVED", "NO_COVERAGE"):
+                  by[m.findtext("mutatedClass").split(".")[-1]].append(f"L{m.findtext('lineNumber')} {m.findtext('mutatedMethod')}: {m.findtext('description')} [{m.get('status')}]")
+          for k, items in sorted(by.items()):
+              print(f"::notice title=살아남은 변이 {k}::" + " ;; ".join(items))
           PY
