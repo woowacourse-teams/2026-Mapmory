@@ -16,7 +16,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,25 +96,42 @@ class GroupRenameConcurrencyIntegrationTest extends IntegrationTest {
 
     /**
      * 이름 바꾸기를 커밋하지 않은 트랜잭션 안에서 부르고, 그사이 다른 스레드에서 other를 실행한 뒤 커밋한다.
-     * 이름 바꾸기가 그룹을 잠그면 other는 커밋까지 기다리고, 잠그지 않으면 먼저 커밋된다. 어느 쪽이든 1초 기다린 뒤 커밋한다.
+     * 이름 바꾸기가 그룹을 잠그면 other는 그룹 잠금에서 기다리고, 잠그지 않으면 먼저 커밋된다. 둘 중 하나가 된 것을 확인한 뒤 커밋한다.
      */
     private Future<?> whileRenaming(Member renamer, Long groupId, Callable<?> other) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             groupService.rename(renamer.getId(), groupId, "새 이름");
             Future<?> future = executor.submit(other);
-            waitBriefly(future);
+            waitUntilDoneOrWaitingForGroupLock(future);
             return future;
         });
     }
 
-    private static void waitBriefly(Future<?> future) {
-        try {
-            future.get(1, TimeUnit.SECONDS);
-        } catch (TimeoutException blocked) {
-            // 이름 바꾸기의 잠금을 기다리는 중이다.
-        } catch (Exception exception) {
-            throw new AssertionError(exception);
+    // 시간만 재면 느린 실행에서 other가 그룹 잠금에 닿기도 전에 이름 바꾸기를 커밋할 수 있다. 그러면 고치기 전 코드(잠금 없는 이름 바꾸기)도
+    // other가 이름 바꾸기의 커밋 뒤에 실행되어 덮어쓰기가 생기지 않고 통과한다. other가 끝났거나 그룹 FOR UPDATE에서 멈춘 것을 DB에서 확인한다.
+    // 테스트 DB 사용자는 PROCESS 권한이 없어 innodb_trx를 못 읽지만, 같은 사용자의 연결은 PROCESSLIST로 보인다.
+    private void waitUntilDoneOrWaitingForGroupLock(Future<?> other) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (other.isDone() || groupLockWaits() > 0) {
+                return;
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            }
         }
+        throw new AssertionError("다른 요청이 10초 안에 끝나지도, 그룹 잠금을 기다리지도 않았다");
+    }
+
+    private int groupLockWaits() {
+        Integer waiting = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.PROCESSLIST
+                WHERE ID <> CONNECTION_ID() AND COMMAND = 'Query' AND INFO LIKE '%from travel_group%for update%'
+                """, Integer.class);
+        return waiting == null ? 0 : waiting;
     }
 
     private int memberCountOf(Long groupId) {
