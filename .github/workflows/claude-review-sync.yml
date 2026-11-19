@@ -33,15 +33,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 100
+          fetch-depth: 300
 
       - name: Collect signals
         id: collect
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/claude-review/sync-collect.sh "${{ github.repository }}" "${{ github.event.before }}" "$GITHUB_SHA" .sync
+          # 같은 그룹에 새 실행이 들어오면 대기 중이던 실행은 취소된다. 그 push를 놓치지 않게,
+          # 이번 push의 이전 커밋이 아니라 마지막으로 성공한 동기화가 본 커밋부터 비교한다.
+          before="${{ github.event.before }}"
+          last=$(gh api "repos/${{ github.repository }}/actions/workflows/claude-review-sync.yml/runs?branch=backend-develop&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty' || true)
+          if [ -n "$last" ] && git merge-base --is-ancestor "$last" "$GITHUB_SHA" 2>/dev/null; then
+            before="$last"
+          fi
+          bash .github/claude-review/sync-collect.sh "${{ github.repository }}" "$before" "$GITHUB_SHA" .sync
           if [ -f .sync/signals.md ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+          # 판정에 쓰는 값은 단계 출력으로 넘긴다. Claude는 파일은 쓸 수 있어도 앞 단계의 출력은 바꿀 수 없다.
+          if [ -s .sync/adr.diff ]; then echo "adr=true" >> "$GITHUB_OUTPUT"; else echo "adr=false" >> "$GITHUB_OUTPUT"; fi
+          # 근거로 인정할 번호: 이번에 바뀐 ADR 번호와 이번에 머지된 PR 번호
+          sources=$( { grep -oE '^\+\+\+ b/backend/docs/adr/[0-9]{4}' .sync/adr.diff 2>/dev/null | grep -oE '[0-9]{4}$' | sed 's/^/ADR_/'
+            grep -oE '^## #[0-9]+' .sync/commits.md 2>/dev/null | sed 's/^## //'; } | sort -u | tr '\n' ' ')
+          echo "sources=$sources" >> "$GITHUB_OUTPUT"
+          echo "근거로 인정할 번호: $sources"
 
       - name: Install Claude Code
         if: steps.collect.outputs.found == 'true'
@@ -60,10 +75,15 @@ jobs:
 
       - id: diff
         if: steps.collect.outputs.found == 'true'
+        env:
+          ADR_CHANGED: ${{ steps.collect.outputs.adr }}
+          SOURCES: ${{ steps.collect.outputs.sources }}
         run: |
+          # ADR_0031 → "ADR 0031". 근거 번호를 한 줄에 하나씩 둔다.
+          printf '%s\n' $SOURCES | sed 's/_/ /' > "$RUNNER_TEMP/sources"
           dir=.github/claude-review
           # 규칙은 결정에서만 바뀐다. ADR 변경 없이 domain.md를 고쳤으면 버린다.
-          if [ ! -s .sync/adr.diff ] && ! git diff --quiet -- "$dir/domain.md"; then
+          if [ "$ADR_CHANGED" != "true" ] && ! git diff --quiet -- "$dir/domain.md"; then
             git checkout -- "$dir/domain.md"
             { echo; echo "> ADR 변경이 없어 \`domain.md\` 수정은 버렸다. 규칙을 바꿔야 한다면 ADR로 남긴다."; } >> .sync/summary.md
           fi
@@ -75,8 +95,13 @@ jobs:
           files=$(echo $files)
           if [ -n "$files" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            # 근거(ADR 번호나 PR 번호)가 없는 새 줄을 따로 보여 준다. 사람이 먼저 볼 곳이다.
-            unsourced=$(for f in $files; do git diff -U0 -- "$dir/$f" | grep -E '^\+[^+]' | grep -vE 'ADR|#[0-9]+' | grep -vE '^\+\s*$' | sed "s|^+|- \`$f\`: |"; done || true)
+            # 이번에 바뀐 ADR이나 이번에 머지된 PR을 근거로 달지 않은 새 줄을 따로 보여 준다. 사람이 먼저 볼 곳이다.
+            unsourced=$(for f in $files; do
+              git diff -U0 -- "$dir/$f" | grep -E '^\+[^+]' | grep -vE '^\+\s*$' | while IFS= read -r line; do
+                if [ -n "$SOURCES" ] && grep -qFf "$RUNNER_TEMP/sources" <<<"$line"; then continue; fi
+                echo "- \`$f\`: ${line#+}"
+              done
+            done || true)
             if [ -n "$unsourced" ]; then
               { echo; echo "## 근거 없는 줄"; echo; echo "ADR이나 PR 번호가 없는 새 줄이다. 결정에서 온 것인지 확인한다."; echo; echo "$unsourced"; } >> .sync/summary.md
             fi
@@ -85,12 +110,12 @@ jobs:
           fi
           echo "files=$files" >> "$GITHUB_OUTPUT"
           # 문서는 그대로인데 모순이나 결정 확인이 있으면 이슈로만 알린다.
-          if awk '/^## (모순|결정 확인)/{s=1;next} /^## /{s=0} s && /^- /{found=1} END{exit !found}' .sync/summary.md; then
+          if awk '/^## (모순|결정 확인)/{s=1;next} /^## /{s=0} s && /^- / && !/^- *없음[.]? *$/{found=1} END{exit !found}' .sync/summary.md; then
             echo "report=true" >> "$GITHUB_OUTPUT"
           else
             echo "report=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "::notice title=리뷰 기준 동기화::수정 파일: ${files:-없음}, ADR 변경: $([ -s .sync/adr.diff ] && echo 있음 || echo 없음)"
+          echo "::notice title=리뷰 기준 동기화::수정 파일: ${files:-없음}, ADR 변경: $ADR_CHANGED"
           { echo "## 리뷰 기준 동기화"; echo; cat .sync/summary.md; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect proposal

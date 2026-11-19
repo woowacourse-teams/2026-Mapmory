@@ -95,7 +95,7 @@ jobs:
       - id: result
         run: |
           # "새로 찾은 모순"이나 "문서 갱신 대상"에 내용이 있으면 이슈를 연다.
-          if awk '/^## (새로 찾은 모순|문서 갱신 대상)/{s=1;next} /^## /{s=0} s && /^(### |- )/{found=1} END{exit !found}' .audit/findings.md; then
+          if awk '/^## (새로 찾은 모순|문서 갱신 대상)/{s=1;next} /^## /{s=0} s && /^(### |- )/ && !/^- *없음[.]? *$/{found=1} END{exit !found}' .audit/findings.md; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
