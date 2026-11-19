@@ -13,6 +13,7 @@ import com.mapmory.backend.region.exception.RegionErrorCode;
 import com.mapmory.backend.travelrecord.api.RecordBrief;
 import com.mapmory.backend.travelrecord.api.TravelRecordQuery;
 import com.mapmory.backend.travelrecord.exception.TravelRecordErrorCode;
+import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,12 +25,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 앨범 열기(따로 올리기), 기록 담기(사진 붙이기), 이름·지역 바꾸기(T4).
  *
  * <p>앨범을 바꾸는 요청은 모두 그룹 행을 먼저 잠근다(TravelGroupRepository.findByIdForUpdate). 그룹을 바꾸는 쿼리끼리
- * 잠금 순서를 맞추고, 나중에 나가기(T3)와 겨뤄도 나간 뒤에 담기는 일이 없게 한다. 그래서 멤버 확인도 GroupMembership 대신
- * 잠근 그룹으로 한다. 트랜잭션에서 그룹을 처음 읽는 게 잠금 조회여야 한다.
+ * 잠금 순서를 맞추고, 나중에 나가기(T3)와 겨뤄도 나간 뒤에 열거나 담는 일이 없게 한다. 그래서 멤버 확인도 GroupMembership 대신
+ * 잠근 그룹으로 한다({@link #lockGroupOf}).
  *
- * <p>앨범을 열거나 담으면 회원을 가리키는 행(album.opener_member_id, album_entry.member_id)을 넣어 FK 확인이 회원 행을 공유 잠금한다.
- * 초대 수락은 회원 → 그룹 순서로 잠그므로(GroupInvitationService), 열기·담기도 회원 행을 먼저 잠가 순서를 맞춘다.
- * 그룹 → 회원 순서로 두면 같은 회원이 같은 그룹에 수락과 담기를 동시에 보낼 때 데드락이 난다.
+ * <p>그룹 잠금이 트랜잭션의 첫 조회여야 한다. REPEATABLE READ의 스냅샷은 첫 일반 조회 때 DB 전체를 기준으로 생긴다.
+ * 회원 확인 같은 일반 조회를 먼저 하면 스냅샷이 잠금을 기다리기 전에 생겨, 잠금 뒤에 일반 조회로 읽는 멤버 목록과 앨범이 기다리기 전
+ * 상태가 된다. 그러면 그사이 나간 사람이 멤버로 보여 앨범을 열거나 담고, 그사이 바뀐 앨범 이름·지역을 옛 값으로 되돌린다.
+ *
+ * <p>앨범을 열거나 담으면 회원을 가리키는 행(album.opener_member_id, album_entry.member_id)을 넣어 FK 확인이 회원 행을
+ * 공유 잠금한다. 그룹 흐름은 모두 그룹 → 회원 순서다(초대 수락의 멤버 INSERT, 나가기의 방장·앨범 연 사람 넘기기도 같다).
+ * 회원 행을 먼저 잠그면 이 순서와 반대가 되어 나가기와 데드락이 나므로 회원은 잠그지 않는다(ADR 0028).
  *
  * <p>남의 기록이거나 없는 기록이면 여행 기록과 같은 TRAVEL_RECORD_NOT_FOUND다. 남의 기록이 있다는 것도 알려 주지 않는다.
  */
@@ -68,7 +73,6 @@ public class AlbumService {
      */
     @Transactional
     public AlbumDetail open(Long memberId, Long groupId, Long travelRecordId, String name, Long regionId) {
-        socialMemberGuard.lock(memberId);
         TravelGroup group = lockGroupOf(groupId, memberId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
         Region region = findRegion(regionId == null ? record.regionId() : regionId);
@@ -79,10 +83,9 @@ public class AlbumService {
     }
 
     /**
-     * 같은 기록을 동시에 담으면 그룹 행 잠금으로 차례로 처리하지만, 늦은 쪽은 잠금을 기다리기 전에 읽은
-     * 옛 스냅샷으로 앨범을 보고 담으려다 유니크 제약(uk_album_entry_record)에 걸릴 수 있다.
-     * 그 트랜잭션은 롤백하고, 다시 들어오면 이미 담긴 기록이라 다시 담은 것으로(created=false) 응답한다.
-     * 그래서 이 메서드는 트랜잭션을 직접 연다(GroupInvitationService.accept와 같다).
+     * 같은 기록을 동시에 담으면 그룹 행 잠금으로 차례로 처리한다. 잠금이 첫 조회라 늦은 쪽은 앞 사람이 담은 항목을 보고
+     * 다시 담은 것으로(created=false) 응답한다. 그래도 유니크 제약(uk_album_entry_record)에 걸리면 그 트랜잭션은 롤백하고
+     * 한 번 더 들어와 같은 응답을 준다. 그래서 이 메서드는 트랜잭션을 직접 연다(GroupInvitationService.accept와 같다).
      */
     public AlbumEntryResult addEntry(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
         try {
@@ -100,7 +103,6 @@ public class AlbumService {
         if (name == null && regionId == null) {
             throw new BusinessException(GroupErrorCode.EMPTY_ALBUM_UPDATE);
         }
-        socialMemberGuard.require(memberId);
         lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         if (name != null) {
@@ -113,7 +115,6 @@ public class AlbumService {
     }
 
     private AlbumEntryResult add(Long memberId, Long groupId, Long albumId, Long travelRecordId) {
-        socialMemberGuard.lock(memberId);
         TravelGroup group = lockGroupOf(groupId, memberId);
         Album album = findAlbum(albumId, groupId);
         RecordBrief record = findOwnedRecord(travelRecordId, memberId);
@@ -127,10 +128,13 @@ public class AlbumService {
         return new AlbumEntryResult(albumQueryService.detailOf(album, memberId), created);
     }
 
+    // 그룹을 잠근 뒤에 소셜 회원인지 확인한다. 회원 확인은 일반 조회라 잠금보다 먼저 하면 스냅샷이 잠금 전에 생긴다.
+    // 오류는 회원 쪽이 먼저다(게스트 403, 없거나 탈퇴한 회원 401). 그다음에 그룹이 없거나 멤버가 아니면 404다.
     private TravelGroup lockGroupOf(Long groupId, Long memberId) {
-        return travelGroupRepository.findByIdForUpdate(groupId)
-                .filter(group -> group.hasMember(memberId))
-                .orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
+        Optional<TravelGroup> group = travelGroupRepository.findByIdForUpdate(groupId)
+                .filter(found -> found.hasMember(memberId));
+        socialMemberGuard.require(memberId);
+        return group.orElseThrow(() -> new BusinessException(GroupErrorCode.GROUP_NOT_FOUND));
     }
 
     // 알림은 커밋된 뒤 따로 보낸다(ADR 0022 결정 7). 받을 멤버는 그룹 잠금 아래에서 정한다.

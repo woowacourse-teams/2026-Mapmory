@@ -36,10 +36,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * 회원 행과 그룹 행을 함께 잠그는 요청이 겹쳐도 데드락이 나지 않는지 실제 DB로 확인한다.
  *
- * <p>초대 수락은 회원 → 그룹 순서로 잠근다. 앨범 열기·담기는 그룹을 잠근 뒤 회원을 가리키는 행(album.opener_member_id,
- * album_entry.member_id)을 넣는데, 이때 FK 확인이 회원 행을 공유 잠금한다. 앨범 쪽이 그룹 → 회원 순서면 같은 회원이 같은 그룹에
- * 수락(이미 멤버라 그대로 돌려줌)과 앨범 요청을 동시에 보낼 때 서로를 기다린다. 나가기는 그룹만 잠그고 회원 행은 잠그지 않아
- * 수락과 겹쳐도 한쪽이 기다리기만 한다. 한 번으로는 겹치지 않을 수 있어 여러 번 동시에 출발시킨다.
+ * <p>그룹 흐름은 그룹 행을 잠근 뒤 회원을 가리키는 값을 쓰고, 이때 FK 확인이 회원 행을 공유 잠금한다. 수락은 멤버를,
+ * 앨범 열기·담기는 album.opener_member_id·album_entry.member_id를 넣는다. 나가기는 방장(travel_group.owner_member_id)이나
+ * 앨범을 연 사람(album.opener_member_id)을 다음 멤버로 바꾸는데, FK 값을 바꾸는 UPDATE도 바뀐 회원 행을 공유 잠금한다.
+ * 모두 그룹 → 회원 순서라 겹쳐도 한쪽이 기다리기만 한다. 어느 흐름이든 회원을 먼저 잠그면 순서가 엇갈려 데드락이 난다(ADR 0028).
+ * 한 번으로는 겹치지 않을 수 있어 여러 번 동시에 출발시킨다.
  */
 class GroupLockOrderConcurrencyIntegrationTest extends IntegrationTest {
 
@@ -137,6 +138,59 @@ class GroupLockOrderConcurrencyIntegrationTest extends IntegrationTest {
                         groupLeaveService.leave(member.getId(), groupId);
                         return null;
                     }));
+
+            recordIfFailed(failures, round, outcomes);
+        }
+
+        assertThat(failures).as("%d번 중 실패한 경우", ROUNDS).isEmpty();
+    }
+
+    @Test
+    void 방장이_나가면서_다음_방장이_앨범에_담아도_데드락이_나지_않는다() throws Exception {
+        List<String> failures = new ArrayList<>();
+        for (int round = 0; round < ROUNDS; round++) {
+            Member owner = socialMember();
+            Long groupId = groupOf(owner);
+            String token = groupInvitationService.create(owner.getId(), groupId).getToken();
+            Member next = socialMember();
+            groupInvitationService.accept(next.getId(), token);
+            Long albumId = albumService.open(next.getId(), groupId, record(next), null, null).id();
+            Long recordId = record(next);
+
+            List<String> outcomes = runAtOnce(List.of(
+                    () -> {
+                        groupLeaveService.leave(owner.getId(), groupId);
+                        return null;
+                    },
+                    () -> albumService.addEntry(next.getId(), groupId, albumId, recordId)));
+
+            recordIfFailed(failures, round, outcomes);
+        }
+
+        assertThat(failures).as("%d번 중 실패한 경우", ROUNDS).isEmpty();
+    }
+
+    @Test
+    void 앨범을_연_멤버가_나가면서_다음에_연_사람이_될_멤버가_앨범에_담아도_데드락이_나지_않는다() throws Exception {
+        List<String> failures = new ArrayList<>();
+        for (int round = 0; round < ROUNDS; round++) {
+            Member owner = socialMember();
+            Long groupId = groupOf(owner);
+            String token = groupInvitationService.create(owner.getId(), groupId).getToken();
+            Member opener = socialMember();
+            Member next = socialMember();
+            groupInvitationService.accept(opener.getId(), token);
+            groupInvitationService.accept(next.getId(), token);
+            Long albumId = albumService.open(opener.getId(), groupId, record(opener), null, null).id();
+            albumService.addEntry(next.getId(), groupId, albumId, record(next));
+            Long recordId = record(next);
+
+            List<String> outcomes = runAtOnce(List.of(
+                    () -> {
+                        groupLeaveService.leave(opener.getId(), groupId);
+                        return null;
+                    },
+                    () -> albumService.addEntry(next.getId(), groupId, albumId, recordId)));
 
             recordIfFailed(failures, round, outcomes);
         }

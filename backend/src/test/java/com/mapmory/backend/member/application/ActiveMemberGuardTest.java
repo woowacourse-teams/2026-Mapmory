@@ -55,36 +55,6 @@ class ActiveMemberGuardTest {
         assertInactive(1L);
     }
 
-    @Test
-    void 잠그며_확인할_때도_활동_중인_회원을_돌려준다() {
-        Member member = Member.ofGuest("guest-1", "게스트", UUID.randomUUID());
-        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member));
-
-        assertThat(guard.lock(1L)).isSameAs(member);
-    }
-
-    @Test
-    void 잠그며_확인할_때도_탈퇴한_회원은_사용할_수_없는_회원이다() {
-        Member member = Member.ofOAuth(AuthProvider.KAKAO, "kakao-1", "지수", UUID.randomUUID());
-        member.withdraw(NOW);
-        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member));
-
-        assertThatThrownBy(() -> guard.lock(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(MemberErrorCode.INACTIVE_MEMBER);
-    }
-
-    @Test
-    void 잠그며_확인할_때도_없는_회원은_사용할_수_없는_회원이다() {
-        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> guard.lock(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(MemberErrorCode.INACTIVE_MEMBER);
-    }
-
     private void assertInactive(Long memberId) {
         assertThatThrownBy(() -> guard.require(memberId))
                 .isInstanceOf(BusinessException.class)
