@@ -88,6 +88,7 @@ public class TagService {
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.INACTIVE_MEMBER));
     }
 
+    // 임시: 뮤테이션 테스트 연동 시험용 주석. 시험 뒤 되돌린다.
     private void validateTagLimit(Long memberId) {
         if (tagRepository.countByMemberId(memberId) >= MAX_TAGS_PER_MEMBER) {
             throw new BusinessException(TagErrorCode.TAG_LIMIT_EXCEEDED);
