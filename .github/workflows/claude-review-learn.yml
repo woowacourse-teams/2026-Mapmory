@@ -50,7 +50,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          count=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID/comments?per_page=100" --jq 'length')
+          # CodeRabbit이 스레드에 단 답글도 별도 리뷰가 된다. 답글이 아닌 새 지적만 센다.
+          count=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID/comments?per_page=100" --jq '[.[] | select(.in_reply_to_id == null)] | length')
           outside=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID" --jq '.body | test("Outside diff range")')
           echo "CodeRabbit 인라인 지적 ${count}개, 줄 밖 지적 ${outside}"
           if [ "$count" -gt 0 ] || [ "$outside" = "true" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi

@@ -22,7 +22,7 @@ gh api "repos/$REPO/pulls/$PR/reviews/$REVIEW_ID" \
   > "$OUT/coderabbit-review.json"
 
 gh api "repos/$REPO/pulls/$PR/reviews/$REVIEW_ID/comments?per_page=100" --paginate \
-  --jq "$clean"' [.[] | {id, path, line: (.original_line // .line), start_line: (.original_start_line // .start_line), commit: .original_commit_id, body: (.body | clean(4000))}]' \
+  --jq "$clean"' [.[] | select(.in_reply_to_id == null) | {id, path, line: (.original_line // .line), start_line: (.original_start_line // .start_line), commit: .original_commit_id, body: (.body | clean(4000))}]' \
   | jq -s 'add // []' > "$OUT/coderabbit-comments.json"
 
 # 이 PR에 Claude 리뷰가 단 인라인 코멘트(답글 제외)와 요약
