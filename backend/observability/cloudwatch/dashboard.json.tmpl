@@ -1675,7 +1675,7 @@
         "metrics": [
           [
             {
-              "expression": "SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"mapmory_thumbnail_backlog\"', 'Maximum', 60)",
+              "expression": "SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"mapmory_thumbnail_backlog\" environment=\"${ENV}\"', 'Maximum', 60)",
               "label": "backlog",
               "id": "e1",
               "region": "ap-northeast-2"
