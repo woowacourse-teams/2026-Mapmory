@@ -24,11 +24,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -46,6 +49,7 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
     private static final int MAX_TAGS = 5;
     private static final int MAX_PHOTOS = 100;
     private static final String OK = "OK";
+    private static final String RETRY_LATER = "RETRY_LATER";
 
     @Autowired
     private TravelRecordService travelRecordService;
@@ -255,12 +259,17 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
     }
 
     /**
-     * 수정은 기록 행을 잠근 채 태그 연결을 넣고 떼며, 연결 INSERT의 FK 확인이 태그 행을 공유 잠금한다(기록 → 태그).
-     * 태그 삭제는 태그 행을 지우며 ON DELETE CASCADE로 연결 행을 지운다. 두 흐름이 서로를 기다려 데드락이 나지 않는지 본다.
      * 한 태그는 빼고 다른 태그는 붙이는 수정과, 그 두 태그의 삭제를 함께 출발시킨다.
+     *
+     * <p>뺄 태그가 그 순간 지워지면 두 가지가 생길 수 있다(#753). 태그 삭제의 ON DELETE CASCADE가 연결 행을 먼저 지워 수정이 그 행을
+     * 다시 지우려다 0행이 되거나, 연결 행의 PK와 유니크 인덱스를 서로 반대 순서로 잠가 데드락이 난다. 둘 다 데이터는 롤백되어 그대로이고,
+     * 잠금을 더해 막지 않고 수정은 한 번 다시 하며 남은 잠금 충돌은 다시 시도할 오류(503)로 응답하기로 했다.
+     * 그래서 이 테스트는 그 밖의 실패(FK 위반, 엉뚱한 예외)가 없는지와, 겹쳐도 기록이 남아 있는지를 본다.
+     *
+     * <p>바로 출발시키면 로컬에서는 태그 삭제가 먼저 끝나 거의 겹치지 않는다. 삭제를 0~30ms 무작위로 늦춰 수정의 쓰기와 겹치게 한다.
      */
     @Test
-    void 태그를_바꾸는_수정과_태그_삭제가_겹쳐도_데드락이_나지_않는다() throws Exception {
+    void 태그를_바꾸는_수정과_태그_삭제가_겹쳐도_다시_시도할_수_있는_잠금_충돌_말고는_실패하지_않는다() throws Exception {
         List<String> problems = new ArrayList<>();
         for (int round = 0; round < ROUNDS; round++) {
             Member member = socialMember();
@@ -268,26 +277,34 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
             Long addedTag = tagRepository.save(Tag.of(member, "붙일 태그")).getId();
             List<String> photos = List.of(photoKey(member));
             Long recordId = travelRecordService.create(member, command("여행", photos, List.of(removedTag))).getId();
+            long deleteDelayMillis = ThreadLocalRandom.current().nextLong(0, 31);
 
             List<String> outcomes = runAtOnce(List.of(
                     () -> travelRecordService.update(member, recordId, command("여행", photos, List.of(addedTag))),
                     () -> {
+                        Thread.sleep(deleteDelayMillis);
                         tagService.delete(member, removedTag);
                         return null;
                     },
                     () -> {
+                        Thread.sleep(deleteDelayMillis);
                         tagService.delete(member, addedTag);
                         return null;
                     }));
 
-            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 그 밖의 실패(데드락, FK 위반)는 없어야 한다.
-            boolean updateEnded = OK.equals(outcomes.get(0)) || "TAG_NOT_FOUND".equals(outcomes.get(0));
-            if (!updateEnded || !OK.equals(outcomes.get(1)) || !OK.equals(outcomes.get(2))) {
-                problems.add("round " + round + ": " + outcomes);
+            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 잠금 충돌은 다시 시도할 오류(RETRY_LATER)로 본다.
+            boolean updateEnded = List.of(OK, "TAG_NOT_FOUND", RETRY_LATER).contains(outcomes.get(0));
+            boolean deletesEnded = List.of(OK, RETRY_LATER).contains(outcomes.get(1))
+                    && List.of(OK, RETRY_LATER).contains(outcomes.get(2));
+            boolean recordKept = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM travel_record WHERE id = ?", Integer.class, recordId) == 1;
+            if (!updateEnded || !deletesEnded || !recordKept) {
+                problems.add("round " + round + " (삭제 " + deleteDelayMillis + "ms 늦춤): " + outcomes
+                        + (recordKept ? "" : ", 기록이 사라짐"));
             }
         }
 
-        assertThat(problems).isEmpty();
+        assertThat(problems).as("%d번 중 다시 시도할 수 없는 실패: %s", ROUNDS, problems).isEmpty();
     }
 
     /**
@@ -408,6 +425,9 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                     return OK;
                 } catch (BusinessException exception) {
                     return exception.getErrorCode().toString();
+                } catch (PessimisticLockingFailureException | OptimisticLockingFailureException exception) {
+                    // 웹 계층에서 503 RETRY_LATER로 응답하는 잠금 충돌이다(LockConflictExceptionHandler).
+                    return RETRY_LATER;
                 } catch (RuntimeException exception) {
                     return exception.getClass().getSimpleName();
                 }
