@@ -88,15 +88,16 @@ find_instance_id() {
 }
 
 # 루트(/) 디스크 지표의 device와 fstype을 지금 들어오는 지표에서 찾는다. 서버마다 값이 달라서 저장소에 두지 않는다.
-# list-metrics는 최근 2주 안에 값이 들어온 지표만 보여 준다. 새 서버는 Agent가 지표를 보낸 뒤에 실행한다.
+# 최근 3시간 안에 값이 들어온 지표만 본다(--recently-active PT3H). 그냥 list-metrics는 2주 안의 지표를 모두 보여 줘서,
+# device나 fstype이 바뀐 서버는 옛 지표까지 2개로 보인다. 새 서버는 Agent가 지표를 보낸 뒤에 실행한다.
 # 출력: "<device> <fstype>"
 find_root_disk() {
   local instance_id=$1 metrics count device fstype
   metrics=$(aws cloudwatch list-metrics --region "$REGION" \
     --namespace Mapmory/EC2 --metric-name disk_used_percent \
-    --dimensions "Name=InstanceId,Value=${instance_id}" "Name=path,Value=/" --output json)
+    --dimensions "Name=InstanceId,Value=${instance_id}" "Name=path,Value=/" --recently-active PT3H --output json)
   count=$(jq '.Metrics | length' <<< "$metrics")
-  ((count == 1)) || die "루트 디스크 지표(disk_used_percent, path=/)가 ${count}개입니다. Agent가 지표를 보내는지 확인하세요."
+  ((count == 1)) || die "루트 디스크 지표(disk_used_percent, path=/)가 최근 3시간 안에 ${count}개입니다. 0개면 Agent가 지표를 보내는지, 2개 이상이면 디스크 구성이 바뀌었는지 확인하세요."
   device=$(jq -r '.Metrics[0].Dimensions[] | select(.Name == "device") | .Value' <<< "$metrics")
   fstype=$(jq -r '.Metrics[0].Dimensions[] | select(.Name == "fstype") | .Value' <<< "$metrics")
   [[ -n $device && -n $fstype ]] || die "루트 디스크 지표에 device 또는 fstype 차원이 없습니다."
