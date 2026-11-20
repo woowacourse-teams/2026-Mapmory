@@ -12,7 +12,8 @@ import org.springframework.web.servlet.HandlerMapping;
  * 사람은 그룹에 들어갈 수 있다. 그래서 로그와 응답에는 매칭된 경로 패턴({@code /api/v1/invitations/{tokenOrCode}})만 쓴다.
  * 메트릭의 {@code uri} 태그도 같은 패턴이다.
  *
- * <p>패턴이 없으면(시큐리티 필터에서 끝난 요청, 매핑되는 핸들러가 없는 요청) 원본 대신 {@link #UNKNOWN}을 쓴다.
+ * <p>패턴이 없으면(시큐리티 필터에서 끝난 요청, 405·415처럼 핸들러 매칭이 실패한 요청) 원본 대신 {@link #UNKNOWN}을 쓴다.
+ * 컨트롤러에 없는 경로는 정적 리소스 핸들러의 {@code /**}로 남는다.
  * 앞 몇 칸만 남기는 방식은 경로마다 어디까지 안전한지 따로 따져야 해서 쓰지 않는다.
  *
  * <p>{@code /error}(ERROR 디스패치)로 넘어간 응답은 Boot의 BasicErrorController가 만든다. 그 응답의 {@code path}는
