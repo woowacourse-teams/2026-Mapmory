@@ -407,8 +407,8 @@
         "metrics": [
           [
             {
-              "expression": "100 * FILL(m3, 0) / SUM([m1,m2,m3,m4,m5])",
-              "label": "5xx 비율 (%)",
+              "expression": "IF((FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)) >= 10, 100 * FILL(m3, 0) / (FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)), 0)",
+              "label": "5xx 비율 (%, 알람과 같은 식)",
               "id": "e1",
               "region": "ap-northeast-2"
             }
