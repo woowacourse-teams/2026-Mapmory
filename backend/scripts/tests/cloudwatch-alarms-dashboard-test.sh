@@ -180,6 +180,19 @@ else
   fail "알람 설명이 가리키는 위젯이 대시보드에 있다"
 fi
 
+# 6-2. 대시보드의 "5xx 비율 (%)" 그래프는 알람과 같은 식으로 그린다. 그래야 그래프와 알람 값을 비교할 수 있다.
+alarm_ratio=$(jq -r 'select(.AlarmName == "mapmory-dev-api-5xx-ratio")
+  | (.Metrics | map(select(.Id == "total"))[0].Expression) as $total
+  | .Metrics | map(select(.Id == "ratio"))[0].Expression | gsub("total"; "(" + $total + ")")' "${WORK_DIR}/first")
+widget_ratio=$(jq -r '.widgets[] | select(.properties.title == "5xx 비율 (%)") | .properties.metrics[0][0].expression' \
+  "${CLOUDWATCH_DIR}/dashboard.json.tmpl")
+if [[ -n $alarm_ratio && $alarm_ratio == "$widget_ratio" ]]; then
+  pass "대시보드 5xx 비율 그래프가 알람과 같은 식이다"
+else
+  printf '알람: %s\n위젯: %s\n' "$alarm_ratio" "$widget_ratio"
+  fail "대시보드 5xx 비율 그래프가 알람과 같은 식이다"
+fi
+
 # 7. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.
 leaks=$(grep -rnE '[0-9]{12}|i-[0-9a-f]{8,}|arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]' "${BACKEND_DIR}/observability" || true)
 if [[ -z $leaks ]]; then
