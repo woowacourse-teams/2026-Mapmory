@@ -169,6 +169,17 @@ else
   fail "대시보드의 알람 이름이 실제 알람과 맞다"
 fi
 
+# 6-1. 알람 설명이 "따옴표"로 가리키는 위젯 제목은 대시보드에 그대로 있어야 한다. 알림 메일을 받은 사람이 그 제목으로 찾는다.
+widget_titles=$(jq -r '.widgets[].properties.title // empty' "${CLOUDWATCH_DIR}/dashboard.json.tmpl" | sort -u)
+referenced=$(jq -r '.AlarmDescription | scan("\"([^\"]+)\"")[0]' "${WORK_DIR}/first" | sort -u)
+unknown_titles=$(comm -23 <(printf '%s\n' "$referenced") <(printf '%s\n' "$widget_titles"))
+if [[ -n $referenced && -z $unknown_titles ]]; then
+  pass "알람 설명이 가리키는 위젯이 대시보드에 있다"
+else
+  printf '대시보드에 없는 위젯 제목: %s\n' "${unknown_titles:-(설명에 위젯 제목이 없음)}"
+  fail "알람 설명이 가리키는 위젯이 대시보드에 있다"
+fi
+
 # 7. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.
 leaks=$(grep -rnE '[0-9]{12}|i-[0-9a-f]{8,}|arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]' "${BACKEND_DIR}/observability" || true)
 if [[ -z $leaks ]]; then
