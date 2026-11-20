@@ -101,8 +101,14 @@ fi
 alarm() { jq -c --arg name "$1" 'select(.AlarmName == $name)' "${WORK_DIR}/first"; }
 if [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Statistic, .Period, .EvaluationPeriods, .Threshold, .ComparisonOperator, .TreatMissingData, (.OKActions | length)]') \
       == '["SampleCount",300,2,1,"LessThanThreshold","breaching",1]' ]] \
+  && [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Namespace, .MetricName, (.Dimensions | map("\(.Name)=\(.Value)") | sort | join(","))]') \
+      == '["Mapmory/Backend","hikaricp_connections_max","environment=dev,pool=HikariPool-1,service=mapmory-backend"]' ]] \
   && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -r '.Metrics[] | select(.ReturnData) | .Expression') \
       == 'IF(total >= 10, 100 * FILL(m3, 0) / total, 0)' ]] \
+  && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -c '[.Metrics[] | select(.MetricStat) | [.Id, .MetricStat.Metric.Namespace, .MetricStat.Metric.MetricName, (.MetricStat.Metric.Dimensions | map("\(.Name)=\(.Value)") | sort | join(",")), .MetricStat.Period, .MetricStat.Stat]]') \
+      == '[["m1","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=SUCCESS,service=mapmory-backend",60,"Sum"],["m2","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=CLIENT_ERROR,service=mapmory-backend",60,"Sum"],["m3","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=SERVER_ERROR,service=mapmory-backend",60,"Sum"]]' ]] \
+  && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -c '[.Threshold, .ComparisonOperator, .EvaluationPeriods, .DatapointsToAlarm, .TreatMissingData]') \
+      == '[5,"GreaterThanThreshold",5,3,"notBreaching"]' ]] \
   && [[ $(alarm mapmory-dev-db-connection-pending | jq -c '[.Statistic, .Period, .EvaluationPeriods, .DatapointsToAlarm, .Threshold, .ComparisonOperator, .TreatMissingData]') \
       == '["Maximum",60,5,3,1,"GreaterThanOrEqualToThreshold","notBreaching"]' ]] \
   && [[ $(alarm mapmory-dev-ec2-disk-usage-high | jq -c '[.Dimensions[] | .Value]') \
