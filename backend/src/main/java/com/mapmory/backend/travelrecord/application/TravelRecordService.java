@@ -1,5 +1,6 @@
 package com.mapmory.backend.travelrecord.application;
 
+import com.mapmory.backend.common.exception.AcceptedLockConflictException;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.exception.LockWaitTimeouts;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
@@ -175,8 +176,8 @@ public class TravelRecordService {
      * 다시 지우려다 0행이 되거나({@link OptimisticLockingFailureException}), 연결 행의 PK와 유니크 인덱스를 서로 반대 순서로 잠가
      * 데드락이 난다({@link PessimisticLockingFailureException}). 둘 다 바로 실패하므로 그때는 한 번 다시 한다.
      * 같은 예외로 오는 잠금 대기 시간 초과(50초)는 다시 하지 않는다({@link LockWaitTimeouts}). 실패한 시도는 통째로 롤백되고, 수정은 전체 교체라
-     * 다시 해도 결과가 같으며, 두 번째는 태그 삭제가 커밋된 뒤를 본다. 다시 해도 실패하면 예외를 그대로 던져
-     * {@code LockConflictExceptionHandler}가 503 + Retry-After로 응답한다.
+     * 다시 해도 결과가 같으며, 두 번째는 태그 삭제가 커밋된 뒤를 본다. 다시 해도 실패하면 받아들인 충돌
+     * ({@link AcceptedLockConflictException})로 감싸 던져, {@code LockConflictExceptionHandler}가 503 + Retry-After로 응답하고 WARN으로 남긴다.
      * 태그를 미리 잠가 이 경합을 없애지 않은 이유는 #753에 있다. 같은 사용자가 몇 ms 안에 두 기기로 겹쳐야 생기고, 실패해도 데이터는
      * 그대로인데, 잠금을 넣으면 기록 수정마다 태그를 잠그고 잠금 순서 규칙이 하나 늘어서다.
      */
@@ -197,7 +198,15 @@ public class TravelRecordService {
                     .addKeyValue("travelRecordId", travelRecordId)
                     .addKeyValue("exception", exception.getClass().getSimpleName())
                     .log("기록 수정이 겹친 요청과 잠금 충돌해 한 번 다시 한다");
-            return updateOnce(member, travelRecordId, command);
+            try {
+                return updateOnce(member, travelRecordId, command);
+            } catch (PessimisticLockingFailureException | OptimisticLockingFailureException again) {
+                if (LockWaitTimeouts.isLockWaitTimeout(again)) {
+                    throw again;
+                }
+                // 받아들이기로 한 경합이라 WARN으로 남기게 감싼다. 감싸지 않은 잠금 충돌은 순서 위반 신호로 보고 ERROR로 남는다.
+                throw new AcceptedLockConflictException("#753", again);
+            }
         }
     }
 

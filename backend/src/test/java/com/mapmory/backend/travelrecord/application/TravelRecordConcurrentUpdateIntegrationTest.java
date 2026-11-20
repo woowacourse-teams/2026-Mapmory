@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willReturn;
 
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.common.exception.AcceptedLockConflictException;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
@@ -465,7 +466,8 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                     return OK;
                 } catch (BusinessException exception) {
                     return exception.getErrorCode().toString();
-                } catch (PessimisticLockingFailureException | OptimisticLockingFailureException exception) {
+                } catch (PessimisticLockingFailureException | OptimisticLockingFailureException
+                         | AcceptedLockConflictException exception) {
                     // 웹 계층에서 503 RETRY_LATER로 응답하는 잠금 충돌이다(LockConflictExceptionHandler).
                     return RETRY_LATER;
                 } catch (RuntimeException exception) {

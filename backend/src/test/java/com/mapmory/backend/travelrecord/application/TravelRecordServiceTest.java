@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.exception.AcceptedLockConflictException;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
@@ -663,15 +664,19 @@ class TravelRecordServiceTest {
         verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
     }
 
+    // 다시 해도 실패하면 받아들인 경합(#753)으로 감싸, 처리기가 순서 위반 데드락(ERROR)과 구분해 WARN으로 남기게 한다.
     @Test
-    void 다시_해도_잠금_충돌이면_예외를_그대로_던진다() {
+    void 다시_해도_잠금_충돌이면_받아들인_충돌로_감싸_던진다() {
         TravelRecord travelRecord = japanRecord();
         when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
         when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
                 .thenThrow(new CannotAcquireLockException("Deadlock found when trying to get lock"));
 
         assertThatThrownBy(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")))
-                .isInstanceOf(CannotAcquireLockException.class);
+                .isInstanceOf(AcceptedLockConflictException.class)
+                .hasCauseInstanceOf(CannotAcquireLockException.class)
+                .extracting(exception -> ((AcceptedLockConflictException) exception).getDecision())
+                .isEqualTo("#753");
         verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
     }
 
