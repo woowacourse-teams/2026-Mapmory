@@ -292,8 +292,9 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                         return null;
                     }));
 
-            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 잠금 충돌은 다시 시도할 오류(RETRY_LATER)로 본다.
-            boolean updateEnded = List.of(OK, "TAG_NOT_FOUND", RETRY_LATER).contains(outcomes.get(0));
+            // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 수정의 잠금 충돌은 한 번 다시 해서 성공해야 하므로 실패로 본다.
+            // 태그 삭제는 다시 하지 않으므로, 데드락에서 희생되면 다시 시도할 오류(RETRY_LATER)로 본다.
+            boolean updateEnded = List.of(OK, "TAG_NOT_FOUND").contains(outcomes.get(0));
             boolean deletesEnded = List.of(OK, RETRY_LATER).contains(outcomes.get(1))
                     && List.of(OK, RETRY_LATER).contains(outcomes.get(2));
             boolean recordKept = jdbcTemplate.queryForObject(
@@ -329,7 +330,7 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                 Future<String> update = executor.submit(() -> outcomeOf(
                         () -> travelRecordService.update(member, recordId, command("여행", photos, List.of(tagId)))));
                 try {
-                    waitUntilBlocked(update);
+                    waitUntilBlocked(update, "%from tag%for share%");
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     throw new AssertionError(exception);
@@ -344,9 +345,48 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
         }
     }
 
-    // 저장의 태그 FOR SHARE 조회가 삭제의 잠금에 걸려 멈출 때까지 둔다. 시간만 재면 느린 실행에서 저장이 그 조회에 닿기 전에 커밋해,
+    /**
+     * 기록 수정이 빼려는 태그를 그 순간 지우는 경우다. 태그 삭제의 ON DELETE CASCADE가 연결 행을 먼저 지우면, 수정은 잠금 전에 읽은
+     * 연결 목록대로 그 행을 PK로 지우려다 0행이 되어 ObjectOptimisticLockingFailureException이 난다(#753). 수정은 이때 한 번 다시 해서,
+     * 태그 삭제가 커밋된 뒤를 보고 성공해야 한다. 무작위로 겹치게 하면 드물게만 생겨, 태그 삭제를 커밋하지 않은 채 수정을 출발시키고
+     * 수정이 그 연결 행을 지우다 멈춘 것을 확인한 뒤 커밋해 순서를 고정한다.
+     */
+    @Test
+    void 빼려는_태그를_지우는_중에_저장해도_수정은_한_번_다시_해서_성공한다() throws Exception {
+        Member member = socialMember();
+        Long tagId = tagRepository.save(Tag.of(member, "뺄 태그")).getId();
+        List<String> photos = List.of(photoKey(member));
+        Long recordId = travelRecordService.create(member, command("여행", photos, List.of(tagId))).getId();
+        TransactionTemplate deletion = new TransactionTemplate(transactionManager);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<String> outcome = deletion.execute(status -> {
+                tagService.delete(member, tagId);
+                // JPA는 DELETE를 커밋 때 내보낸다. 지금 DB에 보내야 CASCADE가 연결 행을 지우고 커밋 전까지 그 행의 잠금을 쥔다.
+                tagRepository.flush();
+                Future<String> update = executor.submit(() -> outcomeOf(
+                        () -> travelRecordService.update(member, recordId, command("여행", photos, List.of()))));
+                try {
+                    waitUntilBlocked(update, "%delete from travel_record_tag%");
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(exception);
+                }
+                return update;
+            });
+
+            assertThat(outcome.get(30, TimeUnit.SECONDS)).as("수정 결과").isEqualTo(OK);
+            assertThat(count("travel_record_tag", recordId)).as("남은 태그 연결").isZero();
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    // 저장의 문장(statementPattern)이 삭제의 잠금에 걸려 멈출 때까지 둔다. 시간만 재면 느린 실행에서 저장이 그 문장에 닿기 전에 커밋해,
     // 지워진 뒤를 읽고도 통과할 수 있다. 테스트 DB 사용자는 PROCESS 권한이 없어 innodb_trx를 못 읽지만, 같은 사용자의 연결은 PROCESSLIST로 보인다.
-    private void waitUntilBlocked(Future<String> update) throws InterruptedException {
+    private void waitUntilBlocked(Future<String> update, String statementPattern) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
             if (update.isDone()) {
@@ -354,8 +394,8 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
             }
             Integer waiting = jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM information_schema.PROCESSLIST
-                    WHERE ID <> CONNECTION_ID() AND COMMAND = 'Query' AND INFO LIKE '%from tag%for share%'
-                    """, Integer.class);
+                    WHERE ID <> CONNECTION_ID() AND COMMAND = 'Query' AND INFO LIKE ?
+                    """, Integer.class, statementPattern);
             if (waiting != null && waiting > 0) {
                 return;
             }
