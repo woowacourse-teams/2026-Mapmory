@@ -47,6 +47,13 @@ jobs:
       - name: Grant Gradle Wrapper permission
         run: chmod +x gradlew
 
+      - name: Deploy script tests
+        run: |
+          shellcheck -x -P SCRIPTDIR scripts/*.sh scripts/renderer/*.sh scripts/tests/*.sh
+          for test in scripts/tests/*-test.sh; do
+            bash "$test"
+          done
+
       - name: Test and build
         run: ./gradlew clean build --no-daemon
 
