@@ -73,6 +73,7 @@
 |---|---|---|---|
 | 사진 목록을 바꾼다 | | 있음 | 기록 애그리거트(사진 1~100장) |
 | 빠진 사진의 원본은 파기(사진 파일 보관) | 신규 | 있음 | 정리 큐로 나중에 지운다 |
+| 수정과 태그 삭제가 겹친 잠금 충돌은 잠그지 않고, 수정을 한 번 다시 하고 남으면 503 `RETRY_LATER`(ADR 0028 #753 업데이트) | | 있음 | `TravelRecordService.update`(`decision=#753`), `LockConflictExceptionHandler` (#754) |
 | 기록 삭제 이벤트에 기록 id를 담는다 | 변경 | 있음 | `TravelRecordDeleted(travelRecordId, memberId)` |
 | 기록을 지우면 원본 파기 | 신규 | 있음 | `TravelRecordService.delete`가 정리 큐에 넣는다 |
 | 지우면 모든 앨범에서 뺀다 · 지도·통계를 다시 계산 | | 있음 | 그룹 리스너, 캐시 무효화 |
