@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.exception.AcceptedLockConflictException;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
@@ -48,6 +49,7 @@ import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -60,6 +62,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.hibernate.exception.LockTimeoutException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -629,6 +634,90 @@ class TravelRecordServiceTest {
                 .extracting(RecordMedia::getObjectKey)
                 .doesNotContain("travel-records/10/a.jpg");
         verify(operationTimer).record(eq(MonitoredOperation.MEDIA_SYNC), any());
+    }
+
+    // 뺄 태그가 그 순간 지워지면 수정이 잠금 충돌로 실패할 수 있다(#753). 실패한 시도는 롤백되므로 한 번 다시 한다.
+    @Test
+    void 기록_수정이_잠금_충돌로_실패하면_한_번_다시_해서_수정한다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
+                .thenThrow(new CannotAcquireLockException("Deadlock found when trying to get lock"))
+                .thenReturn(Optional.of(101L));
+
+        TravelRecordDetail result = travelRecordService.update(member, 101L, japanCommand("수정된 제목"));
+
+        assertThat(result.travelRecord().getTitle()).isEqualTo("수정된 제목");
+        verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    @Test
+    void 이미_지워진_행을_지우려다_실패해도_한_번_다시_한다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
+                .thenThrow(new ObjectOptimisticLockingFailureException("delete from travel_record_tag where id=?", null))
+                .thenReturn(Optional.of(101L));
+
+        travelRecordService.update(member, 101L, japanCommand("수정된 제목"));
+
+        verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    // 다시 해도 실패하면 받아들인 경합(#753)으로 감싸, 처리기가 순서 위반 데드락(ERROR)과 구분해 WARN으로 남기게 한다.
+    @Test
+    void 다시_해도_잠금_충돌이면_받아들인_충돌로_감싸_던진다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
+                .thenThrow(new CannotAcquireLockException("Deadlock found when trying to get lock"));
+
+        assertThatThrownBy(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")))
+                .isInstanceOf(AcceptedLockConflictException.class)
+                .hasCauseInstanceOf(CannotAcquireLockException.class)
+                .extracting(exception -> ((AcceptedLockConflictException) exception).getDecision())
+                .isEqualTo("#753");
+        verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    @Test
+    void 잠금_대기_시간_초과는_다시_하지_않는다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
+                .thenThrow(new CannotAcquireLockException("could not execute statement",
+                        new LockTimeoutException("could not execute statement",
+                                new SQLException("Lock wait timeout exceeded; try restarting transaction", "HY000", 1205))));
+
+        assertThatThrownBy(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")))
+                .isInstanceOf(CannotAcquireLockException.class);
+        verify(travelRecordRepository, times(1)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    @Test
+    void 업무_오류는_다시_하지_않는다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L)).thenReturn(Optional.empty());
+
+        assertError(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")), "TRAVEL_RECORD_NOT_FOUND");
+        verify(travelRecordRepository, times(1)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    private TravelRecord japanRecord() {
+        Region japan = Region.of(null, null, "JP", "일본", RegionType.COUNTRY);
+        // 잠금에서 실패하는 테스트는 지역을 풀기 전에 끝나므로 쓰이지 않을 수 있다.
+        lenient().when(regionResolver.resolve("JP", null, null)).thenReturn(japan);
+        TravelRecord travelRecord = TravelRecord.of(mock(Member.class), japan, "기존 제목", "기존 본문",
+                LocalDate.of(2026, 8, 1), null, TODAY);
+        ReflectionTestUtils.setField(travelRecord, "id", 101L);
+        travelRecord.synchronizeMedia(ObjectKeys.from(PHOTOS));
+        return travelRecord;
+    }
+
+    private TravelRecordCommand japanCommand(String title) {
+        return new TravelRecordCommand("JP", null, null, title, "본문", LocalDate.of(2026, 8, 11), null,
+                PHOTOS, List.of(), null);
     }
 
     @Test
