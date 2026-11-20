@@ -33,11 +33,12 @@ render_dashboard() {
   jq -c . <<< "$body" || die "템플릿을 채운 결과가 올바른 JSON이 아닙니다."
 }
 
+# 권한 없음·세션 만료 같은 aws 오류는 감추지 않고 함께 보여 준다. RDS 식별자가 틀린 경우와 구분하기 위해서다.
 check_db_instance() {
-  local found
+  local found error=""
   found=$(aws rds describe-db-instances --region "$REGION" --db-instance-identifier "$1" \
-    --query 'DBInstances[0].DBInstanceIdentifier' --output text 2>/dev/null) || found=""
-  [[ $found == "$1" ]] || die "RDS 인스턴스 '$1'을 찾지 못했습니다."
+    --query 'DBInstances[0].DBInstanceIdentifier' --output text 2>&1) || { error=$found; found=""; }
+  [[ $found == "$1" ]] || die "RDS 인스턴스 '$1'을 확인하지 못했습니다. ${error}"
 }
 
 main() {

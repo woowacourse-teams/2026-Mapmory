@@ -27,7 +27,12 @@ case "$1 $2" in
     elif [[ $* == *"--output json"* ]]; then printf '%s\n' "$FAKE_CURRENT_ALARMS"
     else printf 'unmanaged-report\n'; fi ;;
   "cloudwatch list-metrics") printf '%s\n' "$FAKE_DISK_METRICS" ;;
-  "rds describe-db-instances") printf '%s\n' "$FAKE_DB_ID" ;;
+  "rds describe-db-instances")
+    if [[ $FAKE_DB_ID == ACCESS_DENIED ]]; then
+      printf 'An error occurred (AccessDenied) when calling the DescribeDBInstances operation\n' >&2
+      exit 254
+    fi
+    printf '%s\n' "$FAKE_DB_ID" ;;
   "cloudwatch put-metric-alarm")
     while (($# > 0)); do
       if [[ $1 == --cli-input-json ]]; then printf '%s\n' "$2" >> "${FAKE_LOG_DIR}/alarms"; fi
@@ -139,6 +144,12 @@ reset_fake; FAKE_ACTIONS="null"; expect_stop "SNS 알림 대상이 없으면 멈
 reset_fake; FAKE_DISK_METRICS='{"Metrics":[]}'; expect_stop "루트 디스크 지표가 없으면 멈춘다" alarms.sh dev --yes
 reset_fake; expect_stop "확인에 답하지 않으면 적용하지 않는다" alarms.sh dev
 reset_fake; FAKE_DB_ID="None"; expect_stop "RDS가 없으면 대시보드를 만들지 않는다" dashboard.sh dev --yes
+reset_fake; FAKE_DB_ID="ACCESS_DENIED"; expect_stop "RDS 권한이 없으면 대시보드를 만들지 않는다" dashboard.sh dev --yes
+if grep -qF 'AccessDenied' "${WORK_DIR}/log/stderr"; then
+  pass "RDS 확인이 실패하면 aws 오류를 함께 보여 준다"
+else
+  fail "RDS 확인이 실패하면 aws 오류를 함께 보여 준다"
+fi
 
 # 5. 대시보드 템플릿을 모두 채운다.
 reset_fake
