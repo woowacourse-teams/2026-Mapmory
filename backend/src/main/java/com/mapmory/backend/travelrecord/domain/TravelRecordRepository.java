@@ -77,6 +77,18 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
 
     /**
+     * 기록을 바꾸는 흐름(수정·삭제)의 행 잠금. 같은 기록을 바꾸는 요청을 차례로 처리한다.
+     *
+     * <p>일지 행만 잠그려고 id만 읽는 네이티브 쿼리로 둔다. {@link #findByIdAndMemberId}에 잠금을 걸면
+     * 함께 읽는 지역 행까지 FOR UPDATE로 잠겨, 같은 지역의 다른 회원 기록 수정까지 기다리게 된다.
+     * 잠근 뒤 {@link #findByIdAndMemberId}로 읽는다. REPEATABLE READ의 스냅샷은 첫 일반 조회 때 생기므로,
+     * 이 잠금을 트랜잭션의 첫 조회로 두어야 앞 요청이 커밋한 사진·태그를 본다.
+     */
+    @Query(value = "SELECT id FROM travel_record WHERE id = :id AND member_id = :memberId FOR UPDATE",
+            nativeQuery = true)
+    Optional<Long> lockByIdAndMemberId(@Param("id") Long id, @Param("memberId") Long memberId);
+
+    /**
      * 다른 컨텍스트에 기록을 묶어 넘길 때 쓴다(TravelRecordQuery). 회원과 지역은 즉시 로딩이라
      * 함께 읽지 않으면 기록마다 조회가 한 번씩 더 나간다. 없는 id는 결과에서 빠진다.
      */

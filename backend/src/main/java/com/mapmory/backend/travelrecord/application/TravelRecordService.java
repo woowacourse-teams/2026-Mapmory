@@ -1,6 +1,8 @@
 package com.mapmory.backend.travelrecord.application;
 
+import com.mapmory.backend.common.exception.AcceptedLockConflictException;
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.common.exception.LockWaitTimeouts;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.common.time.ServiceTime;
@@ -20,6 +22,7 @@ import com.mapmory.backend.travelrecord.api.TravelRecordDeleted;
 import com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache;
 import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.OrphanedMediaRepository;
+import com.mapmory.backend.travelrecord.domain.PhotoCaptureDates;
 import com.mapmory.backend.travelrecord.domain.RecordTagIds;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
@@ -32,7 +35,11 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class TravelRecordService {
 
+    private static final Logger log = LoggerFactory.getLogger(TravelRecordService.class);
     private static final int MAX_PAGE_SIZE = 100;
 
     private final TravelRecordRepository travelRecordRepository;
@@ -64,6 +72,7 @@ public class TravelRecordService {
     private final ActiveMemberGuard activeMemberGuard;
     private final OrphanedMediaRepository orphanedMediaRepository;
     private final DerivedObjectKeys derivedObjectKeys;
+    private final PhotoRecordNotificationOutboxWriter notificationOutboxWriter;
 
     public TravelRecordService(
             TravelRecordRepository travelRecordRepository,
@@ -81,7 +90,8 @@ public class TravelRecordService {
             TravelRecordListCache travelRecordListCache,
             ActiveMemberGuard activeMemberGuard,
             OrphanedMediaRepository orphanedMediaRepository,
-            DerivedObjectKeys derivedObjectKeys
+            DerivedObjectKeys derivedObjectKeys,
+            PhotoRecordNotificationOutboxWriter notificationOutboxWriter
     ) {
         this.travelRecordRepository = travelRecordRepository;
         this.regionResolver = regionResolver;
@@ -100,6 +110,7 @@ public class TravelRecordService {
         this.activeMemberGuard = activeMemberGuard;
         this.orphanedMediaRepository = orphanedMediaRepository;
         this.derivedObjectKeys = derivedObjectKeys;
+        this.notificationOutboxWriter = notificationOutboxWriter;
         this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
@@ -113,6 +124,7 @@ public class TravelRecordService {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        PhotoCaptureDates captureDates = PhotoCaptureDates.from(command.capturedDates(), today);
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
         uploadedObjectVerifier.verifyAllUploaded(member.getId(), objectKeys.values());
@@ -131,10 +143,11 @@ public class TravelRecordService {
                     today
             );
             setPlace(travelRecord, place);
-            travelRecord.synchronizeMedia(objectKeys);
+            travelRecord.synchronizeMedia(objectKeys, captureDates);
             travelRecord.retag(tagIds, findTags(member, tagIds));
 
             TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
+            notificationOutboxWriter.save(savedTravelRecord.getId(), member.getId(), command.pushTokenId());
             eventPublisher.publishEvent(new TravelRecordChangedEvent(member.getId()));
 
             return savedTravelRecord;
@@ -151,10 +164,53 @@ public class TravelRecordService {
      * 외부 호출을 트랜잭션 밖에 두려고 읽기와 쓰기를 두 트랜잭션으로 나눈다.
      * 읽기에서 새로 추가된 사진을 구해 S3로 확인하고, 쓰기에서 기록을 다시 읽어 그사이 삭제됐으면 TRAVEL_RECORD_NOT_FOUND로 끝낸다.
      * 그사이 사진 목록이 바뀌어 확인하지 않은 키가 새 사진으로 보이더라도, 그 키는 읽을 때 기록에 붙어 있던 사진이라
-     * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키의 객체는 정리 배치가 하루 한 번 지우므로(#162),
-     * 읽기와 쓰기 사이의 몇 초에 배치가 지운 드문 경우에만 객체가 없는 키가 붙을 수 있다.
+     * 처음 붙일 때 확인을 거쳤으므로 다시 확인하지 않는다. 떨어져 나간 키는 정리 큐에 있는 동안 다시 붙이지 못하므로
+     * ({@link #validateObjectKeysAreAvailable}), 읽기와 쓰기 사이의 몇 초에 배치가 지우고 큐에서도 없앤 드문 경우에만
+     * 객체가 없는 키가 붙을 수 있다.
+     *
+     * <p>쓰기는 기록 행을 먼저 잠근다({@link #lockOwnedTravelRecord}). 같은 기록을 동시에 고치면 늦은 요청이
+     * 앞 요청이 커밋한 사진·태그와 비교하므로, 두 요청의 몫이 합쳐지거나(상한 초과) 같은 행을 두 번 넣고 지우다 실패하지 않는다.
+     * 결과는 나중에 끝난 요청 그대로다.
+     *
+     * <p>뺄 태그가 그 순간 지워지면 수정이 실패할 수 있다(#753). 태그 삭제의 ON DELETE CASCADE가 연결 행을 먼저 지워 수정이 그 행을
+     * 다시 지우려다 0행이 되거나({@link OptimisticLockingFailureException}), 연결 행의 PK와 유니크 인덱스를 서로 반대 순서로 잠가
+     * 데드락이 난다({@link PessimisticLockingFailureException}). 둘 다 바로 실패하므로 그때는 한 번 다시 한다.
+     * 같은 예외로 오는 잠금 대기 시간 초과(50초)는 다시 하지 않는다({@link LockWaitTimeouts}). 실패한 시도는 통째로 롤백되고, 수정은 전체 교체라
+     * 다시 해도 결과가 같으며, 두 번째는 태그 삭제가 커밋된 뒤를 본다. 다시 해도 실패하면 받아들인 충돌
+     * ({@link AcceptedLockConflictException})로 감싸 던져, {@code LockConflictExceptionHandler}가 503 + Retry-After로 응답하고 WARN으로 남긴다.
+     * 태그를 미리 잠가 이 경합을 없애지 않은 이유는 #753에 있다. 같은 사용자가 몇 ms 안에 두 기기로 겹쳐야 생기고, 실패해도 데이터는
+     * 그대로인데, 잠금을 넣으면 기록 수정마다 태그를 잠그고 잠금 순서 규칙이 하나 늘어서다.
      */
     public TravelRecordDetail update(
+            Member member,
+            Long travelRecordId,
+            TravelRecordCommand command
+    ) {
+        try {
+            return updateOnce(member, travelRecordId, command);
+        } catch (PessimisticLockingFailureException | OptimisticLockingFailureException exception) {
+            // 잠금 대기 시간 초과는 50초를 기다린 뒤라 다시 하면 요청이 두 배로 길어진다. 다시 하지 않는다.
+            if (LockWaitTimeouts.isLockWaitTimeout(exception)) {
+                throw exception;
+            }
+            log.atInfo()
+                    .addKeyValue("event", "TRAVEL_RECORD_UPDATE_RETRIED")
+                    .addKeyValue("travelRecordId", travelRecordId)
+                    .addKeyValue("exception", exception.getClass().getSimpleName())
+                    .log("기록 수정이 겹친 요청과 잠금 충돌해 한 번 다시 한다");
+            try {
+                return updateOnce(member, travelRecordId, command);
+            } catch (PessimisticLockingFailureException | OptimisticLockingFailureException again) {
+                if (LockWaitTimeouts.isLockWaitTimeout(again)) {
+                    throw again;
+                }
+                // 받아들이기로 한 경합이라 WARN으로 남기게 감싼다. 감싸지 않은 잠금 충돌은 순서 위반 신호로 보고 ERROR로 남는다.
+                throw new AcceptedLockConflictException("#753", again);
+            }
+        }
+    }
+
+    private TravelRecordDetail updateOnce(
             Member member,
             Long travelRecordId,
             TravelRecordCommand command
@@ -162,6 +218,7 @@ public class TravelRecordService {
         LocalDate today = ServiceTime.today(clock);
         TravelRecord.validatePeriod(command.startDate(), command.endDate(), today);
         ObjectKeys objectKeys = ObjectKeys.from(command.objectKeys());
+        PhotoCaptureDates captureDates = PhotoCaptureDates.from(command.capturedDates(), today);
         RecordTagIds tagIds = RecordTagIds.from(command.tagIds());
         PlaceDetails place = resolvePlace(command);
 
@@ -174,7 +231,7 @@ public class TravelRecordService {
         uploadedObjectVerifier.verifyAllUploaded(member.getId(), newObjectKeys);
 
         return transactionTemplate.execute(status -> {
-            TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
+            TravelRecord travelRecord = lockOwnedTravelRecord(member, travelRecordId);
             validateObjectKeysAreAvailable(travelRecord.newObjectKeys(objectKeys));
             Region region = resolveRegion(command, place);
 
@@ -191,7 +248,7 @@ public class TravelRecordService {
             operationTimer.record(
                     MonitoredOperation.MEDIA_SYNC,
                     () -> {
-                        travelRecord.synchronizeMedia(objectKeys);
+                        travelRecord.synchronizeMedia(objectKeys, captureDates);
                         travelRecordRepository.flush();
                         return travelRecord.getMedia();
                     }
@@ -206,9 +263,13 @@ public class TravelRecordService {
         });
     }
 
+    /**
+     * 수정과 같이 기록 행을 먼저 잠근다. 잠그지 않으면 겹친 수정이 붙인 사진을 읽지 못해 정리 큐에 넣지 않고,
+     * 사진 행은 DB의 ON DELETE CASCADE로 사라져 그 S3 객체를 아무도 지우지 않는다.
+     */
     @Transactional
     public void delete(Member member, Long travelRecordId) {
-        TravelRecord travelRecord = findOwnedTravelRecord(member, travelRecordId);
+        TravelRecord travelRecord = lockOwnedTravelRecord(member, travelRecordId);
 
         enqueueOrphaned(travelRecord.allMediaKeys());
         travelRecordRepository.delete(travelRecord);
@@ -258,6 +319,13 @@ public class TravelRecordService {
                 .orElseGet(() -> travelRecordRepository.findByMemberIdAndOptionalTagId(memberId, tagId, pageable));
 
         return travelRecordAssembler.assembleListPage(travelRecords);
+    }
+
+    // 트랜잭션의 첫 조회로 불러야 한다. 그래야 잠금을 기다린 뒤 앞 요청이 커밋한 상태를 읽는다.
+    private TravelRecord lockOwnedTravelRecord(Member member, Long travelRecordId) {
+        travelRecordRepository.lockByIdAndMemberId(travelRecordId, member.getId())
+                .orElseThrow(() -> new BusinessException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        return findOwnedTravelRecord(member, travelRecordId);
     }
 
     private TravelRecord findOwnedTravelRecord(Member member, Long travelRecordId) {
@@ -314,18 +382,34 @@ public class TravelRecordService {
 
     /**
      * 회원의 태그만 조회한다. 애그리거트도 소유를 확인하지만, 남의 태그가 있는지 드러내지 않도록 조회부터 회원으로 거른다.
+     * 붙이는 동안 태그가 지워지지 않도록 공유 잠금으로 읽는다({@link TagRepository#findAllForShareByMemberIdAndIdIn}).
      */
     private List<Tag> findTags(Member member, RecordTagIds tagIds) {
         if (tagIds.isEmpty()) {
             return List.of();
         }
-        return tagRepository.findAllByMemberIdAndIdInOrderByCreatedAtAscIdAsc(member.getId(), tagIds.values());
+        return tagRepository.findAllForShareByMemberIdAndIdIn(member.getId(), tagIds.values());
     }
 
+    /**
+     * 다른 기록이 쓰는 키와 정리 큐에 있는 키는 붙이지 않는다.
+     *
+     * <p>정리 큐의 키는 기록에서 뺀 사진이다. 예전 화면이 남은 다른 기기가 저장하면 이 키가 다시 온다.
+     * 정리 배치는 "붙어 있지 않음"을 확인한 뒤 S3에서 지우므로, 그 사이에 다시 붙으면 기록에 붙은 사진의 파일이 지워진다.
+     * 배치는 S3에서 지운 뒤에야 큐에서 행을 없애므로, 큐에 있는 동안 거절하면 그 틈에 붙지 않는다.
+     * 배치가 끝난 뒤에는 S3 확인에서 거절되므로({@code MEDIA_NOT_UPLOADED}) 뺀 사진은 언제 와도 다시 붙지 않는다.
+     * 같은 사진을 사진첩에서 다시 고르면 새 키로 올라가므로 막히지 않는다.
+     */
     private void validateObjectKeysAreAvailable(List<String> newObjectKeys) {
-        if (!newObjectKeys.isEmpty()
-                && travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
+        if (newObjectKeys.isEmpty()) {
+            return;
+        }
+        if (travelRecordRepository.existsMediaByObjectKeyIn(newObjectKeys)) {
             throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY);
+        }
+        if (orphanedMediaRepository.existsByObjectKeyIn(newObjectKeys)) {
+            throw new BusinessException(TravelRecordErrorCode.INVALID_OBJECT_KEY,
+                    "기록에서 뺀 사진은 다시 붙일 수 없습니다. 사진을 다시 골라 주세요.");
         }
     }
 

@@ -1,0 +1,362 @@
+diff --git a/backend/docs/deployment-cache-control.md b/backend/docs/deployment-cache-control.md
+index 2337409..9eb8f32 100644
+--- a/backend/docs/deployment-cache-control.md
++++ b/backend/docs/deployment-cache-control.md
+@@ -29,6 +29,12 @@
+ 
+ 이전 조회가 늦게 끝나도 새 세대에 오래된 값을 저장하지 않는다. 전환 전에 시작된 요청 자체가 이전 조회 결과를 반환하는 것은 허용하며, 이전 서버 종료 전 요청 처리가 끝나는지 확인하는 절차는 여전히 필요하다.
+ 
++### 회원 단위 무효화도 세대로 한다
++
++> 2026-11-18 추가: 기록·태그가 바뀌면 그 회원의 캐시를 무효화한다. 처음에는 키를 순회해 지웠다(`asMap().keySet().removeIf`). 하지만 Caffeine은 계산 중인 항목을 순회에 보여 주지 않는다. 그래서 커밋 전에 DB를 읽기 시작해 무효화 뒤에 끝난 조회가 옛 값을 넣어 TTL(30분) 동안 남았다. 방금 저장한 기록이 지도와 목록에 보이지 않았다.
++> 배포 세대와 같은 방식으로, 회원마다 세대(`MemberCacheGenerations`)를 두고 키에 넣는다. 무효화는 그 회원의 세대를 올리고, 늦게 끝난 조회는 옛 세대 키에 들어가 읽히지 않는다. 순회해 지우기는 메모리를 비우려고 남긴다.
++> 세대는 마지막으로 쓰인 뒤 캐시 TTL의 두 배 동안 둔다. 세대가 항목보다 먼저 사라져 0부터 다시 세면 살아 있는 옛 항목과 키가 겹칠 수 있기 때문이다.
++
+ ### 시작 모드와 재시작
+ 
+ 일반 실행의 기본 시작 모드는 기존 동작을 유지하는 `NORMAL`이다. 무중단 배포에 참여하는 **기존/신규 슬롯의 systemd 실행 인자에는 모두** 다음을 넣어야 한다.
+diff --git a/backend/src/main/java/com/mapmory/backend/common/cache/MemberCacheGenerations.java b/backend/src/main/java/com/mapmory/backend/common/cache/MemberCacheGenerations.java
+new file mode 100644
+index 0000000..fe4838b
+--- /dev/null
++++ b/backend/src/main/java/com/mapmory/backend/common/cache/MemberCacheGenerations.java
+@@ -0,0 +1,43 @@
++package com.mapmory.backend.common.cache;
++
++import com.github.benmanes.caffeine.cache.Cache;
++import com.github.benmanes.caffeine.cache.Caffeine;
++import java.time.Duration;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * 회원별 캐시 세대. 회원 단위 무효화를 "항목 지우기" 대신 "세대 올리기"로 한다.
++ *
++ * <p>Caffeine은 계산 중인 항목을 {@code asMap()} 순회에 보여 주지 않는다. 그래서 무효화가 키를 순회해 지우면,
++ * 커밋 전에 DB를 읽기 시작해 무효화 뒤에 끝난 조회가 옛 값을 넣어 TTL 동안 남는다.
++ * 조회는 시작할 때 이 세대를 키에 넣고, 무효화는 세대를 올린다. 늦게 끝난 조회는 옛 세대 키에 들어가 아무도 읽지 않는다.
++ * 배포 세대({@link DeploymentCacheControl})와 같은 방식을 회원 단위로 쓴다.
++ *
++ * <p>세대는 캐시 항목보다 오래 남아야 한다. 세대가 먼저 사라져 0부터 다시 세면, 아직 살아 있는 옛 항목과 키가 겹칠 수 있다.
++ * 항목은 세대를 읽은 뒤에 쓰이므로, 세대를 마지막으로 읽거나 올린 뒤 항목 TTL의 두 배 동안 두면 그 회원의 항목이 모두 먼저 만료된다.
++ */
++public final class MemberCacheGenerations {
++
++    private final Cache<Long, AtomicLong> generations;
++
++    public MemberCacheGenerations(Duration entryTimeToLive) {
++        this.generations = Caffeine.newBuilder()
++                .expireAfterAccess(entryTimeToLive.multipliedBy(2))
++                .build();
++    }
++
++    /**
++     * 조회를 시작할 때 키에 넣을 세대. 한 번도 무효화되지 않은 회원은 0이다.
++     */
++    public long current(Long memberId) {
++        AtomicLong generation = generations.getIfPresent(memberId);
++        return generation == null ? 0 : generation.get();
++    }
++
++    /**
++     * 그 회원의 데이터가 바뀐 뒤(커밋 뒤) 부른다. 이후 조회는 새 세대 키를 찾으므로 그전에 채운 항목을 읽지 않는다.
++     */
++    public void advance(Long memberId) {
++        generations.get(memberId, ignored -> new AtomicLong()).incrementAndGet();
++    }
++}
+diff --git a/backend/src/main/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCache.java b/backend/src/main/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCache.java
+index f5a1fec..57f8298 100644
+--- a/backend/src/main/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCache.java
++++ b/backend/src/main/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCache.java
+@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.application.listcache;
+ import com.github.benmanes.caffeine.cache.Cache;
+ import com.github.benmanes.caffeine.cache.Caffeine;
+ import com.mapmory.backend.common.cache.DeploymentCacheControl;
++import com.mapmory.backend.common.cache.MemberCacheGenerations;
+ import com.mapmory.backend.travelrecord.application.TravelRecordListPage;
+ import io.micrometer.core.instrument.MeterRegistry;
+ import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
+@@ -13,8 +14,8 @@ import org.springframework.stereotype.Component;
+ /**
+  * 회원별 일지 목록 페이지를 서버 메모리에 둔다.
+  *
+- * <p>지도 요약과 같은 때(그 회원의 일지·태그가 바뀔 때) {@link TravelRecordListCacheInvalidator}가 그 회원 것을 모두 지운다.
+- * 필터와 페이지마다 항목이 따로 생기지만, 지울 때는 회원 단위로 한꺼번에 지운다.
++ * <p>지도 요약과 같은 때(그 회원의 일지·태그가 바뀔 때) {@link TravelRecordListCacheInvalidator}가 그 회원의 세대를 올려
++ * 그전 항목을 읽지 않게 한다({@link MemberCacheGenerations}). 필터와 페이지마다 항목이 따로 생기지만, 무효화는 회원 단위로 한꺼번에 한다.
+  */
+ @Component
+ @EnableConfigurationProperties(TravelRecordListCacheProperties.class)
+@@ -24,10 +25,12 @@ public class TravelRecordListCache {
+ 
+     private final Cache<GenerationKey, TravelRecordListPage> cache;
+     private final DeploymentCacheControl control;
++    private final MemberCacheGenerations memberGenerations;
+ 
+     public TravelRecordListCache(TravelRecordListCacheProperties properties, MeterRegistry meterRegistry,
+                                  DeploymentCacheControl control) {
+         this.control = control;
++        this.memberGenerations = new MemberCacheGenerations(properties.timeToLive());
+         this.cache = Caffeine.newBuilder()
+                 // 페이지마다 일지 수가 0~100개로 달라, 페이지 수 대신 일지 수 합으로 메모리를 묶는다.
+                 .maximumWeight(properties.maximumWeight())
+@@ -43,7 +46,9 @@ public class TravelRecordListCache {
+         if (snapshot.bypass()) {
+             return loader.get();
+         }
+-        GenerationKey generationKey = new GenerationKey(snapshot.generation(), key);
++        // 회원 세대는 DB를 읽기 전에 정한다. 그 뒤에 무효화되면 이 조회는 옛 세대 키에 들어가 다음 조회가 읽지 않는다.
++        GenerationKey generationKey = new GenerationKey(
++                snapshot.generation(), memberGenerations.current(key.memberId()), key);
+         TravelRecordListPage result = cache.get(generationKey, ignored -> loader.get());
+         if (control.snapshot().generation() != snapshot.generation()) {
+             cache.invalidate(generationKey);
+@@ -51,7 +56,12 @@ public class TravelRecordListCache {
+         return result;
+     }
+ 
++    /**
++     * 세대를 먼저 올려 이후 조회가 그전 항목을 읽지 않게 한다. 남은 항목은 메모리를 비우려고 지운다.
++     * 계산 중인 항목은 순회에 보이지 않아 지우지 못하지만, 옛 세대 키라 읽히지 않고 TTL이나 축출로 사라진다.
++     */
+     public void evictMember(Long memberId) {
++        memberGenerations.advance(memberId);
+         cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
+     }
+ 
+@@ -60,7 +70,7 @@ public class TravelRecordListCache {
+         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
+     }
+ 
+-    private record GenerationKey(long generation, Key key) {
++    private record GenerationKey(long generation, long memberGeneration, Key key) {
+     }
+ 
+     /**
+diff --git a/backend/src/main/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCache.java b/backend/src/main/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCache.java
+index 911e527..658279e 100644
+--- a/backend/src/main/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCache.java
++++ b/backend/src/main/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCache.java
+@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
+ import com.github.benmanes.caffeine.cache.Cache;
+ import com.github.benmanes.caffeine.cache.Caffeine;
+ import com.mapmory.backend.common.cache.DeploymentCacheControl;
++import com.mapmory.backend.common.cache.MemberCacheGenerations;
+ import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
+ import io.micrometer.core.instrument.MeterRegistry;
+ import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
+@@ -15,8 +16,8 @@ import org.springframework.stereotype.Component;
+  * 회원별 지도 요약을 서버 메모리에 둔다.
+  *
+  * <p>지도 화면은 앱을 열 때마다 부르지만 요약이 바뀌는 건 그 회원이 일지나 태그를 바꿀 때뿐이다.
+- * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원 것을 모두 지운다. 서버가 한 대라 메모리로 충분하고,
+- * 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
++ * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원의 세대를 올려 그전 항목을 읽지 않게 한다({@link MemberCacheGenerations}).
++ * 서버가 한 대라 메모리로 충분하고, 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
+  */
+ @Component
+ @EnableConfigurationProperties(MapSummaryCacheProperties.class)
+@@ -26,10 +27,12 @@ public class MapSummaryCache {
+ 
+     private final Cache<GenerationKey, List<RegionMapSummary>> cache;
+     private final DeploymentCacheControl control;
++    private final MemberCacheGenerations memberGenerations;
+ 
+     public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry,
+                            DeploymentCacheControl control) {
+         this.control = control;
++        this.memberGenerations = new MemberCacheGenerations(properties.timeToLive());
+         this.cache = Caffeine.newBuilder()
+                 // 항목마다 지역 수가 1개(루트)부터 수백 개(하위)까지 달라, 개수 대신 지역 줄 수 합으로 메모리를 묶는다.
+                 // 꽉 차면 덜 쓰인 항목부터 버린다(축출). 무게는 버릴 순서가 아니라 버릴 양만 정한다.
+@@ -58,7 +61,9 @@ public class MapSummaryCache {
+         if (snapshot.bypass()) {
+             return List.copyOf(loader.get());
+         }
+-        GenerationKey key = new GenerationKey(snapshot.generation(), cacheKey);
++        // 회원 세대는 DB를 읽기 전에 정한다. 그 뒤에 무효화되면 이 조회는 옛 세대 키에 들어가 다음 조회가 읽지 않는다.
++        GenerationKey key = new GenerationKey(
++                snapshot.generation(), memberGenerations.current(cacheKey.memberId()), cacheKey);
+         List<RegionMapSummary> result = cache.get(key, ignored -> List.copyOf(loader.get()));
+         if (control.snapshot().generation() != snapshot.generation()) {
+             cache.invalidate(key);
+@@ -66,7 +71,12 @@ public class MapSummaryCache {
+         return result;
+     }
+ 
++    /**
++     * 세대를 먼저 올려 이후 조회가 그전 항목을 읽지 않게 한다. 남은 항목은 메모리를 비우려고 지운다.
++     * 계산 중인 항목은 순회에 보이지 않아 지우지 못하지만, 옛 세대 키라 읽히지 않고 TTL이나 축출로 사라진다.
++     */
+     public void evictMember(Long memberId) {
++        memberGenerations.advance(memberId);
+         cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
+     }
+ 
+@@ -75,7 +85,7 @@ public class MapSummaryCache {
+         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
+     }
+ 
+-    private record GenerationKey(long generation, Key key) {
++    private record GenerationKey(long generation, long memberGeneration, Key key) {
+     }
+ 
+     private enum Scope {
+diff --git a/backend/src/test/java/com/mapmory/backend/common/cache/MemberCacheGenerationsTest.java b/backend/src/test/java/com/mapmory/backend/common/cache/MemberCacheGenerationsTest.java
+new file mode 100644
+index 0000000..94c12c1
+--- /dev/null
++++ b/backend/src/test/java/com/mapmory/backend/common/cache/MemberCacheGenerationsTest.java
+@@ -0,0 +1,31 @@
++package com.mapmory.backend.common.cache;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import java.time.Duration;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++
++@DisplayName("회원별 캐시 세대")
++class MemberCacheGenerationsTest {
++
++    private final MemberCacheGenerations generations = new MemberCacheGenerations(Duration.ofMinutes(30));
++
++    @Test
++    @DisplayName("한 번도 무효화되지 않은 회원은 0세대다")
++    void startsAtZero() {
++        assertThat(generations.current(1L)).isZero();
++    }
++
++    @Test
++    @DisplayName("무효화할 때마다 그 회원의 세대만 오른다")
++    void advancesOnlyThatMember() {
++        generations.advance(1L);
++        generations.advance(1L);
++        generations.advance(2L);
++
++        assertThat(generations.current(1L)).isEqualTo(2);
++        assertThat(generations.current(2L)).isEqualTo(1);
++        assertThat(generations.current(3L)).isZero();
++    }
++}
+diff --git a/backend/src/test/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCacheTest.java b/backend/src/test/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCacheTest.java
+index 5f055f0..38857ed 100644
+--- a/backend/src/test/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCacheTest.java
++++ b/backend/src/test/java/com/mapmory/backend/travelrecord/application/listcache/TravelRecordListCacheTest.java
+@@ -8,6 +8,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+ import java.time.Duration;
+ import java.time.LocalDate;
+ import java.util.List;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.stream.LongStream;
+ import org.junit.jupiter.api.DisplayName;
+@@ -71,6 +76,44 @@ class TravelRecordListCacheTest {
+         assertThat(small.weightedSize()).isLessThanOrEqualTo(30);
+     }
+ 
++    /**
++     * 조회가 DB에서 옛 값을 읽은 뒤 캐시에 넣기 전에, 같은 회원의 기록 생성이 커밋되고 무효화가 도는 경우다.
++     * Caffeine은 계산 중인 항목을 asMap() 순회에 보여 주지 않으므로 removeIf가 그 항목을 지우지 못하고,
++     * 계산이 끝나면 옛 값이 TTL 동안 남는다. 조회를 loader 안에서 멈춰 이 순서를 고정한다.
++     */
++    @Test
++    @DisplayName("무효화보다 먼저 시작한 조회가 늦게 끝나도 옛 값을 캐시에 남기지 않는다")
++    void doesNotKeepLoadStartedBeforeEviction() throws Exception {
++        CountDownLatch loading = new CountDownLatch(1);
++        CountDownLatch evicted = new CountDownLatch(1);
++        ExecutorService executor = Executors.newSingleThreadExecutor();
++        try {
++            Future<TravelRecordListPage> staleLoad = executor.submit(() -> cache.get(key(1L, null, 0), () -> {
++                loading.countDown();
++                awaitQuietly(evicted);
++                return page(1);
++            }));
++            assertThat(loading.await(5, TimeUnit.SECONDS)).isTrue();
++
++            cache.evictMember(1L);
++            evicted.countDown();
++            staleLoad.get(5, TimeUnit.SECONDS);
++
++            assertThat(cache.get(key(1L, null, 0), () -> page(2)).entries())
++                    .as("무효화 뒤 조회는 새로 읽어야 한다").hasSize(2);
++        } finally {
++            executor.shutdownNow();
++        }
++    }
++
++    private static void awaitQuietly(CountDownLatch latch) {
++        try {
++            latch.await(5, TimeUnit.SECONDS);
++        } catch (InterruptedException exception) {
++            Thread.currentThread().interrupt();
++        }
++    }
++
+     private TravelRecordListCache.Key key(Long memberId, String countryCode, int page) {
+         return new TravelRecordListCache.Key(memberId, countryCode, null, null, null, page, 20);
+     }
+diff --git a/backend/src/test/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCacheTest.java b/backend/src/test/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCacheTest.java
+index eb14321..116ff0b 100644
+--- a/backend/src/test/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCacheTest.java
++++ b/backend/src/test/java/com/mapmory/backend/travelrecord/mapsummary/cache/MapSummaryCacheTest.java
+@@ -9,6 +9,11 @@ import com.mapmory.backend.travelrecord.mapsummary.policy.MapColorLevel;
+ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+ import java.time.Duration;
+ import java.util.List;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.stream.LongStream;
+ import org.junit.jupiter.api.DisplayName;
+@@ -89,6 +94,43 @@ class MapSummaryCacheTest {
+         assertThat(cache.weightedSize()).isZero();
+     }
+ 
++    /**
++     * 조회가 DB에서 옛 값을 읽은 뒤 캐시에 넣기 전에, 같은 회원의 기록 생성이 커밋되고 무효화가 도는 경우다.
++     * Caffeine은 계산 중인 항목을 asMap() 순회에 보여 주지 않으므로 removeIf가 그 항목을 지우지 못하고,
++     * 계산이 끝나면 옛 값이 TTL 동안 남는다. 조회를 loader 안에서 멈춰 이 순서를 고정한다.
++     */
++    @Test
++    @DisplayName("무효화보다 먼저 시작한 조회가 늦게 끝나도 옛 값을 캐시에 남기지 않는다")
++    void doesNotKeepLoadStartedBeforeEviction() throws Exception {
++        CountDownLatch loading = new CountDownLatch(1);
++        CountDownLatch evicted = new CountDownLatch(1);
++        ExecutorService executor = Executors.newSingleThreadExecutor();
++        try {
++            Future<List<RegionMapSummary>> staleLoad = executor.submit(() -> cache.get(1L, null, null, () -> {
++                loading.countDown();
++                awaitQuietly(evicted);
++                return rows(1);
++            }));
++            assertThat(loading.await(5, TimeUnit.SECONDS)).isTrue();
++
++            cache.evictMember(1L);
++            evicted.countDown();
++            staleLoad.get(5, TimeUnit.SECONDS);
++
++            assertThat(cache.get(1L, null, null, () -> rows(2))).as("무효화 뒤 조회는 새로 읽어야 한다").hasSize(2);
++        } finally {
++            executor.shutdownNow();
++        }
++    }
++
++    private static void awaitQuietly(CountDownLatch latch) {
++        try {
++            latch.await(5, TimeUnit.SECONDS);
++        } catch (InterruptedException exception) {
++            Thread.currentThread().interrupt();
++        }
++    }
++
+     private List<RegionMapSummary> rows(int count) {
+         return LongStream.rangeClosed(1, count)
+                 .mapToObj(id -> new RegionMapSummary(id, null, "R" + id, RegionType.PROVINCE, "지역" + id, 1L, MapColorLevel.LOW))

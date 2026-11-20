@@ -38,7 +38,7 @@ Mapmory는 Spring Boot 기본 로깅과 Micrometer·Actuator·Prometheus Registr
 | refresh 재사용 | 폐기된 refresh가 다시 오면 결과에 따라 기록한다. 회전된 토큰의 재사용으로 그 세션을 모두 폐기하면 `WARN` `REFRESH_TOKEN_REUSE_DETECTED`(`outcome=REVOKED_ALL`. #467부터 회원 전체가 아니라 세션 단위이고, 대시보드 호환을 위해 값은 그대로 둔다), 게스트 응답 유실로 재발급하면 `INFO` `REFRESH_TOKEN_LOST_ROTATION_REISSUED`(`outcome=REISSUED`), 회전 외 이유(로그아웃·승격·버림·탈퇴)로 폐기된 토큰이면 `INFO` `REVOKED_REFRESH_TOKEN_PRESENTED`(`outcome=REVOKED_PRESENTED`, #579)다. `mapmory.auth.refresh.reuse`(`outcome`, `provider`)를 센다. 토큰 값은 남기지 않는다. | `RefreshTokenReuseMonitor` |
 | 메트릭 노출 | `health`, `prometheus`만 읽기 전용으로 노출한다. 운영에서는 `127.0.0.1:8081`로 관리 포트를 분리한다. | `application.yaml`, `application-prod.yaml` |
 | 운영 수집 | EC2의 CloudWatch Agent가 애플리케이션 로그와 Prometheus 메트릭을 CloudWatch로 전송한다. 애플리케이션 로그 그룹은 7일, Prometheus EMF 로그 그룹은 14일간 보관한다. | EC2 CloudWatch Agent, `/mapmory/prod/application`, `/mapmory/prod/prometheus-emf` |
-| 대시보드·알림 | 운영 대시보드, EC2·RDS 인프라 알람과 SNS 알림 채널을 구성한다. | `dashboard-mapmory-prod`, `mapmory-prod-alerts` |
+| 대시보드·알림 | 환경별 대시보드와 앱·EC2 알람을 코드로 관리하고, 사람이 CloudShell에서 적용한다. 알림은 SNS로 보낸다. RDS 알람과 `application-error`·`api-5xx-rate` 알람은 아직 콘솔에서 관리한다. | `observability/cloudwatch/`(`alarms.sh`, `dashboard.sh`, `README.md`), 대시보드 `mapmory-<env>-v2` |
 
 애플리케이션 로그와 Prometheus 메트릭의 CloudWatch 수집은 운영 환경에 적용되어 있다.
 CloudWatch 대시보드와 인프라 장애 알림도 적용되어 있다.

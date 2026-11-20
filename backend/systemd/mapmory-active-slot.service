@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the Mapmory slot selected by Nginx
+Wants=network-online.target nginx.service
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/mapmory/bin/start-active-slot-on-boot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

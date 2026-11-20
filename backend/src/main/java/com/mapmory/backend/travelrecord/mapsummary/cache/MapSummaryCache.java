@@ -2,6 +2,8 @@ package com.mapmory.backend.travelrecord.mapsummary.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.mapmory.backend.common.cache.DeploymentCacheControl;
+import com.mapmory.backend.common.cache.MemberCacheGenerations;
 import com.mapmory.backend.travelrecord.mapsummary.RegionMapSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
@@ -14,8 +16,8 @@ import org.springframework.stereotype.Component;
  * 회원별 지도 요약을 서버 메모리에 둔다.
  *
  * <p>지도 화면은 앱을 열 때마다 부르지만 요약이 바뀌는 건 그 회원이 일지나 태그를 바꿀 때뿐이다.
- * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원 것을 모두 지운다. 서버가 한 대라 메모리로 충분하고,
- * 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
+ * 바뀌면 {@link MapSummaryCacheInvalidator}가 그 회원의 세대를 올려 그전 항목을 읽지 않게 한다({@link MemberCacheGenerations}).
+ * 서버가 한 대라 메모리로 충분하고, 여러 대가 되면 다른 서버의 캐시는 지워지지 않으므로 TTL만큼 옛 값이 보일 수 있다.
  */
 @Component
 @EnableConfigurationProperties(MapSummaryCacheProperties.class)
@@ -23,14 +25,19 @@ public class MapSummaryCache {
 
     static final String NAME = "mapSummary";
 
-    private final Cache<Key, List<RegionMapSummary>> cache;
+    private final Cache<GenerationKey, List<RegionMapSummary>> cache;
+    private final DeploymentCacheControl control;
+    private final MemberCacheGenerations memberGenerations;
 
-    public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry) {
+    public MapSummaryCache(MapSummaryCacheProperties properties, MeterRegistry meterRegistry,
+                           DeploymentCacheControl control) {
+        this.control = control;
+        this.memberGenerations = new MemberCacheGenerations(properties.timeToLive());
         this.cache = Caffeine.newBuilder()
                 // 항목마다 지역 수가 1개(루트)부터 수백 개(하위)까지 달라, 개수 대신 지역 줄 수 합으로 메모리를 묶는다.
                 // 꽉 차면 덜 쓰인 항목부터 버린다(축출). 무게는 버릴 순서가 아니라 버릴 양만 정한다.
                 .maximumWeight(properties.maximumWeight())
-                .weigher((Key key, List<RegionMapSummary> summaries) -> Math.max(1, summaries.size()))
+                .weigher((GenerationKey key, List<RegionMapSummary> summaries) -> Math.max(1, summaries.size()))
                 .expireAfterWrite(properties.timeToLive())
                 .recordStats()
                 .build();
@@ -39,11 +46,38 @@ public class MapSummaryCache {
 
     public List<RegionMapSummary> get(Long memberId, Long parentRegionId, Long tagId,
                                       Supplier<List<RegionMapSummary>> loader) {
-        return cache.get(new Key(memberId, parentRegionId, tagId), ignored -> List.copyOf(loader.get()));
+        return get(new Key(memberId, Scope.LEVEL, parentRegionId, tagId), loader);
     }
 
+    /**
+     * 모든 단계를 한 번에 담은 요약이다. 루트 요약(parentRegionId = null)과 키가 겹치지 않게 범위를 나눈다.
+     */
+    public List<RegionMapSummary> getAll(Long memberId, Long tagId, Supplier<List<RegionMapSummary>> loader) {
+        return get(new Key(memberId, Scope.ALL, null, tagId), loader);
+    }
+
+    private List<RegionMapSummary> get(Key cacheKey, Supplier<List<RegionMapSummary>> loader) {
+        DeploymentCacheControl.Snapshot snapshot = control.snapshot();
+        if (snapshot.bypass()) {
+            return List.copyOf(loader.get());
+        }
+        // 회원 세대는 DB를 읽기 전에 정한다. 그 뒤에 무효화되면 이 조회는 옛 세대 키에 들어가 다음 조회가 읽지 않는다.
+        GenerationKey key = new GenerationKey(
+                snapshot.generation(), memberGenerations.current(cacheKey.memberId()), cacheKey);
+        List<RegionMapSummary> result = cache.get(key, ignored -> List.copyOf(loader.get()));
+        if (control.snapshot().generation() != snapshot.generation()) {
+            cache.invalidate(key);
+        }
+        return result;
+    }
+
+    /**
+     * 세대를 먼저 올려 이후 조회가 그전 항목을 읽지 않게 한다. 남은 항목은 메모리를 비우려고 지운다.
+     * 계산 중인 항목은 순회에 보이지 않아 지우지 못하지만, 옛 세대 키라 읽히지 않고 TTL이나 축출로 사라진다.
+     */
     public void evictMember(Long memberId) {
-        cache.asMap().keySet().removeIf(key -> key.memberId().equals(memberId));
+        memberGenerations.advance(memberId);
+        cache.asMap().keySet().removeIf(key -> key.key().memberId().equals(memberId));
     }
 
     long weightedSize() {
@@ -51,6 +85,16 @@ public class MapSummaryCache {
         return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
     }
 
-    private record Key(Long memberId, Long parentRegionId, Long tagId) {
+    private record GenerationKey(long generation, long memberGeneration, Key key) {
+    }
+
+    private enum Scope {
+        /** 한 부모의 직속 하위(부모가 없으면 루트)만 */
+        LEVEL,
+        /** 국가·시도·시군구 전체 */
+        ALL
+    }
+
+    private record Key(Long memberId, Scope scope, Long parentRegionId, Long tagId) {
     }
 }

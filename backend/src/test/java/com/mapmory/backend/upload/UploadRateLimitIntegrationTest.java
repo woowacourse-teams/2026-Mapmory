@@ -3,6 +3,7 @@ package com.mapmory.backend.upload;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willReturn;
@@ -38,21 +39,22 @@ class UploadRateLimitIntegrationTest extends IntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    // 운영 설정은 시간당 300장이다. 요청 횟수가 아니라 파일 수를 세므로 100장 요청은 세 번까지 된다.
+    // 운영 설정은 하루 2,000장이고 시간 한도는 없다. 요청 횟수가 아니라 파일 수를 세므로 100장 요청은 스무 번까지 된다.
     @Test
-    void 시간당_파일_수_한도를_넘으면_429로_거절한다() throws Exception {
+    void 하루_파일_수_한도를_넘으면_429로_거절하고_남은_시간을_알린다() throws Exception {
         willReturn(new PresignedRequest(URI.create("https://upload.example/signed"), "PUT", Duration.ofMinutes(5)))
                 .given(presignedUrlProvider).createPresignedPutUrl(anyString(), anyString(), anyLong());
         String accessToken = accessToken();
 
-        for (int request = 0; request < 3; request++) {
+        for (int request = 0; request < 20; request++) {
             requestHundredFiles(accessToken).andExpect(status().isOk());
         }
 
         requestHundredFiles(accessToken)
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("UPLOAD_RATE_LIMITED"))
-                .andExpect(jsonPath("$.retryAfterSeconds", allOf(greaterThan(0), lessThanOrEqualTo(3600))));
+                .andExpect(jsonPath("$.retryAfterSeconds", allOf(greaterThan(0), lessThanOrEqualTo(86_400))))
+                .andExpect(jsonPath("$.detail", startsWith("하루에 올릴 수 있는 사진 수(2,000장)를 넘었습니다.")));
     }
 
     private ResultActions requestHundredFiles(String accessToken) throws Exception {

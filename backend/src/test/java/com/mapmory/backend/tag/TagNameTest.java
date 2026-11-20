@@ -47,6 +47,29 @@ class TagNameTest {
                 .isEqualTo(TagErrorCode.INVALID_TAG_NAME);
     }
 
+    @Test
+    void null_이름은_서버_오류가_아니라_잘못된_이름으로_거절한다() {
+        assertInvalidName(null);
+    }
+
+    @Test
+    void 저장된_값으로_만들_때_표시_이름이나_비교_키가_null이면_거부한다() {
+        assertInvalidTagName(() -> new TagName(null, "친구"));
+        assertInvalidTagName(() -> new TagName("친구", null));
+    }
+
+    @Test
+    void 저장된_값으로_만들_때_정규화되지_않은_표시_이름을_거부한다() {
+        assertInvalidTagName(() -> new TagName("데이트  코스", "데이트  코스"));
+    }
+
+    private void assertInvalidTagName(Runnable action) {
+        assertThatThrownBy(action::run)
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(TagErrorCode.INVALID_TAG_NAME);
+    }
+
     private void assertInvalidName(String rawName) {
         assertThatThrownBy(() -> TagName.from(rawName))
                 .isInstanceOf(BusinessException.class)

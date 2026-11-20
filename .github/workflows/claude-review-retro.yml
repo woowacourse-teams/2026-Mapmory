@@ -1,0 +1,160 @@
+name: Claude Review Retro
+
+# 매주 지난 리뷰를 돌아보고 배운 규칙(.github/claude-review/guide.md)의 수정안을 만든다.
+# 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 backend-develop 대상 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+# schedule과 수동 실행(workflow_dispatch)은 기본 브랜치(main)에 이 파일이 있어야 동작한다.
+# main에 없는 동안에는 backend-develop push마다 문지기(weekly-gate.sh)가 지난 7일 안에 회고가 성공했는지 보고, 없을 때만 돈다.
+on:
+  schedule:
+    - cron: "17 0 * * 1" # 매주 월요일 09:17 KST
+  workflow_dispatch:
+  push:
+    branches: [backend-develop]
+    paths:
+      - "backend/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-retro
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/claude-review
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            bash .github/claude-review/weekly-gate.sh "${{ github.repository }}" claude-review-retro.yml propose "${{ github.run_id }}"
+          fi
+
+  propose:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    # Claude는 읽기 권한 토큰만 받는다. 코멘트에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      variants: ${{ steps.diff.outputs.variants }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: backend-develop
+          fetch-depth: 1
+
+      - name: Collect review data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/claude-review/collect.sh "${{ github.repository }}" .retro
+
+      # 얕은 클론이라 머지된 PR의 커밋을 열 수 없다. 고치기 전과 뒤를 비교할 수 있게 PR별로 가져온다.
+      - name: Fetch merged PR commits
+        run: |
+          for n in $(jq -r '.[].number' .retro/prs.json); do
+            git fetch -q --depth=30 origin "pull/$n/head:refs/pr/$n" || echo "PR #$n 커밋을 가져오지 못했다"
+          done
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose guide changes
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.github/claude-review/retro.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.retro/\`에 있다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .retro/claude-output.json
+          test -f .retro/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result' .retro/claude-output.json)" > .retro/summary.md
+
+      - id: diff
+        run: |
+          if git diff --quiet -- .github/claude-review/guide.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -s .retro/variants.md ]; then echo "variants=true" >> "$GITHUB_OUTPUT"; else echo "variants=false" >> "$GITHUB_OUTPUT"; fi
+          { echo "## 회고 요약"; echo; cat .retro/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
+      - name: Collect proposal
+        run: |
+          mkdir -p /tmp/proposal
+          cp .github/claude-review/guide.md .retro/summary.md /tmp/proposal/
+          cp .retro/variants.md /tmp/proposal/ 2>/dev/null || true
+          git show HEAD:.github/claude-review/guide.md > /tmp/proposal/guide.orig.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-retro
+          path: /tmp/proposal/
+
+  propose-pr:
+    needs: propose
+    if: needs.propose.outputs.changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/claude-review-propose.yml
+    with:
+      base_branch: backend-develop
+      kind: retro
+      title: "chore: 리뷰 회고로 배운 규칙을 고친다"
+      intro: 지난 7일의 리뷰를 돌아보고 만든 `.github/claude-review/guide.md` 수정안이다. 사람이 보고 판단해 머지한다.
+      artifact: claude-review-retro
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 규칙은 그대로인데 같은 패턴이 남은 곳을 찾았으면 이슈로만 알린다. 이 job에는 Claude가 없다.
+  report-variants:
+    needs: propose
+    if: needs.propose.outputs.changed != 'true' && needs.propose.outputs.variants == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-retro
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "chore: 리뷰 회고에서 찾은 같은 패턴이 남은 곳"
+        run: |
+          {
+            echo "지난 7일의 리뷰를 돌아보며 확인한 문제와 같은 모양의 코드를 저장소에서 찾았다. 규칙은 바꾸지 않았다. 각 위치를 보고 고칠지 판단한다."
+            echo
+            echo "## 같은 패턴이 남은 곳"
+            echo
+            cat /tmp/proposal/variants.md
+            echo
+            echo "<details><summary>판단 근거(요약 전체)</summary>"
+            echo
+            cat /tmp/proposal/summary.md
+            echo
+            echo "</details>"
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md

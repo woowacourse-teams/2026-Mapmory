@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.web.dto;
 import com.mapmory.backend.travelrecord.application.TravelRecordCommand;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
@@ -23,8 +24,16 @@ public record TravelRecordRequest(
         List<String> objectKeys,
         List<Long> tagIds,
         @Size(max = 255, message = "장소 ID는 255자 이하여야 합니다.")
-        String placeId
+        String placeId,
+        @Positive Long pushTokenId
 ) {
+    public TravelRecordRequest(String countryCode, String provinceCode, String districtCode, String title,
+            String content, LocalDate startDate, LocalDate endDate, List<String> objectKeys,
+            List<Long> tagIds, String placeId) {
+        this(countryCode, provinceCode, districtCode, title, content, startDate, endDate,
+                objectKeys, tagIds, placeId, null);
+    }
+
     public TravelRecordCommand toCommand() {
         return new TravelRecordCommand(
                 countryCode,
@@ -36,7 +45,8 @@ public record TravelRecordRequest(
                 endDate,
                 objectKeys,
                 tagIds,
-                placeId
+                placeId,
+                pushTokenId
         );
     }
 }

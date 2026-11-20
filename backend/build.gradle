@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'info.solidsoft.pitest' version '1.19.0'
 }
 
 group = 'com.mapmory'
@@ -62,6 +63,12 @@ tasks.named('test') {
     // CI와 같게 UTC로 둔다. hibernate.jdbc.time_zone=UTC라 JVM이 KST면 JPA로 쓴 시각만 9시간 밀려 jdbcTemplate으로 넣은 값과 어긋난다.
     systemProperty 'user.timezone', 'UTC'
     systemProperty 'logging.level.org.springframework.test.context.cache', 'DEBUG'
+    // CI(CodeBuild, GitHub Actions) 로그에 실패한 테스트의 메시지와 원인을 찍는다. 기본(SHORT)은 예외 이름만 찍어
+    // assertThat(...).as(...)로 남긴 실패 내용이 보이지 않았다(#753).
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+    }
 }
 
 tasks.bootJar {
@@ -70,4 +77,41 @@ tasks.bootJar {
 
 tasks.named('jar') {
     enabled = false
+}
+
+// 뮤테이션 테스트(PIT). 코드를 일부러 조금씩 바꿔 보고(>= → > 등) 테스트가 알아채는지 본다.
+// 살아남은 변이는 경계값·예외 경로를 검증하지 않는 테스트를 가리킨다. Claude 리뷰가 PR마다 이 결과를 읽고 판단한다.
+// 느려지지 않게 단위 테스트가 있는 태그·캐시 코드만 대상으로 하고, Spring·MySQL을 띄우는 통합 테스트는 넣지 않는다.
+// 대상을 넓히려면 PIT_TARGET_CLASSES와 PIT_TARGET_TESTS에 단위 테스트가 있는 클래스를 함께 추가한다.
+def PIT_TARGET_CLASSES = [
+        'com.mapmory.backend.tag.Tag',
+        'com.mapmory.backend.tag.TagName',
+        'com.mapmory.backend.tag.TagService',
+        'com.mapmory.backend.common.cache.MemberCacheGenerations',
+        'com.mapmory.backend.common.cache.DeploymentCacheControl',
+        'com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCache',
+        'com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCache',
+]
+def PIT_TARGET_TESTS = [
+        'com.mapmory.backend.tag.TagTest',
+        'com.mapmory.backend.tag.TagNameTest',
+        'com.mapmory.backend.tag.TagServiceTest',
+        'com.mapmory.backend.common.cache.MemberCacheGenerationsTest',
+        'com.mapmory.backend.common.cache.DeploymentCacheTest',
+        'com.mapmory.backend.travelrecord.mapsummary.cache.MapSummaryCacheTest',
+        'com.mapmory.backend.travelrecord.application.listcache.TravelRecordListCacheTest',
+]
+
+pitest {
+    junit5PluginVersion = '1.2.3'
+    // PR에서 바뀐 클래스만 돌리려고 -PpitTargetClasses=a,b로 좁힐 수 있다. 대상 목록 밖의 클래스는 무시한다.
+    def requested = (findProperty('pitTargetClasses') ?: '').toString().split(',').collect { it.trim() }.findAll { it }
+    targetClasses = requested ? PIT_TARGET_CLASSES.findAll { it in requested } : PIT_TARGET_CLASSES
+    targetTests = PIT_TARGET_TESTS
+    threads = 4
+    outputFormats = ['XML', 'HTML']
+    timestampedReports = false
+    jvmArgs = ['-Duser.timezone=UTC']
+    // 동시성 테스트가 몇 초씩 기다리므로, 변이 때문에 멈춘 실행만 시간 초과로 끊는다.
+    timeoutConstInMillis = 10000
 }

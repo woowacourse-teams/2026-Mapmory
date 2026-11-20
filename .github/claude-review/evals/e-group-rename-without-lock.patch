@@ -1,0 +1,40 @@
+diff --git a/backend/src/main/java/com/mapmory/backend/group/application/GroupService.java b/backend/src/main/java/com/mapmory/backend/group/application/GroupService.java
+index 22c35429..a21ab2f5 100644
+--- a/backend/src/main/java/com/mapmory/backend/group/application/GroupService.java
++++ b/backend/src/main/java/com/mapmory/backend/group/application/GroupService.java
+@@ -68,13 +68,10 @@ public class GroupService {
+         return toDetail(groupMembership.findGroupOf(groupId, memberId), memberId);
+     }
+ 
+-    /**
+-     * 그룹 행을 잠그고 바꾼다. 그룹을 바꾸는 다른 흐름(수락·나가기·앨범)과 같이 그룹 행을 먼저 잠근다.
+-     */
+     @Transactional
+     public GroupDetail rename(Long memberId, Long groupId, String name) {
+-        TravelGroup group = groupMembership.lockGroupOf(groupId, memberId);
+         socialMemberGuard.require(memberId);
++        TravelGroup group = groupMembership.findGroupOf(groupId, memberId);
+         group.rename(name);
+         return toDetail(group, memberId);
+     }
+diff --git a/backend/src/main/java/com/mapmory/backend/group/domain/TravelGroup.java b/backend/src/main/java/com/mapmory/backend/group/domain/TravelGroup.java
+index ca8c5b2f..9379f85b 100644
+--- a/backend/src/main/java/com/mapmory/backend/group/domain/TravelGroup.java
++++ b/backend/src/main/java/com/mapmory/backend/group/domain/TravelGroup.java
+@@ -17,7 +17,6 @@ import java.util.ArrayList;
+ import java.util.Comparator;
+ import java.util.List;
+ import java.util.Objects;
+-import org.hibernate.annotations.DynamicUpdate;
+ 
+ /**
+  * 여행을 같이 기록하는 사람들의 묶음. 멤버 목록을 함께 가진 애그리거트 루트다.
+@@ -31,8 +30,6 @@ import org.hibernate.annotations.DynamicUpdate;
+  */
+ @Entity
+ @Table(name = "travel_group")
+-// 바뀐 컬럼만 UPDATE한다. 그룹을 잠그지 않고 바꾸는 코드가 생겨도 건드리지 않은 인원 수·방장을 옛 값으로 덮지 않게 한다.
+-@DynamicUpdate
+ public class TravelGroup extends BaseEntity {
+ 
+     // travel_group.name 컬럼 길이(VARCHAR(30))와 같다.

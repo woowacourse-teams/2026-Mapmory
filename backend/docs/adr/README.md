@@ -36,3 +36,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0027](0027-shared-notification-outbox.md) | 영상 알림 Outbox를 기기별로 기록 | 제안 |
 | [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 채택 |
 | [0029](0029-thumbnail-worker-on-renderer.md) | 사진 썸네일은 렌더러 서버의 워커가 만든다 | 제안 |
+| [0030](0030-api-version-for-breaking-request-shape.md) | 요청 모양을 바꾸는 쓰기 API는 v2로 나눈다 | 제안 |

@@ -2,6 +2,8 @@ package com.mapmory.backend.notification.infrastructure;
 
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
@@ -28,7 +30,7 @@ public class FirebaseNotificationPushSender implements NotificationPushSender {
     @Override
     public Result send(final PushMessage pushMessage) {
         try {
-            Message message = Message.builder()
+            Message.Builder builder = Message.builder()
                     .setToken(pushMessage.token())
                     .setNotification(
                             Notification.builder()
@@ -36,10 +38,18 @@ public class FirebaseNotificationPushSender implements NotificationPushSender {
                                     .setBody(pushMessage.body())
                                     .build()
                     )
-                    .putAllData(pushMessage.data())
-                    .build();
+                    .putAllData(pushMessage.data());
+            String channelId = switch (pushMessage.data().getOrDefault("type", "")) {
+                case "PHOTO_RECORD_COMPLETED" -> "trip-record-ready";
+                case "VIDEO_COMPLETED" -> "share-video-ready";
+                default -> null;
+            };
+            if (channelId != null) {
+                builder.setAndroidConfig(AndroidConfig.builder().setNotification(
+                        AndroidNotification.builder().setChannelId(channelId).build()).build());
+            }
 
-            firebaseMessaging.send(message);
+            firebaseMessaging.send(builder.build());
 
             return new Result(Status.ACCEPTED, null);
         } catch (FirebaseMessagingException exception) {

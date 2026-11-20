@@ -27,6 +27,7 @@ Windows에서는 `./gradlew` 대신 `./gradlew.bat`을 사용합니다.
 
 ## 문서
 
+- [무중단 배포 중 로컬 캐시 우회와 내부 관리 명령](docs/deployment-cache-control.md)
 - [ADR 0006: API 오류 응답에 Problem Details를 사용한다](docs/adr/0006-use-problem-details-for-api-errors.md)
 - [여행 기록 저장 및 목록 조회 방식](docs/travel-record-storage-and-query.md)
 - [대한민국 여행 기록 지역 코드표](docs/region-code-table.md)
@@ -47,6 +48,8 @@ Windows에서는 `./gradlew` 대신 `./gradlew.bat`을 사용합니다.
 
 **운영 서버**는 `/etc/mapmory.env` 에서 읽는다 (systemd EnvironmentFile).
 새 환경변수가 추가되면 배포 전에 이 파일도 갱신해야 한다.
+Blue-Green 배포 서버는 이 파일에 `SPRING_PROFILES_ACTIVE=dev`(개발) 또는
+`SPRING_PROFILES_ACTIVE=prod`(운영)가 있어야 한다. 값이 없거나 `local`이면 서비스 기동을 거부한다.
 
 ```bash
 sudo nano /etc/mapmory.env

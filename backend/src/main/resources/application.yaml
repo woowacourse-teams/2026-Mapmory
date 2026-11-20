@@ -122,6 +122,8 @@ travel-record:
     # 앱 한 세션은 화면을 보는 시간 평균 약 5분, 백그라운드 포함 약 21분이다(GA4 앱, 9/24~10/21).
     # 한 세션과 잠깐 나갔다 오는 경우를 덮고, 틀려도 30분 안에 고쳐진다.
     # 상한은 항목 수가 아니라 지역 줄 수 합이다. 1줄 약 200B라 20만 줄 ≈ 40MB, 회원 1명 약 50줄이면 약 4,000명분.
+    # 전체 요약(GET /map-summary) 항목은 그 회원의 계층 항목(roots·children)을 모두 더한 줄 수와 같다.
+    # 옛 앱(계층)과 새 앱(전체)이 섞여 쓰는 동안 회원 1명이 둘 다 가지면 약 100줄, 약 2,000명분이다.
     cache:
       maximum-weight: 200000
       time-to-live: 30m
@@ -141,6 +143,9 @@ place:
 
 group:
   invitation:
+    # 초대 링크 = base-url + 토큰. 앱 링크(assetlinks.json, apple-app-site-association)가 이 도메인의 /invite/*를 연다.
+    link:
+      base-url: ${INVITATION_LINK_BASE_URL:https://map-mory.com/invite/}
     # 초대 미리보기·수락을 합쳐 회원별로 센다. 6자리 코드를 아무거나 넣어 보는 시도를 막는다.
     # 서버마다 메모리에서 센다.
     rate-limit:
@@ -152,10 +157,10 @@ upload:
     max-file-size: 10MB
     max-files-per-request: 100
   # 회원별 업로드 URL 발급 한도. 파일 수로 세고 서버마다 메모리에서 센다.
-  # 시간 한도는 100장짜리 기록 세 개를 한 번에 올릴 수 있는 양이다. 이 값으로 회원 한 명이 하루에 쓸 수 있는 저장량은 최대 10GB다.
+  # 하루 한도만 둔다. 이 값으로 회원 한 명이 하루에 쓸 수 있는 저장량은 최대 20GB다(장당 10MB). S3 Standard 서울 기준 한 달 꽉 채우면 회원 한 명당 월 약 $15이고, 지우지 않으므로(#186) 계속하면 달마다 그만큼 늘어난다.
+  # 시간 한도(300장)는 몰아서 정리하는 사용자를 막아 없앴다(2026-11-12). 재시도로 다시 받은 URL도 같이 센다.
   rate-limit:
-    files-per-member-per-hour: 300
-    files-per-member-per-day: 1000
+    files-per-member-per-day: 2000
   storage:
     s3:
       bucket: ${AWS_S3_BUCKET:mapmory-local}
@@ -258,6 +263,7 @@ management:
         include:
           - health
           - prometheus
+          - deploymentcache
       discovery:
         enabled: false
 
@@ -267,6 +273,8 @@ management:
       show-details: never
     prometheus:
       access: read-only
+    deploymentcache:
+      access: unrestricted
 
   metrics:
     tags:
