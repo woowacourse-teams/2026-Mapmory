@@ -82,7 +82,7 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 
 적용하고 10분쯤 지난 뒤, 관리하는 알람이 모두 `OK`인지 본다. `metrics-missing`은 판단에 10분(300초 × 2)이 걸린다.
 
-새로 만든 알람은 `INSUFFICIENT_DATA`로 시작한다. 평가가 끝나 `OK`가 되면 정상 메일을 한 번 보낸다. 처음 적용한 뒤 받는 정상 메일은 장애가 풀렸다는 뜻이 아니다.
+새로 만든 알람은 `INSUFFICIENT_DATA`로 시작한다. 평가가 끝나 `OK`가 되면 정상 메일을 한 번 보낸다. EC2를 교체한 뒤 다시 실행했을 때나 Agent가 잠깐 끊겼다 돌아올 때도, `INSUFFICIENT_DATA`에서 `OK`로 바뀌면 같은 메일이 온다. 바로 앞에 경보 메일이 없었다면 정상 메일은 장애가 풀렸다는 뜻이 아니다.
 
 ```bash
 aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix mapmory-dev- \
