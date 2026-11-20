@@ -122,10 +122,19 @@ if [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Statistic, .Period, .Evalua
   && [[ $(alarm mapmory-dev-ec2-memory-usage-high | jq -c '[.Statistic, .Period, .EvaluationPeriods, .DatapointsToAlarm, .Threshold, .ComparisonOperator, .TreatMissingData]') \
       == '["Average",300,3,3,85,"GreaterThanOrEqualToThreshold","missing"]' ]] \
   && [[ $(alarm mapmory-dev-ec2-status-check-failed | jq -r .TreatMissingData) == breaching ]] \
-  && [[ $(jq -s '[.[] | select(.AlarmDescription | length > 0)] | length' "${WORK_DIR}/first") == 7 ]]; then
+  && [[ $(jq -s '[.[] | select(.AlarmDescription | length > 0)] | length' "${WORK_DIR}/first") == 7 ]] \
+  && [[ $(alarm mapmory-dev-metrics-missing | jq -r .AlarmDescription) == *"10분 넘게"* ]]; then
   pass "알람 정의가 명세와 맞다"
 else
   fail "알람 정의가 명세와 맞다"
+fi
+
+# 3-1. 관리하는 알람은 모두 경보와 정상을 같은 SNS로 알린다. 콘솔 알람이 둘 다 알리고 있어서, 빠지면 정상 알림이 사라진다.
+if [[ $(jq -s 'length' "${WORK_DIR}/first") == 7 ]] \
+  && [[ $(jq -s '[.[] | select((.OKActions | length) > 0 and .OKActions == .AlarmActions)] | length' "${WORK_DIR}/first") == 7 ]]; then
+  pass "관리하는 알람은 모두 OKActions가 비어 있지 않다"
+else
+  fail "관리하는 알람은 모두 OKActions가 비어 있지 않다"
 fi
 
 # 4. 멈춰야 하는 경우에는 아무것도 쓰지 않는다.
