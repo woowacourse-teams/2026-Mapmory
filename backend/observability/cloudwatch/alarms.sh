@@ -59,21 +59,21 @@ dimensions() {
   jq -nc '$ARGS.positional as $a | [range(0; $a | length; 2) as $i | {Name: $a[$i], Value: $a[$i + 1]}]' --args "$@"
 }
 
-# 지표 하나로 판단하는 알람.
-# single_metric_alarm 이름 설명 네임스페이스 지표 차원JSON 정상알림(true|false) 통계 기간 평가 필요 비교 임계값 데이터없음
+# 지표 하나로 판단하는 알람. 경보와 정상 모두 같은 SNS로 알린다.
+# single_metric_alarm 이름 설명 네임스페이스 지표 차원JSON 통계 기간 평가 필요 비교 임계값 데이터없음
 single_metric_alarm() {
   jq -nc \
     --arg name "$1" --arg description "$2" --arg namespace "$3" --arg metric "$4" \
-    --argjson dimensions "$5" --argjson notify_ok "$6" \
-    --arg statistic "$7" --argjson period "$8" --argjson evaluation "$9" --argjson datapoints "${10}" \
-    --arg comparison "${11}" --argjson threshold "${12}" --arg missing "${13}" \
+    --argjson dimensions "$5" \
+    --arg statistic "$6" --argjson period "$7" --argjson evaluation "$8" --argjson datapoints "$9" \
+    --arg comparison "${10}" --argjson threshold "${11}" --arg missing "${12}" \
     --argjson actions "$ACTIONS_JSON" '
     {
       AlarmName: $name,
       AlarmDescription: $description,
       ActionsEnabled: true,
       AlarmActions: $actions,
-      OKActions: (if $notify_ok then $actions else [] end),
+      OKActions: $actions,
       InsufficientDataActions: [],
       Namespace: $namespace,
       MetricName: $metric,
@@ -93,7 +93,7 @@ ec2_alarm() {
   local name=$1 description=$2 namespace=$3 metric=$4 dims=$5
   shift 5
   (($# == 7)) || die "${name}의 조건은 값 7개여야 합니다."
-  single_metric_alarm "$name" "$description" "$namespace" "$metric" "$dims" false "$@"
+  single_metric_alarm "$name" "$description" "$namespace" "$metric" "$dims" "$@"
 }
 
 api_5xx_ratio_alarm() {
@@ -119,7 +119,7 @@ api_5xx_ratio_alarm() {
       AlarmDescription: "5xx가 요청의 5%를 넘는다(분당 10건 이상일 때만 판단). 먼저 대시보드 \"버전별 5xx (분당)\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR — event별 건수\"에서 errorCode를 본다.",
       ActionsEnabled: true,
       AlarmActions: $actions,
-      OKActions: [],
+      OKActions: $actions,
       InsufficientDataActions: [],
       Metrics: [
         outcome("m1"; "SUCCESS"),
@@ -141,15 +141,15 @@ build_alarms() {
   pool_dims=$(dimensions environment "$ENV_NAME" service "$SERVICE" pool HikariPool-1)
 
   single_metric_alarm "mapmory-${ENV_NAME}-metrics-missing" \
-    "앱 지표가 5분 넘게 들어오지 않는다. 먼저 EC2에서 amazon-cloudwatch-agent 상태와 활성 슬롯의 /actuator/prometheus 응답을 본다." \
-    Mapmory/Backend hikaricp_connections_max "$pool_dims" true \
+    "앱 지표가 10분 넘게 들어오지 않는다. 먼저 EC2에서 amazon-cloudwatch-agent 상태와 활성 슬롯의 /actuator/prometheus 응답을 본다." \
+    Mapmory/Backend hikaricp_connections_max "$pool_dims" \
     SampleCount 300 2 2 LessThanThreshold 1 breaching
 
   api_5xx_ratio_alarm
 
   single_metric_alarm "mapmory-${ENV_NAME}-db-connection-pending" \
     "DB 커넥션을 기다리는 요청이 이어진다. 먼저 대시보드 \"DB 커넥션 풀\"의 active·max와 RDS CPU·연결 수, \"내부 작업 p95\"를 본다." \
-    Mapmory/Backend hikaricp_connections_pending "$pool_dims" false \
+    Mapmory/Backend hikaricp_connections_pending "$pool_dims" \
     Maximum 60 5 3 GreaterThanOrEqualToThreshold 1 notBreaching
 
   ec2_alarm "mapmory-${ENV_NAME}-ec2-cpu-usage-high" \
@@ -207,7 +207,7 @@ main() {
 
   confirm "$account" \
     "EC2: Name=${NAME_TAG} (${instance_id}), 루트 디스크 ${device}/${fstype}" \
-    "알림 대상: mapmory-${ENV_NAME}-application-error와 같은 SNS($(topic_names "$ACTIONS_JSON"))" \
+    "경보·정상 알림 대상: mapmory-${ENV_NAME}-application-error와 같은 SNS($(topic_names "$ACTIONS_JSON"))" \
     "만들거나 덮어쓸 알람: ${alarm_names[*]}"
 
   for alarm in "${alarms[@]}"; do

@@ -67,12 +67,12 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 | 알람 | 조건 | 데이터 없음 | 알림 |
 |---|---|---|---|
 | `metrics-missing` | `hikaricp_connections_max` SampleCount < 1, 300초 × 2 | 경보 | 경보·정상 |
-| `api-5xx-ratio` | 5xx 비율 > 5%(분당 10건 이상일 때만), 60초, 5개 중 3개 | 정상 취급 | 경보 |
-| `db-connection-pending` | `hikaricp_connections_pending` Maximum ≥ 1, 60초, 5개 중 3개 | 정상 취급 | 경보 |
-| `ec2-cpu-usage-high` | CPUUtilization Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-memory-usage-high` | mem_used_percent Average ≥ 85, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-disk-usage-high` | disk_used_percent(/) Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-status-check-failed` | StatusCheckFailed Maximum ≥ 1, 300초 × 1 | 경보 | 경보 |
+| `api-5xx-ratio` | 5xx 비율 > 5%(분당 10건 이상일 때만), 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
+| `db-connection-pending` | `hikaricp_connections_pending` Maximum ≥ 1, 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
+| `ec2-cpu-usage-high` | CPUUtilization Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-memory-usage-high` | mem_used_percent Average ≥ 85, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-disk-usage-high` | disk_used_percent(/) Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-status-check-failed` | StatusCheckFailed Maximum ≥ 1, 300초 × 1 | 경보 | 경보·정상 |
 
 알람마다 설명에 "울리면 무엇부터 볼지"를 한 줄 적었다. 알림 메일에도 이 설명이 나온다.
 
