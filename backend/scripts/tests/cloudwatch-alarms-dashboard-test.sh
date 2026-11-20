@@ -197,10 +197,17 @@ alarm_ratio=$(jq -r 'select(.AlarmName == "mapmory-dev-api-5xx-ratio")
   | .Metrics | map(select(.Id == "ratio"))[0].Expression | gsub("total"; "(" + $total + ")")' "${WORK_DIR}/first")
 widget_ratio=$(jq -r '.widgets[] | select(.properties.title == "5xx 비율 (%)") | .properties.metrics[0][0].expression' \
   "${CLOUDWATCH_DIR}/dashboard.json.tmpl")
-if [[ -n $alarm_ratio && $alarm_ratio == "$widget_ratio" ]]; then
+# 식이 같아도 m1~m3가 가리키는 지표가 다르면 다른 값이 된다. 그래서 id마다 지표 이름·outcome·통계·기간도 비교한다.
+alarm_inputs=$(jq -c 'select(.AlarmName == "mapmory-dev-api-5xx-ratio")
+  | [.Metrics[] | select(.MetricStat) | [.Id, .MetricStat.Metric.MetricName,
+      (.MetricStat.Metric.Dimensions[] | select(.Name == "outcome") | .Value), .MetricStat.Stat, .MetricStat.Period]] | sort' "${WORK_DIR}/first")
+widget_inputs=$(jq -c '[.widgets[] | select(.properties.title == "5xx 비율 (%)") | .properties.metrics[]
+  | select(.[0] == "Mapmory/Backend") | [.[-1].id, .[1], .[7], .[-1].stat, .[-1].period]] | sort' \
+  "${CLOUDWATCH_DIR}/dashboard.json.tmpl")
+if [[ -n $alarm_ratio && $alarm_ratio == "$widget_ratio" && $alarm_inputs == "$widget_inputs" ]]; then
   pass "대시보드 5xx 비율 그래프가 알람과 같은 식이다"
 else
-  printf '알람: %s\n위젯: %s\n' "$alarm_ratio" "$widget_ratio"
+  printf '알람: %s %s\n위젯: %s %s\n' "$alarm_ratio" "$alarm_inputs" "$widget_ratio" "$widget_inputs"
   fail "대시보드 5xx 비율 그래프가 알람과 같은 식이다"
 fi
 
