@@ -296,8 +296,7 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
             // 수정이 태그 삭제보다 늦으면 붙일 태그가 없어 TAG_NOT_FOUND다. 수정의 잠금 충돌은 한 번 다시 해서 성공해야 하므로 실패로 본다.
             // 태그 삭제는 다시 하지 않으므로, 데드락에서 희생되면 다시 시도할 오류(RETRY_LATER)로 본다.
             boolean updateEnded = List.of(OK, "TAG_NOT_FOUND").contains(outcomes.get(0));
-            boolean deletesEnded = List.of(OK, RETRY_LATER).contains(outcomes.get(1))
-                    && List.of(OK, RETRY_LATER).contains(outcomes.get(2));
+            boolean deletesEnded = okOrRetryLater(outcomes.get(1)) && okOrRetryLater(outcomes.get(2));
             boolean recordKept = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM travel_record WHERE id = ?", Integer.class, recordId) == 1;
             if (!updateEnded || !deletesEnded || !recordKept) {
@@ -453,7 +452,18 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
         return actual.size() == expected.size() && actual.containsAll(expected);
     }
 
-    // 모든 스레드가 준비된 뒤 한꺼번에 실행하고, 각 결과를 OK, 에러 코드 또는 예외 이름으로 돌려준다.
+    private static boolean okOrRetryLater(String outcome) {
+        return OK.equals(outcome) || outcome.startsWith(RETRY_LATER + "(");
+    }
+
+    private static String lockFailureName(RuntimeException exception) {
+        if (exception instanceof AcceptedLockConflictException accepted) {
+            return accepted.getDecision() + " " + accepted.getLockFailure().getClass().getSimpleName();
+        }
+        return exception.getClass().getSimpleName();
+    }
+
+    // 모든 스레드가 준비된 뒤 한꺼번에 실행하고, 각 결과를 OK, 에러 코드, RETRY_LATER(잠금 충돌 예외 이름) 또는 예외 이름으로 돌려준다.
     private List<String> runAtOnce(List<Callable<?>> actions) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(actions.size());
         CountDownLatch start = new CountDownLatch(1);
@@ -469,7 +479,8 @@ class TravelRecordConcurrentUpdateIntegrationTest extends IntegrationTest {
                 } catch (PessimisticLockingFailureException | OptimisticLockingFailureException
                          | AcceptedLockConflictException exception) {
                     // 웹 계층에서 503 RETRY_LATER로 응답하는 잠금 충돌이다(LockConflictExceptionHandler).
-                    return RETRY_LATER;
+                    // 판정은 RETRY_LATER로 하되, 실패 메시지에서 원인(데드락·지워진 행·대기 시간 초과)을 가리도록 예외 이름을 붙인다.
+                    return RETRY_LATER + "(" + lockFailureName(exception) + ")";
                 } catch (RuntimeException exception) {
                     return exception.getClass().getSimpleName();
                 }
