@@ -23,7 +23,9 @@ case "$1 $2" in
     # shellcheck disable=SC2086 # 공백으로 나눈 ID 목록을 JSON 배열로 바꾼다.
     if [[ $* == *tag:Name* ]]; then jq -nc '$ARGS.positional' --args $FAKE_INSTANCES; else printf '["other-server"]\n'; fi ;;
   "cloudwatch describe-alarms")
-    if [[ $* == *AlarmActions* ]]; then printf '%s\n' "$FAKE_ACTIONS"; else printf 'unmanaged-report\n'; fi ;;
+    if [[ $* == *AlarmActions* ]]; then printf '%s\n' "$FAKE_ACTIONS"
+    elif [[ $* == *"--output json"* ]]; then printf '%s\n' "$FAKE_CURRENT_ALARMS"
+    else printf 'unmanaged-report\n'; fi ;;
   "cloudwatch list-metrics") printf '%s\n' "$FAKE_DISK_METRICS" ;;
   "rds describe-db-instances") printf '%s\n' "$FAKE_DB_ID" ;;
   "cloudwatch put-metric-alarm")
@@ -51,6 +53,7 @@ reset_fake() {
   export FAKE_ACTIONS='["arn:aws:sns:ap-northeast-2:111122223333:alerts"]'
   export FAKE_DISK_METRICS='{"Metrics":[{"Dimensions":[{"Name":"path","Value":"/"},{"Name":"InstanceId","Value":"i-0123456789abcdef0"},{"Name":"device","Value":"nvme0n1p1"},{"Name":"fstype","Value":"xfs"}]}]}'
   export FAKE_DB_ID=mapmory-dev-db
+  export FAKE_CURRENT_ALARMS='{"MetricAlarms":[{"AlarmName":"mapmory-dev-ec2-cpu-usage-high","AlarmActions":["arn:aws:sns:ap-northeast-2:111122223333:infra-alerts"],"OKActions":[]}]}'
 }
 
 run() {
@@ -71,6 +74,16 @@ if run alarms.sh dev --dry-run && [[ $(count_lines "${WORK_DIR}/log/alarms") == 
   pass "alarms --dry-run은 알람 7개를 출력하고 쓰지 않는다"
 else
   fail "alarms --dry-run은 알람 7개를 출력하고 쓰지 않는다"
+fi
+
+# 1-1. 확인 화면에 바뀔 알림 대상을 주제 이름으로만 보여 준다(ARN 전체는 출력하지 않는다).
+if grep -qF 'SNS(alerts)' "${WORK_DIR}/log/stderr" \
+  && grep -qF 'mapmory-dev-ec2-cpu-usage-high: 경보 → infra-alerts, 정상 → (없음)' "${WORK_DIR}/log/stderr" \
+  && grep -qF 'mapmory-dev-api-5xx-ratio: 없음(새로 만든다)' "${WORK_DIR}/log/stderr" \
+  && ! grep -qF "arn:aws:sns" "${WORK_DIR}/log/stderr"; then
+  pass "확인 화면에 지금과 바뀔 알림 대상을 주제 이름으로 보여 준다"
+else
+  fail "확인 화면에 지금과 바뀔 알림 대상을 주제 이름으로 보여 준다"
 fi
 
 # 2. 두 번 실행해도 같은 정의를 넣는다.

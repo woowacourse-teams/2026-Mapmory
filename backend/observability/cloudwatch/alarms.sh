@@ -34,6 +34,26 @@ read_alarm_actions() {
   ACTIONS_JSON=$(jq -c . <<< "$actions")
 }
 
+# SNS ARN 목록을 주제 이름만 남겨 보여 준다. 계정 번호는 출력하지 않는다.
+topic_names() {
+  jq -r 'if length == 0 then "(없음)" else map(split(":")[-1]) | join(", ") end' <<< "$1"
+}
+
+# 관리하는 알람의 지금 알림 대상을 보여 준다. put-metric-alarm은 알림 대상까지 덮어쓰므로, 적용 전에 무엇이 바뀌는지 본다.
+report_current_actions() {
+  local current
+  current=$(aws cloudwatch describe-alarms --region "$REGION" --alarm-names "$@" --output json)
+  log "관리하는 알람의 지금 알림 대상(적용하면 위 SNS로 바뀐다):"
+  jq -r --argjson names "$(jq -nc '$ARGS.positional' --args "$@")" '
+    (.MetricAlarms // []) as $alarms
+    | $names[]
+    | . as $name
+    | ($alarms | map(select(.AlarmName == $name)) | first) as $alarm
+    | if $alarm == null then "  \($name): 없음(새로 만든다)"
+      else "  \($name): 경보 → \($alarm.AlarmActions | map(split(":")[-1]) | join(", ") | if . == "" then "(없음)" else . end), 정상 → \($alarm.OKActions | map(split(":")[-1]) | join(", ") | if . == "" then "(없음)" else . end)"
+      end' <<< "$current" >&2
+}
+
 # dimensions k1 v1 k2 v2 ... → [{"Name":k1,"Value":v1}, ...]
 dimensions() {
   jq -nc '$ARGS.positional as $a | [range(0; $a | length; 2) as $i | {Name: $a[$i], Value: $a[$i + 1]}]' --args "$@"
@@ -179,10 +199,16 @@ main() {
   done < <(build_alarms "$instance_id" "$device" "$fstype")
   ((${#alarms[@]} == 7)) || die "알람 정의를 만들지 못했습니다."
 
+  local -a alarm_names=()
+  for alarm in "${alarms[@]}"; do
+    alarm_names+=("$(jq -r .AlarmName <<< "$alarm")")
+  done
+  report_current_actions "${alarm_names[@]}"
+
   confirm "$account" \
     "EC2: Name=${NAME_TAG} (${instance_id}), 루트 디스크 ${device}/${fstype}" \
-    "알림 대상: mapmory-${ENV_NAME}-application-error와 같은 SNS $(jq length <<< "$ACTIONS_JSON")개" \
-    "만들거나 덮어쓸 알람: $(for alarm in "${alarms[@]}"; do jq -r .AlarmName <<< "$alarm"; done | tr '\n' ' ')"
+    "알림 대상: mapmory-${ENV_NAME}-application-error와 같은 SNS($(topic_names "$ACTIONS_JSON"))" \
+    "만들거나 덮어쓸 알람: ${alarm_names[*]}"
 
   for alarm in "${alarms[@]}"; do
     if [[ $DRY_RUN == true ]]; then
