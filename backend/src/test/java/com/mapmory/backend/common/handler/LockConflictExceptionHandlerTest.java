@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.mapmory.backend.common.ProblemDetailFactory;
+import java.sql.SQLException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
@@ -51,6 +52,15 @@ class LockConflictExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("RETRY_LATER"));
     }
 
+    // 잠금 대기 시간 초과는 로그만 따로(LOCK_WAIT_TIMEOUT, ERROR) 남기고, 응답은 같은 503이다.
+    @Test
+    void 잠금_대기_시간_초과도_503과_Retry_After를_준다() throws Exception {
+        mockMvc.perform(get("/test/lock-wait-timeout"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string(HttpHeaders.RETRY_AFTER, "1"))
+                .andExpect(jsonPath("$.code").value("RETRY_LATER"));
+    }
+
     @Test
     void 잠금_충돌이_아닌_예외는_그대로_500이다() throws Exception {
         mockMvc.perform(get("/test/unexpected"))
@@ -68,6 +78,12 @@ class LockConflictExceptionHandlerTest {
         @GetMapping("/test/stale-write")
         void staleWrite() {
             throw new ObjectOptimisticLockingFailureException("delete from travel_record_tag where id=?", null);
+        }
+
+        @GetMapping("/test/lock-wait-timeout")
+        void lockWaitTimeout() {
+            throw new CannotAcquireLockException("could not execute statement",
+                    new SQLException("Lock wait timeout exceeded; try restarting transaction", "HY000", 1205));
         }
 
         @GetMapping("/test/unexpected")

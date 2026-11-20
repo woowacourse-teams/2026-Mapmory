@@ -1,6 +1,7 @@
 package com.mapmory.backend.travelrecord.application;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.common.exception.LockWaitTimeouts;
 import com.mapmory.backend.common.monitoring.MonitoredOperation;
 import com.mapmory.backend.common.monitoring.OperationTimer;
 import com.mapmory.backend.common.time.ServiceTime;
@@ -172,7 +173,8 @@ public class TravelRecordService {
      *
      * <p>뺄 태그가 그 순간 지워지면 수정이 실패할 수 있다(#753). 태그 삭제의 ON DELETE CASCADE가 연결 행을 먼저 지워 수정이 그 행을
      * 다시 지우려다 0행이 되거나({@link OptimisticLockingFailureException}), 연결 행의 PK와 유니크 인덱스를 서로 반대 순서로 잠가
-     * 데드락이 난다({@link PessimisticLockingFailureException}). 그때는 한 번 다시 한다. 실패한 시도는 통째로 롤백되고, 수정은 전체 교체라
+     * 데드락이 난다({@link PessimisticLockingFailureException}). 둘 다 바로 실패하므로 그때는 한 번 다시 한다.
+     * 같은 예외로 오는 잠금 대기 시간 초과(50초)는 다시 하지 않는다({@link LockWaitTimeouts}). 실패한 시도는 통째로 롤백되고, 수정은 전체 교체라
      * 다시 해도 결과가 같으며, 두 번째는 태그 삭제가 커밋된 뒤를 본다. 다시 해도 실패하면 예외를 그대로 던져
      * {@code LockConflictExceptionHandler}가 503 + Retry-After로 응답한다.
      * 태그를 미리 잠가 이 경합을 없애지 않은 이유는 #753에 있다. 같은 사용자가 몇 ms 안에 두 기기로 겹쳐야 생기고, 실패해도 데이터는
@@ -186,6 +188,10 @@ public class TravelRecordService {
         try {
             return updateOnce(member, travelRecordId, command);
         } catch (PessimisticLockingFailureException | OptimisticLockingFailureException exception) {
+            // 잠금 대기 시간 초과는 50초를 기다린 뒤라 다시 하면 요청이 두 배로 길어진다. 다시 하지 않는다.
+            if (LockWaitTimeouts.isLockWaitTimeout(exception)) {
+                throw exception;
+            }
             log.atInfo()
                     .addKeyValue("event", "TRAVEL_RECORD_UPDATE_RETRIED")
                     .addKeyValue("travelRecordId", travelRecordId)

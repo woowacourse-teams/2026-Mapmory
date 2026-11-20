@@ -2,11 +2,13 @@ package com.mapmory.backend.common.handler;
 
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.exception.CommonErrorCode;
+import com.mapmory.backend.common.exception.LockWaitTimeouts;
 import com.mapmory.backend.common.logging.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.slf4j.event.Level;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessException;
@@ -30,7 +32,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * </ul>
  *
  * <p>트랜잭션은 이미 롤백되어 데이터는 그대로다. 같은 요청을 다시 보내면 대개 성공하므로 장애가 아니라 다시 시도할 오류로 알린다.
- * 장애 알람(ERROR)에 섞이지 않게 WARN으로 남기되, 얼마나 자주 생기는지 세고 문의가 오면 요청을 찾도록 requestId를 함께 남긴다.
+ * 데드락(event=DEADLOCK)과 이미 바뀐 행(event=STALE_WRITE)은 장애 알람(ERROR)에 섞이지 않게 WARN으로 남긴다.
+ * 같은 예외로 오는 잠금 대기 시간 초과(MySQL 1205, 50초)는 오래 열린 트랜잭션 같은 이상 신호라 event=LOCK_WAIT_TIMEOUT, ERROR로 남긴다.
+ * 얼마나 자주 생기는지 세고 문의가 오면 요청을 찾도록 requestId를 함께 남긴다.
  * 모든 예외를 받는 {@link UnexpectedExceptionHandler}보다 먼저 고르도록 순서를 앞에 둔다.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)
@@ -49,8 +53,9 @@ public class LockConflictExceptionHandler {
 
     @ExceptionHandler({PessimisticLockingFailureException.class, OptimisticLockingFailureException.class})
     public ResponseEntity<ProblemDetail> handle(DataAccessException exception, HttpServletRequest request) {
-        log.atWarn()
-                .addKeyValue("event", exception instanceof PessimisticLockingFailureException ? "DEADLOCK" : "STALE_WRITE")
+        boolean lockWaitTimeout = LockWaitTimeouts.isLockWaitTimeout(exception);
+        log.atLevel(lockWaitTimeout ? Level.ERROR : Level.WARN)
+                .addKeyValue("event", eventOf(exception, lockWaitTimeout))
                 .addKeyValue("status", HttpStatus.SERVICE_UNAVAILABLE.value())
                 .addKeyValue("httpMethod", request.getMethod())
                 .addKeyValue("uri", request.getRequestURI())
@@ -68,5 +73,12 @@ public class LockConflictExceptionHandler {
                 .headers(response.getHeaders())
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(RETRY_AFTER_SECONDS))
                 .body(problem);
+    }
+
+    private static String eventOf(DataAccessException exception, boolean lockWaitTimeout) {
+        if (lockWaitTimeout) {
+            return "LOCK_WAIT_TIMEOUT";
+        }
+        return exception instanceof PessimisticLockingFailureException ? "DEADLOCK" : "STALE_WRITE";
     }
 }

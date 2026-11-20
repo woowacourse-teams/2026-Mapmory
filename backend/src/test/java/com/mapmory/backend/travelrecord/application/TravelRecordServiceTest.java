@@ -48,6 +48,7 @@ import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -60,6 +61,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.hibernate.exception.LockTimeoutException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -671,6 +673,20 @@ class TravelRecordServiceTest {
         assertThatThrownBy(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")))
                 .isInstanceOf(CannotAcquireLockException.class);
         verify(travelRecordRepository, times(2)).lockByIdAndMemberId(101L, 10L);
+    }
+
+    @Test
+    void 잠금_대기_시간_초과는_다시_하지_않는다() {
+        TravelRecord travelRecord = japanRecord();
+        when(travelRecordRepository.findByIdAndMemberId(101L, 10L)).thenReturn(Optional.of(travelRecord));
+        when(travelRecordRepository.lockByIdAndMemberId(101L, 10L))
+                .thenThrow(new CannotAcquireLockException("could not execute statement",
+                        new LockTimeoutException("could not execute statement",
+                                new SQLException("Lock wait timeout exceeded; try restarting transaction", "HY000", 1205))));
+
+        assertThatThrownBy(() -> travelRecordService.update(member, 101L, japanCommand("수정된 제목")))
+                .isInstanceOf(CannotAcquireLockException.class);
+        verify(travelRecordRepository, times(1)).lockByIdAndMemberId(101L, 10L);
     }
 
     @Test
