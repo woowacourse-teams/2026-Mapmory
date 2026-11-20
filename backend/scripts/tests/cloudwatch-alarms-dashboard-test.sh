@@ -20,7 +20,8 @@ printf '%s\n' "$*" >> "${FAKE_LOG_DIR}/calls"
 case "$1 $2" in
   "sts get-caller-identity") printf '%s\n' "$FAKE_ACCOUNT_ID" ;;
   "ec2 describe-instances")
-    if [[ $* == *tag:Name* ]]; then printf '%s\n' "$FAKE_INSTANCES"; else printf 'other-server\n'; fi ;;
+    # shellcheck disable=SC2086 # 공백으로 나눈 ID 목록을 JSON 배열로 바꾼다.
+    if [[ $* == *tag:Name* ]]; then jq -nc '$ARGS.positional' --args $FAKE_INSTANCES; else printf '["other-server"]\n'; fi ;;
   "cloudwatch describe-alarms")
     if [[ $* == *AlarmActions* ]]; then printf '%s\n' "$FAKE_ACTIONS"; else printf 'unmanaged-report\n'; fi ;;
   "cloudwatch list-metrics") printf '%s\n' "$FAKE_DISK_METRICS" ;;

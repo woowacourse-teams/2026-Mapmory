@@ -65,26 +65,26 @@ account_id() {
 
 # Name 태그가 같고 실행 중인 인스턴스가 정확히 하나일 때만 그 ID를 돌려준다.
 # 0개나 2개 이상이면 어느 서버에 알람을 걸어야 할지 모르므로 멈춘다.
+# --output text는 페이지마다 --query를 따로 적용해 결과가 여러 줄로 나뉠 수 있다. 그래서 JSON으로 받아 jq로 센다.
 find_instance_id() {
-  local output names
-  local -a ids=()
-  output=$(aws ec2 describe-instances --region "$REGION" \
+  local ids names count
+  ids=$(aws ec2 describe-instances --region "$REGION" \
     --filters "Name=tag:Name,Values=${NAME_TAG}" "Name=instance-state-name,Values=running" \
-    --query 'Reservations[].Instances[].InstanceId' --output text)
-  read -r -a ids <<< "$output"
-  if ((${#ids[@]} == 1)); then
-    printf '%s\n' "${ids[0]}"
+    --query 'Reservations[].Instances[].InstanceId' --output json)
+  count=$(jq 'length' <<< "$ids")
+  if ((count == 1)); then
+    jq -r '.[0]' <<< "$ids"
     return 0
   fi
-  if ((${#ids[@]} == 0)); then
+  if ((count == 0)); then
     # shellcheck disable=SC2016 # JMESPath의 역따옴표다.
     names=$(aws ec2 describe-instances --region "$REGION" \
       --filters "Name=instance-state-name,Values=running" \
-      --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value[]' --output text)
+      --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value[]' --output json | jq -r 'join(" ")')
     log "실행 중인 인스턴스의 Name 태그: ${names:-(없음)}"
     die "Name 태그가 '${NAME_TAG}'이고 실행 중인 인스턴스가 없습니다. --name-tag로 지정하세요."
   fi
-  die "Name 태그가 '${NAME_TAG}'이고 실행 중인 인스턴스가 ${#ids[@]}개입니다. 하나만 남기거나 --name-tag로 좁히세요."
+  die "Name 태그가 '${NAME_TAG}'이고 실행 중인 인스턴스가 ${count}개입니다. 하나만 남기거나 --name-tag로 좁히세요."
 }
 
 # 루트(/) 디스크 지표의 device와 fstype을 지금 들어오는 지표에서 찾는다. 서버마다 값이 달라서 저장소에 두지 않는다.
