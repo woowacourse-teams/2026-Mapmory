@@ -87,4 +87,4 @@ aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix mapmo
   --query 'MetricAlarms[].[AlarmName,StateValue]' --output table
 ```
 
-`INSUFFICIENT_DATA`가 남아 있으면 그 알람의 지표가 들어오는지 확인한다. 대시보드는 CloudWatch 콘솔에서 `mapmory-dev-v2`를 열어 빈 위젯이 없는지 본다.
+`INSUFFICIENT_DATA`가 남아 있으면 그 알람의 지표가 들어오는지 확인한다. 대시보드는 CloudWatch 콘솔에서 `mapmory-dev-v2`를 열어 빈 위젯이 없는지 본다. "썸네일 backlog (렌더러 서버)"는 렌더러 서버에 Agent를 설치하기 전까지 비어 있는 것이 맞다.
