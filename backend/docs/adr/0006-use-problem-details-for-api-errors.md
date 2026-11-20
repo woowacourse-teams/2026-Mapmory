@@ -27,7 +27,7 @@ Spring의 `ProblemDetail`을 사용하고 오류 응답의 미디어 타입을 `
 - `title`: 오류 유형을 설명하는 짧고 사람이 읽을 수 있는 문구
 - `status`: HTTP 상태 코드
 - `detail`: 현재 오류에 대한 사용자 공개 설명
-- `instance`: 오류가 발생한 요청 경로
+- `instance`: 오류가 발생한 요청의 경로 패턴(2026-11-20 보완 참고)
 - `type`: 오류 유형을 식별할 URI가 정해지기 전까지 기본값을 사용하며, 관련 문서 체계가 마련되면 확장한다.
 
 클라이언트 처리를 위해 다음 확장 필드를 사용한다.
@@ -124,3 +124,16 @@ Spring MVC 기본 오류는 `spring.mvc.problemdetails.enabled=true`로 활성�
 
 - [RFC 9457: Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457)
 - [Spring Framework: Error Responses](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html)
+
+## 2026-11-20 보완: `instance`는 원본 경로가 아니라 경로 패턴이다 (#744)
+
+`instance`에 원본 요청 경로를 넣으면 경로 변수 값이 응답에 실린다. 초대 미리보기·수락처럼 경로로 초대 토큰을 받는 API에서는, 그 토큰을 아는 사람이 그룹에 들어갈 수 있다.
+
+- `instance`는 매칭된 경로 패턴이다. 예: `/api/v1/invitations/%7BtokenOrCode%7D/accept`. `{}`는 URI에 그대로 쓸 수 없어 퍼센트 인코딩된다.
+- 패턴이 없으면 `UNKNOWN`이다. 시큐리티 필터에서 끝난 401·403, 핸들러 매칭이 실패한 405·415가 여기에 해당한다. 컨트롤러에 없는 경로는 정적 리소스 핸들러의 `/**`가 된다.
+- Spring이 직접 만드는 ProblemDetail도 `ProblemDetailInstanceAdvice`가 응답 직전에 같은 값으로 바꾼다.
+- 매핑되지 않은 경로의 404는 `detail`에 경로를 넣지 않는 고정 문구로 응답한다.
+- `/error` 응답의 `path`는 `spring.web.error.include-path: never`로 끈다.
+- 오류 로그의 `uri` 필드도 같은 패턴이다(`RequestPaths.patternOf`).
+
+`instance`로 리소스 id를 찾을 수는 없다. 특정 요청을 추적할 때는 응답 헤더의 `X-Request-Id`로 로그를 찾는다.
