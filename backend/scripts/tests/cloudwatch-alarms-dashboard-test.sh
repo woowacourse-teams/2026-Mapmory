@@ -103,8 +103,9 @@ if [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Statistic, .Period, .Evalua
       == '["SampleCount",300,2,1,"LessThanThreshold","breaching",1]' ]] \
   && [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Namespace, .MetricName, (.Dimensions | map("\(.Name)=\(.Value)") | sort | join(","))]') \
       == '["Mapmory/Backend","hikaricp_connections_max","environment=dev,pool=HikariPool-1,service=mapmory-backend"]' ]] \
-  && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -r '.Metrics[] | select(.ReturnData) | .Expression') \
-      == 'IF(total >= 10, 100 * FILL(m3, 0) / total, 0)' ]] \
+  && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -c '[.Metrics[] | select(.Expression) | [.Id, .Expression, .ReturnData]]') \
+      == '[["total","FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)",false],["ratio","IF(total >= 10, 100 * FILL(m3, 0) / total, 0)",true]]' ]] \
+  && [[ $(alarm mapmory-dev-api-5xx-ratio | jq '[.Metrics[] | select(.ReturnData)] | length') == 1 ]] \
   && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -c '[.Metrics[] | select(.MetricStat) | [.Id, .MetricStat.Metric.Namespace, .MetricStat.Metric.MetricName, (.MetricStat.Metric.Dimensions | map("\(.Name)=\(.Value)") | sort | join(",")), .MetricStat.Period, .MetricStat.Stat]]') \
       == '[["m1","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=SUCCESS,service=mapmory-backend",60,"Sum"],["m2","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=CLIENT_ERROR,service=mapmory-backend",60,"Sum"],["m3","Mapmory/Backend","http_server_requests_seconds_count","environment=dev,outcome=SERVER_ERROR,service=mapmory-backend",60,"Sum"]]' ]] \
   && [[ $(alarm mapmory-dev-api-5xx-ratio | jq -c '[.Threshold, .ComparisonOperator, .EvaluationPeriods, .DatapointsToAlarm, .TreatMissingData]') \
