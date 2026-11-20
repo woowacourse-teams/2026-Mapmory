@@ -132,7 +132,23 @@ else
   fail "대시보드 템플릿의 변수를 모두 채운다"
 fi
 
-# 6. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.
+# 6. 대시보드가 가리키는 알람은 alarms.sh가 관리하는 7개와 바꾸지 않는 3개뿐이고, 관리하는 7개는 모두 보인다.
+#    알람 이름은 RDS 식별자 같은 다른 값이 아니라 환경으로만 정해져야 한다.
+# shellcheck disable=SC2016 # 템플릿 자리표시자 ${ENV}를 찾는다.
+dashboard_alarms=$(grep -oE 'alarm:[^"]+' "${CLOUDWATCH_DIR}/dashboard.json.tmpl" | sort -u)
+managed=$(jq -r '.AlarmName | sub("^mapmory-dev-"; "alarm:mapmory-${ENV}-")' "${WORK_DIR}/first" | sort -u)
+# shellcheck disable=SC2016
+unknown=$(comm -23 <(printf '%s\n' "$dashboard_alarms") \
+  <(printf '%s\n' "$managed" 'alarm:mapmory-${ENV}-application-error' 'alarm:mapmory-${ENV}-api-5xx-rate' 'alarm:mapmory-${ENV}-rds-free-storage-low' | sort -u))
+missing=$(comm -13 <(printf '%s\n' "$dashboard_alarms") <(printf '%s\n' "$managed"))
+if [[ -z $unknown && -z $missing ]]; then
+  pass "대시보드의 알람 이름이 실제 알람과 맞다"
+else
+  printf '모르는 알람: %s\n빠진 알람: %s\n' "${unknown:-(없음)}" "${missing:-(없음)}"
+  fail "대시보드의 알람 이름이 실제 알람과 맞다"
+fi
+
+# 7. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.
 leaks=$(grep -rnE '[0-9]{12}|i-[0-9a-f]{8,}|arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]' "${BACKEND_DIR}/observability" || true)
 if [[ -z $leaks ]]; then
   pass "observability/에 계정 번호·인스턴스 ID가 없다"
