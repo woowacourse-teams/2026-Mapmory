@@ -67,12 +67,12 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 | 알람 | 조건 | 데이터 없음 | 알림 |
 |---|---|---|---|
 | `metrics-missing` | `hikaricp_connections_max` SampleCount < 1, 300초 × 2 | 경보 | 경보·정상 |
-| `api-5xx-ratio` | 5xx 비율 > 5%(분당 10건 이상일 때만), 60초, 5개 중 3개 | 정상 취급 | 경보 |
-| `db-connection-pending` | `hikaricp_connections_pending` Maximum ≥ 1, 60초, 5개 중 3개 | 정상 취급 | 경보 |
-| `ec2-cpu-usage-high` | CPUUtilization Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-memory-usage-high` | mem_used_percent Average ≥ 85, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-disk-usage-high` | disk_used_percent(/) Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보 |
-| `ec2-status-check-failed` | StatusCheckFailed Maximum ≥ 1, 300초 × 1 | 경보 | 경보 |
+| `api-5xx-ratio` | 5xx 비율 > 5%(분당 10건 이상일 때만), 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
+| `db-connection-pending` | `hikaricp_connections_pending` Maximum ≥ 1, 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
+| `ec2-cpu-usage-high` | CPUUtilization Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-memory-usage-high` | mem_used_percent Average ≥ 85, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-disk-usage-high` | disk_used_percent(/) Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
+| `ec2-status-check-failed` | StatusCheckFailed Maximum ≥ 1, 300초 × 1 | 경보 | 경보·정상 |
 
 알람마다 설명에 "울리면 무엇부터 볼지"를 한 줄 적었다. 알림 메일에도 이 설명이 나온다.
 
@@ -81,6 +81,8 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 ## 적용 확인
 
 적용하고 10분쯤 지난 뒤, 관리하는 알람이 모두 `OK`인지 본다. `metrics-missing`은 판단에 10분(300초 × 2)이 걸린다.
+
+새로 만든 알람은 `INSUFFICIENT_DATA`로 시작한다. 평가가 끝나 `OK`가 되면 정상 메일을 한 번 보낸다. EC2를 교체한 뒤 다시 실행했을 때나 Agent가 잠깐 끊겼다 돌아올 때도, `INSUFFICIENT_DATA`에서 `OK`로 바뀌면 같은 메일이 온다. 바로 앞에 경보 메일이 없었다면 정상 메일은 장애가 풀렸다는 뜻이 아니다.
 
 ```bash
 aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix mapmory-dev- \
