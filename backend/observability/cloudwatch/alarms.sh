@@ -116,7 +116,7 @@ api_5xx_ratio_alarm() {
       };
     {
       AlarmName: "mapmory-\($env)-api-5xx-ratio",
-      AlarmDescription: "5xx가 요청의 5%를 넘는다(분당 10건 이상일 때만 판단). 먼저 대시보드 \"버전별 5xx\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR event별 건수\"에서 errorCode를 본다.",
+      AlarmDescription: "5xx가 요청의 5%를 넘는다(분당 10건 이상일 때만 판단). 먼저 대시보드 \"버전별 5xx (분당)\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR — event별 건수\"에서 errorCode를 본다.",
       ActionsEnabled: true,
       AlarmActions: $actions,
       OKActions: [],
