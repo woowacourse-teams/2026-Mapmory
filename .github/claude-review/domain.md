@@ -156,6 +156,10 @@ PR 리뷰가 `review.md`와 함께 읽는 도메인 규칙이다. 도메인은 *
 - **스키마는 Flyway로만 바꾼다(ADR 0005).** 이미 적용된 마이그레이션 파일은 고치지 않고 새 파일을 더한다. 기존 데이터가 있는 테이블에 NOT NULL·UNIQUE를 더하면 기존 행이 통과하는지 본다.
 - **목록 API는 페이지 크기 상한이 있다**(기록 100, 앨범 50). 새 목록 API도 상한을 둔다.
 - **앱 호환:** 앱은 서버보다 늦게 배포된다. 응답 필드를 빼거나 이름·타입을 바꾸면 예전 앱이 깨진다(ADR 0030).
+- **SLO 분류:** 조회(지도 요약·기록 목록·상세·Presigned URL), 저장(기록 생성·수정), 인증(로그인·토큰 갱신) API는 경로 패턴과 메서드로 `SloClass` 한 곳에서 분류한다(ADR 0031).
+  이 대상 API의 경로를 바꾸거나 새 버전(v2 등)을 더하면 `SloClass`도 함께 고친다. 빠지면 그 API가 `other`로 세져 SLO에서 사라진다(ADR 0031).
+- **SLO 지표:** 지연 SLO는 전용 카운터 `http.server.requests.slo`로 잰다. `http.server.requests`에 SLO 경계(`management.metrics.distribution.slo`)를 붙이면 p95 quantile이 사라져 대시보드가 깨지므로 지적한다(ADR 0031).
+  이 카운터에 `status`·`exception`·`version`·`slot` 태그를 더하거나, CloudWatch 차원에 `uri`·`method`를 더하면 시계열·비용이 곱해지므로 지적한다(ADR 0031).
 
 ## 9. 동시성과 잠금 (ADR 0028과 그 업데이트, #713, #729, #730)
 
