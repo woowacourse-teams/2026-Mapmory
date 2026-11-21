@@ -3,9 +3,13 @@ name: Claude Review Learn
 # CodeRabbit이 backend-develop 대상 PR에 리뷰를 남기면, Claude 리뷰가 놓친 지적을 찾아 배운 규칙(guide.md) 수정안을 만든다.
 # 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
 # pull_request_review는 PR의 merge 커밋에 있는 워크플로로 돌기 때문에, main을 기다리지 않고 backend-develop에서 동작한다.
+# 2026-11-22: 효과가 측정되기 전까지 잠시 끈다(수동 실행만). 주간 리뷰 지표(claude-review-metrics.yml)로 리뷰 정확도를 먼저 재고,
+# 지표가 이 자동화의 필요를 보여 주면 다시 켠다. 학습은 코드래빗 리뷰 이벤트가 있어야 돌아서, 다시 켤 때는 아래를 되돌린다.
+#   on:
+#     pull_request_review:
+#       types: [submitted]
 on:
-  pull_request_review:
-    types: [submitted]
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -1,0 +1,75 @@
+name: Claude Review Metrics
+
+# 1주에 한 번 Claude 리뷰를 지표로 재서 이슈로 올린다. Claude를 부르지 않는다(.github/claude-review/metrics.py).
+# 사람이 단 👍/👎(정밀도), 코드 해결률, 요약 길이, PR당 리뷰 실행 수를 기준선(11/17~20)과 비교한다.
+# 꺼 둔 자동화(학습·회고·동기화·점검)를 다시 켤지는 이 지표로 정한다.
+# schedule은 main에 이 파일이 있어야 돈다. 그 전에는 backend-develop push마다 문지기(weekly-gate.sh)가
+# 지난 7일 안에 성공했는지 보고, 없을 때만 돈다.
+on:
+  schedule:
+    - cron: "11 0 * * 1" # 매주 월요일 09:11 KST
+  workflow_dispatch:
+  push:
+    branches: [backend-develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-metrics
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/claude-review
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            bash .github/claude-review/weekly-gate.sh "${{ github.repository }}" claude-review-metrics.yml metrics "${{ github.run_id }}"
+          fi
+
+  metrics:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: backend-develop
+          fetch-depth: 0
+
+      - name: Measure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I .github/claude-review/metrics.py "${{ github.repository }}" 7 /tmp/metrics.md
+
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            cat /tmp/metrics.md
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          cat /tmp/metrics.md >> "$GITHUB_STEP_SUMMARY"
+          gh issue create -R "${{ github.repository }}" --title "chore: Claude 리뷰 주간 지표 $(date -u +%Y-%m-%d)" --body-file body.md
