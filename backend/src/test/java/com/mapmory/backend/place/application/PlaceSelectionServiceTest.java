@@ -8,6 +8,8 @@ import com.mapmory.backend.place.application.port.PlaceLookupPort;
 import com.mapmory.backend.place.domain.PlaceDetails;
 import com.mapmory.backend.place.domain.PlaceId;
 import com.mapmory.backend.place.domain.PlaceProvider;
+import com.mapmory.backend.dropoff.DropOffContext;
+import com.mapmory.backend.dropoff.DropOffRecorder;
 import com.mapmory.backend.region.application.RegionSuggester;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionAddress;
@@ -25,6 +27,7 @@ class PlaceSelectionServiceTest {
 
     @Mock PlaceLookupPort placeLookupPort;
     @Mock RegionSuggester regionSuggester;
+    @Mock DropOffRecorder recorder;
     @InjectMocks PlaceSelectionService service;
 
     @Test
@@ -35,7 +38,7 @@ class PlaceSelectionServiceTest {
         when(regionSuggester.suggest(new RegionAddress("KR", "서울특별시", List.of("종로구"))))
                 .thenReturn(Optional.of(district));
 
-        SelectedPlace result = service.select("ChIJ-gyeong", "session-1");
+        SelectedPlace result = service.select(DropOffContext.NONE, "ChIJ-gyeong", "session-1");
 
         assertThat(result.suggestedRegion()).isEqualTo(district);
         assertThat(result.manualRegionRequired()).isFalse();
@@ -46,7 +49,7 @@ class PlaceSelectionServiceTest {
         when(placeLookupPort.findDetails(PlaceId.from("ChIJ-island"), null)).thenReturn(place(RegionAddress.UNKNOWN));
         when(regionSuggester.suggest(RegionAddress.UNKNOWN)).thenReturn(Optional.empty());
 
-        SelectedPlace result = service.select("ChIJ-island", null);
+        SelectedPlace result = service.select(DropOffContext.NONE, "ChIJ-island", null);
 
         assertThat(result.suggestedRegion()).isNull();
         assertThat(result.manualRegionRequired()).isTrue();

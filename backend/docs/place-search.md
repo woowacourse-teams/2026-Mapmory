@@ -57,6 +57,82 @@
 - **Google 장애**(`google.places.circuit-breaker`, `google.geocoding.circuit-breaker`): Google 호출은 Apache HttpClient로 연결(TCP+TLS) 400ms, 연결 뒤 응답 1초를 기다린다(`google.connect-timeout`·`read-timeout`, 2026-11-04 dev에서 잰 연결 최대 134ms·응답 p99 약 300ms의 3배쯤). 재시도는 하지 않고, 연결 풀은 API마다 따로 둔다. 풀 크기는 동시 연결 수라 분당 요청 수와 단위가 다르지만, 분당 한도가 한순간에 몰릴 때가 동시 호출의 상한이라 그 수(장소 60, 좌표 20)를 풀 크기로 써 풀에서 줄을 서지 않는다. 끊기면 WARN 로그(`event=GOOGLE_PLACES_TIMEOUT`, `phase=POOL|CONNECT|RESPONSE`)로 어느 단계였는지 남긴다. Google이 멈추면 서킷 브레이커가 Google 한도 확인보다 먼저 막아, 사용자가 1초씩 기다리지 않고 월 한도도 쓰지 않는다. 서버마다 최근 60초 동안 5번 이상 불렀고 그중 절반 이상이 타임아웃·연결 오류·5xx면 60초 동안 열고 바로 `PLACE_PROVIDER_UNAVAILABLE`(503)로 답한다. 4xx는 Google이 답한 것이라 성공으로 세고, 우리 한도 거절은 세지 않는다. 60초가 지나면 3번 시험해 절반 이상 성공하면 닫는다. 닫혀 있다 열릴 때만 ERROR 로그(`event=GOOGLE_PLACES_CIRCUIT`)를 남겨 운영 ERROR 로그 알람(Discord)이 장애 하나에 한 번 울리게 하고, 시험 뒤 다시 열리거나 닫히는 것은 WARN으로 남긴다. 60초는 Google 장애 시간 자료가 없어 정한 값이라 실제로 열리는 것을 보고 고친다. 사진 좌표 → 지역(`GoogleGeocodingClient`, Geocoding API v4)은 같은 값으로 자기 서킷 브레이커를 따로 둔다(`event=GOOGLE_GEOCODING_CIRCUIT`, 타임아웃 `GOOGLE_GEOCODING_TIMEOUT`, 거절 `GOOGLE_GEOCODING_REJECTED`). 한쪽 장애나 몰림이 다른 쪽을 막지 않는다. 두 API가 같이 쓰는 건 키와 타임아웃(`GoogleApiProperties`: `google.api-key`, `google.connect-timeout`, `google.read-timeout`)과 주소 구성요소 해석(`google/GoogleAddressMapper`)뿐이다. 코드는 API마다 자기 폴더에 가둔다. `places/`에는 `GooglePlacesConfig`(RestClient·연결 풀·서킷 브레이커·한도, `google.places.*`), 호출 순서(서킷 브레이커 → 한도 확보 → 호출 → 과금 안 된 실패면 환불 → 우리 에러·로그로 바꾸기)를 맡는 `GooglePlacesGuard`, 엔드포인트 명세(`GooglePlacesEndpoint`: 자동완성·상세, 월 한도 이름과 다 썼을 때의 에러, 404를 PLACE_NOT_FOUND로 볼지. 엔드포인트를 더하면 이 enum 한 줄과 yaml `google.places.rate-limit.per-month` 한 줄만 더한다), `GooglePlacesLimiter`가 있다. `geocoding/`에는 같은 역할의 `GoogleGeocodingConfig`(`google.geocoding.*`)·`GoogleGeocodingGuard`·`GoogleGeocodingLimiter`가 있다. 두 폴더는 서로를 import하지 않는다. API를 모르는 도구는 `google/resilience`에 있어 각 API가 자기 것을 하나씩 만든다(`GoogleHttpClients` 연결 풀, `GoogleCircuitBreakers`, `GoogleMonthlyBudget` 월 한도, `GoogleRequestPace` 분당 한도). 실패 해석(4xx·5xx·타임아웃 단계·요청이 나갔는지)은 외부 API 공통 `common/http/ExternalCallFailure`가 맡는다. 클라이언트는 요청을 만들고 응답을 읽기만 한다.
 - **월 한도 환불**: Google이 과금하지 않는 실패는 월 한도를 1 돌려준다. 5xx는 Google이 서버 오류를 과금하지 않고([사용량 보고](https://developers.google.com/maps/reporting/gmp-reporting)), 연결 거부·연결 타임아웃·없는 호스트는 요청이 Google에 닿지 않았다. 장소 검색은 쿼터 초과(429)도 돌려주고, Geocoding은 성공한 요청만 과금해 4xx를 모두 돌려준다. 연결한 뒤 응답을 기다리다 끊긴 요청은 Google이 처리했을 수 있어 돌려주지 않는다. 분당 한도는 돌려주지 않는다. 돌려주지 못하면 WARN 로그만 남기고 응답은 그대로 503이다.
 
+## 막힌 지점 기록
+
+사용자가 장소를 찾다 막혀 기록을 남기지 못하고 나가는 곳을 찾고 재현하려고, 장소 검색·선택 한 번마다 `drop_off_log`에 한 줄을 남긴다(`dropoff` 패키지). 사진 업로드 주소 요청(`POST /api/v1/uploads/presigned-urls`)이 거절될 때도 `kind=UPLOAD`로 한 줄을 남긴다: 한 번에 요청한 장 수(`file_count`), 거절된 파일의 크기·형식(`file_size`, `content_type`, 장 수·한도처럼 파일 하나 때문이 아니면 가장 큰 파일), 오류 코드(`FILE_SIZE_EXCEEDED`, `INVALID_FILE_TYPE`, `TOO_MANY_FILES`, `UPLOAD_RATE_LIMITED` 등). 받아들인 업로드와 회원 확인·S3 서명 실패(거절이 아니라 장애)는 남기지 않는다. 같은 회원이 같은 오류로 거듭 막히면(한도를 넘긴 뒤 재시도하는 앱 등) 서버마다 1분에 한 줄만 남긴다. 한도 거절은 DB를 쓰지 않으려는 길이라 거절마다 INSERT하지 않으려는 것이다. 4xx는 운영 로그(DEBUG)에 남지 않으므로 업로드 거절은 여기서만 보인다. 요청 본문 검증(`@Valid`)에서 걸린 400은 남지 않는다. 앱은 이 실패들을 GA4에 남기지 않아 서버에서 본다. 응답 형식은 바뀌지 않아 앱 출시가 필요 없다.
+
+- **상황**: 회원 ID, 검색어(사용자가 친 글자, 앞뒤 공백을 떼고 100자까지), 고른 장소 ID, 앱 `User-Agent`(255자까지, iOS는 앱 버전이 들어 있다), 같은 검색을 묶는 `session_token`.
+- **문제**: `outcome` — 검색은 `RESULTS`·`NO_RESULTS`, 선택은 `REGION_FOUND`·`REGION_NOT_FOUND`(국가는 앎)·`COUNTRY_UNKNOWN`, 둘 다 실패면 `FAILED`와 `error_code`(예: `PLACE_PROVIDER_UNAVAILABLE`).
+- **결과**: 검색 후보 수, 찾은 국가 코드와 지역 코드(`region.region_code`).
+- Google 약관상 장소는 `place_id`만 남기고 이름·주소·좌표는 남기지 않는다. 주소가 필요하면 아래처럼 장소 ID로 다시 조회한다.
+- 회원 한도(429)나 한도 저장소 장애(503)로 컨트롤러에 들어가기 전에 막힌 검색·선택도 `FAILED`로 남긴다. 예상하지 못한 예외(500)는 `error_code=UNEXPECTED`다.
+- Google을 부른 뒤 짧게 한 줄만 넣고, 넣지 못해도 WARN(`event=DROP_OFF_LOG_FAILED`)만 남기고 응답은 그대로 나간다.
+- 30일이 지난 줄은 매일 UTC 19:45에 지우고, 파기하는 회원의 줄은 회원 파기 배치가 지운다.
+- 앱에서만 거르는 실패(앱 지역 목록에 없는 나라: HK·GU·MO·MP 등)는 서버가 모른다. 대신 그 나라 코드로 `REGION_FOUND`가 남았는데 저장이 없으면 그 경우로 본다.
+
+### 찾는 SQL
+
+지역을 못 찾았거나 실패한 선택 뒤 1시간 안에 기록 저장이 없는 경우(막혀서 나감). 직접 지역을 고르면 장소가 빠질 수 있어 장소 ID가 아니라 회원의 저장 여부로 본다.
+
+```sql
+SELECT l.created_at, l.member_id, l.outcome, l.error_code, l.place_id, l.country_code, l.user_agent,
+       (SELECT s.query FROM drop_off_log s
+         WHERE s.member_id = l.member_id AND s.session_token = l.session_token AND s.kind = 'SEARCH'
+         ORDER BY s.created_at DESC LIMIT 1) AS last_query
+FROM drop_off_log l
+WHERE l.kind = 'SELECT' AND l.outcome <> 'REGION_FOUND'
+  AND NOT EXISTS (SELECT 1 FROM travel_record r
+                   WHERE r.member_id = l.member_id
+                     AND r.created_at BETWEEN l.created_at AND l.created_at + INTERVAL 1 HOUR)
+ORDER BY l.created_at DESC;
+```
+
+장소는 골랐지만(지역을 찾았어도) 1시간 안에 저장이 없는 경우. 서버는 지역을 찾았는데 앱이 거른 나라(HK 등), 고른 뒤 앱 화면이 멈춘 경우, 사진 업로드 한도에 막힌 경우가 여기에 함께 나온다. 이유는 `outcome`·`country_code`와 서버 로그로 나눠 본다.
+
+```sql
+SELECT l.created_at, l.member_id, l.outcome, l.place_id, l.country_code, l.region_code, l.user_agent
+FROM drop_off_log l
+WHERE l.kind = 'SELECT'
+  AND NOT EXISTS (SELECT 1 FROM travel_record r
+                   WHERE r.member_id = l.member_id
+                     AND r.created_at BETWEEN l.created_at AND l.created_at + INTERVAL 1 HOUR)
+ORDER BY l.created_at DESC;
+```
+
+검색만 하고 장소를 고르지 않은 검색 세션(후보가 없거나 원하는 장소가 없었음). 검색과 선택은 `session_token`으로 잇는다. 선택에 토큰이 없으면(검색 없이 장소 ID로 다시 고른 경우) 잇지 못해 그 세션이 여기에 잘못 나올 수 있다.
+
+```sql
+SELECT s.member_id, s.session_token, MAX(s.created_at) AS last_at, COUNT(*) AS searches,
+       SUM(s.outcome = 'NO_RESULTS') AS empty_results, SUM(s.outcome = 'FAILED') AS failures,
+       SUBSTRING_INDEX(GROUP_CONCAT(s.query ORDER BY s.created_at DESC SEPARATOR ' | '), ' | ', 3) AS last_queries
+FROM drop_off_log s
+WHERE s.kind = 'SEARCH'
+  AND NOT EXISTS (SELECT 1 FROM drop_off_log x
+                   WHERE x.kind = 'SELECT' AND x.member_id = s.member_id AND x.session_token = s.session_token)
+GROUP BY s.member_id, s.session_token
+ORDER BY last_at DESC;
+```
+
+주의: 지도 화면의 장소 검색도 같은 API를 쓴다. 지도에서 그 지역으로 이동만 한 경우도 "고르고 저장 안 함"과 "검색만 하고 나감"에 섞여 나온다. 서버는 어느 화면인지 모른다.
+게스트로 쓰다 이미 가입한 소셜 계정으로 들어가면(게스트 버림) 저장은 다른 회원 ID로 남아 막힌 것처럼 보인다.
+
+업로드가 거절된 사람과 그 뒤 저장 여부.
+
+```sql
+SELECT u.created_at, u.member_id, u.error_code, u.file_count, u.file_size, u.content_type, u.user_agent,
+       EXISTS (SELECT 1 FROM travel_record r
+                WHERE r.member_id = u.member_id
+                  AND r.created_at BETWEEN u.created_at AND u.created_at + INTERVAL 1 HOUR) AS saved_within_hour
+FROM drop_off_log u
+WHERE u.kind = 'UPLOAD'
+ORDER BY u.created_at DESC;
+```
+
+### 재현
+
+- 검색: 같은 검색어로 `GET /api/v1/places/search?query=...&sessionToken=...`를 부른다.
+- 선택: 장소 ID로 Place Details(필드 `id,addressComponents,shortFormattedAddress`)를 다시 불러 Google이 준 주소 구성요소를 보고, `KoreanAddressRegionMatcher`가 왜 지역을 못 찾았는지 본다(예: 대천해수욕장은 시·도가 빠져 있었다).
+
 ## 확인 범위
 
 Google 실호출에는 유효한 API 키가 필요하다. 단위 테스트는 Google 자동완성·필드 마스크·주소 기반 지역 추천·오류 변환, 검색 응답, 장소 ID 재조회, 기록 저장 및 오류 흐름을 모의 응답으로 검증한다. 서킷 브레이커와 환불 기준은 시계를 돌리는 단위 테스트로, 회원 한도와 Google 월·분당 한도와 환불은 통합 테스트로 검증한다.

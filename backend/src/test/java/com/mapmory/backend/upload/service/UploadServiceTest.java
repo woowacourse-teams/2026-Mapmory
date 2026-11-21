@@ -2,11 +2,16 @@ package com.mapmory.backend.upload.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.mapmory.backend.common.exception.BusinessException;
+import com.mapmory.backend.dropoff.DropOffContext;
+import com.mapmory.backend.dropoff.DropOffRecorder;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.member.exception.MemberErrorCode;
@@ -40,14 +45,15 @@ class UploadServiceTest {
                 new S3ObjectKeyGenerator(storageProperties()),
                 provider,
                 mock(ActiveMemberGuard.class),
-                mock(UploadRateLimiter.class)
+                mock(UploadRateLimiter.class),
+                mock(DropOffRecorder.class)
         );
         List<UploadFileCommand> files = List.of(
                 new UploadFileCommand("jeju-trip", "IMAGE/JPEG", 3_145_728L),
                 new UploadFileCommand("map.webp", "image/webp", 1024L)
         );
 
-        List<PresignedUpload> uploads = uploadService.createPresignedUrls(member(), files);
+        List<PresignedUpload> uploads = uploadService.createPresignedUrls(DropOffContext.NONE, member(), files);
 
         assertThat(uploads).hasSize(2);
         assertThat(uploads.getFirst().objectKey()).startsWith("mapmory/travel-records/10/")
@@ -81,10 +87,11 @@ class UploadServiceTest {
                 new S3ObjectKeyGenerator(storageProperties()),
                 provider,
                 guard,
-                mock(UploadRateLimiter.class)
+                mock(UploadRateLimiter.class),
+                mock(DropOffRecorder.class)
         );
 
-        assertThatThrownBy(() -> uploadService.createPresignedUrls(member(),
+        assertThatThrownBy(() -> uploadService.createPresignedUrls(DropOffContext.NONE, member(),
                 List.of(new UploadFileCommand("jeju.jpg", "image/jpeg", 1024L))))
                 .isInstanceOf(BusinessException.class);
         assertThat(provider.requests).isEmpty();
@@ -101,10 +108,11 @@ class UploadServiceTest {
                 new S3ObjectKeyGenerator(storageProperties()),
                 provider,
                 guard,
-                rateLimiter
+                rateLimiter,
+                mock(DropOffRecorder.class)
         );
 
-        assertThatThrownBy(() -> uploadService.createPresignedUrls(member(),
+        assertThatThrownBy(() -> uploadService.createPresignedUrls(DropOffContext.NONE, member(),
                 List.of(new UploadFileCommand("jeju.jpg", "image/jpeg", 1024L))))
                 .isInstanceOf(BusinessException.class);
         assertThat(provider.requests).isEmpty();
@@ -146,5 +154,30 @@ class UploadServiceTest {
             String contentType,
             long contentLength
     ) {
+    }
+
+    @Test
+    void 한도에_막히면_가장_큰_파일과_함께_막힌_지점으로_남기고_그대로_던진다() {
+        UploadRateLimiter rateLimiter = mock(UploadRateLimiter.class);
+        DropOffRecorder recorder = mock(DropOffRecorder.class);
+        RuntimeException limited = new BusinessException(UploadErrorCode.UPLOAD_RATE_LIMITED);
+        willThrow(limited).given(rateLimiter).check(anyLong(), anyInt());
+        UploadService uploadService = new UploadService(
+                new UploadPolicy(TEN_MEGABYTES, 10),
+                new S3ObjectKeyGenerator(storageProperties()),
+                new FakePresignedUrlProvider(),
+                mock(ActiveMemberGuard.class),
+                rateLimiter,
+                recorder
+        );
+        DropOffContext context = new DropOffContext(10L, "okhttp/4.12.0");
+
+        assertThatThrownBy(() -> uploadService.createPresignedUrls(context, member(), List.of(
+                new UploadFileCommand("a.jpg", "image/jpeg", 1024L),
+                new UploadFileCommand("b.png", "image/png", 4096L))))
+                .isSameAs(limited);
+
+        verify(recorder)
+                .uploadRejected(context, 2, 4096L, "image/png", "UPLOAD_RATE_LIMITED");
     }
 }

@@ -10,6 +10,7 @@ import com.mapmory.backend.auth.security.LoginMember;
 import com.mapmory.backend.common.ProblemDetailFactory;
 import com.mapmory.backend.common.handler.BusinessExceptionHandler;
 import com.mapmory.backend.common.handler.ValidationExceptionHandler;
+import com.mapmory.backend.dropoff.DropOffRecorder;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.upload.domain.UploadPolicy;
@@ -59,7 +60,8 @@ class UploadControllerTest {
                 new S3ObjectKeyGenerator(storageProperties),
                 new FakePresignedUrlProvider(),
                 mock(ActiveMemberGuard.class),
-                mock(UploadRateLimiter.class)
+                mock(UploadRateLimiter.class),
+                mock(DropOffRecorder.class)
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 
