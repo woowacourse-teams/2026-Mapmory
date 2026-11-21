@@ -7,6 +7,8 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import java.time.Duration;
 import java.util.List;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.server.observation.ServerRequestObservationContext;
 
 /**
@@ -37,7 +39,7 @@ public class HttpServerSloObservationHandler implements ObservationHandler<Serve
 
     private static final String START_NANOS = HttpServerSloObservationHandler.class.getName() + ".startNanos";
     static final String SLO_CLASS_TAG = "slo_class";
-    private static final List<String> TAG_KEYS = List.of("uri", "method", "outcome");
+    static final List<String> PRE_REGISTERED_OUTCOMES = List.of("SUCCESS", "CLIENT_ERROR", "SERVER_ERROR");
 
     private final MeterRegistry meterRegistry;
 
@@ -74,16 +76,38 @@ public class HttpServerSloObservationHandler implements ObservationHandler<Serve
         return context instanceof ServerRequestObservationContext;
     }
 
-    private String[] tags(ServerRequestObservationContext context) {
-        String[] tags = new String[TAG_KEYS.size() * 2 + 2];
-        for (int index = 0; index < TAG_KEYS.size(); index++) {
-            String key = TAG_KEYS.get(index);
-            tags[index * 2] = key;
-            tags[index * 2 + 1] = value(context, key);
+    /**
+     * SLO 대상 경로({@link SloClass#ROUTES})의 카운터를 0으로 미리 만든다.
+     *
+     * <p>CloudWatch Agent는 시계열마다 첫 수집값을 버린다. 첫 요청이 와서야 시계열이 생기면, 그 요청(주로 배포 직후라 가장 느린
+     * 콜드 요청)이 분자·분모에서 함께 빠져 비율이 실제보다 좋게 나온다. 기동할 때 0으로 만들어 두면 버려지는 첫 값이 0이 되고,
+     * 실제 첫 요청부터 CloudWatch에 잡힌다. Blue/Green에서 새 슬롯은 기동 뒤 헬스 체크를 거쳐 트래픽을 받으므로,
+     * 대개 첫 수집(30초 간격)이 첫 요청보다 먼저 온다.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void registerSloRoutes() {
+        for (String route : SloClass.ROUTES.keySet()) {
+            String[] methodAndUri = route.split(" ", 2);
+            for (String outcome : PRE_REGISTERED_OUTCOMES) {
+                String[] tags = tags(methodAndUri[0], methodAndUri[1], outcome);
+                for (Threshold threshold : THRESHOLDS) {
+                    counter(tags, threshold.le());
+                }
+                counter(tags, INFINITY);
+            }
         }
-        tags[tags.length - 2] = SLO_CLASS_TAG;
-        tags[tags.length - 1] = SloClass.of(value(context, "method"), value(context, "uri")).tagValue();
-        return tags;
+    }
+
+    private String[] tags(ServerRequestObservationContext context) {
+        return tags(value(context, "method"), value(context, "uri"), value(context, "outcome"));
+    }
+
+    private static String[] tags(String method, String uri, String outcome) {
+        return new String[] {
+                "uri", uri,
+                "method", method,
+                "outcome", outcome,
+                SLO_CLASS_TAG, SloClass.of(method, uri).tagValue()};
     }
 
     private static String value(ServerRequestObservationContext context, String key) {

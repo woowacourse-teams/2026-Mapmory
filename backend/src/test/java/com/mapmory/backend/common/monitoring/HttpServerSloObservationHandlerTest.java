@@ -95,6 +95,33 @@ class HttpServerSloObservationHandlerTest {
                         "/api/v1/auth/token/refresh auth");
     }
 
+    // 첫 수집값은 CloudWatch Agent가 버린다. 기동할 때 0으로 만들어 두어야 배포 직후 첫(콜드) 요청이 빠지지 않는다.
+    @Test
+    void 기동할_때_SLO_대상_경로의_카운터를_0으로_미리_만든다() {
+        new HttpServerSloObservationHandler(meterRegistry).registerSloRoutes();
+
+        int expected = SloClass.ROUTES.size() * HttpServerSloObservationHandler.PRE_REGISTERED_OUTCOMES.size() * 4;
+        assertThat(meterRegistry.find(HttpServerSloObservationHandler.METRIC_NAME).counters())
+                .hasSize(expected)
+                .allSatisfy(counter -> assertThat(counter.count()).isZero());
+        assertThat(meterRegistry.get(HttpServerSloObservationHandler.METRIC_NAME)
+                .tags("uri", "/api/v2/travel-records", "method", "POST", "outcome", "SERVER_ERROR", "le", "2")
+                .counter().getId().getTag("slo_class")).isEqualTo("write");
+    }
+
+    @Test
+    void 미리_만든_카운터에_실제_요청이_그대로_더해진다() {
+        HttpServerSloObservationHandler handler = new HttpServerSloObservationHandler(meterRegistry);
+        handler.registerSloRoutes();
+
+        request("GET", "/api/v1/travel-records", "/api/v1/travel-records", 200, Duration.ofMillis(100));
+
+        assertThat(meterRegistry.find(HttpServerSloObservationHandler.METRIC_NAME)
+                .tags("uri", "/api/v1/travel-records", "method", "GET", "outcome", "SUCCESS").counters())
+                .extracting(counter -> counter.getId().getTag("le") + "=" + counter.count())
+                .containsExactlyInAnyOrder("0.3=1.0", "1=1.0", "2=1.0", "+Inf=1.0");
+    }
+
     @Test
     void 서버_요청이_아닌_Observation은_세지_않는다() {
         Observation.start("mapmory.other", observationRegistry).stop();

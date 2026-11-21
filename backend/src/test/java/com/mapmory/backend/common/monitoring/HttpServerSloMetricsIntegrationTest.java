@@ -51,7 +51,11 @@ class HttpServerSloMetricsIntegrationTest extends IntegrationTest {
                 .contains("# TYPE http_server_requests_slo_total counter")
                 .contains(sloLine.formatted("0.3"), sloLine.formatted("1"), sloLine.formatted("2"),
                         sloLine.formatted("+Inf"))
-                .doesNotContain(RAW_TOKEN);
+                .doesNotContain(RAW_TOKEN)
+                // 요청이 없던 SLO 대상 경로도 기동할 때 0으로 만들어져 있다.
+                .contains("http_server_requests_slo_total{environment=\"local\",le=\"2\",method=\"POST\","
+                        + "outcome=\"SERVER_ERROR\",service=\"mapmory-backend\",slo_class=\"write\","
+                        + "uri=\"/api/v2/travel-records\"} 0.0");
         // SLO 버킷을 http.server.requests에 붙이면 histogram이 되어 quantile이 사라진다. 그러지 않았는지 본다.
         assertThat(scrape)
                 .contains("# TYPE http_server_requests_seconds summary")
