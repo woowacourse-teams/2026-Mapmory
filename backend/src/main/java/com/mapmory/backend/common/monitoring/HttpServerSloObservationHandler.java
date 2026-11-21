@@ -58,9 +58,12 @@ public class HttpServerSloObservationHandler implements ObservationHandler<Serve
         }
         long elapsedNanos = meterRegistry.config().clock().monotonicTime() - startNanos;
         String[] tags = tags(context);
+        // 기준을 넘은 요청도 모든 le 카운터를 만든다. CloudWatch Agent는 시계열마다 첫 값을 버리므로(delta로 바꿀 때),
+        // le 시계열이 +Inf보다 늦게 생기면 그 첫 요청이 분자에서만 빠져 비율이 낮게 나온다. 같이 만들면 함께 빠진다.
         for (Threshold threshold : THRESHOLDS) {
+            Counter counter = counter(tags, threshold.le());
             if (elapsedNanos <= threshold.limit().toNanos()) {
-                counter(tags, threshold.le()).increment();
+                counter.increment();
             }
         }
         counter(tags, INFINITY).increment();

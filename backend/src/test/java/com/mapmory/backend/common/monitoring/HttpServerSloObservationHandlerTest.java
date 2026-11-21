@@ -36,10 +36,21 @@ class HttpServerSloObservationHandlerTest {
     void 요청_시간_이상인_모든_le_곧_기준_안에_끝난_le에_하나씩_더한다() {
         request("GET", "/api/v1/invitations/raw-token", INVITATION_PATTERN, 200, Duration.ofMillis(500));
 
-        assertThat(count("0.3")).isZero();
+        assertThat(meterRegistry.get(HttpServerSloObservationHandler.METRIC_NAME).tag("le", "0.3").counter().count())
+                .isZero();
         assertThat(count("1")).isEqualTo(1);
         assertThat(count("2")).isEqualTo(1);
         assertThat(count("+Inf")).isEqualTo(1);
+    }
+
+    // CloudWatch Agent는 시계열마다 첫 값을 버린다. le 시계열이 +Inf와 같은 요청에서 생겨야 첫 값이 분자·분모에서 함께 빠진다.
+    @Test
+    void 기준을_넘은_요청도_모든_le_카운터를_0으로_만든다() {
+        request("GET", "/api/v1/travel-records", "/api/v1/travel-records", 200, Duration.ofMillis(2_500));
+
+        assertThat(meterRegistry.find(HttpServerSloObservationHandler.METRIC_NAME).counters())
+                .extracting(counter -> counter.getId().getTag("le") + "=" + counter.count())
+                .containsExactlyInAnyOrder("0.3=0.0", "1=0.0", "2=0.0", "+Inf=1.0");
     }
 
     @Test
