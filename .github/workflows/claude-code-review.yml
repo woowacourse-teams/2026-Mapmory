@@ -18,10 +18,6 @@ on:
       - ".semgrep/**"
       - ".github/claude-review/signals.py"
 
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   review:
     # 포크 PR은 시크릿을 받지 못하고, 봇 PR과 드래프트는 리뷰하지 않는다. 라벨은 claude-review만 리뷰를 다시 요청한다.
@@ -30,6 +26,11 @@ jobs:
       github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.draft == false &&
       (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    # 동시성은 job 수준에 둔다. 워크플로 수준에 두면 다른 라벨을 붙인 실행이 진행 중인 리뷰를 취소한 뒤 if에서 건너뛴다.
+    # job 수준이면 if에서 건너뛴 실행은 그룹에 들어가지 않는다.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
