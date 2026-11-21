@@ -7,11 +7,15 @@ import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 class HttpServerSloMetricsIntegrationTest extends IntegrationTest {
 
@@ -26,6 +30,10 @@ class HttpServerSloMetricsIntegrationTest extends IntegrationTest {
     @Autowired
     private MemberRepository memberRepository;
 
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
+
     @Test
     void SLO_카운터는_경로_패턴으로_노출되고_기존_p95_Summary는_그대로다() throws Exception {
         Member member = memberRepository.save(Member.of("SLO 지표 회원", UUID.randomUUID()));
@@ -37,7 +45,8 @@ class HttpServerSloMetricsIntegrationTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         String sloLine = "http_server_requests_slo_total{environment=\"local\",le=\"%s\",method=\"GET\","
-                + "outcome=\"CLIENT_ERROR\",service=\"mapmory-backend\",uri=\"/api/v1/invitations/{tokenOrCode}\"}";
+                + "outcome=\"CLIENT_ERROR\",service=\"mapmory-backend\",slo_class=\"other\","
+                + "uri=\"/api/v1/invitations/{tokenOrCode}\"}";
         assertThat(scrape)
                 .contains("# TYPE http_server_requests_slo_total counter")
                 .contains(sloLine.formatted("0.3"), sloLine.formatted("1"), sloLine.formatted("2"),
@@ -53,5 +62,17 @@ class HttpServerSloMetricsIntegrationTest extends IntegrationTest {
                 .anySatisfy(line -> assertThat(line).contains("quantile=\"0.5\""))
                 .anySatisfy(line -> assertThat(line).contains("quantile=\"0.95\""))
                 .anySatisfy(line -> assertThat(line).contains("quantile=\"0.99\""));
+    }
+
+    // 분류표의 경로가 컨트롤러에서 바뀌면 그 API가 조용히 other로 빠진다. 표의 경로가 모두 실제로 있는지 본다.
+    @Test
+    void slo_class_분류표의_경로는_모두_실제_API다() {
+        Set<String> routes = handlerMapping.getHandlerMethods().keySet().stream()
+                .flatMap(info -> info.getMethodsCondition().getMethods().stream()
+                        .flatMap(method -> info.getPatternValues().stream()
+                                .map(pattern -> method.name() + " " + pattern)))
+                .collect(Collectors.toSet());
+
+        assertThat(routes).containsAll(SloClass.ROUTES.keySet());
     }
 }

@@ -33,7 +33,7 @@ class HttpServerSloObservationHandlerTest {
 
     // le는 Prometheus 히스토그램과 같은 누적값이다. 0.5초 요청은 0.3초 버킷에는 없고 1초·2초·+Inf에 하나씩 세어진다.
     @Test
-    void 요청_시간_이하인_모든_le에_하나씩_더한다() {
+    void 요청_시간_이상인_모든_le_곧_기준_안에_끝난_le에_하나씩_더한다() {
         request("GET", "/api/v1/invitations/raw-token", INVITATION_PATTERN, 200, Duration.ofMillis(500));
 
         assertThat(count("0.3")).isZero();
@@ -64,9 +64,24 @@ class HttpServerSloObservationHandlerTest {
                     assertThat(counter.getId().getTag("uri")).isEqualTo(INVITATION_PATTERN);
                     assertThat(counter.getId().getTag("method")).isEqualTo("GET");
                     assertThat(counter.getId().getTag("outcome")).isEqualTo("CLIENT_ERROR");
+                    assertThat(counter.getId().getTag("slo_class")).isEqualTo("other");
                     assertThat(counter.getId().getTag("status")).isNull();
                     assertThat(counter.getId().getTag("exception")).isNull();
                 });
+    }
+
+    @Test
+    void 조회_저장_인증_API는_slo_class가_붙는다() {
+        request("GET", "/api/v1/travel-records/7", "/api/v1/travel-records/{travelRecordId}", 200, Duration.ofMillis(10));
+        request("PUT", "/api/v2/travel-records/7", "/api/v2/travel-records/{travelRecordId}", 200, Duration.ofMillis(10));
+        request("POST", "/api/v1/auth/token/refresh", "/api/v1/auth/token/refresh", 200, Duration.ofMillis(10));
+
+        assertThat(meterRegistry.find(HttpServerSloObservationHandler.METRIC_NAME).tag("le", "+Inf").counters())
+                .extracting(counter -> counter.getId().getTag("uri") + " " + counter.getId().getTag("slo_class"))
+                .containsExactlyInAnyOrder(
+                        "/api/v1/travel-records/{travelRecordId} read",
+                        "/api/v2/travel-records/{travelRecordId} write",
+                        "/api/v1/auth/token/refresh auth");
     }
 
     @Test

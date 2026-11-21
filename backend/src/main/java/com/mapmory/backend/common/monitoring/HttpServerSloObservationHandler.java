@@ -19,9 +19,12 @@ import org.springframework.http.server.observation.ServerRequestObservationConte
  * {@code uri}·{@code method}·{@code outcome}은 그 Observation이 정한 값을 그대로 쓴다. 그래서 {@code uri}는 원본 경로가 아니라
  * 경로 패턴이다(예: {@code /api/v1/invitations/{tokenOrCode}}).
  *
- * <p>{@code le}는 Prometheus 히스토그램과 같은 뜻의 누적값이다. 요청 시간이 기준 이하인 모든 {@code le}에 1을 더하고,
- * {@code +Inf}는 전체 건수다. 예를 들어 0.5초 요청은 {@code le="1"}, {@code le="2"}, {@code le="+Inf"}에 하나씩 더한다.
+ * <p>{@code le}는 Prometheus 히스토그램과 같은 뜻의 누적값이다. 요청 시간 이상인 모든 {@code le}(기준 안에 끝난 {@code le})에
+ * 1을 더하고, {@code +Inf}는 전체 건수다. 예를 들어 0.5초 요청은 {@code le="1"}, {@code le="2"}, {@code le="+Inf"}에 하나씩 더한다.
  * 시계열이 곱해지지 않도록 {@code status}·{@code exception}은 태그로 두지 않는다.
+ *
+ * <p>{@code slo_class}는 ADR 0031의 조회·저장·인증 분류다({@link SloClass}). CloudWatch로는 {@code slo_class}·{@code outcome}·{@code le}만
+ * 보내고, {@code uri}·{@code method}는 Prometheus에만 남긴다.
  */
 public class HttpServerSloObservationHandler implements ObservationHandler<ServerRequestObservationContext> {
 
@@ -33,6 +36,7 @@ public class HttpServerSloObservationHandler implements ObservationHandler<Serve
     static final String INFINITY = "+Inf";
 
     private static final String START_NANOS = HttpServerSloObservationHandler.class.getName() + ".startNanos";
+    static final String SLO_CLASS_TAG = "slo_class";
     private static final List<String> TAG_KEYS = List.of("uri", "method", "outcome");
 
     private final MeterRegistry meterRegistry;
@@ -68,14 +72,20 @@ public class HttpServerSloObservationHandler implements ObservationHandler<Serve
     }
 
     private String[] tags(ServerRequestObservationContext context) {
-        String[] tags = new String[TAG_KEYS.size() * 2];
+        String[] tags = new String[TAG_KEYS.size() * 2 + 2];
         for (int index = 0; index < TAG_KEYS.size(); index++) {
             String key = TAG_KEYS.get(index);
-            KeyValue keyValue = context.getLowCardinalityKeyValue(key);
             tags[index * 2] = key;
-            tags[index * 2 + 1] = keyValue == null ? KeyValue.NONE_VALUE : keyValue.getValue();
+            tags[index * 2 + 1] = value(context, key);
         }
+        tags[tags.length - 2] = SLO_CLASS_TAG;
+        tags[tags.length - 1] = SloClass.of(value(context, "method"), value(context, "uri")).tagValue();
         return tags;
+    }
+
+    private static String value(ServerRequestObservationContext context, String key) {
+        KeyValue keyValue = context.getLowCardinalityKeyValue(key);
+        return keyValue == null ? KeyValue.NONE_VALUE : keyValue.getValue();
     }
 
     private Counter counter(String[] tags, String le) {
