@@ -183,7 +183,7 @@ enum은 JSON 문자열로 주고받으며 대소문자를 구분한다.
   "title": "서비스 의견을 찾을 수 없습니다.",
   "status": 404,
   "detail": "요청한 서비스 의견이 존재하지 않습니다.",
-  "instance": "/api/v1/admin/service-feedback/999",
+  "instance": "/api/v1/admin/service-feedback/%7BfeedbackId%7D",
   "code": "SERVICE_FEEDBACK_NOT_FOUND"
 }
 ```

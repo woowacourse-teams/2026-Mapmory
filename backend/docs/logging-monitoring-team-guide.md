@@ -183,6 +183,9 @@ Blue와 Green은 배포 중 동시에 실행될 수 있어 로그를 서로 다�
 }
 ```
 
+`uri`는 원본 경로가 아니라 매칭된 경로 패턴이다(예: `/api/v1/invitations/{tokenOrCode}/accept`). 경로 변수에는
+초대 토큰처럼 비밀값이 들어갈 수 있기 때문이다. 핸들러에 매칭되기 전에 끝난 요청은 `UNKNOWN`으로 남는다.
+
 JSON 로그는 CloudWatch에서 정규식 대신 `requestId`, `event`, `status` 같은 필드로 검색할 수
 있다. `/mapmory/prod/application` 로그 그룹은 로그를 7일간 보관한 뒤 자동 삭제한다.
 
@@ -336,7 +339,8 @@ Request ID를 메트릭 태그로 넣으면 요청 수만큼 시계열이 생긴
 2. 정상 상태 변경은 `INFO`, 조치가 필요한 실패는 `ERROR`를 사용한다.
 3. 요청마다 발생하는 정상 시작·종료 로그는 가능하면 메트릭으로 대체한다.
 4. 검색할 값은 SLF4J key-value 필드로 추가한다.
-5. 토큰, 개인정보, 요청 본문을 기록하지 않는다.
+5. 토큰, 개인정보, 요청 본문을 기록하지 않는다. 요청 경로는 `request.getRequestURI()` 대신
+   `RequestPaths.patternOf(request)`를 쓴다. 경로 변수나 쿼리 문자열의 값도 기록하지 않는다.
 6. 같은 예외의 스택 트레이스를 여러 계층에서 반복 기록하지 않는다.
 
 ```java
@@ -344,7 +348,7 @@ log.atError()
         .addKeyValue("event", "UNHANDLED_EXCEPTION")
         .addKeyValue("status", 500)
         .addKeyValue("httpMethod", request.getMethod())
-        .addKeyValue("uri", request.getRequestURI())
+        .addKeyValue("uri", RequestPaths.patternOf(request))
         .setCause(exception)
         .log("Unhandled exception while processing request");
 ```

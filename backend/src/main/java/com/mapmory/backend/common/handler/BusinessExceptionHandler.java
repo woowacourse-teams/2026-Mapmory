@@ -1,6 +1,7 @@
 package com.mapmory.backend.common.handler;
 
 import com.mapmory.backend.common.ProblemDetailFactory;
+import com.mapmory.backend.common.http.RequestPaths;
 import com.mapmory.backend.common.exception.BusinessException;
 import com.mapmory.backend.common.exception.ErrorCode;
 import com.mapmory.backend.common.exception.ErrorKind;
@@ -62,13 +63,14 @@ public class BusinessExceptionHandler {
             HttpServletRequest request
     ) {
         ErrorCode errorCode = exception.getErrorCode();
+        String uri = RequestPaths.patternOf(request);
         LoggingEventBuilder event = log.atLevel(errorCode.logLevel());
 
         event.addKeyValue("event", "BUSINESS_EXCEPTION")
                 .addKeyValue("errorCode", errorCode.code())
                 .addKeyValue("status", status.value())
                 .addKeyValue("httpMethod", request.getMethod())
-                .addKeyValue("uri", request.getRequestURI());
+                .addKeyValue("uri", uri);
         if (errorCode.kind() == ErrorKind.SERVICE_UNAVAILABLE) {
             event.setCause(exception);
         }
@@ -77,7 +79,7 @@ public class BusinessExceptionHandler {
                 errorCode.code(),
                 status.value(),
                 request.getMethod(),
-                request.getRequestURI());
+                uri);
     }
 
     private static HttpStatus toHttpStatus(ErrorKind kind) {

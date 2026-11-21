@@ -4,6 +4,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  web:
+    error:
+      # /error(ERROR 디스패치) 응답에 원본 URI를 path로 넣지 않는다. 초대 토큰 같은 경로 변수가 실린다(#744).
+      include-path: never
   profiles:
     default: local
   jpa:

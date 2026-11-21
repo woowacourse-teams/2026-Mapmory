@@ -1,6 +1,7 @@
 package com.mapmory.backend.common.handler;
 
 import com.mapmory.backend.common.ProblemDetailFactory;
+import com.mapmory.backend.common.http.RequestPaths;
 import com.mapmory.backend.common.exception.FieldErrorDetail;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -50,14 +51,15 @@ public class ValidationExceptionHandler {
             HttpServletRequest request
     ) {
         if (exception.isForReturnValue()) {
+            String uri = RequestPaths.patternOf(request);
             log.atError()
                     .addKeyValue("event", "RESPONSE_VALIDATION_FAILED")
                     .addKeyValue("status", 500)
                     .addKeyValue("httpMethod", request.getMethod())
-                    .addKeyValue("uri", request.getRequestURI())
+                    .addKeyValue("uri", uri)
                     .setCause(exception)
                     .log("Controller return value validation failed: method={}, uri={}",
-                            request.getMethod(), request.getRequestURI());
+                            request.getMethod(), uri);
             return problemDetailFactory.internalServerError(request);
         }
 

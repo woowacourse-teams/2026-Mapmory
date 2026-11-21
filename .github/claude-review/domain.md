@@ -151,6 +151,7 @@ PR 리뷰가 `review.md`와 함께 읽는 도메인 규칙이다. 도메인은 *
 ## 8. API·데이터 공통
 
 - **오류 응답은 ProblemDetails다(ADR 0006).** 오류 코드는 각 컨텍스트의 `…ErrorCode`에 둔다. 남의 오류 코드를 import하지 않는다.
+- **로그와 오류 응답에 원본 요청 경로를 남기지 않는다(#744).** 경로 변수에 초대 토큰 같은 비밀값이 들어갈 수 있다. 요청 경로는 `RequestPaths.patternOf`·`instanceOf`(매칭된 경로 패턴, 없으면 `UNKNOWN`)를 쓴다. 새 코드에서 `request.getRequestURI()`·`getRequestURL()`·`getQueryString()`의 값을 로그나 응답에 넣으면 지적한다. 경로로 분기만 하는 것은 괜찮다.
 - **시각은 UTC다.** `Clock` 하나를 주입받아 쓴다. 새 코드에서 `LocalDateTime.now()`·`Instant.now()`를 직접 부르면 지적한다(테스트로 시간을 고정할 수 없다).
   응답의 존 없는 `LocalDateTime`은 UTC로 읽는다.
 - **스키마는 Flyway로만 바꾼다(ADR 0005).** 이미 적용된 마이그레이션 파일은 고치지 않고 새 파일을 더한다. 기존 데이터가 있는 테이블에 NOT NULL·UNIQUE를 더하면 기존 행이 통과하는지 본다.
