@@ -1,6 +1,6 @@
 # ADR 0031. 서비스 수준 목표(SLO)를 정하고 알람 기준을 SLO에서 끌어낸다
 
-- 상태: 제안
+- 상태: 채택
 - 날짜: 2026-11-22
 - 관련: #740, ADR 0001, ADR 0014, ADR 0018
 
@@ -62,11 +62,18 @@ PUT 수정(13건)과 카카오 로그인(11건)은 표본이 적어 그룹으로
 
 - 지연 SLI는 SLO 전용 카운터 `http.server.requests.slo`(Prometheus `http_server_requests_slo_total`)로 잰다.
   - `http.server.requests`를 만드는 것과 같은 서버 요청 Observation을 받아, 요청이 끝날 때 한 번 센다. 같은 요청을 같은 시점에 센다.
-  - 태그는 `uri`(경로 패턴), `method`, `outcome`, `le`다. `le`는 `0.3`, `1`, `2`, `+Inf` 가운데 요청 시간 이하인 모든 값에 1을 더하는 누적값이고(Prometheus `le`와 같은 뜻), `+Inf`는 전체 건수다.
+  - 태그는 `uri`(경로 패턴), `method`, `outcome`, `slo_class`, `le`다.
+  - `le`는 `0.3`, `1`, `2`, `+Inf` 가운데 요청 시간 이상인 모든 값(기준 안에 끝난 `le`)에 1을 더하는 누적값이고(Prometheus `le`와 같은 뜻), `+Inf`는 전체 건수다.
+  - `slo_class`는 1절 표의 분류다. 조회 지연 대상은 `read`, 저장 지연 대상은 `write`, 인증 지연 대상은 `auth`, 나머지는 `other`다.
+    경로 패턴과 메서드로 정하고 분류표는 코드 한 곳(`SloClass`)에 둔다. 1절 표의 대상을 바꾸면 그 분류표도 함께 고친다.
   - `status`·`exception`·`version`·`slot`은 넣지 않는다. 시계열이 곱해지거나 배포마다 새로 생긴다.
 - **Summary와 Histogram을 한 지표에 같이 둘 수 없어 SLO용 카운터를 따로 둔다.** `http.server.requests`에 SLO 경계(`management.metrics.distribution.slo`)를 붙이면 Micrometer Prometheus registry가 그 지표를 Histogram으로 바꾸고 p50·p95·p99 quantile을 내보내지 않는다(로컬에서 quantile 0개로 확인). 대시보드가 그 quantile을 쓴다. 또 CloudWatch Agent는 Prometheus Histogram을 버리고 Counter·Gauge·Summary만 받는다(ADR 0014).
 - 기존 p95 Summary는 대시보드와 원인 분석용으로 그대로 둔다.
-- 카운터를 CloudWatch Agent EMF 선언(`observability/cloudwatch/agent.json.tmpl`)에 추가한다. 차원은 `service, environment, method, uri, outcome, le`다.
+- 카운터를 CloudWatch Agent EMF 선언(`observability/cloudwatch/agent.json.tmpl`)에 추가한다. 차원은 `service, environment, slo_class, outcome, le`다.
+  - `uri`·`method`는 `/actuator/prometheus`에만 남기고 CloudWatch로 보내지 않는다.
+    - (a) CloudWatch 사용자 지정 지표는 차원 조합 하나가 지표 하나이고, 지표 수만큼 비용이 붙는다. `uri`·`method`까지 보내면 경로(약 60개) × outcome × `le` 4개로 수백 개가 된다.
+    - (b) 알람의 지표 계산식은 지표 10개까지만 쓸 수 있다. 그래서 `uri`별 지표로는 "조회 API 전체 중 300ms 안에 끝난 비율" 같은 SLO 알람을 만들 수 없다. `slo_class`로 묶어 보내면 class마다 `le` 지표 2개(기준과 `+Inf`) × outcome 몇 개로 알람 하나가 된다.
+  - 경로는 v1·v2 API(`/api/v<숫자>/`)만 보낸다. 저장 지연 대상인 v2 기록 생성·수정이 빠지지 않게 한다.
 - 외부 헬스체크는 Route 53 헬스체크(1분 간격)로 만들고, 그 지표로 가용성을 계산한다.
 
 ### 3. 오류 예산과 알람
@@ -97,7 +104,6 @@ PUT 수정(13건)과 카카오 로그인(11건)은 표본이 적어 그룹으로
 
 - 30일 예산의 50%를 쓰면 다음 스프린트에서 원인 작업을 기능 작업보다 먼저 한다.
 - 예산을 다 쓰면 긴급 수정 외의 prod 배포를 멈추고 회고한다.
-- 위 두 줄은 팀 합의가 필요하다.
 
 ### 5. 검토
 
@@ -116,12 +122,14 @@ PUT 수정(13건)과 카카오 로그인(11건)은 표본이 적어 그룹으로
 
 - 알람 기준을 SLO에서 계산해 설명할 수 있다("5%는 소진 속도 10").
 - 밤이나 트래픽이 없을 때도 가용성을 잴 수 있다.
-- SLO 카운터와 외부 헬스체크로 사용자 지정 지표가 몇 개 늘어난다(월 몇 달러 수준). Route 53 헬스체크는 월 약 1달러.
+- SLO 카운터로 사용자 지정 지표가 class 4개 × outcome 3개(`SUCCESS`·`CLIENT_ERROR`·`SERVER_ERROR`) × `le` 4개 × 환경 2개(dev·prod) = **96개** 늘어난다.
+  지표당 월 0.30달러(첫 1만 개 구간 단가)로 **월 약 29달러**다. 카운터는 요청이 없어도 수집할 때마다 값을 보내므로 96개가 한 달 내내 과금된다고 본다.
+  outcome에 드문 값(`REDIRECTION` 등)이 나오면 그만큼 늘어난다. Route 53 헬스체크는 월 약 1달러.
 - 측정값이 3주·저트래픽 기준이라, 첫 두 달은 목표를 조정할 가능성이 높다.
 
 ## 할 일
 
-- [ ] 팀 합의: SLO 숫자, 오류 예산 정책
+- [ ] SLO PR B: 알람 교체 + 외부 헬스체크
 - [x] SLO 전용 카운터(`http.server.requests.slo`, 300ms·1s·2s) 수집과 EMF 선언 추가
 - [ ] Route 53 헬스체크와 실패 알람
 - [ ] `alarms.sh`에 5xx 건수(10분 3건), 1시간 5xx 비율, 지연 비율 알람 추가, 기존 `api-5xx-ratio` 기준 교체

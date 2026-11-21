@@ -37,4 +37,4 @@ Mapmory 백엔드의 주요 설계 결정을 기록한다.
 | [0028](0028-member-refresh-lock-order.md) | 회원과 refresh 토큰은 회원 → refresh 순서로 잠근다 | 채택 |
 | [0029](0029-thumbnail-worker-on-renderer.md) | 사진 썸네일은 렌더러 서버의 워커가 만든다 | 제안 |
 | [0030](0030-api-version-for-breaking-request-shape.md) | 요청 모양을 바꾸는 쓰기 API는 v2로 나눈다 | 제안 |
-| [0031](0031-service-level-objectives.md) | 서비스 수준 목표(SLO)를 정하고 알람 기준을 SLO에서 끌어낸다 | 제안 |
+| [0031](0031-service-level-objectives.md) | 서비스 수준 목표(SLO)를 정하고 알람 기준을 SLO에서 끌어낸다 | 채택 |
