@@ -80,9 +80,9 @@
             },
             {
               "source_labels": ["job", "uri"],
-              "label_matcher": "^mapmory;/api/v1/.*$",
+              "label_matcher": "^mapmory;/api/v[0-9]+/.*$",
               "dimensions": [
-                ["service", "environment", "method", "uri", "outcome", "le"]
+                ["service", "environment", "slo_class", "outcome", "le"]
               ],
               "metric_selectors": ["^http_server_requests_slo_total$"]
             },
