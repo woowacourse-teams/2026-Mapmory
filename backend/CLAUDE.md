@@ -19,8 +19,8 @@
 - 결정은 `docs/adr/`에, 리뷰가 쓰는 도메인 규칙은 `../.github/claude-review/domain.md`에 있다. 같은 영역을 바꾸면 먼저 읽는다.
 - 바꾸는 흐름은 대상 행을 트랜잭션의 **첫 쿼리**로 잠근다. 잠그기 전에 일반 조회가 하나라도 있으면 REPEATABLE READ 스냅샷 때문에 옛 값을 본다(#713).
 - 그룹 흐름은 그룹 → 회원 한 방향이고, 회원 행을 직접 잠그지 않는다(#730). FK 컬럼을 INSERT·UPDATE하면 참조 행에 공유 잠금이 걸려 이것도 순서에 들어간다.
-- 외부 호출(S3, FCM, Google, OAuth)은 트랜잭션 밖에서, 알림·캐시 무효화는 커밋 뒤에 한다.
-- 시각은 주입받은 `Clock`으로 UTC를 쓴다(`ServiceTime`).
+- 외부 호출(S3, FCM, Google, OAuth)은 트랜잭션 밖에서 한다. 알림은 쓰기와 **같은 트랜잭션에서 아웃박스에 적고**(`AlbumPushOutboxWriter`는 `MANDATORY`), 보내기는 커밋 뒤에 릴레이가 한다. 캐시 무효화도 커밋 뒤에 한다.
+- 저장하는 시각은 주입받은 `Clock`으로 UTC를 쓰고, "오늘"과 하루의 경계는 한국 날짜로 정한다. `LocalDate.now(clock)`이 아니라 `ServiceTime.today(clock)`, `ServiceTime.startOfDayInUtc(date)`를 쓴다.
 - DB 스키마는 새 마이그레이션 파일로만 바꾼다. 기존 파일은 고치지 않는다.
 - API가 바뀌면 저장소 루트의 `api.md`도 고친다.
 

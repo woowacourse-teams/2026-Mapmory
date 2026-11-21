@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 PR #$ARGUMENTS 의 리뷰 지적을 처리한다. 리뷰도 틀릴 수 있다. 지적을 다 따르면 불필요한 코드가 쌓이고, 리뷰가 맞았는지도 알 수 없게 된다.
 
-1. 지적을 모은다: `gh api repos/{owner}/{repo}/pulls/$ARGUMENTS/comments`에서 `github-actions[bot]`이 단 코멘트 중 `in_reply_to_id`가 없고 아직 답글이 없는 것. 요약 코멘트(`gh pr view $ARGUMENTS --comments`)의 "팀 결정 필요"도 함께 본다.
+1. 지적을 모은다: `gh api --paginate repos/{owner}/{repo}/pulls/$ARGUMENTS/comments`(코멘트가 30개를 넘을 수 있어 모든 페이지를 읽는다)에서 `github-actions[bot]`이 단 코멘트 중 `in_reply_to_id`가 없고 아직 답글이 없는 것. 요약 코멘트(`gh pr view $ARGUMENTS --comments`)의 "팀 결정 필요"도 함께 본다.
 2. 지적마다 확인한다. 코드를 고치기 전에 판단부터 한다.
    - 지적이 말한 입력이나 실행 순서를 실제 코드에서 따라간다. 가능하면 그 상황을 재현하는 테스트를 써서 고치기 전 코드에서 실패하는지 본다.
    - 판단을 셋 중 하나로 정한다.
