@@ -133,6 +133,8 @@ CloudWatch Agent의 Prometheus-to-CloudWatch 경로는 Histogram을 버리고 Co
 클라이언트 percentile은 태그나 여러 인스턴스 사이에서 합산할 수 없다. 현재는 운영 EC2 한 대의
 URI별 지연을 보는 용도로 사용한다. 다중 인스턴스로 확장할 때는 Histogram을 지원하는 수집·조회
 경로로 전환하거나 지연 시간 집계 방식을 다시 결정한다.
+
+> SLO는 ADR 0031에서 다룬다.
 `http.server.requests`의 `uri` 태그는 `MeterFilter.maximumAllowableTags`로 서로 다른 값 50개까지만
 등록한다. 51번째 새로운 URI 값부터는 요청 자체를 막지 않고 해당 메트릭 등록과 측정만 거부한다.
 이 제한은 비정상 URI 유입으로 인한 메모리·시계열 증가를 막는 안전장치이며, URI 템플릿 집계가
