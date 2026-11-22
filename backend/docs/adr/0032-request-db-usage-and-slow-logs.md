@@ -22,7 +22,13 @@ DB 쪽 도구도 쓰기 어렵다. dev·prod RDS는 같은 사양이다.
 - `innodb_buffer_pool_size` 128MB, `max_connections` 60
 - `performance_schema` OFF, `slow_query_log` OFF(`long_query_time` 10초)
 
-둘을 켜려면 새 파라미터 그룹과 재부팅이 필요하다. 1GB 인스턴스라 `performance_schema`의 메모리 부담도 있다.
+둘을 켜려면 새 파라미터 그룹을 붙이고 한 번 재부팅한다. 그 뒤 `slow_query_log`·`long_query_time` 같은 동적 값은 재부팅 없이 바꾼다.
+재부팅은 한 번뿐이라 큰 장벽이 아니다. 남는 문제는 둘이다.
+
+- 1GB 인스턴스에서 `performance_schema`가 쓰는 메모리(아직 재지 않았다)
+- RDS 쪽에는 요청 정보가 없어, 어느 API가 SQL을 몇 번 부르는지(N+1) 알 수 없다
+
+특정 SQL의 실행 계획·인덱스 사용은 설정과 관계없이 `EXPLAIN`/`EXPLAIN ANALYZE`로 RDS에서 볼 수 있다.
 
 ## 결정
 
@@ -99,9 +105,13 @@ DB 쪽 도구도 쓰기 어렵다. dev·prod RDS는 같은 사양이다.
 - RDS 설정은 바꾸지 않는다. 쿼리별 합계(`performance_schema.events_statements_summary_by_digest`)는 로컬 Docker MySQL에서 본다.
   - 버전은 RDS와 같은 8.4.10이고, `innodb_buffer_pool_size`도 RDS와 같은 128M이다.
   - `performance_schema`는 켜 둔다(`docker-compose.yml`의 `db-analysis`).
-- RDS에서 느린 쿼리 로그를 켜는 절차는 선택으로만 문서에 둔다(`docs/db-query-analysis.md`). prod에는 적용하지 않는다.
+- 특정 SQL의 인덱스 사용은 dev RDS(실제 데이터)나 로컬 대용량 시드에서 `EXPLAIN ANALYZE`로 본다(`docs/db-query-analysis.md` 3절).
+  - RDS 설정을 바꾸지 않아도 된다.
+  - `EXPLAIN ANALYZE`는 쿼리를 실제로 실행하므로 dev에서 SELECT로만 쓴다.
+- RDS에서 느린 쿼리 로그·`performance_schema`를 켜는 절차는 선택으로만 문서에 둔다(같은 문서 4절). prod에는 적용하지 않는다.
   - 느린 쿼리 로그는 SQL을 값까지 그대로 남긴다.
-  - 단일 AZ라 재부팅하는 동안 서비스가 멈춘다.
+  - 새 파라미터 그룹을 붙일 때 한 번 재부팅한다. 단일 AZ라 그동안 서비스가 멈춘다.
+  - `performance_schema`는 1GB 인스턴스에서 메모리를 더 쓴다. 켜면 `FreeableMemory`를 본다.
 
 ### 7. dev·prod 모두 켜고, 설정 하나로 뺄 수 있게 한다
 
@@ -117,10 +127,21 @@ DB 쪽 도구도 쓰기 어렵다. dev·prod RDS는 같은 사양이다.
 
 ## 고려한 대안
 
-- **RDS에서 `performance_schema`·느린 쿼리 로그를 켠다**: 파라미터 그룹을 새로 만들고 재부팅해야 한다. 1GB 인스턴스에서 메모리를 더 쓴다. 느린 쿼리 로그에는 SQL이 값까지 남는다. 요청과 이을 수도 없다(requestId가 없다). dev에서 필요할 때만 선택으로 켠다.
+- **RDS에서 `performance_schema`·느린 쿼리 로그를 켠다**: 재부팅은 한 번이면 된다. 하지만 요청과 이을 수 없다(requestId가 없다). 느린 쿼리 로그에는 SQL이 값까지 남는다. 1GB 인스턴스에서 `performance_schema`가 메모리를 더 쓴다. 앱 계측을 대신하지 못하고 보완만 하므로, 모든 SQL의 순위가 꼭 필요할 때 dev에서만 켠다.
 - **나머지 계측 방식**: 2절 표.
 
 ## 결과
+
+앱에서 재서 얻는 것과 잃는 것:
+
+| 얻는 것 | 잃는 것 |
+|---|---|
+| 요청과 이어진다. `requestId`·`uri`별로 SQL 수가 묶여 N+1이 보인다 | 모든 SQL을 모은 순위(훑은 행이 가장 많은 SQL, 인덱스 없이 실행된 SQL 목록)가 없다. 특정 SQL의 실행 계획은 `EXPLAIN`으로 본다 |
+| `latencyMs`와 `dbTimeMs`를 나란히 둬 DB 밖이 원인인 요청이 보인다 | SQL 원문이 없다. 종류와 첫 테이블만 남아, 어느 쿼리인지는 코드·show-sql에서 찾는다 |
+| 파라미터 값이 남지 않는다 | `dbTimeMs`에 네트워크·드라이버·결과 전송이 들어가고, 커넥션 대기는 빠진다 |
+| RDS를 건드리지 않고 dev·prod가 같은 방식이다 | 요청 밖 SQL(아웃박스 워커, 배치, Flyway)은 안 본다 |
+| CloudWatch 지표가 늘지 않고 로그는 기준을 넘은 것만 남는다 | 앱 경로에 코드가 하나 더 붙는다. 설정으로 뺀다(7절) |
+
 
 - 느린 요청이 SQL을 많이 실행해서인지(`dbQueryCount`), DB에서 오래 걸려서인지(`dbTimeMs`), DB 밖이 느려서인지(`dbTimeMs ÷ latencyMs`가 낮음) 로그 한 줄로 가를 수 있다.
 - 평소에는 SLO를 넘은 요청과 100ms를 넘은 SQL만 남아 로그가 거의 늘지 않는다.

@@ -6,7 +6,8 @@
 |---|---|---|
 | dev·prod | 앱 로그 `SLOW_REQUEST`, `SLOW_QUERY` + CloudWatch Logs Insights | 요청별 SQL 수·DB 시간, 100ms를 넘은 SQL의 종류·테이블 |
 | 로컬 | Docker MySQL 8.4.10 + `performance_schema` | 쿼리(다이제스트)별 총 시간·횟수·훑은 행 수 |
-| dev RDS (선택) | 느린 쿼리 로그 | 위 둘로 안 될 때만. prod에는 적용하지 않는다 |
+| dev RDS | `EXPLAIN` / `EXPLAIN ANALYZE` | 고른 SQL이 실제 데이터에서 인덱스를 타는지. 설정 변경 없음 |
+| dev RDS (선택) | 느린 쿼리 로그, `performance_schema` | 모든 SQL의 순위가 꼭 필요할 때만. prod에는 적용하지 않는다 |
 
 ## 1. 앱 로그
 
@@ -157,12 +158,29 @@ LIMIT 20;
 - UPDATE·DELETE는 돌려준 행이 0이라 `examined_per_sent`가 비고, `SUM_ROWS_AFFECTED`와 견준다.
 - `DIGEST_TEXT`는 값이 `?`로 바뀐 SQL이다. 로컬 데이터라도 결과를 저장소나 PR에 붙일 때는 값이 없는지 본다.
 
-## 3. (선택) dev RDS에서 느린 쿼리 로그 켜기
+## 3. RDS에서 특정 SQL의 인덱스 사용 보기
 
-앱 로그와 로컬 분석으로 원인을 못 찾을 때만 dev에서 한다. **prod에는 적용하지 않는다.**
+RDS 설정을 바꾸지 않아도 된다. 앱 로그로 고른 API의 SQL을 실제 데이터에서 본다.
+
+1. 로컬에서 그 API를 부르고 show-sql(`spring.jpa.show-sql=true`)로 실제 SQL을 뽑는다.
+2. dev RDS에 붙어 `?` 자리에 값을 넣고 돌린다.
+
+   ```sql
+   EXPLAIN ANALYZE SELECT ...;
+   ```
+
+   - `type=ALL`(EXPLAIN)이나 `Table scan`(EXPLAIN ANALYZE)이면 인덱스를 못 탄다.
+   - 단계별 `actual rows`가 돌려준 행보다 훨씬 크면 많이 훑는다.
+3. `EXPLAIN ANALYZE`는 쿼리를 실제로 실행한다. **dev에서 SELECT로만 쓰고 prod에서는 쓰지 않는다.** 실행 계획만 보려면 `EXPLAIN`을 쓴다.
+
+결과를 PR이나 이슈에 붙일 때는 넣은 값을 지운다.
+
+## 4. (선택) dev RDS에서 느린 쿼리 로그·`performance_schema` 켜기
+
+모든 SQL을 모은 순위가 꼭 필요할 때만 dev에서 한다. 특정 SQL은 3절로 충분하다. **prod에는 적용하지 않는다.**
 
 - 느린 쿼리 로그는 SQL을 값까지 그대로 남긴다. 개인정보가 들어간다.
-- RDS가 단일 AZ라 재부팅하는 동안(수 분) 서비스가 멈춘다.
+- 새 파라미터 그룹을 붙일 때 한 번 재부팅한다. RDS가 단일 AZ라 그동안(수 분) 서비스가 멈춘다. 그 뒤 동적 값(`slow_query_log`, `long_query_time`)은 재부팅 없이 바뀐다.
 
 필요한 권한: `rds:CreateDBParameterGroup`, `rds:ModifyDBParameterGroup`, `rds:ModifyDBInstance`, `rds:RebootDBInstance`.
 로그를 보려면 `rds:DescribeDBLogFiles`, `rds:DownloadDBLogFilePortion`도 필요하다.
@@ -175,6 +193,6 @@ LIMIT 20;
 3. dev DB 인스턴스가 새 그룹을 쓰게 바꾼다.
 4. 재부팅한다. 파라미터 그룹을 바꾸면 재부팅해야 반영된다.
 5. 콘솔의 로그 탭 또는 `download-db-log-file-portion`으로 `slowquery/mysql-slowquery.log`를 받는다.
-6. 끝나면 기본 그룹으로 되돌리고 다시 재부팅한다.
+6. 끝나면 `slow_query_log=0`으로 바꾼다. 동적 값이라 재부팅하지 않는다. 그룹은 그대로 두면 다음에 재부팅 없이 다시 켤 수 있다.
 
-`performance_schema=1`도 같은 그룹에서 켤 수 있다. 1GB 인스턴스에서 메모리를 더 쓰므로 로컬 분석으로 대신한다.
+`performance_schema=1`도 같은 그룹에서 켤 수 있다. 정적 값이라 켜고 끌 때마다 재부팅한다. 1GB 인스턴스에서 메모리를 더 쓰므로, 켜면 CloudWatch `FreeableMemory`를 보고 크게 줄면 끈다.
