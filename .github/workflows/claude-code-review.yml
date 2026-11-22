@@ -1,11 +1,12 @@
 name: Claude Code Review
 
-# 백엔드 PR이 열리거나 커밋이 추가될 때 Claude가 자동으로 리뷰한다.
+# 백엔드 PR이 열릴 때(드래프트를 해제할 때) 한 번 리뷰하고, 그 뒤에는 `claude-review` 라벨을 붙일 때만 다시 리뷰한다.
+# 커밋마다 PR 전체를 다시 리뷰하면 같은 내용을 반복해 읽고 비용만 늘어서, 다시 볼 시점은 사람이 정한다.
 # 필요한 것: 저장소 시크릿 CLAUDE_CODE_OAUTH_TOKEN(`claude setup-token`으로 발급) 또는 ANTHROPIC_API_KEY.
 # Claude GitHub App은 조직 owner만 저장소를 추가할 수 있어, 앱 대신 Actions 기본 토큰으로 코멘트를 단다(github-actions[bot]).
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened, labeled]
     paths:
       - "backend/**"
       - "api.md"
@@ -17,17 +18,19 @@ on:
       - ".semgrep/**"
       - ".github/claude-review/signals.py"
 
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   review:
-    # 포크 PR은 시크릿을 받지 못하고, 봇 PR과 드래프트는 리뷰하지 않는다.
+    # 포크 PR은 시크릿을 받지 못하고, 봇 PR과 드래프트는 리뷰하지 않는다. 라벨은 claude-review만 리뷰를 다시 요청한다.
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
-      github.event.pull_request.draft == false
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    # 동시성은 job 수준에 둔다. 워크플로 수준에 두면 다른 라벨을 붙인 실행이 진행 중인 리뷰를 취소한 뒤 if에서 건너뛴다.
+    # job 수준이면 if에서 건너뛴 실행은 그룹에 들어가지 않는다.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -102,23 +105,26 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             이 PR을 리뷰하고 결과를 한국어로 남겨라.
-            `.github/claude-review/review.md`의 기준, `.github/claude-review/guide.md`의 배운 규칙, `.github/claude-review/domain.md`의 도메인 규칙,
-            `.github/claude-review/policies.md`의 흐름별 정책을 먼저 읽고 그대로 따른다.
-            domain.md는 PR이 건드린 패키지에 맞는 절만, policies.md는 PR이 건드린 흐름의 표와 데이터 분리 규칙만 읽는다.
-            특히 review.md의 "의심하고, 확인한다" 두 단계를 건너뛰지 않는다. 라이브러리 동작은 WebFetch로 소스나 공식 문서를 열어 확인한다.
+            `.github/claude-review/review.md`의 기준을 먼저 읽고 그대로 따른다. 특히 "무엇을 남기나: 정확성만"과 "거르기" 단계를 지킨다.
+            `.github/claude-review/guide.md`(배운 규칙), `.github/claude-review/domain.md`(PR이 건드린 패키지의 절만),
+            `.github/claude-review/policies.md`(PR이 건드린 흐름의 표와 데이터 분리 규칙만)는 의심 찾기에 쓴다.
+            PR 설명의 "결정"(내가 정한 것, AI 제안을 받아들인 것)과 연결된 이슈의 "정한 것"을 불변식의 근거로 쓰고, 코드가 그와 다르면 지적한다.
             `.claude-review-input/`에 기계 검사 결과가 있다(semgrep.md, 있으면 pit.md). review.md의 "기계 검사 결과" 절대로 판단한다.
 
             결과를 남기는 방법:
             - 특정 줄의 문제는 mcp__github_inline_comment__create_inline_comment로 인라인 코멘트를 단다.
-              각 코멘트에 심각도(Critical/Major/Minor/Nit), 이유, 가능하면 수정 제안을 쓴다.
+              각 코멘트에 심각도(Critical/Major/Minor), 틀린 결과가 나오는 입력이나 실행 순서, 가능하면 수정 제안을 쓴다.
               guide.md의 규칙 덕분에 찾은 문제면 제목 앞에 규칙 ID를 붙인다(예: `[R-001] [Major] ...`).
-            - 전체 요약은 `gh pr comment --edit-last --create-if-none`으로 남겨, 커밋마다 새 코멘트가 쌓이지 않고 이전 요약을 고친다.
-              제목에 검토한 커밋 SHA(7자리)를 적고, 맨 앞에 "이 PR의 불변식"을 한두 줄로 적는다.
-              그 아래 "확인한 특이 케이스"에 질문표에서 실제로 따져 본 것과 결론을 짧게 남긴다(문제없음도 적는다).
-              PR이 policies.md의 "결정 필요"·"보류" 항목을 코드로 정하면 "팀 결정 필요"에 흐름 번호와 함께 적는다.
-              domain.md·policies.md와 코드·최신 ADR이 다른 것을 발견하면 "domain.md 제안"·"policies.md 제안"에 적는다.
-              (예: PR이 정책을 새로 지키게 해서 상태를 "없음" → "있음"으로 바꿔야 할 때) 이전 요약에 있던 지적은 지우지 말고 "이전 커밋에서 지적한 것"에 커밋 SHA와 함께
-              한 줄씩 남겨, 학습 워크플로가 커밋마다 무엇을 잡았는지 알 수 있게 한다. 문제가 없으면 짧게 그렇게 쓴다.
+            - 이전 리뷰에서 이미 단 지적과 같은 내용은 다시 달지 않는다(`gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`로 확인한다).
+            - 요약은 review.md의 "요약 형식"대로 15줄 이내로 쓰고 `gh pr comment --edit-last --create-if-none`으로 남겨 이전 요약을 고친다.
+              확인해 보니 문제없는 것의 목록은 쓰지 않는다.
           claude_args: |
             --model claude-opus-5-5
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,WebFetch(domain:docs.github.com),WebFetch(domain:github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:docs.spring.io),WebFetch(domain:docs.oracle.com),WebFetch(domain:javadoc.io),WebFetch(domain:www.javadoc.io),WebFetch(domain:dev.mysql.com),WebFetch(domain:docs.aws.amazon.com),WebFetch(domain:hibernate.org),WebFetch(domain:docs.jboss.org),WebFetch(domain:junit.org),WebFetch(domain:site.mockito.org),WebFetch(domain:assertj.github.io)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*),Read,Grep,Glob,WebFetch(domain:docs.github.com),WebFetch(domain:github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:docs.spring.io),WebFetch(domain:docs.oracle.com),WebFetch(domain:javadoc.io),WebFetch(domain:www.javadoc.io),WebFetch(domain:dev.mysql.com),WebFetch(domain:docs.aws.amazon.com),WebFetch(domain:hibernate.org),WebFetch(domain:docs.jboss.org),WebFetch(domain:junit.org),WebFetch(domain:site.mockito.org),WebFetch(domain:assertj.github.io)"
+
+      # 다시 요청할 수 있게, 라벨로 시작한 리뷰는 끝나면 라벨을 뗀다. 실패해도 리뷰 결과에는 영향이 없다.
+      - name: Remove review label
+        if: always() && github.event.action == 'labeled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit "${{ github.event.pull_request.number }}" -R "${{ github.repository }}" --remove-label claude-review || true

@@ -5,12 +5,10 @@ name: Claude Review Sync
 # 이 거르기는 Claude가 없는 check job이 새 체크아웃에서 한다(sync-check.py).
 # 코드가 규칙과 다르면 문서를 코드에 맞추지 않고 "모순"으로 이슈에 올린다. 지침은 .github/claude-review/sync.md.
 # 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+# 2026-11-22: 효과가 측정되기 전까지 잠시 끈다(수동 실행만). 주간 리뷰 지표(claude-review-metrics.yml)로 리뷰 정확도를 먼저 재고,
+# 지표가 이 자동화의 필요를 보여 주면 다시 켠다. 수동 실행(workflow_dispatch)은 main에 이 파일이 있어야 된다.
 on:
-  push:
-    branches: [backend-develop]
-    paths:
-      - "backend/docs/adr/**"
-      - "backend/src/main/**"
+  workflow_dispatch:
 
 permissions:
   contents: read

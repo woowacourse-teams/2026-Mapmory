@@ -4,14 +4,10 @@ name: Claude Review Retro
 # 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 backend-develop 대상 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
 # schedule과 수동 실행(workflow_dispatch)은 기본 브랜치(main)에 이 파일이 있어야 동작한다.
 # main에 없는 동안에는 backend-develop push마다 문지기(weekly-gate.sh)가 지난 7일 안에 회고가 성공했는지 보고, 없을 때만 돈다.
+# 2026-11-22: 효과가 측정되기 전까지 잠시 끈다(수동 실행만). 주간 리뷰 지표(claude-review-metrics.yml)로 리뷰 정확도를 먼저 재고,
+# 지표가 이 자동화의 필요를 보여 주면 다시 켠다. 수동 실행(workflow_dispatch)은 main에 이 파일이 있어야 된다.
 on:
-  schedule:
-    - cron: "17 0 * * 1" # 매주 월요일 09:17 KST
   workflow_dispatch:
-  push:
-    branches: [backend-develop]
-    paths:
-      - "backend/**"
 
 permissions:
   contents: read
