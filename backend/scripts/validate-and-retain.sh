@@ -122,3 +122,7 @@ PY
 
 trap - ERR
 echo "배포 검증 완료. 최근 성공 릴리스 3개와 양 슬롯의 current 릴리스를 보존했습니다."
+
+# 이전 서비스가 멈춰 새 슬롯만 서비스할 때 캐시를 켠다. 롤백 트랩을 해제한 뒤에 한다.
+# 앞 단계가 실패해 롤백이 이전 슬롯을 다시 띄우면, 두 프로세스가 공존하는 동안 캐시가 켜져 있게 되기 때문이다.
+enable_deployment_cache_when_alone "$target_port" "$previous_service"

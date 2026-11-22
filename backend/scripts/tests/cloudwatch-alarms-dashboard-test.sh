@@ -75,10 +75,11 @@ count_lines() {
 # 1. --dry-run은 읽기만 하고 put을 부르지 않는다.
 reset_fake
 if run alarms.sh dev --dry-run && [[ $(count_lines "${WORK_DIR}/log/alarms") == 0 ]] \
-  && [[ $(jq -s length "${WORK_DIR}/log/stdout") == 7 ]]; then
-  pass "alarms --dry-run은 알람 7개를 출력하고 쓰지 않는다"
+  && [[ $(jq -s length "${WORK_DIR}/log/stdout") == 8 ]] \
+  && [[ $(jq -s '[.[] | select(.AlarmName == "mapmory-dev-cache-bypass")] | length' "${WORK_DIR}/log/stdout") == 1 ]]; then
+  pass "alarms --dry-run은 cache-bypass를 포함한 알람 8개를 출력하고 쓰지 않는다"
 else
-  fail "alarms --dry-run은 알람 7개를 출력하고 쓰지 않는다"
+  fail "alarms --dry-run은 cache-bypass를 포함한 알람 8개를 출력하고 쓰지 않는다"
 fi
 
 # 1-1. 확인 화면에 바뀔 알림 대상을 주제 이름으로만 보여 준다(ARN 전체는 출력하지 않는다).
@@ -96,7 +97,7 @@ reset_fake
 run alarms.sh dev --yes && cp "${WORK_DIR}/log/alarms" "${WORK_DIR}/first"
 reset_fake
 run alarms.sh dev --yes || true
-if [[ $(count_lines "${WORK_DIR}/first") == 7 ]] && cmp -s "${WORK_DIR}/first" "${WORK_DIR}/log/alarms"; then
+if [[ $(count_lines "${WORK_DIR}/first") == 8 ]] && cmp -s "${WORK_DIR}/first" "${WORK_DIR}/log/alarms"; then
   pass "alarms를 두 번 실행해도 같은 정의를 넣는다"
 else
   fail "alarms를 두 번 실행해도 같은 정의를 넣는다"
@@ -122,7 +123,9 @@ if [[ $(alarm mapmory-dev-metrics-missing | jq -c '[.Statistic, .Period, .Evalua
   && [[ $(alarm mapmory-dev-ec2-memory-usage-high | jq -c '[.Statistic, .Period, .EvaluationPeriods, .DatapointsToAlarm, .Threshold, .ComparisonOperator, .TreatMissingData]') \
       == '["Average",300,3,3,85,"GreaterThanOrEqualToThreshold","missing"]' ]] \
   && [[ $(alarm mapmory-dev-ec2-status-check-failed | jq -r .TreatMissingData) == breaching ]] \
-  && [[ $(jq -s '[.[] | select(.AlarmDescription | length > 0)] | length' "${WORK_DIR}/first") == 7 ]] \
+  && [[ $(alarm mapmory-dev-cache-bypass | jq -c '[.Namespace, .MetricName, (.Dimensions | map("\(.Name)=\(.Value)") | sort | join(",")), .Statistic, .Period, .EvaluationPeriods, .DatapointsToAlarm, .Threshold, .ComparisonOperator, .TreatMissingData, (.OKActions | length)]') \
+      == '["Mapmory/Backend","mapmory_deployment_cache_bypass","environment=dev,service=mapmory-backend","Minimum",300,6,6,1,"GreaterThanOrEqualToThreshold","notBreaching",1]' ]] \
+  && [[ $(jq -s '[.[] | select(.AlarmDescription | length > 0)] | length' "${WORK_DIR}/first") == 8 ]] \
   && [[ $(alarm mapmory-dev-metrics-missing | jq -r .AlarmDescription) == *"10분 넘게"* ]]; then
   pass "알람 정의가 명세와 맞다"
 else
@@ -130,8 +133,8 @@ else
 fi
 
 # 3-1. 관리하는 알람은 모두 경보와 정상을 같은 SNS로 알린다. 콘솔 알람이 둘 다 알리고 있어서, 빠지면 정상 알림이 사라진다.
-if [[ $(jq -s 'length' "${WORK_DIR}/first") == 7 ]] \
-  && [[ $(jq -s '[.[] | select((.OKActions | length) > 0 and .OKActions == .AlarmActions)] | length' "${WORK_DIR}/first") == 7 ]]; then
+if [[ $(jq -s 'length' "${WORK_DIR}/first") == 8 ]] \
+  && [[ $(jq -s '[.[] | select((.OKActions | length) > 0 and .OKActions == .AlarmActions)] | length' "${WORK_DIR}/first") == 8 ]]; then
   pass "관리하는 알람은 모두 OKActions가 비어 있지 않다"
 else
   fail "관리하는 알람은 모두 OKActions가 비어 있지 않다"
@@ -173,7 +176,7 @@ else
   fail "대시보드 템플릿의 변수를 모두 채운다"
 fi
 
-# 6. 대시보드가 가리키는 알람은 alarms.sh가 관리하는 7개와 바꾸지 않는 3개뿐이고, 관리하는 7개는 모두 보인다.
+# 6. 대시보드가 가리키는 알람은 alarms.sh가 관리하는 8개와 바꾸지 않는 3개뿐이고, 관리하는 8개는 모두 보인다.
 #    알람 이름은 RDS 식별자 같은 다른 값이 아니라 환경으로만 정해져야 한다.
 # shellcheck disable=SC2016 # 템플릿 자리표시자 ${ENV}를 찾는다.
 dashboard_alarms=$(grep -oE 'alarm:[^"]+' "${CLOUDWATCH_DIR}/dashboard.json.tmpl" | sort -u)
@@ -218,6 +221,37 @@ if [[ -n $alarm_ratio && $alarm_ratio == "$widget_ratio" && $alarm_inputs == "$w
 else
   printf '알람: %s %s\n위젯: %s %s\n' "$alarm_ratio" "$alarm_inputs" "$widget_ratio" "$widget_inputs"
   fail "대시보드 5xx 비율 그래프가 알람과 같은 식이다"
+fi
+
+# 6-3. 캐시 모드 그래프가 알람과 같은 지표·통계(Minimum)를 보여 준다. 알람 설명이 이 그래프를 가리킨다.
+mode_widget=$(jq -c '.widgets[] | select(.properties.title == "캐시 모드 (BYPASS=1, NORMAL=0)")' "${CLOUDWATCH_DIR}/dashboard.json.tmpl")
+# shellcheck disable=SC2016 # 템플릿 자리표시자 ${ENV}를 그대로 비교한다.
+if [[ -n $mode_widget ]] \
+  && [[ $(jq -c '.properties.metrics[0][0:6]' <<< "$mode_widget") == '["Mapmory/Backend","mapmory_deployment_cache_bypass","environment","${ENV}","service","mapmory-backend"]' ]] \
+  && [[ $(jq -c '[.properties.metrics[][-1].stat] | sort' <<< "$mode_widget") == '["Maximum","Minimum"]' ]]; then
+  pass "대시보드에 알람과 같은 지표로 캐시 모드 그래프가 있다"
+else
+  fail "대시보드에 알람과 같은 지표로 캐시 모드 그래프가 있다"
+fi
+
+# 6-4. 캐시 적중률은 hit+miss가 0이면 빈칸이다. 0/0을 그리면 NaN이 되어 경고 표시가 뜬다.
+ratio_expressions=$(jq -r '.widgets[] | select(.properties.title == "캐시 적중률 (%)") | .properties.metrics[][0] | select(.visible != false) | .expression' \
+  "${CLOUDWATCH_DIR}/dashboard.json.tmpl")
+if [[ $(grep -c . <<< "$ratio_expressions") == 2 ]] \
+  && ! grep -vqE '^IF\(FILL\(h[12], 0\) \+ FILL\(m[12], 0\) > 0, 100 \* FILL\(h[12], 0\) / \(FILL\(h[12], 0\) \+ FILL\(m[12], 0\)\)\)$' <<< "$ratio_expressions"; then
+  pass "캐시 적중률은 분모가 0이면 값을 내지 않는다"
+else
+  printf '%s\n' "$ratio_expressions"
+  fail "캐시 적중률은 분모가 0이면 값을 내지 않는다"
+fi
+
+# 6-5. EMF 허용 목록에 캐시 모드 지표가 service·environment 차원으로 들어 있다. 없으면 CloudWatch에 올라가지 않는다.
+if jq -e '.logs.metrics_collected.prometheus.emf_processor.metric_declaration[]
+    | select(.metric_selectors == ["^mapmory_deployment_cache_bypass$"] and .dimensions == [["service", "environment"]])' \
+    "${CLOUDWATCH_DIR}/agent.json.tmpl" > /dev/null; then
+  pass "Agent EMF 허용 목록에 캐시 모드 지표가 있다"
+else
+  fail "Agent EMF 허용 목록에 캐시 모드 지표가 있다"
 fi
 
 # 7. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.

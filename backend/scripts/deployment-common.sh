@@ -224,3 +224,43 @@ wait_for_health() {
   echo "앱 health 확인 실패: $port (${timeout_seconds}s)" >&2
   return 1
 }
+
+# 한 프로세스만 서비스할 때 그 슬롯의 로컬 캐시를 NORMAL로 켠다.
+# 슬롯은 공존 중 옛 캐시를 읽지 않도록 BYPASS로 시작한다(/etc/mapmory-deployment-cache.env).
+# 다른 슬롯 서비스가 아직 active면 켜지 않는다. 두 JVM은 캐시를 공유하지 않아 서로의 수정을 무효화하지 못한다.
+# 실패해도 0을 돌려준다. 트래픽은 이미 이 슬롯에 있고 캐시는 성능 문제라 배포·부팅을 실패시키지 않는다.
+# 대신 경고를 남기고, 캐시 모드 지표(mapmory_deployment_cache_bypass)와 cache-bypass 알람이 드러낸다.
+#   enable_deployment_cache_when_alone <앱 포트> <다른 슬롯의 서비스 이름>
+enable_deployment_cache_when_alone() {
+  local app_port=$1
+  local other_service=$2
+  local management_port url state
+  if ! management_port=$(management_port_for_app_port "$app_port"); then
+    echo "경고: 캐시를 켤 관리 포트를 정하지 못해 BYPASS로 둡니다: $app_port" >&2
+    return 0
+  fi
+  url="http://127.0.0.1:$management_port/actuator/deploymentcache"
+  local manual="curl -H 'Content-Type: application/json' -d '{\"mode\":\"NORMAL\"}' $url"
+
+  if systemctl is-active --quiet "$other_service"; then
+    echo "경고: $other_service가 아직 실행 중이라 캐시를 BYPASS로 둡니다. 그 서비스를 멈춘 뒤 수동으로 켭니다: $manual" >&2
+    return 0
+  fi
+
+  if ! curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"NORMAL"}' "$url" >/dev/null; then
+    echo "경고: 캐시 NORMAL 전환 요청이 실패해 BYPASS로 둡니다. 원인을 확인하고 수동으로 켭니다: $manual" >&2
+    return 0
+  fi
+
+  # HTTP 성공만 보지 않고 실제 모드를 다시 읽어 확인한다.
+  if ! state=$(curl --fail --silent --show-error --max-time 5 "$url"); then
+    echo "경고: 캐시 모드를 다시 읽지 못했습니다. 수동으로 확인합니다: curl $url" >&2
+    return 0
+  fi
+  if ! grep -Eq '"mode"[[:space:]]*:[[:space:]]*"NORMAL"' <<< "$state"; then
+    echo "경고: NORMAL 전환을 요청했지만 모드가 바뀌지 않았습니다: $state" >&2
+    return 0
+  fi
+  echo "캐시 모드 NORMAL 확인: $app_port"
+}
