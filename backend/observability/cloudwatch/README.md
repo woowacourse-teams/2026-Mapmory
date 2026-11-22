@@ -74,7 +74,7 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 | 알람 | 조건 | 데이터 없음 | 알림 |
 |---|---|---|---|
 | `metrics-missing` [깨움] | `hikaricp_connections_max` SampleCount < 1, 300초 × 2 | 경보 | 경보·정상 |
-| `api-5xx-count` [깨움] | 5xx(`/api/v1`) Sum ≥ 3, 600초(최근 10분) | 정상 취급 | 경보·정상 |
+| `api-5xx-count` [깨움] | 5xx(`/api/v1`·`v2`) Sum ≥ 3, 600초(최근 10분) | 정상 취급 | 경보·정상 |
 | `api-5xx-ratio` | 최근 1시간 요청 30건 이상이고 5xx 비율 > 5% | 정상 취급 | 경보·정상 |
 | `api-read-latency` | 최근 1시간 조회(`slo_class=read`) 성공 요청 30건 이상이고 0.3초를 넘긴 비율 > 5% | 정상 취급 | 경보·정상 |
 | `api-write-latency` | 최근 1시간 저장(`slo_class=write`) 성공 요청 10건 이상이고 2초를 넘긴 비율 > 10% | 정상 취급 | 경보·정상 |
@@ -90,7 +90,7 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 
 지연 알람은 SLO 카운터(`http_server_requests_slo_total`)로 계산한다. 기준 안에 끝난 수는 `Sum(le=기준)`, 전체는 `Sum(le=+Inf)`이고, 넘긴 비율은 `1 - 둘의 비`다. 성공한 요청만 센다. 실패는 5xx 알람이 맡는다. 앱이 기동할 때 read·write 카운터를 0으로 미리 만들므로 요청이 없어도 0이 들어와 알람은 `OK`다.
 
-5xx 비율의 분모는 SLO 카운터가 아니라 `http_server_requests_seconds_count`의 outcome 차원(`/api/v1`)이다. SLO 카운터로 전체 요청을 만들면 slo_class 4 × outcome 3 = 지표 12개라, 알람 계산식의 지표 10개 한도를 넘는다.
+5xx 비율의 분모는 SLO 카운터가 아니라 `http_server_requests_seconds_count`의 outcome 차원(`/api/v1`·`v2`)이다. SLO 카운터로 전체 요청을 만들면 slo_class 4 × outcome 3 = 지표 12개라, 알람 계산식의 지표 10개 한도를 넘는다.
 
 알람마다 설명에 "울리면 무엇부터 볼지"를 한 줄 적었다. 알림 메일에도 이 설명이 나온다.
 

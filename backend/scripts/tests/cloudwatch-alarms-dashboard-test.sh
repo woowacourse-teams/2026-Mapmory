@@ -320,6 +320,16 @@ else
   fail "Agent EMF 허용 목록에 캐시 모드 지표가 있다"
 fi
 
+# 6-6. 5xx 알람이 쓰는 요청 건수는 v1과 v2를 모두 보낸다. v2 기록 생성·수정의 5xx가 빠지지 않게 한다.
+if jq -e '.logs.metrics_collected.prometheus.emf_processor.metric_declaration[]
+    | select(.metric_selectors == ["^http_server_requests_seconds_count$"])
+    | select(.label_matcher == "^mapmory;/api/v[0-9]+/.*$" and any(.dimensions[]; . == ["service", "environment", "outcome"]))' \
+    "${CLOUDWATCH_DIR}/agent.json.tmpl" > /dev/null; then
+  pass "5xx 알람이 쓰는 요청 건수(outcome 차원)는 v1·v2를 모두 보낸다"
+else
+  fail "5xx 알람이 쓰는 요청 건수(outcome 차원)는 v1·v2를 모두 보낸다"
+fi
+
 # 7. 공개 저장소에 계정 번호·인스턴스 ID·계정이 박힌 ARN을 남기지 않는다.
 leaks=$(grep -rnE '[0-9]{12}|i-[0-9a-f]{8,}|arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]' "${BACKEND_DIR}/observability" || true)
 if [[ -z $leaks ]]; then

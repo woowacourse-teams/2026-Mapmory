@@ -115,7 +115,7 @@ ec2_alarm() {
 
 # 최근 1시간 5xx 비율. 기존 알람은 분당 10건 이상일 때만 계산해, 평균 분당 0.5건인 prod에서는 사실상 울릴 수 없었다.
 # 이름은 그대로 둔다. 대시보드·Discord 안내 문구가 이 이름을 가리키고, 알람 기록도 이어진다.
-# 분모는 http_server_requests_seconds_count의 outcome 차원(SUCCESS·CLIENT_ERROR·SERVER_ERROR, /api/v1)이다.
+# 분모는 http_server_requests_seconds_count의 outcome 차원(SUCCESS·CLIENT_ERROR·SERVER_ERROR, /api/v1·v2)이다.
 # SLO 카운터로 전체 요청을 만들면 slo_class 4 × outcome 3 = 지표 12개라 알람의 10개 한도를 넘는다.
 api_5xx_ratio_alarm() {
   local dims_base
