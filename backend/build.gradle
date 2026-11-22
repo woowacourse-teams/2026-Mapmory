@@ -47,6 +47,9 @@ dependencies {
     // Google Places 호출 클라이언트. firebase-admin도 끌고 오지만 우리가 직접 쓰므로 따로 적는다.
     implementation 'org.apache.httpcomponents.client5:httpclient5'
 
+    // 요청마다 SQL 실행 수와 DB 시간을 센다(ADR 0032). SQL 원문을 로그로 남기는 리스너는 붙이지 않는다.
+    implementation 'net.ttddyy:datasource-proxy:1.10.1'
+
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

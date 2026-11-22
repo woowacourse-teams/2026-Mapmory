@@ -22,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +33,7 @@ class GooglePlacesLimiterIntegrationTest extends IntegrationTest {
     MySQLSelectForUpdateBasedProxyManager<String> bucketManager;
 
     @Autowired
-    HikariDataSource dataSource;
+    DataSource dataSource;
 
     @Test
     void 자동완성과_상세_조회의_월_한도를_DB에_따로_센다() {
@@ -191,7 +192,7 @@ class GooglePlacesLimiterIntegrationTest extends IntegrationTest {
 
     private List<Connection> holdAllConnections() throws SQLException {
         List<Connection> held = new ArrayList<>();
-        for (int i = 0; i < dataSource.getMaximumPoolSize(); i++) {
+        for (int i = 0; i < maximumPoolSize(); i++) {
             held.add(dataSource.getConnection());
         }
         return held;
@@ -210,5 +211,10 @@ class GooglePlacesLimiterIntegrationTest extends IntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode().code())
                         .isEqualTo(expectedCode));
+    }
+
+    // DataSource는 요청별 SQL 계측(ADR 0032)으로 감싸져 있어 풀 설정은 안쪽 HikariDataSource에서 읽는다.
+    private int maximumPoolSize() throws SQLException {
+        return dataSource.unwrap(HikariDataSource.class).getMaximumPoolSize();
     }
 }

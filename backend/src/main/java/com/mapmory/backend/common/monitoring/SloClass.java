@@ -1,5 +1,6 @@
 package com.mapmory.backend.common.monitoring;
 
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -10,12 +11,13 @@ import java.util.Map;
  */
 public enum SloClass {
     /** 조회 지연(300ms): 지도 요약, 기록 목록·상세, Presigned URL. */
-    READ("read"),
+    READ("read", Duration.ofMillis(300)),
     /** 저장 지연(2초): 기록 생성·수정(v1, v2). */
-    WRITE("write"),
+    WRITE("write", Duration.ofSeconds(2)),
     /** 인증 지연(1초): 앱 로그인, 토큰 갱신. */
-    AUTH("auth"),
-    OTHER("other");
+    AUTH("auth", Duration.ofSeconds(1)),
+    /** SLO가 없다. 느린 요청 로그(SLOW_REQUEST)의 기준으로만 1초를 쓴다(ADR 0032). */
+    OTHER("other", Duration.ofSeconds(1));
 
     static final Map<String, SloClass> ROUTES = Map.ofEntries(
             Map.entry("GET /api/v1/travel-records/map-summary", READ),
@@ -37,9 +39,11 @@ public enum SloClass {
             Map.entry("POST /api/v1/auth/token/refresh", AUTH));
 
     private final String tagValue;
+    private final Duration latencyObjective;
 
-    SloClass(String tagValue) {
+    SloClass(String tagValue, Duration latencyObjective) {
         this.tagValue = tagValue;
+        this.latencyObjective = latencyObjective;
     }
 
     public static SloClass of(String method, String uriPattern) {
@@ -48,5 +52,10 @@ public enum SloClass {
 
     public String tagValue() {
         return tagValue;
+    }
+
+    /** ADR 0031의 지연 기준 시간. 이 시간 안에 끝나야 SLO를 지킨 요청이다. */
+    public Duration latencyObjective() {
+        return latencyObjective;
     }
 }
