@@ -69,12 +69,15 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 | `metrics-missing` | `hikaricp_connections_max` SampleCount < 1, 300초 × 2 | 경보 | 경보·정상 |
 | `api-5xx-ratio` | 5xx 비율 > 5%(분당 10건 이상일 때만), 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
 | `db-connection-pending` | `hikaricp_connections_pending` Maximum ≥ 1, 60초, 5개 중 3개 | 정상 취급 | 경보·정상 |
+| `cache-bypass` | `mapmory_deployment_cache_bypass` Minimum ≥ 1, 300초 × 6(30분) | 정상 취급 | 경보·정상 |
 | `ec2-cpu-usage-high` | CPUUtilization Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
 | `ec2-memory-usage-high` | mem_used_percent Average ≥ 85, 300초 × 3 | 판단 안 함 | 경보·정상 |
 | `ec2-disk-usage-high` | disk_used_percent(/) Average ≥ 80, 300초 × 3 | 판단 안 함 | 경보·정상 |
 | `ec2-status-check-failed` | StatusCheckFailed Maximum ≥ 1, 300초 × 1 | 경보 | 경보·정상 |
 
 알람마다 설명에 "울리면 무엇부터 볼지"를 한 줄 적었다. 알림 메일에도 이 설명이 나온다.
+
+`cache-bypass`는 배포 캐시가 BYPASS로 남은 것을 잡는다. 슬롯은 BYPASS로 시작하고 배포·재부팅 스크립트가 단독 서비스를 확인한 뒤 NORMAL로 켠다(`backend/docs/deployment-cache-control.md` 4단계). 데이터 없음을 정상으로 두므로, 지표가 아직 없을 때 적용해도 `OK`로 보인다. 이 지표가 들어 있는 버전을 배포해 Agent 설정이 다시 적용된 뒤에 `alarms.sh`를 실행하고, 대시보드 "캐시 모드 (BYPASS=1, NORMAL=0)"에 값이 그려지는지 본다.
 
 `application-error`, `api-5xx-rate`, `rds-free-storage-low`는 이 스크립트가 바꾸지 않는다. `alarms.sh`는 실행할 때마다 이 셋의 지금 조건을 표로 출력한다.
 

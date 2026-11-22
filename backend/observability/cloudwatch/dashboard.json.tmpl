@@ -23,6 +23,7 @@
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-ratio",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-rate",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-application-error",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-cache-bypass",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-db-connection-pending",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-cpu-usage-high",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-disk-usage-high",
@@ -1477,7 +1478,7 @@
       "type": "metric",
       "x": 0,
       "y": 42,
-      "width": 8,
+      "width": 6,
       "height": 6,
       "properties": {
         "metrics": [
@@ -1535,9 +1536,9 @@
     },
     {
       "type": "metric",
-      "x": 8,
+      "x": 6,
       "y": 42,
-      "width": 8,
+      "width": 6,
       "height": 6,
       "properties": {
         "metrics": [
@@ -1584,15 +1585,33 @@
     },
     {
       "type": "metric",
-      "x": 16,
+      "x": 12,
       "y": 42,
-      "width": 8,
+      "width": 6,
       "height": 6,
       "properties": {
         "metrics": [
           [
             {
-              "expression": "100 * SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"hit\"', 'Sum', 300)) / (SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"hit\"', 'Sum', 300)) + SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"miss\"', 'Sum', 300)))",
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"hit\"', 'Sum', 300))",
+              "label": "mapSummary hit",
+              "id": "h1",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"miss\"', 'Sum', 300))",
+              "label": "mapSummary miss",
+              "id": "m1",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "IF(FILL(h1, 0) + FILL(m1, 0) > 0, 100 * FILL(h1, 0) / (FILL(h1, 0) + FILL(m1, 0)))",
               "label": "mapSummary 적중률 (%)",
               "id": "e1",
               "region": "ap-northeast-2"
@@ -1600,7 +1619,25 @@
           ],
           [
             {
-              "expression": "100 * SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"hit\"', 'Sum', 300)) / (SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"hit\"', 'Sum', 300)) + SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"miss\"', 'Sum', 300)))",
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"hit\"', 'Sum', 300))",
+              "label": "travelRecordList hit",
+              "id": "h2",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"miss\"', 'Sum', 300))",
+              "label": "travelRecordList miss",
+              "id": "m2",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "IF(FILL(h2, 0) + FILL(m2, 0) > 0, 100 * FILL(h2, 0) / (FILL(h2, 0) + FILL(m2, 0)))",
               "label": "travelRecordList 적중률 (%)",
               "id": "e2",
               "region": "ap-northeast-2"
@@ -1618,6 +1655,62 @@
             "max": 100,
             "showUnits": false
           }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 42,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "mapmory_deployment_cache_bypass",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            {
+              "id": "m1",
+              "stat": "Maximum",
+              "period": 60,
+              "label": "BYPASS 중인 프로세스가 있음 (최댓값)",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "...",
+            {
+              "id": "m2",
+              "stat": "Minimum",
+              "period": 60,
+              "label": "모든 프로세스가 BYPASS (최솟값, 알람 기준)",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "캐시 모드 (BYPASS=1, NORMAL=0)",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 1,
+            "showUnits": false
+          }
+        },
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "BYPASS",
+              "value": 1
+            }
+          ]
         }
       }
     },

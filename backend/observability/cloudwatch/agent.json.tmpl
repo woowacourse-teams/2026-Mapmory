@@ -48,7 +48,8 @@
             "process_cpu_usage": "None",
             "jvm_gc_pause_seconds_sum": "Seconds",
             "jvm_gc_pause_seconds_count": "Count",
-            "cache_gets_total": "Count"
+            "cache_gets_total": "Count",
+            "mapmory_deployment_cache_bypass": "None"
           },
           "metric_declaration": [
             {
@@ -164,6 +165,14 @@
                 ["service", "environment", "cache", "result"]
               ],
               "metric_selectors": ["^cache_gets_total$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^mapmory$",
+              "dimensions": [
+                ["service", "environment"]
+              ],
+              "metric_selectors": ["^mapmory_deployment_cache_bypass$"]
             }
           ]
         }

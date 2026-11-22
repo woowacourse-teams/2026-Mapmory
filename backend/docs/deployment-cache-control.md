@@ -88,44 +88,61 @@ Spring Boot의 HTTP 전용 사용자 정의 Actuator 엔드포인트를 사용�
 
 **지금 실행 중인 구버전 JAR에는 사용할 수 없다.** 아래는 준비 버전 배포 및 양쪽 슬롯의 시작 모드 설정 후 EC2 안에서 실행할 명령이다. 공개 주소로 호출하지 않는다.
 
-### 1. 기존 서버 우회
+### 1~2. 전환 전 양쪽 우회 (자동)
 
-기존 서버 관리 포트가 `8081`일 때:
+`switch-traffic.sh`가 Nginx를 바꾸기 전에 기존 슬롯과 새 슬롯 모두에 `{"mode":"BYPASS"}`를 보내고, 다시 읽어 `"mode":"BYPASS"`인지 확인한다(`require_deployment_cache_bypass`). 기존 슬롯은 배포 중 재시작되지 않으므로 지난 배포의 4단계가 켠 `NORMAL`이 남아 있다. 새 슬롯의 시작 모드만으로는 공존 중 우회가 보장되지 않는다.
 
-```bash
-curl --fail --silent --show-error --max-time 5 \
-  -H 'Content-Type: application/json' \
-  -d '{"mode":"BYPASS"}' \
-  http://127.0.0.1:8081/actuator/deploymentcache
-```
+한쪽이라도 확인에 실패하면 전환하지 않는다. 스크립트가 실패로 끝나고 기존 ERR 트랩이 기존 경로를 복구한다. 4단계와 달리 정확성 문제라 실패를 삼키지 않는다.
 
-### 2. Green 우회 상태 확인
-
-Green은 시작 인자로 `BYPASS`를 지정한 상태로 기동한다. 관리 포트가 `8091`일 때:
+수동으로 확인할 때(관리 포트 `8081`/`8091`):
 
 ```bash
-curl --fail --silent --show-error --max-time 5 \
-  http://127.0.0.1:8091/actuator/deploymentcache
+for port in 8081 8091; do
+  curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"BYPASS"}' \
+    "http://127.0.0.1:$port/actuator/deploymentcache"
+  curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/actuator/deploymentcache"
+done
 ```
-
-양쪽 모두 HTTP 200과 `"mode":"BYPASS"`인지 확인한다. 한쪽이라도 확인에 실패하면 트래픽 전환을 진행하지 않는다. 명령의 HTTP 성공만 보지 말고 응답 상태도 확인한다.
 
 ### 3. 전환 및 롤백 대기
 
-새 프로세스 준비 확인 후 Nginx를 전환한다. 설계한 롤백 대기 시간(5분) 동안 두 프로세스는 모두 우회를 유지한다. 실패하여 기존 서버로 돌아가는 경우에도 양쪽의 우회 상태를 유지한다.
+새 프로세스 준비 확인 후 Nginx를 전환한다. 롤백 대기 시간(5분) 동안 두 프로세스는 모두 우회를 유지한다. 실패하여 기존 서버로 돌아가는 경우에도 양쪽의 우회 상태를 유지한다. 롤백 뒤 남은 슬롯은 BYPASS로 남고, 30분이 지나면 `cache-bypass` 알람이 울린다.
 
-### 4. 이전 프로세스 종료 확인 후 캐시 복귀
+### 4. 이전 프로세스 종료 확인 후 캐시 복귀 (자동)
 
-기존 서버의 요청 처리가 끝나고 종료된 것을 확인한 뒤, 현재 서비스 중인 Green의 캐시를 켠다.
+> 2026-11-22: 이 단계를 하는 스크립트가 없어 아무도 켜지 않았다. dev는 11/22 09:13 배포 이후, prod는 11/19 10:50 배포 이후 약 3일 동안 BYPASS(generation 0)였다. 그동안 지도 요약·목록 캐시를 모두 건너뛰어 모든 조회가 DB로 갔다. 값은 맞아서 아무도 몰랐다. `cache_gets_total`의 hit·miss가 둘 다 0이었다.
+
+배포와 재부팅 스크립트가 켠다. 공통 함수는 `scripts/deployment-common.sh`의 `enable_deployment_cache_when_alone`이다.
+
+| 경로 | 언제 켜나 | 켜지 않는 경우 |
+| --- | --- | --- |
+| 배포(`validate-and-retain.sh`) | 5분 관찰이 끝나고 이전 서비스를 멈춘 뒤, 릴리스 정리까지 끝나고 롤백 트랩을 해제한 맨 끝 | 이전 서비스가 아직 active(멈추기 실패) |
+| 재부팅(`start-active-slot-on-boot.sh`) | Nginx가 가리키는 슬롯을 띄워 health를 확인하고, 다른 슬롯이 떠 있으면 멈춘 뒤 | 다른 슬롯을 멈추지 못함(스크립트가 실패로 끝난다) |
+
+- 켠 뒤 다시 조회해 `"mode":"NORMAL"`인지 확인한다. HTTP 성공만 보지 않는다.
+- 켜지 못해도 배포는 실패시키지 않는다. 트래픽은 이미 새 슬롯에 있고 캐시는 성능 문제다. 경고 로그에 수동 명령을 남긴다.
+- 롤백 트랩을 해제한 뒤에 켜는 이유: 앞 단계가 실패하면 롤백이 이전 슬롯을 다시 띄운다. 새 슬롯이 이미 NORMAL이면 두 프로세스가 공존하는 동안 캐시가 켜져 있게 된다.
+
+켜지지 않은 것은 지표로 드러난다.
+
+- 지표: `mapmory_deployment_cache_bypass`(BYPASS=1, NORMAL=0, 차원 service·environment)
+- 대시보드: 3번 섹션 "캐시 모드 (BYPASS=1, NORMAL=0)". 배포 중에는 1이고, 끝나면 0으로 내려가야 한다.
+- 알람: `mapmory-<env>-cache-bypass`. 모든 프로세스가 30분 넘게 BYPASS면 울린다(Minimum, 5분 × 6). 지표가 끊긴 것은 `metrics-missing`이 맡는다.
+
+경고가 남았거나 알람이 울리면, 활성 슬롯 하나만 실행 중인지 확인하고 그 슬롯의 관리 포트에서 수동으로 켠다. Green(8090)이 활성이면 `8091`, Blue(8080)가 활성이면 `8081`이다.
 
 ```bash
+systemctl is-active mapmory mapmory-green   # 하나만 active여야 한다
 curl --fail --silent --show-error --max-time 5 \
   -H 'Content-Type: application/json' \
   -d '{"mode":"NORMAL"}' \
   http://127.0.0.1:8091/actuator/deploymentcache
+curl --fail --silent --show-error --max-time 5 \
+  http://127.0.0.1:8091/actuator/deploymentcache   # "mode":"NORMAL" 확인
 ```
 
-롤백하여 기존 서버가 남았다면 `8091` 대신 기존 서버의 관리 포트 `8081`에서 수행한다. 마지막 프로세스가 단독으로 서비스하는지 확인하기 전에는 켜지 않는다. 복귀 명령 실패 시 우회 상태를 유지하고 원인을 확인한다.
+두 서비스가 모두 active면 켜지 않는다. 이전 슬롯을 멈춘 뒤 켠다.
 
 ## 확인한 항목과 남은 검증
 
@@ -157,7 +174,7 @@ curl --fail --silent --show-error --max-time 5 \
 
 실제 개발/운영 환경에서는 캐시를 미리 채운 뒤 전환하고, 통제된 테스트 기록을 수정한 다음 롤백해 최신 목록·지도 결과를 확인해야 한다. 우회 중 DB 부하도 관측한다. 외부 요청 실패 수·실패 구간과 실제 롤백 시작/완료 시각 기록은 별도로 필요하다.
 
-아직 자동 배포 스크립트에 이 순서를 연결하지 않았다. 내부 관리 기능만으로 무중단 배포의 완료 조건이 충족되는 것은 아니다.
+배포·재부팅 스크립트가 1~2단계(전환 전 양쪽 BYPASS 확인)와 4단계(NORMAL 복귀)를 자동으로 한다(2026-11-22). 내부 관리 기능만으로 무중단 배포의 완료 조건이 충족되는 것은 아니다.
 
 ## 참고
 

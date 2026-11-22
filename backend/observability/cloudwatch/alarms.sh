@@ -147,6 +147,14 @@ build_alarms() {
 
   api_5xx_ratio_alarm
 
+  # 슬롯은 BYPASS로 시작하고 배포가 끝나면 스크립트가 NORMAL로 켠다. 30분은 배포 관찰(5분)보다 넉넉하게 잡았다.
+  # Minimum이라 모든 프로세스가 한 기간 내내 BYPASS일 때만 1이다. 배포 중 두 슬롯이 함께 떠 있어도 새 슬롯이 켜지면 0이 된다.
+  # 지표가 끊긴 것은 metrics-missing이 맡으므로 데이터 없음은 정상으로 본다.
+  single_metric_alarm "mapmory-${ENV_NAME}-cache-bypass" \
+    "캐시가 30분 넘게 BYPASS다. 응답은 맞지만 지도·목록 조회가 모두 DB로 간다. 먼저 대시보드 \"캐시 모드 (BYPASS=1, NORMAL=0)\"를 보고, EC2에서 활성 슬롯 관리 포트의 /actuator/deploymentcache로 모드를 확인한 뒤 backend/docs/deployment-cache-control.md 4단계의 수동 명령으로 켠다." \
+    Mapmory/Backend mapmory_deployment_cache_bypass "$(dimensions environment "$ENV_NAME" service "$SERVICE")" \
+    Minimum 300 6 6 GreaterThanOrEqualToThreshold 1 notBreaching
+
   single_metric_alarm "mapmory-${ENV_NAME}-db-connection-pending" \
     "DB 커넥션을 기다리는 요청이 이어진다. 먼저 대시보드 \"DB 커넥션 풀\"의 active·max와 RDS CPU·연결 수, \"내부 작업 p95\"를 본다." \
     Mapmory/Backend hikaricp_connections_pending "$pool_dims" \
@@ -197,7 +205,7 @@ main() {
   while IFS= read -r alarm; do
     alarms+=("$alarm")
   done < <(build_alarms "$instance_id" "$device" "$fstype")
-  ((${#alarms[@]} == 7)) || die "알람 정의를 만들지 못했습니다."
+  ((${#alarms[@]} == 8)) || die "알람 정의를 만들지 못했습니다."
 
   local -a alarm_names=()
   for alarm in "${alarms[@]}"; do

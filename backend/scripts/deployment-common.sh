@@ -224,3 +224,69 @@ wait_for_health() {
   echo "앱 health 확인 실패: $port (${timeout_seconds}s)" >&2
   return 1
 }
+
+# 한 프로세스만 서비스할 때 그 슬롯의 로컬 캐시를 NORMAL로 켠다.
+# 슬롯은 공존 중 옛 캐시를 읽지 않도록 BYPASS로 시작한다(/etc/mapmory-deployment-cache.env).
+# 다른 슬롯 서비스가 아직 active면 켜지 않는다. 두 JVM은 캐시를 공유하지 않아 서로의 수정을 무효화하지 못한다.
+# 실패해도 0을 돌려준다. 트래픽은 이미 이 슬롯에 있고 캐시는 성능 문제라 배포·부팅을 실패시키지 않는다.
+# 대신 경고를 남기고, 캐시 모드 지표(mapmory_deployment_cache_bypass)와 cache-bypass 알람이 드러낸다.
+#   enable_deployment_cache_when_alone <앱 포트> <다른 슬롯의 서비스 이름>
+enable_deployment_cache_when_alone() {
+  local app_port=$1
+  local other_service=$2
+  local management_port url state
+  if ! management_port=$(management_port_for_app_port "$app_port"); then
+    echo "경고: 캐시를 켤 관리 포트를 정하지 못해 BYPASS로 둡니다: $app_port" >&2
+    return 0
+  fi
+  url="http://127.0.0.1:$management_port/actuator/deploymentcache"
+  local manual="curl -H 'Content-Type: application/json' -d '{\"mode\":\"NORMAL\"}' $url"
+
+  if systemctl is-active --quiet "$other_service"; then
+    echo "경고: $other_service가 아직 실행 중이라 캐시를 BYPASS로 둡니다. 그 서비스를 멈춘 뒤 수동으로 켭니다: $manual" >&2
+    return 0
+  fi
+
+  if ! curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"NORMAL"}' "$url" >/dev/null; then
+    echo "경고: 캐시 NORMAL 전환 요청이 실패해 BYPASS로 둡니다. 원인을 확인하고 수동으로 켭니다: $manual" >&2
+    return 0
+  fi
+
+  # HTTP 성공만 보지 않고 실제 모드를 다시 읽어 확인한다.
+  if ! state=$(curl --fail --silent --show-error --max-time 5 "$url"); then
+    echo "경고: 캐시 모드를 다시 읽지 못했습니다. 수동으로 확인합니다: curl $url" >&2
+    return 0
+  fi
+  if ! grep -Eq '"mode"[[:space:]]*:[[:space:]]*"NORMAL"' <<< "$state"; then
+    echo "경고: NORMAL 전환을 요청했지만 모드가 바뀌지 않았습니다: $state" >&2
+    return 0
+  fi
+  echo "캐시 모드 NORMAL 확인: $app_port"
+}
+
+# 트래픽을 넘기기 전에 슬롯의 캐시를 BYPASS로 두고 다시 읽어 확인한다. 같은 모드 요청은 멱등이다.
+# 기존 슬롯은 배포 중 재시작되지 않아, 지난 배포가 켠 NORMAL이 남아 있다. 그대로 두면 전환 직후 기존 슬롯이 마저
+# 처리하는 요청과 롤백 뒤의 요청이 새 슬롯의 수정이 반영되지 않은 옛 캐시를 읽는다.
+# NORMAL로 켤 때와 달리 정확성 문제라 실패를 삼키지 않는다. 0이 아니면 전환하지 않는다(런북 2단계).
+#   require_deployment_cache_bypass <앱 포트>
+require_deployment_cache_bypass() {
+  local app_port=$1
+  local management_port url state
+  management_port=$(management_port_for_app_port "$app_port") || return 1
+  url="http://127.0.0.1:$management_port/actuator/deploymentcache"
+  if ! curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"BYPASS"}' "$url" >/dev/null; then
+    echo "캐시를 BYPASS로 바꾸지 못했습니다: $app_port" >&2
+    return 1
+  fi
+  if ! state=$(curl --fail --silent --show-error --max-time 5 "$url"); then
+    echo "캐시 모드를 다시 읽지 못했습니다: $app_port" >&2
+    return 1
+  fi
+  if ! grep -Eq '"mode"[[:space:]]*:[[:space:]]*"BYPASS"' <<< "$state"; then
+    echo "캐시가 BYPASS가 아닙니다: $app_port $state" >&2
+    return 1
+  fi
+  echo "캐시 모드 BYPASS 확인: $app_port"
+}
