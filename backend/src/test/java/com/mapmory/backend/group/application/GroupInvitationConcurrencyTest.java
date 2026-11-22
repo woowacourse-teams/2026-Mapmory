@@ -11,6 +11,7 @@ import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.zaxxer.hikari.HikariDataSource;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -46,7 +48,7 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private HikariDataSource dataSource;
+    private DataSource dataSource;
 
     @Test
     void 동시에_수락해도_서른_명을_넘지_않는다() throws Exception {
@@ -59,7 +61,7 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
         jdbcTemplate.update("UPDATE travel_group SET member_count = 28 WHERE id = ?", group.getId());
         GroupInvitation invitation = groupInvitationService.create(owner.getId(), group.getId());
         List<Long> joiners = new ArrayList<>();
-        for (int i = 0; i < dataSource.getMaximumPoolSize(); i++) {
+        for (int i = 0; i < maximumPoolSize(); i++) {
             joiners.add(socialMember().getId());
         }
 
@@ -125,5 +127,10 @@ class GroupInvitationConcurrencyTest extends IntegrationTest {
     private Member socialMember() {
         return memberRepository.save(
                 Member.ofOAuth(AuthProvider.KAKAO, UUID.randomUUID().toString(), "회원", UUID.randomUUID()));
+    }
+
+    // DataSource는 요청별 SQL 계측(ADR 0032)으로 감싸져 있어 풀 설정은 안쪽 HikariDataSource에서 읽는다.
+    private int maximumPoolSize() throws SQLException {
+        return dataSource.unwrap(HikariDataSource.class).getMaximumPoolSize();
     }
 }

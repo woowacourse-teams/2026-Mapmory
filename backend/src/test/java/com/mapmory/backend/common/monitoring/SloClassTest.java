@@ -2,6 +2,8 @@ package com.mapmory.backend.common.monitoring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -39,5 +41,14 @@ class SloClassTest {
     })
     void 경로_패턴과_메서드로_slo_class를_정한다(String method, String uriPattern, SloClass expected) {
         assertThat(SloClass.of(method, uriPattern)).isEqualTo(expected);
+    }
+
+    // 느린 요청 로그(ADR 0032)가 이 값을 기준으로 쓴다. ADR 0031 표와 같아야 한다.
+    @Test
+    void 지연_기준은_ADR_0031의_SLO와_같다() {
+        assertThat(SloClass.READ.latencyObjective()).isEqualTo(Duration.ofMillis(300));
+        assertThat(SloClass.WRITE.latencyObjective()).isEqualTo(Duration.ofSeconds(2));
+        assertThat(SloClass.AUTH.latencyObjective()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(SloClass.OTHER.latencyObjective()).isEqualTo(Duration.ofSeconds(1));
     }
 }

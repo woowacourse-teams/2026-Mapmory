@@ -14,5 +14,28 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
 
+  # 쿼리 분석용 MySQL. 평소 개발 DB(db)와 따로 띄운다: docker compose --profile analysis up -d db-analysis
+  # RDS(db.t4g.micro)와 같은 버전·버퍼 풀 크기로 두고, RDS에서는 꺼져 있는 performance_schema만 켠다.
+  # 쓰는 법은 docs/db-query-analysis.md.
+  db-analysis:
+    profiles: ["analysis"]
+    image: mysql:8.4.10
+    container_name: mapmory-analysis-db
+    environment:
+      MYSQL_DATABASE: mapmory
+      MYSQL_ROOT_PASSWORD: local
+    ports:
+      - "3307:3306"
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+      --default-time-zone=+00:00
+      --performance-schema=ON
+      --innodb-buffer-pool-size=128M
+      --max-connections=60
+    volumes:
+      - mysql-analysis-data:/var/lib/mysql
+
 volumes:
   mysql-data:
+  mysql-analysis-data:

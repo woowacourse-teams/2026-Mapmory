@@ -254,6 +254,21 @@ logging:
     org.flywaydb: debug
     org.springframework.boot.autoconfigure: debug
 
+monitoring:
+  # 느린 요청·느린 쿼리 로그(SLOW_REQUEST, SLOW_QUERY)의 기준이다(ADR 0032). 고쳐야 하는 기준(SLO, ADR 0031)이 아니라 로그를 남기는 기준이다.
+  # 측정할 때는 /etc/mapmory.env에 환경변수를 넣고 재시작해 0까지 낮추고, 끝나면 지운다.
+  db:
+    # dev·prod 모두 켠다. false면 DataSource를 감싸지 않고 두 로그도 남기지 않는다. 계측 때문에 문제가 생기면 재배포 없이 재시작으로 뺀다.
+    enabled: ${DB_MONITORING_ENABLED:true}
+  slow-request:
+    # 비우면 요청마다 SLO 기준(조회 300ms·저장 2s·인증 1s·그 밖 1s, SloClass)을 넘을 때 남긴다. 0ms면 모든 요청을 남긴다.
+    latency-threshold: ${SLOW_REQUEST_LATENCY_THRESHOLD:}
+    # 요청 하나의 SQL 실행 수가 이 값을 넘어도 남긴다. 0이면 쓰지 않는다. API별 평소 쿼리 수를 dev에서 잰 뒤 정한다.
+    query-count-threshold: ${SLOW_REQUEST_QUERY_COUNT_THRESHOLD:0}
+  slow-query:
+    # SQL 하나가 이 시간을 넘으면 남긴다. 조회 SLO 300ms의 1/3이다. 지금 조회 API 평균이 11~30ms라 100ms짜리 SQL은 비정상이다.
+    threshold: ${SLOW_QUERY_THRESHOLD:100ms}
+
 management:
   endpoints:
     access:
