@@ -20,8 +20,11 @@
         "title": "Alarm Status (${ENV})",
         "alarms": [
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-metrics-missing",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-count",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-ratio",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-rate",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-read-latency",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-write-latency",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-application-error",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-cache-bypass",
           "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-db-connection-pending",
@@ -408,8 +411,8 @@
         "metrics": [
           [
             {
-              "expression": "IF((FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)) >= 10, 100 * FILL(m3, 0) / (FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)), 0)",
-              "label": "5xx 비율 (%, 알람과 같은 식)",
+              "expression": "IF((FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)) >= 30, 100 * FILL(m3, 0) / (FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)), 0)",
+              "label": "5xx 비율 (%, 1시간, 알람과 같은 식)",
               "id": "e1",
               "region": "ap-northeast-2"
             }
@@ -427,7 +430,7 @@
               "id": "m1",
               "visible": false,
               "stat": "Sum",
-              "period": 60,
+              "period": 3600,
               "region": "ap-northeast-2"
             }
           ],
@@ -444,7 +447,7 @@
               "id": "m2",
               "visible": false,
               "stat": "Sum",
-              "period": 60,
+              "period": 3600,
               "region": "ap-northeast-2"
             }
           ],
@@ -461,7 +464,7 @@
               "id": "m3",
               "visible": false,
               "stat": "Sum",
-              "period": 60,
+              "period": 3600,
               "region": "ap-northeast-2"
             }
           ]
@@ -470,7 +473,7 @@
         "stacked": false,
         "region": "ap-northeast-2",
         "title": "5xx 비율 (%)",
-        "period": 60,
+        "period": 3600,
         "stat": "Sum",
         "yAxis": {
           "left": {

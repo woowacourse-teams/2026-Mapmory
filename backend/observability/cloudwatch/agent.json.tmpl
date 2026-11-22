@@ -62,7 +62,7 @@
             },
             {
               "source_labels": ["job", "uri"],
-              "label_matcher": "^mapmory;/api/v1/.*$",
+              "label_matcher": "^mapmory;/api/v[0-9]+/.*$",
               "dimensions": [
                 ["service", "environment", "method", "uri"],
                 ["service", "environment", "outcome"],
