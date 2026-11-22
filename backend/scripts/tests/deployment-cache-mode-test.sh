@@ -2,7 +2,7 @@
 # 배포 캐시 모드를 바꾸는 두 함수와 부팅 스크립트를 가짜 curl·systemctl로 확인한다.
 #   enable_deployment_cache_when_alone: 배포·부팅 뒤 단독 슬롯을 NORMAL로 켠다. 실패해도 0.
 #   require_deployment_cache_bypass: 트래픽 전환 전 슬롯을 BYPASS로 둔다. 실패하면 0이 아니다.
-# 실행: backend/scripts/tests/deployment-cache-normal-test.sh
+# 실행: backend/scripts/tests/deployment-cache-mode-test.sh
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
