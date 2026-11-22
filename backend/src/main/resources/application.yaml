@@ -257,6 +257,9 @@ logging:
 monitoring:
   # 느린 요청·느린 쿼리 로그(SLOW_REQUEST, SLOW_QUERY)의 기준이다(ADR 0032). 고쳐야 하는 기준(SLO, ADR 0031)이 아니라 로그를 남기는 기준이다.
   # 측정할 때는 /etc/mapmory.env에 환경변수를 넣고 재시작해 0까지 낮추고, 끝나면 지운다.
+  db:
+    # dev·prod 모두 켠다. false면 DataSource를 감싸지 않고 두 로그도 남기지 않는다. 계측 때문에 문제가 생기면 재배포 없이 재시작으로 뺀다.
+    enabled: ${DB_MONITORING_ENABLED:true}
   slow-request:
     # 비우면 요청마다 SLO 기준(조회 300ms·저장 2s·인증 1s·그 밖 1s, SloClass)을 넘을 때 남긴다. 0ms면 모든 요청을 남긴다.
     latency-threshold: ${SLOW_REQUEST_LATENCY_THRESHOLD:}

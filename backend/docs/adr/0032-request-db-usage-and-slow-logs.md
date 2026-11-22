@@ -103,6 +103,18 @@ DB 쪽 도구도 쓰기 어렵다. dev·prod RDS는 같은 사양이다.
   - 느린 쿼리 로그는 SQL을 값까지 그대로 남긴다.
   - 단일 AZ라 재부팅하는 동안 서비스가 멈춘다.
 
+### 7. dev·prod 모두 켜고, 설정 하나로 뺄 수 있게 한다
+
+- 계측은 dev·prod 모두 항상 돈다. 측정할 때만 dev에서 로그 기준을 0으로 낮추고, prod는 기준(SLO·100ms)을 넘은 것만 남긴다.
+  - SLOW_REQUEST가 원인을 가르는 데 쓰이는 곳은 prod다. dev에서만 켜면 prod에서 느린 요청이 났을 때 가를 숫자가 없다.
+- 운영의 모든 SQL이 지나는 길에 끼우는 코드라, 재배포 없이 뺄 수 있어야 한다.
+  - `monitoring.db.enabled`(`DB_MONITORING_ENABLED`, 기본 `true`)가 `false`면 설정 전체가 빠진다. DataSource를 감싸지 않고 두 로그도 남기지 않는다.
+  - `/etc/mapmory.env`에 `DB_MONITORING_ENABLED=false`를 넣고 재시작하면 된다. 값을 비우면 켜진 것으로 본다.
+- 계측 코드의 예외는 업무 SQL·요청으로 올리지 않는다.
+  - datasource-proxy는 리스너의 예외를 잡지 않고 SQL을 실행한 쪽으로 던진다. `afterQuery`는 `finally`에서 불려 SQL의 원래 예외까지 가린다.
+  - Observation 핸들러의 예외는 요청을 처리하는 필터로 올라간다.
+  - 그래서 리스너와 핸들러에서 잡고 `event=DB_MONITORING_FAILED`를 WARN으로 남긴다. WARN이라 알림에 잡힌다. 계속 나면 위 설정으로 빼고 고친다.
+
 ## 고려한 대안
 
 - **RDS에서 `performance_schema`·느린 쿼리 로그를 켠다**: 파라미터 그룹을 새로 만들고 재부팅해야 한다. 1GB 인스턴스에서 메모리를 더 쓴다. 느린 쿼리 로그에는 SQL이 값까지 남는다. 요청과 이을 수도 없다(requestId가 없다). dev에서 필요할 때만 선택으로 켠다.
@@ -113,6 +125,7 @@ DB 쪽 도구도 쓰기 어렵다. dev·prod RDS는 같은 사양이다.
 - 느린 요청이 SQL을 많이 실행해서인지(`dbQueryCount`), DB에서 오래 걸려서인지(`dbTimeMs`), DB 밖이 느려서인지(`dbTimeMs ÷ latencyMs`가 낮음) 로그 한 줄로 가를 수 있다.
 - 평소에는 SLO를 넘은 요청과 100ms를 넘은 SQL만 남아 로그가 거의 늘지 않는다.
 - DataSource를 감싸는 비용이 실행마다 붙는다. 로컬에서 잰 차이는 PR에 적는다.
+- 계측이 실패해도 SQL과 요청은 그대로 진행하고, 계측을 재시작만으로 뺄 수 있다(7절).
 - DataSource 빈의 실제 타입이 `ProxyDataSource`가 된다. `HikariDataSource`로 주입받으면 기동이 실패하므로, 풀 설정이 필요하면 `DataSource`로 받아 `unwrap(HikariDataSource.class)`한다.
 
 ## 할 일

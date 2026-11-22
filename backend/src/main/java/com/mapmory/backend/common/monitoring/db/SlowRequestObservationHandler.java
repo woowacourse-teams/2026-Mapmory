@@ -18,6 +18,9 @@ import org.springframework.http.server.observation.ServerRequestObservationConte
  * 원본 경로가 아니라 경로 패턴이다(초대 토큰이 남지 않는다).
  *
  * <p>요청 ID는 MDC(RequestIdFilter)로 로그에 붙는다. 서버 요청 Observation 필터가 RequestIdFilter 안쪽에서 돌기 때문이다.
+ *
+ * <p>Observation 핸들러의 예외는 요청을 처리하는 필터로 올라간다. 계측 때문에 요청이 실패하면 안 되므로 여기서 잡고 경고만 남긴다.
+ * 끝날 때는 무엇이 실패하든 스레드의 {@link RequestDbUsage}부터 지운다.
  */
 public class SlowRequestObservationHandler implements ObservationHandler<ServerRequestObservationContext> {
 
@@ -35,7 +38,11 @@ public class SlowRequestObservationHandler implements ObservationHandler<ServerR
 
     @Override
     public void onStart(ServerRequestObservationContext context) {
-        context.put(USAGE, RequestDbUsage.start(context, nanoTime.getAsLong()));
+        try {
+            context.put(USAGE, RequestDbUsage.start(context, nanoTime.getAsLong()));
+        } catch (RuntimeException exception) {
+            DbMonitoringFailure.warn(log, "onStart", exception);
+        }
     }
 
     @Override
@@ -45,6 +52,14 @@ public class SlowRequestObservationHandler implements ObservationHandler<ServerR
             return;
         }
         usage.finish();
+        try {
+            logIfSlow(context, usage);
+        } catch (RuntimeException exception) {
+            DbMonitoringFailure.warn(log, "onStop", exception);
+        }
+    }
+
+    private void logIfSlow(ServerRequestObservationContext context, RequestDbUsage usage) {
         long latencyNanos = nanoTime.getAsLong() - usage.startNanos();
         String method = value(context, "method");
         String uri = value(context, "uri");

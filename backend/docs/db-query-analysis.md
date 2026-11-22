@@ -39,6 +39,7 @@
 
 | 설정 | 환경변수 | 기본 | 0이면 |
 |---|---|---|---|
+| `monitoring.db.enabled` | `DB_MONITORING_ENABLED` | true (dev·prod 모두) | `false`면 계측 전체를 뺀다(DataSource를 감싸지 않고 두 로그도 없음) |
 | `monitoring.slow-request.latency-threshold` | `SLOW_REQUEST_LATENCY_THRESHOLD` | 비움 = 요청의 SLO 기준(read 300ms·write 2s·auth 1s·other 1s) | 모든 요청을 남긴다 |
 | `monitoring.slow-request.query-count-threshold` | `SLOW_REQUEST_QUERY_COUNT_THRESHOLD` | 0 | 쓰지 않는다 |
 | `monitoring.slow-query.threshold` | `SLOW_QUERY_THRESHOLD` | 100ms | 모든 SQL을 남긴다 |
@@ -57,6 +58,10 @@
 5. 끝나면 그 줄을 지우고 다시 재시작한다. 기준이 SLO로 돌아온다.
 
 prod에서는 기준을 낮추지 않는다. 요청마다 한 줄씩 남아 로그가 크게 는다.
+
+### 계측 빼기
+
+`event=DB_MONITORING_FAILED` WARN이 계속 나거나 계측 때문에 문제가 의심되면, `/etc/mapmory.env`에 `DB_MONITORING_ENABLED=false`를 넣고 트래픽을 받는 슬롯을 재시작한다. 재배포는 필요 없다. 고친 뒤 그 줄을 지우고 다시 재시작한다.
 
 ### CloudWatch Logs Insights
 

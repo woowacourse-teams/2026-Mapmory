@@ -1,6 +1,7 @@
 package com.mapmory.backend.common.monitoring.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,7 +24,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
@@ -212,14 +215,76 @@ class RequestDbUsageTest {
                 assertThat(fields).containsEntry("uri", "UNKNOWN"));
     }
 
+    // 계측이 실패해도 업무 SQL은 실행돼야 한다. 가짜 SQL은 걸린 시간만큼 시계를 돌리므로, 시계가 7ms 갔으면 SQL이 실행된 것이다.
+    @Test
+    void SQL_리스너가_실패해도_SQL은_실행되고_요청은_끝난다() throws SQLException {
+        configure(new DbMonitoringProperties.SlowRequest(Duration.ZERO, 0), new DbMonitoringProperties.SlowQuery(null),
+                nanoTime::get, failingAfter(0));
+
+        assertThatCode(() -> request("GET", LIST, LIST, () -> query("select id from travel_record", 7)))
+                .doesNotThrowAnyException();
+
+        assertThat(nanoTime.get()).isEqualTo(TimeUnit.MILLISECONDS.toNanos(7));
+        assertThat(fieldsOf(DbMonitoringFailure.EVENT))
+                .extracting(fields -> fields.get("stage"))
+                .containsExactly("beforeQuery", "afterQuery");
+        assertThat(slowRequests()).singleElement().satisfies(fields ->
+                assertThat(fields).containsEntry("dbQueryCount", 0));
+    }
+
+    @Test
+    void 요청_시작에서_계측이_실패해도_요청과_SQL은_그대로다() throws SQLException {
+        configure(new DbMonitoringProperties.SlowRequest(Duration.ZERO, 0), new DbMonitoringProperties.SlowQuery(null),
+                failingAfter(0), nanoTime::get);
+
+        assertThatCode(() -> request("GET", LIST, LIST, () -> query("select id from travel_record", 7)))
+                .doesNotThrowAnyException();
+
+        assertThat(nanoTime.get()).isEqualTo(TimeUnit.MILLISECONDS.toNanos(7));
+        assertThat(fieldsOf(DbMonitoringFailure.EVENT))
+                .extracting(fields -> fields.get("stage"))
+                .containsExactly("onStart");
+        assertThat(RequestDbUsage.current()).isNull();
+    }
+
+    @Test
+    void 요청_끝에서_계측이_실패해도_요청은_끝나고_스레드의_값은_지워진다() throws SQLException {
+        configure(new DbMonitoringProperties.SlowRequest(Duration.ZERO, 0), new DbMonitoringProperties.SlowQuery(null),
+                failingAfter(1), nanoTime::get);
+
+        assertThatCode(() -> request("GET", LIST, LIST, () -> query("select id from travel_record", 7)))
+                .doesNotThrowAnyException();
+
+        assertThat(fieldsOf(DbMonitoringFailure.EVENT))
+                .extracting(fields -> fields.get("stage"))
+                .containsExactly("onStop");
+        assertThat(RequestDbUsage.current()).isNull();
+    }
+
     private void configure(DbMonitoringProperties.SlowRequest slowRequest, DbMonitoringProperties.SlowQuery slowQuery)
             throws SQLException {
+        configure(slowRequest, slowQuery, nanoTime::get, nanoTime::get);
+    }
+
+    private void configure(DbMonitoringProperties.SlowRequest slowRequest, DbMonitoringProperties.SlowQuery slowQuery,
+            LongSupplier requestClock, LongSupplier queryClock) throws SQLException {
         observationRegistry = ObservationRegistry.create();
         observationRegistry.observationConfig()
-                .observationHandler(new SlowRequestObservationHandler(slowRequest, nanoTime::get));
+                .observationHandler(new SlowRequestObservationHandler(slowRequest, requestClock));
         dataSource = ProxyDataSourceBuilder.create(fakeDataSource())
-                .listener(new RequestDbUsageListener(slowQuery, nanoTime::get))
+                .listener(new RequestDbUsageListener(slowQuery, queryClock))
                 .build();
+    }
+
+    // 처음 calls번은 가짜 시계 값을 돌려주고, 그 뒤로는 계측 코드의 버그처럼 예외를 던진다.
+    private LongSupplier failingAfter(int calls) {
+        AtomicInteger count = new AtomicInteger();
+        return () -> {
+            if (count.getAndIncrement() < calls) {
+                return nanoTime.get();
+            }
+            throw new IllegalStateException("broken clock");
+        };
     }
 
     // executeQuery 한 번이 statement.setLong으로 받은 값(ms)만큼 걸린 것처럼 시계를 돌린다.

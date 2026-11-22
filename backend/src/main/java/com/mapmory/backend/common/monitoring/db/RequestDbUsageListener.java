@@ -17,6 +17,9 @@ import org.slf4j.LoggerFactory;
  * (Hikari 지표 {@code hikaricp_connections_acquire}가 따로 잰다).
  *
  * <p>SQL 하나가 기준을 넘으면 SLOW_QUERY를 남긴다. SQL 원문과 파라미터는 남기지 않고 종류와 테이블만 남긴다({@link SqlSummary}).
+ *
+ * <p>datasource-proxy는 리스너의 예외를 잡지 않고 SQL을 실행한 쪽으로 던진다({@code afterQuery}는 {@code finally}에서 불려 SQL의
+ * 원래 예외까지 가린다). 계측 때문에 업무 SQL이 실패하면 안 되므로 여기서 잡고 경고만 남긴다.
  */
 public class RequestDbUsageListener implements QueryExecutionListener {
 
@@ -32,14 +35,26 @@ public class RequestDbUsageListener implements QueryExecutionListener {
 
     @Override
     public void beforeQuery(ExecutionInfo execInfo, List<QueryInfo> queryInfoList) {
-        RequestDbUsage usage = RequestDbUsage.current();
-        if (usage != null) {
-            usage.queryStarted(nanoTime.getAsLong());
+        try {
+            RequestDbUsage usage = RequestDbUsage.current();
+            if (usage != null) {
+                usage.queryStarted(nanoTime.getAsLong());
+            }
+        } catch (RuntimeException exception) {
+            DbMonitoringFailure.warn(log, "beforeQuery", exception);
         }
     }
 
     @Override
     public void afterQuery(ExecutionInfo execInfo, List<QueryInfo> queryInfoList) {
+        try {
+            recordFinished(queryInfoList);
+        } catch (RuntimeException exception) {
+            DbMonitoringFailure.warn(log, "afterQuery", exception);
+        }
+    }
+
+    private void recordFinished(List<QueryInfo> queryInfoList) {
         RequestDbUsage usage = RequestDbUsage.current();
         if (usage == null) {
             return;
