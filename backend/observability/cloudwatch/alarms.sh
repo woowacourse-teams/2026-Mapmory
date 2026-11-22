@@ -19,6 +19,20 @@ EC2_MEMORY_CONDITION=(Average 300 3 3 GreaterThanOrEqualToThreshold 85 missing)
 EC2_DISK_CONDITION=(Average 300 3 3 GreaterThanOrEqualToThreshold 80 missing)
 EC2_STATUS_CHECK_CONDITION=(Maximum 300 1 1 GreaterThanOrEqualToThreshold 1 breaching)
 
+# SLO 알람 기준(ADR 0031 3절). 숫자를 바꾸면 ADR 표도 함께 고친다.
+# 판단 구간은 슬라이딩이다. 매분 지난 구간 전체를 다시 본다(1시간 알람은 매분 최근 60분).
+SLO_5XX_COUNT_WINDOW=600          # 5xx 건수: 10분 동안
+SLO_5XX_COUNT_MIN=3               #   3건 이상
+SLO_RATIO_WINDOW=3600             # 비율 알람: 1시간 동안
+SLO_5XX_RATIO_MIN_REQUESTS=30     # 5xx 비율: 요청 30건 이상일 때만
+SLO_5XX_RATIO_PERCENT=5           #   5% 초과(허용 0.5%의 소진 속도 10)
+SLO_READ_LE=0.3                   # 조회 지연: 0.3초(SLO 카운터의 le 값)
+SLO_READ_MIN_REQUESTS=30          #   성공 요청 30건 이상일 때만
+SLO_READ_SLOW_PERCENT=5           #   기준을 넘긴 비율 5% 초과
+SLO_WRITE_LE=2                    # 저장 지연: 2초
+SLO_WRITE_MIN_REQUESTS=10         #   성공 요청 10건 이상일 때만
+SLO_WRITE_SLOW_PERCENT=10         #   기준을 넘긴 비율 10% 초과
+
 UNMANAGED_ALARMS=(application-error api-5xx-rate rds-free-storage-low)
 
 ACTIONS_JSON=""
@@ -59,6 +73,9 @@ dimensions() {
   jq -nc '$ARGS.positional as $a | [range(0; $a | length; 2) as $i | {Name: $a[$i], Value: $a[$i + 1]}]' --args "$@"
 }
 
+# 알람 설명은 [깨움] 또는 [참고]로 시작한다(ADR 0031 3절). 알림 채널은 아직 하나라서, 사람을 깨워야 하는 알람인지는 이 표시로만 구분한다.
+#   [깨움]: 증상(서비스가 안 되거나 사용자가 오류를 본다). [참고]: 오류 예산이 새는 신호나 원인.
+
 # 지표 하나로 판단하는 알람. 경보와 정상 모두 같은 SNS로 알린다.
 # single_metric_alarm 이름 설명 네임스페이스 지표 차원JSON 통계 기간 평가 필요 비교 임계값 데이터없음
 single_metric_alarm() {
@@ -96,10 +113,16 @@ ec2_alarm() {
   single_metric_alarm "$name" "$description" "$namespace" "$metric" "$dims" "$@"
 }
 
+# 최근 1시간 5xx 비율. 기존 알람은 분당 10건 이상일 때만 계산해, 평균 분당 0.5건인 prod에서는 사실상 울릴 수 없었다.
+# 이름은 그대로 둔다. 대시보드·Discord 안내 문구가 이 이름을 가리키고, 알람 기록도 이어진다.
+# 분모는 http_server_requests_seconds_count의 outcome 차원(SUCCESS·CLIENT_ERROR·SERVER_ERROR, /api/v1)이다.
+# SLO 카운터로 전체 요청을 만들면 slo_class 4 × outcome 3 = 지표 12개라 알람의 10개 한도를 넘는다.
 api_5xx_ratio_alarm() {
   local dims_base
   dims_base=$(dimensions environment "$ENV_NAME" service "$SERVICE")
-  jq -nc --arg env "$ENV_NAME" --argjson base "$dims_base" --argjson actions "$ACTIONS_JSON" '
+  jq -nc --arg env "$ENV_NAME" --argjson base "$dims_base" --argjson actions "$ACTIONS_JSON" \
+    --argjson window "$SLO_RATIO_WINDOW" --argjson min "$SLO_5XX_RATIO_MIN_REQUESTS" \
+    --argjson percent "$SLO_5XX_RATIO_PERCENT" '
     def outcome($id; $outcome):
       {
         Id: $id,
@@ -109,14 +132,14 @@ api_5xx_ratio_alarm() {
             MetricName: "http_server_requests_seconds_count",
             Dimensions: ($base + [{Name: "outcome", Value: $outcome}])
           },
-          Period: 60,
+          Period: $window,
           Stat: "Sum"
         },
         ReturnData: false
       };
     {
       AlarmName: "mapmory-\($env)-api-5xx-ratio",
-      AlarmDescription: "5xx가 요청의 5%를 넘는다(분당 10건 이상일 때만 판단). 먼저 대시보드 \"버전별 5xx (분당)\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR — event별 건수\"에서 errorCode를 본다.",
+      AlarmDescription: "[참고] 최근 1시간 5xx가 요청의 \($percent)%를 넘는다(요청 \($min)건 이상일 때만, 오류 예산 소진 속도 10). 먼저 대시보드 \"버전별 5xx (분당)\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR — event별 건수\"에서 errorCode를 본다.",
       ActionsEnabled: true,
       AlarmActions: $actions,
       OKActions: $actions,
@@ -126,12 +149,57 @@ api_5xx_ratio_alarm() {
         outcome("m2"; "CLIENT_ERROR"),
         outcome("m3"; "SERVER_ERROR"),
         {Id: "total", Expression: "FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)", Label: "요청 수", ReturnData: false},
-        {Id: "ratio", Expression: "IF(total >= 10, 100 * FILL(m3, 0) / total, 0)", Label: "5xx 비율 (%)", ReturnData: true}
+        {Id: "ratio", Expression: "IF(total >= \($min), 100 * FILL(m3, 0) / total, 0)", Label: "5xx 비율 (%)", ReturnData: true}
       ],
-      EvaluationPeriods: 5,
-      DatapointsToAlarm: 3,
+      EvaluationPeriods: 1,
+      DatapointsToAlarm: 1,
       ComparisonOperator: "GreaterThanThreshold",
-      Threshold: 5,
+      Threshold: $percent,
+      TreatMissingData: "notBreaching"
+    }'
+}
+
+# 지연 SLO 알람: 최근 1시간 성공 요청 중 기준 시간을 넘긴 비율.
+# SLO 카운터는 누적 le라, 기준 안에 끝난 수는 Sum(le=기준), 전체는 Sum(le=+Inf)다. 넘긴 비율 = 1 - 둘의 비.
+# 성공(SUCCESS)만 센다. 실패는 5xx 알람이 맡는다(ADR 0031 1절).
+# 기동할 때 read·write 카운터를 0으로 미리 만들므로 요청이 없어도 0이 들어온다. 그때는 최소 건수 미만이라 0이다.
+# latency_slo_alarm 이름 설명 slo_class le 최소_요청 기준_비율
+latency_slo_alarm() {
+  local dims_base
+  dims_base=$(dimensions environment "$ENV_NAME" service "$SERVICE" slo_class "$3" outcome SUCCESS)
+  jq -nc --arg name "$1" --arg description "$2" --argjson base "$dims_base" --arg le "$4" \
+    --argjson min "$5" --argjson percent "$6" --argjson window "$SLO_RATIO_WINDOW" --argjson actions "$ACTIONS_JSON" '
+    def counter($id; $le):
+      {
+        Id: $id,
+        MetricStat: {
+          Metric: {
+            Namespace: "Mapmory/Backend",
+            MetricName: "http_server_requests_slo_total",
+            Dimensions: ($base + [{Name: "le", Value: $le}])
+          },
+          Period: $window,
+          Stat: "Sum"
+        },
+        ReturnData: false
+      };
+    {
+      AlarmName: $name,
+      AlarmDescription: $description,
+      ActionsEnabled: true,
+      AlarmActions: $actions,
+      OKActions: $actions,
+      InsufficientDataActions: [],
+      Metrics: [
+        counter("fast"; $le),
+        counter("all"; "+Inf"),
+        {Id: "total", Expression: "FILL(all, 0)", Label: "성공 요청 수", ReturnData: false},
+        {Id: "slow", Expression: "IF(total >= \($min), 100 * (total - FILL(fast, 0)) / total, 0)", Label: "기준을 넘긴 비율 (%)", ReturnData: true}
+      ],
+      EvaluationPeriods: 1,
+      DatapointsToAlarm: 1,
+      ComparisonOperator: "GreaterThanThreshold",
+      Threshold: $percent,
       TreatMissingData: "notBreaching"
     }'
 }
@@ -141,40 +209,54 @@ build_alarms() {
   pool_dims=$(dimensions environment "$ENV_NAME" service "$SERVICE" pool HikariPool-1)
 
   single_metric_alarm "mapmory-${ENV_NAME}-metrics-missing" \
-    "앱 지표가 10분 넘게 들어오지 않는다. 먼저 EC2에서 amazon-cloudwatch-agent 상태와 활성 슬롯의 /actuator/prometheus 응답을 본다." \
+    "[깨움] 앱 지표가 10분 넘게 들어오지 않는다. 먼저 EC2에서 amazon-cloudwatch-agent 상태와 활성 슬롯의 /actuator/prometheus 응답을 본다." \
     Mapmory/Backend hikaricp_connections_max "$pool_dims" \
     SampleCount 300 2 2 LessThanThreshold 1 breaching
 
+  single_metric_alarm "mapmory-${ENV_NAME}-api-5xx-count" \
+    "[깨움] 최근 10분 5xx가 ${SLO_5XX_COUNT_MIN}건 이상이다. 저트래픽이라 비율 대신 건수로 본다. 먼저 대시보드 \"버전별 5xx (분당)\"로 배포 직후인지 보고, 로그 위젯 \"WARN / ERROR — event별 건수\"에서 errorCode를 본다." \
+    Mapmory/Backend http_server_requests_seconds_count \
+    "$(dimensions environment "$ENV_NAME" service "$SERVICE" outcome SERVER_ERROR)" \
+    Sum "$SLO_5XX_COUNT_WINDOW" 1 1 GreaterThanOrEqualToThreshold "$SLO_5XX_COUNT_MIN" notBreaching
+
   api_5xx_ratio_alarm
+
+  latency_slo_alarm "mapmory-${ENV_NAME}-api-read-latency" \
+    "[참고] 최근 1시간 조회 API(지도 요약·목록·상세·Presigned URL) 성공 요청 중 ${SLO_READ_LE}초를 넘긴 비율이 ${SLO_READ_SLOW_PERCENT}%를 넘는다(${SLO_READ_MIN_REQUESTS}건 이상일 때만). 먼저 대시보드 \"Map & Upload API p95\"와 \"Travel Record API p95\"에서 어느 API인지 보고, \"DB 커넥션 풀\"과 \"RDS CPU\"를 본다." \
+    read "$SLO_READ_LE" "$SLO_READ_MIN_REQUESTS" "$SLO_READ_SLOW_PERCENT"
+
+  latency_slo_alarm "mapmory-${ENV_NAME}-api-write-latency" \
+    "[참고] 최근 1시간 기록 생성·수정 성공 요청 중 ${SLO_WRITE_LE}초를 넘긴 비율이 ${SLO_WRITE_SLOW_PERCENT}%를 넘는다(${SLO_WRITE_MIN_REQUESTS}건 이상일 때만). 먼저 대시보드 \"Travel Record API p95\"와 \"내부 작업 p95\"에서 S3 확인이나 DB 중 어디가 느린지 본다." \
+    write "$SLO_WRITE_LE" "$SLO_WRITE_MIN_REQUESTS" "$SLO_WRITE_SLOW_PERCENT"
 
   # 슬롯은 BYPASS로 시작하고 배포가 끝나면 스크립트가 NORMAL로 켠다. 30분은 배포 관찰(5분)보다 넉넉하게 잡았다.
   # Minimum이라 모든 프로세스가 한 기간 내내 BYPASS일 때만 1이다. 배포 중 두 슬롯이 함께 떠 있어도 새 슬롯이 켜지면 0이 된다.
   # 지표가 끊긴 것은 metrics-missing이 맡으므로 데이터 없음은 정상으로 본다.
   single_metric_alarm "mapmory-${ENV_NAME}-cache-bypass" \
-    "캐시가 30분 넘게 BYPASS다. 응답은 맞지만 지도·목록 조회가 모두 DB로 간다. 먼저 대시보드 \"캐시 모드 (BYPASS=1, NORMAL=0)\"를 보고, EC2에서 활성 슬롯 관리 포트의 /actuator/deploymentcache로 모드를 확인한 뒤 backend/docs/deployment-cache-control.md 4단계의 수동 명령으로 켠다." \
+    "[참고] 캐시가 30분 넘게 BYPASS다. 응답은 맞지만 지도·목록 조회가 모두 DB로 간다. 먼저 대시보드 \"캐시 모드 (BYPASS=1, NORMAL=0)\"를 보고, EC2에서 활성 슬롯 관리 포트의 /actuator/deploymentcache로 모드를 확인한 뒤 backend/docs/deployment-cache-control.md 4단계의 수동 명령으로 켠다." \
     Mapmory/Backend mapmory_deployment_cache_bypass "$(dimensions environment "$ENV_NAME" service "$SERVICE")" \
     Minimum 300 6 6 GreaterThanOrEqualToThreshold 1 notBreaching
 
   single_metric_alarm "mapmory-${ENV_NAME}-db-connection-pending" \
-    "DB 커넥션을 기다리는 요청이 이어진다. 먼저 대시보드 \"DB 커넥션 풀\"의 active·max와 RDS CPU·연결 수, \"내부 작업 p95\"를 본다." \
+    "[참고] DB 커넥션을 기다리는 요청이 이어진다. 먼저 대시보드 \"DB 커넥션 풀\"의 active·max와 RDS CPU·연결 수, \"내부 작업 p95\"를 본다." \
     Mapmory/Backend hikaricp_connections_pending "$pool_dims" \
     Maximum 60 5 3 GreaterThanOrEqualToThreshold 1 notBreaching
 
   ec2_alarm "mapmory-${ENV_NAME}-ec2-cpu-usage-high" \
-    "EC2 CPU 사용률이 높다. 먼저 대시보드 \"앱 CPU & GC\"로 JVM 때문인지 보고, 요청 수가 함께 늘었는지 본다." \
+    "[참고] EC2 CPU 사용률이 높다. 먼저 대시보드 \"앱 CPU & GC\"로 JVM 때문인지 보고, 요청 수가 함께 늘었는지 본다." \
     AWS/EC2 CPUUtilization "$(dimensions InstanceId "$instance_id")" "${EC2_CPU_CONDITION[@]}"
 
   ec2_alarm "mapmory-${ENV_NAME}-ec2-memory-usage-high" \
-    "EC2 메모리 사용률이 높다. 먼저 배포 중이라 두 슬롯이 함께 떠 있는지, 대시보드 \"JVM Old Gen\"이 max에 붙었는지 본다." \
+    "[참고] EC2 메모리 사용률이 높다. 먼저 배포 중이라 두 슬롯이 함께 떠 있는지, 대시보드 \"JVM Old Gen\"이 max에 붙었는지 본다." \
     Mapmory/EC2 mem_used_percent "$(dimensions InstanceId "$instance_id")" "${EC2_MEMORY_CONDITION[@]}"
 
   ec2_alarm "mapmory-${ENV_NAME}-ec2-disk-usage-high" \
-    "루트 디스크가 차고 있다. 먼저 로그 디렉터리(앱·Nginx)와 남아 있는 이전 릴리스의 크기를 본다." \
+    "[참고] 루트 디스크가 차고 있다. 먼저 로그 디렉터리(앱·Nginx)와 남아 있는 이전 릴리스의 크기를 본다." \
     Mapmory/EC2 disk_used_percent \
     "$(dimensions path / InstanceId "$instance_id" device "$device" fstype "$fstype")" "${EC2_DISK_CONDITION[@]}"
 
   ec2_alarm "mapmory-${ENV_NAME}-ec2-status-check-failed" \
-    "EC2 상태 검사가 실패했거나 값이 들어오지 않는다. 먼저 EC2 콘솔의 상태 검사 탭에서 시스템·인스턴스 중 어느 쪽인지 본다." \
+    "[참고] EC2 상태 검사가 실패했거나 값이 들어오지 않는다. 먼저 EC2 콘솔의 상태 검사 탭에서 시스템·인스턴스 중 어느 쪽인지 본다." \
     AWS/EC2 StatusCheckFailed "$(dimensions InstanceId "$instance_id")" "${EC2_STATUS_CHECK_CONDITION[@]}"
 }
 
@@ -205,7 +287,7 @@ main() {
   while IFS= read -r alarm; do
     alarms+=("$alarm")
   done < <(build_alarms "$instance_id" "$device" "$fstype")
-  ((${#alarms[@]} == 8)) || die "알람 정의를 만들지 못했습니다."
+  ((${#alarms[@]} == 11)) || die "알람 정의를 만들지 못했습니다."
 
   local -a alarm_names=()
   for alarm in "${alarms[@]}"; do
