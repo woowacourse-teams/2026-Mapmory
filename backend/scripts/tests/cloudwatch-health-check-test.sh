@@ -140,6 +140,16 @@ else
   fail "대상 주소를 HEALTH_CHECK_URL로도 받는다"
 fi
 
+# 5-1. 주소를 주지 않으면 환경별 공개 API 주소를 쓴다.
+reset_fake
+if run dev --dry-run && jq -se '.[0].HealthCheckConfig.FullyQualifiedDomainName == "dev-api.map-mory.com"' "${WORK_DIR}/log/stdout" > /dev/null \
+  && reset_fake && run prod --dry-run \
+  && jq -se '.[0].HealthCheckConfig.FullyQualifiedDomainName == "api.map-mory.com" and .[1].AlarmName == "mapmory-prod-health-check-failed"' "${WORK_DIR}/log/stdout" > /dev/null; then
+  pass "주소를 주지 않으면 dev는 dev-api, prod는 api 주소의 /health를 본다"
+else
+  fail "주소를 주지 않으면 dev는 dev-api, prod는 api 주소의 /health를 본다"
+fi
+
 # 6. 멈춰야 하는 경우에는 아무것도 쓰지 않는다.
 expect_stop() {
   local name=$1 message=$2
@@ -151,7 +161,6 @@ expect_stop() {
     fail "$name"
   fi
 }
-reset_fake; expect_stop "주소가 없으면 멈춘다" "대상 주소가 없습니다" dev --yes
 reset_fake; expect_stop "http 주소는 받지 않는다(3xx 리디렉트도 성공으로 친다)" "https://<호스트>/<경로> 형식" dev --url http://api.example.test/health --yes
 reset_fake; FAKE_LAMBDA=missing; expect_stop "Discord Lambda가 없으면 멈춘다" "Lambda mapmory-discord-alerts를 찾지 못했습니다" dev --url "$URL" --yes
 reset_fake; FAKE_HEALTH_CHECKS=$(existing_check api.example.test 30 | jq -c '.HealthChecks += .HealthChecks')

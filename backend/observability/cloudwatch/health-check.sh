@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 밖에서 /health를 부르는 Route 53 헬스체크와 그 실패 알람을 만들거나 맞춘다. 여러 번 실행해도 결과가 같다(ADR 0031).
 #
-#   ./health-check.sh <dev|prod> --url https://<공개 주소>/health [--dry-run] [--yes]
-#   HEALTH_CHECK_URL=https://<공개 주소>/health ./health-check.sh <dev|prod>
+#   ./health-check.sh <dev|prod> [--url https://<공개 주소>/health] [--dry-run] [--yes]
 #
-# 대상 주소는 저장소에 두지 않고 실행할 때 받는다.
+# 대상 주소의 기본값은 환경별 공개 API 주소다. 앱이 부르는 주소라 이미 공개돼 있다(client의 AppContainer.kt).
+# 주소를 바꿔 시험하려면 --url이나 HEALTH_CHECK_URL로 준다.
 #
 # Route 53 헬스체크 지표(AWS/Route53 HealthCheckStatus)는 us-east-1에만 있다. 그래서 알람과 알람이 알리는 SNS 주제도
 # us-east-1에 만든다. 그 주제를 서울의 Discord 중계 Lambda에 구독시켜(리전 간 구독), 다른 알람과 같은 곳으로 알린다.
@@ -27,6 +27,14 @@ readonly ALARM_REGION=us-east-1
 DISCORD_LAMBDA_NAME=${DISCORD_LAMBDA_NAME:-mapmory-discord-alerts}
 TARGET_URL=${HEALTH_CHECK_URL:-}
 
+# 환경별 기본 대상. 계정·ARN 같은 비밀값이 아니라 앱이 부르는 공개 주소다.
+default_target_url() {
+  case "$ENV_NAME" in
+    dev) printf 'https://dev-api.map-mory.com/health\n' ;;
+    prod) printf 'https://api.map-mory.com/health\n' ;;
+  esac
+}
+
 TARGET_HOST=""
 TARGET_PATH=""
 HEALTH_CHECK_ID=""
@@ -47,6 +55,7 @@ parse_health_check_args() {
     shift
   done
   parse_args "${rest[@]}"
+  [[ -n $TARGET_URL ]] || TARGET_URL=$(default_target_url)
 }
 
 # https://<호스트>/<경로>만 받는다. http는 Nginx가 https로 돌려보내면 3xx도 성공으로 쳐서 앱이 죽어도 정상으로 보일 수 있다.

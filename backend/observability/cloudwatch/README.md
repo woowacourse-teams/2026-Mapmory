@@ -103,11 +103,11 @@ prod는 `dev` 자리에 `prod`를 쓴다. 순서는 `alarms.sh` → `dashboard.s
 `health-check.sh`는 밖에서 공개 주소의 `/health`를 부르는 Route 53 헬스체크와 그 실패 알람을 만든다. 서버가 통째로 죽어도 앱 지표는 0으로 보이지 않고 끊기기만 해서, 이전에는 `metrics-missing`으로만 알 수 있었다.
 
 ```bash
-./health-check.sh dev --url https://<dev 공개 주소>/health --dry-run
-./health-check.sh dev --url https://<dev 공개 주소>/health
+./health-check.sh dev --dry-run
+./health-check.sh dev
 ```
 
-대상 주소는 저장소에 두지 않는다. `--url` 대신 `HEALTH_CHECK_URL` 환경 변수로 줘도 된다. `https://`만 받는다. http는 Nginx가 https로 돌려보내면 그 3xx를 Route 53이 성공으로 쳐서, 앱이 죽어도 정상으로 보일 수 있다.
+대상 주소의 기본값은 dev `https://dev-api.map-mory.com/health`, prod `https://api.map-mory.com/health`다. 앱이 부르는 주소라 이미 공개돼 있다. 다른 주소를 보려면 `--url`이나 `HEALTH_CHECK_URL`로 준다. `https://`만 받는다. http는 Nginx가 https로 돌려보내면 그 3xx를 Route 53이 성공으로 쳐서, 앱이 죽어도 정상으로 보일 수 있다.
 
 - **헬스체크**: HTTPS, 30초 간격, 검사 지점마다 1회 실패면 실패. Route 53은 간격으로 10초·30초만 받아 1분은 없다. 연속 판단은 알람이 1분 단위로 한다. 같은 주소·경로를 보는 헬스체크가 있으면 새로 만들지 않고 그것을 쓴다. Route 53 HTTPS 헬스체크는 인증서를 검증하지 않아 인증서 만료는 잡지 못한다.
 - **알람은 us-east-1에 있다.** Route 53 헬스체크 지표(`AWS/Route53` `HealthCheckStatus`)가 us-east-1에만 있기 때문이다. 알람이 알리는 SNS 주제도 같은 리전이어야 해서 `mapmory-<env>-alarms-us-east-1` 주제를 만든다. 서울 대시보드의 알람 위젯에는 넣지 않았다.
