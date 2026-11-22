@@ -264,3 +264,29 @@ enable_deployment_cache_when_alone() {
   fi
   echo "캐시 모드 NORMAL 확인: $app_port"
 }
+
+# 트래픽을 넘기기 전에 슬롯의 캐시를 BYPASS로 두고 다시 읽어 확인한다. 같은 모드 요청은 멱등이다.
+# 기존 슬롯은 배포 중 재시작되지 않아, 지난 배포가 켠 NORMAL이 남아 있다. 그대로 두면 전환 직후 기존 슬롯이 마저
+# 처리하는 요청과 롤백 뒤의 요청이 새 슬롯의 수정이 반영되지 않은 옛 캐시를 읽는다.
+# NORMAL로 켤 때와 달리 정확성 문제라 실패를 삼키지 않는다. 0이 아니면 전환하지 않는다(런북 2단계).
+#   require_deployment_cache_bypass <앱 포트>
+require_deployment_cache_bypass() {
+  local app_port=$1
+  local management_port url state
+  management_port=$(management_port_for_app_port "$app_port") || return 1
+  url="http://127.0.0.1:$management_port/actuator/deploymentcache"
+  if ! curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"BYPASS"}' "$url" >/dev/null; then
+    echo "캐시를 BYPASS로 바꾸지 못했습니다: $app_port" >&2
+    return 1
+  fi
+  if ! state=$(curl --fail --silent --show-error --max-time 5 "$url"); then
+    echo "캐시 모드를 다시 읽지 못했습니다: $app_port" >&2
+    return 1
+  fi
+  if ! grep -Eq '"mode"[[:space:]]*:[[:space:]]*"BYPASS"' <<< "$state"; then
+    echo "캐시가 BYPASS가 아닙니다: $app_port $state" >&2
+    return 1
+  fi
+  echo "캐시 모드 BYPASS 확인: $app_port"
+}

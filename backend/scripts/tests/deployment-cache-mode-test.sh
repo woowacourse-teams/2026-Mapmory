@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# 배포·부팅 뒤 캐시를 NORMAL로 켜는 enable_deployment_cache_when_alone과 부팅 스크립트를 가짜 curl·systemctl로 확인한다.
+# 배포 캐시 모드를 바꾸는 두 함수와 부팅 스크립트를 가짜 curl·systemctl로 확인한다.
+#   enable_deployment_cache_when_alone: 배포·부팅 뒤 단독 슬롯을 NORMAL로 켠다. 실패해도 0.
+#   require_deployment_cache_bypass: 트래픽 전환 전 슬롯을 BYPASS로 둔다. 실패하면 0이 아니다.
 # 실행: backend/scripts/tests/deployment-cache-normal-test.sh
 set -uo pipefail
 
@@ -41,8 +43,9 @@ done
 if [[ -n $body ]]; then
   printf 'curl POST %s %s\n' "$url" "$body" >> "$FAKE_STATE_DIR/calls"
   if [[ ${FAKE_POST_FAILS:-0} == 1 ]]; then echo "curl: (22) 500" >&2; exit 22; fi
-  printf 'NORMAL' > "$FAKE_STATE_DIR/mode"
-  printf '{"mode":"NORMAL","generation":1,"changedAt":"2026-11-22T00:00:00Z"}'
+  mode=$(sed -E 's/.*"mode":"([A-Z]+)".*/\1/' <<< "$body")
+  printf '%s' "$mode" > "$FAKE_STATE_DIR/mode"
+  printf '{"mode":"%s","generation":1,"changedAt":"2026-11-22T00:00:00Z"}' "$mode"
 else
   printf 'curl GET %s\n' "$url" >> "$FAKE_STATE_DIR/calls"
   if [[ ${FAKE_GET_FAILS:-0} == 1 ]]; then echo "curl: (7) refused" >&2; exit 7; fi
@@ -72,13 +75,15 @@ reset_state() {
 }
 
 # 함수 하나를 가짜 명령으로 실행한다. 표준 출력과 오류는 state/out, state/err에 남는다.
-run_enable() {
+run_function() {
   (
     # shellcheck source=../deployment-common.sh
     source "$SCRIPTS_DIR/deployment-common.sh"
-    enable_deployment_cache_when_alone "$@"
+    "$@"
   ) > "$FAKE_STATE_DIR/out" 2> "$FAKE_STATE_DIR/err"
 }
+run_enable() { run_function enable_deployment_cache_when_alone "$@"; }
+run_bypass() { run_function require_deployment_cache_bypass "$@"; }
 
 calls() { cat "$FAKE_STATE_DIR/calls" 2>/dev/null; }
 
@@ -165,6 +170,45 @@ if ((boot_status != 0)) && ! calls | grep -q 'curl POST'; then
   pass "부팅 때 비활성 슬롯을 멈추지 못하면 캐시를 켜지 않는다"
 else
   fail "부팅 때 비활성 슬롯을 멈추지 못하면 캐시를 켜지 않는다"
+fi
+
+# 8. 트래픽 전환 전: BYPASS를 요청하고 다시 읽어 확인한다.
+reset_state
+if run_bypass 8080 \
+  && calls | grep -qF 'curl POST http://127.0.0.1:8081/actuator/deploymentcache {"mode":"BYPASS"}' \
+  && grep -qF '캐시 모드 BYPASS 확인: 8080' "$FAKE_STATE_DIR/out"; then
+  pass "전환 전 슬롯을 BYPASS로 두고 확인한다"
+else
+  fail "전환 전 슬롯을 BYPASS로 두고 확인한다"
+fi
+
+# 9~10. BYPASS를 확인하지 못하면 0이 아니다. 전환을 막아야 한다.
+reset_state
+export FAKE_POST_FAILS=1
+if ! run_bypass 8080 && grep -qF '캐시를 BYPASS로 바꾸지 못했습니다: 8080' "$FAKE_STATE_DIR/err"; then
+  pass "BYPASS 요청이 실패하면 실패로 끝난다"
+else
+  fail "BYPASS 요청이 실패하면 실패로 끝난다"
+fi
+reset_state
+export FAKE_GET_MODE=NORMAL
+if ! run_bypass 8080 && grep -qF '캐시가 BYPASS가 아닙니다: 8080' "$FAKE_STATE_DIR/err"; then
+  pass "요청이 성공해도 다시 읽은 모드가 NORMAL이면 실패로 끝난다"
+else
+  fail "요청이 성공해도 다시 읽은 모드가 NORMAL이면 실패로 끝난다"
+fi
+
+# 11. 배포를 연속 두 번: 첫 배포가 켠 NORMAL이 두 번째 배포의 전환 전에 BYPASS로 돌아간다.
+reset_state
+touch "$FAKE_STATE_DIR/active-mapmory-green"
+run_enable 8090 mapmory
+first=$(cat "$FAKE_STATE_DIR/mode")
+run_bypass 8090
+second=$(cat "$FAKE_STATE_DIR/mode")
+if [[ $first == NORMAL && $second == BYPASS ]]; then
+  pass "첫 배포가 켠 NORMAL은 다음 배포의 전환 전에 BYPASS로 돌아간다"
+else
+  fail "첫 배포가 켠 NORMAL은 다음 배포의 전환 전에 BYPASS로 돌아간다 ($first → $second)"
 fi
 
 if ((failures > 0)); then

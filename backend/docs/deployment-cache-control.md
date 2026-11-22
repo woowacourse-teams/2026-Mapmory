@@ -88,31 +88,26 @@ Spring Boot의 HTTP 전용 사용자 정의 Actuator 엔드포인트를 사용�
 
 **지금 실행 중인 구버전 JAR에는 사용할 수 없다.** 아래는 준비 버전 배포 및 양쪽 슬롯의 시작 모드 설정 후 EC2 안에서 실행할 명령이다. 공개 주소로 호출하지 않는다.
 
-### 1. 기존 서버 우회
+### 1~2. 전환 전 양쪽 우회 (자동)
 
-기존 서버 관리 포트가 `8081`일 때:
+`switch-traffic.sh`가 Nginx를 바꾸기 전에 기존 슬롯과 새 슬롯 모두에 `{"mode":"BYPASS"}`를 보내고, 다시 읽어 `"mode":"BYPASS"`인지 확인한다(`require_deployment_cache_bypass`). 기존 슬롯은 배포 중 재시작되지 않으므로 지난 배포의 4단계가 켠 `NORMAL`이 남아 있다. 새 슬롯의 시작 모드만으로는 공존 중 우회가 보장되지 않는다.
 
-```bash
-curl --fail --silent --show-error --max-time 5 \
-  -H 'Content-Type: application/json' \
-  -d '{"mode":"BYPASS"}' \
-  http://127.0.0.1:8081/actuator/deploymentcache
-```
+한쪽이라도 확인에 실패하면 전환하지 않는다. 스크립트가 실패로 끝나고 기존 ERR 트랩이 기존 경로를 복구한다. 4단계와 달리 정확성 문제라 실패를 삼키지 않는다.
 
-### 2. Green 우회 상태 확인
-
-Green은 시작 인자로 `BYPASS`를 지정한 상태로 기동한다. 관리 포트가 `8091`일 때:
+수동으로 확인할 때(관리 포트 `8081`/`8091`):
 
 ```bash
-curl --fail --silent --show-error --max-time 5 \
-  http://127.0.0.1:8091/actuator/deploymentcache
+for port in 8081 8091; do
+  curl --fail --silent --show-error --max-time 5 \
+    -H 'Content-Type: application/json' -d '{"mode":"BYPASS"}' \
+    "http://127.0.0.1:$port/actuator/deploymentcache"
+  curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/actuator/deploymentcache"
+done
 ```
-
-양쪽 모두 HTTP 200과 `"mode":"BYPASS"`인지 확인한다. 한쪽이라도 확인에 실패하면 트래픽 전환을 진행하지 않는다. 명령의 HTTP 성공만 보지 말고 응답 상태도 확인한다.
 
 ### 3. 전환 및 롤백 대기
 
-새 프로세스 준비 확인 후 Nginx를 전환한다. 설계한 롤백 대기 시간(5분) 동안 두 프로세스는 모두 우회를 유지한다. 실패하여 기존 서버로 돌아가는 경우에도 양쪽의 우회 상태를 유지한다.
+새 프로세스 준비 확인 후 Nginx를 전환한다. 롤백 대기 시간(5분) 동안 두 프로세스는 모두 우회를 유지한다. 실패하여 기존 서버로 돌아가는 경우에도 양쪽의 우회 상태를 유지한다. 롤백 뒤 남은 슬롯은 BYPASS로 남고, 30분이 지나면 `cache-bypass` 알람이 울린다.
 
 ### 4. 이전 프로세스 종료 확인 후 캐시 복귀 (자동)
 
@@ -179,7 +174,7 @@ curl --fail --silent --show-error --max-time 5 \
 
 실제 개발/운영 환경에서는 캐시를 미리 채운 뒤 전환하고, 통제된 테스트 기록을 수정한 다음 롤백해 최신 목록·지도 결과를 확인해야 한다. 우회 중 DB 부하도 관측한다. 외부 요청 실패 수·실패 구간과 실제 롤백 시작/완료 시각 기록은 별도로 필요하다.
 
-배포·재부팅 스크립트가 4단계(NORMAL 복귀)를 자동으로 한다(2026-11-22). 1~3단계의 우회는 시작 모드(BYPASS)로 보장한다. 내부 관리 기능만으로 무중단 배포의 완료 조건이 충족되는 것은 아니다.
+배포·재부팅 스크립트가 1~2단계(전환 전 양쪽 BYPASS 확인)와 4단계(NORMAL 복귀)를 자동으로 한다(2026-11-22). 내부 관리 기능만으로 무중단 배포의 완료 조건이 충족되는 것은 아니다.
 
 ## 참고
 
