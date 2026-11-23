@@ -19,7 +19,7 @@ import org.springframework.core.io.ClassPathResource;
  * prod 앱 연결 주소의 타임아웃 옵션(socketTimeout, 잠금 대기 한도)이 실제 MySQL에서 의도한 순서로 동작하는지 확인한다.
  *
  * <p>{@link DatabaseTimeoutConfigurationTest}는 yaml 값의 크기 관계만 본다. 여기서는 prod yaml의 주소 옵션을 그대로 떼어
- * 테스트 MySQL에 붙여, 잠금 대기 초과(1205)가 소켓 타임아웃보다 먼저 오고 연결이 살아 있는지 본다.
+ * 테스트 MySQL에 붙여, 잠금 대기 초과(1205)가 소켓 타임아웃보다 먼저 오고 연결이 살아 있는지, 응답 없는 연결이 실제로 몇 초에 끊기는지 본다.
  */
 class DatabaseTimeoutBehaviorTest {
 
@@ -71,40 +71,23 @@ class DatabaseTimeoutBehaviorTest {
         }
     }
 
+    /**
+     * 드라이버는 읽기가 socketTimeout에 걸리면 연결을 닫으면서 남은 응답을 한 번 더 읽는다
+     * ({@code NetworkResources.forceClose}). 서버가 계속 답이 없으면 그 읽기도 socketTimeout만큼 기다려,
+     * 요청 스레드가 풀려나는 것은 3초가 아니라 그 두 배인 6초쯤이다. (2026-11-23 CI에서 6,005ms로 확인)
+     */
     @Test
-    void 응답이_3초_넘게_없으면_소켓_타임아웃이_연결을_끊는다() throws Exception {
+    void 응답이_없으면_소켓_타임아웃의_두_배쯤에_연결을_끊는다() throws Exception {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create(); Connection app = appConnection(mysql)) {
-            Statement slow = app.createStatement();
-            Thread caller = Thread.currentThread();
-            StringBuilder stacks = new StringBuilder();
-            Thread sampler = new Thread(() -> {
-                try {
-                    for (long at : new long[] {1_500, 4_500}) {
-                        Thread.sleep(at == 1_500 ? 1_500 : 3_000);
-                        stacks.append("\n[t+").append(at).append("ms]");
-                        for (StackTraceElement frame : caller.getStackTrace()) {
-                            if (frame.getClassName().startsWith("com.mysql") || frame.getClassName().startsWith("java.net")
-                                    || frame.getClassName().startsWith("sun.nio")) {
-                                stacks.append("\n  ").append(frame);
-                            }
-                        }
-                    }
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            sampler.setDaemon(true);
-            sampler.start();
             long start = System.nanoTime();
-            SQLException failure = catchThrowableOfType(SQLException.class, () -> slow.executeQuery("SELECT SLEEP(10)"));
-            long queryMillis = Duration.ofNanos(System.nanoTime() - start).toMillis();
-            sampler.interrupt();
-            slow.close();
+            SQLException failure;
+            try (Statement slow = app.createStatement()) {
+                failure = catchThrowableOfType(SQLException.class, () -> slow.executeQuery("SELECT SLEEP(20)"));
+            }
+            long waitedMillis = Duration.ofNanos(System.nanoTime() - start).toMillis();
 
             assertThat((Throwable) failure).isNotNull();
-            assertThat(queryMillis)
-                    .as("쿼리 실패까지 %dms, 대기 중 스택 %s", queryMillis, stacks)
-                    .isBetween(SOCKET_TIMEOUT.toMillis() - 200, SOCKET_TIMEOUT.toMillis() + 2_000);
+            assertThat(waitedMillis).isBetween(SOCKET_TIMEOUT.toMillis() - 200, SOCKET_TIMEOUT.toMillis() * 2 + 2_000);
             assertThat(app.isValid(1)).isFalse();
         }
     }
