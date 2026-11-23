@@ -500,7 +500,7 @@ class GooglePlacesClientTest {
             verify(limiter).refund(GooglePlacesEndpoint.DETAILS);
         }
 
-        // 연결한 뒤 1초 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
+        // 연결한 뒤 응답 한도 안에 답이 없으면 Google이 처리했는지 알 수 없고, 4xx는 Google이 처리해 과금될 수 있다.
         @Test
         void 연결한_뒤_답을_기다리다_끊겼거나_4xx면_돌려주지_않는다() {
             server.expect(method(HttpMethod.POST))
