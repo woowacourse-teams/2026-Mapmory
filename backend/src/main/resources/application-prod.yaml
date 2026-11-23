@@ -8,6 +8,8 @@ server:
 spring:
   datasource:
     # socketTimeout은 쿼리를 보낸 뒤 DB 응답을 기다리는 한도다. 넘으면 드라이버가 그 연결을 끊는다.
+    # 드라이버가 연결을 닫으면서 남은 응답을 한 번 더 읽어, 서버가 계속 답이 없으면 실제로는 두 배(약 6초) 뒤에 풀려난다
+    # (DatabaseTimeoutBehaviorTest).
     # 없으면(기본 0 = 무한) DB가 신호 없이 멈췄을 때(서버 정지, 장애 전환) 쿼리 중이던 요청이 커넥션을 쥔 채 멈춰 풀 10개가 묶인다.
     # sessionVariables는 이 연결의 잠금 대기 한도(innodb_lock_wait_timeout)를 MySQL 기본 50초에서 1초로 줄인다.
     # 평소 잠금은 수십 ms만 쥐므로 1초를 기다려도 안 풀리면 비정상이다. 그때는 1205로 실패해 503 + Retry-After로 답한다
