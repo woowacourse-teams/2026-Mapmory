@@ -14,6 +14,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.data.domain.Page;
@@ -36,6 +39,65 @@ class TravelRecordRepositoryTest extends MySqlTestContainerSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Test
+    void 목록_사진은_일지별_요약만_반환하고_순서가_같으면_id로_첫_사진을_고른다() {
+        Member member = memberRepository.save(Member.of("요약 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(Region.of(null, null, "QS", "요약 국가", RegionType.COUNTRY));
+        TravelRecord record = travelRecordRepository.save(TravelRecord.of(
+                member, country, "사진 기록", "", TODAY, null, TODAY));
+        TravelRecord empty = travelRecordRepository.save(TravelRecord.of(
+                member, country, "사진 없는 기록", "", TODAY, null, TODAY));
+        TravelRecord second = travelRecordRepository.save(TravelRecord.of(
+                member, country, "두 번째 사진 기록", "", TODAY, null, TODAY));
+        TravelRecord other = travelRecordRepository.save(TravelRecord.of(
+                member, country, "선택하지 않은 기록", "", TODAY, null, TODAY));
+        // 가장 작은 id가 아니라 sortOrder가 먼저이며, 같은 sortOrder에서는 id가 먼저다.
+        entityManager.persist(RecordMedia.of(record, "mapmory/summary/later.jpg", null, 5));
+        entityManager.persist(RecordMedia.of(record, "mapmory/summary/first.jpg", "mapmory/summary/thumb.webp", 0));
+        entityManager.persist(RecordMedia.of(record, "mapmory/summary/tie.jpg", null, 0));
+        entityManager.persist(RecordMedia.of(other, "mapmory/summary/other.jpg", null, 0));
+        entityManager.persist(RecordMedia.of(second, "mapmory/summary/second.jpg", null, 0));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<TravelRecordListMediaSummary> result = travelRecordRepository.findListMediaSummaries(
+                List.of(record.getId(), empty.getId(), second.getId()));
+
+        assertThat(result).hasSize(2);
+        TravelRecordListMediaSummary summary = result.stream()
+                .filter(item -> item.getTravelRecordId().equals(record.getId())).findFirst().orElseThrow();
+        assertThat(summary.getTravelRecordId()).isEqualTo(record.getId());
+        assertThat(summary.getPhotoCount()).isEqualTo(3L);
+        assertThat(summary.getObjectKey()).isEqualTo("mapmory/summary/first.jpg");
+        assertThat(summary.thumbnailObjectKey()).isEqualTo("mapmory/summary/thumb.webp");
+        assertThat(result.stream().filter(item -> item.getTravelRecordId().equals(second.getId()))
+                .findFirst().orElseThrow().getPhotoCount()).isEqualTo(1L);
+        // 다른 컨텍스트에서 쓰는 전체 사진 조회는 유지한다.
+        assertThat(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(record.getId())))
+                .extracting(RecordMedia::getObjectKey)
+                .containsExactly("mapmory/summary/first.jpg", "mapmory/summary/tie.jpg", "mapmory/summary/later.jpg");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\t"})
+    void 목록_요약은_첫_사진의_썸네일이_없으면_원본을_쓴다(String thumbKey) {
+        Member member = memberRepository.save(Member.of("대체 회원", UUID.randomUUID()));
+        Region country = regionRepository.save(Region.of(null, null, "QF", "대체 국가", RegionType.COUNTRY));
+        TravelRecord record = travelRecordRepository.save(TravelRecord.of(
+                member, country, "대체 기록", "", TODAY, null, TODAY));
+        entityManager.persist(RecordMedia.of(record, "mapmory/fallback/first.jpg", thumbKey, 0));
+        entityManager.persist(RecordMedia.of(record, "mapmory/fallback/second.jpg", "mapmory/fallback/second.webp", 1));
+        entityManager.flush();
+        entityManager.clear();
+
+        TravelRecordListMediaSummary summary = travelRecordRepository.findListMediaSummaries(
+                List.of(record.getId())).getFirst();
+
+        assertThat(summary.getPhotoCount()).isEqualTo(2L);
+        assertThat(summary.thumbnailObjectKey()).isEqualTo("mapmory/fallback/first.jpg");
+    }
 
     @Test
     void 여행_일지를_저장한다() {

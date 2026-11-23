@@ -121,7 +121,7 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     boolean existsMediaByObjectKeyIn(@Param("objectKeys") Collection<String> objectKeys);
 
     /**
-     * 목록 화면의 썸네일용. 일지별로 정렬 순서가 가장 앞선 미디어를 고르기 위해 정렬해서 가져온다.
+     * 전체 사진이 필요한 조회용. 일지별 사진 순서를 고정한다.
      */
     @Query("""
         SELECT rm
@@ -130,6 +130,32 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         ORDER BY rm.travelRecord.id ASC, rm.sortOrder ASC, rm.id ASC
     """)
     List<RecordMedia> findMediaByTravelRecordIdIn(
+            @Param("travelRecordIds") Collection<Long> travelRecordIds
+    );
+
+    /** 목록용. 사진 엔티티 전체 대신 일지별 개수와 첫 사진의 키만 반환한다. */
+    @Query(value = """
+        SELECT
+            counts.travel_record_id AS travelRecordId,
+            counts.photo_count AS photoCount,
+            first_media.object_key AS objectKey,
+            first_media.thumb_key AS thumbKey
+        FROM (
+            SELECT travel_record_id, COUNT(*) AS photo_count
+            FROM record_media
+            WHERE travel_record_id IN (:travelRecordIds)
+            GROUP BY travel_record_id
+        ) counts
+        JOIN record_media first_media
+            ON first_media.id = (
+                SELECT candidate.id
+                FROM record_media candidate
+                WHERE candidate.travel_record_id = counts.travel_record_id
+                ORDER BY candidate.sort_order ASC, candidate.id ASC
+                LIMIT 1
+            )
+        """, nativeQuery = true)
+    List<TravelRecordListMediaSummary> findListMediaSummaries(
             @Param("travelRecordIds") Collection<Long> travelRecordIds
     );
 
