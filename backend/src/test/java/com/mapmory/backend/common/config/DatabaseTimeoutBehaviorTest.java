@@ -75,16 +75,35 @@ class DatabaseTimeoutBehaviorTest {
     void 응답이_3초_넘게_없으면_소켓_타임아웃이_연결을_끊는다() throws Exception {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create(); Connection app = appConnection(mysql)) {
             Statement slow = app.createStatement();
+            Thread caller = Thread.currentThread();
+            StringBuilder stacks = new StringBuilder();
+            Thread sampler = new Thread(() -> {
+                try {
+                    for (long at : new long[] {1_500, 4_500}) {
+                        Thread.sleep(at == 1_500 ? 1_500 : 3_000);
+                        stacks.append("\n[t+").append(at).append("ms]");
+                        for (StackTraceElement frame : caller.getStackTrace()) {
+                            if (frame.getClassName().startsWith("com.mysql") || frame.getClassName().startsWith("java.net")
+                                    || frame.getClassName().startsWith("sun.nio")) {
+                                stacks.append("\n  ").append(frame);
+                            }
+                        }
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            sampler.setDaemon(true);
+            sampler.start();
             long start = System.nanoTime();
             SQLException failure = catchThrowableOfType(SQLException.class, () -> slow.executeQuery("SELECT SLEEP(10)"));
             long queryMillis = Duration.ofNanos(System.nanoTime() - start).toMillis();
-            long closeStart = System.nanoTime();
+            sampler.interrupt();
             slow.close();
-            long closeMillis = Duration.ofNanos(System.nanoTime() - closeStart).toMillis();
 
             assertThat((Throwable) failure).isNotNull();
             assertThat(queryMillis)
-                    .as("쿼리 실패까지 %dms, 문장 닫기 %dms, 예외 %s", queryMillis, closeMillis, failure)
+                    .as("쿼리 실패까지 %dms, 대기 중 스택 %s", queryMillis, stacks)
                     .isBetween(SOCKET_TIMEOUT.toMillis() - 200, SOCKET_TIMEOUT.toMillis() + 2_000);
             assertThat(app.isValid(1)).isFalse();
         }
