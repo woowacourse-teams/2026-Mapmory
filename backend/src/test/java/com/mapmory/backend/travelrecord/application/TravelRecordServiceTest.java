@@ -41,6 +41,7 @@ import com.mapmory.backend.travelrecord.domain.ObjectKeys;
 import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
+import com.mapmory.backend.travelrecord.domain.TravelRecordListMediaSummary;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.upload.service.UploadedObjectVerifier;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -693,8 +694,8 @@ class TravelRecordServiceTest {
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
-        RecordMedia thumbnailMedia = recordMedia(101L, "mapmory/travel-records/a.jpg");
-        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L)))
+        TravelRecordListMediaSummary thumbnailMedia = mediaSummary(101L, "mapmory/travel-records/a.jpg", 1L);
+        when(travelRecordRepository.findListMediaSummaries(List.of(101L)))
                 .thenReturn(List.of(thumbnailMedia));
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
@@ -715,10 +716,9 @@ class TravelRecordServiceTest {
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
-        RecordMedia firstMedia = recordMedia(101L, "mapmory/first.jpg");
-        RecordMedia laterMedia = recordMedia(101L, "mapmory/later.jpg");
-        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L)))
-                .thenReturn(List.of(firstMedia, laterMedia));
+        TravelRecordListMediaSummary firstMedia = mediaSummary(101L, "mapmory/first.jpg", 2L);
+        when(travelRecordRepository.findListMediaSummaries(List.of(101L)))
+                .thenReturn(List.of(firstMedia));
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
@@ -736,19 +736,18 @@ class TravelRecordServiceTest {
         Page<TravelRecord> expected = new PageImpl<>(List.of(jeju, busan), PageRequest.of(0, 20), 2);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
-        List<RecordMedia> media = List.of(
-                recordMedia(101L, "mapmory/jeju-1.jpg"),
-                recordMedia(101L, "mapmory/jeju-2.jpg"),
-                recordMedia(101L, "mapmory/jeju-3.jpg"),
-                recordMedia(102L, "mapmory/busan-1.jpg")
+        List<TravelRecordListMediaSummary> media = List.of(
+                mediaSummary(101L, "mapmory/jeju-1.jpg", 3L),
+                mediaSummary(102L, "mapmory/busan-1.jpg", 1L)
         );
-        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L, 102L))).thenReturn(media);
+        when(travelRecordRepository.findListMediaSummaries(List.of(101L, 102L))).thenReturn(media);
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
         assertThat(entryOf(result, jeju).photoCount()).isEqualTo(3);
         assertThat(entryOf(result, busan).photoCount()).isEqualTo(1);
-        verify(travelRecordRepository).findMediaByTravelRecordIdIn(List.of(101L, 102L));
+        verify(travelRecordRepository).findListMediaSummaries(List.of(101L, 102L));
+        verify(travelRecordRepository, never()).findMediaByTravelRecordIdIn(anyList());
     }
 
     @Test
@@ -757,7 +756,7 @@ class TravelRecordServiceTest {
         Page<TravelRecord> expected = new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(expected);
-        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L))).thenReturn(List.of());
+        when(travelRecordRepository.findListMediaSummaries(List.of(101L))).thenReturn(List.of());
 
         TravelRecordSummaries result = travelRecordService.findAll(member, null, null, null, null, 0, 20);
 
@@ -775,7 +774,7 @@ class TravelRecordServiceTest {
                 .thenReturn(expected);
 
         assertThat(travelRecordService.findAll(member, "KR", "49", null, null, 0, 20).listPage().entries()).isEmpty();
-        verify(travelRecordRepository, never()).findMediaByTravelRecordIdIn(anyList());
+        verify(travelRecordRepository, never()).findListMediaSummaries(anyList());
     }
 
     @Test
@@ -797,8 +796,8 @@ class TravelRecordServiceTest {
         TravelRecord travelRecord = listedRecord(101L);
         when(travelRecordRepository.findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(travelRecord), PageRequest.of(0, 20), 1));
-        RecordMedia thumbnailMedia = recordMedia(101L, "mapmory/a.jpg");
-        when(travelRecordRepository.findMediaByTravelRecordIdIn(List.of(101L)))
+        TravelRecordListMediaSummary thumbnailMedia = mediaSummary(101L, "mapmory/a.jpg", 1L);
+        when(travelRecordRepository.findListMediaSummaries(List.of(101L)))
                 .thenReturn(List.of(thumbnailMedia));
 
         travelRecordService.findAll(member, null, null, null, null, 0, 20);
@@ -808,7 +807,7 @@ class TravelRecordServiceTest {
                 .isEqualTo("https://download.example/mapmory/a.jpg");
         verify(travelRecordRepository, times(1))
                 .findByMemberIdAndOptionalTagId(eq(10L), eq(null), any(Pageable.class));
-        verify(travelRecordRepository, times(1)).findMediaByTravelRecordIdIn(List.of(101L));
+        verify(travelRecordRepository, times(1)).findListMediaSummaries(List.of(101L));
         verify(recordMediaUrlService, times(2)).createViewUrl("mapmory/a.jpg");
     }
 
@@ -871,11 +870,12 @@ class TravelRecordServiceTest {
                 .orElseThrow();
     }
 
-    private RecordMedia recordMedia(Long travelRecordId, String thumbnailObjectKey) {
-        RecordMedia recordMedia = mock(RecordMedia.class);
-        lenient().when(recordMedia.travelRecordId()).thenReturn(travelRecordId);
-        lenient().when(recordMedia.getThumbnailObjectKey()).thenReturn(thumbnailObjectKey);
-        return recordMedia;
+    private TravelRecordListMediaSummary mediaSummary(Long travelRecordId, String thumbnailObjectKey, Long photoCount) {
+        TravelRecordListMediaSummary summary = mock(TravelRecordListMediaSummary.class);
+        when(summary.getTravelRecordId()).thenReturn(travelRecordId);
+        when(summary.getPhotoCount()).thenReturn(photoCount);
+        when(summary.thumbnailObjectKey()).thenReturn(thumbnailObjectKey);
+        return summary;
     }
 
     private void assertError(Runnable action, String errorCode) {
