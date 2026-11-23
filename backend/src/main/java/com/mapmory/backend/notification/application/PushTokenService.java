@@ -45,11 +45,16 @@ public class PushTokenService {
      * 다른 회원이 같은 토큰을 등록하면 새 등록 ID를 발급한다.
      */
     public PushToken register(Long memberId, String token, PushPlatform platform) {
+        return register(memberId, token, platform, null, true, true);
+    }
+
+    public PushToken register(Long memberId, String token, PushPlatform platform, Long previousPushTokenId,
+            boolean photoEnabled, boolean videoEnabled) {
         try {
             // 템플릿을 만드는 것만으로는 트랜잭션이 시작되지 않는다.
             // execute()로 조회·잠금·삭제·저장과 커밋까지 하나의 범위로 감싼다.
             return Objects.requireNonNull(registrationTransaction.execute(status ->
-                    registerInTransaction(memberId, token, platform)));
+                    registerInTransaction(memberId, token, platform, previousPushTokenId, photoEnabled, videoEnabled)));
         } catch (DataIntegrityViolationException exception) {
             // 토큰 UNIQUE 위반만 등록 충돌로 바꾸고 다른 제약 오류는 숨기지 않는다.
             if (!PushTokenConflict.isCausedBy(exception)) {
@@ -64,23 +69,37 @@ public class PushTokenService {
 
     // 같은 객체의 private 메서드에 @Transactional을 붙이는 대신
     // 위의 TransactionTemplate 실행 범위 안에서 호출한다.
-    private PushToken registerInTransaction(Long memberId, String token, PushPlatform platform) {
+    private PushToken registerInTransaction(Long memberId, String token, PushPlatform platform,
+            Long previousPushTokenId, boolean photoEnabled, boolean videoEnabled) {
         activeMemberGuard.require(memberId);
 
         PushToken existing = pushTokenRepository
                 .findByTokenForUpdate(token)
                 .orElse(null);
 
+        if (previousPushTokenId != null) {
+            PushToken previous = pushTokenRepository.findByIdForUpdate(previousPushTokenId).orElse(null);
+            if (previous != null) {
+                if (!previous.getMemberId().equals(memberId)
+                        || (existing != null && !Objects.equals(existing.getId(), previous.getId()))) {
+                    throw registrationConflict(null);
+                }
+                previous.updateDevice(token, platform, photoEnabled, videoEnabled);
+                return pushTokenRepository.saveAndFlush(previous);
+            }
+            // 정리된 등록 ID는 새 등록으로 복구한다. 다른 회원의 행은 위에서 거부한다.
+        }
+
         // 처음 등록한 토큰 -> 새 객체 저장
         if (existing == null) {
             return pushTokenRepository.saveAndFlush(
-                    new PushToken(memberId, token, platform)
+                    newDevice(memberId, token, platform, photoEnabled, videoEnabled)
             );
         }
 
         // 같은 회원이 재등록 -> 플랫폼 갱신 및 기존 ID 유지
         if (existing.getMemberId().equals(memberId)) {
-            existing.assignTo(memberId, platform);
+            existing.updateDevice(token, platform, photoEnabled, videoEnabled);
             return existing;
         }
 
@@ -90,7 +109,14 @@ public class PushTokenService {
         // 커밋은 아니므로 이후 저장에 실패하면 기존 행 삭제도 함께 롤백된다.
         pushTokenRepository.flush();
 
-        return pushTokenRepository.saveAndFlush(new PushToken(memberId, token, platform));
+        return pushTokenRepository.saveAndFlush(newDevice(memberId, token, platform, photoEnabled, videoEnabled));
+    }
+
+    private PushToken newDevice(Long memberId, String token, PushPlatform platform,
+            boolean photoEnabled, boolean videoEnabled) {
+        PushToken device = new PushToken(memberId, token, platform);
+        device.updateDevice(token, platform, photoEnabled, videoEnabled);
+        return device;
     }
 
     /**

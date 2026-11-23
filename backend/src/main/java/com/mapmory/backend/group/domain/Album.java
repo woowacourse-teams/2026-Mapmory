@@ -18,6 +18,7 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * 같은 여행 하나를 보여 주는 묶음. 저장은 각자 여행 기록에 하고, 앨범은 그 기록을 id로 가리키기만 한다.
@@ -29,6 +30,8 @@ import java.util.Objects;
  */
 @Entity
 @Table(name = "album")
+// 바뀐 컬럼만 UPDATE한다. 옛 앨범을 읽고 고치는 코드가 생겨도 건드리지 않은 이름·지역·연 사람을 되돌리지 않게 한다.
+@DynamicUpdate
 public class Album extends BaseEntity {
 
     // album.name 컬럼 길이(VARCHAR(200))와 같다. 여행 기록 제목 길이와 맞췄다.

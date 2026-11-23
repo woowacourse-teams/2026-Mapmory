@@ -77,6 +77,18 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     Optional<TravelRecord> findByIdAndMemberId(Long id, Long memberId);
 
     /**
+     * 기록을 바꾸는 흐름(수정·삭제)의 행 잠금. 같은 기록을 바꾸는 요청을 차례로 처리한다.
+     *
+     * <p>일지 행만 잠그려고 id만 읽는 네이티브 쿼리로 둔다. {@link #findByIdAndMemberId}에 잠금을 걸면
+     * 함께 읽는 지역 행까지 FOR UPDATE로 잠겨, 같은 지역의 다른 회원 기록 수정까지 기다리게 된다.
+     * 잠근 뒤 {@link #findByIdAndMemberId}로 읽는다. REPEATABLE READ의 스냅샷은 첫 일반 조회 때 생기므로,
+     * 이 잠금을 트랜잭션의 첫 조회로 두어야 앞 요청이 커밋한 사진·태그를 본다.
+     */
+    @Query(value = "SELECT id FROM travel_record WHERE id = :id AND member_id = :memberId FOR UPDATE",
+            nativeQuery = true)
+    Optional<Long> lockByIdAndMemberId(@Param("id") Long id, @Param("memberId") Long memberId);
+
+    /**
      * 다른 컨텍스트에 기록을 묶어 넘길 때 쓴다(TravelRecordQuery). 회원과 지역은 즉시 로딩이라
      * 함께 읽지 않으면 기록마다 조회가 한 번씩 더 나간다. 없는 id는 결과에서 빠진다.
      */
@@ -109,7 +121,7 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
     boolean existsMediaByObjectKeyIn(@Param("objectKeys") Collection<String> objectKeys);
 
     /**
-     * 목록 화면의 썸네일용. 일지별로 정렬 순서가 가장 앞선 미디어를 고르기 위해 정렬해서 가져온다.
+     * 전체 사진이 필요한 조회용. 일지별 사진 순서를 고정한다.
      */
     @Query("""
         SELECT rm
@@ -118,6 +130,32 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
         ORDER BY rm.travelRecord.id ASC, rm.sortOrder ASC, rm.id ASC
     """)
     List<RecordMedia> findMediaByTravelRecordIdIn(
+            @Param("travelRecordIds") Collection<Long> travelRecordIds
+    );
+
+    /** 목록용. 사진 엔티티 전체 대신 일지별 개수와 첫 사진의 키만 반환한다. */
+    @Query(value = """
+        SELECT
+            counts.travel_record_id AS travelRecordId,
+            counts.photo_count AS photoCount,
+            first_media.object_key AS objectKey,
+            first_media.thumb_key AS thumbKey
+        FROM (
+            SELECT travel_record_id, COUNT(*) AS photo_count
+            FROM record_media
+            WHERE travel_record_id IN (:travelRecordIds)
+            GROUP BY travel_record_id
+        ) counts
+        JOIN record_media first_media
+            ON first_media.id = (
+                SELECT candidate.id
+                FROM record_media candidate
+                WHERE candidate.travel_record_id = counts.travel_record_id
+                ORDER BY candidate.sort_order ASC, candidate.id ASC
+                LIMIT 1
+            )
+        """, nativeQuery = true)
+    List<TravelRecordListMediaSummary> findListMediaSummaries(
             @Param("travelRecordIds") Collection<Long> travelRecordIds
     );
 

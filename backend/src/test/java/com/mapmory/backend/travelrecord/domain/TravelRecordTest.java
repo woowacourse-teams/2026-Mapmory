@@ -12,6 +12,7 @@ import com.mapmory.backend.region.domain.RegionType;
 import com.mapmory.backend.tag.Tag;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -80,6 +81,50 @@ class TravelRecordTest {
         travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A, KEY_B)));
 
         assertThat(travelRecord.newObjectKeys(ObjectKeys.from(List.of(KEY_B, KEY_A)))).isEmpty();
+    }
+
+    @Test
+    void 받은_촬영일을_사진에_적는다() {
+        TravelRecord travelRecord = travelRecord();
+
+        travelRecord.synchronizeMedia(
+                ObjectKeys.from(List.of(KEY_A, KEY_B)),
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-11"), TODAY)
+        );
+
+        assertThat(travelRecord.getMedia())
+                .extracting(RecordMedia::getCapturedDate)
+                .containsExactly(LocalDate.of(2026, 9, 11), null);
+    }
+
+    @Test
+    void 촬영일을_보내지_않은_수정은_저장된_촬영일을_지우지_않는다() {
+        TravelRecord travelRecord = travelRecord();
+        travelRecord.synchronizeMedia(
+                ObjectKeys.from(List.of(KEY_A)),
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-11"), TODAY)
+        );
+
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_B, KEY_A)));
+
+        assertThat(travelRecord.getMedia())
+                .extracting(RecordMedia::getCapturedDate)
+                .containsExactly(null, LocalDate.of(2026, 9, 11));
+    }
+
+    @Test
+    void 이미_가진_사진도_수정할_때_촬영일을_채운다() {
+        TravelRecord travelRecord = travelRecord();
+        travelRecord.synchronizeMedia(ObjectKeys.from(List.of(KEY_A)));
+
+        travelRecord.synchronizeMedia(
+                ObjectKeys.from(List.of(KEY_A)),
+                PhotoCaptureDates.from(Map.of(KEY_A, "2026-09-09"), TODAY)
+        );
+
+        assertThat(travelRecord.getMedia())
+                .extracting(RecordMedia::getCapturedDate)
+                .containsExactly(LocalDate.of(2026, 9, 9));
     }
 
     @Test

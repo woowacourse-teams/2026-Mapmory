@@ -1,0 +1,193 @@
+name: Claude Review Learn
+
+# CodeRabbit이 backend-develop 대상 PR에 리뷰를 남기면, Claude 리뷰가 놓친 지적을 찾아 배운 규칙(guide.md) 수정안을 만든다.
+# 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+# pull_request_review는 PR의 merge 커밋에 있는 워크플로로 돌기 때문에, main을 기다리지 않고 backend-develop에서 동작한다.
+# 2026-11-22: 효과가 측정되기 전까지 잠시 끈다(수동 실행만). 주간 리뷰 지표(claude-review-metrics.yml)로 리뷰 정확도를 먼저 재고,
+# 지표가 이 자동화의 필요를 보여 주면 다시 켠다. 학습은 코드래빗 리뷰 이벤트가 있어야 돌아서, 다시 켤 때는 아래를 되돌린다.
+#   on:
+#     pull_request_review:
+#       types: [submitted]
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  learn:
+    if: |
+      github.event.review.user.login == 'coderabbitai[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'backend-develop'
+    # Claude는 읽기 권한 토큰만 받는다. 리뷰 본문에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    # 워크플로 수준 동시성은 대기 중인 run을 새 run이 취소하고, 사람 리뷰 이벤트도 그룹에 들어간다.
+    # CodeRabbit 리뷰마다 따로 돌게 job 수준에서 리뷰 ID로 묶는다.
+    concurrency:
+      group: claude-review-learn-${{ github.event.review.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      checks: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REVIEW_ID: ${{ github.event.review.id }}
+      REVIEW_COMMIT: ${{ github.event.review.commit_id }}
+      BASE_BRANCH: backend-develop
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      variants: ${{ steps.diff.outputs.variants }}
+      base_branch: ${{ env.BASE_BRANCH }}
+      pr_number: ${{ env.PR_NUMBER }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 1
+
+      - name: Count CodeRabbit findings
+        id: count
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # CodeRabbit이 스레드에 단 답글도 별도 리뷰가 된다. 답글이 아닌 새 지적만 센다.
+          count=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID/comments?per_page=100" --jq '[.[] | select(.in_reply_to_id == null)] | length')
+          outside=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID" --jq '.body | test("Outside diff range")')
+          echo "CodeRabbit 인라인 지적 ${count}개, 줄 밖 지적 ${outside}"
+          if [ "$count" -gt 0 ] || [ "$outside" = "true" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+
+      # 비교가 공정하도록 같은 커밋에 대한 Claude 리뷰가 끝날 때까지 기다린다.
+      # 그 커밋의 리뷰가 성공으로 끝나지 않았으면(경로 조건·드래프트로 안 돌았거나, 새 커밋으로 취소됐거나, 실패) 배우지 않는다.
+      # Claude 지적이 0개로 보여 CodeRabbit 지적을 전부 "놓침"으로 잘못 배우기 때문이다.
+      - name: Wait for Claude review of the same commit
+        id: claude
+        if: steps.count.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 40); do
+            runs=$(gh api "repos/${{ github.repository }}/commits/$REVIEW_COMMIT/check-runs?check_name=review" --jq '[.check_runs[] | {status, conclusion}]')
+            echo "Claude 리뷰: $runs"
+            echo "$runs" | jq -e 'any(.status != "completed")' > /dev/null || break
+            sleep 30
+          done
+          if echo "$runs" | jq -e 'any(.conclusion == "success")' > /dev/null; then
+            echo "reviewed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reviewed=false" >> "$GITHUB_OUTPUT"
+            echo "같은 커밋($REVIEW_COMMIT)의 Claude 리뷰가 성공으로 끝나지 않아 비교하지 않는다." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Collect reviews
+        if: steps.claude.outputs.reviewed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 지침과 수집 스크립트는 이 워크플로와 같은 버전(PR merge 커밋)을 쓰고, 고칠 guide.md는 BASE_BRANCH의 것을 쓴다.
+          git fetch -q --depth=1 origin "$GITHUB_SHA"
+          mkdir -p .learn-tools
+          git show "$GITHUB_SHA:.github/claude-review/learn.md" > .learn-tools/learn.md
+          git show "$GITHUB_SHA:.github/claude-review/learn-collect.sh" > .learn-tools/learn-collect.sh
+          bash .learn-tools/learn-collect.sh "${{ github.repository }}" "$PR_NUMBER" "$REVIEW_ID" .learn
+          git fetch -q --depth=50 origin "pull/$PR_NUMBER/head:refs/pr/$PR_NUMBER"
+          git fetch -q --depth=1 origin "$REVIEW_COMMIT" || true
+
+      - name: Install Claude Code
+        if: steps.claude.outputs.reviewed == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose guide changes
+        if: steps.claude.outputs.reviewed == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.learn-tools/learn.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.learn/\`에 있고, PR 커밋은 \`refs/pr/${PR_NUMBER}\`에 있다. 지적 시점의 커밋은 ${REVIEW_COMMIT}이다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,WebFetch(domain:docs.github.com),WebFetch(domain:github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:docs.spring.io),WebFetch(domain:docs.oracle.com),WebFetch(domain:javadoc.io),WebFetch(domain:www.javadoc.io),WebFetch(domain:dev.mysql.com),WebFetch(domain:docs.aws.amazon.com),WebFetch(domain:hibernate.org),WebFetch(domain:docs.jboss.org),WebFetch(domain:junit.org),WebFetch(domain:site.mockito.org),WebFetch(domain:assertj.github.io),Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .learn/claude-output.json || true
+          test -f .learn/summary.md || echo "요약이 없다. Claude 출력: $(jq -r '.result // "없음"' .learn/claude-output.json 2>/dev/null)" > .learn/summary.md
+
+      - id: diff
+        if: steps.claude.outputs.reviewed == 'true'
+        run: |
+          if git diff --quiet -- .github/claude-review/guide.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -s .learn/variants.md ]; then echo "variants=true" >> "$GITHUB_OUTPUT"; else echo "variants=false" >> "$GITHUB_OUTPUT"; fi
+          # PR 체크 화면에서 학습 결과를 바로 볼 수 있게 주석으로 남긴다.
+          changed=$(git diff --quiet -- .github/claude-review/guide.md && echo 없음 || echo 있음)
+          variants=$(grep -c '^- ' .learn/variants.md 2>/dev/null || true)
+          outcome=$(jq -r 'if .is_error then "실패" else "완료" end' .learn/claude-output.json 2>/dev/null || echo "출력 없음")
+          echo "::notice title=리뷰 학습 #$PR_NUMBER::Claude $outcome. 규칙 변경 $changed, 같은 패턴 ${variants:-0}곳. 비교: $(grep -cE '^\| `' .learn/summary.md 2>/dev/null || true)개 지적"
+          { echo "## #$PR_NUMBER CodeRabbit 리뷰에서 배우기"; echo; cat .learn/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      # guide.md와 요약만 넘긴다. Claude가 다른 파일을 바꿨더라도 반영되지 않는다.
+      - name: Collect proposal
+        if: steps.diff.outputs.changed == 'true' || steps.diff.outputs.variants == 'true'
+        run: |
+          mkdir -p /tmp/proposal
+          cp .github/claude-review/guide.md .learn/summary.md /tmp/proposal/
+          cp .learn/variants.md /tmp/proposal/ 2>/dev/null || true
+          git show HEAD:.github/claude-review/guide.md > /tmp/proposal/guide.orig.md
+      - uses: actions/upload-artifact@v4
+        if: steps.diff.outputs.changed == 'true' || steps.diff.outputs.variants == 'true'
+        with:
+          name: claude-review-learn
+          path: /tmp/proposal/
+
+  propose-pr:
+    needs: learn
+    if: needs.learn.outputs.changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/claude-review-propose.yml
+    with:
+      base_branch: ${{ needs.learn.outputs.base_branch }}
+      kind: learn
+      title: "chore: #${{ needs.learn.outputs.pr_number }} CodeRabbit 리뷰에서 배운 규칙을 고친다"
+      intro: "#${{ needs.learn.outputs.pr_number }}에서 CodeRabbit은 지적했는데 Claude 리뷰가 놓친 문제를 바탕으로 만든 `.github/claude-review/guide.md` 수정안이다. 사람이 보고 판단해 머지한다."
+      artifact: claude-review-learn
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 규칙은 그대로인데 같은 패턴이 남은 곳을 찾았으면 이슈로만 알린다. 이 job에는 Claude가 없다.
+  report-variants:
+    needs: learn
+    if: needs.learn.outputs.changed != 'true' && needs.learn.outputs.variants == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-learn
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "chore: #${{ needs.learn.outputs.pr_number }}에서 고친 문제와 같은 패턴이 다른 곳에도 남아 있다"
+        run: |
+          {
+            echo "#${{ needs.learn.outputs.pr_number }}의 CodeRabbit 리뷰에서 확인한 문제와 같은 모양의 코드를 저장소에서 찾았다. 규칙은 이미 있어 바꾸지 않았다. 각 위치를 보고 고칠지 판단한다."
+            echo
+            echo "## 같은 패턴이 남은 곳"
+            echo
+            cat /tmp/proposal/variants.md
+            echo
+            echo "<details><summary>판단 근거(요약 전체)</summary>"
+            echo
+            cat /tmp/proposal/summary.md
+            echo
+            echo "</details>"
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md

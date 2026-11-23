@@ -1,0 +1,192 @@
+name: Claude Review Propose
+
+# 회고·학습(guide.md)과 도메인 동기화(domain.md·policies.md)가 만든 수정안을 올리는 공통 단계.
+# 수정안을 브랜치로 push하고, 회귀 검증(claude-review-eval.yml)을 돌린 뒤, 결과를 붙여 PR로 올린다.
+# Actions의 PR 생성이 막혀 있으면 이슈로 남긴다. 이 워크플로에는 Claude가 없다.
+on:
+  workflow_call:
+    inputs:
+      base_branch:
+        description: 수정안을 올릴 브랜치
+        type: string
+        required: true
+      kind:
+        description: 브랜치 이름에 붙일 종류(retro, learn, sync)
+        type: string
+        required: true
+      title:
+        description: PR·이슈 제목
+        type: string
+        required: true
+      intro:
+        description: 본문 첫 문단
+        type: string
+        required: true
+      artifact:
+        description: 수정안 파일, 각 파일의 <이름>.orig.md, summary.md가 든 아티팩트 이름
+        type: string
+        required: true
+      files:
+        description: .github/claude-review/ 아래에서 수정안으로 올릴 파일들(공백으로 구분)
+        type: string
+        default: guide.md
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      branch: ${{ steps.push.outputs.branch }}
+      conflict: ${{ steps.push.outputs.conflict }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: /tmp/proposal
+      - id: push
+        env:
+          KIND: ${{ inputs.kind }}
+          TITLE: ${{ inputs.title }}
+          FILES: ${{ inputs.files }}
+        run: |
+          branch="claude-review/${KIND}-$(date -u +%Y%m%d)-${{ github.run_id }}"
+          # 수정안을 만든 뒤 base에 다른 규칙이 머지됐을 수 있다. 통째로 덮지 않고 파일마다 3-way로 합친다.
+          for f in $FILES; do
+            [ -f "/tmp/proposal/$f" ] || continue
+            if ! git merge-file -L 현재 -L 수정안을_만든_때 -L 수정안 \
+                ".github/claude-review/$f" "/tmp/proposal/${f%.md}.orig.md" "/tmp/proposal/$f"; then
+              # 동기화는 같은 범위를 다시 보지 않는다. 버리지 않고 이슈로 남겨 사람이 반영하게 한다.
+              echo "::warning::수정안을 만든 뒤 바뀐 $f와 충돌한다. PR 대신 이슈로 남긴다."
+              echo "conflict=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          if git diff --quiet; then
+            echo "::error::합친 결과가 base와 같다. 올릴 수정안이 없다."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -qam "$TITLE"
+          git push -q origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+  eval:
+    needs: push
+    if: needs.push.outputs.conflict != 'true'
+    uses: ./.github/workflows/claude-review-eval.yml
+    with:
+      ref: ${{ needs.push.outputs.branch }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  open-pr:
+    # 검증이 실패해도 올린다. 실패 내용을 본문에 적어 사람이 판단한다.
+    needs: [push, eval]
+    if: always() && needs.push.result == 'success' && needs.push.outputs.conflict != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: /tmp/proposal
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: claude-review-eval-summary
+          path: /tmp/eval
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.push.outputs.branch }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          EVAL_RESULT: ${{ needs.eval.result }}
+          TITLE: ${{ inputs.title }}
+          INTRO: ${{ inputs.intro }}
+        run: |
+          {
+            echo "## 요약"
+            echo
+            echo "$INTRO"
+            echo
+            sed 's/^## /### /' /tmp/proposal/summary.md
+            echo
+            if [ "$EVAL_RESULT" = "success" ]; then
+              echo "## 회귀 검증: 통과"
+            else
+              echo "## 회귀 검증: 실패 ($EVAL_RESULT)"
+              echo
+              echo "이 수정안을 적용하면 기존 검증 케이스 중 일부를 놓친다. 원인을 보고 고치거나 닫는다."
+            fi
+            echo
+            if [ -f /tmp/eval/summary.md ]; then
+              sed '1d' /tmp/eval/summary.md
+            else
+              echo "검증 결과를 가져오지 못했다. Actions 실행 기록을 본다."
+            fi
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          # 저장소 설정에서 Actions의 PR 생성을 막아 두었으면 이슈로 남긴다.
+          if ! gh pr create -R "${{ github.repository }}" --base "$BASE_BRANCH" --head "$BRANCH" --title "$TITLE" --body-file body.md; then
+            echo >> body.md
+            echo "PR을 만들 수 없어 이슈로 남긴다. 브랜치 \`$BRANCH\`로 직접 PR을 연다. 반영하지 않으면 이슈를 닫고 브랜치를 지운다." >> body.md
+            gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md
+          fi
+
+  # 수정안이 그사이 바뀐 파일과 충돌하면, 수정안과 요약을 이슈로 남긴다. 이 job에는 Claude가 없다.
+  report-conflict:
+    needs: push
+    if: needs.push.outputs.conflict == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ inputs.title }}
+          INTRO: ${{ inputs.intro }}
+          FILES: ${{ inputs.files }}
+        run: |
+          {
+            echo "$INTRO"
+            echo
+            echo "수정안을 만든 뒤 대상 파일이 바뀌어 자동으로 합치지 못했다. 아래 diff를 보고 사람이 반영한다."
+            echo
+            sed 's/^## /### /' /tmp/proposal/summary.md
+            for f in $FILES; do
+              [ -f "/tmp/proposal/$f" ] || continue
+              echo
+              echo "<details><summary>$f 수정안 diff (수정안을 만든 때 기준)</summary>"
+              echo
+              echo '```diff'
+              diff -u "/tmp/proposal/${f%.md}.orig.md" "/tmp/proposal/$f" | head -400 || true
+              echo '```'
+              echo
+              echo "</details>"
+            done
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "$TITLE (충돌, 수동 반영)" --body-file body.md

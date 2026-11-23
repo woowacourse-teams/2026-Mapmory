@@ -50,6 +50,27 @@ public class RegionMapSummaryService {
                 () -> loadSummaries(member, parentRegionId, tagId));
     }
 
+    /**
+     * 국가·시도·시군구 요약을 한 번에 준다. 지도 화면이 단계마다 따로 부르지 않게 한다.
+     * 캐시와 태그 검증 규칙은 {@link #getSummaries}와 같다.
+     */
+    public List<RegionMapSummary> getAllSummaries(Member member, Long tagId) {
+        return mapSummaryCache.getAll(member.getId(), tagId, () -> loadAllSummaries(member, tagId));
+    }
+
+    private List<RegionMapSummary> loadAllSummaries(Member member, Long tagId) {
+        if (tagId != null) {
+            tagService.getOwnedTag(member, tagId);
+        }
+        List<RegionMapSummaryQueryResult> summaries = operationTimer.record(
+                MonitoredOperation.MAP_SUMMARY_QUERY,
+                () -> regionMapSummaryRepository.findAllRegionMapSummaries(member.getId(), tagId)
+        );
+        return summaries.stream()
+                .map(this::toSummary)
+                .toList();
+    }
+
     private List<RegionMapSummary> loadSummaries(Member member, Long parentRegionId, Long tagId) {
         validateParentRegion(parentRegionId);
         if (tagId != null) {
@@ -67,6 +88,7 @@ public class RegionMapSummaryService {
     private RegionMapSummary toSummary(RegionMapSummaryQueryResult result) {
         return new RegionMapSummary(
                 result.getRegionId(),
+                result.getParentRegionId(),
                 result.getRegionCode(),
                 RegionType.valueOf(result.getRegionType()),
                 result.getName(),

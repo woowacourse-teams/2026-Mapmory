@@ -1,0 +1,2187 @@
+{
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**0. 알람** · 지금 울리는 알람과 요청 유입을 본다. 요청 수가 비어 있으면 0건이 아니라 수집이 멈춘 것이다."
+      }
+    },
+    {
+      "type": "alarm",
+      "x": 0,
+      "y": 1,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "title": "Alarm Status (${ENV})",
+        "alarms": [
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-metrics-missing",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-count",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-ratio",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-rate",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-read-latency",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-write-latency",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-application-error",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-cache-bypass",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-db-connection-pending",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-cpu-usage-high",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-disk-usage-high",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-memory-usage-high",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-ec2-status-check-failed",
+          "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-rds-free-storage-low"
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 4,
+      "width": 6,
+      "height": 5,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SUM([m1,m2,m3,m4,m5]) / PERIOD(m2) * 60",
+              "label": "전체 요청/분",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "CLIENT_ERROR",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SUCCESS",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SERVER_ERROR",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "REDIRECTION",
+            {
+              "id": "m4",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "UNKNOWN",
+            {
+              "id": "m5",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "singleValue",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "요청 수 (분당)",
+        "period": 60,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 4,
+      "width": 6,
+      "height": 5,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/EC2",
+            "CPUUtilization",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2",
+              "label": "CPU 사용률"
+            }
+          ]
+        ],
+        "view": "gauge",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 CPU",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 4,
+      "width": 6,
+      "height": 5,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/EC2",
+            "mem_used_percent",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2",
+              "label": "메모리 사용률"
+            }
+          ]
+        ],
+        "view": "gauge",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 메모리",
+        "period": 60,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 4,
+      "width": 6,
+      "height": 5,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/EC2",
+            "disk_used_percent",
+            "path",
+            "/",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            "device",
+            "${DISK_DEVICE}",
+            "fstype",
+            "${DISK_FSTYPE}",
+            {
+              "region": "ap-northeast-2",
+              "label": "루트 디스크 사용률"
+            }
+          ]
+        ],
+        "view": "gauge",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 디스크 (/)",
+        "period": 60,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 9,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**1. 사용자 쪽 · 트래픽, 오류, 지연** · 오류율은 트래픽과 함께 본다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 10,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SUM([m1,m2,m3,m4,m5]) / PERIOD(m2) * 60",
+              "label": "전체",
+              "id": "e0",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m2 / PERIOD(m2) * 60",
+              "label": "성공(2xx)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m1 / PERIOD(m1) * 60",
+              "label": "4xx",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m3 / PERIOD(m3) * 60",
+              "label": "5xx",
+              "id": "e3",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "CLIENT_ERROR",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SUCCESS",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SERVER_ERROR",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "REDIRECTION",
+            {
+              "id": "m4",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "UNKNOWN",
+            {
+              "id": "m5",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "요청 수 (분당)",
+        "period": 60,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "요청/분",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 10,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "IF((FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)) >= 30, 100 * FILL(m3, 0) / (FILL(m1, 0) + FILL(m2, 0) + FILL(m3, 0)), 0)",
+              "label": "5xx 비율 (%, 1시간, 알람과 같은 식)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SUCCESS",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 3600,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "CLIENT_ERROR",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 3600,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "outcome",
+            "SERVER_ERROR",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 3600,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "5xx 비율 (%)",
+        "period": 3600,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "label": "%",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 10,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "MAX(SEARCH('{Mapmory/Backend,environment,method,quantile,service,uri} MetricName=\"http_server_requests_seconds\" environment=\"${ENV}\" quantile=\"0.99\"', 'Average', 60))",
+              "label": "p99",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "MAX(SEARCH('{Mapmory/Backend,environment,method,quantile,service,uri} MetricName=\"http_server_requests_seconds\" environment=\"${ENV}\" quantile=\"0.95\"', 'Average', 60))",
+              "label": "p95",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "MAX(SEARCH('{Mapmory/Backend,environment,method,quantile,service,uri} MetricName=\"http_server_requests_seconds\" environment=\"${ENV}\" quantile=\"0.5\"', 'Average', 60))",
+              "label": "p50",
+              "id": "e3",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "API 지연 최댓값 (p50 / p95 / p99)",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "label": "초",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 10,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "title": "5xx 비율 알람 (mapmory-${ENV}-api-5xx-ratio)",
+        "annotations": {
+          "alarms": [
+            "arn:aws:cloudwatch:ap-northeast-2:${ACCOUNT_ID}:alarm:mapmory-${ENV}-api-5xx-ratio"
+          ]
+        },
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 16,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SEARCH('{Mapmory/Backend,environment,outcome,service,version} MetricName=\"http_server_requests_seconds_count\" environment=\"${ENV}\" outcome=\"SERVER_ERROR\"', 'Sum', 60)",
+              "label": "5xx",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "버전별 5xx (분당)",
+        "period": 60,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 16,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SEARCH('{Mapmory/Backend,environment,outcome,service,version} MetricName=\"http_server_requests_seconds_count\" environment=\"${ENV}\" outcome=\"SUCCESS\"', 'Sum', 60)",
+              "label": "2xx",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "버전별 성공 요청 (분당)",
+        "period": 60,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 22,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**2. 범위** · 어느 API에서 나빠졌는지 좁힌다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/auth/login/kakao",
+            {
+              "label": "POST /api/v1/auth/login/kakao p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/auth/login/guest",
+            {
+              "label": "POST /api/v1/auth/login/guest p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/auth/logout",
+            {
+              "label": "POST /api/v1/auth/logout p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/auth/token/refresh",
+            {
+              "label": "POST /api/v1/auth/token/refresh p95",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Auth API p95",
+        "period": 60,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records",
+            {
+              "label": "GET /api/v1/travel-records p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "label": "GET /api/v1/travel-records/{travelRecordId} p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records",
+            {
+              "label": "POST /api/v1/travel-records p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "PUT",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "label": "PUT /api/v1/travel-records/{travelRecordId} p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "DELETE",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "label": "DELETE /api/v1/travel-records/{travelRecordId} p95",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Travel Record API p95",
+        "period": 60,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records/map-summary/regions/roots",
+            {
+              "label": "GET /api/v1/travel-records/map-summary/regions/roots p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/travel-records/map-summary/regions/{regionId}/children",
+            {
+              "label": "GET /api/v1/travel-records/map-summary/regions/{regionId}/children p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "uri",
+            "/api/v1/uploads/presigned-urls",
+            {
+              "label": "POST /api/v1/uploads/presigned-urls p95",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Map & Upload API p95",
+        "period": 60,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 29,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 / PERIOD(m1) * 60",
+              "label": "Kakao login",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m2 / PERIOD(m2) * 60",
+              "label": "Guest login",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m3 / PERIOD(m3) * 60",
+              "label": "Logout",
+              "id": "e3",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m4 / PERIOD(m4) * 60",
+              "label": "Token refresh",
+              "id": "e4",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/auth/login/kakao",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/auth/login/guest",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/auth/logout",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/auth/token/refresh",
+            {
+              "id": "m4",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Auth API 요청 (분당)",
+        "period": 60,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "요청/분",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 29,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 / PERIOD(m1) * 60",
+              "label": "상세 GET",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m2 / PERIOD(m2) * 60",
+              "label": "목록 GET",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m3 / PERIOD(m3) * 60",
+              "label": "생성 POST",
+              "id": "e3",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m4 / PERIOD(m4) * 60",
+              "label": "수정 PUT",
+              "id": "e4",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m5 / PERIOD(m5) * 60",
+              "label": "삭제 DELETE",
+              "id": "e5",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "PUT",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "id": "m4",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "DELETE",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records/{travelRecordId}",
+            {
+              "id": "m5",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Travel Record API 요청 (분당)",
+        "period": 60,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "요청/분",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 29,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 / PERIOD(m1) * 60",
+              "label": "지도 roots",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m2 / PERIOD(m2) * 60",
+              "label": "지도 children",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "m3 / PERIOD(m3) * 60",
+              "label": "Presigned URL",
+              "id": "e3",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records/map-summary/regions/roots",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "GET",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/travel-records/map-summary/regions/{regionId}/children",
+            {
+              "id": "m2",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "http_server_requests_seconds_count",
+            "environment",
+            "${ENV}",
+            "method",
+            "POST",
+            "service",
+            "mapmory-backend",
+            "uri",
+            "/api/v1/uploads/presigned-urls",
+            {
+              "id": "m3",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Map & Upload API 요청 (분당)",
+        "period": 60,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "요청/분",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 35,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**3. 자원 쪽 · 포화** · 커넥션 풀, 스레드, CPU·GC, 메모리, 캐시. 사용자 쪽 숫자보다 먼저 나빠진다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 36,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "mapmory_operation_duration_seconds",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "quantile",
+            "0.95",
+            "operation",
+            "MAP_SUMMARY_QUERY",
+            "outcome",
+            "SUCCESS",
+            {
+              "label": "MAP_SUMMARY_QUERY p95",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "...",
+            "MEDIA_SYNC",
+            ".",
+            ".",
+            {
+              "label": "MEDIA_SYNC p95",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "내부 작업 p95",
+        "period": 60,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 36,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "hikaricp_connections_active",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "pool",
+            "HikariPool-1",
+            {
+              "region": "ap-northeast-2",
+              "label": "active (사용 중)"
+            }
+          ],
+          [
+            ".",
+            "hikaricp_connections_pending",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "pending (기다리는 요청)"
+            }
+          ],
+          [
+            ".",
+            "hikaricp_connections_max",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "max"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "DB 커넥션 풀",
+        "period": 60,
+        "stat": "Maximum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 36,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 / PERIOD(m1) * 60",
+              "label": "timeout/분",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "hikaricp_connections_timeout_total",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "pool",
+            "HikariPool-1",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Sum",
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "DB 커넥션 획득 실패 (건/분)",
+        "period": 60,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 36,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "tomcat_threads_busy_threads",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            {
+              "region": "ap-northeast-2",
+              "label": "busy"
+            }
+          ],
+          [
+            ".",
+            "tomcat_threads_current_threads",
+            ".",
+            ".",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "current"
+            }
+          ],
+          [
+            ".",
+            "tomcat_threads_config_max_threads",
+            ".",
+            ".",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "max"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "Tomcat 스레드",
+        "period": 60,
+        "stat": "Maximum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 42,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 * 100",
+              "label": "앱 CPU (%)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "100 * SUM(SEARCH('{Mapmory/Backend,environment,gc,service} MetricName=\"jvm_gc_pause_seconds_sum\" environment=\"${ENV}\"', 'Sum', 60)) / 60",
+              "label": "GC 시간 비율 (%)",
+              "id": "e2",
+              "region": "ap-northeast-2",
+              "yAxis": "right"
+            }
+          ],
+          [
+            "Mapmory/Backend",
+            "process_cpu_usage",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            {
+              "id": "m1",
+              "visible": false,
+              "stat": "Average",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "앱 CPU & GC",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100,
+            "label": "CPU %",
+            "showUnits": false
+          },
+          "right": {
+            "min": 0,
+            "label": "GC %",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 42,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "jvm_memory_used_bytes",
+            "area",
+            "heap",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            "id",
+            "G1 Old Gen",
+            {
+              "region": "ap-northeast-2",
+              "label": "used"
+            }
+          ],
+          [
+            ".",
+            "jvm_memory_max_bytes",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "max"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "JVM Old Gen",
+        "period": 60,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 42,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"hit\"', 'Sum', 300))",
+              "label": "mapSummary hit",
+              "id": "h1",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"mapSummary\" result=\"miss\"', 'Sum', 300))",
+              "label": "mapSummary miss",
+              "id": "m1",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "IF(FILL(h1, 0) + FILL(m1, 0) > 0, 100 * FILL(h1, 0) / (FILL(h1, 0) + FILL(m1, 0)))",
+              "label": "mapSummary 적중률 (%)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"hit\"', 'Sum', 300))",
+              "label": "travelRecordList hit",
+              "id": "h2",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "SUM(SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"cache_gets_total\" environment=\"${ENV}\" cache=\"travelRecordList\" result=\"miss\"', 'Sum', 300))",
+              "label": "travelRecordList miss",
+              "id": "m2",
+              "visible": false,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            {
+              "expression": "IF(FILL(h2, 0) + FILL(m2, 0) > 0, 100 * FILL(h2, 0) / (FILL(h2, 0) + FILL(m2, 0)))",
+              "label": "travelRecordList 적중률 (%)",
+              "id": "e2",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "캐시 적중률 (%)",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100,
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 42,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/Backend",
+            "mapmory_deployment_cache_bypass",
+            "environment",
+            "${ENV}",
+            "service",
+            "mapmory-backend",
+            {
+              "id": "m1",
+              "stat": "Maximum",
+              "period": 60,
+              "label": "BYPASS 중인 프로세스가 있음 (최댓값)",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "...",
+            {
+              "id": "m2",
+              "stat": "Minimum",
+              "period": 60,
+              "label": "모든 프로세스가 BYPASS (최솟값, 알람 기준)",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "캐시 모드 (BYPASS=1, NORMAL=0)",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 1,
+            "showUnits": false
+          }
+        },
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "BYPASS",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 48,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**4. 자원 쪽 · 쌓인 작업** · 응답이 나간 뒤 처리되는 일이 밀리는지 본다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 49,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "SEARCH('Namespace=\"Mapmory/Backend\" MetricName=\"mapmory_thumbnail_backlog\" environment=\"${ENV}\"', 'Maximum', 60)",
+              "label": "backlog",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "썸네일 backlog (렌더러 서버)",
+        "period": 60,
+        "stat": "Maximum"
+      }
+    },
+    {
+      "type": "text",
+      "x": 8,
+      "y": 49,
+      "width": 16,
+      "height": 6,
+      "properties": {
+        "markdown": "**추가할 지표**\n\n| 지표 | 내용 |\n|---|---|\n| `mapmory_notification_outbox_pending` | 쌓인 알림 수 |\n| `mapmory_notification_outbox_oldest_age_seconds` | 가장 오래 기다린 알림의 경과 시간 |\n| `mapmory_share_video_jobs{status}` | 상태별 공유 영상 job 수 |\n\n썸네일 backlog는 렌더러 서버에 CloudWatch Agent를 설치하면 표시된다."
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 55,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**5. DB** · 3번의 커넥션 풀과 짝으로 본다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 56,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "CPUUtilization",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS CPU",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 56,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "DatabaseConnections",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS 연결 수",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 56,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "ReadLatency",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "AWS/RDS",
+            "WriteLatency",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS 읽기/쓰기 지연",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 62,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "FreeableMemory",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS 가용 메모리",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 62,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "ReadIOPS",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            "AWS/RDS",
+            "WriteIOPS",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS 읽기/쓰기 IOPS",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 62,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/RDS",
+            "FreeStorageSpace",
+            "DBInstanceIdentifier",
+            "${DB_ID}",
+            {
+              "period": 60,
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "RDS 남은 저장 공간",
+        "period": 60
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 68,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**6. 인프라** · EC2"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 69,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/EC2",
+            "CPUUtilization",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 CPU 추이",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 69,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/EC2",
+            "mem_used_percent",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 메모리 추이",
+        "period": 60,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 69,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/EC2",
+            "NetworkIn",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2",
+              "label": "In"
+            }
+          ],
+          [
+            ".",
+            "NetworkOut",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2",
+              "label": "Out"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 네트워크 In / Out",
+        "period": 300,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 75,
+      "width": 12,
+      "height": 4,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/EC2",
+            "StatusCheckFailed_Instance",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            {
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "StatusCheckFailed",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "StatusCheckFailed_System",
+            ".",
+            ".",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 상태 검사",
+        "period": 300,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 75,
+      "width": 12,
+      "height": 4,
+      "properties": {
+        "metrics": [
+          [
+            "Mapmory/EC2",
+            "disk_used_percent",
+            "path",
+            "/",
+            "InstanceId",
+            "${INSTANCE_ID}",
+            "device",
+            "${DISK_DEVICE}",
+            "fstype",
+            "${DISK_FSTYPE}",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "EC2 디스크 추이 (/)",
+        "period": 60,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 79,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "**7. 로그** · 그래프에서 찾은 시각의 로그를 requestId로 모은다."
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 80,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE \"/mapmory/${ENV}/application\" |\nfilter level = \"WARN\" or level = \"ERROR\" | stats count(*) as cnt by event, errorCode, uri | sort cnt desc | limit 20",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "title": "WARN / ERROR — event별 건수"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 86,
+      "width": 24,
+      "height": 8,
+      "properties": {
+        "query": "SOURCE \"/mapmory/${ENV}/application\" |\nfields @timestamp, level, event, requestId, httpMethod, uri, errorCode, logger_name, message | filter level = \"WARN\" or level = \"ERROR\" | sort @timestamp desc | limit 50",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "title": "최근 WARN / ERROR 로그"
+      }
+    }
+  ]
+}

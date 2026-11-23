@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class GroupMembershipTest {
 
     private final TravelGroupRepository travelGroupRepository = mock(TravelGroupRepository.class);
-    private final GroupMembership groupMembership = new GroupMembership(travelGroupRepository);
+    private final GroupMembership groupMembership = new GroupMembership(travelGroupRepository, mock(SocialMemberGuard.class));
 
     @Test
     void 멤버면_통과한다() {

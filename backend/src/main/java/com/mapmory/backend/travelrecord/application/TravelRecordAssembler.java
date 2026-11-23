@@ -6,6 +6,7 @@ import com.mapmory.backend.tag.Tag;
 import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
+import com.mapmory.backend.travelrecord.domain.TravelRecordListMediaSummary;
 import com.mapmory.backend.travelrecord.domain.TravelRecordRepository;
 import com.mapmory.backend.travelrecord.domain.TravelRecordTag;
 import java.util.HashMap;
@@ -57,19 +58,20 @@ public class TravelRecordAssembler {
                 .map(TravelRecord::getId)
                 .toList();
 
-        List<RecordMedia> media = findMedia(travelRecordIds);
+        Map<Long, TravelRecordListMediaSummary> mediaSummaries = findListMediaSummaries(travelRecordIds);
         Map<Long, List<Tag>> tags = findTags(travelRecordIds);
-        Map<Long, String> thumbnailObjectKeys = findThumbnailObjectKeys(media);
-        Map<Long, Integer> photoCounts = countPhotos(media);
 
         return new TravelRecordListPage(
                 travelRecords.getContent().stream()
-                        .map(travelRecord -> toEntry(
-                                travelRecord,
-                                tags.getOrDefault(travelRecord.getId(), List.of()),
-                                thumbnailObjectKeys.get(travelRecord.getId()),
-                                photoCounts.getOrDefault(travelRecord.getId(), 0)
-                        ))
+                        .map(travelRecord -> {
+                            TravelRecordListMediaSummary media = mediaSummaries.get(travelRecord.getId());
+                            return toEntry(
+                                    travelRecord,
+                                    tags.getOrDefault(travelRecord.getId(), List.of()),
+                                    media == null ? null : media.thumbnailObjectKey(),
+                                    media == null ? 0 : Math.toIntExact(media.getPhotoCount())
+                            );
+                        })
                         .toList(),
                 travelRecords.getNumber(),
                 travelRecords.getSize(),
@@ -118,21 +120,31 @@ public class TravelRecordAssembler {
 
     private List<MediaView> toMediaViews(TravelRecord travelRecord) {
         return travelRecord.getMedia().stream()
-                .map(recordMedia -> new MediaView(
-                        recordMedia,
-                        recordMediaUrlService.createViewUrl(recordMedia.getObjectKey())
-                ))
+                .map(this::toMediaView)
                 .toList();
     }
 
     /**
-     * 썸네일과 사진 개수를 같은 조회 결과에서 만든다. 목록 한 페이지에 미디어 조회는 한 번뿐이다.
+     * 썸네일이 아직 없으면 썸네일 자리에 원본 URL을 그대로 쓴다. 같은 키를 두 번 서명하지 않는다.
      */
-    private List<RecordMedia> findMedia(List<Long> travelRecordIds) {
-        if (travelRecordIds.isEmpty()) {
-            return List.of();
+    private MediaView toMediaView(RecordMedia recordMedia) {
+        ExpiringUrl viewUrl = recordMediaUrlService.createViewUrl(recordMedia.getObjectKey());
+        String thumbnailObjectKey = recordMedia.getThumbnailObjectKey();
+        if (thumbnailObjectKey.equals(recordMedia.getObjectKey())) {
+            return new MediaView(recordMedia, viewUrl, viewUrl);
         }
-        return travelRecordRepository.findMediaByTravelRecordIdIn(travelRecordIds);
+        return new MediaView(recordMedia, viewUrl, recordMediaUrlService.createViewUrl(thumbnailObjectKey));
+    }
+
+    /**
+     * 사진 엔티티를 생성하지 않고 일지별 요약만 읽는다. 빈 페이지는 SQL을 실행하지 않는다.
+     */
+    private Map<Long, TravelRecordListMediaSummary> findListMediaSummaries(List<Long> travelRecordIds) {
+        if (travelRecordIds.isEmpty()) {
+            return Map.of();
+        }
+        return travelRecordRepository.findListMediaSummaries(travelRecordIds).stream()
+                .collect(Collectors.toMap(TravelRecordListMediaSummary::getTravelRecordId, summary -> summary));
     }
 
     /**
@@ -147,21 +159,5 @@ public class TravelRecordAssembler {
                         TravelRecordTag::getTravelRecordId,
                         Collectors.mapping(TravelRecordTag::getTag, Collectors.toList())
                 ));
-    }
-
-    private Map<Long, String> findThumbnailObjectKeys(List<RecordMedia> media) {
-        Map<Long, String> thumbnailObjectKeys = new HashMap<>();
-        for (RecordMedia recordMedia : media) {
-            thumbnailObjectKeys.putIfAbsent(recordMedia.travelRecordId(), recordMedia.getThumbnailObjectKey());
-        }
-        return thumbnailObjectKeys;
-    }
-
-    private Map<Long, Integer> countPhotos(List<RecordMedia> media) {
-        Map<Long, Integer> photoCounts = new HashMap<>();
-        for (RecordMedia recordMedia : media) {
-            photoCounts.merge(recordMedia.travelRecordId(), 1, Integer::sum);
-        }
-        return Map.copyOf(photoCounts);
     }
 }

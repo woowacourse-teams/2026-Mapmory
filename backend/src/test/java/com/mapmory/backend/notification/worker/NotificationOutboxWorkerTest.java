@@ -71,6 +71,39 @@ class NotificationOutboxWorkerTest {
         verify(sender, never()).send(any());
     }
 
+    @Test
+    void 사진_완료_이벤트도_같은_워커에서_발송한다() {
+        ClaimedNotification photo = new ClaimedNotification(8L, "photo-claim", "PHOTO_RECORD_COMPLETED", "{}", 2L, 3L);
+        when(claimer.claimNextForType("PHOTO_RECORD_COMPLETED")).thenReturn(Optional.of(photo));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        when(factory.create(photo, token)).thenReturn(message);
+        when(sender.send(message)).thenReturn(new NotificationPushSender.Result(NotificationPushSender.Status.ACCEPTED, null));
+        worker.processNext();
+        verify(results).markSent(8L, "photo-claim");
+        verify(claimer).recoverNextExpiredForType("PHOTO_RECORD_COMPLETED");
+    }
+
+    @Test
+    void 이미_대기한_영상도_현재_기기_설정이_꺼지면_생략한다() {
+        token.updateDevice("rotated", PushPlatform.ANDROID, true, false);
+        when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        worker.processNext();
+        verify(results).markSkipped(7L, "claim", "NOTIFICATION_DISABLED");
+        verify(sender, never()).send(any());
+    }
+
+    @Test
+    void 이미_대기한_사진도_현재_기기_설정이_꺼지면_생략한다() {
+        token.updateDevice("rotated", PushPlatform.ANDROID, false, true);
+        ClaimedNotification photo = new ClaimedNotification(8L, "photo", "PHOTO_RECORD_COMPLETED", "{}", 2L, 3L);
+        when(claimer.claimNextForType("PHOTO_RECORD_COMPLETED")).thenReturn(Optional.of(photo));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        worker.processNext();
+        verify(results).markSkipped(8L, "photo", "NOTIFICATION_DISABLED");
+        verify(sender, never()).send(any());
+    }
+
     private void prepareMessage() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
         when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));

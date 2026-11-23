@@ -1,0 +1,7 @@
+# Semgrep 기본 무시 목록은 test/ 폴더를 건너뛴다. 이 저장소 규칙은 테스트 코드를 보므로 직접 정한다.
+build/
+.gradle/
+node_modules/
+frontend/
+ios/
+android/

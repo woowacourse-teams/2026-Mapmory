@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 public class NotificationOutboxWorker {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationOutboxWorker.class);
-    private static final String EVENT_TYPE = "VIDEO_COMPLETED";
+    private static final String[] EVENT_TYPES = {"VIDEO_COMPLETED", "PHOTO_RECORD_COMPLETED"};
 
     private final NotificationOutboxClaimer claimer;
     private final PushRecipients pushRecipients;
@@ -40,12 +40,14 @@ public class NotificationOutboxWorker {
 
     @Scheduled(fixedDelayString = "${notification.fcm.poll-delay:3s}", scheduler = "notificationOutboxTaskScheduler")
     public void processNext() {
-        try {
-            claimer.recoverNextExpiredForType(EVENT_TYPE);
-            claimer.claimNextForType(EVENT_TYPE).ifPresent(this::process);
-        } catch (RuntimeException exception) {
-            // 예외 메시지에 수신 토큰이나 외부 응답이 포함될 수 있어 클래스명만 남긴다.
-            log.error("알림 작업 처리 중 오류가 발생했습니다. errorType={}", exception.getClass().getSimpleName());
+        for (String eventType : EVENT_TYPES) {
+            try {
+                claimer.recoverNextExpiredForType(eventType);
+                claimer.claimNextForType(eventType).ifPresent(this::process);
+            } catch (RuntimeException exception) {
+                // 예외 메시지에 수신 토큰이나 외부 응답이 포함될 수 있어 클래스명만 남긴다.
+                log.error("알림 작업 처리 중 오류가 발생했습니다. errorType={}", exception.getClass().getSimpleName());
+            }
         }
     }
 
@@ -54,6 +56,12 @@ public class NotificationOutboxWorker {
         if (recipient.isEmpty()) {
             recordResult(notification, resultService.markSkipped(
                     notification.outboxId(), notification.claimToken(), "RECIPIENT_NOT_FOUND"));
+            return;
+        }
+
+        if (!recipient.get().allowsCompletion(notification.eventType())) {
+            recordResult(notification, resultService.markSkipped(
+                    notification.outboxId(), notification.claimToken(), "NOTIFICATION_DISABLED"));
             return;
         }
 

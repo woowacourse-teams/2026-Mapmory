@@ -49,5 +49,9 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
     void deleteByIdAndMemberId(@Param("id") Long id, @Param("memberId") Long memberId);
 
     // 영상 요청 시 수신 대상 소유권 확인에 사용할 메서드
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PushToken p WHERE p.id = :id")
+    Optional<PushToken> findByIdForUpdate(@Param("id") Long id);
+
     Optional<PushToken> findByIdAndMemberId(Long id, Long memberId);
 }
