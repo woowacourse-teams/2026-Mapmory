@@ -41,7 +41,7 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * 실제 서버로 application.yaml의 Google 전용 값(connect 400ms, read 1초, 풀 크기 = 분당 한도)이 걸리는지 확인한다.
+ * 실제 서버로 application.yaml의 Google 전용 값(connect 1.5초, read 1.5초, 풀 크기 = 분당 한도)이 걸리는지 확인한다.
  *
  * <p>공통 값(spring.http.clients 2초/3초)이 아니라 Google 전용 값이 적용돼야 한다.
  */
@@ -92,12 +92,12 @@ class GooglePlacesTimeoutTest {
     }
 
     @Test
-    void 응답이_1초를_넘기면_기다리지_않고_제공자_장애로_끝낸다() {
-        delayMillis = 2_000;
+    void 응답이_1초_500밀리를_넘기면_기다리지_않고_제공자_장애로_끝낸다() {
+        delayMillis = 3_000;
         contextRunner.withPropertyValues(properties()).run(context -> {
             GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
 
-            assertTimeoutPreemptively(Duration.ofMillis(1_800), () ->
+            assertTimeoutPreemptively(Duration.ofMillis(2_500), () ->
                     assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                             .isInstanceOf(BusinessException.class)
                             .extracting(exception -> ((BusinessException) exception).getErrorCode())
@@ -108,7 +108,7 @@ class GooglePlacesTimeoutTest {
     @Test
     void Apache_HttpClient로_부른다() {
         Object factory = GoogleHttpClients.requestFactory(
-                new GoogleApiProperties("test-key", Duration.ofMillis(400), Duration.ofSeconds(1)), 60);
+                new GoogleApiProperties("test-key", Duration.ofMillis(1_500), Duration.ofMillis(1_500)), 60);
 
         assertThat(factory).isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
     }
@@ -136,7 +136,7 @@ class GooglePlacesTimeoutTest {
                     .run(context -> {
                         GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
 
-                        assertTimeoutPreemptively(Duration.ofMillis(1_000), () ->
+                        assertTimeoutPreemptively(Duration.ofMillis(2_500), () ->
                                 assertThatThrownBy(() -> client.search(SearchQuery.from("경복"), "session-1"))
                                         .isInstanceOf(BusinessException.class));
                         verify(context.getBean(GooglePlacesLimiter.class)).refund(GooglePlacesEndpoint.AUTOCOMPLETE);
@@ -172,7 +172,7 @@ class GooglePlacesTimeoutTest {
 
     @Test
     void 실제로_응답을_기다리다_끊기면_RESPONSE_타임아웃으로_남긴다() {
-        delayMillis = 2_000;
+        delayMillis = 3_000;
 
         List<ILoggingEvent> logs = captureLogs(() -> contextRunner.withPropertyValues(properties()).run(context -> {
             GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
@@ -186,8 +186,8 @@ class GooglePlacesTimeoutTest {
     }
 
     @Test
-    void 측정한_p99보다_느려도_1초_안이면_정상으로_받는다() {
-        delayMillis = 600;
+    void 측정한_p99의_3배보다_느려도_1초_500밀리_안이면_정상으로_받는다() {
+        delayMillis = 1_200;
         contextRunner.withPropertyValues(properties()).run(context -> {
             GooglePlacesClient client = context.getBean(GooglePlacesClient.class);
 
