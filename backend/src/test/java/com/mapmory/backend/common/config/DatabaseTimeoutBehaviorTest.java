@@ -74,15 +74,18 @@ class DatabaseTimeoutBehaviorTest {
     @Test
     void 응답이_3초_넘게_없으면_소켓_타임아웃이_연결을_끊는다() throws Exception {
         try (MigrationTestDatabase mysql = MigrationTestDatabase.create(); Connection app = appConnection(mysql)) {
+            Statement slow = app.createStatement();
             long start = System.nanoTime();
-            SQLException failure;
-            try (Statement slow = app.createStatement()) {
-                failure = catchThrowableOfType(SQLException.class, () -> slow.executeQuery("SELECT SLEEP(10)"));
-            }
-            Duration waited = Duration.ofNanos(System.nanoTime() - start);
+            SQLException failure = catchThrowableOfType(SQLException.class, () -> slow.executeQuery("SELECT SLEEP(10)"));
+            long queryMillis = Duration.ofNanos(System.nanoTime() - start).toMillis();
+            long closeStart = System.nanoTime();
+            slow.close();
+            long closeMillis = Duration.ofNanos(System.nanoTime() - closeStart).toMillis();
 
             assertThat((Throwable) failure).isNotNull();
-            assertThat(waited.toMillis()).isBetween(SOCKET_TIMEOUT.toMillis() - 200, SOCKET_TIMEOUT.toMillis() + 2_000);
+            assertThat(queryMillis)
+                    .as("쿼리 실패까지 %dms, 문장 닫기 %dms, 예외 %s", queryMillis, closeMillis, failure)
+                    .isBetween(SOCKET_TIMEOUT.toMillis() - 200, SOCKET_TIMEOUT.toMillis() + 2_000);
             assertThat(app.isValid(1)).isFalse();
         }
     }
