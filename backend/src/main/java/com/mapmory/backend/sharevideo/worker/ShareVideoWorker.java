@@ -1,18 +1,20 @@
 package com.mapmory.backend.sharevideo.worker;
 
+import com.mapmory.backend.common.worker.RenderActivity;
 import com.mapmory.backend.sharevideo.ShareVideoFailureCode;
 import com.mapmory.backend.sharevideo.render.RenderedShareVideo;
 import com.mapmory.backend.sharevideo.render.ShareVideoRenderer;
 import com.mapmory.backend.sharevideo.storage.ShareVideoStorage;
-import java.util.Optional;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.TransientDataAccessException;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -23,7 +25,7 @@ import org.springframework.stereotype.Component;
         name = "enabled",
         havingValue = "true"
 )
-public class ShareVideoWorker {
+public class ShareVideoWorker implements RenderActivity {
 
     private static final Logger log = LoggerFactory.getLogger(ShareVideoWorker.class);
 
@@ -33,6 +35,7 @@ public class ShareVideoWorker {
     private final ShareVideoStorage storage;
     private final ShareVideoLeaseService leaseService;
     private final TaskScheduler heartbeatScheduler;
+    private final AtomicBoolean rendering = new AtomicBoolean();
 
     public ShareVideoWorker(
             final ShareVideoJobClaimer jobClaimer,
@@ -57,7 +60,19 @@ public class ShareVideoWorker {
     public void processNext() {
         Optional<ShareVideoRenderTask> nextTask = jobClaimer.claimNext();
 
-        nextTask.ifPresent(this::process);
+        nextTask.ifPresent(task -> {
+            rendering.set(true);
+            try {
+                process(task);
+            } finally {
+                rendering.set(false);
+            }
+        });
+    }
+
+    @Override
+    public boolean isRendering() {
+        return rendering.get();
     }
 
     private void process(final ShareVideoRenderTask task) {

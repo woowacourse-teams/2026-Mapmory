@@ -12,11 +12,12 @@ import com.mapmory.backend.auth.web.ratelimit.GuestLoginRateLimiter;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.notification.application.port.PushSender;
-import com.mapmory.backend.place.infrastructure.google.GooglePlacesClient;
-import com.mapmory.backend.place.infrastructure.google.GoogleRequestLimiter;
+import com.mapmory.backend.place.infrastructure.google.places.GooglePlacesClient;
+import com.mapmory.backend.place.infrastructure.google.places.GooglePlacesLimiter;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.support.MySqlTestContainerSupport;
 import com.mapmory.backend.support.SecuredTestController;
+import com.mapmory.backend.upload.service.port.ObjectDeleter;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
 import com.mapmory.backend.upload.service.port.UploadedObjectChecker;
 import com.mapmory.backend.upload.storage.S3StorageProperties;
@@ -69,8 +70,9 @@ import org.springframework.test.context.jdbc.Sql;
 @TestPropertySource(properties = {
         "upload.storage.s3.permission-self-check=false",
         "spring.datasource.hikari.connection-timeout=500",
-        "google.places.api-key=test-key",
+        "google.api-key=test-key",
         "google.places.base-url=http://127.0.0.1:9",
+        "google.geocoding.base-url=http://127.0.0.1:9",
         "upload.storage.s3.key-prefix=mapmory",
         "notification.outbox.enabled=false"
 })
@@ -79,6 +81,9 @@ import org.springframework.test.context.jdbc.Sql;
         executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD
 )
 public abstract class IntegrationTest extends MySqlTestContainerSupport {
+
+    @MockitoSpyBean
+    protected ObjectDeleter objectDeleter;
 
     @MockitoSpyBean
     protected KakaoIdentityAdapter kakaoIdentityAdapter;
@@ -99,7 +104,7 @@ public abstract class IntegrationTest extends MySqlTestContainerSupport {
     protected GooglePlacesClient googlePlacesClient;
 
     @MockitoSpyBean
-    protected GoogleRequestLimiter googleRequestLimiter;
+    protected GooglePlacesLimiter googlePlacesLimiter;
 
     @MockitoSpyBean
     protected UploadedObjectChecker uploadedObjectChecker;

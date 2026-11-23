@@ -8,19 +8,25 @@ files:
     destination: /etc/systemd/system
   - source: systemd/mapmory-green.service
     destination: /etc/systemd/system
+  - source: systemd/mapmory-active-slot.service
+    destination: /etc/systemd/system
   - source: scripts/deployment-common.sh
     destination: /opt/mapmory/bin
   - source: scripts/start-active-slot-on-boot.sh
     destination: /opt/mapmory/bin
   - source: scripts/validate-spring-profile.sh
     destination: /opt/mapmory/bin
+  - source: scripts/apply-cloudwatch-agent.sh
+    destination: /opt/mapmory/bin
+  - source: observability
+    destination: /opt/mapmory/observability
 
 file_exists_behavior: OVERWRITE
 
 hooks:
   BeforeInstall:
     - location: scripts/bootstrap-blue-green.sh
-      timeout: 240
+      timeout: 300
       runas: root
 
   AfterInstall:

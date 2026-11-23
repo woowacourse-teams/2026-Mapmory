@@ -3,6 +3,7 @@ package com.mapmory.backend.group.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -18,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
 import com.mapmory.backend.auth.token.jwt.JwtProvider;
+import com.mapmory.backend.group.application.GroupLeaveService;
+import com.mapmory.backend.group.application.InactiveMemberGroupCleanup;
 import com.mapmory.backend.group.api.AlbumUpdated;
 import com.mapmory.backend.group.domain.AlbumRepository;
 import com.mapmory.backend.group.domain.TravelGroup;
@@ -25,6 +28,7 @@ import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.member.AuthProvider;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.MemberRepository;
+import com.mapmory.backend.member.application.MemberService;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.region.domain.Region;
 import com.mapmory.backend.region.domain.RegionRepository;
@@ -82,6 +86,15 @@ class AlbumIntegrationTest extends IntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private MemberService memberService;
+
+    @Autowired
+    private GroupLeaveService groupLeaveService;
+
+    @Autowired
+    private InactiveMemberGroupCleanup inactiveMemberGroupCleanup;
+
     private Member jisu;
     private Member minho;
     private TravelGroup group;
@@ -131,6 +144,8 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[0].photos[0].id").isNumber())
                 .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.entries[0].photos[0].sortOrder").value(0))
                 .andExpect(jsonPath("$.data.entries[0].photos[0].objectKey").doesNotExist());
     }
@@ -250,6 +265,8 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[0].owner.nickname").value("민호"))
                 .andExpect(jsonPath("$.data.entries[0].owner.me").value(true))
                 .andExpect(jsonPath("$.data.entries[0].addedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("c.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.entries[1].owner.nickname").value("지수"));
         addEntry(minho, group.getId(), albumId, minhoRecord.getId())
                 .andExpect(status().isOk())
@@ -281,11 +298,13 @@ class AlbumIntegrationTest extends IntegrationTest {
 
     @Test
     void 멤버는_누구나_보낸_값만_바꾼다() throws Exception {
-        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null));
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
 
         update(minho, group.getId(), albumId, "{\"name\": \" 도쿄 봄 \"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("도쿄 봄"))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("a.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
                 .andExpect(jsonPath("$.data.region.id").value(seoul.getId()));
         update(minho, group.getId(), albumId, "{\"regionId\": " + busan.getId() + "}")
                 .andExpect(status().isOk())
@@ -325,6 +344,22 @@ class AlbumIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.entries[1].travelRecordId").value(minhoRecord.getId()))
                 .andExpect(jsonPath("$.data.entries[1].endDate").doesNotExist())
                 .andExpect(jsonPath("$.data.entries[1].photos.length()").value(2));
+    }
+
+    @Test
+    void 앨범_사진은_그리드용_썸네일_주소와_뷰어용_원본_주소를_함께_준다() throws Exception {
+        TravelRecord record = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg", "b.jpg");
+        Long albumId = openedAlbumId(jisu, record);
+        jdbcTemplate.update(
+                "UPDATE record_media SET thumb_key = 'derived/thumb/a.webp' WHERE travel_record_id = ? AND sort_order = 0",
+                record.getId());
+
+        detail(minho, group.getId(), albumId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries[0].photos[0].viewUrl").value(containsString("a.jpg")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrl").value(containsString("derived/thumb/a.webp")))
+                .andExpect(jsonPath("$.data.entries[0].photos[0].thumbnailUrlExpiresIn").value(300))
+                .andExpect(jsonPath("$.data.entries[0].photos[1].thumbnailUrl").value(containsString("b.jpg")));
     }
 
     @Test
@@ -595,6 +630,71 @@ class AlbumIntegrationTest extends IntegrationTest {
         leave(jisu, Long.MAX_VALUE)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("GROUP_NOT_FOUND"));
+    }
+
+    @Test
+    void 탈퇴하면_속한_모든_그룹에서_나가고_내_항목은_내려가며_방장이_넘어간다() throws Exception {
+        TravelGroup other = groupWith(jisu, minho);
+        TravelRecord jisuRecord = record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg");
+        TravelRecord minhoRecord = record(minho, LocalDate.of(2026, 3, 2), null, "b.jpg");
+        Long sharedAlbumId = openedAlbumId(jisu, jisuRecord);
+        addEntry(minho, group.getId(), sharedAlbumId, minhoRecord.getId()).andExpect(status().isCreated());
+        Long onlyJisuAlbumId = openedAlbumId(jisu, other.getId(), jisuRecord);
+
+        memberService.withdraw(jisu.getId());
+
+        assertThat(travelGroupRepository.existsMember(group.getId(), jisu.getId())).isFalse();
+        assertThat(travelGroupRepository.existsMember(other.getId(), jisu.getId())).isFalse();
+        assertThat(memberCountOf(group.getId())).isEqualTo(1);
+        assertThat(travelGroupRepository.findById(group.getId()).orElseThrow().getOwnerMemberId())
+                .isEqualTo(minho.getId());
+        assertThat(entryCount(sharedAlbumId)).isEqualTo(1);
+        assertThat(albumRepository.findById(onlyJisuAlbumId)).isEmpty();
+    }
+
+    @Test
+    void 탈퇴하면_혼자인_그룹은_지워진다() {
+        TravelGroup alone = groupWith(jisu);
+
+        memberService.withdraw(jisu.getId());
+
+        assertThat(travelGroupRepository.findById(alone.getId())).isEmpty();
+    }
+
+    @Test
+    void 이벤트_없이_탈퇴_상태로_남은_멤버는_배치가_그룹에서_뺀다() throws Exception {
+        Long albumId = openedAlbumId(jisu, record(jisu, LocalDate.of(2026, 3, 1), null, "a.jpg"));
+        markWithdrawn(jisu);
+
+        assertThat(inactiveMemberGroupCleanup.run()).isEqualTo(1);
+
+        assertThat(travelGroupRepository.existsMember(group.getId(), jisu.getId())).isFalse();
+        assertThat(travelGroupRepository.existsMember(group.getId(), minho.getId())).isTrue();
+        assertThat(travelGroupRepository.findById(group.getId()).orElseThrow().getOwnerMemberId())
+                .isEqualTo(minho.getId());
+        assertThat(albumRepository.findById(albumId)).isEmpty();
+    }
+
+    @Test
+    void 모두_탈퇴_상태로_남은_그룹은_배치가_지운다() {
+        markWithdrawn(jisu);
+        markWithdrawn(minho);
+
+        assertThat(inactiveMemberGroupCleanup.run()).isEqualTo(2);
+
+        assertThat(travelGroupRepository.findById(group.getId())).isEmpty();
+    }
+
+    @Test
+    void 이미_나간_그룹을_다시_나가도_아무것도_하지_않는다() {
+        groupLeaveService.leaveAsInactive(socialMember("낯선 사람").getId(), group.getId());
+        groupLeaveService.leaveAsInactive(jisu.getId(), Long.MAX_VALUE);
+
+        assertThat(memberCountOf(group.getId())).isEqualTo(2);
+    }
+
+    private void markWithdrawn(Member member) {
+        jdbcTemplate.update("UPDATE member SET withdrawn_at = ? WHERE id = ?", LocalDateTime.now(), member.getId());
     }
 
     private ResultActions leave(Member member, Long groupId) throws Exception {

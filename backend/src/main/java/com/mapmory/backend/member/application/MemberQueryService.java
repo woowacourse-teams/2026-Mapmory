@@ -5,6 +5,7 @@ import com.mapmory.backend.member.MemberRepository;
 import com.mapmory.backend.member.api.MemberQuery;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,5 +27,13 @@ public class MemberQueryService implements MemberQuery {
         }
         return memberRepository.findAllById(memberIds).stream()
                 .collect(Collectors.toMap(Member::getId, Member::getNickname));
+    }
+
+    @Override
+    public Set<Long> inactiveAmong(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Set.of();
+        }
+        return memberRepository.findInactiveIdsAmong(memberIds);
     }
 }

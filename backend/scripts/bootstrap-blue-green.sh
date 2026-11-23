@@ -38,3 +38,7 @@ fi
 
 trap - ERR
 echo "활성 슬롯 확인 완료: $active_slot ($active_port), 배포 ID=$DEPLOYMENT_ID"
+
+# 지표 수집 설정은 실패해도 배포를 막지 않는다. 종료 코드뿐 아니라 시간도 막아야 하므로
+# 앞의 health 대기(최대 180초)와 합쳐도 훅 timeout(300초) 안에 끝나게 90초로 자른다.
+timeout --kill-after=10 90 "$(dirname "$0")/apply-cloudwatch-agent.sh" || true

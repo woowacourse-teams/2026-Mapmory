@@ -181,6 +181,19 @@ class AppleWithdrawalIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void 버려진_뒤_탈퇴된_게스트도_탈퇴_성공으로_처리하지_않고_401이다() throws Exception {
+        // 일반 탈퇴가 버려진 게스트를 막기 전(#576)에 생겼을 수 있는 행이다. 탈퇴 여부보다 버려짐을 먼저 본다.
+        String accessToken = guestAccessToken();
+        Member guest = memberRepository.findById(jwtProvider.parseMemberId(accessToken)).orElseThrow();
+        guest.abandon(java.time.LocalDateTime.now());
+        guest.withdraw(java.time.LocalDateTime.now());
+        memberRepository.save(guest);
+        withdrawApple(accessToken).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INACTIVE_MEMBER"));
+        then(appleRevocationAdapter).should(never()).verify(anyString());
+    }
+
+    @Test
     void 탈퇴한_게스트도_애플_탈퇴_성공으로_처리하지_않는다() throws Exception {
         String accessToken = guestAccessToken();
         mockMvc.perform(delete("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))

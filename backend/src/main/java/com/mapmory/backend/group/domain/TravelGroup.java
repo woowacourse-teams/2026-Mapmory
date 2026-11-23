@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * 여행을 같이 기록하는 사람들의 묶음. 멤버 목록을 함께 가진 애그리거트 루트다.
@@ -30,6 +31,8 @@ import java.util.Objects;
  */
 @Entity
 @Table(name = "travel_group")
+// 바뀐 컬럼만 UPDATE한다. 그룹을 잠그지 않고 바꾸는 코드가 생겨도 건드리지 않은 인원 수·방장을 옛 값으로 덮지 않게 한다.
+@DynamicUpdate
 public class TravelGroup extends BaseEntity {
 
     // travel_group.name 컬럼 길이(VARCHAR(30))와 같다.

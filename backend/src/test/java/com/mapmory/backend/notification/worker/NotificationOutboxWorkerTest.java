@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mapmory.backend.notification.application.PushRecipients;
 import com.mapmory.backend.notification.application.port.NotificationPushSender;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.domain.PushPlatform;
@@ -17,11 +18,11 @@ import org.junit.jupiter.api.Test;
 class NotificationOutboxWorkerTest {
 
     private final NotificationOutboxClaimer claimer = mock(NotificationOutboxClaimer.class);
-    private final NotificationRecipientFinder finder = mock(NotificationRecipientFinder.class);
+    private final PushRecipients recipients = mock(PushRecipients.class);
     private final NotificationMessageFactory factory = mock(NotificationMessageFactory.class);
     private final NotificationPushSender sender = mock(NotificationPushSender.class);
     private final NotificationOutboxResultService results = mock(NotificationOutboxResultService.class);
-    private final NotificationOutboxWorker worker = new NotificationOutboxWorker(claimer, finder, factory, sender, results);
+    private final NotificationOutboxWorker worker = new NotificationOutboxWorker(claimer, recipients, factory, sender, results);
     private final ClaimedNotification event = new ClaimedNotification(7L, "claim", "VIDEO_COMPLETED", "{}", 2L, 3L);
     private final PushToken token = new PushToken(2L, "test-token", PushPlatform.ANDROID);
     private final PushMessage message = new PushMessage("test-token", "제목", "본문", Map.of());
@@ -29,7 +30,7 @@ class NotificationOutboxWorkerTest {
     @Test
     void 수신_등록이_없으면_발송하지_않고_생략한다() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.empty());
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.empty());
 
         worker.processNext();
 
@@ -61,7 +62,7 @@ class NotificationOutboxWorkerTest {
     @Test
     void 잘못된_이벤트는_FCM을_호출하지_않는다() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.of(token));
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));
         when(factory.create(event, token)).thenThrow(new IllegalArgumentException("invalid"));
 
         worker.processNext();
@@ -70,9 +71,42 @@ class NotificationOutboxWorkerTest {
         verify(sender, never()).send(any());
     }
 
+    @Test
+    void 사진_완료_이벤트도_같은_워커에서_발송한다() {
+        ClaimedNotification photo = new ClaimedNotification(8L, "photo-claim", "PHOTO_RECORD_COMPLETED", "{}", 2L, 3L);
+        when(claimer.claimNextForType("PHOTO_RECORD_COMPLETED")).thenReturn(Optional.of(photo));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        when(factory.create(photo, token)).thenReturn(message);
+        when(sender.send(message)).thenReturn(new NotificationPushSender.Result(NotificationPushSender.Status.ACCEPTED, null));
+        worker.processNext();
+        verify(results).markSent(8L, "photo-claim");
+        verify(claimer).recoverNextExpiredForType("PHOTO_RECORD_COMPLETED");
+    }
+
+    @Test
+    void 이미_대기한_영상도_현재_기기_설정이_꺼지면_생략한다() {
+        token.updateDevice("rotated", PushPlatform.ANDROID, true, false);
+        when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        worker.processNext();
+        verify(results).markSkipped(7L, "claim", "NOTIFICATION_DISABLED");
+        verify(sender, never()).send(any());
+    }
+
+    @Test
+    void 이미_대기한_사진도_현재_기기_설정이_꺼지면_생략한다() {
+        token.updateDevice("rotated", PushPlatform.ANDROID, false, true);
+        ClaimedNotification photo = new ClaimedNotification(8L, "photo", "PHOTO_RECORD_COMPLETED", "{}", 2L, 3L);
+        when(claimer.claimNextForType("PHOTO_RECORD_COMPLETED")).thenReturn(Optional.of(photo));
+        when(recipients.registeredDevice(2L, 3L)).thenReturn(Optional.of(token));
+        worker.processNext();
+        verify(results).markSkipped(8L, "photo", "NOTIFICATION_DISABLED");
+        verify(sender, never()).send(any());
+    }
+
     private void prepareMessage() {
         when(claimer.claimNextForType("VIDEO_COMPLETED")).thenReturn(Optional.of(event));
-        when(finder.find(event)).thenReturn(Optional.of(token));
+        when(recipients.registeredDevice(event.memberId(), event.pushTokenId())).thenReturn(Optional.of(token));
         when(factory.create(event, token)).thenReturn(message);
     }
 }

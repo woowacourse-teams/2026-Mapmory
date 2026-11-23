@@ -201,6 +201,42 @@ class PushTokenIntegrationTest extends IntegrationTest {
                 .hasValueSatisfying(saved -> assertThat(saved.getMemberId()).isEqualTo(jisu.getId()));
     }
 
+    @Test
+    void 토큰_회전과_기기별_설정은_DB에도_같은_ID로_저장된다() throws Exception {
+        register(jisu, "old-phone", "ANDROID").andExpect(status().isOk());
+        Long id = pushTokenRepository.findByToken("old-phone").orElseThrow().getId();
+        mockMvc.perform(put("/api/v1/push-tokens")
+                .header(HttpHeaders.AUTHORIZATION, bearer(jisu))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"token":"rotated-phone","platform":"ANDROID","previousPushTokenId":%d,
+                         "photoRecordCompletionEnabled":false,"travelVideoCompletionEnabled":true}
+                        """.formatted(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pushTokenId").value(id));
+        assertThat(pushTokenRepository.findByToken("old-phone")).isEmpty();
+        PushToken saved = pushTokenRepository.findById(id).orElseThrow();
+        assertThat(saved.getToken()).isEqualTo("rotated-phone");
+        assertThat(saved.allowsCompletion("PHOTO_RECORD_COMPLETED")).isFalse();
+        assertThat(saved.allowsCompletion("VIDEO_COMPLETED")).isTrue();
+    }
+
+    @Test
+    void 다른_회원의_이전_등록은_HTTP에서도_거부한다() throws Exception {
+        register(jisu, "jisu-phone", "ANDROID").andExpect(status().isOk());
+        Long id = pushTokenRepository.findByToken("jisu-phone").orElseThrow().getId();
+        mockMvc.perform(put("/api/v1/push-tokens")
+                .header(HttpHeaders.AUTHORIZATION, bearer(minho))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"token":"new-phone","platform":"ANDROID","previousPushTokenId":%d}
+                        """.formatted(id)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PUSH_REGISTRATION_CONFLICT"));
+        assertThat(pushTokenRepository.findById(id).orElseThrow().getMemberId()).isEqualTo(jisu.getId());
+        assertThat(pushTokenRepository.findByToken("new-phone")).isEmpty();
+    }
+
     private ResultActions register(Member member, String token, String platform) throws Exception {
         return mockMvc.perform(put("/api/v1/push-tokens")
                 .header(HttpHeaders.AUTHORIZATION, bearer(member))

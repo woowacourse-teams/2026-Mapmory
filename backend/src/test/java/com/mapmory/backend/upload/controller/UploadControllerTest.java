@@ -13,6 +13,7 @@ import com.mapmory.backend.common.handler.ValidationExceptionHandler;
 import com.mapmory.backend.member.Member;
 import com.mapmory.backend.member.application.ActiveMemberGuard;
 import com.mapmory.backend.upload.domain.UploadPolicy;
+import com.mapmory.backend.upload.ratelimit.UploadRateLimiter;
 import com.mapmory.backend.upload.service.UploadService;
 import com.mapmory.backend.upload.service.port.PresignedRequest;
 import com.mapmory.backend.upload.service.port.PresignedUrlProvider;
@@ -57,7 +58,8 @@ class UploadControllerTest {
                 new UploadPolicy(TEN_MEGABYTES, 100),
                 new S3ObjectKeyGenerator(storageProperties),
                 new FakePresignedUrlProvider(),
-                mock(ActiveMemberGuard.class)
+                mock(ActiveMemberGuard.class),
+                mock(UploadRateLimiter.class)
         );
         ProblemDetailFactory problemDetailFactory = new ProblemDetailFactory();
 

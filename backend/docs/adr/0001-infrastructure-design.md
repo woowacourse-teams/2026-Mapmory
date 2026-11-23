@@ -41,7 +41,7 @@ flowchart LR
   전용 접속으로 전환할 때 SSH 인바운드 규칙을 제거한다.
 - Blue-Green 배포에서는 CloudWatch Agent가 앱 로그(`/var/log/mapmory-blue/application.log`,
   `/var/log/mapmory-green/application.log`)를 `/mapmory/prod/application` 로그 그룹으로 전송해야 한다.
-  로그 그룹 보존 기간은 7일이다. Agent의 현재 서버 설정은 단일 로그 경로이므로 배포 전 갱신이 필요하다.
+  로그 그룹 보존 기간은 7일이다. Agent 설정은 `backend/observability/cloudwatch/`에 두고 배포할 때마다 적용한다(#740).
 - Prometheus EMF 로그 그룹 `/mapmory/prod/prometheus-emf`의 보존 기간은 14일이다.
 - `dashboard-mapmory-prod` 대시보드와 EC2·RDS 알람을 구성하고
   `mapmory-prod-alerts` SNS 주제로 알림을 전달한다.

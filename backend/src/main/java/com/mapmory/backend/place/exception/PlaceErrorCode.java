@@ -6,6 +6,7 @@ import org.slf4j.event.Level;
 
 public enum PlaceErrorCode implements ErrorCode {
     INVALID_PLACE_ID(ErrorKind.INVALID_INPUT, "INVALID_PLACE_ID", "장소 ID가 올바르지 않습니다.", "장소 ID를 확인해 주세요."),
+    INVALID_COORDINATE(ErrorKind.INVALID_INPUT, "INVALID_COORDINATE", "좌표가 올바르지 않습니다.", "위도는 -90~90, 경도는 -180~180이어야 합니다."),
     INVALID_SEARCH_QUERY(ErrorKind.INVALID_INPUT, "INVALID_SEARCH_QUERY", "장소 검색어가 올바르지 않습니다.", "검색어를 1~100자로 입력해 주세요."),
     PLACE_NOT_FOUND(ErrorKind.NOT_FOUND, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.", "선택한 장소가 더 이상 제공되지 않습니다."),
     PLACE_RATE_LIMITED(ErrorKind.TOO_MANY_REQUESTS, "PLACE_RATE_LIMITED", "장소 조회 한도를 초과했습니다.", "잠시 후 다시 시도해 주세요."),

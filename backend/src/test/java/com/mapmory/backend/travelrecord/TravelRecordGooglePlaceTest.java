@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.mapmory.backend.IntegrationTest;
+import com.mapmory.backend.place.infrastructure.google.places.GooglePlacesEndpoint;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,7 @@ class TravelRecordGooglePlaceTest extends IntegrationTest {
 
         long recordId = createRecord(accessToken);
 
-        verify(googleRequestLimiter, never()).reserveDetails();
+        verify(googlePlacesLimiter, never()).reserve(GooglePlacesEndpoint.DETAILS);
         mockMvc.perform(get("/api/v1/travel-records/" + recordId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -69,7 +70,7 @@ class TravelRecordGooglePlaceTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.placeId").value(GOOGLE_PLACE_ID));
 
-        verify(googleRequestLimiter, never()).reserveDetails();
+        verify(googlePlacesLimiter, never()).reserve(GooglePlacesEndpoint.DETAILS);
     }
 
     private long createRecord(String accessToken) throws Exception {

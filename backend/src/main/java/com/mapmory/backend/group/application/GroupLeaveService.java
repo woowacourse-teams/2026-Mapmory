@@ -7,7 +7,9 @@ import com.mapmory.backend.group.domain.GroupInvitationRepository;
 import com.mapmory.backend.group.domain.TravelGroup;
 import com.mapmory.backend.group.domain.TravelGroupRepository;
 import com.mapmory.backend.group.exception.GroupErrorCode;
+import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -42,7 +44,32 @@ public class GroupLeaveService {
         if (!group.hasMember(memberId)) {
             throw new BusinessException(GroupErrorCode.GROUP_NOT_FOUND);
         }
+        removeMember(group, memberId);
+    }
 
+    /**
+     * 탈퇴하거나 버려져 스스로 나갈 수 없는 회원을 그룹에서 뺀다. 규칙은 {@link #leave}와 같고 회원 확인만 없다. (#547)
+     *
+     * 탈퇴가 커밋된 뒤와 배치에서 불린다. 끝난 트랜잭션에 참여하지 않도록, 그리고 그룹마다 따로 커밋되도록 새 트랜잭션을 연다.
+     * 그사이 그룹이 지워졌거나 이미 나갔으면 아무것도 하지 않는다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void leaveAsInactive(Long memberId, Long groupId) {
+        travelGroupRepository.findByIdForUpdate(groupId)
+                .filter(group -> group.hasMember(memberId))
+                .ifPresent(group -> removeMember(group, memberId));
+    }
+
+    /**
+     * 회원이 속한 그룹들. 탈퇴가 커밋된 뒤에도 읽을 수 있도록 새 트랜잭션을 연다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public List<Long> groupIdsOf(Long memberId) {
+        return travelGroupRepository.findGroupIdsOf(memberId);
+    }
+
+    private void removeMember(TravelGroup group, Long memberId) {
+        Long groupId = group.getId();
         for (Album album : albumRepository.findAllByGroupIdContainingMember(groupId, memberId)) {
             album.removeEntriesBy(memberId);
             if (album.isEmpty()) {

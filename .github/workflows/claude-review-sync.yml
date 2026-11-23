@@ -1,0 +1,182 @@
+name: Claude Review Sync
+
+# backend-develop에 ADR이나 도메인 신호(마이그레이션, 잠금, 이벤트, 오류 코드)가 들어오면 리뷰 기준(domain.md, policies.md) 수정안을 만든다.
+# 규칙은 결정(ADR)에서만 바뀐다. ADR 변경이 없으면 domain.md 수정은 버리고, policies.md는 같은 정책 행의 상태·비고만 올린다.
+# 이 거르기는 Claude가 없는 check job이 새 체크아웃에서 한다(sync-check.py).
+# 코드가 규칙과 다르면 문서를 코드에 맞추지 않고 "모순"으로 이슈에 올린다. 지침은 .github/claude-review/sync.md.
+# 수정안은 claude-review-propose.yml이 회귀 검증을 거쳐 PR(막혀 있으면 이슈)로 올리고, 사람이 보고 머지한다.
+# 2026-11-22: 효과가 측정되기 전까지 잠시 끈다(수동 실행만). 주간 리뷰 지표(claude-review-metrics.yml)로 리뷰 정확도를 먼저 재고,
+# 지표가 이 자동화의 필요를 보여 주면 다시 켠다. 수동 실행(workflow_dispatch)은 main에 이 파일이 있어야 된다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Claude는 읽기 권한 토큰만 받는다. PR 설명이나 ADR에 지시가 섞여 있어도 저장소를 바꿀 수 없다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      found: ${{ steps.collect.outputs.found }}
+      adr: ${{ steps.collect.outputs.adr }}
+      sources: ${{ steps.collect.outputs.sources }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 300
+
+      - name: Collect signals
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 같은 그룹에 새 실행이 들어오면 대기 중이던 실행은 취소된다. 그 push를 놓치지 않게,
+          # 이번 push의 이전 커밋이 아니라 마지막으로 sync job이 성공한 커밋부터 비교한다.
+          # 실행 전체가 아니라 sync job으로 본다. 뒤의 회귀 검증·PR 생성이 실패해도 이미 본 범위를 다시 보지 않는다.
+          before="${{ github.event.before }}"
+          for id_sha in $(gh api "repos/${{ github.repository }}/actions/workflows/claude-review-sync.yml/runs?branch=backend-develop&event=push&status=completed&per_page=30" \
+              --jq ".workflow_runs[] | select(.id != ${{ github.run_id }}) | \"\\(.id):\\(.head_sha)\"" || true); do
+            ok=$(gh api "repos/${{ github.repository }}/actions/runs/${id_sha%%:*}/jobs" \
+              --jq '[.jobs[] | select(.name == "sync" and .conclusion == "success")] | length' || echo 0)
+            if [ "${ok:-0}" -gt 0 ]; then
+              last="${id_sha#*:}"
+              if git merge-base --is-ancestor "$last" "$GITHUB_SHA" 2>/dev/null; then before="$last"; fi
+              break
+            fi
+          done
+          bash .github/claude-review/sync-collect.sh "${{ github.repository }}" "$before" "$GITHUB_SHA" .sync
+          if [ -f .sync/signals.md ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+          # 판정에 쓰는 값은 단계 출력으로 넘긴다. Claude는 파일은 쓸 수 있어도 앞 단계의 출력은 바꿀 수 없다.
+          if [ -s .sync/adr.diff ]; then echo "adr=true" >> "$GITHUB_OUTPUT"; else echo "adr=false" >> "$GITHUB_OUTPUT"; fi
+          # 근거로 인정할 번호: 이번에 바뀐 ADR 번호와 이번에 머지된 PR 번호
+          sources=$( { grep -oE '^\+\+\+ b/backend/docs/adr/[0-9]{4}' .sync/adr.diff 2>/dev/null | grep -oE '[0-9]{4}$' | sed 's/^/ADR_/'
+            sed 's/^/#/' .sync/prs.txt 2>/dev/null; } | sort -u | tr '\n' ' ')
+          echo "sources=$sources" >> "$GITHUB_OUTPUT"
+          echo "근거로 인정할 번호: $sources"
+
+      - name: Install Claude Code
+        if: steps.collect.outputs.found == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Propose rule changes
+        if: steps.collect.outputs.found == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "\`.github/claude-review/sync.md\`의 지침을 읽고 그대로 따른다. 입력 데이터는 \`.sync/\`에 있다." \
+            --model claude-opus-5-5 \
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git log:*),Bash(git show:*),Bash(git diff:*)" \
+            --output-format json > .sync/claude-output.json
+          # 요약이 없으면 실패로 끝낸다. 성공으로 끝나면 다음 실행이 이 범위를 다시 보지 않는다.
+          if [ ! -f .sync/summary.md ]; then
+            echo "::error::요약이 없다. Claude 출력: $(jq -r '.result' .sync/claude-output.json | head -c 500)"
+            exit 1
+          fi
+
+      # Claude가 만든 결과만 넘긴다. 거르기와 판정은 Claude가 손댄 체크아웃이 아니라 다음 job의 새 체크아웃에서 한다.
+      - name: Collect raw proposal
+        if: steps.collect.outputs.found == 'true'
+        run: |
+          mkdir -p /tmp/raw
+          cp .github/claude-review/domain.md .github/claude-review/policies.md .sync/summary.md /tmp/raw/
+      - uses: actions/upload-artifact@v4
+        if: steps.collect.outputs.found == 'true'
+        with:
+          name: claude-review-sync-raw
+          path: /tmp/raw/
+
+  # Claude가 없는 job. 새로 받은 체크아웃에서 규칙을 기계적으로 거른다(sync-check.py).
+  check:
+    needs: sync
+    if: needs.sync.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      files: ${{ steps.check.outputs.files }}
+      report: ${{ steps.check.outputs.report }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-sync-raw
+          path: /tmp/proposal
+      - id: check
+        env:
+          ADR_CHANGED: ${{ needs.sync.outputs.adr }}
+          SOURCES: ${{ needs.sync.outputs.sources }}
+        run: |
+          dir=.github/claude-review
+          files=$(python3 -I "$dir/sync-check.py" "$dir" /tmp/proposal "$ADR_CHANGED" "$SOURCES" | tail -1)
+          if [ -n "$files" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          # 문서는 그대로인데 모순이나 결정 확인이 있으면 이슈로만 알린다. "없음"만 적힌 절은 세지 않는다.
+          if awk '/^## (모순|결정 확인)/{s=1;next} /^## /{s=0} s && /^- / && !/^- *없음[.]? *$/{found=1} END{exit !found}' /tmp/proposal/summary.md; then
+            echo "report=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "report=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice title=리뷰 기준 동기화::수정 파일: ${files:-없음}, ADR 변경: $ADR_CHANGED"
+          { echo "## 리뷰 기준 동기화"; echo; cat /tmp/proposal/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+          for f in domain.md policies.md; do
+            cp "$dir/$f" "/tmp/proposal/${f%.md}.orig.md"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-sync
+          path: /tmp/proposal/
+
+  propose-pr:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/claude-review-propose.yml
+    with:
+      base_branch: backend-develop
+      kind: sync
+      files: ${{ needs.check.outputs.files }}
+      title: "chore: 머지된 결정과 코드 변경을 리뷰 기준에 반영한다"
+      intro: "`backend-develop`에 들어온 ADR·코드 변경을 보고 만든 `domain.md`·`policies.md` 수정안이다. 규칙은 ADR에서만 바꿨고, 코드 변경은 상태 칸만 바꿨다. 사람이 보고 판단해 머지한다."
+      artifact: claude-review-sync
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 문서는 그대로인데 코드가 규칙과 다르면 이슈로만 알린다. 이 job에는 Claude가 없다.
+  report:
+    needs: check
+    if: needs.check.outputs.changed != 'true' && needs.check.outputs.report == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-review-sync
+          path: /tmp/proposal
+      - name: Open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "\`backend-develop\`에 들어온 변경이 리뷰 기준과 다르다. 규칙은 바꾸지 않았다. 코드를 고칠지, 결정을 ADR로 남길지 정한다."
+            echo
+            cat /tmp/proposal/summary.md
+            echo
+            echo "실행 기록: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create -R "${{ github.repository }}" --title "chore: 머지된 코드가 리뷰 기준과 다른 곳" --body-file body.md

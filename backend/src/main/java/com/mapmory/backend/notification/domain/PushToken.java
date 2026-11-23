@@ -32,6 +32,27 @@ public class PushToken extends BaseEntity {
     @Column(nullable = false, length = 10)
     private PushPlatform platform;
 
+    @Column(name = "photo_record_completion_enabled", nullable = false)
+    private boolean photoRecordCompletionEnabled = true;
+
+    @Column(name = "travel_video_completion_enabled", nullable = false)
+    private boolean travelVideoCompletionEnabled = true;
+
+    public void updateDevice(String token, PushPlatform platform, boolean photoEnabled, boolean videoEnabled) {
+        this.token = Objects.requireNonNull(token, "token must not be null");
+        this.platform = Objects.requireNonNull(platform, "platform must not be null");
+        this.photoRecordCompletionEnabled = photoEnabled;
+        this.travelVideoCompletionEnabled = videoEnabled;
+    }
+
+    public boolean allowsCompletion(String eventType) {
+        return switch (eventType) {
+            case "PHOTO_RECORD_COMPLETED" -> photoRecordCompletionEnabled;
+            case "VIDEO_COMPLETED" -> travelVideoCompletionEnabled;
+            default -> true;
+        };
+    }
+
     protected PushToken() {
     }
 

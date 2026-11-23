@@ -102,7 +102,9 @@ public class TravelRecordQueryService implements TravelRecordQuery {
                         .map(recordMedia -> new RecordView.PhotoView(
                                 recordMedia.getId(),
                                 recordMediaUrlService.createViewUrl(recordMedia.getObjectKey()),
-                                recordMedia.getSortOrder()))
+                                recordMediaUrlService.createViewUrl(recordMedia.getThumbnailObjectKey()),
+                                recordMedia.getSortOrder(),
+                                recordMedia.getCapturedDate()))
                         .toList()
         );
     }

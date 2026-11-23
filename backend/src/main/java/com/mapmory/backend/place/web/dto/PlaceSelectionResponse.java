@@ -18,7 +18,7 @@ public record PlaceSelectionResponse(
         PlaceDetails place = selected.place();
         Region region = selected.suggestedRegion();
         return new PlaceSelectionResponse(
-                place.id().value(), place.name(), place.address().countryCode(),
+                place.id().value(), place.name(), selected.countryCode(),
                 region == null ? null : RegionDetailResponse.from(region),
                 selected.manualRegionRequired(), place.provider().attribution(), place.provider().attributionUrl());
     }

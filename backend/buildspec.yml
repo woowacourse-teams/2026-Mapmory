@@ -23,6 +23,9 @@ phases:
       - cp appspec.yml deploy/
       - cp scripts/*.sh deploy/scripts/
       - cp systemd/*.service deploy/systemd/
+      - cp -R observability deploy/
+      # 배포 버전은 빌드한 커밋 앞 7자리다. prepare-inactive-slot.sh가 릴리스 폴더의 app-version.env로 옮긴다.
+      - printf '%s\n' "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c1-7 > deploy/VERSION
 
 artifacts:
   base-directory: backend/deploy

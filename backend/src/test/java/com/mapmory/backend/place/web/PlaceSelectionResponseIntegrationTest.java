@@ -33,4 +33,26 @@ class PlaceSelectionResponseIntegrationTest extends IntegrationTest {
         assertThat(response.suggestedRegion().province().code()).isEqualTo("11");
         assertThat(response.suggestedRegion().district().code()).isEqualTo("11560");
     }
+
+    @Test
+    void 제공자가_국가를_주지_않아도_찾은_지역의_국가를_응답한다() {
+        Region ulleung = regionResolver.resolve("KR", "47", "47940");
+        SelectedPlace selected = new SelectedPlace(
+                new PlaceDetails(PlaceId.from("ChIJ-dokdo"), null, new RegionAddress(null, null, List.of("울릉군", "울릉읍", "독도리")),
+                        new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps")), ulleung);
+
+        PlaceSelectionResponse response = PlaceSelectionResponse.from(selected);
+
+        assertThat(response.countryCode()).isEqualTo("KR");
+        assertThat(response.suggestedRegion().district().code()).isEqualTo("47940");
+    }
+
+    @Test
+    void 제공자가_국가를_주지_않고_지역도_못_찾으면_국가는_비어_있다() {
+        SelectedPlace selected = new SelectedPlace(
+                new PlaceDetails(PlaceId.from("ChIJ-rocks"), null, RegionAddress.UNKNOWN,
+                        new PlaceProvider("GOOGLE", "Google Maps", "https://www.google.com/maps")), null);
+
+        assertThat(PlaceSelectionResponse.from(selected).countryCode()).isNull();
+    }
 }

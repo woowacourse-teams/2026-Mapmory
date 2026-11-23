@@ -3,6 +3,7 @@ package com.mapmory.backend.group.domain;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,14 @@ public interface TravelGroupRepository extends JpaRepository<TravelGroup, Long> 
         WHERE gm.group.id = :groupId AND gm.memberId = :memberId
     """)
     boolean existsMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // 회원이 속한 그룹. idx_group_member_member를 탄다.
+    @Query("SELECT gm.group.id FROM GroupMember gm WHERE gm.memberId = :memberId")
+    List<Long> findGroupIdsOf(@Param("memberId") Long memberId);
+
+    // 그룹에 속한 회원을 id 순서로 나눠 읽는다. idx_group_member_member를 탄다.
+    @Query("SELECT DISTINCT gm.memberId FROM GroupMember gm WHERE gm.memberId > :after ORDER BY gm.memberId")
+    List<Long> findMemberIdsAfter(@Param("after") long after, Pageable pageable);
 
     @Query("SELECT COUNT(gm) FROM GroupMember gm WHERE gm.memberId = :memberId")
     long countGroupsOf(@Param("memberId") Long memberId);

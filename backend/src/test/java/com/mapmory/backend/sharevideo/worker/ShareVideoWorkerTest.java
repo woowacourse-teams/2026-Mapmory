@@ -70,6 +70,21 @@ class ShareVideoWorkerTest {
         lenient().when(leaseService.renew(1L, "claim-token")).thenReturn(true);
     }
 
+    // 썸네일 워커는 같은 서버에서 이 값을 보고 영상 작업이 끝날 때까지 쉰다.
+    @Test
+    void 영상_작업을_처리하는_동안만_렌더링_중이라고_알린다() {
+        when(jobClaimer.claimNext()).thenReturn(Optional.of(TASK));
+        when(renderer.render(TASK)).thenAnswer(invocation -> {
+            org.assertj.core.api.Assertions.assertThat(worker.isRendering()).isTrue();
+            throw new com.mapmory.backend.sharevideo.render.ShareVideoRenderException("render failed");
+        });
+
+        org.assertj.core.api.Assertions.assertThat(worker.isRendering()).isFalse();
+        worker.processNext();
+
+        org.assertj.core.api.Assertions.assertThat(worker.isRendering()).isFalse();
+    }
+
     @Test
     void 대기_작업이_없으면_영상_생성을_시작하지_않는다() {
         when(jobClaimer.claimNext()).thenReturn(Optional.empty());

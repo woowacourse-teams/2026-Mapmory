@@ -30,4 +30,16 @@ class RecordMediaTest {
 
         assertThat(media.getThumbnailObjectKey()).isEqualTo("mapmory/original.jpg");
     }
+
+    @Test
+    void 썸네일_키가_빈_문자열이어도_원본_객체_키를_반환한다() {
+        RecordMedia media = RecordMedia.of(
+                mock(TravelRecord.class),
+                "mapmory/original.jpg",
+                " ",
+                0
+        );
+
+        assertThat(media.getThumbnailObjectKey()).isEqualTo("mapmory/original.jpg");
+    }
 }

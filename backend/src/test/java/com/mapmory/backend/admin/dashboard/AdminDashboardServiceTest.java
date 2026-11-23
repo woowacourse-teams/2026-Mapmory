@@ -64,10 +64,10 @@ class AdminDashboardServiceTest {
 
     @Test
     void 가입_방식별_회원_수에_애플_회원을_포함한다() {
-        when(members.countByProvider(AuthProvider.GUEST)).thenReturn(5L);
-        when(members.countByProvider(AuthProvider.KAKAO)).thenReturn(4L);
-        when(members.countByProvider(AuthProvider.GOOGLE)).thenReturn(3L);
-        when(members.countByProvider(AuthProvider.APPLE)).thenReturn(2L);
+        when(members.countActiveByProvider(AuthProvider.GUEST)).thenReturn(5L);
+        when(members.countActiveByProvider(AuthProvider.KAKAO)).thenReturn(4L);
+        when(members.countActiveByProvider(AuthProvider.GOOGLE)).thenReturn(3L);
+        when(members.countActiveByProvider(AuthProvider.APPLE)).thenReturn(2L);
 
         var members = service.getDashboard(null, null).members();
 

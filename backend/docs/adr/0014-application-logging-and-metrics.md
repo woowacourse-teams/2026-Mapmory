@@ -35,10 +35,10 @@ Mapmory는 Spring Boot 기본 로깅과 Micrometer·Actuator·Prometheus Registr
 | 로그 형식 | 로컬은 사람이 읽는 콘솔 패턴, 운영은 Spring Boot Logstash JSON 형식을 사용한다. | `application.yaml`, `application-prod.yaml` |
 | HTTP 메트릭 | `http.server.requests`의 p95를 애플리케이션에서 계산하고 `uri` 태그 값은 최대 50개까지만 등록한다. | `MetricsConfiguration`, `application.yaml` |
 | 내부 작업 메트릭 | `mapmory.operation.duration`으로 미디어 동기화와 지도 요약 쿼리 시간을 성공·실패별로 기록한다. | `OperationTimer`, `MonitoredOperation` |
-| refresh 재사용 | 폐기된 refresh가 다시 오면 전체 폐기는 `WARN` `REFRESH_TOKEN_REUSE_DETECTED`, 게스트 응답 유실 재발급은 `INFO` `REFRESH_TOKEN_LOST_ROTATION_REISSUED`로 기록하고 `mapmory.auth.refresh.reuse`(`outcome`, `provider`)를 센다. 토큰 값은 남기지 않는다. | `RefreshTokenReuseMonitor` |
+| refresh 재사용 | 폐기된 refresh가 다시 오면 결과에 따라 기록한다. 회전된 토큰의 재사용으로 그 세션을 모두 폐기하면 `WARN` `REFRESH_TOKEN_REUSE_DETECTED`(`outcome=REVOKED_ALL`. #467부터 회원 전체가 아니라 세션 단위이고, 대시보드 호환을 위해 값은 그대로 둔다), 게스트 응답 유실로 재발급하면 `INFO` `REFRESH_TOKEN_LOST_ROTATION_REISSUED`(`outcome=REISSUED`), 회전 외 이유(로그아웃·승격·버림·탈퇴)로 폐기된 토큰이면 `INFO` `REVOKED_REFRESH_TOKEN_PRESENTED`(`outcome=REVOKED_PRESENTED`, #579)다. `mapmory.auth.refresh.reuse`(`outcome`, `provider`)를 센다. 토큰 값은 남기지 않는다. | `RefreshTokenReuseMonitor` |
 | 메트릭 노출 | `health`, `prometheus`만 읽기 전용으로 노출한다. 운영에서는 `127.0.0.1:8081`로 관리 포트를 분리한다. | `application.yaml`, `application-prod.yaml` |
 | 운영 수집 | EC2의 CloudWatch Agent가 애플리케이션 로그와 Prometheus 메트릭을 CloudWatch로 전송한다. 애플리케이션 로그 그룹은 7일, Prometheus EMF 로그 그룹은 14일간 보관한다. | EC2 CloudWatch Agent, `/mapmory/prod/application`, `/mapmory/prod/prometheus-emf` |
-| 대시보드·알림 | 운영 대시보드, EC2·RDS 인프라 알람과 SNS 알림 채널을 구성한다. | `dashboard-mapmory-prod`, `mapmory-prod-alerts` |
+| 대시보드·알림 | 환경별 대시보드와 앱·EC2 알람을 코드로 관리하고, 사람이 CloudShell에서 적용한다. 알림은 SNS로 보낸다. RDS 알람과 `application-error`·`api-5xx-rate` 알람은 아직 콘솔에서 관리한다. | `observability/cloudwatch/`(`alarms.sh`, `dashboard.sh`, `README.md`), 대시보드 `mapmory-<env>-v2` |
 
 애플리케이션 로그와 Prometheus 메트릭의 CloudWatch 수집은 운영 환경에 적용되어 있다.
 CloudWatch 대시보드와 인프라 장애 알림도 적용되어 있다.
@@ -60,7 +60,7 @@ CloudWatch 대시보드와 인프라 장애 알림도 적용되어 있다.
 | 레벨 | 경계 | Mapmory 예시 |
 | --- | --- | --- |
 | `ERROR` | 요청이 서버 내부 또는 의존 시스템 문제로 완료되지 못했고 개발자 조치가 필요하다. 원인 예외를 함께 기록한다. | 미처리 예외, DB·S3 실패, 컨트롤러 반환값 검증 실패, 카카오 장애로 인한 503 |
-| `WARN` | 서버는 동작하지만 보안·용량·반복 발생 여부를 관찰해야 한다. | 폐기된 refresh 토큰 재사용, 재시도 발생, DB 연결 대기 |
+| `WARN` | 서버는 동작하지만 보안·용량·반복 발생 여부를 관찰해야 한다. | 회전된 refresh 토큰 재사용, 재시도 발생, DB 연결 대기 |
 | `INFO` | 정상 흐름 중 운영상 의미 있는 상태 변경이다. | 여행 기록 생성·수정·삭제, 신규 회원 생성, 서버 시작·종료 |
 | `DEBUG` | 예상 가능한 실패 또는 개발 중 필요한 상세 정보다. 운영 기본 설정에서는 출력하지 않는다. | 입력 오류, 리소스 없음, 일반적인 토큰 만료, 내부 분기 결과 |
 
@@ -133,6 +133,9 @@ CloudWatch Agent의 Prometheus-to-CloudWatch 경로는 Histogram을 버리고 Co
 클라이언트 percentile은 태그나 여러 인스턴스 사이에서 합산할 수 없다. 현재는 운영 EC2 한 대의
 URI별 지연을 보는 용도로 사용한다. 다중 인스턴스로 확장할 때는 Histogram을 지원하는 수집·조회
 경로로 전환하거나 지연 시간 집계 방식을 다시 결정한다.
+
+> SLO는 ADR 0031에서 다룬다.
+
 `http.server.requests`의 `uri` 태그는 `MeterFilter.maximumAllowableTags`로 서로 다른 값 50개까지만
 등록한다. 51번째 새로운 URI 값부터는 요청 자체를 막지 않고 해당 메트릭 등록과 측정만 거부한다.
 이 제한은 비정상 URI 유입으로 인한 메모리·시계열 증가를 막는 안전장치이며, URI 템플릿 집계가

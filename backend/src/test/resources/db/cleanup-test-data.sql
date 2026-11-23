@@ -1,9 +1,11 @@
+DELETE FROM orphaned_media;
 DELETE FROM record_media;
 DELETE FROM place_rate_limit_bucket;
 DELETE FROM travel_record_tag;
 DELETE FROM travel_record;
 DELETE FROM tag;
 DELETE FROM refresh_token;
+DELETE FROM refresh_token_family;
 DELETE FROM launch_waitlist;
 DELETE FROM admin_audit_log;
 DELETE FROM service_feedback;

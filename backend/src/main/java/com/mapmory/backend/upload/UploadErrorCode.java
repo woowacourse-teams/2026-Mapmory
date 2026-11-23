@@ -20,6 +20,11 @@ public enum UploadErrorCode implements ErrorCode {
             "파일 개수가 너무 많습니다.",
             "한 번에 업로드할 수 있는 최대 파일 개수를 초과했습니다."
     ),
+    UPLOAD_RATE_LIMITED(
+            ErrorKind.TOO_MANY_REQUESTS,
+            "사진을 너무 많이 올렸습니다.",
+            "올릴 수 있는 사진 수를 넘었습니다. 나중에 다시 저장해 주세요."
+    ),
     MEDIA_NOT_UPLOADED(
             ErrorKind.INVALID_INPUT,
             "업로드되지 않은 이미지입니다.",

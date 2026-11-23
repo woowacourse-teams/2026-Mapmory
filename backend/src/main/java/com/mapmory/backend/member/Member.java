@@ -52,6 +52,10 @@ public class Member extends BaseEntity {
     @Column(name = "promoted_at")
     private LocalDateTime promotedAt;
 
+    // 탈퇴하거나 버려진 뒤 회원의 데이터를 지운 시각. 행은 남긴다. (#435)
+    @Column(name = "purged_at")
+    private LocalDateTime purgedAt;
+
     protected Member() {
     }
 
@@ -199,5 +203,9 @@ public class Member extends BaseEntity {
 
     public LocalDateTime getAbandonedAt() {
         return abandonedAt;
+    }
+
+    public LocalDateTime getPurgedAt() {
+        return purgedAt;
     }
 }

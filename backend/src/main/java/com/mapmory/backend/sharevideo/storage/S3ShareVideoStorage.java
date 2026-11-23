@@ -18,6 +18,7 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
     private final S3Client s3Client;
     private final String bucket;
     private final String keyPrefix;
+    private final S3StorageProperties.Client client;
 
     public S3ShareVideoStorage(
             final S3Client s3Client,
@@ -26,6 +27,7 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
         this.s3Client = s3Client;
         this.bucket = properties.bucket();
         this.keyPrefix = properties.keyPrefix();
+        this.client = properties.client();
     }
 
     @Override
@@ -45,10 +47,14 @@ public class S3ShareVideoStorage implements ShareVideoStorage {
     @Override
     public void uploadAttempt(final String objectKey, final Path videoPath) {
 
+        // 클라이언트 기본 한도는 사진 확인 같은 작은 요청 기준이라, 크기가 큰 영상 업로드에는 따로 긴 한도를 건다.
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(objectKey)
                 .contentType(CONTENT_TYPE)
+                .overrideConfiguration(override -> override
+                        .apiCallAttemptTimeout(client.videoUploadAttemptTimeout())
+                        .apiCallTimeout(client.videoUploadTotalTimeout()))
                 .build();
 
         s3Client.putObject(

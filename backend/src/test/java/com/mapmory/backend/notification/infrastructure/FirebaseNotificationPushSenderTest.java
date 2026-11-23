@@ -22,6 +22,20 @@ class FirebaseNotificationPushSenderTest {
     private final PushMessage message = new PushMessage("test-token", "영상 완성", "영상이 완성됐어요", Map.of("jobId", "15"));
 
     @Test
+    void 완료_알림은_앱의_전용_채널을_지정한다() throws Exception {
+        for (String[] mapping : new String[][] {{"PHOTO_RECORD_COMPLETED", "trip-record-ready"},
+                {"VIDEO_COMPLETED", "share-video-ready"}}) {
+            sender.send(new PushMessage("token", "title", "body", Map.of("type", mapping[0])));
+            org.mockito.ArgumentCaptor<Message> captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+            org.mockito.Mockito.verify(messaging, org.mockito.Mockito.atLeastOnce()).send(captor.capture());
+            Object config = org.springframework.test.util.ReflectionTestUtils.getField(captor.getValue(), "androidConfig");
+            Object notification = org.springframework.test.util.ReflectionTestUtils.getField(config, "notification");
+            assertThat(org.springframework.test.util.ReflectionTestUtils.getField(notification, "channelId"))
+                    .isEqualTo(mapping[1]);
+        }
+    }
+
+    @Test
     void 접수_성공은_ACCEPTED로_분류한다() throws Exception {
         when(messaging.send(any(Message.class))).thenReturn("test-message-id");
 

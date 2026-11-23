@@ -29,7 +29,7 @@ class RefreshTokenReuseMonitor {
     }
 
     /**
-     * 탈취로 보고 회원의 refresh를 모두 폐기했다.
+     * 탈취로 보고 그 세션의 refresh를 모두 폐기했다. (#467)
      *
      * successorUnused가 true면 후속 토큰을 아무도 쓰지 않았다. 소셜 회원이라면 회전 응답 유실로 강제 로그아웃됐을 가능성이 크다.
      */
@@ -37,7 +37,7 @@ class RefreshTokenReuseMonitor {
         withContext(log.atWarn(), reused)
                 .addKeyValue("event", "REFRESH_TOKEN_REUSE_DETECTED")
                 .addKeyValue("successorUnused", successorUnused)
-                .log("폐기된 refresh 토큰이 다시 와 회원의 refresh를 모두 폐기했다");
+                .log("회전된 refresh 토큰이 다시 와 그 세션의 refresh를 모두 폐기했다");
         count(Outcome.REVOKED_ALL, reused.getMember());
     }
 
@@ -49,6 +49,18 @@ class RefreshTokenReuseMonitor {
                 .addKeyValue("event", "REFRESH_TOKEN_LOST_ROTATION_REISSUED")
                 .log("게스트가 회전 응답을 받지 못한 refresh 토큰으로 재발급했다");
         count(Outcome.REISSUED, lost.getMember());
+    }
+
+    /**
+     * 회전 외 이유(로그아웃·승격·버림·탈퇴)로 폐기된 토큰이 다시 왔다. 탈취 신호가 아니므로 다른 토큰은 폐기하지 않았다. (#579)
+     *
+     * 앱이 폐기된 토큰을 버리지 않고 계속 보내는지 빈도를 보기 위해 남긴다.
+     */
+    void revokedPresented(RefreshToken revoked) {
+        withContext(log.atInfo(), revoked)
+                .addKeyValue("event", "REVOKED_REFRESH_TOKEN_PRESENTED")
+                .log("회전 외 이유로 폐기된 refresh 토큰이 다시 왔다");
+        count(Outcome.REVOKED_PRESENTED, revoked.getMember());
     }
 
     // revokedAt은 이번 요청 전에 폐기된 시각이다. 지금과 비교하면 폐기 뒤 얼마 만에 다시 왔는지 알 수 있다.
@@ -76,6 +88,7 @@ class RefreshTokenReuseMonitor {
 
     enum Outcome {
         REVOKED_ALL,
-        REISSUED
+        REISSUED,
+        REVOKED_PRESENTED
     }
 }

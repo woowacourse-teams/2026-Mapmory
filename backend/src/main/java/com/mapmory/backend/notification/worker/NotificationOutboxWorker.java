@@ -1,5 +1,6 @@
 package com.mapmory.backend.notification.worker;
 
+import com.mapmory.backend.notification.application.PushRecipients;
 import com.mapmory.backend.notification.application.port.NotificationPushSender;
 import com.mapmory.backend.notification.application.port.PushMessage;
 import com.mapmory.backend.notification.domain.PushToken;
@@ -15,23 +16,23 @@ import org.springframework.stereotype.Component;
 public class NotificationOutboxWorker {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationOutboxWorker.class);
-    private static final String EVENT_TYPE = "VIDEO_COMPLETED";
+    private static final String[] EVENT_TYPES = {"VIDEO_COMPLETED", "PHOTO_RECORD_COMPLETED"};
 
     private final NotificationOutboxClaimer claimer;
-    private final NotificationRecipientFinder recipientFinder;
+    private final PushRecipients pushRecipients;
     private final NotificationMessageFactory messageFactory;
     private final NotificationPushSender sender;
     private final NotificationOutboxResultService resultService;
 
     public NotificationOutboxWorker(
             final NotificationOutboxClaimer claimer,
-            final NotificationRecipientFinder recipientFinder,
+            final PushRecipients pushRecipients,
             final NotificationMessageFactory messageFactory,
             final NotificationPushSender sender,
             final NotificationOutboxResultService resultService
     ) {
         this.claimer = claimer;
-        this.recipientFinder = recipientFinder;
+        this.pushRecipients = pushRecipients;
         this.messageFactory = messageFactory;
         this.sender = sender;
         this.resultService = resultService;
@@ -39,20 +40,28 @@ public class NotificationOutboxWorker {
 
     @Scheduled(fixedDelayString = "${notification.fcm.poll-delay:3s}", scheduler = "notificationOutboxTaskScheduler")
     public void processNext() {
-        try {
-            claimer.recoverNextExpiredForType(EVENT_TYPE);
-            claimer.claimNextForType(EVENT_TYPE).ifPresent(this::process);
-        } catch (RuntimeException exception) {
-            // 예외 메시지에 수신 토큰이나 외부 응답이 포함될 수 있어 클래스명만 남긴다.
-            log.error("알림 작업 처리 중 오류가 발생했습니다. errorType={}", exception.getClass().getSimpleName());
+        for (String eventType : EVENT_TYPES) {
+            try {
+                claimer.recoverNextExpiredForType(eventType);
+                claimer.claimNextForType(eventType).ifPresent(this::process);
+            } catch (RuntimeException exception) {
+                // 예외 메시지에 수신 토큰이나 외부 응답이 포함될 수 있어 클래스명만 남긴다.
+                log.error("알림 작업 처리 중 오류가 발생했습니다. errorType={}", exception.getClass().getSimpleName());
+            }
         }
     }
 
     private void process(final ClaimedNotification notification) {
-        Optional<PushToken> recipient = recipientFinder.find(notification);
+        Optional<PushToken> recipient = pushRecipients.registeredDevice(notification.memberId(), notification.pushTokenId());
         if (recipient.isEmpty()) {
             recordResult(notification, resultService.markSkipped(
                     notification.outboxId(), notification.claimToken(), "RECIPIENT_NOT_FOUND"));
+            return;
+        }
+
+        if (!recipient.get().allowsCompletion(notification.eventType())) {
+            recordResult(notification, resultService.markSkipped(
+                    notification.outboxId(), notification.claimToken(), "NOTIFICATION_DISABLED"));
             return;
         }
 

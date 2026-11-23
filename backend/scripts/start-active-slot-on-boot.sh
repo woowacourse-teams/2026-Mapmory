@@ -23,3 +23,6 @@ if systemctl is-active --quiet "$inactive_service"; then
 fi
 
 echo "부팅 슬롯 확인 완료: $active_slot ($active_port)"
+
+# 슬롯은 BYPASS로 시작한다. 비활성 슬롯이 멈춰 활성 슬롯 하나만 서비스할 때 캐시를 켠다.
+enable_deployment_cache_when_alone "$active_port" "$inactive_service"

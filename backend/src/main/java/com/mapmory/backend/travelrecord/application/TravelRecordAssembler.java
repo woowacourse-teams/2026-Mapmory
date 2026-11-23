@@ -3,6 +3,7 @@ package com.mapmory.backend.travelrecord.application;
 import com.mapmory.backend.recordmedia.ExpiringUrl;
 import com.mapmory.backend.recordmedia.RecordMediaUrlService;
 import com.mapmory.backend.tag.Tag;
+import com.mapmory.backend.travelrecord.domain.RecordMedia;
 import com.mapmory.backend.travelrecord.domain.RecordedPlace;
 import com.mapmory.backend.travelrecord.domain.TravelRecord;
 import com.mapmory.backend.travelrecord.domain.TravelRecordListMediaSummary;
@@ -119,11 +120,20 @@ public class TravelRecordAssembler {
 
     private List<MediaView> toMediaViews(TravelRecord travelRecord) {
         return travelRecord.getMedia().stream()
-                .map(recordMedia -> new MediaView(
-                        recordMedia,
-                        recordMediaUrlService.createViewUrl(recordMedia.getObjectKey())
-                ))
+                .map(this::toMediaView)
                 .toList();
+    }
+
+    /**
+     * 썸네일이 아직 없으면 썸네일 자리에 원본 URL을 그대로 쓴다. 같은 키를 두 번 서명하지 않는다.
+     */
+    private MediaView toMediaView(RecordMedia recordMedia) {
+        ExpiringUrl viewUrl = recordMediaUrlService.createViewUrl(recordMedia.getObjectKey());
+        String thumbnailObjectKey = recordMedia.getThumbnailObjectKey();
+        if (thumbnailObjectKey.equals(recordMedia.getObjectKey())) {
+            return new MediaView(recordMedia, viewUrl, viewUrl);
+        }
+        return new MediaView(recordMedia, viewUrl, recordMediaUrlService.createViewUrl(thumbnailObjectKey));
     }
 
     /**

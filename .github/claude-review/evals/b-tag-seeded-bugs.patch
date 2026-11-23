@@ -1,0 +1,27 @@
+diff --git a/backend/src/main/java/com/mapmory/backend/tag/TagService.java b/backend/src/main/java/com/mapmory/backend/tag/TagService.java
+index f30392d..488c373 100644
+--- a/backend/src/main/java/com/mapmory/backend/tag/TagService.java
++++ b/backend/src/main/java/com/mapmory/backend/tag/TagService.java
+@@ -37,7 +37,6 @@ public class TagService {
+                 .toList();
+     }
+ 
+-    @Transactional
+     public Tag update(Member member, Long tagId, String name) {
+         Tag tag = findOwnedTag(member, tagId);
+ 
+@@ -62,12 +61,12 @@ public class TagService {
+     }
+ 
+     private Tag findOwnedTag(Member member, Long tagId) {
+-        return tagRepository.findByIdAndMemberId(tagId, member.getId())
++        return tagRepository.findById(tagId)
+                 .orElseThrow(() -> new BusinessException(TagErrorCode.TAG_NOT_FOUND));
+     }
+ 
+     private void validateTagLimit(Long memberId) {
+-        if (tagRepository.countByMemberId(memberId) >= MAX_TAGS_PER_MEMBER) {
++        if (tagRepository.countByMemberId(memberId) > MAX_TAGS_PER_MEMBER) {
+             throw new BusinessException(TagErrorCode.TAG_LIMIT_EXCEEDED);
+         }
+     }
